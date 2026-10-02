@@ -30,6 +30,10 @@ function fakeModule() {
     loadWorkbook: vi.fn().mockResolvedValue(undefined),
     refreshViewport: vi.fn(),
     revealCell: vi.fn().mockResolvedValue(undefined),
+    setCellText: vi.fn(),
+    selectSheet: vi.fn(),
+    setNumberFormat: vi.fn(),
+    setDarkMode: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     getDirtyGeneration: vi.fn(() => 0),
@@ -80,6 +84,16 @@ describe("XlsxGridSurface", () => {
     await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalled());
     rerender(<XlsxGridSurface documentKey="doc-b" host={host} loadModule={async () => module} />);
     await waitFor(() => expect(handle.dispose).toHaveBeenCalled());
+  });
+
+  it("updates theme without discarding the live workbook or undo journal", async () => {
+    const { module, handle } = fakeModule();
+    const { rerender } = render(<XlsxGridSurface documentKey="theme-doc" host={host} loadModule={async () => module} />);
+    await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalledOnce());
+    rerender(<XlsxGridSurface documentKey="theme-doc" host={host} dark loadModule={async () => module} />);
+    expect(handle.setDarkMode).toHaveBeenLastCalledWith(true);
+    expect(handle.dispose).not.toHaveBeenCalled();
+    expect(handle.loadWorkbook).toHaveBeenCalledOnce();
   });
 
   it("shows a typed failure when the artifact cannot load", async () => {

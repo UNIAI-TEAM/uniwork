@@ -1,15 +1,18 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
-import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
 import { XlsxToolbar } from "./xlsx-toolbar";
+import { addressParts, cellEditOperation, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
+import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
+import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
 import type {
   XlsxEditorProps,
   XlsxOpenFailure,
@@ -30,51 +33,6 @@ function unexpectedFailure(documentId: string, error: unknown): XlsxOpenFailure 
 
 function isFailure(outcome: XlsxOpenOutcome): outcome is XlsxOpenFailure {
   return outcome.outcome === "failed";
-}
-
-function isSnapshot(value: unknown): value is XlsxWorkbookSnapshot {
-  if (!value || typeof value !== "object") return false;
-  const sheets = (value as { sheets?: unknown }).sheets;
-  return Array.isArray(sheets) && sheets.every((sheet) => sheet && typeof sheet === "object" && typeof (sheet as { name?: unknown }).name === "string");
-}
-
-function cellText(cell: XlsxCellState | undefined): string {
-  if (!cell) return "";
-  if (cell.formula !== undefined) return cell.formula;
-  return cell.value === null ? "" : String(cell.value);
-}
-
-function cellEditOperation(sheet: string, address: string, text: string): { op: "set_cell"; target: { sheet: string; cell: string }; attributes: { value: XlsxCellState["value"] } | { formula: string } } {
-  if (text.startsWith("=")) return { op: "set_cell", target: { sheet, cell: address }, attributes: { formula: text } };
-  if (text === "") return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: null } };
-  if (text === "TRUE" || text === "FALSE") return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: text === "TRUE" } };
-  const number = Number(text);
-  if (text.trim() !== "" && Number.isFinite(number)) return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: number } };
-  return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: text } };
-}
-
-function addressParts(address: string): { row: number; column: number } | null {
-  const match = /^([A-Za-z]{1,3})([1-9][0-9]*)$/.exec(address);
-  if (!match) return null;
-  let column = 0;
-  for (const char of match[1]!.toUpperCase()) column = column * 26 + char.charCodeAt(0) - 64;
-  return { row: Number(match[2]) - 1, column: column - 1 };
-}
-
-function columnLabel(column: number): string {
-  let number = column + 1;
-  let result = "";
-  while (number > 0) {
-    result = String.fromCharCode(65 + ((number - 1) % 26)) + result;
-    number = Math.floor((number - 1) / 26);
-  }
-  return result;
-}
-
-function snapshotForEditor<TSnapshot>(editor: XlsxEditorProps<TSnapshot>["editor"], outcome: XlsxOpenOutcome): XlsxWorkbookSnapshot | null {
-  if (!isFailure(outcome) && isSnapshot(outcome.snapshot)) return outcome.snapshot;
-  const candidate = editor.getWorkbookSnapshot?.();
-  return isSnapshot(candidate) ? candidate : null;
 }
 
 /** XLSX format view. The host supplies the G2 browser adapter through the
@@ -110,12 +68,13 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const sheetTabsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<XlsxGridHandle | null>(null);
   const [gridReady, setGridReady] = useState(false);
+  const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
   const translationRef = useRef(t);
   const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
   translationRef.current = t;
   sessionPropsRef.current = { editor, open, coordinator, capability, onOpen };
 
-  const readOnly = permissions.canEdit === false || (capability !== undefined && capability.status !== "available");
+  const readOnly = permissions.canEdit === false || rendererHost?.file.readOnly === true || (capability !== undefined && capability.status !== "available");
   const effectiveTitle = title ?? t("office.xlsx.title");
   const activeSheetModel = snapshot?.sheets.find((sheet) => sheet.name === activeSheet) ?? snapshot?.sheets[0];
   const activeCell = selection && activeSheetModel?.name === selection.sheet ? activeSheetModel.cells[selection.address] : undefined;
@@ -126,6 +85,13 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     const next = editor.getWorkbookSnapshot?.();
     if (isSnapshot(next)) setSnapshot(next);
   }, [editor]);
+  const gridEdits = useXlsxGridEdits(documentKey, editor, coordinator, rendererHost, canEdit, refreshSnapshot);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setCoordinatorState(coordinator.getState());
@@ -172,6 +138,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       setViewState("opening");
       setFailure(null);
       setSnapshot(null);
+      setGridReady(false);
       setRecalcError(null);
       setRecalcFresh(false);
 
@@ -232,7 +199,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   useEffect(() => {
     setFormulaDraft(cellText(activeCell));
-  }, [activeCell, selection?.address]);
+  }, [activeCell, selection?.address, selection?.sheet]);
 
   const selectCell = useCallback((next: XlsxSelection) => {
     setSelection(next);
@@ -243,6 +210,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   const selectSheet = useCallback((sheetName: string) => {
     setActiveSheet(sheetName);
+    const rendererSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === sheetName);
+    if (gridReady && rendererSheet) { gridRef.current?.selectSheet(rendererSheet.id); return; }
     if (selection?.sheet === sheetName) return;
     const sheet = snapshot?.sheets.find((candidate) => candidate.name === sheetName);
     const firstAddress = sheet
@@ -255,7 +224,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     setSelection(next);
     onSelectionChange?.(next);
     if (next) editor.selection?.setSelection?.(next);
-  }, [editor.selection, onSelectionChange, selection?.sheet, snapshot]);
+  }, [editor.selection, gridReady, onSelectionChange, rendererHost, selection?.sheet, snapshot]);
 
   const markDirty = useCallback(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
@@ -265,34 +234,46 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const commitCell = useCallback(async () => {
     if (!canEdit || !selection || formulaDraft === cellText(activeCell)) return;
     const text = formulaDraft;
+    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
+    const position = addressParts(selection.address);
+    if (gridReady && gridSheet && position) {
+      gridRef.current?.setCellText(gridSheet.id, position.row, position.column, text);
+      await gridEdits.flush();
+      return;
+    }
     const op = cellEditOperation(selection.sheet, selection.address, text);
     await editor.edit?.([op]);
     markDirty();
     refreshSnapshot();
-  }, [activeCell, canEdit, editor, formulaDraft, markDirty, refreshSnapshot, selection]);
+  }, [activeCell, canEdit, editor, formulaDraft, gridEdits, gridReady, markDirty, refreshSnapshot, rendererHost, selection]);
 
   const undo = useCallback(() => {
     if (readOnly) return;
     // The vendored grid owns the live undo stack once it is mounted; the
     // adapter handle is the fallback for hosts without a render model.
-    if (gridRef.current) gridRef.current.undo();
-    else editor.undo?.();
+    if (gridReady) { gridRef.current?.undo(); return; }
+    editor.undo?.();
     markDirty();
     refreshSnapshot();
-  }, [editor, markDirty, readOnly, refreshSnapshot]);
+  }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
 
   const redo = useCallback(() => {
     if (readOnly) return;
-    if (gridRef.current) gridRef.current.redo();
-    else editor.redo?.();
+    if (gridReady) { gridRef.current?.redo(); return; }
+    editor.redo?.();
     markDirty();
     refreshSnapshot();
-  }, [editor, markDirty, readOnly, refreshSnapshot]);
+  }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;
-    void coordinator.save(entryPoint);
-  }, [coordinator, readOnly, viewState]);
+    if (!rendererHost) { void coordinator.save(entryPoint); return; }
+    void (async () => {
+      await commitCell();
+      await gridEdits.flush();
+      await coordinator.save(entryPoint);
+    })().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
+  }, [commitCell, coordinator, gridEdits, readOnly, rendererHost, viewState]);
 
   const recalculate = useCallback(async () => {
     if (!recalcController || readOnly || recalcProgress !== null) return;
@@ -336,18 +317,25 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   const copy = useCallback(async () => {
     if (!selection || permissions.canCopy === false || !editor.clipboard?.writeText) return;
-    await editor.clipboard.writeText(cellText(activeCell));
-  }, [activeCell, editor.clipboard, permissions.canCopy, selection]);
+    await editor.clipboard.writeText(selectionClipboardText(snapshot, selection));
+  }, [editor.clipboard, permissions.canCopy, selection, snapshot]);
 
   const paste = useCallback(async () => {
     if (!selection || !canEdit || permissions.canPaste === false || !editor.clipboard?.readText) return;
     const text = await editor.clipboard.readText();
-    setFormulaDraft(text);
-    const op = cellEditOperation(selection.sheet, selection.address, text);
-    await editor.edit?.([op]);
+    const cells = clipboardCells(selection, text);
+    setFormulaDraft(cells[0]?.text ?? "");
+    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
+    const position = addressParts(selection.address);
+    if (gridReady && gridSheet && position) {
+      for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
+      await gridEdits.flush();
+      return;
+    }
+    await editor.edit?.(cells.map((cell) => cellEditOperation(selection.sheet, toA1Address(cell.row, cell.column), cell.text)));
     markDirty();
     refreshSnapshot();
-  }, [canEdit, editor, markDirty, permissions.canPaste, refreshSnapshot, selection]);
+  }, [canEdit, editor, gridEdits, gridReady, markDirty, permissions.canPaste, refreshSnapshot, rendererHost, selection]);
 
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -357,10 +345,14 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     if (key === "s") {
       event.preventDefault();
       save("shortcut");
-    } else if (key === "c" && !(event.target instanceof HTMLInputElement)) {
+    } else if (gridReady && event.target instanceof HTMLElement && event.target.closest(".xlsx-surface")) {
+      // Univer owns its cell-editor and range shortcuts; bubbling must not
+      // execute a second undo or overwrite a multi-cell paste.
+      return;
+    } else if (key === "c" && !gridReady && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
       void copy();
-    } else if (key === "v" && !(event.target instanceof HTMLInputElement)) {
+    } else if (key === "v" && !gridReady && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
       void paste();
     } else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) {
@@ -370,7 +362,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       event.preventDefault();
       redo();
     }
-  }, [copy, paste, redo, save, undo]);
+  }, [copy, gridReady, paste, redo, save, undo]);
 
   const sheets = snapshot?.sheets ?? [];
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
@@ -395,19 +387,22 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             dirty={dirty}
             saving={saving}
             readOnly={readOnly}
-            permissions={permissions}
+            permissions={{ ...permissions, canCopy: permissions.canCopy !== false && typeof editor.clipboard?.writeText === "function", canPaste: permissions.canPaste !== false && typeof editor.clipboard?.readText === "function" }}
             selection={selection}
             canUndo={gridReady || typeof editor.undo === "function"}
             canRedo={gridReady || typeof editor.redo === "function"}
             canRecalculate={recalcController !== undefined}
+            canFormat={gridReady && selection !== null}
+            onNumberFormat={() => gridRef.current?.setNumberFormat("0.00")}
             recalculating={recalcProgress !== null}
             onUndo={undo}
             onRedo={redo}
             onRecalculate={recalculate}
-            onCopy={() => void copy()}
-            onPaste={() => void paste()}
+            onCopy={() => { void copy().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
+            onPaste={() => { void paste().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
             onShowSheets={() => sheetTabsRef.current?.focus()}
             onSave={() => save("button")}
+            onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
           />
           {recalcProgress !== null ? (
             <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
@@ -417,6 +412,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             </div>
           ) : null}
           {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
+          {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
           {recalcFresh ? <p className="sr-only" role="status">{t("office.xlsx.recalc.fresh")}</p> : null}
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
             <div ref={sheetTabsRef} tabIndex={-1} className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
@@ -427,15 +423,16 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             </div>
             <div className="flex items-center gap-2 border-b border-border bg-muted/10 px-3 py-2">
               <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">{t("office.xlsx.formula.label")}</label>
-              <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => void commitCell()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell(); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
+              <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
             </div>
             {rendererHost ? (
               <XlsxGridSurface
                 ref={gridRef}
                 documentKey={documentKey}
                 host={rendererHost}
-                dark={typeof document !== "undefined" && document.documentElement.classList.contains("dark")}
-                onDirty={markDirty}
+                dark={dark}
+                readOnly={readOnly || !canEdit}
+                onEdits={gridEdits.onEdits}
                 onReady={() => setGridReady(true)}
                 onFailure={(message) => {
                   const failureValue: XlsxOpenFailure = {
@@ -450,6 +447,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 }}
                 onSelectionChange={(next) => {
                   if (!next) {
+                    setSelection(null);
                     onSelectionChange?.(null);
                     return;
                   }
@@ -463,6 +461,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   };
                   setSelection(nextSelection);
                   setActiveSheet(nextSelection.sheet);
+                  editor.selection?.setSelection?.(nextSelection);
                   onSelectionChange?.(nextSelection);
                 }}
               />

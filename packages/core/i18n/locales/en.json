@@ -7096,7 +7096,7 @@
       },
       "commands": {
         "sheets": "Sheets",
-        "numberFormat": "Number format (engine gap)",
+        "numberFormat": "Number format",
         "chart": "Chart (engine gap)"
       },
       "selection": {
@@ -7147,7 +7147,8 @@
         "not_office_file": "The selected file is not an OOXML XLSX workbook.",
         "engine_error": "The XLSX engine could not open this workbook.",
         "capabilityUnavailable": "XLSX editing is not available for this engine build.",
-        "rendererFailed": "The workbook renderer could not be loaded."
+        "rendererFailed": "The workbook renderer could not be loaded.",
+        "editFailed": "This edit could not be applied. Reopen the workbook before saving."
       },
       "editor": {
         "appClosureActive": "{count} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",

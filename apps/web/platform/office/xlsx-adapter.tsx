@@ -3,6 +3,8 @@
 import { createElement, useEffect, useState, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
+import { officeSaveReceiptSchema } from "@uniwork/core/office";
+import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
   OfficeIdentity,
@@ -40,7 +42,7 @@ export interface XlsxSessionRuntime {
    * recovery choice. A runtime that cannot restore must omit this method so
    * the host leaves the recovery action disabled rather than claiming success. */
   restore?(documentModelRef: string, snapshot: XlsxWorkbookSnapshot): Promise<void> | void;
-  serialize(documentModelRef: string): Promise<XlsxRuntimeSerializedOutput>;
+  serialize(documentModelRef: string, input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot>; signal?: AbortSignal }): Promise<XlsxRuntimeSerializedOutput>;
   recalculate?(
     documentModelRef: string,
     signal: AbortSignal,
@@ -48,7 +50,7 @@ export interface XlsxSessionRuntime {
   ): Promise<XlsxRecalcResult>;
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
-  setBaseRevision?(revision: string): void;
+  setBaseRevision?(revision: string, intentId: string): void;
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -141,21 +143,12 @@ export function createXlsxDocumentsTransport(options: { documentId: string; vers
 export interface XlsxSaveTransportOptions {
   documents: XlsxDocumentsTransport;
   documentId: string;
-  serialize?(input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot> }): Promise<XlsxRuntimeSerializedOutput>;
+  serialize?(input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot>; signal?: AbortSignal }): Promise<XlsxRuntimeSerializedOutput>;
   engineName?: string;
   engineVersion?: string;
   contractVersion?: string;
   protocolVersion?: string;
   runtime?: XlsxSessionRuntime;
-}
-
-function bytesOf(value: unknown): Uint8Array {
-  if (value instanceof Uint8Array) return new Uint8Array(value);
-  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
-  if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
-  }
-  throw new Error("xlsx_serialized_output_bytes_invalid");
 }
 
 function toBlob(bytes: Uint8Array): Blob {
@@ -190,14 +183,24 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
   const contractVersion = options.contractVersion ?? "unknown";
   const protocolVersion = options.protocolVersion ?? "unknown";
   const outputs = new Map<string, OfficeSerializedOutput>();
+  const controllers = new Map<string, AbortController>();
 
   return {
     async serialize({ intent, snapshot }) {
       if (!options.serialize) throw new Error(`xlsx_runtime_not_bound:${intent.intentId}`);
-      const out = await options.serialize({ intentId: intent.intentId, snapshot });
-      const bytes = bytesOf(out.bytes);
-      if (bytes.byteLength === 0 || !out.checksum) throw new Error("malformed_serialized_output");
-      return { data: bytes, checksumSha256: out.checksum, sizeBytes: bytes.byteLength, format: "xlsx", ...(out.warnings ? { warnings: out.warnings } : {}) };
+      const existing = outputs.get(intent.intentId);
+      if (existing) return { ...existing, data: bytesOf(existing.data) };
+      const controller = new AbortController();
+      controllers.set(intent.intentId, controller);
+      try {
+        const out = await options.serialize({ intentId: intent.intentId, snapshot, signal: controller.signal });
+        controller.signal.throwIfAborted();
+        const bytes = bytesOf(out.bytes);
+        if (bytes.byteLength === 0 || !out.checksum) throw new Error("malformed_serialized_output");
+        const output: OfficeSerializedOutput = { data: bytes, checksumSha256: out.checksum, sizeBytes: bytes.byteLength, format: "xlsx", ...(out.warnings ? { warnings: out.warnings } : {}) };
+        outputs.set(intent.intentId, output);
+        return { ...output, data: bytesOf(bytes) };
+      } finally { controllers.delete(intent.intentId); }
     },
     async upload({ intent, output }) {
       if (output.format !== "xlsx") throw new Error("serialized_format_mismatch");
@@ -207,7 +210,6 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       if (receipt.sizeBytes !== data.byteLength || receipt.checksumSha256 !== output.checksumSha256) {
         throw new Error("upload_checksum_mismatch");
       }
-      outputs.set(intent.intentId, output);
       return receipt;
     },
     async commit({ intent, upload }) {
@@ -217,7 +219,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         idempotencyKey: intent.idempotencyKey,
       });
       const version = result.version;
-      if (!version?.id || !result.document?.id || !result.document.revision || result.document.id !== options.documentId) {
+      if (!version?.id || !result.document?.id || !/^\d+$/.test(result.document.revision) || result.document.id !== options.documentId || BigInt(result.document.revision) <= BigInt(intent.identity.baseRevision)) {
         throw new Error("malformed_commit_receipt");
       }
       const output = outputs.get(intent.intentId);
@@ -225,9 +227,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       const checksum = version.checksum_sha256 ?? output.checksumSha256;
       const sizeBytes = version.size_bytes ?? output.sizeBytes;
       if (checksum !== output.checksumSha256 || sizeBytes !== output.sizeBytes) throw new Error("commit_checksum_mismatch");
-      outputs.delete(intent.intentId);
-      options.runtime?.setBaseRevision?.(result.document.revision);
-      return {
+      const receipt = officeSaveReceiptSchema.parse({
         intentId: intent.intentId,
         idempotencyKey: intent.idempotencyKey,
         documentId: result.document.id,
@@ -239,32 +239,26 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         engineVersion: version.engine_version ?? engineVersion,
         contractVersion: version.contract_version ?? contractVersion,
         protocolVersion: version.protocol_version ?? protocolVersion,
-      } satisfies OfficeSaveReceipt;
+      } satisfies OfficeSaveReceipt);
+      options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
+      outputs.delete(intent.intentId);
+      return receipt;
     },
     async reconcile({ intent }) {
-      return options.documents.reconcile?.({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: options.documentId }) ?? null;
+      const parsed = officeSaveReceiptSchema.safeParse(await options.documents.reconcile?.({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: options.documentId }));
+      if (!parsed.success) return null;
+      const receipt = parsed.data;
+      if (receipt.intentId !== intent.intentId || receipt.idempotencyKey !== intent.idempotencyKey || receipt.documentId !== options.documentId || BigInt(receipt.revision) <= BigInt(intent.identity.baseRevision)) return null;
+      const output = outputs.get(intent.intentId);
+      if (output && (receipt.checksumSha256 !== output.checksumSha256 || receipt.sizeBytes !== output.sizeBytes)) throw new Error("commit_checksum_mismatch");
+      options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
+      outputs.delete(intent.intentId);
+      return receipt;
     },
     async cancel({ intent }) {
-      outputs.delete(intent.intentId);
+      controllers.get(intent.intentId)?.abort();
     },
   };
-}
-
-function cloneSnapshot(snapshot: XlsxWorkbookSnapshot): XlsxWorkbookSnapshot {
-  return {
-    revision: snapshot.revision,
-    sheets: snapshot.sheets.map((sheet) => ({
-      id: sheet.id,
-      name: sheet.name,
-      cells: Object.fromEntries(Object.entries(sheet.cells).map(([address, cell]) => [address, { ...cell }])),
-    })),
-  };
-}
-
-function stableJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
 }
 
 interface XlsxRuntimeOpenError extends Error {
@@ -277,23 +271,6 @@ function runtimeOpenError(outcome: XlsxRuntimeOpenResult): XlsxRuntimeOpenError 
   error.failureClass = outcome.failure_class;
   error.engineError = outcome.engine_error;
   return error;
-}
-
-async function fingerprint(snapshot: XlsxWorkbookSnapshot): Promise<string> {
-  const bytes = new TextEncoder().encode(stableJson(snapshot));
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) throw new Error("xlsx_fingerprint_unavailable");
-  const digest = await subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/** Content digest for the renderer's workbook identity (it only seeds the
- *  Univer unit id); a host without WebCrypto falls back to a byte count. */
-async function digestHex(bytes: Uint8Array): Promise<string> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) return `bytes-${bytes.byteLength}`;
-  const digest = await subtle.digest("SHA-256", bytes.slice().buffer);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** The renderer host is only known after the async open; the view wrapper
@@ -403,7 +380,9 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     async captureSnapshot() {
       if (!currentSnapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = cloneSnapshot(currentSnapshot);
-      return { generation, fingerprint: await fingerprint(value), value, ...(serialized ? { checksumSha256: serialized.checksum, sizeBytes: serialized.bytes.byteLength } : {}) };
+      const capturedGeneration = generation;
+      const output = serialized;
+      return { generation: capturedGeneration, fingerprint: await fingerprint(value), value, ...(output ? { checksumSha256: output.checksum, sizeBytes: output.bytes.byteLength } : {}) };
     },
     async dispose() {
       if (disposed) return;
@@ -470,10 +449,10 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     contractVersion: options.capability.contractRevision,
     protocolVersion: "1",
     runtime: options.runtime,
-    serialize: async () => {
+    serialize: async (input) => {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
-      const out = await options.runtime.serialize(modelRef);
-      serialized = { bytes: bytesOf(out.bytes), checksum: out.checksum, warnings: out.warnings };
+      const out = await options.runtime.serialize(modelRef, input);
+      if (!disposed && generation === input.snapshot.generation) serialized = { bytes: bytesOf(out.bytes), checksum: out.checksum, warnings: out.warnings };
       return out;
     },
   });

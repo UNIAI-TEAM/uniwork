@@ -9,6 +9,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { RendererRangeResult, RendererWorkbookFile } from "./xlsx-render-model-bridge";
+import type { XlsxGridCellEdit } from "./xlsx-edit-bridge";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -29,6 +30,10 @@ export interface XlsxGridHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
+  setCellText(sheetId: string, row: number, column: number, text: string): void;
+  selectSheet(sheetId: string): void;
+  setNumberFormat(pattern: string): void;
+  setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
   getDirtyGeneration(): number;
@@ -40,8 +45,10 @@ export interface XlsxRendererModule {
     container: HTMLElement;
     host: XlsxGridHostPort;
     dark?: boolean;
+    readOnly?: boolean;
     onMessage?: (message: string) => void;
     onDirty?: () => void;
+    onEdits?: (edits: XlsxGridCellEdit[]) => void;
     onSelectionChange?: (selection: XlsxGridSelection | null) => void;
   }): XlsxGridHandle;
   installXlsxRendererStyles(doc?: Document): void;
@@ -56,8 +63,10 @@ export interface XlsxGridSurfaceProps {
   documentKey: string;
   host: XlsxGridHostPort;
   dark?: boolean;
+  readOnly?: boolean;
   className?: string;
   onDirty?: () => void;
+  onEdits?: (edits: XlsxGridCellEdit[]) => void;
   onMessage?: (message: string) => void;
   onSelectionChange?: (selection: XlsxGridSelection | null) => void;
   onReady?: () => void;
@@ -76,8 +85,10 @@ export function XlsxGridSurface({
   documentKey,
   host,
   dark = false,
+  readOnly = false,
   className,
   onDirty,
+  onEdits,
   onMessage,
   onSelectionChange,
   onReady,
@@ -88,8 +99,10 @@ export function XlsxGridSurface({
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<XlsxGridHandle | null>(null);
-  const callbacksRef = useRef({ onDirty, onMessage, onSelectionChange, onReady, onFailure, loadModule });
-  callbacksRef.current = { onDirty, onMessage, onSelectionChange, onReady, onFailure, loadModule };
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
+  const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule });
+  callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule };
   const [failed, setFailed] = useState(false);
 
   useImperativeHandle(
@@ -98,6 +111,10 @@ export function XlsxGridSurface({
       loadWorkbook: (file, options) => handleRef.current?.loadWorkbook(file, options) ?? Promise.reject(new Error("xlsx_renderer_not_ready")),
       refreshViewport: () => handleRef.current?.refreshViewport(),
       revealCell: (sheetId, row, column) => handleRef.current?.revealCell(sheetId, row, column) ?? Promise.resolve(),
+      setCellText: (sheetId, row, column, text) => handleRef.current?.setCellText(sheetId, row, column, text),
+      selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
+      setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
+      setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
@@ -122,9 +139,11 @@ export function XlsxGridSurface({
         const handle = module.createXlsxRenderer({
           container,
           host,
-          dark,
+          dark: darkRef.current,
+          readOnly,
           onMessage: (message) => callbacksRef.current.onMessage?.(message),
           onDirty: () => callbacksRef.current.onDirty?.(),
+          onEdits: (edits) => callbacksRef.current.onEdits?.(edits),
           onSelectionChange: (selection) => callbacksRef.current.onSelectionChange?.(selection),
         });
         if (disposed) {
@@ -134,6 +153,7 @@ export function XlsxGridSurface({
         handleRef.current = handle;
         await handle.loadWorkbook(host.file);
         if (disposed) return;
+        handle.setDarkMode(darkRef.current);
         callbacksRef.current.onReady?.();
       } catch (error) {
         if (disposed) return;
@@ -146,7 +166,10 @@ export function XlsxGridSurface({
       handleRef.current?.dispose();
       handleRef.current = null;
     };
-  }, [documentKey, dark, host]);
+    // Theme switches preserve the live workbook and undo journal.
+  }, [documentKey, host, readOnly]);
+
+  useEffect(() => { handleRef.current?.setDarkMode(dark); }, [dark]);
 
   return (
     <div

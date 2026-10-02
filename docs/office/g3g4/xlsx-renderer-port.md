@@ -1,9 +1,9 @@
 # G3-05c — XLSX renderer port design (contract-first checkpoint)
 
-> Status: design, pending Advisor go. No port code exists yet. This is the
-> contract-first deliverable the brief (`g3-05c-xlsx-renderer.md`) requires
-> before any code moves. Every number in section 1 was re-measured at the pin
-> on 2026-10-02; the method is in section 9.
+> Status: implemented following Advisor GO `msg_4c498181afa9`; independent
+> final-commit testing, review and corpus measurement determine acceptance.
+> The inventory and design estimates below preserve the contract-first
+> checkpoint. Section 4.1 records the delivered bridge and later decisions.
 
 Issue UNI-824 (parent UNI-659). Source oracle: genoffice pin
 `09485f884dc845cf3bf27fb7edfe489f9d457aad` (read-only,
@@ -341,6 +341,52 @@ the model carries them, never an enabled command.
 - **Drafts**: unchanged, because the snapshot mirror is. A dirty generation
   from the journal keeps the 2 s local checkpoint and the no-autosave rule.
 
+### 4.1 Delivered integration and binding clarifications
+
+Read model A supplies the rich render model through `open:xlsx`; the measured
+large fixture's model is 8.39 MB, so no browser-worker fallback was required.
+The controller emits only user cell value/formula/style mutations, including
+undo/redo. The shared view maps sheet IDs and coordinates to the existing G2
+`set_cell`/`clear_cell` vocabulary and orders them before Save. Loading,
+viewport installs, formula-engine mutations and selections do not mark dirty.
+Unsupported structural and sheet lifecycle commands are refused before mutation.
+
+Save captures an immutable operation prefix for its intent, reuses successful
+candidate bytes on upload/commit retry, and retires the prefix only after a
+verified commit or reconciliation. Typing N+1 remains dirty and recoverable;
+protected drafts rebase their encrypted snapshot to the committed revision.
+G2 folds content and style fields independently so either edit order survives
+serialization. Native recalculation runs during Save, with indeterminate
+progress and cancellation; failed or timed-out jobs retain the edited model.
+The standalone Recalculate action is omitted because the bound edit job returns
+workbook bytes without a native-result receipt suitable for updating the live
+model. The Advisor accepted this omission; no fabricated result is displayed.
+
+Toolbar/formula bar/sheet tabs use UniWork's translated shell. Formula values
+retain their numeric/boolean/formula types, number format invokes a real grid
+command, and clipboard ranges map to bounded cell operations. Theme changes
+preserve the live model and undo journal. Native read-only loading is trusted
+under journal suppression; default-deny command and edit-start guards enforce
+read-only interaction while permitting those loads.
+
+The user accepted the XLSX measurement tolerance at 10:25 on 2026-10-02 in
+`office-g3g4/g3-d3-xlsx-decision-2026-10-02.md`. Product chrome uses UniWork font
+tokens and is excluded from genoffice chrome comparison. Grid cells preserve
+the workbook's declared cell/theme family; Carlito OFL substitutes only for
+declared, unavailable Calibri. A font audit records declared-to-used mapping,
+with unresolved fallback kept visible for visual verification. Column widths
+are compared against genoffice, and `large.xlsx` must open, scroll, edit, Save
+and reopen. Measurements remain evidence for the user's fidelity sign-off.
+
+The root `pnpm.overrides` nanoid security override fixes the transitive advisory
+GHSA-28wg-ghj8-5hjv (`>=4.0.0 <5.1.16` → `5.1.16`). It does not add a duplicate
+shared dependency declaration or rewrite the pinned upstream lockfile; shared
+package versions remain in the workspace catalog. Knip's `@genoffice/ui`
+alias exception covers the build plugin's pinned OFL font resolver. The root
+renderer tests load three pinned Univer packages with `createRequire` from
+`office-upstream`; their explicit root exceptions avoid duplicate dependency
+declarations while build and contract tests verify the actual resolution.
+
 ## 5. Virtualisation strategy
 
 genoffice streams: `read_range` windows per viewport with
@@ -399,7 +445,7 @@ meta-package), feature-flag mount, route-lazy chunk, no first-load entry.
   web build, node --test scripts, `pnpm audit --audit-level high`, 500-line
   rule, desktop checks if the editor API changes.
 
-## 8. Open questions (go/no-go gate)
+## 8. Original go/no-go questions (resolved by Advisor GO)
 
 1. **Read-model source.** Confirm **A** (G2 gateway-lane rich read through the
    existing open payload) with **B** (browser worker, same reader) as the
@@ -443,4 +489,6 @@ meta-package), feature-flag mount, route-lazy chunk, no first-load entry.
    pivot); G3-D3 `features.xlsx` 4,031 B, `styled2000.xlsx` 97,790 B,
    `large.xlsx` 1,059,920 B (20k×10).
 
-No port code is written until the Advisor answers section 8.
+Advisor GO resolved section 8 before porting; section 4.1 records subsequent
+save and font clarifications. Final evidence is stored in the authorized
+`reports/g3-05c-xlsx-renderer/` and `reports/g3-d3-xlsx-r2/` run folders.

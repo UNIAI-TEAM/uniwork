@@ -20,6 +20,6 @@ export function setModuleLang(_lang: "en" | "vi" | string): void {
 
 export const t: TFunc = (key, params) => {
   const full = key.startsWith("office.xlsx.editor.") ? key : `office.xlsx.editor.${key}`;
-  const translated = i18next.t(full, params as never);
+  const translated = i18next.t(full, { ...params, returnObjects: false });
   return translated && translated !== full ? translated : key;
 };

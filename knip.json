@@ -20,7 +20,10 @@
         "k6",
         "sharp",
         "jszip",
-        "esbuild"
+        "esbuild",
+        "@univerjs/core",
+        "@univerjs/sheets",
+        "@univerjs/preset-sheets-core"
       ]
     },
     "apps/web": {
@@ -71,6 +74,7 @@
       ],
       "ignoreDependencies": [
         "@univerjs/*",
+        "@genoffice/ui",
         "numfmt"
       ]
     },

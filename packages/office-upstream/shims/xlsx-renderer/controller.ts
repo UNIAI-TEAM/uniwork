@@ -5,7 +5,6 @@
 // the shared XlsxEditor mounts. No vendored file is edited here.
 import {
   BooleanNumber,
-  IUndoRedoService,
   LocaleType,
   ThemeService,
   mergeLocales,
@@ -30,6 +29,12 @@ import UniverPresetSheetsTableEnUS from "@univerjs/preset-sheets-table/locales/e
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
 import type { IRange } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
+import { canEditRange, canExecuteCommand } from "./command-policy";
+import { parseCellText } from "./cell-input";
+import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
+import { ingestCellMutation, type XlsxRendererCellEdit } from "./edits";
+import { t } from "./locale";
+import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
 import { installAutofitWrapBudget } from "../../upstream/apps/sheets/src/renderer/autofit-wrap-budget";
 import { installCellClipAnchorFix } from "../../upstream/apps/sheets/src/renderer/cell-clip-anchor-fix";
@@ -53,15 +58,14 @@ import {
   loadVisibleRange,
   loadWorkbookSkeleton,
   revealCellBelowFreeze,
-  type UniverRuntime,
 } from "../../upstream/apps/sheets/src/renderer/univer-sync";
 import {
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
   journalSuppression,
   loadAutoHeightSuppression,
-  lazySheetScreenExtent,
   type LazyWorkbookState,
+  type UniverRuntime,
 } from "../../upstream/apps/sheets/src/renderer/univer-state";
 
 /** The host surface the vendored loaders call through `window.desktopApi`. */
@@ -80,8 +84,10 @@ export interface XlsxRendererOptions {
   container: HTMLElement;
   host: XlsxRendererHost;
   dark?: boolean;
+  readOnly?: boolean;
   onMessage?: (message: string) => void;
   onDirty?: () => void;
+  onEdits?: (edits: XlsxRendererCellEdit[]) => void;
   onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
 }
 
@@ -94,9 +100,14 @@ export interface XlsxRendererHandle {
   refreshViewport(): void;
   /** Scroll so the given cell is visible (freeze-aware). */
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
+  setCellText(sheetId: string, row: number, column: number, text: string): void;
+  selectSheet(sheetId: string): void;
+  setNumberFormat(pattern: string): void;
+  setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
   getDirtyGeneration(): number;
+  getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
   dispose(): void;
 }
@@ -221,18 +232,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     presets: [
       UniverSheetsCorePreset({
         container: univerHost.id,
-        header: true,
+        header: false,
         toolbar: false,
-        contextMenu: true,
-        formulaBar: true,
-        footer: {
-          sheetBar: true,
-          statisticBar: true,
-          menus: true,
-          zoomSlider: false,
-        },
-        statusBarStatistic: true,
-        sheets: { isRowStylePrecedeColumnStyle: true },
+        contextMenu: false,
+        formulaBar: false,
+        footer: false,
+        statusBarStatistic: false,
+        sheets: { isRowStylePrecedeColumnStyle: true, disableForceStringAlert: true, disableForceStringMark: true },
+        formula: { functionScreenTips: false },
       }),
       UniverSheetsDrawingPreset(),
       UniverSheetsConditionalFormattingPreset(),
@@ -271,9 +278,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const lazyWorkbookRef: { current: LazyWorkbookState | null } = { current: null };
   let dirtyGeneration = 0;
+  let fontMappings: XlsxRendererFontMapping[] = [];
+  let disposed = false;
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
-  const undoRedoService = runtime.univer.__getInjector().get(IUndoRedoService);
 
   const refreshViewport = () => {
     const state = lazyWorkbookRef.current;
@@ -281,38 +289,66 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (!state || !active) return;
     void loadVisibleRange(runtime, lazyWorkbookRef, active, setMessage).catch(() => undefined);
   };
+  const notifySelection = () => {
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const sheet = workbook?.getActiveSheet();
+    const range = workbook?.getActiveRange()?.getRange();
+    options.onSelectionChange?.(sheet && range ? { sheetId: sheet.getSheetId(), range } : null);
+  };
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
+    if (journalSuppression.active) return;
+    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) event.cancel = true;
+  }));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
+    if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
+      startRow: event.row, endRow: event.row, startColumn: event.column, endColumn: event.column,
+    })) {
+      event.cancel = true;
+      if (!options.readOnly) setMessage(t("appAreaStreaming"));
+    }
+  }));
+  // Rich clipboard payloads can include merges, dimensions and drawings.
+  // Refuse them before any cell is written; plain text paste remains supported.
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeClipboardPaste, (event) => {
+    if (options.readOnly || event.html) event.cancel = true;
+  }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => refreshViewport()));
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, () =>
-      window.setTimeout(refreshViewport, 0),
+      window.setTimeout(() => { refreshViewport(); notifySelection(); }, 0),
     ),
   );
   disposables.push(
-    runtime.univerAPI.addEvent(runtime.univerAPI.Event.SelectionChanged, () => {
-      const workbook = runtime.univerAPI.getActiveWorkbook();
-      const sheet = workbook?.getActiveSheet();
-      const range = workbook?.getActiveRange()?.getRange();
-      if (!sheet || !range) {
-        options.onSelectionChange?.(null);
-        return;
-      }
-      options.onSelectionChange?.({ sheetId: sheet.getSheetId(), range });
-    }),
+    runtime.univerAPI.addEvent(runtime.univerAPI.Event.SelectionChanged, notifySelection),
   );
   disposables.push(
-    runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, () => {
-      // Any command that mutates the workbook invalidates the saved state; the
-      // precise cell journaling is wired by the save bridge in the next stage.
+    runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, (event) => {
+      const sheetId = (event.params as { subUnitId?: string } | undefined)?.subUnitId;
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId) : undefined;
+      const edits = ingestCellMutation(
+        lazyWorkbookRef.current, event, journalSuppression.active,
+        sheetId ? sharedFormulaResolverFor(runtime, sheetId) : undefined,
+        (row, column) => {
+          const style = workbook?.getWorkbook().getStyles().getStyleByCell(sheet?.getSheet().getCellRaw(row, column));
+          return style ? { ...style } : undefined;
+        },
+      );
+      if (edits.length === 0) return;
       dirtyGeneration += 1;
+      options.onEdits?.(edits);
       options.onDirty?.();
     }),
   );
 
   return {
     async loadWorkbook(file, loadOptions) {
+      fontMappings = await loadWorkbookFonts(file, container.ownerDocument);
+      if (disposed) return;
+      container.setAttribute("data-xlsx-font-mappings", JSON.stringify(fontMappings));
       journalSuppression.active = true;
       loadAutoHeightSuppression.active = true;
       try {
@@ -323,30 +359,66 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       }
       const state = createLazyState(file);
       lazyWorkbookRef.current = state;
-      const active = loadOptions?.initialSheetId
-        ? runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(loadOptions.initialSheetId)
-        : runtime.univerAPI.getActiveWorkbook()?.getActiveSheet();
-      if (active) await loadVisibleRange(runtime, lazyWorkbookRef, active, setMessage);
+      dirtyGeneration = 0;
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      // Native workbook permissions also block the vendored viewport loader's
+      // setValues commands. Read-only is enforced at the command/edit gates,
+      // keeping trusted suppressed loading possible on every scroll.
+      const preferred = loadOptions?.initialSheetId ? workbook?.getSheetBySheetId(loadOptions.initialSheetId) : null;
+      const active = preferred ?? workbook?.getActiveSheet();
+      if (active) {
+        workbook?.setActiveSheet(active);
+        await loadVisibleRange(runtime, lazyWorkbookRef, active, setMessage);
+        if (!workbook?.getActiveRange()) workbook?.setActiveRange(active.getRange(0, 0));
+        notifySelection();
+      }
     },
     refreshViewport,
     async revealCell(sheetId, row, column) {
       const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
       if (!worksheet) return;
+      runtime.univerAPI.getActiveWorkbook()?.setActiveSheet(worksheet);
       await revealCellBelowFreeze(worksheet, row, column);
     },
+    setCellText(sheetId, row, column, text) {
+      if (options.readOnly || !canEditRange(lazyWorkbookRef.current, sheetId, {
+        startRow: row, endRow: row, startColumn: column, endColumn: column,
+      })) return;
+      runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId)?.getRange(row, column).setValue(parseCellText(text));
+    },
+    selectSheet(sheetId) {
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const sheet = workbook?.getSheetBySheetId(sheetId);
+      if (sheet) {
+        workbook?.setActiveSheet(sheet);
+        refreshViewport();
+        notifySelection();
+      }
+    },
+    setNumberFormat(pattern) {
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const sheetId = workbook?.getActiveSheet()?.getSheetId();
+      const range = workbook?.getActiveRange();
+      if (options.readOnly || !sheetId || !range || !pattern || pattern.length > 255 ||
+        !canEditRange(lazyWorkbookRef.current, sheetId, range.getRange())) return;
+      range.setNumberFormat(pattern);
+    },
+    setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {
-      void runtime.univerAPI.undo();
+      if (!options.readOnly) void runtime.univerAPI.undo();
     },
     redo() {
-      void runtime.univerAPI.redo();
+      if (!options.readOnly) void runtime.univerAPI.redo();
     },
     getDirtyGeneration: () => dirtyGeneration,
+    getFontMappings: () => fontMappings.map((mapping) => ({ ...mapping })),
     getJournal: () => {
       const state = lazyWorkbookRef.current;
       if (!state) throw new Error("xlsx renderer has no workbook loaded");
       return state.editJournal;
     },
     dispose() {
+      disposed = true;
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       wrapMeasureDisposable?.dispose();
@@ -358,6 +430,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       }
       univerHost.remove();
       container.classList.remove(RENDERER_ROOT_CLASS);
+      container.removeAttribute("data-xlsx-font-mappings");
       restoreDesktopApi();
     },
   };

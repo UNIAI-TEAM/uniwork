@@ -8,7 +8,7 @@
 import { XlsxEngineError, type XlsxCellEdit, type XlsxCellState, type XlsxRecalcEdit, type XlsxWorkbookSnapshot } from "./engine.ts";
 import { a1ToRowColumn, toA1, type XlsxEditOp, type XlsxSheetResolver } from "./ops.ts";
 
-/** One pending set/clear keyed by sheet!A1 — last write wins. */
+/** One pending cell: content and independent style fields fold separately. */
 interface PendingCell {
   readonly sheetName: string;
   readonly row: number;
@@ -83,43 +83,34 @@ export class XlsxSessionModel {
   }
 
   applyEdit(op: XlsxEditOp): void {
-    const key = `${op.target.sheetName}${op.target.address}`;
-    switch (op.kind) {
-      case "set_cell":
-        this.pending.set(key, {
-          sheetName: op.target.sheetName,
-          row: op.target.row,
-          column: op.target.column,
-          edit: {
-            sheetName: op.target.sheetName,
-            row: op.target.row,
-            column: op.target.column,
-            writeValue: op.writeValue,
-            cell: op.cell,
-            ...(op.style !== undefined ? { style: op.style } : {}),
-            ...(op.styleReset !== undefined ? { styleReset: op.styleReset } : {}),
-          },
-          // Style-only edits never reach the recalc model (input "" would
-          // clear the cell in IronCalc).
-          recalcInput: op.writeValue ? op.recalcInput : null,
-        });
-        break;
-      case "clear_cell":
-        this.pending.set(key, {
-          sheetName: op.target.sheetName,
-          row: op.target.row,
-          column: op.target.column,
-          edit: {
-            sheetName: op.target.sheetName,
-            row: op.target.row,
-            column: op.target.column,
-            writeValue: true,
-            cell: { value: null },
-          },
-          recalcInput: "",
-        });
-        break;
-    }
+    const key = JSON.stringify([op.target.sheetName, op.target.address]);
+    const previous = this.pending.get(key);
+    const writesContent = op.kind === "clear_cell" || op.writeValue;
+    const resetsStyle = op.kind === "set_cell" && op.styleReset === true;
+    const delta = op.kind === "set_cell" ? op.style : undefined;
+    // A nested style field (border, color, fill) is a complete gateway value.
+    // Replace that field atomically; keep the other independently edited fields.
+    const style = resetsStyle ? delta : previous?.edit.style || delta ? { ...previous?.edit.style, ...delta } : undefined;
+    const styleReset = resetsStyle || previous?.edit.styleReset === true;
+    const cell = writesContent
+      ? op.kind === "clear_cell" ? { value: null } : op.cell
+      : previous?.edit.cell ?? (op.kind === "set_cell" ? op.cell : { value: null });
+    this.pending.set(key, {
+      sheetName: op.target.sheetName,
+      row: op.target.row,
+      column: op.target.column,
+      edit: {
+        sheetName: op.target.sheetName,
+        row: op.target.row,
+        column: op.target.column,
+        writeValue: writesContent || previous?.edit.writeValue === true,
+        cell: structuredClone(cell),
+        ...(style === undefined ? {} : { style: structuredClone(style) }),
+        ...(styleReset ? { styleReset: true } : {}),
+      },
+      // Styling preserves an earlier native input, including a clear's "".
+      recalcInput: writesContent ? op.recalcInput : previous?.recalcInput ?? null,
+    });
     this.touched = true;
     this.revision += 1;
   }

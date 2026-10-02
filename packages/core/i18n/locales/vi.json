@@ -7090,7 +7090,7 @@
       },
       "commands": {
         "sheets": "Trang tính",
-        "numberFormat": "Định dạng số (engine thiếu)",
+        "numberFormat": "Định dạng số",
         "chart": "Biểu đồ (engine thiếu)"
       },
       "selection": {
@@ -7141,7 +7141,8 @@
         "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
         "engine_error": "Engine XLSX không thể mở sổ tính này.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX.",
-        "rendererFailed": "Không thể tải trình hiển thị sổ tính."
+        "rendererFailed": "Không thể tải trình hiển thị sổ tính.",
+        "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu."
       },
       "editor": {
         "appClosureActive": "{count} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",

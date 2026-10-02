@@ -34,6 +34,7 @@ const workbook = (): XlsxWorkbookSnapshot => ({
 function draftStore(): IndexedDbDraftStore {
   return {
     checkpointEncrypted: vi.fn(async () => ({ status: "stored", metadata: {} })),
+    rebaseEncrypted: vi.fn(async () => ({ status: "stored", metadata: {} })),
     recoverEncrypted: vi.fn(async () => ({ status: "missing" as const })),
     deleteDurable: vi.fn(async () => undefined),
     list: vi.fn(async () => []),
@@ -201,5 +202,80 @@ describe("web XLSX format adapter", () => {
     const upload = await transport.upload({ intent, output }) as OfficeUploadReceipt;
     vi.spyOn(files, "commit").mockResolvedValueOnce({ document: { id: "doc", revision: "2" }, version: { id: "", checksum_sha256: "sha256-output", size_bytes: 4 } });
     await expect(transport.commit({ intent, upload })).rejects.toThrow("malformed_commit_receipt");
+  });
+
+  it("captures generation and content together while hashing yields to another edit", async () => {
+    const engine = runtime();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.editor.open();
+    await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+    let finishHash!: (digest: ArrayBuffer) => void;
+    vi.spyOn(globalThis.crypto.subtle, "digest").mockImplementationOnce(() => new Promise<ArrayBuffer>((resolve) => { finishHash = resolve; }));
+    const capture = adapter.editor.captureSnapshot();
+    await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 8 } }]);
+    finishHash(new Uint8Array([1]).buffer);
+    expect(await capture).toMatchObject({ generation: 1, value: { sheets: [{ cells: { A1: { value: 7 } } }] } });
+    expect(adapter.editor.getDirtyGeneration()).toBe(2);
+    await adapter.session.dispose();
+  });
+
+  it("passes Save N's stable snapshot to serialize and leaves typing N+1 dirty", async () => {
+    const engine = runtime();
+    const files = documents();
+    let finishSerialize!: (out: { bytes: Uint8Array; checksum: string }) => void;
+    engine.serialize = vi.fn(() => new Promise<{ bytes: Uint8Array; checksum: string }>((resolve) => { finishSerialize = resolve; }));
+    engine.setBaseRevision = vi.fn();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.editor.open();
+    await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+    adapter.session.coordinator.markDirty(1);
+    const save = adapter.session.coordinator.save("button");
+    await vi.waitFor(() => expect(engine.serialize).toHaveBeenCalledTimes(1));
+    await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 8 } }]);
+    adapter.session.coordinator.markDirty(2);
+    finishSerialize({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output" });
+    const result = await save;
+    expect(result.accepted).toBe(true);
+    if (!result.accepted) throw new Error(`save_failed:${result.reason}`);
+    expect(engine.serialize).toHaveBeenCalledWith("model-1", expect.objectContaining({ intentId: result.intentId, snapshot: expect.objectContaining({ generation: 1, value: expect.objectContaining({ sheets: [expect.objectContaining({ cells: expect.objectContaining({ A1: { value: 7 } }) })] }) }) }));
+    expect(engine.setBaseRevision).toHaveBeenCalledWith("2", result.intentId);
+    expect(adapter.session.coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 1, dirtyGeneration: 2 });
+    expect(await adapter.editor.captureSnapshot()).not.toHaveProperty("checksumSha256");
+    await adapter.session.dispose();
+  });
+
+  it("forwards cancellation through the existing save transport without uploading", async () => {
+    const files = documents();
+    const snapshot = { generation: 1, fingerprint: "fp", value: workbook() };
+    const intent = { intentId: "intent-cancel", idempotencyKey: "office-key-cancel", identity, snapshotGeneration: 1, snapshotFingerprint: "fp", snapshot: snapshot.value, operation: "manual_save" as const, createdAt: 1 };
+    let signal!: AbortSignal;
+    const transport = createXlsxSaveTransport({ documents: files, documentId: "doc", serialize: (input) => {
+      signal = input.signal!;
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true }));
+    } });
+    const saving = transport.serialize({ intent, snapshot });
+    const rejected = expect(saving).rejects.toMatchObject({ name: "AbortError" });
+    await transport.cancel?.({ intent });
+    await rejected;
+    expect(signal.aborted).toBe(true);
+    expect(files.upload).not.toHaveBeenCalled();
+  });
+
+  it.each([{ revision: "1" }, { revision: "invalid" }, { engine_name: "" }, { checksum_sha256: "different" }])("keeps pending operations until the entire commit receipt is valid: %j", async (patch) => {
+    const engine = runtime();
+    engine.setBaseRevision = vi.fn();
+    const files = documents();
+    const snapshot = { generation: 1, fingerprint: "fp", value: workbook() };
+    const intent = { intentId: "intent-validate", idempotencyKey: "office-key-validate", identity, snapshotGeneration: 1, snapshotFingerprint: "fp", snapshot: snapshot.value, operation: "manual_save" as const, createdAt: 1 };
+    const transport = createXlsxSaveTransport({ documents: files, documentId: "doc", runtime: engine, serialize: () => engine.serialize("model", { intentId: intent.intentId, snapshot }) });
+    const output = await transport.serialize({ intent, snapshot }) as OfficeSerializedOutput;
+    const upload = await transport.upload({ intent, output }) as OfficeUploadReceipt;
+    vi.mocked(files.commit).mockResolvedValueOnce({ document: { id: "doc", revision: "2", ...("revision" in patch ? patch : {}) }, version: { id: "v2", checksum_sha256: "sha256-output", size_bytes: 4, ...patch } });
+    await expect(transport.commit({ intent, upload })).rejects.toThrow();
+    expect(engine.setBaseRevision).not.toHaveBeenCalled();
+    await transport.serialize({ intent, snapshot });
+    await transport.commit({ intent, upload });
+    expect(engine.serialize).toHaveBeenCalledTimes(1);
+    expect(engine.setBaseRevision).toHaveBeenCalledWith("2", intent.intentId);
   });
 });

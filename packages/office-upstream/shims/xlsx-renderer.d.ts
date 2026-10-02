@@ -84,9 +84,28 @@ export interface XlsxRendererOptions {
   container: HTMLElement;
   host: XlsxRendererHost;
   dark?: boolean;
+  readOnly?: boolean;
   onMessage?: (message: string) => void;
   onDirty?: () => void;
+  onEdits?: (edits: XlsxRendererCellEdit[]) => void;
   onSelectionChange?: (selection: XlsxRendererSelection | null) => void;
+}
+
+export interface XlsxRendererCellEdit {
+  sheetId: string;
+  row: number;
+  column: number;
+  writeValue: boolean;
+  value: string | number | boolean | null;
+  formula?: string;
+  style?: Record<string, unknown>;
+  styleReset?: boolean;
+}
+
+export interface XlsxRendererFontMapping {
+  declared: string;
+  used: string | null;
+  source: "local" | "carlito" | "browser-fallback";
 }
 
 export interface XlsxRendererJournal {
@@ -99,9 +118,14 @@ export interface XlsxRendererHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
+  setCellText(sheetId: string, row: number, column: number, text: string): void;
+  selectSheet(sheetId: string): void;
+  setNumberFormat(pattern: string): void;
+  setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
   getDirtyGeneration(): number;
+  getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;
   dispose(): void;
 }

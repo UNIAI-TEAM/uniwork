@@ -25,6 +25,8 @@ export interface XlsxToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   canRecalculate: boolean;
+  canFormat: boolean;
+  onNumberFormat: () => void;
   recalculating: boolean;
   onUndo: () => void;
   onRedo: () => void;
@@ -33,6 +35,7 @@ export interface XlsxToolbarProps {
   onPaste: () => void;
   onShowSheets: () => void;
   onSave: () => void;
+  onCancelSave?: () => void;
 }
 
 function CapabilityButton({
@@ -72,6 +75,8 @@ export function XlsxToolbar({
   canUndo,
   canRedo,
   canRecalculate,
+  canFormat,
+  onNumberFormat,
   recalculating,
   onUndo,
   onRedo,
@@ -80,9 +85,10 @@ export function XlsxToolbar({
   onPaste,
   onShowSheets,
   onSave,
+  onCancelSave,
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
-  const blocked = readOnly || saving;
+  const blocked = readOnly;
   const noSelection = selection === null;
   const state = coordinator.getState();
   const selectedAddress = selection?.endAddress ? `${selection.address}:${selection.endAddress}` : selection?.address;
@@ -106,18 +112,9 @@ export function XlsxToolbar({
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.sheets")} onClick={onShowSheets}>
         <Grid3X3 aria-hidden />
       </Button>
-      <CapabilityButton label={t("office.xlsx.commands.numberFormat")} capability={{
-        format: "xlsx",
-        operation: "number_format",
-        host: "browser",
-        engineBuild: "g2-04",
-        contractRevision: "xlsx/1",
-        status: "unavailable",
-        reason: t("office.xlsx.capabilityPending"),
-        fidelityWarnings: [],
-      }}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.numberFormat")} disabled={blocked || !canFormat} onClick={onNumberFormat} title="0.00">
         <span aria-hidden className="text-caption font-semibold">123</span>
-      </CapabilityButton>
+      </Button>
       <CapabilityButton label={t("office.xlsx.commands.chart")} capability={{
         format: "xlsx",
         operation: "chart",
@@ -136,9 +133,9 @@ export function XlsxToolbar({
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.paste")} disabled={blocked || noSelection || permissions.canPaste === false} onClick={onPaste}>
         <Clipboard aria-hidden />
       </Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.recalculate")} disabled={blocked || !canRecalculate} onClick={onRecalculate}>
+      {canRecalculate ? <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.recalculate")} disabled={blocked} onClick={onRecalculate}>
         <Calculator aria-hidden />
-      </Button>
+      </Button> : null}
       <span className="min-w-0 flex-1 truncate px-2 text-caption text-muted-foreground" data-testid="xlsx-selection">
         {selectionLabel}
       </span>
@@ -146,8 +143,8 @@ export function XlsxToolbar({
         type="button"
         variant="brand"
         size="sm"
-        aria-disabled={blocked || !dirty || undefined}
-        disabled={blocked || !dirty}
+        aria-disabled={blocked || saving || !dirty || undefined}
+        disabled={blocked || saving || !dirty}
         data-testid="xlsx-save"
         onClick={onSave}
       >
@@ -157,6 +154,10 @@ export function XlsxToolbar({
       <span className="sr-only" role="status" aria-live="polite">
         {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(`office.xlsx.saveState.${state.state}`)}
       </span>
+      {saving ? <>
+        <progress className="w-20" aria-label={t("office.xlsx.actions.saving")} data-testid="xlsx-save-progress" />
+        {onCancelSave ? <Button type="button" variant="toolbar" size="sm" onClick={onCancelSave} data-testid="xlsx-save-cancel">{t("common.cancel")}</Button> : null}
+      </> : null}
     </div>
   );
 }
