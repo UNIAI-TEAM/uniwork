@@ -10,9 +10,11 @@ import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
+import { LockedAiEntry } from "../ai-entry";
 
-export function OpenByteDocument({ identity, session, title, onBack, active = true }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean }) {
+export function OpenByteDocument({ identity, session, title, onBack, active = true, kind, signedIn, onSignIn }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind: "local" | "cloud"; signedIn: boolean; onSignIn?: () => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -41,10 +43,14 @@ export function OpenByteDocument({ identity, session, title, onBack, active = tr
     onRecover={async () => { const applied = await session.recoverDraft(offer.metadata); setRecovered(applied); if (applied) setOffer(null); return applied; }}
     onKeep={async () => { setOffer(null); return true; }}
     onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
-    <OfficeShell title={title} breadcrumbs={[{ label: t("title") }]} saveCoordinator={session.coordinator} editorReady={active && session.canSave}
+    <OfficeShell title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && session.canSave}
       saveLabel={session.localHandle ? t("saveLocal") : undefined}
       saveDestination={session.localHandle ? "local" : "cloud"}
-      actions={<Button type="button" variant="outline" onClick={onBack}>{t("back")}</Button>}
+      actions={<>
+        {kind === "local" ? <LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /> : null}
+        {kind === "local" && session.localHandle ? <Button type="button" variant="outline" onClick={() => { void session.saveAs(); }}>{tLocal("saveAs")}</Button> : null}
+        <Button type="button" variant="outline" onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button>
+      </>}
       editor={<><p role="status" className="mb-3 text-body text-muted-foreground">{t("contentPending")}</p>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}

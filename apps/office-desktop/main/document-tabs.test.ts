@@ -17,7 +17,7 @@ async function harness() {
   const rootDirectory = await fs.mkdtemp(join(parent, "case-"));
   const store = createDesktopDraftStore({ rootDirectory, keyStore: createFakeDraftKeyStore() });
   let session = { sessionId: sessionGeneration, deploymentId: "dep", accountId: "account-a", generation: 1 };
-  const documents = createOpenedDocuments({ session: () => session });
+  const documents = createOpenedDocuments({ sessionFor: () => session });
   for (const documentId of ["a", "b"]) documents.open(documentId, "cloud", { deploymentId: "dep", accountId: "account-a", organizationId: "org", workspaceId: "ws", documentId, base });
   documents.update({ documentIds: ["a", "b"], activeDocumentId: "b" });
   const access = vi.fn(async (_id: string) => "edit" as const);

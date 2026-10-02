@@ -7312,6 +7312,8 @@
       "appTitle": "UniWork Office",
       "label": "Tab tài liệu",
       "library": "Thư viện",
+      "local": "Trên máy",
+      "signIn": "Đăng nhập",
       "close": "Đóng {{name}}",
       "dirty": "Chưa lưu",
       "saving": "Đang lưu…",
@@ -7341,6 +7343,9 @@
       "required": "Đăng nhập lại để tiếp tục.",
       "start": "Đăng nhập bằng trình duyệt",
       "cancel": "Hủy đăng nhập",
+      "openLocal": "Mở tệp trên máy",
+      "useLocal": "Dùng không đăng nhập",
+      "localNote": "Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
       "signOut": "Đăng xuất",
       "libraryWorkspace": "Thư viện tài liệu",
       "accountUnknown": "Tài khoản UniWork",
@@ -7383,6 +7388,34 @@
       "updated": "Cập nhật {{time}}",
       "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
       "draftRecovered": "Đã khôi phục bản nháp đã chọn."
+    },
+    "local": {
+      "title": "Tệp trên máy",
+      "count_one": "{{count}} tệp",
+      "count_other": "{{count}} tệp",
+      "open": "Mở tệp",
+      "create": "Tài liệu mới",
+      "untitled": "Tài liệu mới.docx",
+      "empty": "Chưa có tệp trên máy",
+      "emptyDescription": "Mở một tệp DOCX trên máy hoặc tạo tài liệu mới. Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
+      "error": "Không tải được danh sách tệp gần đây.",
+      "retry": "Thử lại",
+      "missing": "Không tìm thấy tệp",
+      "remove": "Xoá",
+      "removeNamed": "Xoá {{name}} khỏi danh sách",
+      "openNamed": "Mở {{name}}",
+      "updated": "Mở lần cuối {{time}}",
+      "unsupported": "Chỉ hỗ trợ tệp DOCX trên máy.",
+      "saveAs": "Lưu thành…",
+      "home": "Về trang chủ"
+    },
+    "ai": {
+      "entry": "Trợ lý AI",
+      "title": "Trợ lý AI chưa khả dụng",
+      "signedOutDescription": "Đăng nhập và mở tài liệu từ thư viện UniWork để dùng trợ lý AI. Nội dung tệp trên máy không được gửi đi.",
+      "localDescription": "Trợ lý AI chỉ hoạt động với tài liệu trong thư viện UniWork. Nội dung tệp trên máy không được gửi đi.",
+      "signIn": "Đăng nhập",
+      "close": "Đóng"
     }
   }
 }

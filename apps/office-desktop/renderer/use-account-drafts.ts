@@ -3,8 +3,9 @@ import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, type
 import type { RendererBridge } from "./app";
 import type { DesktopRecoveryState } from "./recovery-status";
 
-/** Account-level restart offer; document sessions use their own scoped requests. */
-export function useAccountDrafts(bridge: RendererBridge) {
+/** Scope-level restart offer; document sessions use their own scoped requests.
+ * Signed out the same offer serves the local device scope. */
+export function useAccountDrafts(bridge: RendererBridge, enabled = true) {
   const [draft, setDraft] = useState<DesktopDraftMetadata | null>(null);
   const [blocked, setBlocked] = useState<DesktopRecoveryState | null>(null);
   const read = async () => {
@@ -12,6 +13,7 @@ export function useAccountDrafts(bridge: RendererBridge) {
     return [...result.drafts].sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
   };
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     void read().then((next) => { if (active) { setDraft(next); setBlocked(null); } }).catch((error: unknown) => {
       if (!active) return;
@@ -20,9 +22,9 @@ export function useAccountDrafts(bridge: RendererBridge) {
       setDraft(null);
     });
     return () => { active = false; };
-  // The read action is local to this account's bridge subscription.
+  // The read action is local to this scope's bridge subscription.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridge]);
+  }, [bridge, enabled]);
   return {
     draft, blocked,
     dismiss: () => setDraft(null),

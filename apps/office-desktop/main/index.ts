@@ -1,5 +1,5 @@
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity";
-import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, type OfficeIpcOptions, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createLocalIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, type OfficeIpcOptions, type DraftIpcOptions, type FileIpcOptions, type LocalIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
@@ -42,6 +42,8 @@ export type DesktopHostOptions = {
   authManager?: NativeLoginManager;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
+  /** Device-scoped local-mode state and the encrypted recent-file list. */
+  local?: LocalIpcOptions;
   /** Main-owned cloud Documents/Office transport. Renderer receives only
    * validated metadata and bounded DOCX bytes. */
   office?: OfficeIpcOptions;
@@ -94,6 +96,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
     ...(authHandlers ?? {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
+    ...(options.local ? createLocalIpcHandlers(options.local) : {}),
     ...(options.office ? createOfficeIpcHandlers(options.office) : {}),
     ...(options.leave ? createLeaveIpcHandler(options.leave) : {}),
   };

@@ -130,3 +130,16 @@ it("blocks create and open actions while busy", async () => {
   expect(actions.onCreate).not.toHaveBeenCalled();
   expect(actions.onOpenLocal).not.toHaveBeenCalled();
 });
+
+it("pins the on-device home and a sign-in button instead of the cloud account menu in local mode", () => {
+  const actions = callbacks();
+  const onSignIn = vi.fn();
+  render(<DesktopTabStrip mode="local" tabs={tabs} activeTabId={null} {...actions} onSignIn={onSignIn} />);
+  expect(screen.getByRole("tab", { name: "Trên máy" })).toBeInTheDocument();
+  expect(screen.queryByRole("tab", { name: "Thư viện" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Tài khoản:/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+  expect(onSignIn).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("tab", { name: /Report.docx/ }));
+  expect(actions.onSelect).toHaveBeenCalledWith("a");
+});

@@ -196,7 +196,8 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
 
   fireEvent.click(screen.getByRole("button", { name: /Tài khoản:/ }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Đăng xuất" }));
-  await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
+  // UNI-922 §3.7: signing out closes cloud work and returns to the local home.
+  await waitFor(() => expect(container.querySelector("[data-local-home='true']")).not.toBeNull());
   click.mockRestore();
 });
 

@@ -19,7 +19,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
   const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum });
-  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} onBack={() => undefined} />);
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} kind="cloud" signedIn onBack={() => undefined} />);
   return { calls, session };
 }
 

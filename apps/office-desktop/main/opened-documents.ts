@@ -18,23 +18,29 @@ export function sameDocumentSession(a: DraftSession, b: DraftSession): boolean {
 }
 
 /** Only successful main-side opens can introduce an id. Renderer tab updates
- * may select or remove existing contexts, never create a draft identity. */
+ * may select or remove existing contexts, never create a draft identity.
+ *
+ * Local documents live under the device scope and survive sign-in/sign-out;
+ * cloud documents belong to the live account scope and are dropped as soon as
+ * that scope changes. */
 export function createOpenedDocuments(options: {
-  session(): DraftSession;
+  sessionFor(kind: OpenedDocument["kind"]): DraftSession | undefined;
   onClosed?: (documentId: string) => void;
 }) {
   const documents = new Map<string, OpenedDocument>();
-  let boundSession = options.session();
   let active: string | undefined;
-  const clear = () => {
-    for (const id of documents.keys()) options.onClosed?.(id);
-    documents.clear();
-    active = undefined;
+
+  const stillValid = (document: OpenedDocument): boolean => {
+    const scope = options.sessionFor(document.kind);
+    return scope !== undefined && sameDocumentSession(document.session, scope) && document.identity.accountId === scope.accountId && document.identity.deploymentId === scope.deploymentId;
   };
-  const synchronize = () => {
-    const live = options.session();
-    if (!sameDocumentSession(live, boundSession)) { clear(); boundSession = live; }
-    return live;
+  const synchronize = (): void => {
+    for (const [id, document] of documents) {
+      if (stillValid(document)) continue;
+      documents.delete(id);
+      options.onClosed?.(id);
+    }
+    if (active !== undefined && !documents.has(active)) active = undefined;
   };
   const context = (documentId: string): OpenedDocument | undefined => {
     synchronize();
@@ -42,25 +48,33 @@ export function createOpenedDocuments(options: {
   };
   const opened = (documentId: string, kind: OpenedDocument["kind"], identity: DraftIdentity, session: DraftSession): OpenedDocument => ({ documentId, kind, identity, session, lastConfirmedSaveAt: 0, pendingCheckpoints: 0, pendingSaves: 0, checkpointFailed: false, checkpointVersion: 0, savedCheckpointVersion: 0 });
   return {
-    clear,
+    clear() {
+      for (const id of documents.keys()) options.onClosed?.(id);
+      documents.clear();
+      active = undefined;
+    },
+    synchronize,
     context,
     all(): readonly OpenedDocument[] { synchronize(); return [...documents.values()]; },
     activeDocumentId(): string | undefined { synchronize(); return active; },
-    open(documentId: string, kind: OpenedDocument["kind"], identity: DraftIdentity, session = options.session()): boolean {
-      const live = synchronize();
-      if (!sameDocumentSession(live, session) || identity.accountId !== live.accountId || identity.deploymentId !== live.deploymentId) return false;
+    open(documentId: string, kind: OpenedDocument["kind"], identity: DraftIdentity, observed?: DraftSession): boolean {
+      synchronize();
+      const scope = options.sessionFor(kind);
+      if (!scope || !sameDocumentSession(observed ?? scope, scope)) return false;
+      if (identity.accountId !== scope.accountId || identity.deploymentId !== scope.deploymentId) return false;
       if (documents.has(documentId)) return true;
       if (documents.size >= 8) return false;
-      documents.set(documentId, opened(documentId, kind, identity, live));
+      documents.set(documentId, opened(documentId, kind, identity, scope));
       return true;
     },
     /** Save As replaces an existing local slot, including at the eight-tab cap. */
     rebindLocal(previousId: string, documentId: string, identity: DraftIdentity): boolean {
       const previous = context(previousId);
-      const live = synchronize();
-      if (!previous || previous.kind !== "local" || previous.pendingSaves > 0 || documents.has(documentId) || identity.accountId !== live.accountId || identity.deploymentId !== live.deploymentId) return false;
+      const scope = options.sessionFor("local");
+      if (!previous || previous.kind !== "local" || previous.pendingSaves > 0 || documents.has(documentId)) return false;
+      if (!scope || identity.accountId !== scope.accountId || identity.deploymentId !== scope.deploymentId) return false;
       documents.delete(previousId);
-      documents.set(documentId, opened(documentId, "local", identity, live));
+      documents.set(documentId, opened(documentId, "local", identity, scope));
       if (active === previousId) active = documentId;
       options.onClosed?.(previousId);
       return true;

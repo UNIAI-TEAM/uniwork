@@ -22,9 +22,12 @@ import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftI
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
-import { leaveRequestedEventSchema } from "./shared/ipc";
+import { leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
 import { createOpenedDocuments, sameDocumentSession } from "./main/opened-documents";
 import { createDocumentLeaveEvidence } from "./main/document-leave";
+import { loadOrCreateDeviceId, deviceScopeAccountId } from "./main/local/device";
+import { createLocalModeStore } from "./main/local/mode";
+import { createRecentFilesStore } from "./main/local/recent-files";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -154,6 +157,9 @@ async function startElectronHost(): Promise<void> {
   });
   const saveGuard = createOfficeSaveGuard();
   const fileRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
+  const deviceId = await loadOrCreateDeviceId({ userDataDirectory: app.getPath("userData") });
+  const localMode = await createLocalModeStore({ userDataDirectory: app.getPath("userData") });
+  const recentFiles = createRecentFilesStore({ userDataDirectory: app.getPath("userData"), keyStore: draftKeyStore, deviceId });
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   // One profile-bound credential store is shared by login and launch exchange.
   // The exchange adapter reads it only in the privileged main process; the
@@ -187,24 +193,33 @@ async function startElectronHost(): Promise<void> {
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   let nativeSaveListener: (() => void) | undefined;
-  const draftScope = () => {
+  // Local files always live under the stable `local:<device>` scope so their
+  // protected drafts stay device-owned across sign-in and sign-out. Cloud work
+  // belongs to the live account scope and is dropped when that scope changes.
+  const deviceScope = (): DraftSession => ({ sessionId: SESSION_GENERATION, accountId: deviceScopeAccountId(deviceId), deploymentId: "local-device", generation: 1 });
+  const accountScope = (): DraftSession => {
     const metadata = authManager?.getMetadata();
-    const accountId = metadata?.status === "signed-in" && metadata.accountId ? metadata.accountId : "local-device";
-    return { sessionId: SESSION_GENERATION, accountId, deploymentId: deploymentProfile?.deploymentId ?? "local-device", generation: authManager?.getGeneration() ?? 1 };
+    const deploymentId = deploymentProfile?.deploymentId ?? "local-device";
+    const accountId = metadata?.status === "signed-in" && metadata.accountId ? metadata.accountId : "signed-out";
+    return { sessionId: SESSION_GENERATION, accountId, deploymentId, generation: authManager?.getGeneration() ?? 1 };
   };
-  const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: draftScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
+  const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: deviceScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
   const pendingLocalCheckpoints = new Map<string, ProtectedCheckpointRef>();
-  const documents = createOpenedDocuments({ session: draftScope, onClosed: (id) => {
+  const documents = createOpenedDocuments({ sessionFor: (kind) => kind === "local" ? deviceScope() : accountScope(), onClosed: (id) => {
     fileRegistry.revoke(id);
     pendingLocalCheckpoints.delete(id);
   } });
   const setLocalDocument = (metadata: OpenFileMetadata) => {
-    if (!documents.open(metadata.handle, "local", localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
+    if (!documents.open(metadata.handle, "local", localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
   };
   /** A local open only records the draft context; the durable row is written
    * immediately before a write, so a plain open never offers a draft of the
-   * file's own unchanged bytes. */
-  const localOpenContext = (metadata: OpenFileMetadata) => { setLocalDocument(metadata); };
+   * file's own unchanged bytes. Opening also refreshes the encrypted recent list. */
+  const localOpenContext = (metadata: OpenFileMetadata) => {
+    setLocalDocument(metadata);
+    const path = fileRegistry.pathOf(metadata.handle);
+    if (path) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
+  };
   const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
     if (!documents.context(metadata.handle)) throw new Error("document_context_refused");
     pendingLocalCheckpoints.set(metadata.handle, await protectFile(metadata, bytes));
@@ -215,18 +230,18 @@ async function startElectronHost(): Promise<void> {
     const ref = pendingLocalCheckpoints.get(metadata.handle);
     if (!ref) return;
     pendingLocalCheckpoints.delete(metadata.handle);
-    void discardProtectedCheckpoint(draftStore, draftScope(), ref).catch(() => undefined);
+    void discardProtectedCheckpoint(draftStore, deviceScope(), ref).catch(() => undefined);
   };
   window.on("closed", () => { documents.clear(); });
-  let documentSession = draftScope();
+  let documentSession = accountScope();
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
-    // Ciphertext and keys survive logout, while every opened context and
-    // handle belongs only to the current account and session generation.
-    const nextSession = draftScope();
+    // Cloud contexts and handles belong only to the current account and session
+    // generation; local-device documents and their handles survive both
+    // sign-in and sign-out, so only the cloud scope is pruned here.
+    const nextSession = accountScope();
     if (!sameDocumentSession(documentSession, nextSession)) {
-      documents.clear();
-      fileRegistry.revoke();
+      documents.synchronize();
       draftStore.clearMemory();
       organizationByWorkspace.clear();
       documentSession = nextSession;
@@ -252,6 +267,9 @@ async function startElectronHost(): Promise<void> {
         return undefined;
       }
     },
+    // A web→desktop launch while signed out cannot show document metadata:
+    // main asks the renderer for a sign-in instead, and the local home stays.
+    onLoginRequired: (reason) => { window.webContents.send?.("desktop:login-requested", loginRequestedEventSchema.parse({ reason })); },
   }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
   const organizationByWorkspace = new Map<string, string>();
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
@@ -261,9 +279,9 @@ async function startElectronHost(): Promise<void> {
   // Workspace organization ids come from the authenticated main transport.
   // Browsing the library leaves every open document context intact.
   const cachedOfficeTransport = officeTransport ? { ...officeTransport, context: async () => {
-    const session = draftScope();
+    const session = accountScope();
     const context = await officeTransport.context();
-    if (!sameDocumentSession(session, draftScope())) throw new Error("login_required");
+    if (!sameDocumentSession(session, accountScope())) throw new Error("login_required");
     for (const workspace of context.workspaces) if (workspace.organizationId) organizationByWorkspace.set(workspace.id, workspace.organizationId);
     return context;
   } } : undefined;
@@ -303,7 +321,7 @@ async function startElectronHost(): Promise<void> {
   };
   const noteConfirmedLocalRebind = (previousHandle: string, metadata: OpenFileMetadata) => {
     consumeLocalCheckpoint({ handle: previousHandle });
-    if (!documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
+    if (!documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
     documents.noteConfirmedSave(metadata.handle);
   };
   const leaveEvidence = createDocumentLeaveEvidence({ documents, store: draftStore, saveBusy: () => saveGuard.busy });
@@ -346,7 +364,8 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    localFiles: { registry: fileRegistry, saveGuard, session: draftScope, beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    local: { mode: localMode, recents: recentFiles },
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, recents: recentFiles, beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
@@ -363,13 +382,15 @@ async function startElectronHost(): Promise<void> {
       store: draftStore,
       context: liveDraftContext,
       // Before a document is open (app start / restart) only the live
-      // account's own rows can be offered, filtered by the session in main.
-      accountSession: () => (authManager?.getMetadata().status === "signed-in" ? draftScope() : undefined),
+      // account's own rows can be offered, filtered by the session in main;
+      // signed out the same offer serves the local device scope.
+      accountSession: () => (authManager?.getMetadata().status === "signed-in" ? accountScope() : undefined),
+      localSession: () => deviceScope(),
       beginCheckpoint: documents.beginCheckpoint,
       liveAccess: liveDraftAccess,
       currentBase: (documentId) => documents.context(documentId)?.identity.base,
     },
-    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, session: draftScope, isOpened: (documentId: string, workspaceId: string) => {
+    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, session: accountScope, isOpened: (documentId: string, workspaceId: string) => {
       const document = documents.context(documentId);
       return document?.kind === "cloud" && document.identity.workspaceId === workspaceId;
     }, isSignedIn: () => authManager?.getMetadata().status === "signed-in", saveGuard, beginSave: documents.beginSave, onDocumentOpened: (document: { id: string; workspaceId: string; version: number; revision: string }) => {
@@ -414,10 +435,10 @@ async function startElectronHost(): Promise<void> {
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
-    const session = draftScope();
+    const session = deviceScope();
     const metadata = await fileRegistry.openEvent(payload.path);
     const bytes = await fileRegistry.read(metadata.handle);
-    if (!sameDocumentSession(session, draftScope())) throw new Error("session_revoked");
+    if (!sameDocumentSession(session, deviceScope())) throw new Error("session_revoked");
     localOpenContext(metadata);
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });

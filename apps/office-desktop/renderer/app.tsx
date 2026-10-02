@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, localStateResponseSchema } from "../shared/ipc";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopSessionMetadata } from "../shared/ipc";
 import { createLoginController, loginStateFromMetadata, type LoginScreenState } from "./login";
-import { LoginScreen } from "./login-screen";
-import { SignedInApp, type SignedInMetadata } from "./signed-in-app";
-import { DesktopTabStrip } from "./tab-strip";
+import { DesktopWorkspace, type SignedInMetadata } from "./desktop-workspace";
 
 const SESSION_GENERATION = "desktop-dev-session";
 export type RendererBridge = Readonly<{
@@ -15,17 +13,22 @@ export type RendererBridge = Readonly<{
   onLeaveRequested?(listener: (event: { requestId: string; reason: "close" | "logout" | "update" }) => void): () => void;
   openDroppedFile?(file: File): Promise<unknown>;
   onFileOpenRequested?(listener: (event: { handle: string }) => void): () => void;
+  onLoginRequested?(listener: (event: { reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }) => void): () => void;
 }>;
 function isSessionMetadata(value: unknown): value is DesktopSessionMetadata { return desktopSessionMetadataSchema.safeParse(value).success; }
 function isAuthConfig(value: unknown): value is { clientId: string; deploymentId: string } { return desktopAuthConfigResponseSchema.safeParse(value).success; }
+function requestedLocalState(value: unknown): boolean { const parsed = localStateResponseSchema.safeParse(value); return parsed.success && parsed.data.localMode; }
 
-/** Top-level renderer app: the auth state machine from `login.ts` decides
- * between the sign-in card and the signed-in shell. No token ever enters
- * this tree; `bridge` only returns session metadata and opaque command
- * results. */
+/** Top-level renderer app. The host reports a session and a per-device mode
+ * preference; signed out with the local mode chosen the workspace renders the
+ * local home, otherwise the sign-in card. Both modes share one mounted
+ * workspace so local tabs survive signing in and out. */
 export function App({ bridge }: { bridge: RendererBridge }) {
   const [state, setState] = useState<LoginScreenState>("signed-out");
   const [metadata, setMetadata] = useState<DesktopSessionMetadata | undefined>(undefined);
+  const [localMode, setLocalMode] = useState(false);
+  const [loginPrompt, setLoginPrompt] = useState(false);
+  const [openLocalRequest, setOpenLocalRequest] = useState(0);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
   const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
 
@@ -33,62 +36,77 @@ export function App({ bridge }: { bridge: RendererBridge }) {
     let unsubscribeController: (() => void) | undefined;
     const unsubscribe = bridge.onSessionChanged((next) => {
       controllerRef.current?.clearExpiry();
+      const previous = metadataRef.current;
       metadataRef.current = next;
       setMetadata(next);
       setState(loginStateFromMetadata(next));
+      // A sign-out returns to the local home; the next launch has no session
+      // and reads the persisted choice instead.
+      if (next.status === "signed-out" && previous?.status === "signed-in") {
+        setLocalMode(true);
+        setLoginPrompt(false);
+        void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined);
+      }
+    });
+    const unsubscribeLogin = bridge.onLoginRequested?.(() => {
+      if (metadataRef.current?.status === "signed-in") return;
+      setState("login-required");
+      setLoginPrompt(true);
     });
     void (async () => {
       try {
-        const config = await bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION });
+        const [config, session, local] = await Promise.all([
+          bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION }),
+          bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION }),
+          bridge.call("desktop:local-state", { sessionGeneration: SESSION_GENERATION }).catch(() => undefined),
+        ]);
         if (!isAuthConfig(config)) throw new Error("invalid auth config");
         controllerRef.current = createLoginController(bridge, SESSION_GENERATION, config.clientId, config.deploymentId);
         unsubscribeController = controllerRef.current.subscribe(setState);
-        const session = await bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION });
         if (!isSessionMetadata(session)) throw new Error("invalid session metadata");
-        setMetadata(session);
+        setLocalMode(requestedLocalState(local));
         metadataRef.current = session;
+        setMetadata(session);
         setState(loginStateFromMetadata(session));
       } catch {
         setState("error");
       }
     })();
-    return () => { unsubscribe(); unsubscribeController?.(); };
+    return () => { unsubscribe(); unsubscribeLogin?.(); unsubscribeController?.(); };
   }, [bridge]);
 
-  if (state === "signed-in" && metadata?.status === "signed-in" && metadata.accountId && metadata.deploymentId) {
-    return (
-      <SignedInApp
-        key={`${metadata.deploymentId}:${metadata.accountId}`}
-        bridge={bridge}
-        metadata={metadata as SignedInMetadata}
-        onLogout={async () => {
-          await bridge
-            .call("desktop:auth-logout", { sessionGeneration: SESSION_GENERATION, scope: "device" })
-            .then((next) => {
-              if (isSessionMetadata(next)) {
-                setMetadata(next);
-                setState(loginStateFromMetadata(next));
-              }
-            });
-        }}
-      />
-    );
-  }
-
+  const useLocal = (entry: "home" | "open-local") => {
+    setLocalMode(true);
+    setLoginPrompt(false);
+    if (entry === "open-local") setOpenLocalRequest((value) => value + 1);
+    void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined);
+  };
+  const signedIn = state === "signed-in" && metadata?.status === "signed-in" && Boolean(metadata.accountId) && Boolean(metadata.deploymentId);
+  const mode = signedIn ? "signed-in" : localMode && !loginPrompt ? "local" : "login";
   return (
-    <div className="flex h-full min-h-0 flex-col">
-    <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={() => undefined} onClose={() => undefined} onCreate={() => undefined} onOpenLocal={() => undefined} onSignOut={() => undefined} />
-    <LoginScreen
-      state={state}
-      onStart={() => {
+    <DesktopWorkspace
+      bridge={bridge}
+      mode={mode}
+      metadata={signedIn ? (metadata as SignedInMetadata) : undefined}
+      loginState={state}
+      onLoginStart={() => {
         if (!controllerRef.current) return;
         setState("pending");
         void controllerRef.current?.start().then(setState);
       }}
-      onCancel={() => {
-        void controllerRef.current?.cancel().then(setState).catch(() => setState("error"));
+      onLoginCancel={() => { void controllerRef.current?.cancel().then(setState).catch(() => setState("error")); }}
+      onUseLocal={useLocal}
+      onSignIn={() => { setState("login-required"); setLoginPrompt(true); }}
+      onLogout={async () => {
+        const next = await bridge.call("desktop:auth-logout", { sessionGeneration: SESSION_GENERATION, scope: "device" });
+        if (isSessionMetadata(next)) {
+          metadataRef.current = next;
+          setMetadata(next);
+          setState(loginStateFromMetadata(next));
+          if (next.status !== "signed-in") { setLocalMode(true); setLoginPrompt(false); void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined); }
+        }
       }}
+      openLocalRequest={openLocalRequest}
     />
-    </div>
   );
 }
