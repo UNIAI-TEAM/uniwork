@@ -3,10 +3,12 @@ import { act, render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { expect, it, vi } from "vitest";
 import i18n from "i18next";
 import { parseDocx } from "@uniwork/office-upstream/docs-renderer-editor";
+import { LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { createByteDocumentSession, type OpenedBytes } from "./session";
 import { OpenByteDocument } from "./open-document";
 import type { RendererBridge } from "../app";
 import { bytesChecksum, docxSource, docxIdentity, zipParts, installDocxGeometry } from "../../test/docx-fixture";
+import type { DesktopDraftMetadata } from "../../shared/ipc";
 
 installDocxGeometry();
 const original = { dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource) };
@@ -169,4 +171,48 @@ it("refuses a receipt for another document without clearing dirty work", async (
   await act(async () => { await expect(session.coordinator.save()).resolves.toMatchObject({ accepted: false, reason: "error" }); });
   expect(session.coordinator.getState()).toMatchObject({ lastSavedGeneration: 0, dirtyGeneration: 1 });
   expect(call.mock.calls.filter(([channel]) => channel === "desktop:office-save")).toHaveLength(1);
+});
+
+it("creates the first local checkpoint through Keep, then recovers the edit after leaving", async () => {
+  const rows: DesktopDraftMetadata[] = [];
+  let checkpointBytes = "";
+  const identity = { ...docxIdentity, documentId: handle, baseVersionId: original.checksum, baseRevision: "10" };
+  const call = vi.fn(async (channel: string, payload: { draftId: string; generation: number; dataBase64: string }) => {
+    if (channel === "desktop:draft-list") return { drafts: rows };
+    if (channel === "desktop:draft-checkpoint") {
+      checkpointBytes = payload.dataBase64;
+      const bytes = Buffer.from(checkpointBytes, "base64");
+      rows.push({ draftId: payload.draftId, generation: payload.generation, checksum: bytesChecksum(bytes), byteLength: bytes.length, updatedAt: 10,
+        identity: { deploymentId: identity.deploymentId, accountId: identity.accountId, organizationId: identity.organizationId, workspaceId: identity.workspaceId, documentId: handle, base: { revision: "10", version: original.checksum } } });
+      return { stored: true, generation: payload.generation };
+    }
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: rows[0], dataBase64: checkpointBytes };
+    throw new Error(`Unexpected write or IPC: ${channel}`);
+  });
+  const opened = { ...original, localHandle: handle };
+  const session = createByteDocumentSession({ call: call as never }, identity, opened);
+  const onChoice = vi.fn(), onOpenChange = vi.fn();
+  await session.openEditor();
+  expect(await session.listDrafts()).toEqual({ status: "none" });
+  expect(rows).toHaveLength(0);
+  session.editor.commands!.setHeading(2);
+  const dialog = render(<LeaveDialog open dirty onOpenChange={onOpenChange} onChoice={onChoice} onSave={async () => false} onDiscard={async () => false} onKeepDraft={() => session.keepDraft()} />);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.keep") }));
+  await waitFor(() => expect(onChoice).toHaveBeenCalledWith("keep"));
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ draftId: `${handle}:${original.checksum}:10`, generation: 1 });
+  expect((await parseDocx(Buffer.from(checkpointBytes, "base64"))).blocks[0]).toMatchObject({ type: "heading", level: 2 });
+  dialog.unmount(); session.dispose();
+  const restarted = createByteDocumentSession({ call: call as never }, identity, opened);
+  try {
+    expect(await restarted.listDrafts()).toMatchObject({ status: "found", conflict: false });
+    expect(await restarted.recoverDraft(rows[0]!)).toBe(true);
+    expect(restarted.editor.commands!.getState().headingLevel).toBe(2);
+    expect(restarted.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1, lastSavedGeneration: 0 });
+    expect((await restarted.editor.captureSnapshot()).value).toEqual(Uint8Array.from(Buffer.from(checkpointBytes, "base64")));
+    expect(call.mock.calls.filter(([channel]) => channel === "desktop:draft-checkpoint")).toHaveLength(1);
+    expect(call.mock.calls.some(([channel]) => /office-save|file-save/.test(channel))).toBe(false);
+  } finally { restarted.dispose(); }
 });
