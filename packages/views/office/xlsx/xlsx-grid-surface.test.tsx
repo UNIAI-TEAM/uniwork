@@ -31,6 +31,7 @@ function fakeModule() {
     refreshViewport: vi.fn(),
     revealCell: vi.fn().mockResolvedValue(undefined),
     setCellText: vi.fn(),
+    commitEdit: vi.fn(async () => undefined),
     selectSheet: vi.fn(),
     setNumberFormat: vi.fn(),
     setDarkMode: vi.fn(),

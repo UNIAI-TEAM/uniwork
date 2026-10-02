@@ -46,10 +46,12 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   capability,
   permissions = {},
   title,
+  embedded = false,
   className,
   onOpen,
   onViewStateChange,
   onSelectionChange,
+  registerSavePreparation,
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<XlsxViewState>("opening");
@@ -92,6 +94,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     if (isSnapshot(next)) setSnapshot(next);
   }, [editor]);
   const gridEdits = useXlsxGridEdits(documentKey, editor, coordinator, rendererHost, canEdit, refreshSnapshot);
+  const flushGridEdits = gridEdits.flush;
 
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
@@ -139,9 +142,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     disposedRef.current = false;
 
     const run = async () => {
-      // Retry must use the latest session ports. The effect intentionally only
-      // depends on documentKey, so a parent can refresh open/coordinator
-      // identities without tearing down an active edit session.
+      // Open/coordinator callbacks may refresh without replacing the model;
+      // a genuinely new editor handle must open even for the same document.
       const session = sessionPropsRef.current;
       openAbortRef.current?.abort();
       const controller = new AbortController();
@@ -153,7 +155,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       setRecalcError(null);
       setRecalcFresh(false);
 
-      if (session.capability !== undefined && session.capability.status !== "available") {
+      if (session.capability !== undefined && !["available", "readonly"].includes(session.capability.status)) {
         const blocked: XlsxOpenFailure = {
           outcome: "failed",
           document_id: documentKey,
@@ -212,7 +214,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       });
       openAttemptRef.current = null;
     };
-  }, [documentKey]);
+  }, [documentKey, editor]);
 
   useEffect(() => {
     setFormulaDraft(cellText(activeCell));
@@ -255,14 +257,14 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     const position = addressParts(selection.address);
     if (gridReady && gridSheet && position) {
       gridRef.current?.setCellText(gridSheet.id, position.row, position.column, text);
-      await gridEdits.flush();
+      await flushGridEdits();
       return;
     }
     const op = cellEditOperation(selection.sheet, selection.address, text);
     await editor.edit?.([op]);
     markDirty();
     refreshSnapshot();
-  }, [activeCell, canEdit, editor, formulaDraft, gridEdits, gridReady, markDirty, refreshSnapshot, rendererHost, selection]);
+  }, [activeCell, canEdit, editor, formulaDraft, flushGridEdits, gridReady, markDirty, refreshSnapshot, rendererHost, selection]);
 
   const undo = useCallback(() => {
     if (readOnly) return;
@@ -282,15 +284,26 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     refreshSnapshot();
   }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
 
+  const prepareSave = useCallback(async () => {
+    try {
+      if (rendererHost) await gridRef.current?.commitEdit();
+      await commitCell();
+      await flushGridEdits();
+    } catch (error) {
+      setRecalcError(t("office.xlsx.errors.editFailed"));
+      throw error;
+    }
+  }, [commitCell, flushGridEdits, rendererHost, t]);
+  useEffect(() => registerSavePreparation?.(prepareSave), [prepareSave, registerSavePreparation]);
+
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (visibleState !== "ready" || readOnly) return;
     if (!rendererHost) { void coordinator.save(entryPoint); return; }
     void (async () => {
-      await commitCell();
-      await gridEdits.flush();
+      if (!registerSavePreparation) await prepareSave();
       await coordinator.save(entryPoint);
     })().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
-  }, [commitCell, coordinator, gridEdits, readOnly, rendererHost, visibleState]);
+  }, [coordinator, prepareSave, readOnly, registerSavePreparation, rendererHost, visibleState]);
 
   const recalculate = useCallback(async () => {
     if (!recalcController || readOnly || recalcProgress !== null) return;
@@ -339,7 +352,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   const paste = useCallback(async () => {
     if (!selection || !canEdit || permissions.canPaste === false || !editor.clipboard?.readText) return;
+    const session = mountRef.current;
     const text = await editor.clipboard.readText();
+    if (disposedRef.current || mountRef.current !== session) return;
     const cells = clipboardCells(selection, text);
     setFormulaDraft(cells[0]?.text ?? "");
     const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
@@ -353,25 +368,25 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     markDirty();
     refreshSnapshot();
   }, [canEdit, editor, gridEdits, gridReady, markDirty, permissions.canPaste, refreshSnapshot, rendererHost, selection]);
+  const clipboardFailure = useCallback(() => {
+    if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
+  }, [t]);
 
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     const key = event.key.toLowerCase();
-    if (key === "s") {
-      event.preventDefault();
-      save("shortcut");
-    } else if (gridReady && event.target instanceof HTMLElement && event.target.closest(".xlsx-surface")) {
+    if (gridReady && event.target instanceof HTMLElement && event.target.closest(".xlsx-surface")) {
       // Univer owns its cell-editor and range shortcuts; bubbling must not
       // execute a second undo or overwrite a multi-cell paste.
       return;
     } else if (key === "c" && !gridReady && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
-      void copy();
+      void copy().catch(clipboardFailure);
     } else if (key === "v" && !gridReady && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
-      void paste();
+      void paste().catch(clipboardFailure);
     } else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
       undo();
@@ -379,7 +394,16 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       event.preventDefault();
       redo();
     }
-  }, [copy, gridReady, paste, redo, save, undo]);
+  }, [clipboardFailure, copy, gridReady, paste, redo, undo]);
+
+  const captureSave = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+    // The native grid stops bubbling key events. Capture Save at the host
+    // boundary, then finish its current edit before freezing the Save prefix.
+    event.preventDefault();
+    event.stopPropagation();
+    save("shortcut");
+  }, [save]);
 
   const sheets = snapshot?.sheets ?? [];
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
@@ -390,17 +414,18 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const saving = coordinatorState.state === "saving";
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" tabIndex={-1}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
+    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDownCapture={captureSave} onKeyDown={keyboardHandler} role="application" aria-busy={visibleState === "opening"} tabIndex={-1}>
+      {!embedded ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="xlsx-open-state">
           {visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}
         </span>
-      </header>
+      </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
           <XlsxToolbar
             coordinator={coordinator}
+            showSave={!embedded}
             dirty={dirty}
             saving={saving}
             readOnly={readOnly || rendererLoading}
@@ -415,8 +440,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onUndo={undo}
             onRedo={redo}
             onRecalculate={recalculate}
-            onCopy={() => { void copy().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
-            onPaste={() => { void paste().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
+            onCopy={() => { void copy().catch(clipboardFailure); }}
+            onPaste={() => { void paste().catch(clipboardFailure); }}
             onShowSheets={() => sheetTabsRef.current?.focus()}
             onSave={() => save("button")}
             onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
@@ -434,13 +459,13 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
             <div ref={sheetTabsRef} tabIndex={-1} className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
               {sheets.map((sheet) => (
-                <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted" onClick={() => selectSheet(sheet.name)}>{sheet.name}</button>
+                <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted pointer-coarse:min-h-11 pointer-coarse:min-w-11" onClick={() => selectSheet(sheet.name)}>{sheet.name}</button>
               ))}
               {sheets.length === 0 ? <span className="px-2 text-caption text-muted-foreground">{t("office.xlsx.surface.ready")}</span> : null}
             </div>
             <div className="flex items-center gap-2 border-b border-border bg-muted/10 px-3 py-2">
               <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">{t("office.xlsx.formula.label")}</label>
-              <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
+              <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption pointer-coarse:min-h-11" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
             </div>
             {rendererHost ? (
               <XlsxGridSurface

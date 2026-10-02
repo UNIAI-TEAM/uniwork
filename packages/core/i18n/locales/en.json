@@ -7097,13 +7097,14 @@
       "commands": {
         "sheets": "Sheets",
         "numberFormat": "Number format",
-        "chart": "Chart (engine gap)"
+        "chart": "Chart"
       },
       "selection": {
         "none": "No cell selected",
         "range": "{{sheet}}!{{address}}"
       },
-      "capabilityPending": "This XLSX capability is not available in this engine build.",
+      "capabilityPending": "This feature is not available yet.",
+      "clipboardUnavailable": "Clipboard access is unavailable in this browser.",
       "state": {
         "opening": "Opening workbook…",
         "error": "Could not open workbook"
@@ -7148,7 +7149,8 @@
         "engine_error": "This workbook could not be opened. Try opening it again.",
         "capabilityUnavailable": "XLSX editing is not available here.",
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
-        "editFailed": "This edit could not be applied. Reopen the workbook before saving."
+        "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
+        "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again."
       },
       "editor": {
         "appClosureActive": "{count} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",

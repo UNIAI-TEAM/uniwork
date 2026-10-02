@@ -7,7 +7,7 @@ import type { XlsxEditorHandle, XlsxSaveCoordinator, XlsxWorkbookSnapshot } from
 
 const grid = vi.hoisted(() => ({
   props: null as XlsxGridSurfaceProps | null,
-  handle: { undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn() },
+  handle: { undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn(), commitEdit: vi.fn(async () => undefined) },
 }));
 vi.mock("./xlsx-grid-surface", async () => {
   const React = await import("react");
@@ -16,11 +16,11 @@ vi.mock("./xlsx-grid-surface", async () => {
     React.useImperativeHandle(props.ref, () => grid.handle as never);
     const onReady = React.useRef(props.onReady);
     React.useEffect(() => { onReady.current?.(); }, []);
-    return <div data-testid="live-grid" />;
+    return <button type="button" data-testid="live-grid" onKeyDown={(event) => event.stopPropagation()} />;
   } };
 });
 
-function setup(editDelay?: Promise<void>, readOnly = false, saving = false) {
+function setup(editDelay?: Promise<void>, readOnly = false, saving = false, embedded = false) {
   let snapshot: XlsxWorkbookSnapshot = { revision: 1, sheets: [
     { id: "sheet-1", name: "Data", cells: { A1: { value: 2 } } },
     { id: "sheet-2", name: "Summary", cells: { A1: { value: 4, formula: "=Data!A1*2" } } },
@@ -46,11 +46,21 @@ function setup(editDelay?: Promise<void>, readOnly = false, saving = false) {
   const coordinator: XlsxSaveCoordinator = { getState: () => state, subscribe: () => () => undefined, markDirty: vi.fn(), cancel: vi.fn(async () => undefined), save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })) };
   const host = { file: { sheets: snapshot.sheets, readOnly: false }, readRange: async () => ({}) } as never;
   grid.handle.selectSheet.mockImplementation((sheetId: string) => grid.props?.onSelectionChange?.({ sheetId, range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } }));
-  const view = render(<XlsxEditor documentKey="grid-doc" editor={handle} coordinator={coordinator} rendererHost={host} permissions={{ canEdit: !readOnly }} open={{ open: async () => ({ outcome: "opened", document_id: "doc", document_model_ref: "model", snapshot }) }} />);
+  const view = render(<XlsxEditor documentKey="grid-doc" editor={handle} coordinator={coordinator} rendererHost={host} embedded={embedded} permissions={{ canEdit: !readOnly }} open={{ open: async () => ({ outcome: "opened", document_id: "doc", document_model_ref: "model", snapshot }) }} />);
   return { view, handle, coordinator, edit };
 }
 
 describe("XlsxEditor live grid commands", () => {
+  it("captures Save from a grid editor that stops keydown propagation and commits it before capture", async () => {
+    const { coordinator } = setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    grid.handle.commitEdit.mockClear();
+    fireEvent.keyDown(screen.getByTestId("live-grid"), { key: "s", ctrlKey: true });
+    await waitFor(() => expect(coordinator.save).toHaveBeenCalledWith("shortcut"));
+    expect(grid.handle.commitEdit).toHaveBeenCalledOnce();
+    expect(grid.handle.commitEdit.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(coordinator.save).mock.invocationCallOrder[0]!);
+  });
   it("copies selected ranges and sends tabular clipboard text to distinct grid cells", async () => {
     const { handle } = setup();
     await screen.findByTestId("live-grid");
@@ -67,9 +77,38 @@ describe("XlsxEditor live grid commands", () => {
     const { coordinator } = setup(undefined, false, true);
     await screen.findByTestId("live-grid");
     expect(screen.getByTestId("xlsx-save-progress")).not.toHaveAttribute("value");
+    expect(screen.getByRole("progressbar")).toHaveAccessibleName();
     fireEvent.click(screen.getByTestId("xlsx-save-cancel"));
     expect(coordinator.cancel).toHaveBeenCalledOnce();
-    expect(screen.getByTestId("xlsx-save")).toBeDisabled();
+    expect(screen.getByTestId("xlsx-save")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("xlsx-save"));
+    expect(coordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("does not paste late clipboard text into a replacement editing session", async () => {
+    const { view, handle, coordinator } = setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    let finish!: (text: string) => void;
+    vi.mocked(handle.clipboard!.readText!).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    const snapshot: XlsxWorkbookSnapshot = { revision: 2, sheets: [{ id: "sheet-1", name: "Data", cells: { A1: { value: 9 } } }] };
+    const replacement = { ...handle, getWorkbookSnapshot: () => snapshot, dispose: vi.fn() };
+    view.rerender(<XlsxEditor documentKey="grid-doc" editor={replacement} coordinator={coordinator} rendererHost={grid.props!.host} open={{ open: async () => ({ outcome: "opened", document_id: "doc", document_model_ref: "replacement", snapshot }) }} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    grid.handle.setCellText.mockClear();
+    await act(async () => { finish("unexpected"); await Promise.resolve(); });
+    expect(grid.handle.setCellText).not.toHaveBeenCalled();
+  });
+
+  it("leaves embedded title and Save ownership with the shared host while retaining Save cancellation", async () => {
+    const { coordinator } = setup(undefined, false, true, true);
+    await screen.findByTestId("live-grid");
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-save")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAccessibleName();
+    fireEvent.click(screen.getByTestId("xlsx-save-cancel"));
+    expect(coordinator.cancel).toHaveBeenCalledOnce();
   });
 
   it("keeps numeric edits ordered and waits for the host queue before Save", async () => {
@@ -90,7 +129,7 @@ describe("XlsxEditor live grid commands", () => {
   it("routes formula text, sheets, formats, undo and redo to the mounted grid", async () => {
     setup();
     await screen.findByTestId("live-grid");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Định dạng số" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Định dạng số" })).not.toHaveAttribute("aria-disabled", "true"));
     fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect(grid.handle.selectSheet).toHaveBeenLastCalledWith("sheet-2");
     const formula = screen.getByTestId("xlsx-formula-bar");
@@ -125,6 +164,29 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "s", ctrlKey: true });
     expect(edit).not.toHaveBeenCalled();
     expect(coordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("permits read-only Copy while blocked Paste remains focusable and inert", async () => {
+    const { handle } = setup(undefined, true);
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    fireEvent.click(screen.getByRole("button", { name: /^Sao chép/ }));
+    expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2");
+    const paste = screen.getByRole("button", { name: /^Dán/ });
+    expect(paste).toHaveAttribute("aria-disabled", "true");
+    expect(paste).not.toBeDisabled();
+    fireEvent.click(paste);
+    expect(handle.clipboard?.readText).not.toHaveBeenCalled();
+  });
+
+  it("reports clipboard permission rejection without exposing browser exception text", async () => {
+    const { handle } = setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    vi.mocked(handle.clipboard!.readText!).mockRejectedValueOnce(new Error("NotAllowedError: internal browser diagnostic"));
+    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    expect(await screen.findByTestId("xlsx-recalc-error")).toHaveTextContent("Kiểm tra quyền của trình duyệt");
+    expect(screen.getByTestId("xlsx-recalc-error")).not.toHaveTextContent("NotAllowedError");
   });
 
   it("exposes the same commands in English", async () => {

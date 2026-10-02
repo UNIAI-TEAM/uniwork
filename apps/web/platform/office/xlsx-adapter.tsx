@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useEffect, useState, type ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
 import { officeSaveReceiptSchema } from "@uniwork/core/office";
@@ -15,7 +15,8 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { createXlsxModelHost, XlsxEditor, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { XlsxEditorView, type XlsxRenderModelRef } from "./xlsx-editor-view";
 import type {
   XlsxEditorHandle,
   XlsxOpenOutcome,
@@ -273,29 +274,6 @@ function runtimeOpenError(outcome: XlsxRuntimeOpenResult): XlsxRuntimeOpenError 
   return error;
 }
 
-/** The renderer host is only known after the async open; the view wrapper
- *  below re-renders the editor when it lands (and drops it on dispose). */
-interface RenderModelRef {
-  current: XlsxModelHost | null;
-  listeners: Set<(host: XlsxModelHost | null) => void>;
-}
-
-interface XlsxEditorViewProps extends Omit<Parameters<typeof XlsxEditor>[0], "rendererHost"> {
-  modelRef: RenderModelRef;
-}
-
-function XlsxEditorView({ modelRef, ...editorProps }: XlsxEditorViewProps) {
-  const [host, setHost] = useState<XlsxModelHost | null>(modelRef.current);
-  useEffect(() => {
-    modelRef.listeners.add(setHost);
-    setHost(modelRef.current);
-    return () => {
-      modelRef.listeners.delete(setHost);
-    };
-  }, [modelRef]);
-  return createElement(XlsxEditor, { ...editorProps, ...(host ? { rendererHost: host } : {}) } as never);
-}
-
 export interface XlsxFormatAdapterOptions extends BrowserOfficeDraftOptions<XlsxWorkbookSnapshot> {
   identity: OfficeIdentity;
   runtime: XlsxSessionRuntime;
@@ -304,6 +282,8 @@ export interface XlsxFormatAdapterOptions extends BrowserOfficeDraftOptions<Xlsx
   readonly?: boolean;
   title?: string;
   editorClassName?: string;
+  embedded?: boolean;
+  clipboard?: XlsxEditorHandle["clipboard"];
 }
 
 export interface XlsxFormatAdapter {
@@ -334,6 +314,12 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
   let viewReady = false;
+  let prepareViewSave: (() => Promise<void>) | null = null;
+  let preparing = false;
+  const registerSavePreparation = (prepare: () => Promise<void>) => {
+    prepareViewSave = prepare;
+    return () => { if (prepareViewSave === prepare) prepareViewSave = null; };
+  };
   const readinessListeners = new Set<() => void>();
   const viewReadiness = {
     getSnapshot: () => viewReady,
@@ -345,7 +331,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     viewReady = ready;
     for (const listener of readinessListeners) listener();
   };
-  const renderModelRef: RenderModelRef = { current: null, listeners: new Set() };
+  const renderModelRef: XlsxRenderModelRef = { current: null, listeners: new Set() };
   const publishRenderModel = (host: XlsxModelHost | null) => {
     renderModelRef.current = host;
     for (const listener of renderModelRef.listeners) listener(host);
@@ -359,6 +345,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
 
   const editor: XlsxEditorHandle<XlsxWorkbookSnapshot> = {
     format: "xlsx",
+    clipboard: options.clipboard,
     async open() {
       if (disposed) throw new Error("xlsx_editor_disposed");
       if (opening) return opening;
@@ -411,6 +398,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     async dispose() {
       if (disposed) return;
       disposed = true;
+      prepareViewSave = null;
       onViewStateChange("error");
       if (modelRef) await options.runtime.release(modelRef);
       modelRef = null;
@@ -487,6 +475,20 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     serialize: transport.serialize,
   };
   const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
+  const save = session.coordinator.save;
+  session.coordinator.save = async (entryPoint) => {
+    if (preparing) return { accepted: false, reason: "saving" };
+    if (disposed) return { accepted: false, reason: "stale" };
+    if (options.readonly || options.capability.status !== "available" || session.coordinator.getState().state === "saving") return save(entryPoint);
+    preparing = true;
+    try {
+      try { await prepareViewSave?.(); }
+      catch { return { accepted: false, reason: "error" }; }
+      if (disposed) return { accepted: false, reason: "stale" };
+      return await save(entryPoint);
+    } finally { preparing = false; }
+  };
+  session.coordinator.retry = () => session.coordinator.save("retry");
   const open = {
     open: async (signal?: AbortSignal): Promise<XlsxOpenOutcome> => {
       if (signal?.aborted) return { outcome: "failed", document_id: options.identity.documentId, format: "xlsx", failure_class: "engine_error", message: "open cancelled" };
@@ -513,10 +515,12 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     open,
     coordinator: session.coordinator as XlsxSaveCoordinator,
     title: options.title,
+    embedded: options.embedded,
     capability: { ...options.capability, operation: "edit" },
     permissions: { canEdit: !options.readonly && options.capability.status === "available" },
     className: options.editorClassName,
     onViewStateChange,
+    registerSavePreparation,
   } as never);
   return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot, viewReadiness };
 }

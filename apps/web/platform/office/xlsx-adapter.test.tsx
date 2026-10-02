@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isValidElement } from "react";
 import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput, OfficeUploadReceipt } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -104,6 +105,29 @@ function documents(): XlsxDocumentsTransport & { uploaded: Blob[]; commits: numb
 afterEach(() => vi.restoreAllMocks());
 
 describe("web XLSX format adapter", () => {
+  it("prepares the pending view edit before header Save and refuses a second Save during preparation", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.open.open();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    if (!isValidElement<{ registerSavePreparation?: (prepare: () => Promise<void>) => () => void }>(adapter.editorView) || !adapter.editorView.props.registerSavePreparation) throw new Error("View Save preparation is unbound");
+    const unregister = adapter.editorView.props.registerSavePreparation(async () => {
+      await pending;
+      await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+      adapter.session.coordinator.markDirty(adapter.editor.getDirtyGeneration());
+    });
+    const save = adapter.session.coordinator.save("button");
+    expect(await adapter.session.coordinator.save("shortcut")).toEqual({ accepted: false, reason: "saving" });
+    expect(engine.serialize).not.toHaveBeenCalled();
+    finish();
+    expect((await save).accepted).toBe(true);
+    expect(vi.mocked(engine.serialize).mock.calls[0]?.[1].snapshot.value.sheets[0]?.cells.A1?.value).toBe(7);
+    expect(files.commits).toBe(1);
+    unregister();
+    await adapter.session.dispose();
+  });
   it("shares one in-flight native open when React replays the view effect", async () => {
     const engine = runtime();
     const files = documents();
@@ -114,6 +138,39 @@ describe("web XLSX format adapter", () => {
     expect(files.read).toHaveBeenCalledTimes(1);
     await adapter.session.dispose();
     expect(engine.released).toEqual(["model-1"]);
+  });
+  it("never serializes an edit preparation rejected by the grid and permits a later retry", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.open.open();
+    await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+    adapter.session.coordinator.markDirty(adapter.editor.getDirtyGeneration());
+    if (!isValidElement<{ registerSavePreparation?: (prepare: () => Promise<void>) => () => void }>(adapter.editorView) || !adapter.editorView.props.registerSavePreparation) throw new Error("View Save preparation is unbound");
+    const unregister = adapter.editorView.props.registerSavePreparation(async () => { throw new Error("uncommitted edit"); });
+    expect(await adapter.session.coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
+    expect(engine.serialize).not.toHaveBeenCalled();
+    expect(adapter.editor.getWorkbookSnapshot?.()?.sheets[0]?.cells.A1?.value).toBe(7);
+    unregister();
+    expect((await adapter.session.coordinator.retry!()).accepted).toBe(true);
+    expect(files.commits).toBe(1);
+    await adapter.session.dispose();
+  });
+  it("refuses a prepared Save after its editing session is disposed", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.open.open();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    if (!isValidElement<{ registerSavePreparation?: (prepare: () => Promise<void>) => () => void }>(adapter.editorView) || !adapter.editorView.props.registerSavePreparation) throw new Error("View Save preparation is unbound");
+    adapter.editorView.props.registerSavePreparation(() => pending);
+    const save = adapter.session.coordinator.save("button");
+    await adapter.session.dispose();
+    finish();
+    expect(await save).toEqual({ accepted: false, reason: "stale" });
+    expect(engine.serialize).not.toHaveBeenCalled();
+    expect(files.commits).toBe(0);
   });
   it("opens through the runtime and saves exactly once through upload then commit", async () => {
     const engine = runtime();

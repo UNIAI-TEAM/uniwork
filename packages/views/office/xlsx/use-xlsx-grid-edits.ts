@@ -20,7 +20,7 @@ export function useXlsxGridEdits<TSnapshot>(
     pending.current = Promise.resolve();
     setError(null);
     return () => { session.current += 1; };
-  }, [documentKey]);
+  }, [documentKey, editor, coordinator, host]);
 
   const onEdits = useCallback((edits: XlsxGridCellEdit[]) => {
     if (!canEdit || !host || edits.length === 0) return;

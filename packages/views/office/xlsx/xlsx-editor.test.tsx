@@ -96,6 +96,22 @@ function renderEditor(outcome: XlsxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("XlsxEditor", () => {
+  it("opens replacement ports for the same document and releases the previous handle", async () => {
+    const previous = editor();
+    const previousCoordinator = coordinator({ cancel: vi.fn(async () => undefined) });
+    const { view } = renderEditor(opened(), { editor: previous, coordinator: previousCoordinator });
+    await screen.findByTestId("xlsx-workbook-surface");
+    const initialSnapshot = workbook();
+    const replacementSnapshot = { ...initialSnapshot, sheets: initialSnapshot.sheets.map((sheet, index) => index === 0 ? { ...sheet, cells: { ...sheet.cells, A1: { value: "replacement" } } } : sheet) };
+    const replacement = editor({ getWorkbookSnapshot: () => replacementSnapshot });
+    const replacementOpen = vi.fn(async () => ({ ...opened(), snapshot: replacementSnapshot }));
+    view.rerender(<XlsxEditor documentKey="doc-v1" editor={replacement} open={{ open: replacementOpen }} coordinator={coordinator()} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-cell-Data-A1")).toHaveTextContent("replacement"));
+    expect(replacementOpen).toHaveBeenCalledOnce();
+    expect(replacement.open).toHaveBeenCalledOnce();
+    expect(previous.dispose).toHaveBeenCalledOnce();
+    expect(previousCoordinator.cancel).toHaveBeenCalledOnce();
+  });
   it("survives StrictMode effect replay and releases the session on real unmount", async () => {
     let disposed = false;
     const handle = editor({

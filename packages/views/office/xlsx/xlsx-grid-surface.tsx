@@ -31,6 +31,7 @@ export interface XlsxGridHandle {
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
   setCellText(sheetId: string, row: number, column: number, text: string): void;
+  commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
   setDarkMode(dark: boolean): void;
@@ -112,6 +113,7 @@ export function XlsxGridSurface({
       refreshViewport: () => handleRef.current?.refreshViewport(),
       revealCell: (sheetId, row, column) => handleRef.current?.revealCell(sheetId, row, column) ?? Promise.resolve(),
       setCellText: (sheetId, row, column, text) => handleRef.current?.setCellText(sheetId, row, column, text),
+      commitEdit: () => handleRef.current?.commitEdit() ?? Promise.reject(new Error("xlsx_renderer_not_ready")),
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
