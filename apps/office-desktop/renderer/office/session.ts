@@ -81,7 +81,6 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   const draft: DraftAdapter<Uint8Array> = {
     checkpoint: async (snapshot) => {
       checkpoint = snapshot;
-      if (opened.localHandle) return;
       const rows = await listRows();
       generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
       const next = Math.max(1, generationFloor, snapshot.generation);
@@ -94,7 +93,6 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     // save landed on is deleted, every other base and the N+1 draft are kept.
     discard: async (target) => {
       checkpoint = null;
-      if (opened.localHandle) return;
       const targetId = draftIdFor(target.baseVersionId, target.baseRevision);
       const known = durableRows.get(targetId);
       const row = (await listRows())?.find((candidate) => candidate.draftId === targetId);
@@ -148,19 +146,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (state.state === "ready" || state.state === "saved") { generation += 1; coordinator.markDirty(generation); }
       return coordinator.save(entryPoint);
     } },
-    /** The dialog's keep: a confirmed durable row, never an in-memory copy.
-     * For a local file main owns the rows (written before a write, consumed by
-     * a confirmed one), so a keep only confirms the current base already has a
-     * durable row - it never claims a write this session did not make. */
+    /** Keep confirms an encrypted checkpoint for the current edits. This is
+     * independent of the main process's pre-write protection for local Save. */
     async keepDraft(): Promise<boolean> {
       const state = coordinator.getState();
       if (state.state === "ready" || state.state === "saved") return true;
       const snapshot = await captured();
       if (!snapshot) return false;
-      if (opened.localHandle) {
-        const view = await recoverView();
-        return view.status === "found" && !view.conflict;
-      }
       try { await draft.checkpoint(snapshot); return true; } catch { return false; }
     },
     /** Discard consumes the chosen row when the caller names it (a conflict row
