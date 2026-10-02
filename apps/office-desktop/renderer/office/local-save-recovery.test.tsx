@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { promises as fs } from "node:fs";
 import { resolve, join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { createByteDocumentSession } from "./session";
 import { createFileIpcHandlers, createDraftIpcHandlers } from "../../main/ipc";
 import { FileHandleRegistry, type OpenFileMetadata } from "../../main/files/registry";
@@ -25,6 +25,7 @@ async function localHarness() {
   const keyStore = createFakeDraftKeyStore();
   const scope = { sessionId: "desktop-dev-session", deploymentId: "lane", accountId: "account", generation: 1 };
   const writes: string[] = [];
+  const controls = { refreshError: false, refreshWait: undefined as Promise<void> | undefined, refreshCalls: 0, checkpointCalls: 0 };
   async function open() {
     const store = createDesktopDraftStore({ rootDirectory: join(root, "drafts"), keyStore });
     const registry = new FileHandleRegistry({ sessionId: scope.sessionId });
@@ -41,6 +42,12 @@ async function localHarness() {
     const handlers = { ...files, ...drafts } as unknown as Record<string, (payload: unknown) => Promise<unknown>>;
     const bridge: LibraryBridge = { call: (async (channel: string, payload: unknown) => {
       if (channel === "desktop:file-save") writes.push(channel);
+      if (channel === "desktop:draft-checkpoint") controls.checkpointCalls++;
+      if (channel === "desktop:file-open") {
+        controls.refreshCalls++;
+        await controls.refreshWait;
+        if (controls.refreshError) throw new Error("Read-only context refresh refused");
+      }
       const handler = handlers[channel];
       if (!handler) throw new Error(`Unexpected IPC: ${channel}`);
       const result = await handler(payload);
@@ -55,7 +62,7 @@ async function localHarness() {
     await session.openEditor();
     return { session, store, registry, active: () => active! };
   }
-  return { open, writes, path };
+  return { open, writes, path, controls };
 }
 
 it("recovers edit B after ordinary local Save A against the newly saved file base", async () => {
@@ -84,4 +91,67 @@ it("recovers edit B after ordinary local Save A against the newly saved file bas
     expect(await fs.readFile(harness.path)).toEqual(savedA);
     expect(harness.writes).toHaveLength(1);
   } finally { first.session.dispose(); reopened?.session.dispose(); }
+});
+
+it("retains a confirmed Save when context refresh fails and retries before a later checkpoint", async () => {
+  const harness = await localHarness();
+  const first = await harness.open();
+  let reopened: Awaited<ReturnType<typeof harness.open>> | undefined;
+  try {
+    harness.controls.refreshError = true;
+    first.session.editor.commands!.setHeading(2);
+    expect(await first.session.coordinator.save()).toMatchObject({ accepted: true });
+    expect(first.session.coordinator.getState()).toMatchObject({ state: "saved", lastSavedGeneration: 1 });
+    const savedA = await fs.readFile(harness.path);
+    first.session.editor.commands!.setHeading(3);
+    expect(await first.session.keepDraft()).toBe(false);
+    expect(harness.controls.checkpointCalls).toBe(0);
+    expect(await first.store.list({ session: { sessionId: "desktop-dev-session", deploymentId: "lane", accountId: "account", generation: 1 } })).toHaveLength(0);
+    expect(harness.writes).toHaveLength(1);
+    harness.controls.refreshError = false;
+    expect(await first.session.keepDraft()).toBe(true);
+    first.session.dispose();
+    reopened = await harness.open();
+    const offered = await reopened.session.listDrafts();
+    expect(offered).toMatchObject({ status: "found", conflict: false });
+    if (offered.status !== "found") throw new Error("Protected draft B missing");
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(reopened.session.editor.commands!.getState().headingLevel).toBe(3);
+    expect(await fs.readFile(harness.path)).toEqual(savedA);
+    expect(harness.writes).toHaveLength(1);
+  } finally { first.session.dispose(); reopened?.session.dispose(); }
+});
+
+it("defers an N+1 checkpoint during context refresh and refuses another Save", async () => {
+  const harness = await localHarness();
+  const first = await harness.open();
+  let reopened: Awaited<ReturnType<typeof harness.open>> | undefined;
+  let release!: () => void;
+  harness.controls.refreshWait = new Promise<void>((resolve) => { release = resolve; });
+  try {
+    first.session.editor.commands!.setHeading(2);
+    const saving = first.session.coordinator.save();
+    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1));
+    first.session.editor.commands!.setHeading(3);
+    const snapshotB = await first.session.editor.captureSnapshot();
+    vi.spyOn(first.session.editor, "captureSnapshot").mockResolvedValue(snapshotB);
+    let checkpointDone = false;
+    const checkpointing = first.session.coordinator.checkpoint().then(() => { checkpointDone = true; });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(checkpointDone).toBe(false);
+    expect(harness.controls.checkpointCalls).toBe(0);
+    expect(await first.session.coordinator.save("shortcut")).toMatchObject({ accepted: false, reason: "saving" });
+    release();
+    expect(await saving).toMatchObject({ accepted: true });
+    await checkpointing;
+    expect(first.session.coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 1, dirtyGeneration: 2 });
+    first.session.dispose();
+    reopened = await harness.open();
+    const offered = await reopened.session.listDrafts();
+    expect(offered).toMatchObject({ status: "found", conflict: false });
+    if (offered.status !== "found") throw new Error("Protected draft B missing");
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(reopened.session.editor.commands!.getState().headingLevel).toBe(3);
+    expect(harness.writes).toHaveLength(1);
+  } finally { release(); first.session.dispose(); reopened?.session.dispose(); }
 });

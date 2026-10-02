@@ -44,6 +44,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   let saveAsRequested = false;
   let pickerCancelled = false;
   let localContextError: unknown;
+  let localContextRefresh: Promise<void> | undefined;
+  let localSaveSettled: Promise<void> | undefined;
   let saveInProgress = false;
   let rebindingGeneration: number | null = null;
   let rawCoordinator!: ReturnType<typeof createOfficeSaveCoordinator<Uint8Array>>;
@@ -129,6 +131,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   // seam for cloud and local work. Main also protects local pre-write bytes.
   const draft: DraftAdapter<Uint8Array> = {
     checkpoint: async (snapshot) => {
+      // A local receipt advances the draft base. Wait through the write and
+      // read-only context refresh before assigning N+1 to that new base.
+      if (localSaveSettled) await localSaveSettled;
+      if (disposed) throw new Error("docx_editor_disposed");
+      if (localContextError) await bindLocalContext();
       const draftId = draftIdFor(currentIdentity());
       const rows = await listRows();
       generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
@@ -206,21 +213,27 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     if (generation > savedGeneration) rawCoordinator.markDirty(generation);
     publish();
   };
-  const bindLocalContext = async () => {
-    const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: localHandle! }));
-    if (!result.opened || result.metadata?.handle !== localHandle) throw new Error("local_rebind_unconfirmed");
-    localContextError = undefined;
+  const bindLocalContext = (): Promise<void> => {
+    localContextRefresh ??= (async () => {
+      const handle = localHandle!;
+      const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
+      if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
+      localContextError = undefined;
+    })().finally(() => { localContextRefresh = undefined; });
+    return localContextRefresh;
   };
   const coordinator = {
     getState: () => rawCoordinator.getState(),
     subscribe(listener: Parameters<typeof rawCoordinator.subscribe>[0]) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     markDirty(value: number) { if (surface && value > generation) surfaceOffset += value - generation; generation = Math.max(generation, value); rawCoordinator.markDirty(generation); },
     setCapability: (entry: Parameters<typeof rawCoordinator.setCapability>[0]) => rawCoordinator.setCapability(entry),
-    checkpoint: async () => { if (localContextError) await bindLocalContext(); await rawCoordinator.checkpoint(); }, cancel: () => rawCoordinator.cancel(),
+    checkpoint: () => rawCoordinator.checkpoint(), cancel: () => rawCoordinator.cancel(),
     async save(entryPoint?: Parameters<typeof rawCoordinator.save>[0]): Promise<SaveAttemptResult> {
       if (saveInProgress) return { accepted: false, reason: "saving" };
       if (!surface || disposed) return { accepted: false, reason: "readonly" };
       saveInProgress = true;
+      let releaseLocalSave: (() => void) | undefined;
+      if (localHandle) localSaveSettled = new Promise<void>((resolve) => { releaseLocalSave = resolve; });
       try {
       if (localContextError) await bindLocalContext();
       const result = await rawCoordinator.save(entryPoint);
@@ -237,6 +250,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
           await bindLocalContext().catch((error: unknown) => { localContextError = error; });
         } else if (output?.localBase) {
           rawCoordinator.setIdentity({ ...rawCoordinator.getState().identity, baseVersionId: output.localBase.versionId, baseRevision: output.localBase.revision });
+          await bindLocalContext().catch((error: unknown) => { localContextError = error; });
         }
         outputs.delete(result.intentId);
       }
@@ -244,7 +258,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       } catch (error) {
         if (disposed) return { accepted: false, reason: "stale" };
         throw error;
-      } finally { saveInProgress = false; }
+      } finally { saveInProgress = false; releaseLocalSave?.(); localSaveSettled = undefined; }
     },
   };
   if (opened.canSave === false) coordinator.setCapability({ format: "docx", operation: "serialize", host: "desktop", engineBuild: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
@@ -281,7 +295,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (state.state === "ready" || state.state === "saved") return true;
       const snapshot = await captured().catch(() => null);
       if (!snapshot) return false;
-      try { if (localContextError) await bindLocalContext(); await draft.checkpoint(snapshot); return true; } catch { return false; }
+      try { await draft.checkpoint(snapshot); return true; } catch { return false; }
     },
     /** Discard consumes the chosen row when the caller names it (a conflict row
      * is stored under its own older-base id) and otherwise the current base row. */
