@@ -70,6 +70,11 @@ y=40├───────────────── plate tab đang mở 
 
 ## 5. Ngoài phạm vi
 
+Định dạng (Advisor 2026-10-02, trả lời UNI-917): desktop vẫn chỉ DOCX như G4-06a. Mô hình tab không phụ thuộc định
+dạng (định dạng lấy từ metadata tài liệu, icon qua `DocumentTypeIcon`), có unit test với metadata giả của nhiều định
+dạng; gắn editor XLSX/PPTX/PDF/MD/HTML trên desktop là việc của G4-06b..f (UNI-835).
+
+
 Kéo tab ra cửa sổ mới, kéo sắp xếp, tab trên web, đồng bộ tab giữa thiết bị.
 
 ## 6. Nghiệm thu
@@ -77,5 +82,5 @@ Kéo tab ra cửa sổ mới, kéo sắp xếp, tab trên web, đồng bộ tab 
 - Unit/jsdom: mở/chuyển/đóng tab, chống trùng tài liệu, chấm chưa lưu, hộp thoại đóng tab bẩn, Ctrl+S chỉ tab đang
   mở, giới hạn tab, đổi tài khoản đóng tab; main: checkpoint theo từng tài liệu, IPC mới có schema + validate.
 - `node scripts/office/check-boundaries.mjs`, `pnpm knip`, desktop typecheck/lint/test, 500 dòng/file, coverage floor.
-- Tester visual trên bản đóng gói: light + dark, Windows 1360×900 và 720×550 (tràn tab), mở 3 tài liệu khác định dạng,
-  sửa một tab rồi đóng; đối chiếu genoffice shell và unicom-ui-design. Người dùng duyệt giao diện cuối.
+- Tester visual trên bản đóng gói: light + dark, Windows 1360×900 và 720×550 (tràn tab, 8 tab), mở 3 tài liệu DOCX (2 cloud + 1 tệp
+  trên máy), sửa một tab rồi đóng; đối chiếu genoffice shell và unicom-ui-design. Người dùng duyệt giao diện cuối.
