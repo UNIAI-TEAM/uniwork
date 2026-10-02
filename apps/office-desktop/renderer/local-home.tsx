@@ -51,8 +51,8 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
         ) : (
           <ul aria-label={t("title")} className="flex flex-col gap-2">
             {rows.map((file) => (
-              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className={`flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3 ${file.missing ? "opacity-60" : ""}`}>
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left enabled:hover:bg-muted" aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
+              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
+                <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
                   <DocumentTypeIcon format="docx" className="size-8 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body text-foreground">{file.name}</span>

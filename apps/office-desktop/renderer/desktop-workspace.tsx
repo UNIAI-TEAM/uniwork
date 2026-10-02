@@ -142,7 +142,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
     if (tabs.open({ kind: "local", title, format: "docx", bytes: { dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
-  const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void) => {
+  const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void, errorMessage?: (error: unknown) => string) => {
     if (actionBusy.current || leaveRef.current) return;
     const epoch = lifetime.current;
     actionBusy.current = true; setBusy(true); setActionError(null);
@@ -154,7 +154,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
       });
       syncQueue.current = opened.catch(() => undefined);
       await opened;
-    } catch { if (mounted.current && epoch === lifetime.current) setActionError(t("officeDesktop.library.actionError")); }
+    } catch (error) { if (mounted.current && epoch === lifetime.current) setActionError(errorMessage?.(error) ?? t("officeDesktop.library.actionError")); }
     finally { actionBusy.current = false; if (mounted.current) setBusy(false); }
   };
   const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version">, allowSave = true) => {
@@ -166,7 +166,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
   const openRecent = (id: string) => {
     if (!canOpen()) return;
-    void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal).then(() => recents.reload());
+    void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal, (error) => (error as { code?: string } | null)?.code === "not_found" ? t("officeDesktop.local.missing") : t("officeDesktop.library.actionError")).then(() => recents.reload());
   };
   const create = () => {
     if (modeRef.current === "local") { createLocal(); return; }

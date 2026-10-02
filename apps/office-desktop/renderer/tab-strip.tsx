@@ -134,7 +134,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
       </div>
       <div className="desktop-tab-drag-space" />
       {mode === "local" ? (
-        onSignIn ? <Button type="button" size="sm" variant="outline" className="desktop-sign-in-button" onClick={onSignIn}>{t("signIn")}</Button> : null
+        onSignIn ? <Button type="button" size="sm" variant="outline" className="desktop-sign-in-button mr-2 self-center" onClick={onSignIn}>{t("signIn")}</Button> : null
       ) : (
       <DropdownMenu>
         <DropdownMenuTrigger className="desktop-chrome-button desktop-account-button" aria-label={t("account", { name: displayName })} title={displayName}><Avatar size="sm" aria-hidden="true"><AvatarFallback>{initials}</AvatarFallback></Avatar></DropdownMenuTrigger>

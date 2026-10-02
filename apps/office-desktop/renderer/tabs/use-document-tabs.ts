@@ -39,14 +39,22 @@ export function useDocumentTabs(bridge: RendererBridge) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = state.tabs.map((tab) => tab.data.session.coordinator.subscribe(() => redraw((value) => value + 1)));
-    return () => unsubscribe.forEach((release) => release());
+    const release = state.tabs.map((tab) => tab.data.session.coordinator.subscribe(() => {
+      redraw((value) => value + 1);
+      // A confirmed save (or any transition to clean) retires a stale
+      // "could not protect changes" warning immediately.
+      if (!isDocumentDirty(tab.data.session)) setCheckpointFailures((previous) => previous.includes(tab.id) ? previous.filter((id) => id !== tab.id) : previous);
+    }));
+    return () => release.forEach((unsubscribe) => unsubscribe());
   }, [state.tabs]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       for (const tab of current.current.tabs) {
-        if (!isDocumentDirty(tab.data.session)) continue;
+        if (!isDocumentDirty(tab.data.session)) {
+          setCheckpointFailures((previous) => previous.includes(tab.id) ? previous.filter((id) => id !== tab.id) : previous);
+          continue;
+        }
         void tab.data.session.keepDraft().then((stored) => {
           if (!alive.current || !current.current.tabs.some((entry) => entry.id === tab.id)) return;
           setCheckpointFailures((previous) => stored ? previous.filter((id) => id !== tab.id) : previous.includes(tab.id) ? previous : [...previous, tab.id]);

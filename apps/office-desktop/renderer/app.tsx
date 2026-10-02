@@ -54,23 +54,26 @@ export function App({ bridge }: { bridge: RendererBridge }) {
       setLoginPrompt(true);
     });
     void (async () => {
-      try {
-        const [config, session, local] = await Promise.all([
-          bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION }),
-          bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION }),
-          bridge.call("desktop:local-state", { sessionGeneration: SESSION_GENERATION }).catch(() => undefined),
-        ]);
-        if (!isAuthConfig(config)) throw new Error("invalid auth config");
-        controllerRef.current = createLoginController(bridge, SESSION_GENERATION, config.clientId, config.deploymentId);
+      // Local mode must not depend on the auth surface: a device with the
+      // local preference and no deployment profile opens the local home even
+      // when auth-config cannot be resolved.
+      const [config, session, local] = await Promise.allSettled([
+        bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION }),
+        bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION }),
+        bridge.call("desktop:local-state", { sessionGeneration: SESSION_GENERATION }),
+      ]);
+      setLocalMode(local.status === "fulfilled" ? requestedLocalState(local.value) : false);
+      if (config.status === "fulfilled" && isAuthConfig(config.value)) {
+        controllerRef.current = createLoginController(bridge, SESSION_GENERATION, config.value.clientId, config.value.deploymentId);
         unsubscribeController = controllerRef.current.subscribe(setState);
-        if (!isSessionMetadata(session)) throw new Error("invalid session metadata");
-        setLocalMode(requestedLocalState(local));
-        metadataRef.current = session;
-        setMetadata(session);
-        setState(loginStateFromMetadata(session));
-      } catch {
-        setState("error");
+        if (session.status === "fulfilled" && isSessionMetadata(session.value)) {
+          metadataRef.current = session.value;
+          setMetadata(session.value);
+          setState(loginStateFromMetadata(session.value));
+          return;
+        }
       }
+      setState("error");
     })();
     return () => { unsubscribe(); unsubscribeLogin?.(); unsubscribeController?.(); };
   }, [bridge]);

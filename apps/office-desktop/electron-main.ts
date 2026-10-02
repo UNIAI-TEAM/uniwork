@@ -323,6 +323,10 @@ async function startElectronHost(): Promise<void> {
     consumeLocalCheckpoint({ handle: previousHandle });
     if (!documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
     documents.noteConfirmedSave(metadata.handle);
+    // The Save As target is a file the user chose to keep: it belongs in the
+    // recent list beside every other opened file.
+    const path = fileRegistry.pathOf(metadata.handle);
+    if (path) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
   };
   const leaveEvidence = createDocumentLeaveEvidence({ documents, store: draftStore, saveBusy: () => saveGuard.busy });
   const leave = createDesktopLeaveCoordinator({

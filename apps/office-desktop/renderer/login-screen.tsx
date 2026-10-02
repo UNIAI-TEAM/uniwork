@@ -51,7 +51,7 @@ export function LoginScreen({ state, onStart, onCancel, onOpenLocal, onUseLocal 
         {!pending && (onOpenLocal || onUseLocal) ? (
           <div className="flex w-full flex-col gap-2">
             {onOpenLocal ? <Button variant="outline" className="w-full" onClick={onOpenLocal}>{t("openLocal")}</Button> : null}
-            {onUseLocal ? <Button variant="ghost" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button> : null}
+            {onUseLocal ? <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button> : null}
             <p className="text-caption text-muted-foreground">{t("localNote")}</p>
           </div>
         ) : null}

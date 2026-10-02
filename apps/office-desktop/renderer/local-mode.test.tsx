@@ -26,7 +26,7 @@ const recent = (id: string, name: string, missing = false, directory = "…\\Doc
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
 
-function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean } = {}) {
+function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   let fileListener: ((event: { handle: string }) => void) | undefined;
@@ -56,6 +56,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
   const call = vi.fn(async (channel: string, payload: unknown) => {
     calls.push({ channel, payload });
     if (options.strict && !LOCAL_CHANNELS.has(channel)) throw new Error(`unexpected network channel ${channel}`);
+    if (options.failAuthConfig && channel === "desktop:auth-config") throw new Error("no transport");
     return response(channel, (payload ?? {}) as Record<string, unknown>);
   });
   const bridge: RendererBridge = {
@@ -110,6 +111,13 @@ it("opens the local home directly when the device chose it last time", async () 
   expect(h.container.querySelector("[data-login-state]")).toBeNull();
   expect(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") })).toBeInTheDocument();
   expect(h.call).toHaveBeenCalledWith("desktop:local-state", expect.objectContaining({ sessionGeneration: expect.any(String) }));
+});
+
+it("opens the local home on relaunch even when auth-config is unavailable (no deployment profile)", async () => {
+  const h = harness({ localMode: true, failAuthConfig: true });
+  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
+  expect(h.container.querySelector("[data-login-state]")).toBeNull();
+  expect(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") })).toBeInTheDocument();
 });
 
 it("lists recent files, opens one, and removes a missing file from the list", async () => {
@@ -197,6 +205,19 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle })));
   await screen.findByRole("tab", { name: /copy\.docx/ });
   expect(screen.queryByRole("tab", { name: /Local\.docx/ })).toBeNull();
+});
+
+it("clears the protective-checkpoint warning once a local save is confirmed", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Local\.docx/ });
+  await edit(`file_${"f".repeat(32)}`);
+  // The 2 s checkpoint tick reports a dirty local file with no durable row.
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 5_000 });
+  fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.anything()));
+  await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeNull());
 });
 
 it("creates a new local document and writes it through Save As", async () => {
