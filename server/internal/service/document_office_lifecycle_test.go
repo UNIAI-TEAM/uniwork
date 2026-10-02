@@ -499,7 +499,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), editInput); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("stranger submit: %v", err)
 		}
-		// A viewer may read a job's status but may neither submit nor cancel.
+		// A viewer may read a job's status but may neither submit edits nor cancel.
 		docRow, err := f.q.GetDocumentByID(ctx, f.doc)
 		if err != nil {
 			t.Fatal(err)
