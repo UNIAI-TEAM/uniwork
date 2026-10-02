@@ -26,6 +26,7 @@
     "apps/docs/src/main",
     "apps/docs/src/renderer/editor",
     "apps/docs/src/renderer/styles.css",
+    "apps/docs/src/renderer/doc-style-css.ts",
     "packages/ui/src/tokens.css",
     "apps/docs/src/renderer/line-metrics.ts",
     "apps/docs/src/renderer/font-list.ts",
@@ -64,9 +65,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 841,
+  "fileCount": 842,
   "integrity": {
-    "filesDigest": "7af0b415f18594aa035d061d38b6c83b15aeaa57a32120667bf4a4a85efd72cf"
+    "filesDigest": "15bf7a3cbb2711238c97c09b707e0d38853c9bed70810626f508dbb2c149422f"
   },
   "files": [
     {
@@ -144,6 +145,13 @@
       "bytes": 4622,
       "sha256": "BE746AC07DF076252867AD47E40529865824B4DD86B3182DD2A998707D56C6B3",
       "blob": "11db32fe8c329407af6bb0734365a64e6b6b7d08",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/doc-style-css.ts",
+      "bytes": 46582,
+      "sha256": "6B197DD3E98C69091C3D9628BD1C6EDAFEC3C93FD25E42C8AA0CCDA3EFBFDC0B",
+      "blob": "20e0d848dcac14a1e53d823b957d948678b181e2",
       "mode": "100644"
     },
     {

@@ -67,6 +67,10 @@ export const SELECTION = [
   // browser artifact scopes the sheet under .docx-surface so the app-global
   // rules (body/html/:root) cannot leak into the UniWork shell.
   'apps/docs/src/renderer/styles.css',
+  // G3-04d T (UNI-823): the document style sheet generator (docStyleCss /
+  // docThemeCss / docLineFactor). Without it the surface renders the
+  // stylesheet's own defaults instead of styles.xml + theme (G3-D3 T).
+  'apps/docs/src/renderer/doc-style-css.ts',
   'packages/ui/src/tokens.css',
   'apps/docs/src/renderer/line-metrics.ts',
   'apps/docs/src/renderer/font-list.ts',

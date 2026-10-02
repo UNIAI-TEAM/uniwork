@@ -9,6 +9,9 @@ export { parseDocx, saveDocx, readSections } from "../upstream/packages/docx-eng
 export {
   assignSections,
   bumpLineSampleFontEpoch,
+  columnLayoutSpecs,
+  docCharSpacePt,
+  docGridPitchPt,
   effectiveBottomPx,
   effectiveHfRefs,
   effectiveTopPx,
@@ -19,17 +22,34 @@ export {
   measureBlocks,
   nextLineAnchor,
   pageNumbers,
+  sectionBidi,
+  sectionColGeom,
+  sectionColumns,
   sectionFirstPages,
   sectionGeoms,
   sectionPageBox,
   sliceWithLineSplit,
+  tableRowFlags,
   visiblePageCount,
 } from "../upstream/apps/docs/src/renderer/pagination";
 export {
   GAP_BAND,
+  pageFramesFromGaps,
   setPageGaps,
   setRowFills,
 } from "../upstream/apps/docs/src/renderer/editor/pagination-gaps";
+// G3-04d R1 (UNI-823): mixed-column canvas placements (documents whose sections
+// disagree on the column spec) need the decoration channel the upstream App
+// drives; the vendored extension carries the whole paint path.
+export { setColumnLayout } from "../upstream/apps/docs/src/renderer/editor/column-layout";
+// G3-04d T (UNI-823): the document stylesheet generator (styles.xml + theme).
+export {
+  docBodyFont,
+  docHasCjk,
+  docLineFactor,
+  docStyleCss,
+  docThemeCss,
+} from "../upstream/apps/docs/src/renderer/doc-style-css";
 export {
   bumpHfProbeFontEpoch,
   hfHasVisibleContent,
