@@ -16,6 +16,7 @@ import {
   buildPaginationFrame,
   createDocxPaginationSpec,
   docxPageGeometryVars,
+  docxPaperMinHeightPx,
   type DocxPaginationSpec,
 } from "./docx-pagination";
 
@@ -90,7 +91,12 @@ describe("buildPaginationFrame", () => {
     expect(frame.gaps[1]?.el).toBe(els[2]);
     // Section metrics: A4 top/bottom margins (75.6px) with header/footer push.
     expect(frame.gaps[0]?.metrics.marginTop).toBeCloseTo(75.6, 1);
-    expect(frame.gaps[0]?.metrics.marginBottom).toBeCloseTo(75.6, 1);
+    // R3 (g3-04d): page 1 ends at 400px of its A4 body (pageHeight − margins),
+    // so the gap absorbs the shortfall and the frame still paints a full sheet.
+    const bodyH = 16838 / 15 - 75.6 - 75.6;
+    const pad = Math.round(bodyH - 400);
+    expect(pad).toBeGreaterThan(0);
+    expect(frame.gaps[0]?.metrics.marginBottom).toBeCloseTo(75.6 + pad, 5);
     expect(frame.gaps[0]?.metrics.sectionMarginTop).toBeCloseTo(75.6, 1);
     // Each gap carries the document's real footer text and the next header.
     const gapTexts = (frame.gaps[0]?.hfEls ?? []).map((el) => el.textContent ?? "");
@@ -174,6 +180,18 @@ describe("buildPaginationFrame", () => {
     expect(frame.edgeHf?.footer.pageNo).toBe("2");
     expect(frame.edgeHf?.footer.piece.value?.text).toBe("Even footer");
   });
+
+  it("computes the last-page canvas height from the last gap (paperTop + pageHeight)", () => {
+    // A4: 16838 twips = 1122.53px, marginTop 75.6px, no header reservation
+    expect(
+      docxPaperMinHeightPx({ lastGapBottom: 1700, paperTop: 0, factor: 1, settings: { ...A4 }, headerPx: 0 }),
+    ).toBe(Math.round(1700 - 75.6 + 16838 / 15));
+    // an over-tall header (48px headerDist + 40px strip > 75.6px margin) pushes
+    // the content start down; the canvas still reaches the page bottom
+    expect(
+      docxPaperMinHeightPx({ lastGapBottom: 1000, paperTop: 100, factor: 1, settings: { ...A4 }, headerPx: 40 }),
+    ).toBe(Math.round(1000 - 100 - 88 + 16838 / 15));
+  });
 });
 
 describe("attachDocxPagination on a mounted surface", () => {
@@ -232,6 +250,12 @@ describe("attachDocxPagination on a mounted surface", () => {
       const text = Array.from(strips).map((el) => el.textContent ?? "").join(" ");
       expect(text).toContain("Doc header");
       expect(text).toContain("Doc footer");
+
+      // R3 (g3-04d): the last page paints as a full sheet — the canvas
+      // min-height reaches the last page's paper bottom. The exact math is
+      // pinned by docxPaperMinHeightPx below; jsdom has no layout to measure.
+      expect(pm.style.minHeight).toMatch(/^\d+px$/);
+      expect(parseInt(pm.style.minHeight, 10)).toBeGreaterThan(0);
     } finally {
       paginator.dispose();
       view.unmount();

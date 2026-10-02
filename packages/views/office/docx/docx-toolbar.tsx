@@ -16,7 +16,7 @@ export interface DocxToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onSave: () => void;
+  onSave?: () => void;
   /** Absent until a real editing surface (use-docx-tiptap-handle.ts) is
    * mounted — the format buttons stay disabled, same as a missing selection. */
   format: DocxFormatState | null;
@@ -140,7 +140,7 @@ export function DocxToolbar({
       <span className="min-w-0 flex-1 truncate px-2 text-caption text-muted-foreground" data-testid="docx-selection">
         {selectionLabel}
       </span>
-      <Button
+      {onSave ? <Button
         type="button"
         variant="brand"
         size="sm"
@@ -151,10 +151,10 @@ export function DocxToolbar({
       >
         <Save aria-hidden />
         {saving ? t("office.docx.actions.saving") : t("office.docx.actions.save")}
-      </Button>
-      <span className="sr-only" role="status" aria-live="polite">
+      </Button> : null}
+      {onSave ? <span className="sr-only" role="status" aria-live="polite">
         {t(`office.docx.saveState.${coordinator.getState().state}`)}
-      </span>
+      </span> : null}
     </div>
   );
 }

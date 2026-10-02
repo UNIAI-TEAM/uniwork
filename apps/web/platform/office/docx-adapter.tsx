@@ -54,7 +54,7 @@ export function createDocxFormatAdapter(options: DocxFormatAdapterOptions) {
     session, editor, open, capability: options.capability,
     editorView: createElement(DocxEditor<DocxTiptapSnapshot>, {
       documentKey: options.identity.documentId, editor, open, coordinator: session.coordinator,
-      capability: options.capability, title: options.title, manageSession: false,
+      capability: options.capability, title: options.title, manageSession: false, showDocumentControls: false,
     }),
     async onRecoverSnapshot(snapshot: Parameters<typeof editor.restoreSnapshot>[0]) {
       await open.open();

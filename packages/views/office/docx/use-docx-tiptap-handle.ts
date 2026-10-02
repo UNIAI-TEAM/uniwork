@@ -11,10 +11,12 @@ import { EditorContent } from "@tiptap/react";
 // consuming program; the desktop host does not resolve them otherwise.
 import type {} from "@tiptap/starter-kit";
 import { createElement, useEffect, useState, type ReactNode } from "react";
-import { installDocxRendererStyles, pmDocOptions } from "@uniwork/office-upstream/docs-renderer-editor";
+import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { blocksToDoc } from "./docx-doc-convert";
+import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
+import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
@@ -67,6 +69,7 @@ function DocxRendererSurface({ editor, pagination }: { editor: Editor; paginatio
             "div",
             { className: "page-wrap" },
             createElement(EditorContent, { editor }),
+            pagination && createElement(DocxNoteAreas, { editor, parsed: pagination.parsedDoc as RendererParsed }),
             // First page's header/footer strips land here (no page gap above
             // page 1); React owns the host, the paginator only its children.
             createElement("div", {
@@ -222,14 +225,19 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       sourceBase64 = encodeDocxSource(bytes);
       installDocxRendererStyles();
       const parsed = options.adapter.parsedOf(ref);
+      const noteProps = parsed as { footnoteProps?: { numFmt?: string }; endnoteProps?: { numFmt?: string } };
+      setNoteNumFmts({ footnote: noteProps.footnoteProps, endnote: noteProps.endnoteProps });
+      // T: the document's own styles.xml + theme rules (display-only).
+      installDocxDocumentStyles(parsed);
       paginationSpec = createDocxPaginationSpec(parsed);
+      const docLang = docxDocumentLang(parsed);
       tiptapEditor = new Editor({
         extensions: docxExtensions(options.adapter.numberingOf(ref)),
         content: blocksToDoc(options.adapter.blocksOf(ref), paginationSpec.sections, pmDocOptions(parsed as { compatibilityMode?: number })),
         editable: !options.readOnly,
         // Upstream's App marks the editor root `.doc-page`; the repackaged
         // vendored sheet keys the paper and its document rules on that class.
-        editorProps: { attributes: { class: "doc-page" } },
+        editorProps: { attributes: { class: "doc-page", ...(docLang ? { lang: docLang } : {}) } },
         onTransaction: ({ transaction }) => {
           if (transaction.docChanged) {
             generation += 1;

@@ -241,5 +241,13 @@ export const DOCX_RENDERER_STYLE_BANNER =
 
 /** The complete surface stylesheet: chrome tokens first, then document styles. */
 export function buildDocxRendererStyleSheet({ tokensCss, stylesCss }) {
-  return DOCX_RENDERER_STYLE_BANNER + scopeRendererStyles(`${tokensCss}\n${stylesCss}`) + '\n';
+  // genoffice uses native sup/sub layout. Tailwind Preflight in the web host
+  // otherwise sets zero line-height and relative offsets, changing a note-ref
+  // paragraph's line box and all subsequent block positions (Vietnamese r2).
+  const nativeInlineLayout = `
+    .doc-page sup, .doc-page sub { line-height: inherit; position: static; top: auto; bottom: auto; }
+    .doc-page sup { vertical-align: super; }
+    .doc-page sub { vertical-align: sub; }
+  `;
+  return DOCX_RENDERER_STYLE_BANNER + scopeRendererStyles(`${tokensCss}\n${stylesCss}\n${nativeInlineLayout}`) + '\n';
 }

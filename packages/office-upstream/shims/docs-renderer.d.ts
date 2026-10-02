@@ -1,6 +1,7 @@
 import type { Extensions, JSONContent } from "@tiptap/core";
 
 export interface RendererRun {
+  noteRef?: { kind: "footnote" | "endnote"; id: string };
   text: string;
   bold?: boolean;
   italic?: boolean;
@@ -23,6 +24,25 @@ export interface RendererParsed {
   blocks: RendererBlock[];
   [key: string]: unknown;
 }
+export interface RendererNote {
+  styleId?: string;
+  spacing?: { beforeTwips?: number; afterTwips?: number; lineRule?: "auto" | "atLeast" | "exact"; lineRawTwips?: number };
+  richParas?: RendererRun[][];
+  id: string;
+  text: string;
+  noRefMark?: true;
+}
+interface RendererNoteAreaProps {
+  notes: RendererNote[];
+  numberOf?: (note: RendererNote, index: number) => number;
+  readOnly?: boolean;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+export function PageFootnotes(props: RendererNoteAreaProps & { skipIds: ReadonlySet<string> }): import("react").ReactNode;
+export function PageEndnotes(props: RendererNoteAreaProps & { top: number | null }): import("react").ReactNode;
+export function endnotesAnchorY(pm: HTMLElement, baseTop: number, factor: number): number | null;
+export function setNoteNumFmts(props: { footnote?: { numFmt?: string }; endnote?: { numFmt?: string } }): void;
 export const editorExtensions: Extensions;
 export const DOCX_RENDERER_STYLE_ELEMENT_ID: string;
 /** Mounts the vendored renderer stylesheet (scoped to `.docx-surface`) once per document. */
@@ -77,6 +97,9 @@ export interface RendererHeaderFooter {
   paras?: RendererHfParagraph[];
 }
 export interface RendererBlockBox {
+  spaceBeforePx?: number;
+  footnoteExtraPx?: number;
+  noteBands?: Array<{ offset: number; height: number }>;
   top: number;
   height: number;
   el?: HTMLElement;
@@ -90,6 +113,9 @@ export interface RendererPageSlice {
   start: number;
   end: number;
   section: number;
+  regions?: unknown[];
+  physHeight?: number;
+  repeatHeader?: { top: number; height: number };
   [key: string]: unknown;
 }
 export interface RendererSectionGeom {
@@ -132,6 +158,8 @@ export interface RendererGapMetrics {
   pageWidth?: number;
 }
 export interface RendererPageGapSpec {
+  notes?: HTMLElement;
+  notesKey?: string;
   metrics: RendererGapMetrics;
   el?: HTMLElement;
   pos?: number;
@@ -143,6 +171,8 @@ export interface RendererPageGapSpec {
   carryPx?: number;
   suppressLeadMt?: boolean;
   pullUp?: number;
+  repeatHeaderEls?: HTMLElement[];
+  repeatHeaderKey?: string;
 }
 
 export function readSections(parsed: RendererParsed): RendererSection[];
@@ -171,3 +201,95 @@ export function hfReservedHeightPx(kind: "header" | "footer", value: RendererHea
 export function hfHasVisibleContent(value: RendererHeaderFooter | null | undefined, images?: unknown[]): boolean;
 export function bumpHfProbeFontEpoch(): void;
 export function bumpLineSampleFontEpoch(): void;
+
+// ── G3-04d fidelity surface (UNI-823) ─────────────────────────────────────
+export interface RendererTableRowFlags {
+  isHeader: boolean;
+  cantSplit: boolean;
+  minHPx?: number;
+}
+export interface RendererBlockMeta {
+  keepNext?: boolean;
+  keepLines?: boolean;
+  breakBefore?: boolean;
+  widowControl?: boolean;
+  suppressLineNumbers?: boolean;
+  tableRowFlags?: RendererTableRowFlags[];
+  modernTableHeaders?: boolean;
+  footnoteExtraPx?: number;
+  footnoteBands?: Array<{ heightPx: number }>;
+}
+export interface RendererColumnGeom {
+  cols: number;
+  colWidthPx: number;
+  gapPx: number;
+  equalWidth: boolean;
+  widths: number[];
+  gaps: number[];
+}
+export interface RendererColumnBlockPlacement {
+  el: HTMLElement;
+  widthPx?: number;
+  contentWPx?: number;
+  marginLeftPx?: number;
+  marginRightPx?: number;
+  marginTopPx?: number;
+  dx: number;
+  dy: number;
+  [key: string]: unknown;
+}
+export interface RendererPageFrame {
+  top: number;
+  bottom: number;
+  left: number;
+  width: number;
+}
+
+export function tableRowFlags(tableXml: string): RendererTableRowFlags[];
+export function sectionColumns(section: RendererSection): number;
+export function sectionColGeom(section: RendererSection): RendererColumnGeom;
+export function sectionBidi(section: RendererSection): boolean;
+/** Typed docGrid pitch (pt) when the sections agree, else null. */
+export function docGridPitchPt(sections: RendererSection[]): number | null;
+/** Typed docGrid charSpace delta (pt) when the sections agree, else null. */
+export function docCharSpacePt(sections: RendererSection[]): number | null;
+export function columnLayoutSpecs(blocks: RendererBlockBox[], slices: RendererPageSlice[], sections: RendererSection[]): RendererColumnBlockPlacement[];
+export function setColumnLayout(view: import("@tiptap/pm/view").EditorView, specs: RendererColumnBlockPlacement[]): void;
+export function pageFramesFromGaps(wrap: HTMLElement, zoomFactor: number, first?: { left: number; width: number }): RendererPageFrame[];
+
+/** styles.xml + docDefaults CSS: paragraph/heading styles, theme-resolved fonts,
+ *  `--doc-line-factor*`, autospace and grid rules. Generated at open, display-only. */
+export function docStyleCss(parsed: RendererParsed): string;
+/** Theme pick CSS (Design ▸ Themes/Fonts/Colors); pass the parse's theme fonts/colors. */
+export function docThemeCss(fonts: unknown, colors: unknown, bodyFontDeclared?: boolean): string;
+export function docLineFactor(parsed: RendererParsed, hasCjk: boolean): number;
+export function docHasCjk(parsed: RendererParsed): boolean;
+export function docBodyFont(parsed: RendererParsed): string | undefined;
+
+// UNI-823 F1: the pinned note model and helpers, exposed only on the browser seam.
+export interface RendererPageNoteItem extends RendererNote {
+  no: number;
+  height: number;
+  lineHeightPx?: number;
+  fontSizePt?: number;
+  fontFamily?: string;
+}
+export interface RendererNoteStyle {
+  sizeHalfPoints?: number;
+  fontFamily?: string;
+  lineRule?: "auto" | "atLeast" | "exact";
+  lineRawTwips?: number;
+  spaceBeforeTwips?: number;
+  spaceAfterTwips?: number;
+}
+export function blockNoteScanRuns(block: RendererBlock): RendererRun[];
+export function makeGapNotesEl(items: RendererPageNoteItem[], left: number, width: number, height: number, lineHeight: number, onEdit?: (id: string) => void): HTMLElement;
+export function measureNoteHeightDom(entry: Pick<RendererPageNoteItem, "no" | "text" | "richParas" | "noRefMark">, kind: "footnote" | "endnote", width: number, lineHeight: number, fontSize: number, fontFamily?: string): number | null;
+export function cssFontFamily(value: string): string;
+export function resolveNoteStyle(parsed: RendererParsed, styleId?: string, direct?: RendererNote["spacing"]): RendererNoteStyle;
+export function noteRunStyle(richParas?: RendererRun[][]): Pick<RendererNoteStyle, "sizeHalfPoints" | "fontFamily">;
+export function noteLineHeightPx(docGrid: unknown, style?: RendererNoteStyle): number;
+export function footnoteLineHeightPx(docGrid: unknown): number;
+export function estimateFootnoteHeight(text: string, width: number, docGrid: unknown, metrics?: unknown, style?: RendererNoteStyle, richParas?: RendererRun[][]): number;
+export const FOOTNOTE_SEPARATOR_H: number;
+export function pageAt(slices: RendererPageSlice[], y: number): number;

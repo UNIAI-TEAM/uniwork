@@ -100,6 +100,8 @@ export interface DocxEditorProps<TSnapshot = unknown> {
   className?: string;
   /** A host that owns the session disposes it when its adapter is released. */
   manageSession?: boolean;
+  /** Hide duplicate title/status/Save when the surrounding host provides them. */
+  showDocumentControls?: boolean;
   onOpen?: (outcome: DocxOpenOutcome) => void;
   onSelectionChange?: (selection: DocxSelection | null) => void;
 }

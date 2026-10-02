@@ -9,3 +9,7 @@ export function t(key: string, options?: Record<string, unknown>): string {
   const full = key.startsWith("office.docx.editor.") ? key : `office.docx.editor.${key}`;
   return i18next.t(full, options as never) || key;
 }
+
+export function useI18n(): { t: typeof t } {
+  return { t };
+}
