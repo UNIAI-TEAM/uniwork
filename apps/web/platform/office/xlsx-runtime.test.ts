@@ -1,3 +1,5 @@
+/** @vitest-environment node */
+import { inspect, types } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createOfficeSaveCoordinator, dispatchOfficeError, officeSerializedOutputSchema, officeUploadReceiptSchema, type EditorHandle, type OfficeIdentity, type OfficeSaveIntent, type StableSnapshot } from "@uniwork/core/office";
 import type { OfficeJob } from "@uniwork/core/api/endpoints/office";
@@ -28,6 +30,20 @@ async function opened() {
   return engine;
 }
 function editRequests() { return api.start.mock.calls.map((call) => call[1]).filter((body) => body.operation === "edit"); }
+
+// Only the two controlled cancellation rejections use this seam. Log their
+// original errors before rejects assertions consume them, never request bytes.
+function logCancellation(error: unknown, phase: string): never {
+  const record = error as Error & { code?: unknown; cause?: unknown };
+  console.error("xlsx-original-cancellation", inspect({
+    phase, constructor: record?.constructor?.name, tag: Object.prototype.toString.call(error),
+    instanceOfGlobalError: error instanceof Error, nativeIsError: types.isNativeError(error),
+    instanceOfDOMException: error instanceof DOMException,
+    name: record?.name, message: record?.message, stack: record?.stack, code: record?.code,
+    causePresent: !!record && Object.prototype.hasOwnProperty.call(record, "cause"), cause: record?.cause,
+  }, { depth: null, maxArrayLength: null, maxStringLength: null, customInspect: false }));
+  throw error;
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -213,7 +229,8 @@ describe("web XLSX save journal", () => {
     api.get.mockImplementationOnce((_documentId, _jobId, signal: AbortSignal) => new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true });
     }));
-    const saving = engine.serialize("model", { intentId: "save-1", snapshot, signal: controller.signal });
+    const saving = engine.serialize("model", { intentId: "save-1", snapshot, signal: controller.signal })
+      .catch((error: unknown) => logCancellation(error, "journal"));
     const rejected = expect(saving).rejects.toMatchObject({ name: "AbortError" });
     await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
     controller.abort();
@@ -323,7 +340,8 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
   it("maps native cancellation to AbortError without retiring the candidate", async () => {
     const engine = await opened();
     api.get.mockResolvedValueOnce({ jobId: "job", state: "cancelled", error: { code: "engine_cancelled", retryable: false } } as OfficeJob);
-    await expect(engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) })).rejects.toMatchObject({ name: "AbortError" });
+    await expect(engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) })
+      .catch((error: unknown) => logCancellation(error, "native"))).rejects.toMatchObject({ name: "AbortError" });
     await engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) });
     expect(editRequests()).toHaveLength(2);
   });
