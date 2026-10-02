@@ -48,6 +48,15 @@ app.on("open-url", (event, url) => {
   if (captureOpenUrls) pendingOpenUrls.push(url);
 });
 
+// A second launch (deep link from a browser/launcher) can arrive while the
+// primary is still booting, before the host attaches its listener. Queue the
+// command line at module load; the deep-link system drains it once registered.
+const pendingSecondInstance: string[][] = [];
+let captureSecondInstance = true;
+app.on("second-instance", (_event, argv) => {
+  if (captureSecondInstance) pendingSecondInstance.push([...argv]);
+});
+
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   // Electron requires literal colors. These mirror --muted and
   // --foreground in packages/ui/styles/tokens.css (:root and .dark).
@@ -103,7 +112,9 @@ function installRendererProtocol(): void {
 
 function createDeepLinkSystem(): DeepLinkSystem {
   return {
-    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+    // The host already took the lock at bootstrap; report the held state so a
+    // repeated call cannot be mistaken for a secondary instance.
+    requestSingleInstanceLock: () => (typeof app.hasSingleInstanceLock === "function" ? app.hasSingleInstanceLock() : app.requestSingleInstanceLock()),
     registerProtocolClient: (scheme) => {
       if (process.platform === "win32" && app.isPackaged) app.setAsDefaultProtocolClient(scheme);
       else if (process.platform === "linux") {
@@ -123,6 +134,10 @@ function createDeepLinkSystem(): DeepLinkSystem {
     takePendingOpenUrls: () => {
       captureOpenUrls = false;
       return pendingOpenUrls.splice(0);
+    },
+    takePendingSecondInstance: () => {
+      captureSecondInstance = false;
+      return pendingSecondInstance.splice(0);
     },
     quit: () => app.quit(),
   };
@@ -161,6 +176,14 @@ export function runtimeGlibcVersion(): string | undefined {
 }
 
 async function startElectronHost(): Promise<void> {
+  // A launch that cannot take the single-instance lock is a deep-link hand-off
+  // (the running primary receives 'second-instance'). Exit before any window
+  // exists: a renderer-less secondary would otherwise be held open by the
+  // unsaved-work close guard and leave a second app process behind.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
   // Minimum OS/architecture check before anything else: a wrong-machine install
   // shows one native error box and exits before a user-data path is created or
   // any file is written. The forced flag is a dev/smoke-only test seam.

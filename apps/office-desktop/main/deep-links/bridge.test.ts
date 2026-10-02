@@ -101,6 +101,19 @@ describe("launch bridge routing", () => {
     expect(system.takePendingOpenUrls).toHaveBeenCalledOnce();
   });
 
+  it("drains a second launch that arrived before the listener was attached", async () => {
+    const exchange = new FakeExchangePort();
+    exchange.issueTicket({ ticket, accountId: session.accountId, deploymentId: session.deploymentId, operation: "edit" });
+    const bridge = createLaunchBridge({ exchange, trustedDeploymentId: session.deploymentId, getSession: () => session });
+    const system = {
+      requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(),
+      onSecondInstance: vi.fn(), onOpenUrl: vi.fn(),
+      takePendingSecondInstance: vi.fn(() => [["office.exe", url]]),
+    };
+    expect(registerDeepLinkSystem(system, bridge).primary).toBe(true);
+    await vi.waitFor(() => expect(exchange.calls).toBe(1));
+  });
+
   it("routes a drained cold-start auth callback to the login manager", async () => {
     const exchange = new FakeExchangePort();
     const bridge = createLaunchBridge({ exchange, trustedDeploymentId: session.deploymentId, getSession: () => session });
