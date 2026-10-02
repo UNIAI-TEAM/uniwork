@@ -5,6 +5,12 @@ Windows host and requires an explicit expected full Git revision. Applications
 do not import it. The case inventory preserves the 28 failed assertions from
 UNI-824 cloud round 5: 22 web cases and 6 server cases.
 
+`xlsx-failure-probe.helper.txt` is inert template data read by the probe and
+copied byte-for-byte to VM scratch `.go-tmp/xlsx-failure-probe/diagnostic.ts`.
+Its TypeScript contents are not a statically imported application module. The
+transform inventory's historical before/after hashes and selected assertions
+stay frozen; it refuses source that has changed since that diagnostic round.
+
 Commands run from the repository root:
 
 ```sh

@@ -86,7 +86,7 @@ function apply() {
   for (const row of pending) fs.writeFileSync(row.backup, row.bytes);
   fs.writeFileSync(path.join(scratch, 'backups.json'), JSON.stringify({ revision, rows: pending.map(({ file, backup, beforeSha256, afterSha256 }) => ({ file, backup, beforeSha256, afterSha256 })) }, null, 2));
   try {
-    const helper = fs.readFileSync(path.join(directory, 'xlsx-failure-probe.helper.ts'));
+    const helper = fs.readFileSync(path.join(directory, 'xlsx-failure-probe.helper.txt'));
     fs.writeFileSync(path.join(scratch, 'diagnostic.ts'), helper);
     for (const row of pending) fs.writeFileSync(target(row.file), row.text);
     const patch = execFileSync('git', ['diff', '--no-ext-diff', '--', ...rows.map(row => row.file)], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 24 });
