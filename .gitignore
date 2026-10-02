@@ -27,7 +27,11 @@ data/uploads/**
 .DS_Store
 .vscode/
 .idea/
-.cursor/
+.cursor/*
+# Cursor Cloud Agent environment (snapshot build) — .cursor/cloud/README.md
+!.cursor/environment.json
+!.cursor/Dockerfile
+!.cursor/cloud/
 .wsl-*.sh
 *.pid
 
