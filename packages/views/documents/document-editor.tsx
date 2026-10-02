@@ -144,8 +144,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           mention: {
             ...createMentionSuggestion(queryClient, { mode: "context", getContextItems: () =>
               (membersRef.current ?? []).map((member) => ({ id: member.user_id, label: member.display_name, type: "member" as const })) }),
-            // Both typed @ and the slash menu's @ use the page vocabulary.
-            allow: ({ editor: instance }) => instance.isEditable,
+            // Keep the shared typed-trigger guard. Replacing a typed slash
+            // with @ preserves its armed anchor; paste and undo stay literal.
             command: ({ editor: instance, range, props }) => {
               instance.chain().focus().insertContentAt(range, [
                 { type: "mention", attrs: { id: props.id, label: props.label, kind: "user" } },
