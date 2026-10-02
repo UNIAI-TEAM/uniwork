@@ -97,18 +97,16 @@ test('shifted native inline keys commit before reverse navigation, serialize con
     const first = mounted.key({key:'Tab'});
     const second = mounted.key({key:'Enter'});
     assert.ok(first.prevented && first.stopped && second.prevented);
-    assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab').length,0);
+    assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection').length,0);
     mounted.h.editing=false;finish(true);
     await new Promise(resolve=>setImmediate(resolve));
-    const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab');
+    const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection');
     assert.equal(movement.length,1);
-    assert.equal(movement[0].params.keycode,9);
     assert.equal(movement[0].params.direction,3);
     mounted.h.editing=true;
     mounted.workbook.endEditingAsync=async()=>{mounted.h.editing=false;return true;};
     mounted.key({key:'Enter'});
     await new Promise(resolve=>setImmediate(resolve));
-    assert.equal(mounted.events.at(-1).params.keycode,13);
     assert.equal(mounted.events.at(-1).params.direction,0);
     mounted.close();
     assert.equal(mounted.key({key:'Tab'}).prevented,undefined);
@@ -149,7 +147,7 @@ test('rejected commit, intervening pointer, scope replacement and disposal never
       if(cause==='dispose')mounted.close();
       mounted.h.editing=false;finish(cause!=='reject');
       await new Promise(resolve=>setImmediate(resolve));
-      assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab').length,0,cause);
+      assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection').length,0,cause);
     } finally {mounted.close();}
   }
 });

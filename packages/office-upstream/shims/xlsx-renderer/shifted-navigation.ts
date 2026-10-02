@@ -1,5 +1,4 @@
 import { Direction } from "@univerjs/core";
-import { KeyCode } from "@univerjs/ui";
 import type { LazyWorkbookState, UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { canEditRange } from "./command-policy";
 
@@ -44,9 +43,11 @@ export function installShiftedNavigation(
       // endEditingAsync(true) uses plain Enter and may move down. Restore its
       // captured selection before invoking the existing reverse command.
       workbook.setActiveRange(range);
-      await runtime.univerAPI.executeCommand("sheet.command.move-selection-enter-tab", {
+      // Pinned enter-tab indexes the preceding selection at -1 when there
+      // is only one selection, clearing its primary. The existing directional
+      // move command retains the primary and handles merges/worksheet edges.
+      await runtime.univerAPI.executeCommand("sheet.command.move-selection", {
         direction: key === "Tab" ? Direction.LEFT : Direction.UP,
-        keycode: key === "Tab" ? KeyCode.TAB : KeyCode.ENTER,
       });
       if (!disposed && ports.getState() === state && container.contains(container.ownerDocument.activeElement)) {
         target.focus({ preventScroll: true });
