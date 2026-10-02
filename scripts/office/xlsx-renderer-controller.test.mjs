@@ -87,6 +87,71 @@ test('pending edit commit awaits the actual workbook facade and refuses failed/u
   finally { readonly.close(); }
 });
 
+test('shifted native inline keys commit before reverse navigation, serialize concurrent keys and detach', async () => {
+  const mounted = mountController();
+  try {
+    await mounted.handle.loadWorkbook(file);
+    mounted.h.editing = true;
+    let finish;
+    mounted.workbook.endEditingAsync = () => new Promise(resolve => { finish=resolve; });
+    const first = mounted.key({key:'Tab'});
+    const second = mounted.key({key:'Enter'});
+    assert.ok(first.prevented && first.stopped && second.prevented);
+    assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab').length,0);
+    mounted.h.editing=false;finish(true);
+    await new Promise(resolve=>setImmediate(resolve));
+    const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab');
+    assert.equal(movement.length,1);
+    assert.equal(movement[0].params.keycode,9);
+    mounted.h.editing=true;
+    mounted.workbook.endEditingAsync=async()=>{mounted.h.editing=false;return true;};
+    mounted.key({key:'Enter'});
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(mounted.events.at(-1).params.keycode,13);
+    mounted.close();
+    assert.equal(mounted.key({key:'Tab'}).prevented,undefined);
+  } finally {mounted.close();}
+});
+
+test('shifted keys leave ordinary keys, IME, formula controls, readonly and unloaded ranges untouched', async () => {
+  const mounted=mountController();
+  try {
+    await mounted.handle.loadWorkbook(file);
+    mounted.h.editing=true;
+    for (const input of [{shiftKey:false},{key:'Escape'},{ctrlKey:true},{altKey:true},{metaKey:true},{keyCode:229},{isComposing:true},
+      {target:{id:'formula-input',isContentEditable:true}}]) {
+      assert.equal(mounted.key(input).prevented,undefined);
+    }
+    mounted.emitDom('compositionstart');
+    assert.equal(mounted.key({}).prevented,undefined);
+    mounted.emitDom('compositionend');
+    mounted.workbook.setActiveRange(mounted.workbook.getActiveSheet().getRange(15,0));
+    assert.equal(mounted.key({}).prevented,undefined,'streaming range must be loaded');
+  } finally {mounted.close();}
+  const readonly=mountController({readOnly:true});
+  try {await readonly.handle.loadWorkbook(file);readonly.h.editing=true;assert.equal(readonly.key({}).prevented,undefined);}
+  finally {readonly.close();}
+});
+
+test('rejected commit, intervening pointer, scope replacement and disposal never navigate', async () => {
+  for (const cause of ['reject','pointer','replace','dispose']) {
+    const mounted=mountController();
+    try {
+      await mounted.handle.loadWorkbook(file);
+      mounted.h.editing=true;
+      let finish;
+      mounted.workbook.endEditingAsync=()=>new Promise(resolve=>{finish=resolve;});
+      mounted.key({});
+      if(cause==='pointer')mounted.emitDom('pointerdown');
+      if(cause==='replace')await mounted.handle.loadWorkbook({...file,sha256:'next'});
+      if(cause==='dispose')mounted.close();
+      mounted.h.editing=false;finish(cause!=='reject');
+      await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab').length,0,cause);
+    } finally {mounted.close();}
+  }
+});
+
 test('public formula/format/tab/theme commands preserve journals and ignore view commands', async () => {
   const edits = [];
   let dirty = 0;

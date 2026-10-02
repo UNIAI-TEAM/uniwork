@@ -33,6 +33,7 @@ const result = await build({
       if (args.path === 'locale') lines.push('export const t=(key)=>key;');
       if (args.path === '@univerjs/core') {
         lines.push('export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3};');
+        lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3}; export const KeyCode={TAB:9,ENTER:13};');
       }
       for (const name of exports) {
         if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
@@ -70,6 +71,7 @@ export function mountController(options = {}, environment = {}) {
   const sheets = new Map();
   const h = {
     dark: [], disposed: false, editable: true,
+    editing: false,
     emit(id, event = {}) { for (const handler of handlers.get(id) ?? []) handler(event); return event; },
     execute(event) {
       const before = h.emit('BeforeCommandExecute', { ...event });
@@ -123,6 +125,8 @@ export function mountController(options = {}, environment = {}) {
     getSheetBySheetId: (id) => sheets.get(id), getActiveRange: () => activeRange,
     getWorkbook: () => ({ getStyles: () => ({ getStyleByCell: (cell) => cell?.s }) }),
     setEditable(value) { h.editable = value; },
+    isCellEditing: () => h.editing,
+    async endEditingAsync() { h.editing = false; return true; },
     setActiveRange(range) { activeRange = range; h.emit('SelectionChanged'); },
     setActiveSheet(sheet) { activeSheet = sheet; activeRange = sheet.getRange(0, 0); h.emit('ActiveSheetChanged'); },
   };
@@ -147,6 +151,7 @@ export function mountController(options = {}, environment = {}) {
       },
       async undo() { h.undoCalls = (h.undoCalls ?? 0) + 1; },
       async redo() { h.redoCalls = (h.redoCalls ?? 0) + 1; },
+      async executeCommand(id, params) { return h.execute({id,params}); },
     },
   };
   globalThis.__xlsxControllerTest = h;
@@ -154,12 +159,24 @@ export function mountController(options = {}, environment = {}) {
   const classes = new Set();
   const element = () => ({ id: '', className: '', style: {}, remove() {} });
   const attributes = new Map();
+  const listeners = new Map();
   const container = { ...element(), setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key),
+    addEventListener: (type, handler) => listeners.set(type,handler),
+    removeEventListener: (type) => listeners.delete(type), contains: (element) => element === h.target,
     classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value) },
     ownerDocument: { createElement: element, fonts: environment.fonts }, appendChild() {} };
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
-    handle, h, workbook, events,
+    handle, h, workbook, events, container,
+    key(event) {
+      h.target ??= { id:'__editor___INTERNAL_EDITOR__DOCS_NORMAL', isContentEditable:true,
+        getAttribute: () => 'editor', focus() {} };
+      container.ownerDocument.activeElement = h.target;
+      const input = {key:'Tab',shiftKey:true,target:h.target,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...event};
+      listeners.get('keydown')?.(input);
+      return input;
+    },
+    emitDom: (type) => listeners.get(type)?.(),
     close() {
       try { handle.dispose(); } finally {
         globalThis.__xlsxControllerTest = previousHarness;

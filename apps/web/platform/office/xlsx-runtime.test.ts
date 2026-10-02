@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { officeSerializedOutputSchema, officeUploadReceiptSchema, type OfficeIdentity, type OfficeSaveIntent, type StableSnapshot } from "@uniwork/core/office";
+import { createOfficeSaveCoordinator, dispatchOfficeError, officeSerializedOutputSchema, officeUploadReceiptSchema, type EditorHandle, type OfficeIdentity, type OfficeSaveIntent, type StableSnapshot } from "@uniwork/core/office";
 import type { OfficeJob } from "@uniwork/core/api/endpoints/office";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { createWebXlsxSessionRuntime } from "./xlsx-runtime";
@@ -36,7 +36,7 @@ beforeEach(() => {
   api.cancel.mockResolvedValue({});
   api.download.mockResolvedValue({ text: async () => JSON.stringify({ snapshot: workbook(), render_model: renderModel() }), arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer });
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("web XLSX save journal", () => {
   it.each([undefined, { sheets: [], styles: null }, { ...renderModel(), sheets: [{ id: "sheet-1" }] }])("refuses an absent or malformed renderer model instead of opening a table", async (render_model) => {
@@ -194,7 +194,7 @@ describe("web XLSX save journal", () => {
     const snapshot = stable(engine);
     api.get.mockResolvedValueOnce({ jobId: "job", state: "running" } as OfficeJob);
     const time = vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValueOnce(120_001);
-    await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toThrow("office_job_timeout");
+    await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "engine_timeout", errorClass: "engine" });
     time.mockRestore();
     expect(api.cancel).toHaveBeenCalledWith("doc", "job");
     await engine.edit("model", [valueEdit(8)]);
@@ -223,5 +223,108 @@ describe("web XLSX save journal", () => {
     await engine.serialize("model", { intentId: "save-1", snapshot });
     expect(editRequests()[1].edits).toEqual([valueEdit(7), styleEdit]);
     expect(engine.snapshot("model").sheets[0]?.cells.A1?.value).toBe(8);
+  });
+});
+
+describe("native XLSX runtime through the real error dispatcher and save coordinator", () => {
+  async function setup() {
+    const engine = await opened();
+    const outputs: { checksum_sha256: string; size_bytes: number }[] = [];
+    const documents: XlsxDocumentsTransport = {
+      read: vi.fn(), reconcile: vi.fn(async () => null),
+      upload: vi.fn(async () => ({ upload_id: "upload", claim_expires_at: "2027-01-01T00:00:00Z", ...outputs.at(-1)! })),
+      commit: vi.fn(async () => ({ document: { id: "doc", revision: "2" }, version: { id: "v2" } })),
+    };
+    const transport = createXlsxSaveTransport({ documents, documentId: "doc", runtime: engine,
+      serialize: async (input) => {
+        const result = await engine.serialize("model", input);
+        outputs.push({ checksum_sha256: result.checksum, size_bytes: result.bytes.length });
+        return result;
+      } });
+    const persisted = vi.fn(async () => undefined);
+    const coordinator = createOfficeSaveCoordinator({ identity, transport, backoffMs: [0],
+      editor: { getDirtyGeneration: () => stable(engine).generation, captureSnapshot: async () => stable(engine) } as EditorHandle<XlsxWorkbookSnapshot>,
+      draft: { persistIntent: persisted, clearIntent: vi.fn(async () => undefined), discard: vi.fn(async () => undefined), checkpoint: vi.fn(), loadIntent: vi.fn(), recover: vi.fn() },
+    });
+    await engine.edit("model", [valueEdit(7)]);
+    coordinator.markDirty(stable(engine).generation);
+    return { engine, coordinator, documents, persisted };
+  }
+  const failed = (code: string, kind = "malformed_result") => ({ jobId: "job", state: "failed", error: { code, reason: "native failure", kind, retryable: true } }) as OfficeJob;
+
+  it("preserves native code/kind/flag and supplies a validated engine class", async () => {
+    const engine = await opened();
+    api.get.mockResolvedValueOnce(failed("engine_result_invalid"));
+    const error: unknown = await engine.serialize("model", { intentId: "save", snapshot: stable(engine) }).catch((error: unknown) => error);
+    expect(error).toMatchObject({ code: "engine_result_invalid", reason: "native failure", kind: "malformed_result", retryable: true, errorClass: "engine" });
+    expect(dispatchOfficeError(error)).toMatchObject({ code: "engine_result_invalid", errorClass: "engine", action: "retry", retryable: true });
+  });
+  it("exhausts three automatic attempts then explicitly retries the same intent/prefix while N+1 stays live", async () => {
+    const { engine, coordinator, documents, persisted } = await setup();
+    api.get.mockImplementation(async () => {
+      if (editRequests().length === 1) {
+        await engine.edit("model", [valueEdit(8)]);
+        coordinator.markDirty(stable(engine).generation);
+      }
+      return failed("engine_result_invalid");
+    });
+    expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
+    expect(editRequests()).toHaveLength(3);
+    expect(coordinator.getState().error).toMatchObject({ action: "retry", errorClass: "engine" });
+    expect(documents.upload).not.toHaveBeenCalled();
+    api.get.mockResolvedValue({ jobId: "job", state: "completed" } as OfficeJob);
+    expect(await coordinator.retry()).toMatchObject({ accepted: true });
+    expect(persisted).toHaveBeenCalledOnce();
+    expect(editRequests().map((request) => request.edits)).toEqual(Array.from({ length: 4 }, () => [valueEdit(7)]));
+    expect(engine.snapshot("model").sheets[0]!.cells.A1!.value).toBe(8);
+    expect(coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 2, dirtyGeneration: 3 });
+    expect(documents.commit).toHaveBeenCalledOnce();
+  });
+  it("routes the real polling deadline to reconcile and retains the same intent for retry", async () => {
+    const { engine, coordinator, persisted } = await setup();
+    const originalNow = Date.now;
+    let clock = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    api.get.mockImplementation(async () => { clock += 120_001; return { jobId: "job", state: "running" } as OfficeJob; });
+    expect(await coordinator.save()).toEqual({ accepted: false, reason: "error" });
+    expect(editRequests()).toHaveLength(3);
+    expect(coordinator.getState().error).toMatchObject({ code: "engine_timeout", action: "reconcile", ambiguous: true });
+    vi.spyOn(Date, "now").mockImplementation(originalNow);
+    await engine.edit("model", [valueEdit(8)]);
+    coordinator.markDirty(stable(engine).generation);
+    api.get.mockResolvedValue({ jobId: "job", state: "completed" } as OfficeJob);
+    expect(await coordinator.retry()).toMatchObject({ accepted: true });
+    expect(persisted).toHaveBeenCalledOnce();
+    expect(editRequests()[3].edits).toEqual([valueEdit(7)]);
+  });
+  it("default denies an unknown native code even with retryable=true", async () => {
+    const { coordinator, documents } = await setup();
+    api.get.mockResolvedValue(failed("new_native_code"));
+    await coordinator.save();
+    expect(coordinator.getState().error).toMatchObject({ code: "new_native_code", action: "stop", retryable: false, errorClass: "unknown" });
+    expect(editRequests()).toHaveLength(1);
+    expect(await coordinator.retry()).toEqual({ accepted: false, reason: "error" });
+    expect(editRequests()).toHaveLength(1);
+    expect(documents.upload).not.toHaveBeenCalled();
+  });
+  it("polls at most 121 times in 120 seconds and does not relabel HTTP429 as engine timeout", async () => {
+    const engine = await opened();
+    vi.useFakeTimers();
+    api.get.mockResolvedValue({ jobId: "job", state: "running" } as OfficeJob);
+    const error = engine.serialize("model", { intentId: "bounded", snapshot: stable(engine) }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(await error).toMatchObject({ code: "engine_timeout" });
+    expect(api.get.mock.calls.length - 1).toBeLessThanOrEqual(121);
+    vi.useRealTimers();
+    const limited = Object.assign(new Error("rate limited"), { status: 429, code: "rate_limited" });
+    api.get.mockRejectedValueOnce(limited);
+    await expect(engine.serialize("model", { intentId: "bounded", snapshot: stable(engine) })).rejects.toBe(limited);
+  });
+  it("maps native cancellation to AbortError without retiring the candidate", async () => {
+    const engine = await opened();
+    api.get.mockResolvedValueOnce({ jobId: "job", state: "cancelled", error: { code: "engine_cancelled", retryable: false } } as OfficeJob);
+    await expect(engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) })).rejects.toMatchObject({ name: "AbortError" });
+    await engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) });
+    expect(editRequests()).toHaveLength(2);
   });
 });

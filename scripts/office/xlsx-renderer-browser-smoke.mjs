@@ -14,6 +14,8 @@ const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/pac
 const browserRequire = createRequire(path.join(REPO_ROOT, 'e2e/package.json'));
 const { chromium } = browserRequire('@playwright/test');
 const evidenceDir = process.env.XLSX_RENDERER_SMOKE_REPORT_DIR;
+const navigationBaseline = process.env.XLSX_NAVIGATION_BASELINE === '1';
+const profile = path.join(REPO_ROOT, '.go-tmp', `xlsx-smoke-profile-${process.pid}`);
 const models = new Map([['', { revision:1,activeTab:0,date1904:false,styles:[],dxfStyles:[],sheets:[{
   id:'sheet-1',name:'Data',rowCount:50,columnCount:10,merges:[],columnWidths:[],rowsMeta:[],hyperlinks:[],cells:{A1:{v:'hello'},B2:{v:42}},
 }] }]]);
@@ -24,7 +26,7 @@ const declaredFont = structuredClone(models.get(''));
 declaredFont.styles=[{fontFamily:'Verdana',fontSize:11,bold:false,italic:false,underline:false,strikethrough:false,wrapText:false,diagonalUp:false,diagonalDown:false}];
 models.set('declared-font',declaredFont);
 if (fs.existsSync(path.join(REPO_ROOT,'docs/office/g0/fixtures/files/sheets/xlsx-kitchen-sink.xlsx'))) {
-  const scratch = path.join(REPO_ROOT, '.go-tmp/renderer-smoke');
+  const scratch = path.join(REPO_ROOT, `.go-tmp/uni824-r5-smoke-${process.pid}`);
   fs.mkdirSync(scratch, { recursive:true });
   const readerPath = path.join(scratch, 'reader.mjs');
   const gatewayPath = path.join(scratch, 'gateway.mjs');
@@ -91,7 +93,7 @@ console.log(JSON.stringify({harnessPid:process.pid,port:server.address().port,fi
   artifactSha256:createHash('sha256').update(fs.readFileSync(path.join(REPO_ROOT,'packages/office-upstream/dist/xlsx-renderer.mjs'))).digest('hex')}));
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launchPersistentContext(profile, { headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
@@ -113,6 +115,30 @@ try {
   await page.mouse.click(150,50);
   await page.waitForFunction(()=>window.selection?.range.startRow===1&&window.selection?.range.startColumn===1);
   console.log(JSON.stringify({originalKitchenB2:await page.evaluate(()=>window.selection)}));
+  const shiftedEdits = [];
+  for (const [key, text, row, column] of [['Shift+Tab','116',1,0], ['Shift+Enter','117',0,1]]) {
+    await page.mouse.dblclick(150,50);
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type(text);
+    const editingTarget = await page.evaluate(() => ({ tag: document.activeElement?.tagName,
+      html: document.activeElement?.outerHTML.slice(0,500), editing: document.activeElement?.isContentEditable }));
+    await page.keyboard.press(key);
+    await page.waitForTimeout(200);
+    const observation = await page.evaluate(text => ({ selection: window.selection,
+      committed: window.edits.some(edit => String(edit.value) === text),
+      focusInGrid: document.getElementById('grid').contains(document.activeElement),
+      focus: document.activeElement?.outerHTML.slice(0,500) }), text);
+    shiftedEdits.push({key,editingTarget,...observation});
+    console.log(JSON.stringify({shiftedInlineEdit:shiftedEdits.at(-1)}));
+    if (!navigationBaseline) {
+      assert.ok(observation.committed, `${key} commits before any subsequent pointer`);
+      assert.equal(observation.selection?.range.startRow,row,`${key} row`);
+      assert.equal(observation.selection?.range.startColumn,column,`${key} column`);
+      assert.ok(observation.focusInGrid, `${key} retains actual grid focus`);
+    }
+    await page.keyboard.press('Escape');
+    await page.mouse.click(150,50);
+  }
   await page.keyboard.press('Shift+Tab');
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const shiftedTab=await page.evaluate(()=>window.selection);
@@ -121,7 +147,7 @@ try {
   await page.keyboard.press('Shift+Enter');
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   console.log(JSON.stringify({shiftedNavigationObservation:{tab:shiftedTab,enter:await page.evaluate(()=>window.selection)}}));
-  assert.equal(await page.evaluate(()=>window.handle.getDirtyGeneration()),0,'selection/navigation remains clean');
+  if (evidenceDir) fs.writeFileSync(path.join(evidenceDir,'shifted-inline-navigation.json'),JSON.stringify({navigationBaseline,shiftedEdits},null,2));
   if(evidenceDir)await page.screenshot({path:path.join(evidenceDir,'renderer-fixes-r3-kitchen-selection.png')});
   await page.mouse.move(1200,700);
   await page.evaluate(()=>window.handle.dispose());
@@ -227,8 +253,11 @@ try {
     await page.evaluate(()=>window.handle.dispose());
   }
   assert.deepEqual(errors, [], 'no browser runtime errors in corpus/readonly mounts');
-  console.log(JSON.stringify({ outcome: 'passed', checks: ['actual bridge/artifact','original kitchen B2 selection', 'cell paint', 'clean open', 'Enter commit','Tab commit','Escape cancel','pending edit commitEdit','edit', 'undo', 'redo', 'readonly keyboard/public gate','readonly original CF paint','styleless/default/non-Calibri fonts','fresh corpus CF/font/frozen/header/General frames', 'dark switch', 'dispose'],supplemental:'Shift+Tab/Enter observations are separate; no shifted-navigation acceptance asserted',corpusNotRun:corpus.filter(name=>!models.has(name)) }));
+  console.log(JSON.stringify({ outcome: 'passed', checks: ['actual bridge/artifact','original kitchen B2 selection', 'cell paint', 'clean open', 'Enter commit','Tab commit','Escape cancel','pending edit commitEdit','edit', 'undo', 'redo', 'readonly keyboard/public gate','readonly original CF paint','styleless/default/non-Calibri fonts','fresh corpus CF/font/frozen/header/General frames', 'dark switch', 'dispose'],shiftedNavigation:navigationBaseline?'baseline diagnostic':'committed A2/B1 with grid focus',corpusNotRun:corpus.filter(name=>!models.has(name)) }));
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  const resolvedProfile = path.resolve(profile);
+  assert.ok(resolvedProfile.startsWith(path.resolve(REPO_ROOT, '.go-tmp') + path.sep));
+  fs.rmSync(resolvedProfile, { recursive:true, force:true });
 }

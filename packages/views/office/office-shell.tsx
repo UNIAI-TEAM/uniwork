@@ -216,7 +216,7 @@ export function OfficeShell({
     >
       <BreadcrumbHeader
         segments={breadcrumbs} leaf={title} actions={headerActions}
-        className="h-auto min-h-12 flex-wrap gap-y-2 py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:w-full sm:[&>div:last-child]:w-auto [&>div:last-child]:max-w-none [&>div:last-child]:flex-wrap [&>div:last-child]:overflow-visible"
+        className="h-auto min-h-12 flex-wrap gap-y-2 py-2 sm:flex-nowrap sm:py-0 [&>div:last-child]:w-full sm:[&>div:last-child]:w-auto [&>div:last-child]:max-w-none [&>div:last-child]:flex-wrap [&>div:last-child]:overflow-visible"
       />
       {toolbar ? <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{toolbar}</div>

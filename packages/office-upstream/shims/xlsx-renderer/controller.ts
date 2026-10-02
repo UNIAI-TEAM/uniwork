@@ -31,6 +31,7 @@ import type { IRange } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
+import { installShiftedNavigation } from "./shifted-navigation";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { ingestCellMutation, type XlsxRendererCellEdit } from "./edits";
 import { t } from "./locale";
@@ -285,8 +286,25 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   let disposed = false;
   let commitInProgress = false;
   let commitDenied = false;
+  let loadingWorkbook = false;
   let lastSelectionState: LazyWorkbookState | null = null;
   let lastSelectionKey: string | undefined;
+
+  const commitEdit = async () => {
+    if (options.readOnly) return;
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    if (disposed || !workbook || commitInProgress) throw new Error("xlsx_cell_edit_commit_failed");
+    commitInProgress = true;
+    commitDenied = false;
+    try {
+      const committed = await workbook.endEditingAsync(true);
+      if (disposed || !committed || workbook.isCellEditing() || commitDenied) throw new Error("xlsx_cell_edit_commit_failed");
+    } finally { commitInProgress = false; }
+  };
+  const removeShiftedNavigation = installShiftedNavigation(container, runtime, {
+    getState: () => loadingWorkbook ? null : lazyWorkbookRef.current, readOnly: options.readOnly ?? false, commitEdit,
+    onFailure: () => setMessage("xlsx_cell_edit_commit_failed"),
+  });
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
 
@@ -371,6 +389,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   return {
     async loadWorkbook(file, loadOptions) {
+      loadingWorkbook = true;
       fontMappings = await loadWorkbookFonts(file, container.ownerDocument);
       if (disposed) return;
       container.setAttribute("data-xlsx-font-mappings", JSON.stringify(fontMappings));
@@ -402,6 +421,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         if (!workbook?.getActiveRange()) workbook?.setActiveRange(active.getRange(0, 0));
         notifySelection();
       }
+      loadingWorkbook = false;
     },
     refreshViewport,
     async revealCell(sheetId, row, column) {
@@ -416,17 +436,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       })) return;
       runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId)?.getRange(row, column).setValue(parseCellText(text));
     },
-    async commitEdit() {
-      if (options.readOnly) return;
-      const workbook = runtime.univerAPI.getActiveWorkbook();
-      if (disposed || !workbook) throw new Error("xlsx_cell_edit_commit_failed");
-      commitInProgress = true;
-      commitDenied = false;
-      try {
-        const committed = await workbook.endEditingAsync(true);
-        if (!committed || workbook.isCellEditing() || commitDenied) throw new Error("xlsx_cell_edit_commit_failed");
-      } finally { commitInProgress = false; }
-    },
+    commitEdit,
     selectSheet(sheetId) {
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = workbook?.getSheetBySheetId(sheetId);
@@ -460,6 +470,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     },
     dispose() {
       disposed = true;
+      removeShiftedNavigation();
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       numberFormatDispose?.dispose();

@@ -213,7 +213,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}
-        editor={activeEditorView && effectiveCapability.status === "available" ? activeEditorView : (
+        editor={activeEditorView && (effectiveCapability.status === "available" || (readonly && effectiveCapability.status === "readonly")) ? activeEditorView : (
           <Alert data-testid="office-host-unbound">
             <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.capability_unavailable") : t("office.editor.capability_unknown")}</AlertTitle>
             <AlertDescription>{!activeSession && !activeCapability

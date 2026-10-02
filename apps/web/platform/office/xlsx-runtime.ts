@@ -1,6 +1,7 @@
 "use client";
 
-import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp } from "@uniwork/core/api/endpoints/office";
+import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
+import { dispatchOfficeError } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
@@ -21,6 +22,20 @@ function isRenderModel(value: unknown): value is XlsxRenderModel {
 }
 
 const JOB_TIMEOUT_MS = 120_000;
+// At most 61 GETs in any minute, leaving headroom under the 300/min API
+// budget for submission, cancellation and the rest of the document host.
+const JOB_POLL_MS = 1_000;
+
+function jobError(native: OfficeJobError): Error {
+  const rule = dispatchOfficeError({ code: native.code });
+  return Object.assign(new Error(native.reason ?? native.code), {
+    ...native,
+    // A raw native kind (e.g. malformed_result) is not an Office error class.
+    // Unknown codes must not cause automatic attempts via the raw true flag.
+    retryable: rule.action !== "stop" && native.retryable,
+    errorClass: rule.action !== "stop" && native.code.startsWith("engine_") ? "engine" : "unknown",
+  });
+}
 
 async function sha256(bytes: Uint8Array): Promise<string> {
   if (!globalThis.crypto?.subtle) throw new Error("xlsx_checksum_unavailable");
@@ -28,7 +43,15 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 
-function sleep(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const finish = () => { signal?.removeEventListener("abort", abort); resolve(); };
+    const timer = setTimeout(finish, ms);
+    const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(signal?.reason ?? new DOMException("office job cancelled", "AbortError")); };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
 
 // The gateway value snapshot has no style fields. Keep serializable deltas on
 // cells so protected drafts can rebuild exactly the same server edit jobs.
@@ -109,13 +132,19 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     const deadline = Date.now() + JOB_TIMEOUT_MS;
     let job = await getOfficeJob(options.documentId, jobId, signal);
     while (job && (job.state === "accepted" || job.state === "running")) {
-      if (signal?.aborted) { await cancelOfficeJob(options.documentId, jobId).catch(() => undefined); throw new DOMException("office job cancelled", "AbortError"); }
-      if (Date.now() >= deadline) { await cancelOfficeJob(options.documentId, jobId).catch(() => undefined); throw new Error("office_job_timeout"); }
-      await sleep(100);
+      signal?.throwIfAborted();
+      if (Date.now() >= deadline) {
+        await cancelOfficeJob(options.documentId, jobId).catch(() => undefined);
+        throw jobError({ code: "engine_timeout", reason: "office_job_timeout", kind: "host_polling_deadline", retryable: true });
+      }
+      await sleep(Math.min(JOB_POLL_MS, deadline - Date.now()), signal);
+      if (Date.now() >= deadline) continue;
       job = await getOfficeJob(options.documentId, jobId, signal);
     }
+    signal?.throwIfAborted();
     if (!job) throw new Error("office_job_malformed");
-    if (job.state !== "completed") throw new Error(job.error?.reason ?? job.error?.code ?? "office_job_failed");
+    if (job.state === "cancelled") throw new DOMException(job.error?.reason ?? "office job cancelled", "AbortError");
+    if (job.state !== "completed") throw jobError(job.error ?? { code: "office_job_failed", reason: null, kind: null, retryable: false });
     return job;
   }
 

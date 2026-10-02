@@ -136,6 +136,43 @@ async function settle(): Promise<void> {
 }
 
 describe("OfficeEditorHost composition", () => {
+  it("renders a negotiated readonly editor without exposing or invoking Save", async () => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session, {
+      readonly: true,
+      capability: { ...capability, status: "readonly", reason: "view permission" },
+      editorView: React.createElement("div", { role: "grid", tabIndex: 0 }),
+    });
+    await settle();
+    const grid = rendered.container.querySelector('[role="grid"]');
+    expect(grid).toBeTruthy();
+    expect(rendered.container.querySelector('[data-testid="office-host-unbound"]')).toBeNull();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    act(() => { grid!.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })); });
+    expect(coordinator.save).not.toHaveBeenCalled();
+    expect(session.checkpoint).not.toHaveBeenCalled();
+    rendered.root.unmount();
+  });
+
+  it.each(["unknown", "unavailable"] as const)("keeps a readonly %s capability closed", async (status) => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session, { readonly: true, capability: { ...capability, status } });
+    await settle();
+    expect(rendered.container.querySelector('[role="textbox"]')).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-host-unbound"]')).toBeTruthy();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    expect(coordinator.save).not.toHaveBeenCalled();
+    rendered.root.unmount();
+  });
+
+  it("does not expose a readonly capability as an editable editor", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session, { readonly: false, capability: { ...capability, status: "readonly" } });
+    await settle();
+    expect(rendered.container.querySelector('[role="textbox"]')).toBeNull();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    rendered.root.unmount();
+  });
   it("gates Save on an optional renderer readiness port and keeps dirty evidence", async () => {
     const { session } = makeSession();
     let ready = false;
