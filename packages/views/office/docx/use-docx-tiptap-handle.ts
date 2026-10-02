@@ -59,7 +59,7 @@ function DocxRendererSurface({ editor, pagination }: { editor: Editor; paginatio
     { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
     createElement(
       "div",
-      { className: dark ? "workspace page-dark" : "workspace" },
+      { className: dark ? "workspace min-w-0 page-dark" : "workspace min-w-0" },
       createElement(
         "div",
         { className: "editor-scroll min-h-0 min-w-0 flex-1", "data-testid": "docx-document-surface" },
