@@ -20,6 +20,7 @@ export const DOCX_BROWSER_SCRATCH = path.join(REPO_ROOT, '.go-tmp', 'docx-browse
  */
 /** Symbols each DOCX patch must have introduced before the bundle may build. */
 const PATCHED_SYMBOLS = [
+  { patch: "0006", file: "apps/docs/src/renderer/editor/note-dom.ts", symbol: "row.dataset.noteId" },
   { patch: '0005', file: 'apps/docs/src/renderer/components/PageNoteAreas.tsx', symbol: 'page-note-readonly' },
   { patch: '0003', file: 'apps/docs/src/renderer/editor/extensions.ts', symbol: 'formulaLatexEdit' },
   { patch: '0004', file: 'apps/docs/src/renderer/editor/hf-dom.ts', symbol: '.docx-surface' },
@@ -147,6 +148,7 @@ export async function buildDocxBrowser() {
   if (!/querySelector\(["']\.docx-surface["']\)\s*\?\?\s*document\.body/.test(artifact)) {
     throw new Error('built artifact does not carry the patch 0004 scoped hf-probe mount');
   }
+  if (!artifact.includes('page-gap-note')) throw new Error('built artifact does not carry page-gap notes');
   if (!artifact.includes('page-note-readonly')) throw new Error('built artifact does not carry read-only note areas');
   const record = {
     kind: 'uniwork-docx-browser-build',

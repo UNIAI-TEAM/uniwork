@@ -6902,6 +6902,7 @@
         "editorOlePdf": "Embedded PDF",
         "editorOlePpt": "Embedded presentation",
         "editorOleWord": "Embedded document",
+        "appDblclickEditFootnote": "Double-click to edit footnote",
         "appEditFootnote": "Edit footnote",
         "appDeleteFootnote": "Delete footnote",
         "appEditEndnote": "Edit endnote",

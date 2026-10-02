@@ -35,9 +35,11 @@ import {
   type RendererHfPart,
   type RendererPageGapSpec,
   type RendererPageSlice,
+  type RendererPageNoteItem,
   type RendererSection,
   type RendererSectionHfHeights,
 } from "@uniwork/office-upstream/docs-renderer-editor";
+import { createDocxFootnotes, docxGapFootnotes } from "./docx-footnotes";
 import { docxColumnMode } from "./docx-columns";
 import {
   posBeforeTableRow,
@@ -208,14 +210,7 @@ export interface PaginationFrame {
   gaps: RendererPageGapSpec[];
 }
 
-/**
- * Build the page-turn frame from the measured flow and its slices: one gap per
- * page boundary carrying the previous page's footer and the next page's header
- * (inline gaps for line-level cuts, in-table gaps for cuts inside a table),
- * plus the first page's strips (no gap widget sits above page 1). Pure apart
- * from the optional view used to resolve cut positions — jsdom tests drive it
- * directly.
- */
+/** Build page gaps, notes and HF strips from sliced body geometry. */
 export function buildPaginationFrame(input: {
   spec: DocxPaginationSpec;
   live: RendererSection[];
@@ -224,6 +219,7 @@ export function buildPaginationFrame(input: {
   slices: RendererPageSlice[];
   view?: DocxFrameView;
   zoomFactor?: number;
+  pageNotes?: RendererPageNoteItem[][];
 }): PaginationFrame {
   const { spec, live, blocks, hfHeights, slices, view } = input;
   const factor = input.zoomFactor ?? 1;
@@ -254,6 +250,7 @@ export function buildPaginationFrame(input: {
       }
     : null;
 
+  const pageNotes = input.pageNotes ?? createDocxFootnotes(spec.parsedDoc, live).pageItems(blocks, slices);
   const gaps: RendererPageGapSpec[] = [];
   for (let k = 0; k + 1 < slices.length; k += 1) {
     const slice = slices[k + 1];
@@ -279,20 +276,17 @@ export function buildPaginationFrame(input: {
     };
     const hfEls = buildGapHfEls(spec, pieceOf(k, "footer"), pieceOf(k + 1, "header"), pageNoTextOf, k, k + 1, pages, prevSec.settings, nextSec.settings, metrics);
     const hfKey = `${pageNoTextOf(k)}·${pageNoTextOf(k + 1)}·${pages}·${hfPieceKey(pieceOf(k, "footer"))}·${hfPieceKey(pieceOf(k + 1, "header"))}·${stripGeomKey(prevSec.settings)}:${stripGeomKey(nextSec.settings)}`;
-    // R3: a page that ended early (explicit break / section break / keepNext)
-    // leaves unused content height; upstream pads the gap's marginBottom by the
-    // shortfall so the canvas paints the full paper height and the next page's
-    // strips sit on it. Uniform multi-column pages skip both (the browser
-    // compresses the flow); mixed-column pages use the engine's physical height
-    // and pull the gap up over the vacated stacked space instead.
+    // Reserve page-gap note height before padding the remaining paper.
     const prevContentH = twipsToPx(prevSec.settings.pageHeight) - effectiveTopPx(prevSec.settings, hfOf(k).headerPx) - metrics.marginBottom;
     const used = prevSlice.end - prevSlice.start + (prevSlice.repeatHeader?.height ?? 0);
     const hasRegions = Array.isArray(prevSlice.regions) && prevSlice.regions.length > 0;
     const physUsed = hasRegions ? (colMode === "mixed" ? prevSlice.physHeight ?? used : null) : used;
     const remaining = physUsed === null ? 0 : Math.max(0, prevContentH - physUsed);
     const pullUp = physUsed === null ? 0 : Math.max(0, used - physUsed);
-    const pad = Math.max(0, Math.round(remaining));
-    const gapMetrics = pad > 0 ? { ...metrics, marginBottom: metrics.marginBottom + pad } : metrics;
+    const noteArea = docxGapFootnotes(pageNotes[k] ?? [], prevSec.settings);
+    const pad = Math.max(0, Math.round(remaining - noteArea.height));
+    const notesMetrics = noteArea.height > 0 ? { ...metrics, marginBottom: metrics.marginBottom + noteArea.height } : metrics;
+    const gapMetrics = pad > 0 ? { ...notesMetrics, marginBottom: notesMetrics.marginBottom + pad } : notesMetrics;
     const shared = {
       boundaryY: slice.start,
       metrics: gapMetrics,
@@ -302,9 +296,11 @@ export function buildPaginationFrame(input: {
     const exact = blocks.findIndex((block) => block.el && Math.abs(block.top - slice.start) < 0.5);
     const exactBlock = exact >= 0 ? blocks[exact] : undefined;
     if (exactBlock?.el) {
+      if (noteArea.notes && pad > 0) noteArea.notes.style.top = `${5 + pad}px`;
       gaps.push({
         el: exactBlock.el,
         ...shared,
+        ...(noteArea.notes ? { notes: noteArea.notes, notesKey: noteArea.notesKey } : {}),
         ...(exactBlock.breakBefore || (exact > 0 && blocks[exact - 1]?.breakAfter) ? { suppressLeadMt: true } : {}),
       });
       continue;
@@ -339,11 +335,14 @@ export function buildPaginationFrame(input: {
     if (pos !== undefined) {
       // Upstream inline cuts use the measured line boundary directly. Underflow
       // padding is reserved for a block boundary (including an explicit break).
-      gaps.push({ pos, kind: "inline", ...shared, metrics });
+      gaps.push({ pos, kind: "inline", ...shared, metrics: notesMetrics, ...(noteArea.notes ? { notes: noteArea.notes, notesKey: noteArea.notesKey } : {}) });
       continue;
     }
     const next = blocks.find((block) => block.el && block.top >= slice.start - 0.5);
-    if (next?.el) gaps.push({ el: next.el, ...shared });
+    if (next?.el) {
+      if (noteArea.notes && pad > 0) noteArea.notes.style.top = `${5 + pad}px`;
+      gaps.push({ el: next.el, ...shared, ...(noteArea.notes ? { notes: noteArea.notes, notesKey: noteArea.notesKey } : {}) });
+    }
   }
 
   return { pages, nums, edgeHf, gaps };

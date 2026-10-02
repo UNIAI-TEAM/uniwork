@@ -144,3 +144,15 @@ same sheet at different fractional viewport coordinates. Both r2 drivers use the
 same rounding correction on the whole `.page-wrap` before capture; document-local
 geometry is unchanged. Before/after measurements and the exact driver change are
 recorded in `reports/g3-d3-docx-r2/`, separate from product fixes.
+
+## Independent-review F1: footnotes on earlier pages
+
+At `1fc4f38b`, the host mounted source PageFootnotes with an empty skip set and omitted the pinned App's footnote bands, page collection and page-gap areas. A new two-page fixture retaining the Vietnamese early footnote and adding a final-page note reproduces the defect: the early note is absent on UniWork page 1 and visible on oracle page 1. The eight original fixtures do not exercise this case.
+
+The display-only repair exposes source note helpers through numbered fail-loud patch 0006, leaving the vendored tree byte-identical and adding no package. `docx-footnotes.ts` resolves note style/run metrics, measures the source drawing at each section width, sends per-reference height bands into block metadata, and assigns entries to the page of the measured reference line. The frame paints earlier-page notes into block/inline gaps, reserves their height once, and preserves upstream's in-table-gap fallback. `DocxNoteAreas` skips only ids actually mounted in gap decorations, retaining final-page/fallback notes. Font settlement invalidates both note-height and metadata caches. Source drawing receives no edit handler or tooltip; serializers, save bridges and note parts remain unchanged.
+
+`docx-footnotes.test.tsx` covers unconstrained paragraph reservations, split-reference placement, nested table references, full-paper gap geometry and final-list de-duplication. The supplemental real-browser fixture and all eight original fixtures must be measured on the final committed revision; independent Tester, FE Reviewer and visual/UI-quality stages must re-run there before acceptance. These requirements are pending until their evidence is recorded.
+
+Patch 0006 creates `editor/note-dom.ts` only in the patched scratch graph. Knip ignores exactly that unresolved source-relative import in the browser entry shim; the build requires its source symbol, checks patch apply/reverse, and its contract test requires the module in the real artifact input graph. Vendored upstream bytes remain untouched. This is a generated-module resolution exception, not an unused-code or package-boundary exemption.
+
+The DOCX web adapter opts out of the slot's duplicate title/status/Save through `showDocumentControls`; standalone consumers retain controls by default and the Save shortcut continues to use the same coordinator. The shared clipped shell actions and empty toolbar band belong to UNI-824 under Advisor message `msg_934ed31de64b`; this lane does not modify the shared shell or host. Fit-to-width at 390 CSS pixels remains a recorded minor product item.

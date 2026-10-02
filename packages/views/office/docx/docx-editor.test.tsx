@@ -72,6 +72,17 @@ function renderEditor(outcome: DocxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("DocxEditor", () => {
+  it("leaves document controls to the host while retaining the Save shortcut", async () => {
+    const saveCoordinator = coordinator();
+    render(<DocxEditor documentKey="doc" editor={editor()} open={{ open: async () => opened() }} coordinator={saveCoordinator} showDocumentControls={false} capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("docx-open-state")).not.toBeInTheDocument();
+    expect(screen.getByTestId("docx-toolbar")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByTestId("docx-editor"), { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).toHaveBeenCalledWith("shortcut");
+  });
+
   it("leaves a host-owned session alive during Strict Mode replay and unmount", async () => {
     const handle = editor();
     const saveCoordinator = coordinator();

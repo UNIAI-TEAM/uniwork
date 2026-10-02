@@ -25,6 +25,7 @@ export {
   measureBlocks,
   nextLineAnchor,
   pageNumbers,
+  pageAt,
   sectionBidi,
   sectionColGeom,
   sectionColumns,
@@ -77,3 +78,7 @@ export function installDocxRendererStyles(doc: Document = document): void {
   style.textContent = rendererSheet;
   doc.head.appendChild(style);
 }
+
+// UNI-823 F1: source-owned display-only per-page note helpers (patch 0006).
+export { blockNoteScanRuns, makeGapNotesEl, measureNoteHeightDom } from "../upstream/apps/docs/src/renderer/editor/note-dom";
+export { cssFontFamily, estimateFootnoteHeight, FOOTNOTE_SEPARATOR_H, footnoteLineHeightPx, noteLineHeightPx, noteRunStyle, resolveNoteStyle } from "../upstream/apps/docs/src/renderer/line-metrics";

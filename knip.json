@@ -60,6 +60,9 @@
       ]
     },
     "packages/office-upstream": {
+      "ignoreUnresolved": [
+        "../upstream/apps/docs/src/renderer/editor/note-dom"
+      ],
       "ignore": [
         "upstream/**"
       ],

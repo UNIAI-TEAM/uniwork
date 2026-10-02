@@ -44,6 +44,7 @@ export function DocxEditor<TSnapshot = unknown>({
   title,
   className,
   manageSession = true,
+  showDocumentControls = true,
   onOpen,
   onSelectionChange,
 }: DocxEditorProps<TSnapshot>) {
@@ -204,12 +205,12 @@ export function DocxEditor<TSnapshot = unknown>({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
+      {showDocumentControls ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="docx-open-state">
           {viewState === "opening" ? t("office.docx.state.opening") : viewState === "ready" ? t(`office.docx.saveState.${coordinatorState.state}`) : t("office.docx.state.error")}
         </span>
-      </header>
+      </header> : null}
       {viewState === "ready" ? (
         <>
           <DocxToolbar
@@ -222,7 +223,7 @@ export function DocxEditor<TSnapshot = unknown>({
             canRedo={canRedo}
             onUndo={undo}
             onRedo={redo}
-            onSave={save}
+            onSave={showDocumentControls ? save : undefined}
             format={formatState}
             commands={editor.commands}
           />

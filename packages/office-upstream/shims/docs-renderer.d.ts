@@ -1,6 +1,7 @@
 import type { Extensions, JSONContent } from "@tiptap/core";
 
 export interface RendererRun {
+  noteRef?: { kind: "footnote" | "endnote"; id: string };
   text: string;
   bold?: boolean;
   italic?: boolean;
@@ -24,6 +25,9 @@ export interface RendererParsed {
   [key: string]: unknown;
 }
 export interface RendererNote {
+  styleId?: string;
+  spacing?: { beforeTwips?: number; afterTwips?: number; lineRule?: "auto" | "atLeast" | "exact"; lineRawTwips?: number };
+  richParas?: RendererRun[][];
   id: string;
   text: string;
   noRefMark?: true;
@@ -93,6 +97,9 @@ export interface RendererHeaderFooter {
   paras?: RendererHfParagraph[];
 }
 export interface RendererBlockBox {
+  spaceBeforePx?: number;
+  footnoteExtraPx?: number;
+  noteBands?: Array<{ offset: number; height: number }>;
   top: number;
   height: number;
   el?: HTMLElement;
@@ -151,6 +158,8 @@ export interface RendererGapMetrics {
   pageWidth?: number;
 }
 export interface RendererPageGapSpec {
+  notes?: HTMLElement;
+  notesKey?: string;
   metrics: RendererGapMetrics;
   el?: HTMLElement;
   pos?: number;
@@ -208,7 +217,7 @@ export interface RendererBlockMeta {
   tableRowFlags?: RendererTableRowFlags[];
   modernTableHeaders?: boolean;
   footnoteExtraPx?: number;
-  footnoteBands?: unknown[];
+  footnoteBands?: Array<{ heightPx: number }>;
 }
 export interface RendererColumnGeom {
   cols: number;
@@ -256,3 +265,31 @@ export function docThemeCss(fonts: unknown, colors: unknown, bodyFontDeclared?: 
 export function docLineFactor(parsed: RendererParsed, hasCjk: boolean): number;
 export function docHasCjk(parsed: RendererParsed): boolean;
 export function docBodyFont(parsed: RendererParsed): string | undefined;
+
+// UNI-823 F1: the pinned note model and helpers, exposed only on the browser seam.
+export interface RendererPageNoteItem extends RendererNote {
+  no: number;
+  height: number;
+  lineHeightPx?: number;
+  fontSizePt?: number;
+  fontFamily?: string;
+}
+export interface RendererNoteStyle {
+  sizeHalfPoints?: number;
+  fontFamily?: string;
+  lineRule?: "auto" | "atLeast" | "exact";
+  lineRawTwips?: number;
+  spaceBeforeTwips?: number;
+  spaceAfterTwips?: number;
+}
+export function blockNoteScanRuns(block: RendererBlock): RendererRun[];
+export function makeGapNotesEl(items: RendererPageNoteItem[], left: number, width: number, height: number, lineHeight: number, onEdit?: (id: string) => void): HTMLElement;
+export function measureNoteHeightDom(entry: Pick<RendererPageNoteItem, "no" | "text" | "richParas" | "noRefMark">, kind: "footnote" | "endnote", width: number, lineHeight: number, fontSize: number, fontFamily?: string): number | null;
+export function cssFontFamily(value: string): string;
+export function resolveNoteStyle(parsed: RendererParsed, styleId?: string, direct?: RendererNote["spacing"]): RendererNoteStyle;
+export function noteRunStyle(richParas?: RendererRun[][]): Pick<RendererNoteStyle, "sizeHalfPoints" | "fontFamily">;
+export function noteLineHeightPx(docGrid: unknown, style?: RendererNoteStyle): number;
+export function footnoteLineHeightPx(docGrid: unknown): number;
+export function estimateFootnoteHeight(text: string, width: number, docGrid: unknown, metrics?: unknown, style?: RendererNoteStyle, richParas?: RendererRun[][]): number;
+export const FOOTNOTE_SEPARATOR_H: number;
+export function pageAt(slices: RendererPageSlice[], y: number): number;

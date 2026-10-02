@@ -38,7 +38,7 @@ interface DocxParseBlock {
  * per-row flags; paragraphs carry the effective keepNext / keepLines /
  * pageBreakBefore / widowControl of their block format and paragraph style.
  */
-export function docxBlockMeta(parsed: unknown): (docxIndex: number) => RendererBlockMeta | undefined {
+export function docxBlockMeta(parsed: unknown, footnoteBandsOf?: (index: number) => Array<{ heightPx: number }>): (docxIndex: number) => RendererBlockMeta | undefined {
   const doc = parsed as {
     blocks?: DocxParseBlock[];
     styles?: Map<string, DocxParseStyle>;
@@ -79,6 +79,9 @@ export function docxBlockMeta(parsed: unknown): (docxIndex: number) => RendererB
         }
       }
     }
+    const bands = block ? footnoteBandsOf?.(docxIndex) ?? [] : [];
+    const extra = bands.reduce((sum, band) => sum + band.heightPx, 0);
+    if (extra > 0) meta = { ...meta, footnoteExtraPx: extra, footnoteBands: bands };
     metaCache.set(docxIndex, meta);
     return meta;
   };

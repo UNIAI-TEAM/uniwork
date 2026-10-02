@@ -45,6 +45,7 @@ import {
 } from "./docx-frame";
 import { colGeomsFor, docxColumnCss, docxColumnMode, docxDocumentVars, type DocxColumnMode } from "./docx-columns";
 import { docxBlockMeta } from "./docx-block-meta";
+import { createDocxFootnotes } from "./docx-footnotes";
 
 // The driver's public surface, so call sites and tests keep one import path:
 // the frame layer (./docx-frame), the canvas column layout (./docx-columns) and
@@ -126,7 +127,8 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
   let colStyleEl: HTMLStyleElement | null = null;
   const colMode = docxColumnMode(spec.sections);
   const columnCss = docxColumnCss(spec.sections);
-  const blockMetaOf = docxBlockMeta(spec.parsedDoc);
+  const footnotes = createDocxFootnotes(spec.parsedDoc, spec.sections);
+  let blockMetaOf = docxBlockMeta(spec.parsedDoc, footnotes.bandsOf);
 
   /** The uniform-column CSS lives in its own style element (upstream App's
    *  colFlow block); created lazily, removed on dispose. */
@@ -200,7 +202,7 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
     }
     const { blocks, live, hfHeights, slices, out } = measured;
     if (slices.length === 0) return;
-    const frame = buildPaginationFrame({ spec, live, blocks, hfHeights, slices, view: editor.view });
+    const frame = buildPaginationFrame({ spec, live, blocks, hfHeights, slices, view: editor.view, pageNotes: footnotes.pageItems(blocks, slices) });
     pages = frame.pages;
     if (frame.edgeHf) {
       const { header, footer, pageTotal } = frame.edgeHf;
@@ -210,7 +212,7 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
         mountEdgeHf(wrap, header, footer, pageTotal);
       }
     }
-    const nextKey = `${frame.gaps.length}|${pages}|${slices.map((s: RendererPageSlice) => `${s.start}:${s.end}:${s.section}`).join("|")}`;
+    const nextKey = `${frame.gaps.map((gap) => gap.notesKey ?? "").join("|")}|${frame.gaps.length}|${pages}|${slices.map((s: RendererPageSlice) => `${s.start}:${s.end}:${s.section}`).join("|")}`;
     if (nextKey !== gapKey) {
       gapKey = nextKey;
       setPageGaps(editor.view, frame.gaps);
@@ -255,6 +257,8 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
   // (fonts.ready fires once; loadingdone covers later faces).
   const onFontsSettled = () => {
     if (disposed) return;
+    footnotes.invalidate();
+    blockMetaOf = docxBlockMeta(spec.parsedDoc, footnotes.bandsOf);
     bumpHfProbeFontEpoch();
     bumpLineSampleFontEpoch();
     refresh();
