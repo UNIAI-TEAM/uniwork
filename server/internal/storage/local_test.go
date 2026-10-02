@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -516,5 +517,39 @@ func TestLocalStorage_GetReader_MissingKey(t *testing.T) {
 	if rc, err := store.GetReader(context.Background(), "nonexistent.txt"); err == nil {
 		rc.Close()
 		t.Fatal("GetReader should error on missing key")
+	}
+}
+
+// FileService objects share LOCAL_UPLOAD_DIR with the legacy objects, but the
+// /uploads/* route authorizes nobody: a v1/ key must never come back from it,
+// however the path is spelled. A legacy object next to it still does.
+func TestServeFileRefusesFileServiceObjects(t *testing.T) {
+	dir := t.TempDir()
+	store := &LocalStorage{uploadDir: dir}
+	write := func(key string) {
+		t.Helper()
+		p := filepath.Join(dir, key)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("secret"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tenantKey := "v1/orgs/01ORG/workspaces/01WS/task-attachments/2026/10/01FILE/original"
+	write(tenantKey)
+	write("chat/files/legacy.pdf")
+
+	for _, key := range []string{tenantKey, "./" + tenantKey, "chat/../" + tenantKey, "v1", "V1/" + strings.TrimPrefix(tenantKey, "v1/")} {
+		rec := httptest.NewRecorder()
+		store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+		if rec.Code != http.StatusNotFound || rec.Body.String() == "secret" {
+			t.Errorf("ServeFile(%q) = %d %q, want 404", key, rec.Code, rec.Body.String())
+		}
+	}
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/chat/files/legacy.pdf", nil), "chat/files/legacy.pdf")
+	if rec.Code != http.StatusOK {
+		t.Errorf("legacy object = %d, want 200", rec.Code)
 	}
 }
