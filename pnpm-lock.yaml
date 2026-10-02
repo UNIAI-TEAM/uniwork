@@ -304,6 +304,9 @@ importers:
       '@uniwork/office-engine':
         specifier: workspace:*
         version: link:../../packages/office-engine
+      '@uniwork/office-upstream':
+        specifier: workspace:*
+        version: link:../../packages/office-upstream
       '@uniwork/ui':
         specifier: workspace:*
         version: link:../../packages/ui

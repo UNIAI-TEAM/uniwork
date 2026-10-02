@@ -7314,6 +7314,7 @@
       "back": "Back to library",
       "untitled": "Untitled.docx",
       "saveLocal": "Save file",
+      "saveAs": "Save As…",
       "unsupported": "This format is not supported on desktop yet.",
       "local": "Local file",
       "ownerUnknown": "Workspace member",
