@@ -17,6 +17,7 @@ import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
+import { createLiveDraftAccess } from "./main/drafts/live-access";
 import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
 import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
@@ -279,26 +280,13 @@ async function startElectronHost(): Promise<void> {
     if (active.kind === "cloud" && authManager?.getMetadata().status !== "signed-in") return undefined;
     return { session: draftScope(), identity: active.identity };
   };
-  /** A recovery is never granted from cached access: for a cloud document the
-   * live workspace list is re-read (bounded pagination) and the document's edit
-   * ACL re-checked, so a document beyond the first page is not failed closed. */
-  const liveDraftAccess = async (): Promise<"edit" | "none"> => {
-    const active = activeDocument;
-    if (!active) return "none";
-    if (active.kind === "local") return "edit";
-    if (!officeTransport) return "none";
-    try {
-      let cursor: string | undefined;
-      for (let page = 0; page < 5; page += 1) {
-        const result = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list", ...(cursor ? { cursor } : {}) });
-        const document = result.documents.find((row) => row.id === active.identity.documentId);
-        if (document) return document.canEdit ? "edit" : "none";
-        if (!result.nextCursor) break;
-        cursor = result.nextCursor;
-      }
-      return "none";
-    } catch { return "none"; }
-  };
+  const liveDraftAccess = createLiveDraftAccess({
+    context: () => {
+      const context = liveDraftContext();
+      return context && activeDocument ? { ...context, kind: activeDocument.kind } : undefined;
+    },
+    readAccess: officeTransport?.readDocumentAccess,
+  });
   // Main-side leave evidence: a save receipt is recorded only when main itself
   // completed a guarded write, and the live document's draft rows are re-read
   // for keep/discard. The renderer's `proceeded` is never trusted alone.
