@@ -1,5 +1,7 @@
 -- Reverses the tenant backfill: the columns go, and chat_rooms.organization_id
--- is nullable again as it was after 052.
+-- is nullable again as it was after 052. lock_timeout for the same reason as
+-- in the up file: DROP COLUMN takes the same exclusive lock.
+SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE meeting_recordings DROP COLUMN IF EXISTS organization_id;
 ALTER TABLE meeting_summaries DROP COLUMN IF EXISTS organization_id;

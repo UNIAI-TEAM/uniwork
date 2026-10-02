@@ -210,13 +210,28 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 		return err
 	}
 	if n == 0 {
-		return ErrNotFound
+		// Either not the caller's mailbox, or theirs and already disconnected.
+		// The second case runs the cleanup again: the flip and the deletes
+		// are not one transaction, so a cleanup that failed last time must
+		// be retryable, and a repeated disconnect must not turn into a 404.
+		acc, err := s.q.GetEmailHubAccountByID(ctx, accountID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if acc.UserID != actor.ID || acc.OrganizationID != ws.OrganizationID || !acc.DisconnectedAt.Valid {
+			return ErrNotFound
+		}
 	}
 	s.hubWatch.forceStop(accountID)
 	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: ws.OrganizationID}
-	_ = s.q.DeleteEmailHubAttachmentsForAccount(ctx, scope)
-	_ = s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope))
-	return s.q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope))
+	return errors.Join(
+		s.q.DeleteEmailHubAttachmentsForAccount(ctx, scope),
+		s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope)),
+		s.q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope)),
+	)
 }
 
 func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, fetchBody, markRead bool) (EmailHubThreadView, error) {

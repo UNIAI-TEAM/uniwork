@@ -6,8 +6,14 @@
 --
 -- One file on purpose. The runner sends a file as a single simple-protocol
 -- Exec, which PostgreSQL runs as one implicit transaction: an orphan anywhere
--- (a row whose parent is gone - corruption, since none of these parents has a
--- hard-delete path) fails SET NOT NULL and leaves NOTHING applied. Split in
+-- (a row whose parent is gone - no caller hard-deletes these parents today,
+-- but the meeting tables carry no FK, and an early build did delete meetings)
+-- fails SET NOT NULL and leaves NOTHING applied. Before deploying, count the
+-- orphans on the target database and remove them by hand if any:
+--   SELECT count(*) FROM <child> c LEFT JOIN meetings m ON m.id = c.meeting_id
+--   WHERE m.id IS NULL;  -- and the same for chat_room_members/chat_messages
+--   against chat_rooms, workspace_members against workspaces.
+-- Split in
 -- three, a failure in the last file left the first two committed: the old
 -- binary's inserts then broke on NOT NULL while /readyz held the new one back,
 -- and both sides were down until the data was fixed.

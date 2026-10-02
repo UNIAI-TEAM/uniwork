@@ -53,7 +53,7 @@ func HandleMeetingLobbyWebSocket(
 	if guestID == "" {
 		var errMsg string
 		var closed bool
-		userID, guestID, errMsg, closed = firstMessageLobbyAuth(conn, guestKey, parse)
+		userID, guestID, errMsg, closed = firstMessageLobbyAuth(conn, guestKey, parse, lobbyAuthFrameWait)
 		if closed {
 			return
 		}
@@ -77,8 +77,10 @@ func HandleMeetingLobbyWebSocket(
 		// The uw_guest cookie lives 30 days on every path, so a person who
 		// once used a link signed out still carries it after signing in -
 		// and it names a guest this meeting may not know. Their client sends
-		// its own auth frame; decide on that before refusing.
-		uid, gid, errMsg, closed := firstMessageLobbyAuth(conn, guestKey, parse)
+		// its own auth frame on open; decide on that before refusing. A
+		// client that relies on the cookie alone sends nothing, so the wait
+		// is short: it used to be refused at once, and it reconnects anyway.
+		uid, gid, errMsg, closed := firstMessageLobbyAuth(conn, guestKey, parse, lobbyStaleCookieFrameWait)
 		if closed {
 			return
 		}
@@ -140,14 +142,25 @@ func HandleMeetingLobbyWebSocket(
 	go client.readPump()
 }
 
+const (
+	// lobbyAuthFrameWait is how long a client without a guest cookie has to
+	// send its auth frame.
+	lobbyAuthFrameWait = 10 * time.Second
+	// lobbyStaleCookieFrameWait is the wait for the auth frame of a client
+	// whose guest cookie this meeting refused; a cookie-only client never
+	// sends one, so this bounds how long such a socket is held.
+	lobbyStaleCookieFrameWait = 2 * time.Second
+)
+
 // firstMessageLobbyAuth reads the first WebSocket frame for a lobby client
 // without a uw_guest cookie. Accepts a signed guest_session or a JWT token.
 func firstMessageLobbyAuth(
 	conn *websocket.Conn,
 	guestKey []byte,
 	parse TokenParser,
+	wait time.Duration,
 ) (userID, guestID, errMsg string, closed bool) {
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(wait))
 	defer conn.SetReadDeadline(time.Time{})
 
 	_, raw, err := conn.ReadMessage()

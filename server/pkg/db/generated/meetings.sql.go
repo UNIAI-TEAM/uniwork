@@ -255,16 +255,6 @@ func (q *Queries) CreateMeetingNote(ctx context.Context, arg CreateMeetingNotePa
 	return i, err
 }
 
-const deleteMeeting = `-- name: DeleteMeeting :exec
-DELETE FROM meetings WHERE id = $1
-`
-
-// tenant: by-id
-func (q *Queries) DeleteMeeting(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteMeeting, id)
-	return err
-}
-
 const endMeeting = `-- name: EndMeeting :one
 UPDATE meetings SET
   status = 'ENDED',

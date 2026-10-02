@@ -137,10 +137,6 @@ WHERE id = sqlc.arg('id') AND version = sqlc.arg('version')
   AND status IN ('SCHEDULED', 'IN_PROGRESS')
 RETURNING *;
 
--- name: DeleteMeeting :exec
--- tenant: by-id
-DELETE FROM meetings WHERE id = $1;
-
 -- name: AddMeetingAttendee :exec
 INSERT INTO meeting_attendees (meeting_id, user_id, organization_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 

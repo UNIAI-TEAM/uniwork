@@ -253,6 +253,14 @@ func TestEmailHubDisconnectRemovesData(t *testing.T) {
 	if err != nil || len(accounts) != 0 {
 		t.Fatalf("expected no accounts after disconnect: err=%v len=%d", err, len(accounts))
 	}
+	// A second disconnect of one's own mailbox is a retry of the cleanup,
+	// not an unknown id; someone else's mailbox stays unknown.
+	if err := svc.Disconnect(ctx, actor, ws.ID, acc.ID); err != nil {
+		t.Fatalf("second disconnect: %v", err)
+	}
+	if err := svc.Disconnect(ctx, Human(util.NewID()), ws.ID, acc.ID); !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrForbidden) {
+		t.Fatalf("stranger disconnect: want not found/forbidden, got %v", err)
+	}
 }
 
 func TestEmailHubGetThreadFetchBodyWithoutIMAP(t *testing.T) {
