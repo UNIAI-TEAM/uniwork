@@ -241,6 +241,22 @@ mọi caller (không giữ hai đường song song trong code nội bộ).
 
 Đổi hệ điều hành: chip về bản đầu tiên của hệ điều hành đó, trạng thái tải xoá, "Sau khi tải" đóng lại.
 
+**Chọn bản khác với máy đang dùng** (người dùng hỏi 2026-10-02). Đây là việc hợp lệ, ví dụ tải giúp máy khác, nên
+**không chặn** và không thêm bước xác nhận. Chỉ nhắc khi nhận diện **chắc chắn**:
+
+| Tình huống | Hiện gì |
+| --- | --- |
+| Khác hệ điều hành (vd. máy Windows, chọn macOS) | `Alert` (default, icon `Info`) ngay trên khối info: `mismatch_os` "Bản này dành cho macOS. Máy bạn đang dùng Windows, nên bản này chỉ cài được trên máy khác." + link `back_to_detected` "Chọn lại bản cho Windows". Nút chính đổi chữ thành `download_os_build` "Tải bản macOS" |
+| macOS: chọn Intel trên máy Apple Silicon | `mismatch_rosetta` "Bản Intel vẫn chạy trên Mac chip Apple qua Rosetta nhưng chậm hơn. Nên chọn Apple Silicon." |
+| macOS: chọn Apple Silicon trên máy Intel | `mismatch_arch` "Bản Apple Silicon không chạy được trên Mac chip Intel." + link chọn lại |
+| Linux: `.deb` ↔ AppImage | không nhắc (cả hai chạy được trên Ubuntu x64) |
+| Nhận diện không chắc (Mac không rõ chip, không hỗ trợ) | không nhắc kiến trúc; khác hệ điều hành vẫn nhắc như dòng 1 nếu hệ điều hành chắc |
+
+Hướng dẫn "Sau khi tải" theo **bản đã chọn**, không theo máy đang dùng. Dòng trạng thái sau khi tải ghi rõ hệ điều
+hành: `started_for` "Đã bắt đầu tải bản macOS: <tệp>." Nếu người dùng vẫn chạy nhầm bộ cài thì hệ điều hành tự từ
+chối (`.exe` không mở trên macOS/Linux, `.dmg` không mở trên Windows), bộ cài không cài gì sai; lane B kiểm thêm
+`.deb` báo lỗi kiến trúc rõ ràng khi không phải amd64 (`Architecture: amd64` trong control).
+
 ### 6.4 Tải về
 
 - Bấm "Tải cho <OS>": nút `disabled` + `Spinner` + "Đang tải…"; radiogroup khoá tới khi xong.
@@ -293,6 +309,12 @@ mọi caller (không giữ hai đường song song trong code nội bộ).
 | `unsupported` | UniWork Office chưa hỗ trợ thiết bị này. Bạn vẫn có thể tải cho máy khác. | UniWork Office doesn't support this device yet. You can still download it for another computer. |
 | `started` | Đã bắt đầu tải {{file}}. | Download started: {{file}}. |
 | `retry` | Thử lại | Try again |
+| `mismatch_os` | Bản này dành cho {{os}}. Máy bạn đang dùng {{current}}, nên bản này chỉ cài được trên máy khác. | This build is for {{os}}. You're on {{current}}, so it installs only on another computer. |
+| `back_to_detected` | Chọn lại bản cho {{current}} | Switch back to {{current}} |
+| `download_os_build` | Tải bản {{os}} | Download {{os}} build |
+| `mismatch_rosetta` | Bản Intel vẫn chạy trên Mac chip Apple qua Rosetta nhưng chậm hơn. Nên chọn Apple Silicon. | The Intel build runs on Apple chips through Rosetta, but slower. Apple Silicon is recommended. |
+| `mismatch_arch` | Bản Apple Silicon không chạy được trên Mac chip Intel. | The Apple Silicon build doesn't run on Intel Macs. |
+| `started_for` | Đã bắt đầu tải bản {{os}}: {{file}}. | Download started for {{os}}: {{file}}. |
 | `copy_command` | Sao chép lệnh | Copy command |
 | `copied` | Đã sao chép | Copied |
 | `fmt.win_exe` / `fmt.win_exe_hint` | x64 · .exe / Intel / AMD | x64 · .exe / Intel / AMD |
@@ -320,5 +342,5 @@ giữ nguyên; `download_description` bỏ (thay bằng `description_download`).
 
 Visual Tester đặt ảnh cạnh mockup (mở `docs/office/g3g4/design/installer-picker-mockup.html` trong cùng trình duyệt)
 và chụp: mỗi hệ điều hành được nhận diện (Windows, macOS rõ chip, macOS không rõ chip, Linux), không hỗ trợ, kênh
-thiếu một hệ điều hành, kênh không có bản nào, đang tải, lỗi, "Sau khi tải" của 6 định dạng; 1440 và 390 CSS px;
+thiếu một hệ điều hành, kênh không có bản nào, chọn khác hệ điều hành, Intel trên Mac chip Apple, đang tải, lỗi, "Sau khi tải" của 6 định dạng; 1440 và 390 CSS px;
 sáng và tối; chấm 9 tiêu chí UI (team-rules "Tester visual"). Người dùng duyệt giao diện cuối.
