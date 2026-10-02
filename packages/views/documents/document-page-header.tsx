@@ -41,8 +41,21 @@ export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChang
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (!input) return;
-    input.style.height = "auto";
-    input.style.height = `${input.scrollHeight}px`;
+    const resize = () => {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    };
+    resize();
+    let width = input.clientWidth;
+    // Sidebar and viewport changes can wrap an unchanged logical title.
+    // Ignore height-only notifications caused by our own auto-sizing.
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width === width) return;
+      width = entry.contentRect.width;
+      resize();
+    });
+    observer.observe(input);
+    return () => observer.disconnect();
   }, [inputRef, metadata.title, editable]);
 
   useEffect(() => {

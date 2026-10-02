@@ -16,7 +16,7 @@ const doc: Document = {
   created_by: "", created_by_kind: "human", updated_by: "", updated_by_kind: "human",
   created_at: "", updated_at: "",
 };
-type Options = { method?: string; body?: Record<string, unknown> };
+type Options = { method?: string; body?: Record<string, unknown>; headers?: Record<string, string> };
 const patches = () => requestMock.mock.calls.filter(([, options]) => (options as Options)?.method === "PATCH");
 
 function ReactiveWorkspace() {
@@ -59,6 +59,61 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("page metadata lifecycle", () => {
+  it("retries the dirty body before failed metadata when both writes fail", async () => {
+    let saved = doc;
+    let rejectTitle!: (error: unknown) => void;
+    let acknowledgeBody!: () => void;
+    let acknowledgeTitle!: () => void;
+    requestMock.mockImplementation((path: string, options?: Options) => {
+      if (options?.method === "PATCH") {
+        if (patches().length === 1) return new Promise((_, reject) => { rejectTitle = reject; });
+        if (patches().length === 2) return Promise.reject(new ApiError("body failure", "internal", 500));
+        return new Promise((done) => {
+          const commit = () => {
+            saved = { ...saved, ...options.body, revision: options.body?.content ? "4" : "5" } as Document;
+            done({ document: saved });
+          };
+          if (options.body?.content) acknowledgeBody = commit;
+          else acknowledgeTitle = commit;
+        });
+      }
+      return Promise.resolve(path === "/api/v1/documents/d1" ? { document: saved } : {});
+    });
+    const { push } = mountWorkspace();
+    const title = await findTitle();
+    const body = await findBody();
+    fireEvent.change(title, { target: { value: "Retry both writes" } });
+    fireEvent.blur(title);
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    pasteText(body, "Body after both failures");
+    await act(async () => rejectTitle(new ApiError("title failure", "internal", 500)));
+    await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 8_000 });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.save.retry") }));
+    await waitFor(() => expect(patches()).toHaveLength(3));
+    const failedBody = patches()[1]?.[1] as Options;
+    const replay = patches()[2]?.[1] as Options;
+    expect(replay.body).toEqual(failedBody.body);
+    expect(replay.headers?.["Idempotency-Key"]).toBeTruthy();
+    expect(replay.headers?.["Idempotency-Key"]).toBe(failedBody.headers?.["Idempotency-Key"]);
+    expect(replay.body?.revision).toBe("3");
+    expect(body).toHaveTextContent("Body after both failures");
+    expect(title).toHaveValue("Retry both writes");
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => acknowledgeBody());
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.save.retry") }));
+    await waitFor(() => expect(patches()).toHaveLength(4));
+    expect(patches()[3]?.[1]).toMatchObject({ body: { revision: "4", title: "Retry both writes" } });
+    await act(async () => acknowledgeTitle());
+    expect(saved.title).toBe("Retry both writes");
+    expect(JSON.stringify(saved.content)).toContain("Body after both failures");
+    await waitFor(() => {
+      const unload = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(unload);
+      expect(unload.defaultPrevented).toBe(false);
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("preserves immediate body input during a title flight and awaits both saves before leaving", async () => {
     let acknowledgeTitle: ((value: unknown) => void) | undefined;
     let acknowledgeBody: ((value: unknown) => void) | undefined;

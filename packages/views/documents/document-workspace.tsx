@@ -457,7 +457,7 @@ export function DocumentWorkspace({
                 state={indicatorState}
                 pendingUploads={pendingUploads}
                 readonly={!canEdit}
-                onRetry={() => { if (metadataStatus.failed) void metadataRef.current?.flush(); else save.retry(); }}
+                onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
                 onResolveConflict={() => setConflictOpen(true)}
               />
             ) : null}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Document } from "@uniwork/core/types/document";
@@ -33,6 +33,47 @@ beforeEach(() => {
 });
 
 describe("DocumentPageHeader", () => {
+  it("recomputes title height when the available width changes without editing or saving the title", () => {
+    const callbacks = new Map<Element, ResizeObserverCallback>();
+    const disconnect = vi.fn();
+    let width = 720;
+    let height = 48;
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(() => width);
+    vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(() => height);
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) { callbacks.set(target, this.callback); }
+      unobserve(target: Element) { callbacks.delete(target); }
+      disconnect = disconnect;
+    });
+    const { unmount } = render(wrap(<DocumentPageHeader wsId="ws1" doc={doc} editable
+      onTitleChange={vi.fn()} onFocusBody={vi.fn()} />));
+    try {
+      const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
+      expect(title.style.height).toBe("48px");
+      const notify = () => act(() => callbacks.get(title)?.([
+        { target: title, contentRect: new DOMRectReadOnly(0, 0, width, height),
+          borderBoxSize: [], contentBoxSize: [], devicePixelContentBoxSize: [] },
+      ], {} as ResizeObserver));
+      width = 350;
+      height = 120;
+      notify();
+      expect(title.style.height).toBe("120px");
+      width = 720;
+      height = 48;
+      notify();
+      expect(title.style.height).toBe("48px");
+      expect(title).toHaveValue(doc.title);
+      expect(patches()).toHaveLength(0);
+      unmount();
+      expect(disconnect).toHaveBeenCalled();
+    } finally {
+      unmount();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("debounces title PATCH and does not resend the acknowledged value on blur", async () => {
     mount();
     const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
