@@ -31,7 +31,18 @@ import { basename, dirname, join, resolve } from "node:path";
 const API = "https://api.cursor.com/v1";
 const REPO_URL = "https://github.com/UNIAI-TEAM/uniwork";
 const ENV_BRANCH = "test/cursor-cloud-env";
-const DEFAULT_MODEL = "composer-2.5";
+// User 2026-10-02: runners use Grok 4.6 at high effort. --model takes
+// "<id>[:param=value,...]", e.g. "composer-2.5" or "grok-4.6:effort=medium".
+const DEFAULT_MODEL = "grok-4.6:effort=high,fast=false";
+
+function modelSpec(text) {
+  const [id, params = ""] = text.split(":");
+  const list = params.split(",").filter(Boolean).map((p) => {
+    const [pid, value] = p.split("=");
+    return { id: pid, value };
+  });
+  return list.length ? { id, params: list } : { id };
+}
 const POLL_MS = 20_000;
 
 // Refreshes the runner scripts from the environment branch, then hands the
@@ -159,7 +170,7 @@ async function createAgent(branch, model, prompt) {
   const r = await api("POST", "/agents", {
     name: `runner ${branch}`.slice(0, 80),
     prompt: { text: prompt },
-    model: { id: model },
+    model: modelSpec(model),
     repos: [{ url: REPO_URL, startingRef: branch }],
     env: { type: "cloud" },
     autoCreatePR: false,
