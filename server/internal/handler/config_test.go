@@ -66,3 +66,62 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 		t.Fatalf("office deployment id = %q, want default fallback", out.OfficeDeploymentID)
 	}
 }
+
+func TestConfigPublishesOfficeInstallers(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  config.Config
+		want map[string][]config.OfficeInstaller
+	}{
+		{
+			name: "channel maps and legacy Windows",
+			cfg: config.Config{
+				OfficeInstallerDevURL:   "https://downloads.test/legacy.exe",
+				OfficeInstallerDevURLs:  `{"linux-x64-deb":"https://downloads.test/dev.deb"}`,
+				OfficeInstallerBetaURLs: `{"darwin-x64":"https://downloads.test/beta.dmg"}`,
+			},
+			want: map[string][]config.OfficeInstaller{
+				"dev":    {{Platform: "win32-x64", URL: "https://downloads.test/legacy.exe", Kind: ".exe"}, {Platform: "linux-x64-deb", URL: "https://downloads.test/dev.deb", Kind: ".deb"}},
+				"beta":   {{Platform: "darwin-x64", URL: "https://downloads.test/beta.dmg", Kind: ".dmg"}},
+				"stable": {},
+			},
+		},
+		{
+			name: "invalid map is empty without channel inheritance",
+			cfg: config.Config{
+				OfficeInstallerDevURLs:    `{"win32-x64":"https://downloads.test/dev.exe"}`,
+				OfficeInstallerStableURLs: `{"win32-x64":"javascript:alert(1)"}`,
+			},
+			want: map[string][]config.OfficeInstaller{
+				"dev":  {{Platform: "win32-x64", URL: "https://downloads.test/dev.exe", Kind: ".exe"}},
+				"beta": {}, "stable": {},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := New(Deps{Cfg: tc.cfg, Log: slog.Default()})
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			var out struct {
+				Installers map[string][]config.OfficeInstaller `json:"office_installers"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			for channel, want := range tc.want {
+				got, present := out.Installers[channel]
+				if !present || got == nil || len(got) != len(want) {
+					t.Fatalf("%s = %+v, want non-null array %+v", channel, got, want)
+				}
+				for i, item := range want {
+					if got[i] != item {
+						t.Fatalf("%s[%d] = %+v, want %+v", channel, i, got[i], item)
+					}
+				}
+			}
+		})
+	}
+}

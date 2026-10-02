@@ -43,3 +43,16 @@ func TestLoadOfficeInstallerURLMaps(t *testing.T) {
 		t.Fatalf("platform env loading: %v", err)
 	}
 }
+
+func TestOfficeInstallersEncodedFilenames(t *testing.T) {
+	for _, filename := range []string{"bad%5Cname.exe", "bad%0Aname.exe", "bad%00name.exe", "bad%3Fname.exe", "bad%3Aname.exe", "bad%22name.exe"} {
+		cfg := Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/` + filename + `"}`}
+		if _, err := cfg.OfficeInstallers("dev"); err == nil {
+			t.Errorf("accepted filename the bundle cannot preserve: %s", filename)
+		}
+	}
+	cfg := Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/my%20office%2Eexe"}`}
+	if items, err := cfg.OfficeInstallers("dev"); err != nil || len(items) != 1 {
+		t.Fatalf("valid encoded artifact rejected: %+v %v", items, err)
+	}
+}

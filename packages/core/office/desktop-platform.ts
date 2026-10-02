@@ -4,8 +4,8 @@ import type { OfficeChannel } from "./desktop-handoff";
 export const DESKTOP_INSTALLER_KINDS = {
   "win32-x64": { os: "windows", kind: ".exe", format: "win_exe", requirement: "windows", steps: ["extract", "win_exe_run", "win_exe_unsigned"] },
   "win32-x64-zip": { os: "windows", kind: ".zip", format: "win_zip", requirement: "windows", steps: ["extract", "win_zip_extract", "win_zip_run"] },
-  "darwin-arm64": { os: "macos", kind: ".dmg", format: "mac_arm", requirement: "macos", steps: ["extract", "mac_open", "mac_drag", "mac_unsigned"] },
-  "darwin-x64": { os: "macos", kind: ".dmg", format: "mac_intel", requirement: "macos", steps: ["extract", "mac_open", "mac_drag", "mac_unsigned"] },
+  "darwin-arm64": { os: "macos", kind: ".dmg", format: "mac_arm", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned"] },
+  "darwin-x64": { os: "macos", kind: ".dmg", format: "mac_intel", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned"] },
   "linux-x64-deb": { os: "linux", kind: ".deb", format: "deb", requirement: "deb", steps: ["extract", "deb_install", "deb_open"] },
   "linux-x64-appimage": { os: "linux", kind: ".AppImage", format: "appimage", requirement: "appimage", steps: ["extract", "appimage_run", "appimage_fuse"] },
 } as const;
@@ -53,12 +53,12 @@ export function detectDesktopPlatform(hints: DesktopPlatformHints): DesktopPlatf
   const platform = data?.platform?.toLowerCase() ?? "";
   const arch = data?.architecture?.toLowerCase() ?? "";
   const unsupported: DesktopPlatformGuess = { platform: null, confidence: "unsupported" };
-  if (data?.mobile || /android|iphone|ipad|ipod|mobile|cros/.test(ua) || /android|ios|chrome ?os/.test(platform)) return unsupported;
+  if (data?.mobile || /\b(?:android|iphone|ipad|ipod|mobile|cros)\b/.test(ua) || /android|ios|chrome ?os/.test(platform)) return unsupported;
   if (/windows/.test(platform || ua)) {
     if (data?.bitness === "32" || (!arch && /wow32|win32|i[3-6]86/.test(ua))) return unsupported;
     return { platform: "win32-x64", confidence: "certain" };
   }
-  if (/mac/.test(platform || ua)) {
+  if (/\bmac(?:intosh| ?os)\b/.test(platform || ua)) {
     if (/arm/.test(arch)) return { platform: "darwin-arm64", confidence: "certain" };
     if (/x86|x64|amd64/.test(arch)) return { platform: "darwin-x64", confidence: "certain" };
     return { platform: "darwin-arm64", confidence: "uncertain" };

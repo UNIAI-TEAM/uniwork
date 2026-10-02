@@ -76,11 +76,14 @@ describe("OfficeInstallPrompt", () => {
   });
   it("does not display unknown keys or dev artifacts in stable; an empty channel only offers Not now", async () => {
     const p = props({ channel: "stable", installers: [...DESKTOP_PLATFORMS.map(option), { ...option("win32-x64"), platform: "unknown" } as unknown as OfficeInstallerOption], reason: "error" });
-    render(<OfficeInstallPrompt {...p} />);
+    const view = render(<OfficeInstallPrompt {...p} />);
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open again" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Not now" })).toHaveFocus());
+    view.rerender(<OfficeInstallPrompt {...p} reason="download" />);
+    expect(screen.getByText("This channel has no installer yet. Try again later.")).toBeInTheDocument();
+    expect(screen.queryByText("Choose the operating system and format that fits your computer.")).not.toBeInTheDocument();
   });
   it("locks both groups while downloading, reports success and opens the instructions", async () => {
     let finish!: () => void;
@@ -92,6 +95,7 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.getByRole("radio", { name: "Windows" })).toHaveAttribute("aria-checked", "true");
     finish();
     await screen.findByText(/Download started:/);
+    expect(screen.getByText("UniWork-Office.zip")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "After downloading" })).toHaveAttribute("aria-expanded", "true");
   });
   it("keeps the selected artifact on download failure and retries it", async () => {
@@ -117,14 +121,29 @@ describe("OfficeInstallPrompt", () => {
   });
   it.each([
     ["win32-x64", /Run Office_/, /More info/], ["win32-x64-zip", /Extract Office_/, /uniwork-office/],
-    ["darwin-arm64", /Open Office_/, /Applications/], ["darwin-x64", /Open Office_/, /Applications/],
+    ["darwin-arm64", /Extract the ZIP.*open Office_/, /Applications/], ["darwin-x64", /Extract the ZIP.*open Office_/, /Applications/],
     ["linux-x64-deb", /App Center/, /gnome-keyring/], ["linux-x64-appimage", /executable/, /libfuse2/],
   ] as const)("shows the selected %s instructions", async (platform, first, second) => {
     render(<OfficeInstallPrompt {...props({ platformHint: { platform, confidence: "certain" } })} />);
     fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
     const list = await screen.findByRole("list");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
     expect(within(list).getByText(first)).toBeInTheDocument();
     expect(within(list).getAllByText(second).length).toBeGreaterThan(0);
+  });
+  it("resets the artifact, guide and status when the dialog opens again", async () => {
+    const p = props();
+    const view = render(<OfficeInstallPrompt {...p} />);
+    fireEvent.click(screen.getByRole("radio", { name: "macOS" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download for macOS" }));
+    await screen.findByText(/Download started:/);
+    view.rerender(<OfficeInstallPrompt {...p} open={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    view.rerender(<OfficeInstallPrompt {...p} />);
+    expect(screen.getByRole("radio", { name: "Windows" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "After downloading" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(/Download started:/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Download for Windows" })).toHaveFocus());
   });
   it("uses server requirements and metadata, hides absent size, and copies the actual safe command", async () => {
     const item = { ...option("linux-x64-deb"), requirements: "Ubuntu 24.04 only", size_bytes: undefined, url: "https://downloads.test/a%20file.deb" };

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Download } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import {
   DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, isDesktopPlatform,
   type DesktopOS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel,
@@ -30,18 +30,21 @@ export interface OfficeInstallPromptProps {
   onDownload: (platform: DesktopPlatform) => Promise<void>;
 }
 
-const radioStyle = "absolute inset-0 aspect-auto size-full rounded-xl border-border bg-background after:inset-0 hover:border-muted-foreground data-checked:border-primary data-checked:bg-primary/10 data-checked:text-foreground dark:bg-background dark:data-checked:bg-primary/10 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 [&>[data-slot=radio-group-indicator]]:hidden";
+const radioStyle = "absolute inset-0 aspect-auto size-full rounded-xl border-input bg-background after:inset-0 hover:border-muted-foreground data-checked:border-primary data-checked:bg-primary/10 data-checked:text-foreground dark:bg-background dark:data-checked:bg-primary/10 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 [&>[data-slot=radio-group-indicator]]:hidden";
 
 function installerFilename(installer: OfficeInstallerOption): string {
   try { return decodeURIComponent(new URL(installer.url).pathname).split("/").pop() || installer.platform + installer.kind; }
   catch { return installer.platform + installer.kind; }
 }
 
-/** Remount the picker on each open so a completed or failed prior download
- * cannot affect the next visit's recommendation or initial focus. */
+/** Reset a new visit without removing the popup during its exit animation. */
 export function OfficeInstallPrompt(props: OfficeInstallPromptProps) {
+  const [visit, setVisit] = useState({ open: props.open, id: 0 });
+  if (visit.open !== props.open) {
+    setVisit({ open: props.open, id: visit.id + (props.open ? 1 : 0) });
+  }
   return <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-    {props.open ? <InstallerPicker {...props} /> : null}
+    <InstallerPicker key={visit.id} {...props} />
   </Dialog>;
 }
 
@@ -90,7 +93,7 @@ function InstallerPicker({
     setDownloading(true); setFailed(false); setStarted(null);
     try {
       await onDownload(selected.platform);
-      setStarted(installerFilename(selected)); setInstructionsOpen(true);
+      setStarted("UniWork-Office.zip"); setInstructionsOpen(true);
     } catch { setFailed(true); }
     finally { setDownloading(false); }
   };
@@ -98,7 +101,7 @@ function InstallerPicker({
   const requirement = selected ? selected.requirements ?? t(`req.${DESKTOP_INSTALLER_KINDS[selected.platform].requirement}`) : "";
 
   return <DialogContent
-    className="max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto rounded-2xl bg-background p-4 min-[480px]:max-w-[560px] min-[480px]:p-6 sm:max-w-[560px]"
+    className="max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto rounded-[16px] bg-background p-4 min-[480px]:max-w-[560px] min-[480px]:p-6 sm:max-w-[560px] [&_[data-slot=dialog-close]]:size-8"
     closeLabel={t("close")} aria-describedby="office-install-description"
     initialFocus={() => selected ? primary.current : reason !== "download" && options.length > 0 ? openAgain.current : later.current}
   >
@@ -106,7 +109,7 @@ function InstallerPicker({
       <Logo variant="mark" size={36} decorative className="size-9 shrink-0 rounded-[10px]" />
       <div className="min-w-0 space-y-1">
         <DialogTitle className="text-title leading-snug">{t("title")}</DialogTitle>
-        <DialogDescription id="office-install-description" className="text-body">{t(reasonKey)}</DialogDescription>
+        <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
     {options.length === 0 ? <Alert role="status"><AlertDescription>{t("unavailable")}</AlertDescription></Alert> : <>
@@ -120,7 +123,7 @@ function InstallerPicker({
               aria-description={unavailable ? t("not_in_channel", { os: t(`os.${os}`) }) : undefined}
               className={radioStyle + (unavailable ? " opacity-50" : "")} />
             {recommendedOS === os ? <Badge className="pointer-events-none absolute -top-2 z-10 bg-primary px-2 py-0 text-caption text-primary-foreground">{t("recommended_tag")}</Badge> : null}
-            <span className={"pointer-events-none relative flex flex-col items-center gap-2 text-body font-medium" + (unavailable ? " text-muted-foreground" : "")}>
+            <span aria-hidden className={"pointer-events-none relative flex flex-col items-center gap-2 text-body font-medium" + (unavailable ? " text-muted-foreground" : "")}>
               <OSGlyph os={os} />{t(`os.${os}`)}
               {unavailable ? <span className="text-caption font-normal">{t("unavailable_os")}</span> : null}
             </span>
@@ -134,9 +137,9 @@ function InstallerPicker({
             {formats.map((item) => {
               const format = DESKTOP_INSTALLER_KINDS[item.platform].format;
               return <div key={item.platform} className="relative min-h-11 min-w-0 cursor-pointer rounded-md px-3 py-2">
-                <RadioGroupItem value={item.platform} aria-label={t(`fmt.${format}`)} className={radioStyle + " rounded-md"} />
-                <span className="pointer-events-none relative block text-body font-medium">{t(`fmt.${format}`)}</span>
-                <span className="pointer-events-none relative block text-caption text-muted-foreground">{t(`fmt.${format}_hint`)}</span>
+                <RadioGroupItem value={item.platform} aria-label={t(`fmt.${format}`)} aria-description={t(`fmt.${format}_hint`)} className={radioStyle + " rounded-md"} />
+                <span aria-hidden className="pointer-events-none relative block text-body font-medium">{t(`fmt.${format}`)}</span>
+                <span aria-hidden className="pointer-events-none relative block text-caption text-muted-foreground">{t(`fmt.${format}_hint`)}</span>
               </div>;
             })}
           </RadioGroup>}
@@ -159,8 +162,8 @@ function InstallerPicker({
     </>}
     {failed ? <Alert variant="destructive" role="alert"><AlertDescription>{t("download_failed")}</AlertDescription></Alert> : null}
     <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center">
-      <p role="status" className="order-last min-w-0 flex-1 break-all text-caption text-muted-foreground min-[480px]:order-first">
-        {downloading ? t("downloading") : started ? t("started", { file: started }) : ""}
+      <p role="status" className="order-last min-w-0 flex-1 text-caption text-muted-foreground min-[480px]:order-first">
+        {downloading ? t("downloading") : started ? <Trans t={t} i18nKey="started" values={{ file: started }} components={{ filename: <span className="break-all" /> }} /> : ""}
       </p>
       <div className="flex flex-col-reverse gap-2 min-[480px]:flex-row">
         {reason !== "download" && options.length > 0 ? <Button ref={openAgain} variant="ghost" onClick={onOpenAgain} disabled={downloading}>{t("open_again")}</Button> : null}

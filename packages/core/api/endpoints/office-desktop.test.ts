@@ -18,6 +18,20 @@ describe("office desktop download endpoint", () => {
     request.mockResolvedValue({ installer_url: "javascript:alert(1)", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default" });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
   });
+  it("refuses a legacy URL that cannot be a Windows installer", async () => {
+    request.mockResolvedValue({ installer_url: "https://downloads.test/office.dmg", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default" });
+    await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
+  });
+  it.each(["bad%5Cname.exe", "bad%0Aname.exe", "bad%00name.exe", "bad%3Fname.exe", "bad%3Aname.exe", "bad%22name.exe"])("refuses a filename the bundle cannot preserve: %s", async (filename) => {
+    request.mockResolvedValue({ server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default",
+      installers: [{ platform: "win32-x64", url: `https://downloads.test/${filename}`, kind: ".exe" }] });
+    await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
+  });
+  it("accepts encoded spaces and the decoded artifact extension", async () => {
+    request.mockResolvedValue({ server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default",
+      installers: [{ platform: "win32-x64", url: "https://downloads.test/my%20office%2Eexe", kind: ".exe" }] });
+    await expect(getOfficeDesktopDownload("org-1")).resolves.toMatchObject({ installers: [{ platform: "win32-x64" }] });
+  });
   it.each(["installer_url", "server_origin"])("returns null for an unparseable %s in an otherwise complete response", async (field) => {
     request.mockResolvedValue({ installer_url: "https://downloads.test/office.exe", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default", [field]: "https://[broken" });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();

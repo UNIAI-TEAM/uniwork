@@ -57,8 +57,15 @@ func (c Config) OfficeInstallers(channel string) ([]OfficeInstaller, error) {
 			continue
 		}
 		u, err := url.Parse(rawURL)
-		if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || strings.ContainsAny(rawURL, "\r\n\t ") {
+		if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || strings.ContainsAny(rawURL, "\r\n\t \\") {
 			return nil, fmt.Errorf("unsafe installer URL")
+		}
+		// The outer ZIP and UI instructions must preserve the same basename,
+		// including when an administrator percent-encodes URL path characters.
+		if strings.IndexFunc(path.Base(u.Path), func(r rune) bool {
+			return r < 32 || strings.ContainsRune("<>:\"\\|?*", r)
+		}) >= 0 {
+			return nil, fmt.Errorf("unsafe installer filename")
 		}
 		loopback := u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"
 		if u.Scheme != "https" && !(channel == "dev" && loopback && u.Scheme == "http") {

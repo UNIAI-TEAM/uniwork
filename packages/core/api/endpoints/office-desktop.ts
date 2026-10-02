@@ -4,11 +4,17 @@ import { parseWithFallback } from "../schema";
 import { DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, isDesktopPlatform, type DesktopPlatform, type OfficeInstallerOption } from "../../office/desktop-platform";
 import type { OfficeChannel } from "../../office/desktop-handoff";
 
+function installerFilename(value: string): string {
+  return decodeURIComponent(new URL(value).pathname).split("/").pop() ?? "";
+}
+
 function safeURL(value: string, channel: string, originOnly = false): boolean {
   try {
     const url = new URL(value);
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-    return !url.username && !url.password && !url.search && !url.hash && !/\s/.test(value)
+    const filename = originOnly ? "" : installerFilename(value);
+    const unsafeName = /[<>:"\\|?*]/.test(filename) || [...filename].some((character) => character.charCodeAt(0) < 32);
+    return !unsafeName && !value.includes("\\") && !url.username && !url.password && !url.search && !url.hash && !/\s/.test(value)
       && (url.protocol === "https:" || (channel === "dev" && loopback && url.protocol === "http:"))
       && (!originOnly || url.pathname === "/");
   } catch { return false; }
@@ -36,7 +42,7 @@ export const OfficeDesktopDownloadSchema = z.object({
   if (!["stable", "beta", "dev"].includes(profile.channel) || !safeURL(profile.server_origin, profile.channel, true)) {
     context.addIssue({ code: "custom", message: "unsafe deployment profile" });
   }
-  if (!profile.installers && (!profile.installer_url || !safeURL(profile.installer_url, profile.channel))) {
+  if (!profile.installers && (!profile.installer_url || !safeURL(profile.installer_url, profile.channel) || !installerFilename(profile.installer_url).endsWith(".exe"))) {
     context.addIssue({ code: "custom", message: "missing or unsafe installers" });
   }
   const seen = new Set<string>();
@@ -47,7 +53,7 @@ export const OfficeDesktopDownloadSchema = z.object({
     }
     seen.add(row.platform);
     const kind = DESKTOP_INSTALLER_KINDS[row.platform].kind;
-    if (row.kind !== kind || !new URL(row.url).pathname.endsWith(kind)) context.addIssue({ code: "custom", message: "installer format mismatch" });
+    if (row.kind !== kind || !installerFilename(row.url).endsWith(kind)) context.addIssue({ code: "custom", message: "installer format mismatch" });
   }
   if (profile.client_id !== (profile.channel === "dev" ? "uniwork-office-dev" : "uniwork-office")) context.addIssue({ code: "custom", message: "client does not match channel" });
 });
@@ -72,7 +78,7 @@ export function officeInstallerOptions(raw: unknown, channel: OfficeChannel): Of
   for (const platform of DESKTOP_PLATFORMS) {
     const row = rows.find((item) => item.platform === platform);
     const kind = DESKTOP_INSTALLER_KINDS[platform].kind;
-    if (row && safeURL(row.url, channel) && row.kind === kind && new URL(row.url).pathname.endsWith(kind)) options.push({ ...row, platform, channel });
+    if (row && safeURL(row.url, channel) && row.kind === kind && installerFilename(row.url).endsWith(kind)) options.push({ ...row, platform, channel });
   }
   return options;
 }
