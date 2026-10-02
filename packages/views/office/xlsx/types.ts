@@ -6,6 +6,7 @@ import type {
   SaveCoordinatorState,
   StableSnapshot,
 } from "@uniwork/core/office";
+import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -106,6 +107,9 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   editor: XlsxEditorHandle<TSnapshot>;
   open: XlsxOpenPort;
   coordinator: XlsxSaveCoordinator;
+  /** G3-05c: when the host supplies the render model, the editor mounts the
+   *  vendored genoffice grid instead of the value snapshot table. */
+  rendererHost?: XlsxGridHostPort;
   capability?: XlsxCapability;
   permissions?: XlsxEditorPermissions;
   title?: string;

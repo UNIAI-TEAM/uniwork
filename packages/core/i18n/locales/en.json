@@ -7121,7 +7121,8 @@
       },
       "surface": {
         "ready": "Workbook surface is ready for the host adapter.",
-        "table": "{{sheet}} worksheet"
+        "table": "{{sheet}} worksheet",
+        "grid": "Workbook grid"
       },
       "sheets": {
         "label": "Workbook sheets"
@@ -7145,7 +7146,8 @@
         "unsupported_feature": "This XLSX feature is not supported by the current engine.",
         "not_office_file": "The selected file is not an OOXML XLSX workbook.",
         "engine_error": "The XLSX engine could not open this workbook.",
-        "capabilityUnavailable": "XLSX editing is not available for this engine build."
+        "capabilityUnavailable": "XLSX editing is not available for this engine build.",
+        "rendererFailed": "The workbook renderer could not be loaded."
       },
       "editor": {
         "appClosureActive": "{count} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",

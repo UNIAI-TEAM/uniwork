@@ -61,10 +61,8 @@ export interface RendererWorkbookFile {
     columnCount: number;
     hidden?: boolean;
     showFormulas?: boolean;
-    [key: string]: unknown;
   }>;
   styles: unknown[];
-  [key: string]: unknown;
 }
 
 export interface XlsxRendererHost {

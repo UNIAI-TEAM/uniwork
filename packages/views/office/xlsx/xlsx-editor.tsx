@@ -7,6 +7,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
+import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
+import { toA1Address } from "./xlsx-render-model-bridge";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import type {
   XlsxEditorProps,
@@ -82,6 +84,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   editor,
   open,
   coordinator,
+  rendererHost,
   capability,
   permissions = {},
   title,
@@ -105,6 +108,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const openAbortRef = useRef<AbortController | null>(null);
   const recalcAbortRef = useRef<AbortController | null>(null);
   const sheetTabsRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<XlsxGridHandle | null>(null);
+  const [gridReady, setGridReady] = useState(false);
   const translationRef = useRef(t);
   const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
   translationRef.current = t;
@@ -268,14 +273,18 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   const undo = useCallback(() => {
     if (readOnly) return;
-    editor.undo?.();
+    // The vendored grid owns the live undo stack once it is mounted; the
+    // adapter handle is the fallback for hosts without a render model.
+    if (gridRef.current) gridRef.current.undo();
+    else editor.undo?.();
     markDirty();
     refreshSnapshot();
   }, [editor, markDirty, readOnly, refreshSnapshot]);
 
   const redo = useCallback(() => {
     if (readOnly) return;
-    editor.redo?.();
+    if (gridRef.current) gridRef.current.redo();
+    else editor.redo?.();
     markDirty();
     refreshSnapshot();
   }, [editor, markDirty, readOnly, refreshSnapshot]);
@@ -388,8 +397,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             readOnly={readOnly}
             permissions={permissions}
             selection={selection}
-            canUndo={typeof editor.undo === "function"}
-            canRedo={typeof editor.redo === "function"}
+            canUndo={gridReady || typeof editor.undo === "function"}
+            canRedo={gridReady || typeof editor.redo === "function"}
             canRecalculate={recalcController !== undefined}
             recalculating={recalcProgress !== null}
             onUndo={undo}
@@ -420,6 +429,44 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">{t("office.xlsx.formula.label")}</label>
               <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => void commitCell()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell(); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
             </div>
+            {rendererHost ? (
+              <XlsxGridSurface
+                ref={gridRef}
+                documentKey={documentKey}
+                host={rendererHost}
+                dark={typeof document !== "undefined" && document.documentElement.classList.contains("dark")}
+                onDirty={markDirty}
+                onReady={() => setGridReady(true)}
+                onFailure={(message) => {
+                  const failureValue: XlsxOpenFailure = {
+                    outcome: "failed",
+                    document_id: documentKey,
+                    format: "xlsx",
+                    failure_class: "engine_error",
+                    message,
+                  };
+                  setFailure(failureValue);
+                  setViewState("error");
+                }}
+                onSelectionChange={(next) => {
+                  if (!next) {
+                    onSelectionChange?.(null);
+                    return;
+                  }
+                  const sheet = rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId);
+                  const nextSelection: XlsxSelection = {
+                    sheet: sheet?.name ?? next.sheetId,
+                    address: toA1Address(next.range.startRow, next.range.startColumn),
+                    ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn
+                      ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) }
+                      : {}),
+                  };
+                  setSelection(nextSelection);
+                  setActiveSheet(nextSelection.sheet);
+                  onSelectionChange?.(nextSelection);
+                }}
+              />
+            ) : (
             <div className="min-h-64 flex-1 overflow-auto bg-muted/20 p-3" data-testid="xlsx-workbook-surface">
               {activeSheetModel ? (
                 <table className="border-collapse text-caption" aria-label={t("office.xlsx.surface.table", { sheet: activeSheetModel.name })}>
@@ -428,6 +475,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 </table>
               ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
             </div>
+            )}
           </div>
         </>
       ) : viewState === "error" && failure ? (
