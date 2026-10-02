@@ -1,5 +1,7 @@
 !include LogicLib.nsh
 !include FileFunc.nsh
+!include WinVer.nsh
+!include x64.nsh
 
 ; The authenticated download ZIP puts this public profile beside the installer.
 ; Keep it outside app.asar so the main-process resolver can validate it on boot.
@@ -8,6 +10,53 @@
   CreateDirectory "$INSTDIR\resources"
   CopyFiles /SILENT "$EXEDIR\deployment-profile.json" "$INSTDIR\resources\deployment-profile.json"
   profile_done:
+!macroend
+
+; --- Wrong-machine guard (spec §4 "Chặn cài sai máy") -----------------------
+; Every unsigned dev installer checks the minimum machine before a single file
+; is copied. A refused install leaves nothing behind: silent (/S) exits with a
+; non-zero code and no dialog, assisted mode shows one bilingual (vi + en)
+; message box. Windows on ARM64 is allowed because the x64 build runs there
+; through emulation. UNIWORK_TEST_FORCE_* defines exist only for the lane's
+; forced-failure proof and are never set for a normal build.
+Var UniWorkWindowsVersion
+
+!macro UniWorkRefuseInstall message
+  ${If} ${Silent}
+    SetErrorLevel 3
+  ${Else}
+    MessageBox MB_OK|MB_ICONSTOP "${message}"
+  ${EndIf}
+  ; .onInit runs SetOutPath before this check, which may have created an empty
+  ; $INSTDIR and left it as the process working directory. Move the output path
+  ; away first, then remove the empty directory: RMDir removes only an empty
+  ; directory, so an existing installation is never touched.
+  SetOutPath "$TEMP"
+  RMDir "$INSTDIR"
+  Abort
+!macroend
+
+!macro UniWorkReadWindowsVersion
+  ReadRegStr $UniWorkWindowsVersion HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "ProductName"
+  ${If} $UniWorkWindowsVersion == ""
+    StrCpy $UniWorkWindowsVersion "unknown Windows"
+  ${EndIf}
+!macroend
+
+!macro customInit
+  !ifdef UNIWORK_TEST_FORCE_OLD_WINDOWS
+    !insertmacro UniWorkRefuseInstall "UniWork Office cần Windows 10 hoặc mới hơn, bản 64-bit. Máy này: Windows cũ (kiểm tra thử).$\r$\nUniWork Office requires Windows 10 or newer, 64-bit. This machine: older Windows (test)."
+  !endif
+  !ifdef UNIWORK_TEST_FORCE_NOT_X64
+    !insertmacro UniWorkRefuseInstall "UniWork Office cần Windows 64-bit (x64). Máy này: 32-bit (kiểm tra thử).$\r$\nUniWork Office requires 64-bit Windows (x64). This machine: 32-bit (test)."
+  !endif
+  !insertmacro UniWorkReadWindowsVersion
+  ${IfNot} ${AtLeastWin10}
+    !insertmacro UniWorkRefuseInstall "UniWork Office cần Windows 10 hoặc mới hơn, bản 64-bit. Máy này: $UniWorkWindowsVersion.$\r$\nUniWork Office requires Windows 10 or newer, 64-bit. This machine: $UniWorkWindowsVersion."
+  ${EndIf}
+  ${IfNot} ${RunningX64}
+    !insertmacro UniWorkRefuseInstall "UniWork Office cần Windows 64-bit (x64). Máy này không phải bản 64-bit.$\r$\nUniWork Office requires 64-bit Windows (x64). This machine is not 64-bit."
+  ${EndIf}
 !macroend
 
 !pragma warning disable 6001

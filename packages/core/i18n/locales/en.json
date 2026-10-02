@@ -7357,6 +7357,7 @@
       "cancelled": "Sign in was cancelled.",
       "expired": "The sign-in request expired. Try again.",
       "locked": "Secure credential storage is locked. Unlock it and try again.",
+      "lockedKeyring": "UniWork Office needs a Secret Service keyring (gnome-keyring or KWallet) to store your sign-in. Install and unlock it, then try again.",
       "required": "Please sign in again.",
       "start": "Sign in with browser",
       "cancel": "Cancel login",

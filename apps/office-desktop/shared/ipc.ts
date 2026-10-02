@@ -214,6 +214,9 @@ export const officeSaveRequestedEventSchema = z.object({ documentId: opaqueHandl
 export type OfficeSaveRequestedEvent = z.infer<typeof officeSaveRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
   status: z.enum(["signed-out", "pending", "signed-in", "locked", "login-required"]),
+  /** Why the store is locked when the host can name it; today only a missing
+   * Linux Secret Service keyring, which the UI answers with its own fix hint. */
+  lockedReason: z.enum(["keyring"]).optional(),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
   deploymentId: deploymentSchema.optional(),
   organizationId: opaqueHandleSchema.optional(),
@@ -221,6 +224,7 @@ export const desktopSessionMetadataSchema = z.object({
 }).strict().superRefine((value, context) => {
   if (value.status === "signed-in" && (!value.accountId || !value.deploymentId)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-in metadata requires account and deployment" });
   if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined || value.organizationId !== undefined || value.workspaceId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "non-signed-in metadata cannot include account" });
+  if (value.lockedReason !== undefined && value.status !== "locked") context.addIssue({ code: z.ZodIssueCode.custom, message: "lockedReason requires the locked status" });
 });
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {

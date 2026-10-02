@@ -7338,6 +7338,7 @@
       "cancelled": "Đã hủy đăng nhập.",
       "expired": "Yêu cầu đăng nhập đã hết hạn. Thử lại.",
       "locked": "Kho lưu trữ thông tin đăng nhập đang bị khóa. Mở khóa và thử lại.",
+      "lockedKeyring": "UniWork Office cần gnome-keyring (libsecret) để lưu đăng nhập. Hãy cài đặt và mở khóa rồi thử lại.",
       "required": "Đăng nhập lại để tiếp tục.",
       "start": "Đăng nhập bằng trình duyệt",
       "cancel": "Hủy đăng nhập",

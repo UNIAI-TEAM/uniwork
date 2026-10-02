@@ -62,7 +62,8 @@
     "appVersion": "0.0.0",
     "platforms": {
       "win32": ["x64"],
-      "darwin": ["arm64", "x64"]
+      "darwin": ["arm64", "x64"],
+      "linux": ["x64"]
     }
   },
   "engine": {

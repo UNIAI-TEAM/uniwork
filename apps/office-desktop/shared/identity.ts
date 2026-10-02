@@ -50,6 +50,7 @@ export const desktopIdentityManifestSchema = z.object({
     platforms: z.object({
       win32: architectureSchema,
       darwin: architectureSchema,
+      linux: architectureSchema,
     }).strict(),
   }).strict(),
   engine: z.object({

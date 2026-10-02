@@ -7,9 +7,20 @@ import { AuthTransportError, type AuthTransport, type DesktopSessionResponse } f
 
 export type LoginSessionMetadata = Readonly<{
   status: "signed-out" | "pending" | "signed-in" | "locked" | "login-required";
+  /** Set when the locked state has a named cause the UI can explain (missing
+   * Linux Secret Service keyring). */
+  lockedReason?: "keyring";
   accountId?: string;
   deploymentId?: string;
 }>;
+
+/** One place that maps a credential-store failure to session metadata: a
+ * missing keyring keeps the typed reason so the login card shows its fix. */
+function credentialFailureMetadata(error: unknown): LoginSessionMetadata {
+  if (error instanceof CredentialStoreError && error.code === "keyring_required") return { status: "locked", lockedReason: "keyring" };
+  if (error instanceof CredentialStoreError && (error.code === "locked" || error.code === "unavailable")) return { status: "locked" };
+  return { status: "login-required" };
+}
 
 export type LoginManagerOptions = Readonly<{
   clientId: string;
@@ -106,9 +117,10 @@ export class NativeLoginManager {
       if (session.deploymentId !== this.options.deploymentId) throw new Error("Auth exchange deployment mismatch");
       try { await this.options.credentials.save(toCredentialSession(session)); }
       catch (error) {
-        const locked = error instanceof CredentialStoreError && (error.code === "locked" || error.code === "unavailable");
-        this.setMetadata({ status: locked ? "locked" : "login-required" });
-        this.options.logger?.({ event: "auth_credential_store_failed", attemptId: claimed.attemptId, reason: locked ? "locked" : "corrupt" });
+        const metadata = credentialFailureMetadata(error);
+        this.setMetadata(metadata);
+        const locked = metadata.status === "locked";
+        this.options.logger?.({ event: "auth_credential_store_failed", attemptId: claimed.attemptId, reason: metadata.lockedReason === "keyring" ? "keyring_required" : locked ? "locked" : "corrupt" });
         return { ok: false, reason: locked ? "store_locked" : "login_required" };
       }
       this.setMetadata({ status: "signed-in", accountId: session.accountId, deploymentId: session.deploymentId });
@@ -134,7 +146,7 @@ export class NativeLoginManager {
       if (session.accountId.length === 0) throw new CredentialStoreError("corrupt");
       this.setMetadata({ status: "signed-in", accountId: session.accountId, deploymentId: this.options.deploymentId });
     } catch (error) {
-      this.setMetadata({ status: error instanceof CredentialStoreError && error.code === "locked" ? "locked" : "login-required" });
+      this.setMetadata(credentialFailureMetadata(error));
     }
     return this.metadata;
   }
@@ -160,8 +172,7 @@ export class NativeLoginManager {
         await this.clearCredentials();
         if (error instanceof AuthTransportError && error.code === "device_revoked") this.setMetadata({ status: "login-required" });
         else if (error instanceof AuthTransportError && error.code === "refresh_reused") this.setMetadata({ status: "login-required" });
-        else if (error instanceof CredentialStoreError && (error.code === "locked" || error.code === "unavailable")) this.setMetadata({ status: "locked" });
-        else this.setMetadata({ status: "login-required" });
+        else this.setMetadata(credentialFailureMetadata(error));
       }
       return this.metadata;
     };

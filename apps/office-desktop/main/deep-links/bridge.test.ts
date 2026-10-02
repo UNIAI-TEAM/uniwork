@@ -86,6 +86,37 @@ describe("launch bridge routing", () => {
     expect(exchange.calls).toBe(0);
   });
 
+  it("drains a macOS cold-start open-url exactly once through the shared router", async () => {
+    const exchange = new FakeExchangePort();
+    exchange.issueTicket({ ticket, accountId: session.accountId, deploymentId: session.deploymentId, operation: "edit" });
+    const bridge = createLaunchBridge({ exchange, trustedDeploymentId: session.deploymentId, getSession: () => session });
+    const delivered: string[][] = [[url], []];
+    const system = {
+      requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(),
+      onSecondInstance: vi.fn(), onOpenUrl: vi.fn(),
+      takePendingOpenUrls: vi.fn(() => delivered.shift() ?? []),
+    };
+    expect(registerDeepLinkSystem(system, bridge).primary).toBe(true);
+    await vi.waitFor(() => expect(exchange.calls).toBe(1));
+    expect(system.takePendingOpenUrls).toHaveBeenCalledOnce();
+  });
+
+  it("routes a drained cold-start auth callback to the login manager", async () => {
+    const exchange = new FakeExchangePort();
+    const bridge = createLaunchBridge({ exchange, trustedDeploymentId: session.deploymentId, getSession: () => session });
+    const authCallback = vi.fn();
+    const authUrl = "uniwork-office://auth/callback?code=code_abc&state=state_abc";
+    const system = {
+      requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(),
+      onSecondInstance: vi.fn(), onOpenUrl: vi.fn(),
+      takePendingOpenUrls: vi.fn(() => [authUrl]),
+    };
+    registerDeepLinkSystem(system, bridge, authCallback);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(authCallback).toHaveBeenCalledWith(authUrl);
+    expect(exchange.calls).toBe(0);
+  });
+
   it("quits a secondary process without registering a second protocol owner", () => {
     const exchange = new FakeExchangePort();
     const bridge = createLaunchBridge({ exchange, trustedDeploymentId: "production-eu", getSession: () => session });
