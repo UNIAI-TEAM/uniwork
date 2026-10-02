@@ -15,6 +15,7 @@ const countDeadOutbox = `-- name: CountDeadOutbox :one
 SELECT count(*)::bigint AS dead FROM outbox_events WHERE dead_at IS NOT NULL
 `
 
+// tenant: system
 func (q *Queries) CountDeadOutbox(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countDeadOutbox)
 	var dead int64
@@ -76,6 +77,7 @@ type MarkOutboxDeadParams struct {
 	LastError pgtype.Text `json:"last_error"`
 }
 
+// tenant: system
 func (q *Queries) MarkOutboxDead(ctx context.Context, arg MarkOutboxDeadParams) error {
 	_, err := q.db.Exec(ctx, markOutboxDead, arg.ID, arg.LastError)
 	return err
@@ -93,6 +95,7 @@ UPDATE outbox_events SET
 WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) MarkOutboxDoneAt(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markOutboxDoneAt, id)
 	return err
@@ -115,6 +118,7 @@ type OutboxStatsByTopicRow struct {
 	OldestPendingAgeSeconds float64 `json:"oldest_pending_age_seconds"`
 }
 
+// tenant: system
 func (q *Queries) OutboxStatsByTopic(ctx context.Context) ([]OutboxStatsByTopicRow, error) {
 	rows, err := q.db.Query(ctx, outboxStatsByTopic)
 	if err != nil {

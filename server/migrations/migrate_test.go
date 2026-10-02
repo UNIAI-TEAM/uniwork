@@ -161,6 +161,21 @@ func TestUpIsIdempotent(t *testing.T) {
 	}
 }
 
+// emptyPublicTables truncates every table but schema_migrations, so a long
+// rollback starts from the schema alone.
+func emptyPublicTables(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	var tables string
+	if err := pool.QueryRow(ctx, `SELECT string_agg(format('%I', tablename), ', ')
+		FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`).Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "TRUNCATE "+tables+" CASCADE"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Grandfather: workspace + member tạo trước 004 phải có org cùng slug và
 // user đã có membership phải được coi là đã onboard.
 func TestOrganizationsGrandfather(t *testing.T) {
@@ -179,6 +194,10 @@ func TestOrganizationsGrandfather(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// Rows other tests left behind are not what this test checks, and some
+	// down migrations refuse them on purpose (969 refuses FileService
+	// attachments, 159 restores a kind CHECK without 'voice').
+	emptyPublicTables(t, pool)
 	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ. Down lùi một
 	// migration mỗi lần, nên lặp cho tới khi 004 đã bị gỡ.
 	for {
@@ -399,6 +418,7 @@ func TestTasksWorkManagementUpgradeFrom106(t *testing.T) {
 		  audit_events, outbox_events CASCADE`); err != nil {
 		t.Fatal(err)
 	}
+	truncateTenantBackfillTables(t, pool)
 
 	const (
 		userID   = "01USER0000000000000000000A"
@@ -591,6 +611,7 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	if _, err := pool.Exec(ctx, `TRUNCATE users, organizations CASCADE`); err != nil {
 		t.Fatal(err)
 	}
+	truncateTenantBackfillTables(t, pool)
 	_, err = pool.Exec(ctx, `
 		INSERT INTO users (id, email, password_hash, display_name) VALUES
 		  ('01USER00000000000000000011','first@example.com','x','First'),

@@ -2,6 +2,7 @@
 -- the recipient's, and no endpoint reads another person's.
 
 -- name: UpsertNotification :one
+-- tenant: system
 -- The merge: an open (unread, unarchived) row for the same (user, group) is
 -- bumped instead of duplicated; uidx_notifications_open_group is the target.
 -- count > 1 on the returned row tells the caller it merged.
@@ -24,9 +25,11 @@ INSERT INTO notification_deliveries (event_id, user_id) VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
 -- name: GetNotification :one
+-- tenant: system
 SELECT * FROM notifications WHERE id = $1;
 
 -- name: ListNotifications :many
+-- tenant: self
 -- Cursor on the ULID id (time-ordered), newest first.
 SELECT * FROM notifications
 WHERE user_id = $1
@@ -38,22 +41,26 @@ ORDER BY id DESC
 LIMIT sqlc.arg('limit_n');
 
 -- name: CountUnreadNotificationsByWorkspace :many
+-- tenant: self
 SELECT COALESCE(workspace_id, '')::text AS workspace_id, count(*)::bigint AS unread
 FROM notifications
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
 GROUP BY workspace_id;
 
 -- name: MarkNotificationsRead :execrows
+-- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 
 -- name: MarkAllNotificationsRead :many
+-- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
   AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text)
 RETURNING id;
 
 -- name: MarkNotificationsUnread :execrows
+-- tenant: self
 -- A row whose group already has an open row, or a newer row reopened in the
 -- same call, stays read: reopening it would break uidx_notifications_open_group.
 UPDATE notifications n SET read_at = NULL, updated_at = now()
@@ -66,10 +73,12 @@ WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.read_at IS NO
   ));
 
 -- name: ArchiveNotifications :execrows
+-- tenant: self
 UPDATE notifications SET archived_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NULL;
 
 -- name: UnarchiveNotifications :execrows
+-- tenant: self
 -- An unread row comes back read when its group already has an open row (a
 -- later event opened one while it sat archived), or a newer row of its group
 -- comes back unread in the same call: uidx_notifications_open_group allows one.
@@ -83,15 +92,19 @@ UPDATE notifications n SET archived_at = NULL, updated_at = now(),
 WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.archived_at IS NOT NULL;
 
 -- name: ListChatMessageRooms :many
+-- tenant: by-id
 SELECT id, room_id FROM chat_messages WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
 
 -- name: CountOwnedNotifications :one
+-- tenant: self
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListExistingTaskIDs :many
+-- tenant: by-id
 SELECT id FROM tasks WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListExistingMeetingIDs :many
+-- tenant: by-id
 SELECT id FROM meetings WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListNotificationPreferences :many
@@ -125,25 +138,31 @@ UPDATE push_subscriptions SET revoked_at = now()
 WHERE user_id = $1 AND endpoint = $2 AND revoked_at IS NULL;
 
 -- name: MarkNotificationPushed :exec
+-- tenant: system
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL;
 
 -- name: ListDigestCandidateUsers :many
+-- tenant: system
 SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1;
 
 -- name: ListUndigestedNotifications :many
+-- tenant: system
 SELECT * FROM notifications
 WHERE user_id = $1 AND digested_at IS NULL AND read_at IS NULL AND archived_at IS NULL AND created_at > $2
 ORDER BY workspace_id NULLS FIRST, kind, created_at DESC;
 
 -- name: MarkNotificationsDigested :exec
+-- tenant: system
 UPDATE notifications SET digested_at = now() WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListMeetingsStartingBetween :many
+-- tenant: system
 SELECT * FROM meetings
 WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2;
 
 -- name: ListMeetingReminderRecipients :many
+-- tenant: system
 -- The host plus every participant who accepted the invitation.
 SELECT DISTINCT p.user_id::text AS user_id
 FROM meeting_participants p

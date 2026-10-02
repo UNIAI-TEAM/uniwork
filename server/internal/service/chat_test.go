@@ -258,8 +258,12 @@ func TestChatMessageEditDeletePin(t *testing.T) {
 
 func addWorkspaceMember(t *testing.T, q *db.Queries, workspaceID, userID string) {
 	t.Helper()
+	w, err := q.GetWorkspaceByID(context.Background(), workspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
-		WorkspaceID: workspaceID, UserID: userID, Role: "member",
+		WorkspaceID: workspaceID, OrganizationID: w.OrganizationID, UserID: userID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}

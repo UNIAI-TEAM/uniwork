@@ -179,6 +179,12 @@
       "deactivated": "Tài khoản của bạn trong tổ chức này đang bị ngưng. Liên hệ quản trị viên để được mở lại.",
       "suspended": "Tổ chức này đang tạm ngưng hoạt động.",
       "rateLimited": "Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.",
+      "wrongAccount": "Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.",
+      "wrongAccountHint": "Đăng nhập bằng email đã nhận lời mời rồi mở lại link.",
+      "switchAccount": "Dùng tài khoản khác",
+      "unverified": "Bạn cần xác minh email trước khi nhận lời mời.",
+      "unverifiedHint": "Nhập mã chúng tôi đã gửi tới email của bạn. Xác minh xong, lời mời sẽ chờ bạn trong danh sách lời mời.",
+      "verifyEmail": "Xác minh email",
       "failed": "Chúng tôi chưa xử lý được lời mời này.",
       "hint": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại một link mới.",
       "goToWorkspaces": "Xem workspace của tôi"

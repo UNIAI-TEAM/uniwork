@@ -299,6 +299,7 @@ type ListProfileSearchSourcesRow struct {
 	DepartmentName pgtype.Text `json:"department_name"`
 }
 
+// tenant: self — the caller's own profiles in each organization, or one department's in its organization; the rows are only folded into search_text
 // The columns search_text is folded from, for the two commands that have to
 // rebuild it in bulk: a person renaming themselves, and a department renaming.
 func (q *Queries) ListProfileSearchSources(ctx context.Context, arg ListProfileSearchSourcesParams) ([]ListProfileSearchSourcesRow, error) {

@@ -105,7 +105,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 	}
 
 	rows, err := s.q.ListChatRoomsForMember(ctx, db.ListChatRoomsForMemberParams{
-		UserID: userID, OrganizationID: pgtype.Text{String: w.OrganizationID, Valid: true},
+		UserID: userID, OrganizationID: w.OrganizationID,
 	})
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ func (s *ChatService) ResolveDM(ctx context.Context, userID, workspaceID, target
 	}
 	key := memberSetKey([]string{userID, targetUserID})
 	room, err := s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
-		OrganizationID: pgtype.Text{String: w.OrganizationID, Valid: true},
+		OrganizationID: w.OrganizationID,
 		Kind:           chatRoomKindDM,
 		MemberSetKey:   pgtype.Text{String: key, Valid: true},
 	})
@@ -260,7 +260,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	}
 	key := memberSetKey(allIDs)
 	room, err := s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
-		OrganizationID: pgtype.Text{String: w.OrganizationID, Valid: true},
+		OrganizationID: w.OrganizationID,
 		Kind:           chatRoomKindGroup,
 		MemberSetKey:   pgtype.Text{String: key, Valid: true},
 	})
@@ -280,7 +280,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
 	if room.CreatedBy == userID {
-		if err := s.syncRoomMember(ctx, room.ID, anchorWS, userID, "admin"); err != nil {
+		if err := s.syncRoomMember(ctx, room, anchorWS, userID, "admin"); err != nil {
 			return ChatRoomSummary{}, err
 		}
 	}
@@ -297,7 +297,7 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if room.Kind == chatRoomKindChannel && room.IsDefault {
 		return ChatRoomSummary{}, Invalid("kênh mặc định đồng bộ thành viên từ workspace")
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	ids := normalizeUserIDs(memberUserIDs)
 	if len(ids) == 0 {
@@ -316,7 +316,7 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 		if err := s.requireOrgPeer(ctx, orgID, id); err != nil {
 			return ChatRoomSummary{}, err
 		}
-		added, err := s.addRoomMember(ctx, q, roomID, anchorWS, id, "member")
+		added, err := s.addRoomMember(ctx, q, room, anchorWS, id, "member")
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
@@ -400,7 +400,7 @@ func (s *ChatService) LeaveChatRoom(ctx context.Context, userID, workspaceID, ro
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: roomOrganizationID(room), WorkspaceID: roomAnchorWorkspaceID(room),
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
 		Actor:        audit.User(userID),
 		Action:       audit.ActionChatRoomMemberRemoved,
 		ResourceType: "chat_room", ResourceID: roomID,
@@ -436,7 +436,7 @@ func (s *ChatService) createChatRoom(
 		ID:              roomID,
 		Kind:            kind,
 		WorkspaceID:     pgtype.Text{String: anchorWorkspaceID, Valid: true},
-		OrganizationID:  pgtype.Text{String: orgID, Valid: true},
+		OrganizationID:  orgID,
 		Name:            name,
 		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: true},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -455,7 +455,7 @@ func (s *ChatService) createChatRoom(
 		if id == creatorID {
 			role = "admin"
 		}
-		if err := s.ensureRoomMemberTx(ctx, q, roomID, anchorWorkspaceID, id, role); err != nil {
+		if err := s.ensureRoomMemberTx(ctx, q, room, anchorWorkspaceID, id, role); err != nil {
 			return db.ChatRoom{}, err
 		}
 	}
@@ -487,7 +487,7 @@ func (s *ChatService) ensureExistingRoomAccess(ctx context.Context, room db.Chat
 		if id == "" {
 			continue
 		}
-		if err := s.ensureRoomMember(ctx, room.ID, anchorWS, id, "member"); err != nil {
+		if err := s.ensureRoomMember(ctx, room, anchorWS, id, "member"); err != nil {
 			return err
 		}
 	}
@@ -529,7 +529,7 @@ func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspace
 			return db.ChatRoom{}, ErrNotFound
 		}
 	default:
-		if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+		if room.OrganizationID != w.OrganizationID {
 			return db.ChatRoom{}, ErrNotFound
 		}
 	}

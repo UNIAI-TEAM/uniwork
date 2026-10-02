@@ -273,12 +273,14 @@ func countStatements(sql string) int {
 // The tenant boundary is the organization. A business table without
 // `organization_id NOT NULL` cannot be isolated at the service layer, and a
 // missing column is invisible in review until the first cross-tenant read.
-// Two checks: new tables must carry the column from their first migration, and
-// the tables that predate the ADR are listed by name so the debt can only
-// shrink — backfill one, remove it here; add one without the column, fail.
+// Two checks: new tables must declare the column in their first migration,
+// and every table any migration creates has the column by the end of the
+// directory (the ones that predate the ADR got it from a backfill migration).
+// That it is NOT NULL is checked against a migrated database, in
+// tenant_schema_test.go.
 
-// Tables created before this prefix are the backfill debt below; every
-// CREATE TABLE after it is held to the rule.
+// Tables created up to this prefix predate ADR 0008 and were backfilled; every
+// CREATE TABLE after it is held to the rule from its first migration.
 const maxPreTenantMigrationPrefix = 65
 
 // Identity and infrastructure tables that are not tenant data. Add a name
@@ -303,20 +305,8 @@ var tenantExemptTables = map[string]string{
 	"file_backfill_runs":        "files-backfill run ledger: operator tooling state, not business data (T9b/UNI-747)",
 	"file_backfill_checkpoints": "files-backfill resume cursors: operator tooling state, not business data (T9b/UNI-747)",
 	"file_backfill_items":       "files-backfill per-row mapping ledger: the tenant a row resolved is data, not a scope the table enforces (T9b/UNI-747)",
-}
-
-// Business tables created before ADR 0008 that still lack organization_id.
-// ADR 0008 schedules the backfill with F-08 / ADR 0007; each backfill migration
-// removes its table from this list. Names only ever leave.
-var tenantBackfillDebt = []string{
-	"chat_messages", "chat_room_members",
-	"workspace_members",
-	"meetings", "meeting_attendees", "meeting_notes",
-	"meeting_participants", "meeting_invitations", "meeting_access_grants",
-	"meeting_invite_links", "meeting_join_requests", "meeting_conference_sessions",
-	"meeting_attendance_sessions", "meeting_audit_logs", "meeting_guests",
-	"meeting_provider_events", "meeting_chat_messages",
-	"meeting_transcript_segments", "meeting_summaries", "meeting_recordings",
+	"meeting_guests":            "anonymous guest identity minted by the signed guest cookie before any meeting is known (MeetingService.EnsureGuestCookie); one guest may join meetings of several organizations, so like users it sits above every organization — its tenant-scoped trace is the meeting_participants row",
+	"meeting_provider_events":   "provider-webhook idempotency ledger keyed by (provider_key, provider_event_id), like webhook_inbox and notification_deliveries; the event is attributed to a meeting downstream",
 }
 
 // Tables whose organization_id column must exist but may accept NULL on
@@ -409,36 +399,40 @@ func TestNullTenantIsOnlyTheAvatarBranch(t *testing.T) {
 	}
 }
 
-func TestTablesWithoutOrganizationIDAreTheKnownDebt(t *testing.T) {
+// TestEveryBusinessTableCarriesOrganizationID holds the whole directory, old
+// tables included: the backfill debt ADR 0008 recorded is paid, so any table a
+// migration creates either has organization_id by the last migration or is
+// exempted by name with a reason.
+func TestEveryBusinessTableCarriesOrganizationID(t *testing.T) {
 	has := map[string]bool{}
-	created := map[string]bool{}
+	created := map[string]string{}
 	for _, name := range migrationFileNames(t) {
 		if !strings.HasSuffix(name, ".up.sql") {
 			continue
 		}
 		sql := stripSQLComments(readMigration(t, name))
 		for table, body := range createdTables(sql) {
-			created[table] = true
+			if _, seen := created[table]; !seen {
+				created[table] = name
+			}
 			if organizationIDPattern.MatchString(body) {
 				has[table] = true
 			}
 		}
 		for _, m := range alterAddOrganizationIDPattern.FindAllStringSubmatch(sql, -1) {
-			has[m[1]] = true
+			has[strings.ToLower(m[1])] = true
 		}
 	}
 	var missing []string
-	for table := range created {
+	for table, file := range created {
 		if _, exempt := tenantExemptTables[table]; exempt || has[table] {
 			continue
 		}
-		missing = append(missing, table)
+		missing = append(missing, table+" (created in "+file+")")
 	}
 	sort.Strings(missing)
-	want := append([]string(nil), tenantBackfillDebt...)
-	sort.Strings(want)
-	if strings.Join(missing, ",") != strings.Join(want, ",") {
-		t.Errorf("tables without organization_id (ADR 0008) differ from tenantBackfillDebt.\n  actual: %v\n  listed: %v\nBackfilled one? Remove it from the list. Added a new table? Give it the column, or exempt it with a reason.", missing, want)
+	for _, m := range missing {
+		t.Errorf("%s has no organization_id (ADR 0008): add `organization_id TEXT NOT NULL` (a new table declares it; an existing one gets a backfill migration from its parent), or list it in tenantExemptTables with the reason it has no tenant", m)
 	}
 }
 

@@ -119,7 +119,7 @@ func TestMeetingReminderOnce(t *testing.T) {
 	f := newFixture(t)
 	now := time.Now()
 	m, err := f.q.CreateMeeting(f.ctx, db.CreateMeetingParams{
-		ID: util.NewID(), WorkspaceID: f.wsID, Title: "Standup", RoomName: "r", CreatedBy: f.owner.ID, CreatedByKind: "human",
+		ID: util.NewID(), WorkspaceID: f.wsID, OrganizationID: f.orgID, Title: "Standup", RoomName: "r", CreatedBy: f.owner.ID, CreatedByKind: "human",
 		Status: "SCHEDULED", MeetingType: "SCHEDULED", HostUserID: f.owner.ID, Timezone: "UTC", AllowJoinRequest: true,
 		StartsAt: pgtype.Timestamptz{Time: now.Add(8 * time.Minute), Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(38 * time.Minute), Valid: true},
@@ -129,13 +129,13 @@ func TestMeetingReminderOnce(t *testing.T) {
 	}
 	invite := func(userID, response string) {
 		p, err := f.q.CreateMeetingParticipant(f.ctx, db.CreateMeetingParticipantParams{
-			ID: util.NewID(), MeetingID: m.ID, PrincipalType: "USER", UserID: pgtype.Text{String: userID, Valid: true},
+			ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: "USER", UserID: pgtype.Text{String: userID, Valid: true},
 			DisplayNameSnapshot: "x", Role: "PARTICIPANT", SourceType: "INVITE", AddedBy: f.owner.ID,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		inv, err := f.q.CreateMeetingInvitation(f.ctx, db.CreateMeetingInvitationParams{ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID, InvitedBy: f.owner.ID})
+		inv, err := f.q.CreateMeetingInvitation(f.ctx, db.CreateMeetingInvitationParams{ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID, InvitedBy: f.owner.ID})
 		if err != nil {
 			t.Fatal(err)
 		}

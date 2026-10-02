@@ -21,6 +21,7 @@ type ArchiveNotificationsParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) ArchiveNotifications(ctx context.Context, arg ArchiveNotificationsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, archiveNotifications, arg.UserID, arg.Ids)
 	if err != nil {
@@ -38,6 +39,7 @@ type CountOwnedNotificationsParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) CountOwnedNotifications(ctx context.Context, arg CountOwnedNotificationsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countOwnedNotifications, arg.UserID, arg.Ids)
 	var column_1 int64
@@ -57,6 +59,7 @@ type CountUnreadNotificationsByWorkspaceRow struct {
 	Unread      int64  `json:"unread"`
 }
 
+// tenant: self
 func (q *Queries) CountUnreadNotificationsByWorkspace(ctx context.Context, userID string) ([]CountUnreadNotificationsByWorkspaceRow, error) {
 	rows, err := q.db.Query(ctx, countUnreadNotificationsByWorkspace, userID)
 	if err != nil {
@@ -81,6 +84,7 @@ const getNotification = `-- name: GetNotification :one
 SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) GetNotification(ctx context.Context, id string) (Notification, error) {
 	row := q.db.QueryRow(ctx, getNotification, id)
 	var i Notification
@@ -170,6 +174,7 @@ type ListChatMessageRoomsRow struct {
 	RoomID string `json:"room_id"`
 }
 
+// tenant: by-id
 func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]ListChatMessageRoomsRow, error) {
 	rows, err := q.db.Query(ctx, listChatMessageRooms, ids)
 	if err != nil {
@@ -195,6 +200,7 @@ SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1
 `
 
+// tenant: system
 func (q *Queries) ListDigestCandidateUsers(ctx context.Context, createdAt pgtype.Timestamptz) ([]string, error) {
 	rows, err := q.db.Query(ctx, listDigestCandidateUsers, createdAt)
 	if err != nil {
@@ -219,6 +225,7 @@ const listExistingMeetingIDs = `-- name: ListExistingMeetingIDs :many
 SELECT id FROM meetings WHERE id = ANY($1::text[])
 `
 
+// tenant: by-id
 func (q *Queries) ListExistingMeetingIDs(ctx context.Context, ids []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listExistingMeetingIDs, ids)
 	if err != nil {
@@ -243,6 +250,7 @@ const listExistingTaskIDs = `-- name: ListExistingTaskIDs :many
 SELECT id FROM tasks WHERE id = ANY($1::text[])
 `
 
+// tenant: by-id
 func (q *Queries) ListExistingTaskIDs(ctx context.Context, ids []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listExistingTaskIDs, ids)
 	if err != nil {
@@ -272,6 +280,7 @@ UNION
 SELECT host_user_id FROM meetings WHERE id = $1
 `
 
+// tenant: system
 // The host plus every participant who accepted the invitation.
 func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listMeetingReminderRecipients, meetingID)
@@ -294,7 +303,7 @@ func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID s
 }
 
 const listMeetingsStartingBetween = `-- name: ListMeetingsStartingBetween :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by FROM meetings
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings
 WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2
 `
 
@@ -303,6 +312,7 @@ type ListMeetingsStartingBetweenParams struct {
 	StartsAt_2 pgtype.Timestamptz `json:"starts_at_2"`
 }
 
+// tenant: system
 func (q *Queries) ListMeetingsStartingBetween(ctx context.Context, arg ListMeetingsStartingBetweenParams) ([]Meeting, error) {
 	rows, err := q.db.Query(ctx, listMeetingsStartingBetween, arg.StartsAt, arg.StartsAt_2)
 	if err != nil {
@@ -341,6 +351,7 @@ func (q *Queries) ListMeetingsStartingBetween(ctx context.Context, arg ListMeeti
 			&i.QuorumPercent,
 			&i.AttendanceFinalizedAt,
 			&i.AttendanceFinalizedBy,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -433,6 +444,7 @@ type ListNotificationsParams struct {
 	LimitN      int32       `json:"limit_n"`
 }
 
+// tenant: self
 // Cursor on the ULID id (time-ordered), newest first.
 func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error) {
 	rows, err := q.db.Query(ctx, listNotifications,
@@ -492,6 +504,7 @@ type ListUndigestedNotificationsParams struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// tenant: system
 func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndigestedNotificationsParams) ([]Notification, error) {
 	rows, err := q.db.Query(ctx, listUndigestedNotifications, arg.UserID, arg.CreatedAt)
 	if err != nil {
@@ -545,6 +558,7 @@ type MarkAllNotificationsReadParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 }
 
+// tenant: self
 func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
 	if err != nil {
@@ -569,6 +583,7 @@ const markNotificationPushed = `-- name: MarkNotificationPushed :exec
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) MarkNotificationPushed(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markNotificationPushed, id)
 	return err
@@ -578,6 +593,7 @@ const markNotificationsDigested = `-- name: MarkNotificationsDigested :exec
 UPDATE notifications SET digested_at = now() WHERE id = ANY($1::text[])
 `
 
+// tenant: system
 func (q *Queries) MarkNotificationsDigested(ctx context.Context, ids []string) error {
 	_, err := q.db.Exec(ctx, markNotificationsDigested, ids)
 	return err
@@ -593,6 +609,7 @@ type MarkNotificationsReadParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markNotificationsRead, arg.UserID, arg.Ids)
 	if err != nil {
@@ -617,6 +634,7 @@ type MarkNotificationsUnreadParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 // A row whose group already has an open row, or a newer row reopened in the
 // same call, stays read: reopening it would break uidx_notifications_open_group.
 func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificationsUnreadParams) (int64, error) {
@@ -670,6 +688,7 @@ type UnarchiveNotificationsParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 // An unread row comes back read when its group already has an open row (a
 // later event opened one while it sat archived), or a newer row of its group
 // comes back unread in the same call: uidx_notifications_open_group allows one.
@@ -716,6 +735,7 @@ type UpsertNotificationParams struct {
 
 // Notifications (F-07). Every query is keyed by user_id: a notification is
 // the recipient's, and no endpoint reads another person's.
+// tenant: system
 // The merge: an open (unread, unarchived) row for the same (user, group) is
 // bumped instead of duplicated; uidx_notifications_open_group is the target.
 // count > 1 on the returned row tells the caller it merged.

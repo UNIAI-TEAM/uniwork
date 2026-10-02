@@ -19,8 +19,8 @@ import (
 func seedSession(t *testing.T, s *MeetingService, meetingID, participantID, join, left string) {
 	t.Helper()
 	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO meeting_attendance_sessions (id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at)
-		SELECT $1, m.id, 'test-conf', $2::text, 'uw_participant_' || $2::text,
+		INSERT INTO meeting_attendance_sessions (id, meeting_id, organization_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at)
+		SELECT $1, m.id, m.organization_id, 'test-conf', $2::text, 'uw_participant_' || $2::text,
 		       COALESCE(m.actual_start_at, m.starts_at) + $3::interval,
 		       COALESCE(m.actual_start_at, m.starts_at) + NULLIF($4::text, '')::interval
 		FROM meetings m WHERE m.id = $5`,

@@ -22,6 +22,7 @@ type FileGCAttachmentRefTenantsRow struct {
 	OrganizationID string      `json:"organization_id"`
 }
 
+// tenant: system
 // attachments.file_id (task attachment, description image, comment
 // attachment): the row carries its tenant.
 func (q *Queries) FileGCAttachmentRefTenants(ctx context.Context, fileIds []string) ([]FileGCAttachmentRefTenantsRow, error) {
@@ -55,6 +56,7 @@ type FileGCAuditExportRefTenantsRow struct {
 	OrganizationID string      `json:"organization_id"`
 }
 
+// tenant: system
 // audit_exports.file_id: the row carries its tenant.
 func (q *Queries) FileGCAuditExportRefTenants(ctx context.Context, fileIds []string) ([]FileGCAuditExportRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCAuditExportRefTenants, fileIds)
@@ -95,6 +97,7 @@ type FileGCChatMessageRefTenantsRow struct {
 	MessageWorkspaceOrganizationID pgtype.Text `json:"message_workspace_organization_id"`
 }
 
+// tenant: system
 // chat_messages.file_id: the tenant comes from the room, then the room's
 // workspace, then the message's workspace (the worker takes the first one
 // set); none set is unresolved and holds the file.
@@ -134,6 +137,7 @@ type FileGCChatVoiceRecordingRefTenantsRow struct {
 	OrganizationID string      `json:"organization_id"`
 }
 
+// tenant: system
 // chat_voice_recordings.file_id: the row carries its tenant.
 func (q *Queries) FileGCChatVoiceRecordingRefTenants(ctx context.Context, fileIds []string) ([]FileGCChatVoiceRecordingRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCChatVoiceRecordingRefTenants, fileIds)
@@ -182,6 +186,7 @@ type FileGCClaimJobsParams struct {
 	LimitN         int32              `json:"limit_n"`
 }
 
+// tenant: system
 // ClaimFileJobs narrowed to some operations, so the sweep can leave cleanup
 // jobs untouched (not leased, attempt unchanged) while the reference
 // registry cannot cover every column, and still drain reconcile jobs.
@@ -239,6 +244,7 @@ type FileGCDocumentAssetRefTenantsRow struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+// tenant: system
 // document_assets.file_id: the row carries its tenant.
 func (q *Queries) FileGCDocumentAssetRefTenants(ctx context.Context, fileIds []string) ([]FileGCDocumentAssetRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCDocumentAssetRefTenants, fileIds)
@@ -271,6 +277,7 @@ type FileGCDocumentVersionRefTenantsRow struct {
 	OrganizationID string      `json:"organization_id"`
 }
 
+// tenant: system
 // document_versions.file_id: the row carries its tenant.
 func (q *Queries) FileGCDocumentVersionRefTenants(ctx context.Context, fileIds []string) ([]FileGCDocumentVersionRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCDocumentVersionRefTenants, fileIds)
@@ -309,6 +316,7 @@ SELECT (m.metadata->>'object_key')::text FROM chat_messages m
 WHERE m.metadata->>'object_key' LIKE 'v1/orgs/%' OR m.metadata->>'object_key' LIKE 'v1/users/%'
 `
 
+// tenant: system
 // Pre-FileService locator values that look like a FileService key: a
 // consumer that has not moved to file_id and still reads those bytes by key
 // makes the object shared, so the collector must hold it (spec 9.2, plan
@@ -353,6 +361,7 @@ type FileGCListDueJobsParams struct {
 	LimitN     int32              `json:"limit_n"`
 }
 
+// tenant: system
 // Dry-run view of the jobs a destructive sweep would lease (same predicate as
 // FileGCClaimJobs), read without a lock and paged by id.
 func (q *Queries) FileGCListDueJobs(ctx context.Context, arg FileGCListDueJobsParams) ([]FileJob, error) {
@@ -403,6 +412,7 @@ WHERE id = ANY($1::text[])
 ORDER BY id
 `
 
+// tenant: system
 // Unlocked read of file rows for the dry-run report.
 func (q *Queries) FileGCListFilesByIDs(ctx context.Context, fileIds []string) ([]File, error) {
 	rows, err := q.db.Query(ctx, fileGCListFilesByIDs, fileIds)
@@ -447,6 +457,7 @@ WHERE file_id = ANY($1::text[])
 ORDER BY file_id
 `
 
+// tenant: system
 // Unlocked read of the sessions bound to files, for the dry-run report.
 func (q *Queries) FileGCListSessionsByFileIDs(ctx context.Context, fileIds []string) ([]FileUploadSession, error) {
 	rows, err := q.db.Query(ctx, fileGCListSessionsByFileIDs, fileIds)
@@ -510,6 +521,7 @@ type FileGCListUnjobbedCandidatesParams struct {
 	LimitN      int32              `json:"limit_n"`
 }
 
+// tenant: system
 // Ready files past the age cutoff (ready_at + 24h, T1-Q5/T1-Q6) that no live
 // cleanup job covers, paged by id. This finds a file whose last reference
 // went away without a ReleaseInTx; the worker only enqueues a cleanup job for
@@ -564,6 +576,7 @@ type FileGCMeetingRecordingRefTenantsRow struct {
 	OrganizationID pgtype.Text `json:"organization_id"`
 }
 
+// tenant: system
 // meeting_recordings.file_id: the tenant comes from the meeting's workspace.
 func (q *Queries) FileGCMeetingRecordingRefTenants(ctx context.Context, fileIds []string) ([]FileGCMeetingRecordingRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCMeetingRecordingRefTenants, fileIds)

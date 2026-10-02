@@ -161,6 +161,7 @@ type FileGCOfficeJobRefTenantsRow struct {
 }
 
 // Tenant of every job naming one of these output files (collector audit).
+// tenant: system
 func (q *Queries) FileGCOfficeJobRefTenants(ctx context.Context, fileIds []string) ([]FileGCOfficeJobRefTenantsRow, error) {
 	rows, err := q.db.Query(ctx, fileGCOfficeJobRefTenants, fileIds)
 	if err != nil {
@@ -566,6 +567,7 @@ LIMIT $1
 // deadline first. Intentionally NOT tenant filtered - it is the worker's
 // queue, and each row it returns is then read and written through the
 // tenant-scoped queries above.
+// tenant: system
 func (q *Queries) ListLiveOfficeJobs(ctx context.Context, maxRows int32) ([]OfficeJob, error) {
 	rows, err := q.db.Query(ctx, listLiveOfficeJobs, maxRows)
 	if err != nil {
@@ -626,6 +628,7 @@ WHERE output_file_id = ANY($1::text[])
 // FileService reference provider: an output file is held while its job is
 // live (the engine may still be writing it). Provider-facing, so
 // intentionally NOT tenant filtered.
+// tenant: system
 func (q *Queries) ListOfficeJobOutputHolds(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, listOfficeJobOutputHolds, fileIds)
 	if err != nil {

@@ -7,6 +7,7 @@
 -- service decides visibility from the row's own organization/workspace pair.
 -- The caller never learns anything about a row it cannot read.
 -- name: GetDocumentByID :one
+-- tenant: by-id
 SELECT *
 FROM documents
 WHERE id = sqlc.arg(id);
@@ -15,6 +16,7 @@ WHERE id = sqlc.arg(id);
 -- with share grants/revokes (which take the same lock), so the access
 -- decision inside a mutation transaction always sees the committed ACL.
 -- name: LockDocumentByID :one
+-- tenant: by-id
 SELECT *
 FROM documents
 WHERE id = sqlc.arg(id)
@@ -129,6 +131,7 @@ WHERE id = sqlc.arg(id)
 -- The anonymous entry point: the token hash alone finds the link (the
 -- token is the credential), and only a live one answers.
 -- name: GetLiveDocumentShareLinkByTokenHash :one
+-- tenant: token
 SELECT *
 FROM document_share_links
 WHERE token_hash = sqlc.arg(token_hash)

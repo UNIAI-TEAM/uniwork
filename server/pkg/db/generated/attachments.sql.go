@@ -126,6 +126,7 @@ FROM attachments
 WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetAttachmentByID(ctx context.Context, id string) (Attachment, error) {
 	row := q.db.QueryRow(ctx, getAttachmentByID, id)
 	var i Attachment
@@ -268,6 +269,7 @@ type ListAttachmentFileHoldsRow struct {
 // a live task description / comment body still embeds the row's attachment
 // URL — the embed survives unbinding, and its row is the only map from the
 // URL back to the file.
+// tenant: system
 func (q *Queries) ListAttachmentFileHolds(ctx context.Context, fileIds []string) ([]ListAttachmentFileHoldsRow, error) {
 	rows, err := q.db.Query(ctx, listAttachmentFileHolds, fileIds)
 	if err != nil {

@@ -67,6 +67,7 @@ func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, guestID,
 	msg, err := s.q.InsertMeetingChatMessage(ctx, db.InsertMeetingChatMessageParams{
 		ID:             util.NewID(),
 		MeetingID:      meetingID,
+		OrganizationID: m.OrganizationID,
 		ParticipantID:  pid,
 		SenderIdentity: senderIdentity,
 		SenderName:     senderName,

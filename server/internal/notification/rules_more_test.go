@@ -181,14 +181,14 @@ func TestRuleChatFollowUpCreated(t *testing.T) {
 	// A real message resolves to its room, and the link opens on it.
 	room, err := f.q.CreateChatRoom(f.ctx, db.CreateChatRoomParams{
 		ID: "room-fu", Kind: "channel", WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
-		OrganizationID: pgtype.Text{String: f.orgID, Valid: true}, Name: "Chung", LivekitRoomName: "lk-room-fu",
+		OrganizationID: f.orgID, Name: "Chung", LivekitRoomName: "lk-room-fu",
 		CreatedBy: f.owner.ID, CreatedByKind: "human", Visibility: "public",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	msg, err := f.q.CreateChatMessage(f.ctx, db.CreateChatMessageParams{
-		ID: "msg-fu", RoomID: room.ID, WorkspaceID: f.wsID, SenderID: f.owner.ID, SenderKind: "human", Body: "nhắc tôi",
+		ID: "msg-fu", RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: f.wsID, SenderID: f.owner.ID, SenderKind: "human", Body: "nhắc tôi",
 	})
 	if err != nil {
 		t.Fatal(err)

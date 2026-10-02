@@ -8,11 +8,13 @@ WHERE id = $1
   AND workspace_id = $3;
 
 -- name: GetTaskCommentByID :one
+-- tenant: by-id
 SELECT *
 FROM task_comments
 WHERE id = $1;
 
 -- name: GetTaskCommentByChatMessageID :one
+-- tenant: system
 SELECT *
 FROM task_comments
 WHERE chat_message_id = $1;

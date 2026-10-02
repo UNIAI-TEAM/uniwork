@@ -24,11 +24,12 @@ WHERE id = $1
   AND disconnected_at IS NULL;
 
 -- name: GetEmailHubAccountByID :one
+-- tenant: system
 SELECT *
 FROM email_hub_accounts
 WHERE id = $1;
 
--- name: DisconnectEmailHubAccount :exec
+-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -39,9 +40,10 @@ WHERE id = $1
 -- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1;
+WHERE id = $1 AND organization_id = $3;
 
 -- name: UpsertEmailHubThread :one
+-- tenant: parent account_id
 INSERT INTO email_hub_threads (
   id, account_id, organization_id, folder, imap_uid, message_id,
   subject, snippet, from_addr, from_name, to_addrs, sent_at,
@@ -174,10 +176,12 @@ WHERE account_id = $1
 RETURNING body_object_key;
 
 -- name: DeleteEmailHubAttachmentsForThreads :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_attachments
 WHERE thread_id = ANY($1::text[]);
 
 -- name: DeleteEmailHubThreadAiSummariesForThreads :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = ANY($1::text[]);
 
@@ -188,6 +192,7 @@ WHERE account_id = sqlc.arg('account_id')
   AND id = ANY(sqlc.arg('thread_ids')::text[]);
 
 -- name: UpdateEmailHubThreadBody :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = $2,
     body_html = $3,
@@ -198,6 +203,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: UpdateEmailHubThreadBodyObject :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
@@ -223,6 +229,7 @@ WHERE id = $1
   AND organization_id = $3;
 
 -- name: InvalidateEmailHubThreadBody :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
@@ -246,6 +253,7 @@ WHERE account_id = $1
   AND body_object_key = '';
 
 -- name: PatchEmailHubThreadSnippet :exec
+-- tenant: by-id
 UPDATE email_hub_threads
 SET snippet = $2,
     synced_at = now()
@@ -305,7 +313,7 @@ FROM (
 
 -- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: UpdateEmailHubThreadRead :one
 UPDATE email_hub_threads
@@ -333,6 +341,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: ListEmailHubAccountsConnected :many
+-- tenant: system
 SELECT *
 FROM email_hub_accounts
 WHERE disconnected_at IS NULL
@@ -590,12 +599,13 @@ WHERE t.account_id = sqlc.arg('account_id')
   );
 
 -- name: DeleteEmailHubAttachmentsForThread :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_attachments
 WHERE thread_id = $1;
 
 -- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: CreateEmailHubAttachment :one
 INSERT INTO email_hub_attachments (
@@ -630,6 +640,7 @@ INSERT INTO email_hub_scheduled_sends (
 RETURNING *;
 
 -- name: ListDueEmailHubScheduledSends :many
+-- tenant: system
 SELECT *
 FROM email_hub_scheduled_sends
 WHERE status = 'pending'
@@ -638,6 +649,7 @@ ORDER BY send_at ASC
 LIMIT $1;
 
 -- name: MarkEmailHubScheduledSendSent :exec
+-- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
@@ -645,6 +657,7 @@ SET status = 'sent',
 WHERE id = $1;
 
 -- name: MarkEmailHubScheduledSendFailed :exec
+-- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
     last_error = $2
@@ -690,6 +703,7 @@ WHERE thread_id = $1
   AND organization_id = $3;
 
 -- name: UpsertEmailHubThreadAiSummary :one
+-- tenant: parent thread_id
 INSERT INTO email_hub_thread_ai_summaries (
   id, organization_id, thread_id, account_id, locale, source_fingerprint,
   summary, key_points, action_items, needs_reply, reply_hint, model,
@@ -698,7 +712,6 @@ INSERT INTO email_hub_thread_ai_summaries (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (thread_id, locale) DO UPDATE SET
-  organization_id = EXCLUDED.organization_id,
   account_id = EXCLUDED.account_id,
   source_fingerprint = EXCLUDED.source_fingerprint,
   summary = EXCLUDED.summary,
@@ -710,15 +723,19 @@ ON CONFLICT (thread_id, locale) DO UPDATE SET
   created_by = EXCLUDED.created_by,
   created_by_kind = EXCLUDED.created_by_kind,
   updated_at = now()
+-- A summary never changes tenant: a conflicting row of another organization
+-- is left alone (no row comes back) instead of being taken over.
+WHERE email_hub_thread_ai_summaries.organization_id = EXCLUDED.organization_id
 RETURNING *;
 
 -- name: DeleteEmailHubThreadAiSummariesForThread :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = $1;
 
 -- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: EmailHubAccountSidebarCounts :one
 SELECT

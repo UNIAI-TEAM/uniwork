@@ -236,8 +236,12 @@ func TestMeetingRecordingHTTPPlaybackAuthorization(t *testing.T) {
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("guest without participant row: %d", res.StatusCode)
 	}
+	meeting, err := q.GetMeeting(context.Background(), meetingID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := q.CreateMeetingParticipant(context.Background(), db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: meetingID, PrincipalType: service.PrincipalGuest,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: meeting.OrganizationID, PrincipalType: service.PrincipalGuest,
 		GuestID: pgtype.Text{String: guestID, Valid: true}, DisplayNameSnapshot: "Guest",
 		Role: service.RoleAttendee, SourceType: service.GrantInviteLink,
 		SourceID: pgtype.Text{String: "link", Valid: true}, AddedBy: guestID,

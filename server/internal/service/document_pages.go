@@ -317,6 +317,23 @@ func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, 
 // or move of the parent waits for it) and checks it: a live page of the same
 // tenant pair, outside any work product, that the caller may edit, with room
 // for one more level below it.
+// authorizeParentIn is the pre-flight of a create that names a parent page
+// before its transaction (blank, copy, convert): the caller may edit the
+// parent, and the parent is a page of the workspace the new document lands
+// in. Edit access alone is not enough - someone in two organizations can
+// edit pages in both - and the check must refuse before an Office engine is
+// asked to work for a create lockPageParent would refuse anyway.
+func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, parentID, workspaceID string) error {
+	parent, _, err := s.authorizeDocument(ctx, actor, parentID, DocumentLevelEdit)
+	if err != nil {
+		return err
+	}
+	if parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID string) (db.Document, error) {
 	// Classify before locking: a parent outside this tenant pair answers
 	// not_found without ever taking its row lock, so a create in one

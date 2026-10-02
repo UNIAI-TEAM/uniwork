@@ -205,7 +205,7 @@ func TestWorkspaceOwnerCanModerateMemberComment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: w.ID, UserID: member.ID, Role: "member",
+		WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: member.ID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -77,7 +77,7 @@ func (s *ChatService) StartVoiceRecording(
 	if err != nil {
 		return db.ChatVoiceRecording{}, err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	wsID := roomAnchorWorkspaceID(room)
 	recID := util.NewID()
 	var target *meetings.RecordingOutputTarget

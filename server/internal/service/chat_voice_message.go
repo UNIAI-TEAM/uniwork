@@ -91,7 +91,7 @@ func (s *ChatService) requireCanSendMessageInRoom(ctx context.Context, userID st
 	if err != nil {
 		return err
 	}
-	blocked, err := s.dmMessagingBlocked(ctx, roomOrganizationID(room), userID, peerID)
+	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (s *ChatService) PrepareVoiceMessage(
 		return VoiceMessagePreparation{}, err
 	}
 	prep := VoiceMessagePreparation{
-		OrganizationID: roomOrganizationID(room),
+		OrganizationID: room.OrganizationID,
 		room:           room,
 		actorID:        userID,
 		input:          in,
@@ -187,6 +187,7 @@ func (s *ChatService) CreateVoiceMessage(
 	msg, err := s.q.CreateChatVoiceMessage(ctx, db.CreateChatVoiceMessageParams{
 		ID:               util.NewID(),
 		RoomID:           prep.room.ID,
+		OrganizationID:   prep.room.OrganizationID,
 		WorkspaceID:      roomAnchorWorkspaceID(prep.room),
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),

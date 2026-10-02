@@ -81,10 +81,3 @@ func roomAnchorWorkspaceID(room db.ChatRoom) string {
 	}
 	return ""
 }
-
-func roomOrganizationID(room db.ChatRoom) string {
-	if room.OrganizationID.Valid {
-		return room.OrganizationID.String
-	}
-	return ""
-}

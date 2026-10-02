@@ -7,6 +7,7 @@ INSERT INTO outbox_events (
 ) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, now());
 
 -- name: MarkOutboxDoneAt :exec
+-- tenant: system
 UPDATE outbox_events SET
   status = 'DONE',
   completed_at = now(),
@@ -18,6 +19,7 @@ UPDATE outbox_events SET
 WHERE id = $1;
 
 -- name: MarkOutboxDead :exec
+-- tenant: system
 UPDATE outbox_events SET
   status = 'DEAD_LETTER',
   attempts = attempts + 1,
@@ -30,9 +32,11 @@ UPDATE outbox_events SET
 WHERE id = $1;
 
 -- name: CountDeadOutbox :one
+-- tenant: system
 SELECT count(*)::bigint AS dead FROM outbox_events WHERE dead_at IS NOT NULL;
 
 -- name: OutboxStatsByTopic :many
+-- tenant: system
 SELECT topic,
   count(*) FILTER (WHERE status = 'PENDING')::bigint AS pending,
   count(*) FILTER (WHERE dead_at IS NOT NULL)::bigint AS dead,

@@ -92,9 +92,31 @@ func (s *MeetingService) Evaluate(ctx context.Context, in AdmissionContext) (Adm
 	if err != nil {
 		return AdmissionDecision{}, err
 	}
+	// Standing first, before anything about the meeting is answered: a member
+	// of its workspace, the holder of one of its own invite links, or a
+	// principal it already knows. The status checks below would otherwise tell
+	// anyone holding an id - another organization included - whether the
+	// meeting exists, ended or was canceled (ADR 0008 isolation matrix).
+	member := false
 	if in.UserID != "" {
-		if _, err := s.ws.RequireMember(ctx, m.WorkspaceID, in.UserID); err != nil && in.InviteLinkID == "" {
+		_, err := s.ws.RequireMember(ctx, m.WorkspaceID, in.UserID)
+		if err != nil && in.InviteLinkID == "" {
 			return AdmissionDecision{Decision: DecisionDeny, Reason: "FORBIDDEN", Meeting: m}, err
+		}
+		member = err == nil
+	}
+	if !member {
+		if in.InviteLinkID != "" {
+			link, err := s.verifyInviteLink(ctx, s.q, in.InviteLinkID, in.InviteSecret)
+			if err != nil {
+				return AdmissionDecision{Decision: DecisionDeny, Reason: "INVITE_LINK_INVALID"}, err
+			}
+			if link.MeetingID != m.ID {
+				return AdmissionDecision{Decision: DecisionDeny, Reason: "INVITE_LINK_INVALID"},
+					coded(http.StatusNotFound, "invite_link_invalid", "liên kết không hợp lệ")
+			}
+		} else if _, err := s.lookupPrincipal(ctx, m.ID, in); err != nil {
+			return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_NOT_FOUND"}, ErrNotFound
 		}
 	}
 	if m.Status == MeetingEnded {
@@ -171,7 +193,7 @@ func (s *MeetingService) requeueIdleProviderSession(ctx context.Context, m db.Me
 	}); err != nil {
 		return
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "PROVIDER_ROOM_IDLE_DESYNC", "", m.Status, "IDLE", "{}")
+	_ = s.writeAudit(ctx, q, m, "PROVIDER_ROOM_IDLE_DESYNC", "", m.Status, "IDLE", "{}")
 	if err := tx.Commit(ctx); err != nil {
 		return
 	}
@@ -253,7 +275,7 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		if err != nil {
 			return AdmissionDecision{}, err
 		}
-		_ = s.writeAudit(ctx, q, m.ID, "INVITE_LINK_USED", actorID(in), "", link.ID, "{}")
+		_ = s.writeAudit(ctx, q, m, "INVITE_LINK_USED", actorID(in), "", link.ID, "{}")
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return AdmissionDecision{}, err
@@ -270,7 +292,7 @@ func actorID(in AdmissionContext) string {
 
 func (s *MeetingService) materializeFromLink(ctx context.Context, q *db.Queries, m db.Meeting, in AdmissionContext, linkID string) (db.MeetingParticipant, error) {
 	params := db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, Role: RoleAttendee, SourceType: GrantInviteLink,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Role: RoleAttendee, SourceType: GrantInviteLink,
 		SourceID: strText(linkID), AddedBy: actorID(in), DisplayNameSnapshot: in.DisplayName,
 	}
 	if in.UserID != "" {
@@ -303,7 +325,7 @@ func (s *MeetingService) materializeFromLink(ctx context.Context, q *db.Queries,
 		}
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID,
 		SourceType: GrantInviteLink, SourceID: strText(linkID), GrantedBy: actorID(in),
 	})
 	return p, err
@@ -370,18 +392,25 @@ func (s *MeetingService) ensureJoinRequestTx(ctx context.Context, q *db.Queries,
 		}
 	}
 	jr, err := q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
-		ID: util.NewID(), MeetingID: m.ID, RequesterUserID: strText(in.UserID),
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, RequesterUserID: strText(in.UserID),
 		RequesterGuestID: strText(in.GuestID), DisplayNameSnapshot: in.DisplayName,
 		InviteLinkID: strText(linkID), ExpiresAt: pgtype.Timestamptz{},
 	})
 	if err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "JOIN_REQUESTED", actorID(in), "", jr.ID, "{}")
+	_ = s.writeAudit(ctx, q, m, "JOIN_REQUESTED", actorID(in), "", jr.ID, "{}")
 	return jr, nil
 }
 
 func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (db.MeetingJoinRequest, error) {
+	// A guest knocks through an invite link (Evaluate on POST /join), never by
+	// the bare meeting id: the id travels in URLs, and a knock puts a row in
+	// the host's queue and admits the knocker to the lobby socket. Only a
+	// member of the meeting's workspace may ask without a link.
+	if in.UserID == "" {
+		return db.MeetingJoinRequest{}, ErrNotFound
+	}
 	m, err := s.q.GetMeeting(ctx, in.MeetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.MeetingJoinRequest{}, ErrNotFound
@@ -482,7 +511,7 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 				return uerr
 			}
 			p, err = q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-				ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser,
+				ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser,
 				UserID: decided.RequesterUserID, DisplayNameSnapshot: u.DisplayName,
 				EmailSnapshot: strText(u.Email), Role: RoleAttendee, SourceType: GrantJoinApproval,
 				SourceID: strText(requestID), AddedBy: actorID,
@@ -505,7 +534,7 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 			p = existing
 		} else {
 			p, err = q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-				ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalGuest,
+				ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 				GuestID: decided.RequesterGuestID, DisplayNameSnapshot: decided.DisplayNameSnapshot,
 				Role: RoleAttendee, SourceType: GrantJoinApproval, SourceID: strText(requestID), AddedBy: actorID,
 			})
@@ -515,13 +544,13 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 		}
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID,
 		SourceType: GrantJoinApproval, SourceID: strText(requestID), GrantedBy: actorID,
 	})
 	if err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "JOIN_REQUEST_APPROVED", actorID, JoinPending, JoinApproved, "{}")
+	_ = s.writeAudit(ctx, q, m, "JOIN_REQUEST_APPROVED", actorID, JoinPending, JoinApproved, "{}")
 	s.record(ctx, q, m, audit.User(actorID), "join_request.approved",
 		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
 		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinApproved}))
@@ -552,7 +581,7 @@ func (s *MeetingService) RejectJoinRequest(ctx context.Context, actorID, request
 	if err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, "JOIN_REQUEST_REJECTED", actorID, JoinPending, JoinRejected, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "JOIN_REQUEST_REJECTED", actorID, JoinPending, JoinRejected, "{}")
 	s.record(ctx, s.q, m, audit.User(actorID), "join_request.rejected",
 		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
 		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinRejected}))
@@ -578,6 +607,15 @@ func (s *MeetingService) CancelJoinRequest(ctx context.Context, in AdmissionCont
 	} else {
 		return ErrForbidden
 	}
+	// Read before the cancel so the timeline row below has the meeting's
+	// organization, and a failed read changes nothing.
+	m, err := s.q.GetMeeting(ctx, jr.MeetingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
 	_, err = s.q.CancelJoinRequest(ctx, requestID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return coded(http.StatusConflict, "join_request_already_decided", "yêu cầu đã được xử lý")
@@ -585,8 +623,7 @@ func (s *MeetingService) CancelJoinRequest(ctx context.Context, in AdmissionCont
 	if err != nil {
 		return err
 	}
-	m, _ := s.q.GetMeeting(ctx, jr.MeetingID)
-	_ = s.writeAudit(ctx, s.q, jr.MeetingID, "JOIN_REQUEST_CANCELED", actorID(in), JoinPending, JoinCanceled, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "JOIN_REQUEST_CANCELED", actorID(in), JoinPending, JoinCanceled, "{}")
 	s.record(ctx, s.q, m, joinActor(in), "join_request.canceled",
 		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
 		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinCanceled}))

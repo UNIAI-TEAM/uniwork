@@ -138,8 +138,10 @@ func TestMeetingListFlagsPlayableRecordings(t *testing.T) {
 		ids[title] = out["meeting"].(map[string]any)["id"].(string)
 	}
 	ctx := context.Background()
-	if _, err := testPool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-file', $1, 'COMPLETED', 'recordings/a.mp4', 'u'), ('rec-proc', $2, 'PROCESSING', NULL, 'u')`,
+	if _, err := testPool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, status, file_url, started_by)
+		SELECT v.id, m.id, m.organization_id, v.status, v.file_url, 'u'
+		FROM (VALUES ('rec-file', $1::text, 'COMPLETED', 'recordings/a.mp4'), ('rec-proc', $2::text, 'PROCESSING', NULL)) AS v(id, meeting_id, status, file_url)
+		JOIN meetings m ON m.id = v.meeting_id`,
 		ids["with-file"], ids["processing"]); err != nil {
 		t.Fatal(err)
 	}

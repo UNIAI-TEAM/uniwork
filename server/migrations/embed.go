@@ -458,12 +458,15 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		// Applied OUTSIDE a transaction on purpose. CREATE INDEX CONCURRENTLY —
-		// the only kind of index build allowed from migration 005 on — is
-		// rejected by PostgreSQL inside a transaction block, and the advisory
-		// lock above already serializes runners. The cost is that a failing
-		// multi-statement file can leave earlier statements applied; the file
-		// is then fixed forward, which is the convention anyway.
+		// Applied OUTSIDE an explicit transaction on purpose. CREATE INDEX
+		// CONCURRENTLY — the only kind of index build allowed from migration
+		// 005 on — is rejected by PostgreSQL inside a transaction block, and
+		// the advisory lock above already serializes runners. With no
+		// arguments pgx sends the file as one simple-protocol query, which
+		// PostgreSQL runs as one implicit transaction: a failing
+		// multi-statement file leaves none of its statements applied
+		// (TestTenantBackfillCopiesTheParentOrganization relies on it), and a
+		// concurrent index build must be the only statement in its file.
 		if _, err := conn.Exec(ctx, string(sql)); err != nil {
 			return fmt.Errorf("migration %s: %w", v, err)
 		}

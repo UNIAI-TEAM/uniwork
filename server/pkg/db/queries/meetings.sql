@@ -1,10 +1,12 @@
 -- name: CreateMeeting :one
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
-  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key
+  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
+  organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
-  $9, $10, $11, $12, $13, 1, $8, $14, $15
+  $9, $10, $11, $12, $13, 1, $8, $14, $15,
+  $17
 )
 RETURNING *;
 
@@ -65,9 +67,11 @@ WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'));
 
 -- name: GetMeeting :one
+-- tenant: by-id
 SELECT * FROM meetings WHERE id = $1;
 
 -- name: UpdateMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   title       = COALESCE(sqlc.narg('title'), title),
   description = COALESCE(sqlc.narg('description'), description),
@@ -88,6 +92,7 @@ WHERE id = sqlc.arg('id') AND version = sqlc.arg('version')
 RETURNING *;
 
 -- name: StartMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'IN_PROGRESS',
   actual_start_at = now(),
@@ -98,6 +103,7 @@ WHERE id = sqlc.arg('id') AND status = 'SCHEDULED' AND version = sqlc.arg('versi
 RETURNING *;
 
 -- name: EndMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'ENDED',
   actual_end_at = now(),
@@ -108,6 +114,7 @@ WHERE id = sqlc.arg('id') AND status = 'IN_PROGRESS' AND version = sqlc.arg('ver
 RETURNING *;
 
 -- name: CancelMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'CANCELED',
   canceled_by = sqlc.arg('canceled_by'),
@@ -120,6 +127,7 @@ WHERE id = sqlc.arg('id') AND status = 'SCHEDULED' AND version = sqlc.arg('versi
 RETURNING *;
 
 -- name: TransferMeetingHost :one
+-- tenant: by-id
 UPDATE meetings SET
   host_user_id = sqlc.arg('host_user_id'),
   updated_by = sqlc.arg('updated_by'),
@@ -129,18 +137,16 @@ WHERE id = sqlc.arg('id') AND version = sqlc.arg('version')
   AND status IN ('SCHEDULED', 'IN_PROGRESS')
 RETURNING *;
 
--- name: DeleteMeeting :exec
-DELETE FROM meetings WHERE id = $1;
-
 -- name: AddMeetingAttendee :exec
-INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+INSERT INTO meeting_attendees (meeting_id, user_id, organization_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: CreateMeetingNote :one
-INSERT INTO meeting_notes (id, meeting_id, author_id, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO meeting_notes (id, meeting_id, author_id, body, organization_id)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListMeetingNotes :many
+-- tenant: parent meeting_id
 SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at;

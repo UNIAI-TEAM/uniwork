@@ -123,7 +123,7 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 		ID:              roomID,
 		Kind:            chatRoomKindChannel,
 		WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-		OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
+		OrganizationID:  w.OrganizationID,
 		Name:            name,
 		MemberSetKey:    pgtype.Text{},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -142,7 +142,7 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 		if id == userID {
 			role = "admin"
 		}
-		if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, id, role); err != nil {
+		if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, id, role); err != nil {
 			return ChatRoomSummary{}, err
 		}
 	}
@@ -306,7 +306,7 @@ func (s *ChatService) UpdateChannel(ctx context.Context, userID, workspaceID, ro
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	orgID := roomOrganizationID(updated)
+	orgID := updated.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -372,7 +372,7 @@ func (s *ChatService) JoinChannel(ctx context.Context, userID, workspaceID, room
 	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	}); errors.Is(err, pgx.ErrNoRows) {
-		if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, userID, "member"); err != nil {
+		if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "member"); err != nil {
 			return ChatRoomSummary{}, err
 		}
 	} else if err != nil {
@@ -417,7 +417,7 @@ func (s *ChatService) ArchiveChannel(ctx context.Context, userID, workspaceID, r
 	} else if err != nil {
 		return err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -451,7 +451,7 @@ func (s *ChatService) UnarchiveChannel(ctx context.Context, userID, workspaceID,
 	} else if err != nil {
 		return err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -480,7 +480,7 @@ func (s *ChatService) CreateChannelForProject(ctx context.Context, q *db.Queries
 		ID:              roomID,
 		Kind:            chatRoomKindChannel,
 		WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-		OrganizationID:  pgtype.Text{String: orgID, Valid: true},
+		OrganizationID:  orgID,
 		Name:            name,
 		MemberSetKey:    pgtype.Text{},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -494,7 +494,7 @@ func (s *ChatService) CreateChannelForProject(ctx context.Context, q *db.Queries
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, userID, "admin"); err != nil {
+	if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "admin"); err != nil {
 		return db.ChatRoom{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -571,7 +571,7 @@ func (s *ChatService) authorizeChannelAdminIncludingArchived(ctx context.Context
 	if !room.WorkspaceID.Valid || room.WorkspaceID.String != workspaceID {
 		return db.ChatRoom{}, ErrNotFound
 	}
-	if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+	if room.OrganizationID != w.OrganizationID {
 		return db.ChatRoom{}, ErrNotFound
 	}
 	if room.CreatedBy == userID {

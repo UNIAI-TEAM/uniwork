@@ -58,6 +58,15 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	if in.QuorumPercent != nil && (*in.QuorumPercent < 0 || *in.QuorumPercent > 100) {
 		return db.Meeting{}, Invalid("tỉ lệ có mặt tối thiểu phải từ 1 đến 100")
 	}
+	// Checked before the transaction: it reads through the pool, and taking a
+	// second connection while this one holds the meeting row lock can starve
+	// the pool. A meeting never changes organization or workspace, so the row
+	// requireHostOrAdmin loaded is as good as the locked one.
+	if in.ProjectID != nil {
+		if err := s.requireMeetingProject(ctx, m.OrganizationID, m.WorkspaceID, *in.ProjectID); err != nil {
+			return db.Meeting{}, err
+		}
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.Meeting{}, err
@@ -109,7 +118,7 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	_ = s.writeAudit(ctx, q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
+	_ = s.writeAudit(ctx, q, m, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
 		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt), "quorum_percent": quorumOrNil(m.QuorumPercent)},
 		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt), "quorum_percent": quorumOrNil(up.QuorumPercent)},
@@ -156,7 +165,7 @@ func (s *MeetingService) Extend(ctx context.Context, userID, meetingID string, m
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
 		map[string]any{"ends_at": tsOrNil(m.EndsAt)},
 		map[string]any{"ends_at": tsOrNil(up.EndsAt)},

@@ -29,6 +29,7 @@ type AttachChatVoiceRecordingCallLogParams struct {
 	CallID           string      `json:"call_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) AttachChatVoiceRecordingCallLog(ctx context.Context, arg AttachChatVoiceRecordingCallLogParams) (ChatVoiceRecording, error) {
 	row := q.db.QueryRow(ctx, attachChatVoiceRecordingCallLog, arg.RoomID, arg.CallLogMessageID, arg.CallID)
 	var i ChatVoiceRecording
@@ -67,6 +68,7 @@ type FinishChatVoiceRecordingParams struct {
 	CallLogMessageID pgtype.Text `json:"call_log_message_id"`
 }
 
+// tenant: by-id
 func (q *Queries) FinishChatVoiceRecording(ctx context.Context, arg FinishChatVoiceRecordingParams) (ChatVoiceRecording, error) {
 	row := q.db.QueryRow(ctx, finishChatVoiceRecording,
 		arg.ID,
@@ -110,6 +112,7 @@ type FinishChatVoiceRecordingByEgressParams struct {
 	CallLogMessageID pgtype.Text `json:"call_log_message_id"`
 }
 
+// tenant: system
 func (q *Queries) FinishChatVoiceRecordingByEgress(ctx context.Context, arg FinishChatVoiceRecordingByEgressParams) (ChatVoiceRecording, error) {
 	row := q.db.QueryRow(ctx, finishChatVoiceRecordingByEgress,
 		arg.EgressID,
@@ -148,6 +151,7 @@ type GetActiveChatVoiceRecordingParams struct {
 	CallID string `json:"call_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) GetActiveChatVoiceRecording(ctx context.Context, arg GetActiveChatVoiceRecordingParams) (ChatVoiceRecording, error) {
 	row := q.db.QueryRow(ctx, getActiveChatVoiceRecording, arg.RoomID, arg.CallID)
 	var i ChatVoiceRecording
@@ -173,6 +177,7 @@ const getChatVoiceRecordingByEgressID = `-- name: GetChatVoiceRecordingByEgressI
 SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1
 `
 
+// tenant: system
 func (q *Queries) GetChatVoiceRecordingByEgressID(ctx context.Context, egressID string) (ChatVoiceRecording, error) {
 	row := q.db.QueryRow(ctx, getChatVoiceRecordingByEgressID, egressID)
 	var i ChatVoiceRecording
@@ -280,6 +285,7 @@ FROM chat_voice_recordings
 WHERE file_id = ANY($1::text[])
 `
 
+// tenant: system
 // FS-C1 section 6: a live recording row holds its file.
 func (q *Queries) ListChatVoiceRecordingFileHolds(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, listChatVoiceRecordingFileHolds, dollar_1)
@@ -312,6 +318,7 @@ type ListChatVoiceRecordingsForCallParams struct {
 	CallID string `json:"call_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) ListChatVoiceRecordingsForCall(ctx context.Context, arg ListChatVoiceRecordingsForCallParams) ([]ChatVoiceRecording, error) {
 	rows, err := q.db.Query(ctx, listChatVoiceRecordingsForCall, arg.RoomID, arg.CallID)
 	if err != nil {

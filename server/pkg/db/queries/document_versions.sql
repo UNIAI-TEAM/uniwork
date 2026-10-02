@@ -50,6 +50,7 @@ LIMIT 1;
 -- is archived-but-not-purged. Provider-facing: intentionally NOT tenant
 -- filtered - the collector asks whether a given file_id is still held.
 -- name: ListDocumentVersionFileHolds :many
+-- tenant: system
 SELECT v.file_id,
   CASE
     WHEN d.archived_at IS NOT NULL THEN 'soft_deleted'

@@ -66,6 +66,6 @@ func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, mee
 	if canPublish {
 		action = "PARTICIPANT_PUBLISH_GRANTED"
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, action, actorID, "", participantID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, action, actorID, "", participantID, "{}")
 	return nil
 }

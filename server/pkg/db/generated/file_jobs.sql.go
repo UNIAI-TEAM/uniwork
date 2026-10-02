@@ -29,6 +29,7 @@ type CancelPendingFileJobsParams struct {
 	Operation  string             `json:"operation"`
 }
 
+// tenant: parent file_id
 // Claim/GC voids queued same-operation work for a file (e.g. a cleanup job
 // whose file just got referenced). Only pending rows cancel - a leased row
 // is fenced by its generation instead. finished_at is caller-supplied.
@@ -64,6 +65,7 @@ type ClaimFileJobsParams struct {
 	LimitN         int32              `json:"limit_n"`
 }
 
+// tenant: system
 // Lease the next runnable batch. SKIP LOCKED lets replicas share the scan;
 // the UPDATE flips each winner to leased with owner + expiry + a bumped
 // generation, so a late-finish from an older lease is fenced off. `now` and
@@ -132,6 +134,7 @@ type CompleteFileJobParams struct {
 	LeaseOwner pgtype.Text        `json:"lease_owner"`
 }
 
+// tenant: system
 // leased -> succeeded, fenced by owner + generation so only the live holder
 // can close the job. finished_at is caller-supplied.
 func (q *Queries) CompleteFileJob(ctx context.Context, arg CompleteFileJobParams) (int64, error) {
@@ -212,6 +215,7 @@ type FailFileJobParams struct {
 	LeaseOwner pgtype.Text        `json:"lease_owner"`
 }
 
+// tenant: system
 // Terminal failure after a retry sequence the worker chooses to stop:
 // leased -> failed, fenced the same way. finished_at is caller-supplied.
 func (q *Queries) FailFileJob(ctx context.Context, arg FailFileJobParams) (int64, error) {
@@ -232,6 +236,7 @@ const getFileJob = `-- name: GetFileJob :one
 SELECT id, file_id, organization_id, operation, status, attempt, next_attempt_at, lease_owner, lease_expires_at, generation, error_code, details, retain_until, created_at, updated_at, finished_at FROM file_jobs WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) GetFileJob(ctx context.Context, id string) (FileJob, error) {
 	row := q.db.QueryRow(ctx, getFileJob, id)
 	var i FileJob
@@ -262,6 +267,7 @@ WHERE file_id = $1
 ORDER BY created_at, id
 `
 
+// tenant: system
 // Reconcile/claim-time view of every job queued for a file.
 func (q *Queries) ListFileJobsByFile(ctx context.Context, fileID string) ([]FileJob, error) {
 	rows, err := q.db.Query(ctx, listFileJobsByFile, fileID)
@@ -307,6 +313,7 @@ ORDER BY id
 FOR UPDATE
 `
 
+// tenant: system
 // Lock contract step 3: after files and sessions, lock job rows ordered by id
 // before mutating them (spec 9.5).
 func (q *Queries) LockFileJobsInIDOrder(ctx context.Context, jobIds []string) ([]FileJob, error) {
@@ -355,6 +362,7 @@ UPDATE file_jobs SET
 WHERE status = 'leased' AND lease_expires_at <= $1
 `
 
+// tenant: system
 // Crashed-worker recovery: a lease that outlived its expiry returns to
 // pending and is claimable again. `now` is the caller's sweep instant.
 func (q *Queries) ReleaseExpiredFileJobLeases(ctx context.Context, now pgtype.Timestamptz) (int64, error) {
@@ -388,6 +396,7 @@ type RetryFileJobParams struct {
 	LeaseOwner    pgtype.Text        `json:"lease_owner"`
 }
 
+// tenant: system
 // leased -> pending with the next-scan backoff. The job is never dropped:
 // alerting keys off attempt count and age, not a terminal failure state.
 func (q *Queries) RetryFileJob(ctx context.Context, arg RetryFileJobParams) (int64, error) {

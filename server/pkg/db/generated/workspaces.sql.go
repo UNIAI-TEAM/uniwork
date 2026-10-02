@@ -12,19 +12,25 @@ import (
 )
 
 const addWorkspaceMember = `-- name: AddWorkspaceMember :exec
-INSERT INTO workspace_members (workspace_id, user_id, role)
-VALUES ($1, $2, $3)
+INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING
 `
 
 type AddWorkspaceMemberParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
-	Role        string `json:"role"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) AddWorkspaceMember(ctx context.Context, arg AddWorkspaceMemberParams) error {
-	_, err := q.db.Exec(ctx, addWorkspaceMember, arg.WorkspaceID, arg.UserID, arg.Role)
+	_, err := q.db.Exec(ctx, addWorkspaceMember,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Role,
+		arg.OrganizationID,
+	)
 	return err
 }
 
@@ -136,6 +142,7 @@ SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at
 WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 `
 
+// tenant: token
 func (q *Queries) GetInvitationByToken(ctx context.Context, token string) (Invitation, error) {
 	row := q.db.QueryRow(ctx, getInvitationByToken, token)
 	var i Invitation
@@ -211,6 +218,7 @@ type GetWorkspaceAccessRow struct {
 	OrganizationMemberDeactivated bool   `json:"organization_member_deactivated"`
 }
 
+// tenant: by-id
 // ” = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
 // organization_member_deactivated rides along so RequireMember can refuse a
 // member the organization has switched off (F-03): their workspace rows stay,
@@ -232,6 +240,7 @@ const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter FROM workspaces WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceByID, id)
 	var i Workspace
@@ -276,6 +285,7 @@ type GetWorkspaceBySlugsRow struct {
 	OrganizationName string             `json:"organization_name"`
 }
 
+// tenant: by-id
 func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlugsParams) (GetWorkspaceBySlugsRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceBySlugs, arg.Slug, arg.Slug_2)
 	var i GetWorkspaceBySlugsRow
@@ -297,7 +307,7 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 }
 
 const getWorkspaceMember = `-- name: GetWorkspaceMember :one
-SELECT workspace_id, user_id, role, created_at FROM workspace_members WHERE workspace_id = $1 AND user_id = $2
+SELECT workspace_id, user_id, role, created_at, organization_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2
 `
 
 type GetWorkspaceMemberParams struct {
@@ -313,6 +323,7 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -338,6 +349,7 @@ type GetWorkspaceWithOrgRow struct {
 	OrganizationName string             `json:"organization_name"`
 }
 
+// tenant: by-id
 func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorkspaceWithOrgRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceWithOrg, id)
 	var i GetWorkspaceWithOrgRow
@@ -386,6 +398,7 @@ type ListInvitationsForEmailRow struct {
 	InvitedByName    pgtype.Text        `json:"invited_by_name"`
 }
 
+// tenant: self
 // The workspace columns are nullable now: an organization-level invitation has
 // no workspace, so the join has to be outer or those rows disappear from the
 // invitee's own list (F-03).
@@ -554,6 +567,7 @@ type ListWorkspacesForUserRow struct {
 	OrganizationName string             `json:"organization_name"`
 }
 
+// tenant: self
 // Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
 func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]ListWorkspacesForUserRow, error) {
 	rows, err := q.db.Query(ctx, listWorkspacesForUser, userID)
@@ -592,6 +606,7 @@ const markInvitationAccepted = `-- name: MarkInvitationAccepted :exec
 UPDATE invitations SET accepted_at = now() WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
 	return err
@@ -639,6 +654,7 @@ type SetWorkspaceMatrixRoomIDParams struct {
 	MatrixRoomID pgtype.Text `json:"matrix_room_id"`
 }
 
+// tenant: by-id
 func (q *Queries) SetWorkspaceMatrixRoomID(ctx context.Context, arg SetWorkspaceMatrixRoomIDParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, setWorkspaceMatrixRoomID, arg.ID, arg.MatrixRoomID)
 	var i Workspace
@@ -661,7 +677,7 @@ const updateWorkspaceMemberRole = `-- name: UpdateWorkspaceMemberRole :one
 UPDATE workspace_members
 SET role = $3
 WHERE workspace_id = $1 AND user_id = $2
-RETURNING workspace_id, user_id, role, created_at
+RETURNING workspace_id, user_id, role, created_at, organization_id
 `
 
 type UpdateWorkspaceMemberRoleParams struct {
@@ -678,6 +694,7 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -693,6 +710,7 @@ type UpdateWorkspaceNameParams struct {
 	Name string `json:"name"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, updateWorkspaceName, arg.ID, arg.Name)
 	var i Workspace

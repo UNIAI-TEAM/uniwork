@@ -264,6 +264,7 @@ FROM task_comments
 WHERE chat_message_id = $1
 `
 
+// tenant: system
 func (q *Queries) GetTaskCommentByChatMessageID(ctx context.Context, chatMessageID pgtype.Text) (TaskComment, error) {
 	row := q.db.QueryRow(ctx, getTaskCommentByChatMessageID, chatMessageID)
 	var i TaskComment
@@ -295,6 +296,7 @@ FROM task_comments
 WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetTaskCommentByID(ctx context.Context, id string) (TaskComment, error) {
 	row := q.db.QueryRow(ctx, getTaskCommentByID, id)
 	var i TaskComment

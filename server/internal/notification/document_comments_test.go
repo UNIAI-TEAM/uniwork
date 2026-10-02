@@ -145,7 +145,7 @@ func TestDocumentCommentNotificationRevokeBeforeDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB.Workspace.ID, UserID: outsider.ID, Role: "member"}); err != nil {
+	if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB.Workspace.ID, OrganizationID: wsB.Workspace.OrganizationID, UserID: outsider.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 

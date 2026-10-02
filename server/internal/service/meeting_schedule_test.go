@@ -66,7 +66,7 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 	sess, _ := s.q.GetOpenConferenceSession(ctx, m.ID)
 	if sess.ID == "" {
 		sess, err = s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-			ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+			ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ProviderKey: s.rt.ProviderKey,
 			ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
 		})
 		if err != nil {
@@ -80,7 +80,7 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 	}
 	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
 	_, err = s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
-		ID: "att-schedule", MeetingID: m.ID, ConferenceSessionID: sess.ID, ParticipantID: p.ID,
+		ID: "att-schedule", MeetingID: m.ID, OrganizationID: m.OrganizationID, ConferenceSessionID: sess.ID, ParticipantID: p.ID,
 		ProviderParticipantIdentity: "x",
 	})
 	if err != nil {

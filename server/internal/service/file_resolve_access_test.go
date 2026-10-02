@@ -57,7 +57,7 @@ func newAccessFixture(t *testing.T, registry *files.Registry) *accessFixture {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.b.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.w.ID, UserID: f.b.ID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.w.ID, OrganizationID: f.w.OrganizationID, UserID: f.b.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	if f.org2, err = orgs.Create(ctx, f.c.ID, "Org2", "org-files-2"); err != nil {
@@ -325,7 +325,7 @@ func TestAuthorizeContentFollowsSessionAndMembership(t *testing.T) {
 	if _, err := f.access.AuthorizeContent(ctx, string(up.File.ID), ticket); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("after removal: %v, want ErrForbidden", err)
 	}
-	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.w.ID, UserID: f.b.ID, Role: "member"}); err != nil {
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.w.ID, OrganizationID: f.w.OrganizationID, UserID: f.b.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 

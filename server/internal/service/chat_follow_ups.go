@@ -210,7 +210,7 @@ func (s *ChatService) CreateFollowUp(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	if anchorWS == "" {
 		anchorWS = workspaceID

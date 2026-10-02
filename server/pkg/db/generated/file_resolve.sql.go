@@ -59,6 +59,7 @@ type ListAvatarFilesWithSessionsByIDsRow struct {
 	FileUploadSession FileUploadSession `json:"file_upload_session"`
 }
 
+// tenant: by-id
 // Identity branch (T1-Q10, ADR 0023): only NULL-tenant files staged by this
 // user for purpose user_avatar. It is a separate query on purpose - an
 // organization request never reaches a NULL-tenant file, and this one never

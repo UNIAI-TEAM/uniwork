@@ -103,12 +103,18 @@ func (s *EmailHubService) OpenAttachment(
 		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EmailHubAttachmentView{}, nil, ErrNotFound
+		}
 		return EmailHubAttachmentView{}, nil, err
 	}
 	thread, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EmailHubAttachmentView{}, nil, ErrNotFound
+		}
 		return EmailHubAttachmentView{}, nil, err
 	}
 	row, err := s.q.GetEmailHubAttachment(ctx, db.GetEmailHubAttachmentParams{

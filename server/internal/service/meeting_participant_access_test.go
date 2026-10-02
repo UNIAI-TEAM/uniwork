@@ -27,14 +27,14 @@ func TestGuestActiveParticipantCanReadMeetingRoomData(t *testing.T) {
 	}
 	participantID := util.NewID()
 	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: participantID, MeetingID: m.ID, PrincipalType: PrincipalGuest,
+		ID: participantID, MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 		GuestID: strText(guestID), DisplayNameSnapshot: "Guest A",
 		Role: RoleAttendee, SourceType: GrantInviteLink, SourceID: strText("link1"), AddedBy: guestID,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: participantID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: participantID,
 		SourceType: GrantInviteLink, GrantedBy: ua.ID,
 	}); err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestLeftoverParticipantRowDoesNotOpenTheRoom(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser, UserID: strText(ub.ID),
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser, UserID: strText(ub.ID),
 		DisplayNameSnapshot: "Former", Role: RoleAttendee, SourceType: GrantDirectInvite, AddedBy: ua.ID,
 	}); err != nil {
 		t.Fatal(err)
@@ -178,14 +178,14 @@ func TestGuestChatBeforeMeetingStart(t *testing.T) {
 	}
 	participantID := util.NewID()
 	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: participantID, MeetingID: m.ID, PrincipalType: PrincipalGuest,
+		ID: participantID, MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 		GuestID: strText(guestID), DisplayNameSnapshot: "Guest",
 		Role: RoleAttendee, SourceType: GrantInviteLink, AddedBy: guestID,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: participantID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: participantID,
 		SourceType: GrantInviteLink, GrantedBy: ua.ID,
 	}); err != nil {
 		t.Fatal(err)

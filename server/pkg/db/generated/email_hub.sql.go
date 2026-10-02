@@ -376,11 +376,16 @@ func (q *Queries) CreateEmailHubScheduledSend(ctx context.Context, arg CreateEma
 
 const deleteEmailHubAttachmentsForAccount = `-- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, accountID)
+type DeleteEmailHubAttachmentsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, arg DeleteEmailHubAttachmentsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -389,6 +394,7 @@ DELETE FROM email_hub_attachments
 WHERE thread_id = $1
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubAttachmentsForThread(ctx context.Context, threadID string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThread, threadID)
 	return err
@@ -399,6 +405,7 @@ DELETE FROM email_hub_attachments
 WHERE thread_id = ANY($1::text[])
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubAttachmentsForThreads(ctx context.Context, dollar_1 []string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThreads, dollar_1)
 	return err
@@ -424,11 +431,16 @@ func (q *Queries) DeleteEmailHubThread(ctx context.Context, arg DeleteEmailHubTh
 
 const deleteEmailHubThreadAiSummariesForAccount = `-- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, accountID)
+type DeleteEmailHubThreadAiSummariesForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, arg DeleteEmailHubThreadAiSummariesForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -437,6 +449,7 @@ DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = $1
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubThreadAiSummariesForThread(ctx context.Context, threadID string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThread, threadID)
 	return err
@@ -447,6 +460,7 @@ DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = ANY($1::text[])
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubThreadAiSummariesForThreads(ctx context.Context, dollar_1 []string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThreads, dollar_1)
 	return err
@@ -472,11 +486,16 @@ func (q *Queries) DeleteEmailHubThreadsByIDs(ctx context.Context, arg DeleteEmai
 
 const deleteEmailHubThreadsForAccount = `-- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, accountID)
+type DeleteEmailHubThreadsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, arg DeleteEmailHubThreadsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -523,7 +542,7 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 	return err
 }
 
-const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :exec
+const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -538,9 +557,12 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) error {
-	_, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
-	return err
+func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const emailHubAccountSidebarCounts = `-- name: EmailHubAccountSidebarCounts :one
@@ -664,6 +686,7 @@ FROM email_hub_accounts
 WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) GetEmailHubAccountByID(ctx context.Context, id string) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, getEmailHubAccountByID, id)
 	var i EmailHubAccount
@@ -902,6 +925,7 @@ WHERE id = $1
 RETURNING body_object_key
 `
 
+// tenant: by-id
 func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) (string, error) {
 	row := q.db.QueryRow(ctx, invalidateEmailHubThreadBody, id)
 	var body_object_key string
@@ -918,6 +942,7 @@ ORDER BY send_at ASC
 LIMIT $1
 `
 
+// tenant: system
 func (q *Queries) ListDueEmailHubScheduledSends(ctx context.Context, limit int32) ([]EmailHubScheduledSend, error) {
 	rows, err := q.db.Query(ctx, listDueEmailHubScheduledSends, limit)
 	if err != nil {
@@ -1007,6 +1032,7 @@ ORDER BY updated_at ASC
 LIMIT $1
 `
 
+// tenant: system
 func (q *Queries) ListEmailHubAccountsConnected(ctx context.Context, limit int32) ([]EmailHubAccount, error) {
 	rows, err := q.db.Query(ctx, listEmailHubAccountsConnected, limit)
 	if err != nil {
@@ -2086,6 +2112,7 @@ type MarkEmailHubScheduledSendFailedParams struct {
 	LastError pgtype.Text `json:"last_error"`
 }
 
+// tenant: system
 func (q *Queries) MarkEmailHubScheduledSendFailed(ctx context.Context, arg MarkEmailHubScheduledSendFailedParams) error {
 	_, err := q.db.Exec(ctx, markEmailHubScheduledSendFailed, arg.ID, arg.LastError)
 	return err
@@ -2099,6 +2126,7 @@ SET status = 'sent',
 WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) MarkEmailHubScheduledSendSent(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markEmailHubScheduledSendSent, id)
 	return err
@@ -2116,6 +2144,7 @@ type PatchEmailHubThreadSnippetParams struct {
 	Snippet string `json:"snippet"`
 }
 
+// tenant: by-id
 func (q *Queries) PatchEmailHubThreadSnippet(ctx context.Context, arg PatchEmailHubThreadSnippetParams) error {
 	_, err := q.db.Exec(ctx, patchEmailHubThreadSnippet, arg.ID, arg.Snippet)
 	return err
@@ -2181,16 +2210,17 @@ func (q *Queries) SumEmailHubInboxUnreadByUser(ctx context.Context, arg SumEmail
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND organization_id = $3
 `
 
 type UpdateEmailHubAccountSyncStateParams struct {
-	ID        string `json:"id"`
-	SyncState []byte `json:"sync_state"`
+	ID             string `json:"id"`
+	SyncState      []byte `json:"sync_state"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) UpdateEmailHubAccountSyncState(ctx context.Context, arg UpdateEmailHubAccountSyncStateParams) error {
-	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState, arg.ID, arg.SyncState)
+	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState, arg.ID, arg.SyncState, arg.OrganizationID)
 	return err
 }
 
@@ -2211,6 +2241,7 @@ type UpdateEmailHubThreadBodyParams struct {
 	BodyHtml pgtype.Text `json:"body_html"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateEmailHubThreadBody(ctx context.Context, arg UpdateEmailHubThreadBodyParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubThreadBody, arg.ID, arg.BodyText, arg.BodyHtml)
 	var i EmailHubThread
@@ -2258,6 +2289,7 @@ type UpdateEmailHubThreadBodyObjectParams struct {
 	BodyObjectKey string `json:"body_object_key"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateEmailHubThreadBodyObject(ctx context.Context, arg UpdateEmailHubThreadBodyObjectParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubThreadBodyObject, arg.ID, arg.BodyObjectKey)
 	var i EmailHubThread
@@ -2497,6 +2529,7 @@ type UpsertEmailHubThreadParams struct {
 	ConversationKey string             `json:"conversation_key"`
 }
 
+// tenant: parent account_id
 func (q *Queries) UpsertEmailHubThread(ctx context.Context, arg UpsertEmailHubThreadParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, upsertEmailHubThread,
 		arg.ID,
@@ -2555,7 +2588,6 @@ INSERT INTO email_hub_thread_ai_summaries (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (thread_id, locale) DO UPDATE SET
-  organization_id = EXCLUDED.organization_id,
   account_id = EXCLUDED.account_id,
   source_fingerprint = EXCLUDED.source_fingerprint,
   summary = EXCLUDED.summary,
@@ -2567,6 +2599,7 @@ ON CONFLICT (thread_id, locale) DO UPDATE SET
   created_by = EXCLUDED.created_by,
   created_by_kind = EXCLUDED.created_by_kind,
   updated_at = now()
+WHERE email_hub_thread_ai_summaries.organization_id = EXCLUDED.organization_id
 RETURNING id, organization_id, thread_id, account_id, locale, source_fingerprint, summary, key_points, action_items, needs_reply, reply_hint, model, created_by, created_by_kind, created_at, updated_at
 `
 
@@ -2587,6 +2620,9 @@ type UpsertEmailHubThreadAiSummaryParams struct {
 	CreatedByKind     string `json:"created_by_kind"`
 }
 
+// tenant: parent thread_id
+// A summary never changes tenant: a conflicting row of another organization
+// is left alone (no row comes back) instead of being taken over.
 func (q *Queries) UpsertEmailHubThreadAiSummary(ctx context.Context, arg UpsertEmailHubThreadAiSummaryParams) (EmailHubThreadAiSummary, error) {
 	row := q.db.QueryRow(ctx, upsertEmailHubThreadAiSummary,
 		arg.ID,

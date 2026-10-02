@@ -4,24 +4,29 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetWorkspaceByID :one
+-- tenant: by-id
 SELECT * FROM workspaces WHERE id = $1;
 
 -- name: UpdateWorkspaceName :one
+-- tenant: by-id
 UPDATE workspaces SET name = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
 -- name: GetWorkspaceBySlugs :one
+-- tenant: by-id
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE o.slug = $1 AND w.slug = $2;
 
 -- name: GetWorkspaceWithOrg :one
+-- tenant: by-id
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.id = $1;
 
 -- name: ListWorkspacesForUser :many
+-- tenant: self
 -- Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
 SELECT DISTINCT ON (w.created_at, w.id) w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
@@ -32,6 +37,7 @@ WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
 ORDER BY w.created_at, w.id;
 
 -- name: GetWorkspaceAccess :one
+-- tenant: by-id
 -- '' = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
 -- organization_member_deactivated rides along so RequireMember can refuse a
 -- member the organization has switched off (F-03): their workspace rows stay,
@@ -47,8 +53,8 @@ LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND 
 WHERE w.id = $1;
 
 -- name: AddWorkspaceMember :exec
-INSERT INTO workspace_members (workspace_id, user_id, role)
-VALUES ($1, $2, $3)
+INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
 -- name: GetWorkspaceMember :one
@@ -70,13 +76,16 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetInvitationByToken :one
+-- tenant: token
 SELECT * FROM invitations
 WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
 
 -- name: MarkInvitationAccepted :exec
+-- tenant: by-id
 UPDATE invitations SET accepted_at = now() WHERE id = $1;
 
 -- name: ListInvitationsForEmail :many
+-- tenant: self
 -- The workspace columns are nullable now: an organization-level invitation has
 -- no workspace, so the join has to be outer or those rows disappear from the
 -- invitee's own list (F-03).
@@ -120,6 +129,7 @@ DELETE FROM workspace_members
 WHERE workspace_id = $1 AND user_id = $2;
 
 -- name: SetWorkspaceMatrixRoomID :one
+-- tenant: by-id
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;

@@ -16,8 +16,12 @@ func workspaceUser(t *testing.T, s *MeetingService, workspaceID, email, role str
 	as := NewAuthService(s.pool, s.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	u := registerVerified(t, s.q, as, email, email)
 	if role != "" {
+		w, err := s.q.GetWorkspaceByID(context.Background(), workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := s.q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
-			WorkspaceID: workspaceID, UserID: u.ID, Role: role,
+			WorkspaceID: workspaceID, OrganizationID: w.OrganizationID, UserID: u.ID, Role: role,
 		}); err != nil {
 			t.Fatal(err)
 		}

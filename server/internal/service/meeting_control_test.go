@@ -175,7 +175,7 @@ func TestGuestJoinRequestApproveWithExistingParticipant(t *testing.T) {
 	}
 	participantID := util.NewID()
 	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: participantID, MeetingID: m.ID, PrincipalType: PrincipalGuest,
+		ID: participantID, MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 		GuestID: strText(guestID), DisplayNameSnapshot: "Guest",
 		Role: RoleAttendee, SourceType: GrantInviteLink, SourceID: strText("link1"), AddedBy: guestID,
 	}); err != nil {
@@ -183,7 +183,7 @@ func TestGuestJoinRequestApproveWithExistingParticipant(t *testing.T) {
 	}
 
 	jr, err := s.q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
-		ID: util.NewID(), MeetingID: m.ID, RequesterGuestID: strText(guestID),
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, RequesterGuestID: strText(guestID),
 		DisplayNameSnapshot: "Guest", ExpiresAt: pgtype.Timestamptz{},
 	})
 	if err != nil {
@@ -445,7 +445,7 @@ func TestWebhookEndsOverdueEmptyRoom(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-		ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ProviderKey: s.rt.ProviderKey,
 		ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
 	}); err != nil {
 		t.Fatal(err)

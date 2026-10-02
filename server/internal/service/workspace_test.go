@@ -177,7 +177,7 @@ func TestWorkspaceUpdateName(t *testing.T) {
 	f := wsFixture(t)
 	ctx := context.Background()
 	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
-	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member"}); err != nil {
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: f.ub.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	name := "Đội Beta"
@@ -220,12 +220,12 @@ func TestUpdateMemberRoleAndRemove(t *testing.T) {
 	ctx := context.Background()
 	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Beta", "beta")
 	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member",
+		WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: f.ub.ID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: w.ID, UserID: f.uc.ID, Role: "member",
+		WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: f.uc.ID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestOrgAdminCanManageMembersWithoutMembershipRow(t *testing.T) {
 	ctx := context.Background()
 	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Gamma", "gamma")
 	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member",
+		WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: f.ub.ID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}

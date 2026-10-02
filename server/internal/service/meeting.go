@@ -191,12 +191,14 @@ func (s *MeetingService) requireHostOrAdmin(ctx context.Context, userID, meeting
 	return m, nil
 }
 
-func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, meetingID, eventType, actorID, from, to, payload string) error {
+// writeAudit takes the meeting row, not its id: the timeline row carries the
+// meeting's organization (ADR 0008).
+func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, m db.Meeting, eventType, actorID, from, to, payload string) error {
 	if payload == "" {
 		payload = "{}"
 	}
 	return q.InsertAuditLog(ctx, db.InsertAuditLogParams{
-		ID: util.NewID(), MeetingID: meetingID, EventType: eventType,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, EventType: eventType,
 		ActorType: "USER", ActorID: actorID,
 		FromState: strText(from), ToState: strText(to), Payload: payload,
 	})
@@ -218,7 +220,7 @@ func (s *MeetingService) addHostParticipant(ctx context.Context, q *db.Queries, 
 		return db.MeetingParticipant{}, err
 	}
 	p, err := q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser,
 		UserID: strText(userID), DisplayNameSnapshot: u.DisplayName,
 		EmailSnapshot: strText(u.Email), Role: RoleModerator, SourceType: GrantCreator, AddedBy: userID,
 	})
@@ -226,7 +228,7 @@ func (s *MeetingService) addHostParticipant(ctx context.Context, q *db.Queries, 
 		return db.MeetingParticipant{}, err
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID,
 		SourceType: GrantCreator, GrantedBy: userID,
 	})
 	return p, err
@@ -248,7 +250,8 @@ func (s *MeetingService) Create(ctx context.Context, userID, workspaceID string,
 }
 
 func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceID string, in CreateMeetingInput) (db.Meeting, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
 		return db.Meeting{}, err
 	}
 	if strings.TrimSpace(in.Title) == "" {
@@ -265,6 +268,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if in.AllowJoinRequest != nil {
 		allow = *in.AllowJoinRequest
 	}
+	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, in.ProjectID); err != nil {
+		return db.Meeting{}, err
+	}
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -273,7 +279,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
-		ID: id, WorkspaceID: workspaceID,
+		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID,
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: in.EndsAt, Valid: true},
@@ -296,7 +302,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 			return db.Meeting{}, err
 		}
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
 		return db.Meeting{}, err
 	}
 	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil,
@@ -339,14 +345,15 @@ func (s *MeetingService) Delete(ctx context.Context, userID, meetingID string) e
 }
 
 func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body string) (db.MeetingNote, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	m, _, err := s.authorize(ctx, userID, meetingID)
+	if err != nil {
 		return db.MeetingNote{}, err
 	}
 	if strings.TrimSpace(body) == "" {
 		return db.MeetingNote{}, Invalid("nội dung không được để trống")
 	}
 	return s.q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
-		ID: util.NewID(), MeetingID: meetingID, AuthorID: userID, Body: body,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, AuthorID: userID, Body: body,
 	})
 }
 

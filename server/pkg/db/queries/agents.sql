@@ -4,12 +4,14 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetAgent :one
+-- tenant: by-id
 SELECT * FROM agents WHERE id = $1;
 
 -- name: GetAgentStatusInOrg :one
 SELECT status, archived_at FROM agents WHERE organization_id = $1 AND id = $2;
 
 -- name: GetAgentsByIDs :many
+-- tenant: by-id
 SELECT id, name, avatar_url, status FROM agents WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListAgentsInOrg :many
@@ -19,6 +21,7 @@ SELECT * FROM agents WHERE organization_id = $1 AND archived_at IS NULL ORDER BY
 SELECT * FROM agents WHERE organization_id = $1 AND status = 'active' AND archived_at IS NULL ORDER BY created_at;
 
 -- name: UpdateAgent :one
+-- tenant: by-id
 UPDATE agents SET
   name        = COALESCE(sqlc.narg('name'), name),
   description = COALESCE(sqlc.narg('description'), description),

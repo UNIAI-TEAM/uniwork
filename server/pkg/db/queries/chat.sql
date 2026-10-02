@@ -5,6 +5,7 @@ WHERE workspace_id = $1 AND is_default = true AND archived_at IS NULL
 LIMIT 1;
 
 -- name: GetChatRoomByID :one
+-- tenant: by-id
 SELECT * FROM chat_rooms WHERE id = $1;
 
 -- name: CreateChatRoom :one
@@ -17,22 +18,25 @@ INSERT INTO chat_rooms (
 ) RETURNING *;
 
 -- name: GetActiveChatRoomMember :one
+-- tenant: parent room_id
 SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1;
 
 -- name: InsertChatRoomMember :one
 INSERT INTO chat_room_members (
-  id, room_id, workspace_id, user_id, role, status, joined_at, created_at, updated_at
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, now(), now(), now()
+  $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
 ) RETURNING *;
 
 -- name: ListChatRoomMemberUserIDs :many
+-- tenant: parent room_id
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active');
 
 -- name: UpdateChatRoomMemberLastRead :exec
+-- tenant: parent room_id
 UPDATE chat_room_members
 SET last_read_at = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
@@ -66,60 +70,68 @@ LIMIT sqlc.arg(msg_limit);
 
 -- name: CreateChatPollMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6
+  $1, $2, $3, $4, 'poll', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatReminderMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6
+  $1, $2, $3, $4, 'reminder', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatNoteMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6
+  $1, $2, $3, $4, 'note', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatPostMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6
+  $1, $2, $3, $4, 'post', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id)
+  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: CreateChatVoiceMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(file_id)
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(file_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id), sqlc.narg(file_id)
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id), sqlc.narg(file_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: ListChatMessageFileRefs :many
+-- tenant: system
 SELECT DISTINCT file_id
 FROM chat_messages
 WHERE file_id = ANY($1::text[])
   AND deleted_at IS NULL;
 
 -- name: GetChatMessageByClientMsgID :one
+-- tenant: parent room_id
 SELECT * FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
@@ -128,9 +140,9 @@ WHERE room_id = $1
 
 -- name: CreateChatVoiceCallLog :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'voice_call_log', '', $5
+  $1, $2, $3, $4, 'voice_call_log', '', $5, $6
 ) RETURNING *;
 
 -- name: GetChatMessageInRoom :one
@@ -234,6 +246,7 @@ WHERE r.organization_id = sqlc.arg(organization_id)
 ORDER BY COALESCE(last_msg.created_at, r.updated_at) DESC;
 
 -- name: ListChatRoomMembers :many
+-- tenant: parent room_id
 SELECT
   m.user_id,
   m.role,
@@ -246,30 +259,37 @@ WHERE m.room_id = $1 AND m.status IN ('invited', 'active')
 ORDER BY m.created_at, m.user_id;
 
 -- name: UpdateChatRoomMemberSendRestricted :exec
+-- tenant: parent room_id
 UPDATE chat_room_members
 SET send_restricted = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: UpdateChatRoomMemberRole :exec
+-- tenant: parent room_id
 UPDATE chat_room_members
 SET role = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: LeaveChatRoomMember :exec
+-- tenant: parent room_id
 UPDATE chat_room_members
 SET status = 'left', left_at = now(), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: TouchChatRoomUpdatedAt :exec
+-- tenant: by-id
 UPDATE chat_rooms SET updated_at = now() WHERE id = $1;
 
 -- name: UpdateChatRoomName :exec
+-- tenant: by-id
 UPDATE chat_rooms SET name = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateChatRoomMemberPermissions :exec
+-- tenant: by-id
 UPDATE chat_rooms SET member_permissions = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateChatChannel :one
+-- tenant: by-id
 UPDATE chat_rooms
 SET
   name = COALESCE(sqlc.narg(name), name),
@@ -287,12 +307,14 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: ArchiveChatChannel :one
+-- tenant: by-id
 UPDATE chat_rooms
 SET archived_at = now(), archived_by = $2, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND is_default = false AND archived_at IS NULL
 RETURNING *;
 
 -- name: UnarchiveChatChannel :one
+-- tenant: by-id
 UPDATE chat_rooms
 SET archived_at = NULL, archived_by = NULL, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
@@ -430,6 +452,7 @@ WHERE r.workspace_id = sqlc.arg(workspace_id)
 ORDER BY r.name ASC;
 
 -- name: ReactivateChatRoomMember :exec
+-- tenant: parent room_id
 UPDATE chat_room_members
 SET status = 'active', joined_at = now(), left_at = NULL, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status = 'left';
@@ -531,6 +554,7 @@ ORDER BY m.created_at DESC
 LIMIT sqlc.arg(msg_limit);
 
 -- name: GetChatMessageByID :one
+-- tenant: by-id
 SELECT * FROM chat_messages
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -576,6 +600,7 @@ WHERE id = sqlc.arg(thread_root_id)
 RETURNING *;
 
 -- name: UpsertChatThreadFollower :exec
+-- tenant: parent thread_root_id
 INSERT INTO chat_thread_followers (
   id, organization_id, workspace_id, room_id, thread_root_id, user_id, reason, muted, last_read_at
 ) VALUES (
@@ -597,25 +622,30 @@ ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
   last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at);
 
 -- name: MuteChatThreadFollower :exec
+-- tenant: parent thread_root_id
 UPDATE chat_thread_followers
 SET muted = true, updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: UnmuteChatThreadFollower :exec
+-- tenant: parent thread_root_id
 UPDATE chat_thread_followers
 SET muted = false, updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: MarkChatThreadRead :exec
+-- tenant: parent thread_root_id
 UPDATE chat_thread_followers
 SET last_read_at = sqlc.arg(last_read_at), updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: GetChatThreadFollower :one
+-- tenant: parent thread_root_id
 SELECT * FROM chat_thread_followers
 WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: ListChatThreadFollowerUserIDs :many
+-- tenant: parent thread_root_id
 SELECT user_id FROM chat_thread_followers
 WHERE thread_root_id = $1 AND muted = false;
 
