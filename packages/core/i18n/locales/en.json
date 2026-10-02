@@ -181,6 +181,12 @@
       "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
       "suspended": "This organization is currently suspended.",
       "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
+      "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
+      "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",
+      "switchAccount": "Use another account",
+      "unverified": "Verify your email before accepting the invitation.",
+      "unverifiedHint": "Enter the code we sent to your email. Once you're verified, the invitation is waiting in your invitations list.",
+      "verifyEmail": "Verify email",
       "failed": "We couldn't process this invitation.",
       "hint": "Each invitation works once. Ask whoever invited you to send a new link.",
       "goToWorkspaces": "See my workspaces"

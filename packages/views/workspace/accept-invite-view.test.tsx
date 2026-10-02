@@ -62,4 +62,25 @@ describe("AcceptInviteView", () => {
     expect(await screen.findByText("Chúng tôi chưa xử lý được lời mời này.")).toBeInTheDocument();
     expect(screen.queryByText("internal explosion")).not.toBeInTheDocument();
   });
+
+  /**
+   * Link mời bị chuyển tiếp rồi mở bằng tài khoản khác: server từ chối. Màn hình
+   * nói rõ phải đăng nhập bằng email nhận lời mời và cho đổi tài khoản ngay.
+   */
+  it("explains a wrong-account invite and offers to switch account", async () => {
+    signIn();
+    requestMock.mockRejectedValueOnce(new ApiError("lời mời này gửi tới một email khác", "invitation_email_mismatch", 403));
+    render(wrapWithNav(<AcceptInviteView token="t1" onAccepted={() => {}} onAnon={() => {}} />));
+    expect(await screen.findByText("Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Đăng nhập bằng email đã nhận lời mời rồi mở lại link.");
+    expect(screen.getByRole("button", { name: "Dùng tài khoản khác" })).toBeInTheDocument();
+  });
+
+  it("sends an unverified account to verify its email first", async () => {
+    signIn();
+    requestMock.mockRejectedValueOnce(new ApiError("email address not verified", "email_unverified", 403));
+    render(wrapWithNav(<AcceptInviteView token="t1" onAccepted={() => {}} onAnon={() => {}} />));
+    expect(await screen.findByText("Bạn cần xác minh email trước khi nhận lời mời.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Xác minh email" })).toHaveAttribute("href", "/verify");
+  });
 });
