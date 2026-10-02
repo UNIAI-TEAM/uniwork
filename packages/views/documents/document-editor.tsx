@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { JSONContent } from "@tiptap/core";
+import { createDocument, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -111,6 +111,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const onPendingUploadsChangeRef = useRef(onPendingUploadsChange);
     const uploaderRef = useRef<DocumentAssetUploader | undefined>(undefined);
     const dirtyRef = useRef(dirty);
+    const pendingUploadsRef = useRef(0);
     const adoptedRevisionRef = useRef(contentRevision);
     const [pendingUploads, setPendingUploads] = useState(0);
 
@@ -123,6 +124,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     dirtyRef.current = dirty;
 
     const handlePendingChange = useCallback((pending: number) => {
+      pendingUploadsRef.current = pending;
       setPendingUploads(pending);
       onPendingUploadsChangeRef.current?.(pending);
     }, []);
@@ -209,13 +211,15 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     }, [editor, editable]);
 
     // Adopt server content only while clean. `contentRevision` is the signal:
-    // a refetch that carries the revision the editor already shows is a no-op,
-    // and a frame that lands mid-edit is ignored outright.
+    // a refetch that carries the revision the editor already shows is a no-op.
+    // Upload placeholders are local work even after their sanitized body ACK.
+    // Equivalent server bodies must preserve the live selection and history.
     useEffect(() => {
       if (!editor || editor.isDestroyed) return;
-      if (dirtyRef.current) return;
+      if (dirtyRef.current || pendingUploadsRef.current > 0) return;
       if (contentRevision === adoptedRevisionRef.current) return;
-      editor.commands.setContent(content as JSONContent, { emitUpdate: false });
+      const next = createDocument(content as JSONContent, editor.schema);
+      if (!editor.state.doc.eq(next)) editor.commands.setContent(next, { emitUpdate: false });
       adoptedRevisionRef.current = contentRevision;
     }, [content, contentRevision, editor]);
 
