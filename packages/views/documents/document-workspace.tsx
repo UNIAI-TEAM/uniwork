@@ -428,7 +428,7 @@ export function DocumentWorkspace({
   const recoveryNotice = doc.kind === "page" && canEdit && (
     pendingUploads > 0 || indicatorState.phase === "error" || indicatorState.phase === "unverifiable" || indicatorState.phase === "conflict"
   );
-  const recoveryNoticeLive = indicatorState.phase === "conflict" || indicatorState.phase === "error" || indicatorState.phase === "unverifiable"
+  const recoveryNoticeLive = indicatorState.phase === "error" || indicatorState.phase === "unverifiable"
     ? "assertive" as const
     : "polite" as const;
   const saveIndicator = (
