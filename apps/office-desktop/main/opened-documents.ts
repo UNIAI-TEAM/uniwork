@@ -7,6 +7,7 @@ export interface OpenedDocument {
   readonly identity: DraftIdentity;
   lastConfirmedSaveAt: number;
   pendingCheckpoints: number;
+  pendingSaves: number;
   checkpointFailed: boolean;
   checkpointVersion: number;
   savedCheckpointVersion: number;
@@ -39,6 +40,7 @@ export function createOpenedDocuments(options: {
     synchronize();
     return documents.get(documentId);
   };
+  const opened = (documentId: string, kind: OpenedDocument["kind"], identity: DraftIdentity, session: DraftSession): OpenedDocument => ({ documentId, kind, identity, session, lastConfirmedSaveAt: 0, pendingCheckpoints: 0, pendingSaves: 0, checkpointFailed: false, checkpointVersion: 0, savedCheckpointVersion: 0 });
   return {
     clear,
     context,
@@ -49,7 +51,18 @@ export function createOpenedDocuments(options: {
       if (!sameDocumentSession(live, session) || identity.accountId !== live.accountId || identity.deploymentId !== live.deploymentId) return false;
       if (documents.has(documentId)) return true;
       if (documents.size >= 8) return false;
-      documents.set(documentId, { documentId, kind, identity, session: live, lastConfirmedSaveAt: 0, pendingCheckpoints: 0, checkpointFailed: false, checkpointVersion: 0, savedCheckpointVersion: 0 });
+      documents.set(documentId, opened(documentId, kind, identity, live));
+      return true;
+    },
+    /** Save As replaces an existing local slot, including at the eight-tab cap. */
+    rebindLocal(previousId: string, documentId: string, identity: DraftIdentity): boolean {
+      const previous = context(previousId);
+      const live = synchronize();
+      if (!previous || previous.kind !== "local" || previous.pendingSaves > 0 || documents.has(documentId) || identity.accountId !== live.accountId || identity.deploymentId !== live.deploymentId) return false;
+      documents.delete(previousId);
+      documents.set(documentId, opened(documentId, "local", identity, live));
+      if (active === previousId) active = documentId;
+      options.onClosed?.(previousId);
       return true;
     },
     update(request: { readonly documentIds: readonly string[]; readonly activeDocumentId: string | null }): boolean {
@@ -57,6 +70,7 @@ export function createOpenedDocuments(options: {
       const ids = new Set(request.documentIds);
       if (ids.size > 8 || ids.size !== request.documentIds.length || (request.activeDocumentId !== null && !ids.has(request.activeDocumentId))) return false;
       if (request.documentIds.some((id) => !documents.has(id))) return false;
+      if ([...documents.values()].some((document) => !ids.has(document.documentId) && document.pendingSaves > 0)) return false;
       for (const id of documents.keys()) if (!ids.has(id)) { documents.delete(id); options.onClosed?.(id); }
       active = request.activeDocumentId ?? undefined;
       return true;
@@ -65,11 +79,16 @@ export function createOpenedDocuments(options: {
       const document = context(documentId);
       if (document) { document.lastConfirmedSaveAt = Date.now(); document.savedCheckpointVersion = document.checkpointVersion; document.checkpointFailed = false; }
     },
-    beginSave(documentId: string): () => void {
+    beginSave(documentId: string): (confirmed?: boolean) => void {
       const document = context(documentId);
       const version = document?.checkpointVersion ?? 0;
-      return () => {
-        if (!document || context(documentId) !== document) return;
+      if (document) document.pendingSaves += 1;
+      let finished = false;
+      return (confirmed = true) => {
+        if (!document || finished) return;
+        finished = true;
+        document.pendingSaves -= 1;
+        if (!confirmed || context(documentId) !== document) return;
         document.lastConfirmedSaveAt = Date.now();
         document.savedCheckpointVersion = version;
         if (document.checkpointVersion === version) document.checkpointFailed = false;

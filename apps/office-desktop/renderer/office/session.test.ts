@@ -46,7 +46,7 @@ const draft = { draftId: "doc:v2:2", identity: { deploymentId: "lane", accountId
 
 function bridgeWith(handler: (channel: string, payload: unknown) => Promise<unknown>) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
-  return { calls, bridge: { call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as never } };
+  return { calls, bridge: { call: async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); } } };
 }
 
 it("keeps a draft through the typed checkpoint and raises the generation floor", async () => {
@@ -128,4 +128,24 @@ it("skips the cloud checkpoint for a local file and only keeps against a durable
   const bare = createByteDocumentSession(empty.bridge, localIdentity, { ...opened, localHandle: handle });
   bare.coordinator.markDirty(1);
   await expect(bare.keepDraft()).resolves.toBe(false);
+});
+
+it("FE-R1-03 accepts Keep once the editor-owned local checkpoint seam supplies a durable row", async () => {
+  // UNI-835 / G4-06b 526c3f44 owns the edit-to-checkpoint call. This test pins
+  // the tab session seam; actual editor creation of that row awaits root merge.
+  const handle = `file_${"q".repeat(40)}`;
+  const localIdentity = { ...identity, documentId: handle, baseRevision: "10", baseVersionId: checksum };
+  const row = { draftId: `${handle}:10`, identity: { deploymentId: "lane", accountId: "account", organizationId: "local", workspaceId: "local", documentId: handle, base: { revision: "10", version: checksum } }, generation: 1, checksum, byteLength: 5, updatedAt: 3 };
+  let stored = false;
+  const { bridge, calls } = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-checkpoint") { stored = true; return { stored: true, generation: 1 }; }
+    if (channel === "desktop:draft-list") return { drafts: stored ? [row] : [] };
+    return {};
+  });
+  const session = createByteDocumentSession(bridge, localIdentity, { ...opened, localHandle: handle });
+  session.coordinator.markDirty(1);
+  await expect(session.keepDraft()).resolves.toBe(false);
+  await bridge.call("desktop:draft-checkpoint", { sessionGeneration: "desktop-dev-session", documentId: handle, draftId: row.draftId, generation: 1, dataBase64: opened.dataBase64 });
+  await expect(session.keepDraft()).resolves.toBe(true);
+  expect(calls.filter((call) => call.channel === "desktop:draft-checkpoint")).toHaveLength(1);
 });

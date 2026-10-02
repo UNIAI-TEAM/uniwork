@@ -16,7 +16,7 @@ vi.mock("./office/session", async (importOriginal) => {
 });
 beforeEach(() => sessions.clear());
 
-function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void> } = {}) {
+function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = `sha256:${"a".repeat(64)}`;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
@@ -35,6 +35,7 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:draft-checkpoint") return { stored: true, generation: request.generation };
     if (channel === "desktop:draft-discard") return { discarded: true };
     if (channel === "desktop:office-save") {
+      await options.beforeSave?.();
       if (options.failSave) throw new Error("save refused");
       return { documentId: request.documentId, intentId: request.intentId, idempotencyKey: request.idempotencyKey, versionId: "2", revision: "2", checksum };
     }
@@ -151,6 +152,49 @@ it("saves all dirty documents from one window leave dialog", async () => {
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.save") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-test", choice: "save", proceeded: true })));
   expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-save").map(([, request]) => (request as { documentId: string }).documentId)).toEqual(["doc-0", "doc-1"]);
+});
+
+it("answers a host leave immediately with Stay while retaining the existing dirty-tab dialog", async () => {
+  const h = harness();
+  await open(0); await edit("doc-0");
+  fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+  const dialog = await screen.findByRole("dialog");
+  h.leave();
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-test", choice: "stay", proceeded: false })));
+  expect(screen.getByRole("dialog")).toBe(dialog);
+  expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
+  fireEvent.click(within(dialog).getAllByRole("button", { name: i18n.t("office.leave.stay") }).at(-1)!);
+  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:leave-resolved")).toHaveLength(1);
+});
+
+it("answers a clean host close with Keep without discarding retained drafts", async () => {
+  const h = harness();
+  await open(0);
+  h.leave();
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ choice: "keep", proceeded: true })));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:draft-discard")).toHaveLength(0);
+});
+
+it("retains a saving tab and its session when its close shortcut is pressed", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const h = harness({ beforeSave: () => gate });
+  await open(0); await edit("doc-0");
+  const dispose = vi.spyOn(sessions.get("doc-0")!, "dispose");
+  fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+  await waitFor(() => expect(h.call.mock.calls.some(([channel]) => channel === "desktop:office-save")).toBe(true));
+  fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const closeButton = screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.close", { name: "Plan0.docx" }) });
+  expect(closeButton).toHaveAttribute("aria-disabled", "true");
+  fireEvent.click(closeButton);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(dispose).not.toHaveBeenCalled();
+  await act(async () => { release(); await gate; });
+  await waitFor(() => expect(closeButton).toHaveAttribute("aria-disabled", "false"));
+  fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+  await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
 });
 
 it("limits documents to eight and supports cycling and numeric shortcuts", async () => {

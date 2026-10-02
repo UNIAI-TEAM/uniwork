@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { DesktopTabStrip, type DesktopTabSummary } from "./tab-strip";
 
 export interface SignedInShellProps {

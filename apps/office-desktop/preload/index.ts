@@ -25,9 +25,9 @@ export type DesktopRendererBridge = {
 };
 
 export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRendererBridge {
-  let pendingFile: { handle: string } | undefined;
+  const pendingFiles: { handle: string }[] = [];
   let fileListener: ((event: { handle: string }) => void) | undefined;
-  let pendingLaunch: LaunchRequestedEvent | undefined;
+  const pendingLaunches: LaunchRequestedEvent[] = [];
   let launchListener: ((event: LaunchRequestedEvent) => void) | undefined;
   let pendingLeave: LeaveRequestedEvent | undefined;
   let leaveListener: ((event: LeaveRequestedEvent) => void) | undefined;
@@ -40,12 +40,12 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
   ipcRenderer.on?.("desktop:file-open-requested", (...args: unknown[]) => {
     const parsed = fileOpenRequestedSchema.safeParse(args.at(-1));
     if (!parsed.success) return;
-    if (fileListener) fileListener(parsed.data); else pendingFile = parsed.data;
+    if (fileListener) fileListener(parsed.data); else pendingFiles.push(parsed.data);
   });
   ipcRenderer.on?.("desktop:launch-requested", (...args: unknown[]) => {
     const parsed = launchRequestedEventSchema.safeParse(args.at(-1));
     if (!parsed.success) return;
-    if (launchListener) launchListener(parsed.data); else pendingLaunch = parsed.data;
+    if (launchListener) launchListener(parsed.data); else pendingLaunches.push(parsed.data);
   });
   return {
     openDroppedFile(file) {
@@ -57,7 +57,7 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     },
     onFileOpenRequested(listener) {
       fileListener = listener;
-      if (pendingFile) { const event = pendingFile; pendingFile = undefined; listener(event); }
+      for (const event of pendingFiles.splice(0)) listener(event);
       return () => { if (fileListener === listener) fileListener = undefined; };
     },
     channels: DESKTOP_IPC_CHANNELS,
@@ -67,7 +67,7 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     },
     onLaunchRequested(listener) {
       launchListener = listener;
-      if (pendingLaunch) { const event = pendingLaunch; pendingLaunch = undefined; listener(event); }
+      for (const event of pendingLaunches.splice(0)) listener(event);
       return () => { if (launchListener === listener) launchListener = undefined; };
     },
     onSessionChanged(listener) {

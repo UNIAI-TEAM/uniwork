@@ -57,4 +57,30 @@ describe("main-owned open documents", () => {
     docs.clear();
     expect(docs.all()).toEqual([]);
   });
+
+  it("pins only the saving document, releases once on failure and never confirms a failed write", () => {
+    const closed: string[] = [];
+    const docs = createOpenedDocuments({ session: () => session, onClosed: (id) => closed.push(id) });
+    docs.open("a", "local", identity("a")); docs.open("b", "cloud", identity("b"));
+    const finish = docs.beginSave("a");
+    expect(docs.update({ documentIds: ["b"], activeDocumentId: "b" })).toBe(false);
+    expect(closed).toEqual([]);
+    expect(docs.update({ documentIds: ["a"], activeDocumentId: "a" })).toBe(true);
+    finish(false); finish();
+    expect(docs.context("a")).toMatchObject({ pendingSaves: 0, lastConfirmedSaveAt: 0 });
+    expect(docs.update({ documentIds: [], activeDocumentId: null })).toBe(true);
+  });
+
+  it("refuses a rebind of an unknown, cloud, busy or different-account context", () => {
+    const docs = createOpenedDocuments({ session: () => session });
+    docs.open("cloud", "cloud", identity("cloud"));
+    docs.open("local", "local", identity("local"));
+    expect(docs.rebindLocal("unknown", "new", identity("new"))).toBe(false);
+    expect(docs.rebindLocal("cloud", "new", identity("new"))).toBe(false);
+    const finish = docs.beginSave("local");
+    expect(docs.rebindLocal("local", "new", identity("new"))).toBe(false);
+    finish(false);
+    expect(docs.rebindLocal("local", "new", { ...identity("new"), accountId: "other" })).toBe(false);
+    expect(docs.all()).toHaveLength(2);
+  });
 });

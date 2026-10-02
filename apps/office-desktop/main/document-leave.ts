@@ -21,6 +21,7 @@ export function createDocumentLeaveEvidence(options: {
         const rows = await options.store.list({ session: document.session, lookup });
         if (options.documents.context(document.documentId) !== document || document.pendingCheckpoints > 0 || (document.checkpointFailed && choice !== "discard")) return false;
         if (choice === "discard" && rows.length !== 0) return false;
+        if (choice === "keep" && rows.length === 0 && document.checkpointVersion > document.savedCheckpointVersion) return false;
         if (choice === "save" && rows.length > 0 && document.savedCheckpointVersion < document.checkpointVersion) return false;
         if (choice === "save" && !isLeaveSaveConfirmed({ draftRows: rows.length, saveBusy: options.saveBusy(), lastConfirmedSaveAt: document.lastConfirmedSaveAt, issuedAt })) return false;
       }

@@ -176,3 +176,14 @@ it("a global leave snapshot cannot omit a tab removed while the dialog was open"
   await expect(evidence.confirmDiscard()).resolves.toBe(false);
   await expect(evidence.confirmSave(Date.now())).resolves.toBe(false);
 });
+
+it("requires an unsaved checkpoint row for Keep while allowing a clean or confirmed-saved document", async () => {
+  const h = await harness();
+  const evidence = createDocumentLeaveEvidence({ documents: h.documents, store: h.store, saveBusy: () => false });
+  await expect(evidence.confirmKeep()).resolves.toBe(true);
+  await h.checkpoint("a", "YQ==");
+  vi.spyOn(h.store, "list").mockResolvedValue([]);
+  await expect(evidence.confirmKeep()).resolves.toBe(false);
+  h.documents.beginSave("a")();
+  await expect(evidence.confirmKeep()).resolves.toBe(true);
+});

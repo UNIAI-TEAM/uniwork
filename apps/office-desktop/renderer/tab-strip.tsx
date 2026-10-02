@@ -101,7 +101,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
                 <DocumentTypeIcon format={tab.format} className="size-4 shrink-0" /><span className="truncate">{tab.title}</span>
               </button>
               {state(tab) ? <span id={`desktop-tab-state-${tab.id}`} role="img" aria-label={state(tab)} className={`desktop-tab-state ${tab.saving ? "desktop-tab-saving" : ""}`} /> : null}
-              <button type="button" className="desktop-tab-close" aria-label={t("close", { name: tab.title })} title={t("close", { name: tab.title })} onClick={() => onClose(tab.id)}><ChromeIcon kind="close" /></button>
+              <button type="button" className="desktop-tab-close" aria-label={t("close", { name: tab.title })} title={t("close", { name: tab.title })} aria-disabled={tab.saving} onClick={() => { if (!tab.saving) onClose(tab.id); }}><ChromeIcon kind="close" /></button>
             </div>
           ))}
         </div>

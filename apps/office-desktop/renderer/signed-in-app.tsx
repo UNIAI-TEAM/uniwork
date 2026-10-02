@@ -130,10 +130,18 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
   };
   const switchWorkspace = () => { ++lifetime.current; tabs.reset(); setScope(null); setPendingOpens([]); };
   const requestLeave = (request: PendingLeave) => {
-    if (leaveRef.current) return;
-    const dirty = tabs.current.current.tabs.some((tab) => request.ids.includes(tab.id) && isDocumentDirty(tab.data.session));
+    if (leaveRef.current) {
+      if (request.host) void sendHostAnswer(request.host, "stay", false);
+      return;
+    }
+    const affected = tabs.current.current.tabs.filter((tab) => request.ids.includes(tab.id));
+    if (affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")) {
+      if (request.host) void sendHostAnswer(request.host, "stay", false);
+      return;
+    }
+    const dirty = affected.some((tab) => isDocumentDirty(tab.data.session));
     if (!dirty) {
-      if (request.host) void sendHostAnswer(request.host, "discard", true);
+      if (request.host) void sendHostAnswer(request.host, "keep", true);
       else if (request.switchWorkspace) switchWorkspace();
       else request.ids.forEach(tabs.close);
       return;

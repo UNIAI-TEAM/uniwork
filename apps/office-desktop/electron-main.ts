@@ -211,7 +211,7 @@ async function startElectronHost(): Promise<void> {
   };
   /** After a confirmed write the pre-write checkpoint is obsolete: consume it so
    * an identical-bytes draft never becomes a stale conflict on the next open. */
-  const consumeLocalCheckpoint = (metadata: OpenFileMetadata) => {
+  const consumeLocalCheckpoint = (metadata: Pick<OpenFileMetadata, "handle">) => {
     const ref = pendingLocalCheckpoints.get(metadata.handle);
     if (!ref) return;
     pendingLocalCheckpoints.delete(metadata.handle);
@@ -296,10 +296,15 @@ async function startElectronHost(): Promise<void> {
     } catch { return "none"; }
   };
   const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => {
-    // Save As introduces a new opaque handle. A normal Save keeps the existing
-    // draft base until its matching durable row is consumed by the renderer.
+    // A normal Save keeps the existing draft base until its matching durable
+    // row is consumed by the renderer.
     if (!documents.context(metadata.handle)) setLocalDocument(metadata);
     consumeLocalCheckpoint(metadata);
+  };
+  const noteConfirmedLocalRebind = (previousHandle: string, metadata: OpenFileMetadata) => {
+    consumeLocalCheckpoint({ handle: previousHandle });
+    if (!documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
+    documents.noteConfirmedSave(metadata.handle);
   };
   const leaveEvidence = createDocumentLeaveEvidence({ documents, store: draftStore, saveBusy: () => saveGuard.busy });
   const leave = createDesktopLeaveCoordinator({
@@ -341,7 +346,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    localFiles: { registry: fileRegistry, saveGuard, session: draftScope, beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave,
+    localFiles: { registry: fileRegistry, saveGuard, session: draftScope, beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];

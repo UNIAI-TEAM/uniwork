@@ -69,3 +69,30 @@ it("buffers a leave request that arrives before the renderer subscribes", () => 
   expect(received).toHaveLength(1);
   expect(JSON.stringify(received)).not.toContain("secret");
 });
+
+it("delivers every buffered native file and launch in channel order after subscription", () => {
+  const listeners = new Map<string, (...args: unknown[]) => void>();
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, listener) => { listeners.set(channel, listener); } });
+  const file = (handle: string) => listeners.get("desktop:file-open-requested")?.({}, { handle });
+  const launch = (documentId: string, version: number) => listeners.get("desktop:launch-requested")?.({}, { documentId, operation: "view", version });
+  const handles = ["a", "b", "c"].map((letter) => `file_${letter.repeat(40)}`);
+  handles.forEach(file);
+  launch("a", 7); launch("b", 8);
+  const files: string[] = [];
+  const launches: unknown[] = [];
+  const offFile = bridge.onFileOpenRequested((event) => files.push(event.handle));
+  const offLaunch = bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toEqual(handles);
+  expect(launches).toEqual([{ documentId: "a", operation: "view", version: 7 }, { documentId: "b", operation: "view", version: 8 }]);
+  offFile(); offLaunch();
+  file(handles[0]!); file(handles[1]!);
+  launch("c", 9); launch("d", 10);
+  bridge.onFileOpenRequested((event) => files.push(event.handle));
+  bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toEqual([...handles, handles[0], handles[1]]);
+  expect(launches.slice(2)).toEqual([{ documentId: "c", operation: "view", version: 9 }, { documentId: "d", operation: "view", version: 10 }]);
+  bridge.onFileOpenRequested((event) => files.push(event.handle));
+  bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toHaveLength(5);
+  expect(launches).toHaveLength(4);
+});

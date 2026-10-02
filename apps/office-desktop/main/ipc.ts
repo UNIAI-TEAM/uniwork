@@ -38,7 +38,7 @@ export interface OfficeIpcOptions {
   readonly saveGuard?: OfficeSaveGuard;
   /** Main-observed receipt for the leave decision's save choice. */
   readonly onSaveConfirmed?: (documentId: string) => void;
-  readonly beginSave?: (documentId: string) => () => void;
+  readonly beginSave?: (documentId: string) => (confirmed?: boolean) => void;
 }
 
 /** Every cloud call is selected by a fixed channel-to-operation mapping. The
@@ -103,7 +103,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
         options.onSaveConfirmed?.(response.documentId);
         return response;
       }
-      finally { release?.(); }
+      finally { confirmSave?.(false); release?.(); }
     },
   };
 }
@@ -151,7 +151,8 @@ export interface FileIpcOptions {
   readonly checkpoint?: (metadata: import("./files/registry").OpenFileMetadata, bytes: Uint8Array) => Promise<void>;
   /** Main-observed receipt for the leave decision's save choice. */
   readonly onSaveConfirmed?: (metadata: import("./files/registry").OpenFileMetadata) => void;
-  readonly beginSave?: (documentId: string) => () => void;
+  readonly onSaveAsConfirmed?: (previousHandle: string, metadata: import("./files/registry").OpenFileMetadata) => void;
+  readonly beginSave?: (documentId: string) => (confirmed?: boolean) => void;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -188,32 +189,45 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       requireOpened(request.handle);
       const session = options.session?.();
       const confirmSave = options.beginSave?.(request.handle);
-      const bytes = decodeBytes(request.dataBase64);
-      if (options.checkpoint) {
-        const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
-        await options.checkpoint(metadata, bytes);
+      try {
+        const bytes = decodeBytes(request.dataBase64);
+        if (options.checkpoint) {
+          const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
+          await options.checkpoint(metadata, bytes);
+        }
+        assertSession(session);
+        requireOpened(request.handle);
+        const metadata = await safeFile(() => options.registry.save(request.handle, bytes));
+        assertSession(session);
+        options.onSaveConfirmed?.(metadata);
+        confirmSave?.();
+        return { opened: true, metadata };
       }
-      assertSession(session);
-      requireOpened(request.handle);
-      const metadata = await safeFile(() => options.registry.save(request.handle, bytes));
-      assertSession(session);
-      confirmSave?.();
-      options.onSaveConfirmed?.(metadata);
-      return { opened: true, metadata };
+      finally { confirmSave?.(false); }
     }),
     "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");
       requireOpened(request.handle);
       const session = options.session?.();
-      const metadata = await runGuardedSave(options.saveGuard, () => safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: async () => {
-        const path = await options.pickSaveAs!();
-        assertSession(session);
-        requireOpened(request.handle);
-        return path;
-      } })));
-      assertSession(session);
-      if (metadata) options.onSaveConfirmed?.(metadata);
-      return { opened: metadata !== undefined, ...(metadata ? { metadata } : {}) };
+      return runGuardedSave(options.saveGuard, async () => {
+        const confirmSave = options.beginSave?.(request.handle);
+        try {
+          const metadata = await safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: async () => {
+            const path = await options.pickSaveAs!();
+            assertSession(session);
+            requireOpened(request.handle);
+            return path;
+          } }));
+          assertSession(session);
+          if (metadata) {
+            confirmSave?.();
+            if (options.onSaveAsConfirmed) options.onSaveAsConfirmed(request.handle, metadata);
+            else options.onSaveConfirmed?.(metadata);
+          }
+          return { opened: metadata !== undefined, ...(metadata ? { metadata } : {}) };
+        }
+        finally { confirmSave?.(false); }
+      });
     },
   };
 }
