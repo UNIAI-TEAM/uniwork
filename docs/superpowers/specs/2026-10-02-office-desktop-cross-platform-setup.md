@@ -103,6 +103,25 @@ Tên artifact giữ mẫu hiện tại `<artifactPrefix>_<version>_<label>_<plat
   Gatekeeper.
 - Bộ cài Ubuntu `.deb`: cài vào `/opt/<product>`, symlink `/usr/bin/<executable>`, icon theo hicolor, gỡ
   bằng `apt remove` giữ dữ liệu người dùng (như `deleteAppDataOnUninstall:false` của Windows).
+- **Chặn cài sai máy** (người dùng 2026-10-02: "nếu bấm cài đặt bản k phù hợp thì báo lỗi và k cài đặt"). Mỗi bộ cài
+  tự kiểm máy trước khi chép file; không đạt thì hiện lỗi có lý do + bản nên tải, thoát, **không để lại file nào**:
+  - Windows NSIS (`build/installer.nsh`, `.onInit`/`customInit`): yêu cầu Windows 10 trở lên và hệ 64-bit
+    (`${AtLeastWin10}`, `${RunningX64}`); Windows ARM64 chạy được bản x64 qua giả lập nên **cho cài**, ghi rõ trong
+    tài liệu. Lỗi: MessageBox "UniWork Office cần Windows 10 hoặc mới hơn, bản 64-bit. Máy này: <phiên bản>." rồi
+    `Abort`. Chế độ `/S` (silent) thoát với mã lỗi khác 0, không hiện hộp thoại.
+  - Bản ZIP portable Windows và mọi bản: app tự kiểm lúc khởi động (main process, trước khi tạo cửa sổ) cùng điều kiện
+    tối thiểu; không đạt thì `dialog.showErrorBox` rồi thoát, không ghi dữ liệu.
+  - macOS `.dmg`: không có script cài. Đặt `LSMinimumSystemVersion` (theo mức tối thiểu của Electron đang pin) và
+    `LSArchitecturePriority`/binary đúng một kiến trúc, để macOS tự từ chối mở với thông báo hệ thống trên máy cũ hoặc
+    sai chip; app kiểm thêm lúc khởi động như trên. Kiểm thật: blocked tới khi có máy Mac.
+  - Ubuntu `.deb`: `Architecture: amd64` (dpkg tự từ chối máy khác kiến trúc); `Depends` đúng thư viện tối thiểu;
+    `preinst` đọc `/etc/os-release`, từ chối khi không phải Ubuntu/Debian hoặc Ubuntu < 22.04 với thông báo rõ ràng
+    và mã lỗi khác 0 (apt dừng, không cài). Distro khác Ubuntu/Debian mà vẫn dùng `.deb`: từ chối, gợi ý AppImage.
+  - AppImage: kernel tự từ chối khác kiến trúc; app kiểm lúc khởi động (glibc, có `libfuse2` thì AppImage mới chạy -
+    thông báo hướng dẫn khi thiếu).
+  - Bộ cài/ app chạy trên hệ điều hành khác hẳn (`.exe` trên macOS/Linux, `.dmg` trên Windows, `.deb` trên Windows)
+    thì hệ điều hành đã từ chối mở; không cần code thêm, ghi vào tài liệu.
+  - Chữ lỗi của bộ cài: tiếng Anh + tiếng Việt cùng hộp (NSIS không có i18next); chữ trong app qua i18n desktop.
 - Release inventory, licence inventory và build metadata chạy cho mọi nền tảng (`generateReleaseInventory`).
 - Tài liệu: `docs/office/g3g4/` thêm mục cài đặt macOS/Ubuntu (dev chưa ký), kèm giới hạn.
 
@@ -120,6 +139,10 @@ Linux arm64. Distro khác Ubuntu chỉ ghi "chưa kiểm".
 - B-3: macOS: không có máy Mac trong môi trường này. Lane giao config + script + test; build `.dmg` và kiểm
   cài thật ghi **blocked: cần máy macOS** (plan §8.3: không thay bằng giả lập). Advisor sẽ hỏi người dùng
   về máy/runner Mac.
+- B-2b: Chặn cài sai máy: test cho mỗi kiểm tra (NSIS macro qua build thật + chạy trên Windows hiện có với điều kiện
+  giả lập bằng tham số test riêng chỉ có ở bản dev, hoặc kiểm bằng log `makensis`; `preinst` chạy trong container
+  Ubuntu 20.04 → từ chối, 24.04 → cài, Debian 12 → cài, Fedora → `.deb` không áp dụng; kiểm khởi động của app với
+  điều kiện tối thiểu sai → hộp lỗi, thoát, không có dữ liệu mới trong userData). Bằng chứng: log, ảnh, mã thoát.
 - B-4: Windows không regression: `pnpm --filter @uniwork/office-desktop package` vẫn ra zip + setup.exe,
   test desktop xanh, coverage chỉ tăng.
 - B-5: lint, typecheck, knip, 500 dòng, `node --test scripts/*.test.mjs`, `node scripts/office/check-boundaries.mjs`.
@@ -241,21 +264,18 @@ mọi caller (không giữ hai đường song song trong code nội bộ).
 
 Đổi hệ điều hành: chip về bản đầu tiên của hệ điều hành đó, trạng thái tải xoá, "Sau khi tải" đóng lại.
 
-**Chọn bản khác với máy đang dùng** (người dùng hỏi 2026-10-02). Đây là việc hợp lệ, ví dụ tải giúp máy khác, nên
-**không chặn** và không thêm bước xác nhận. Chỉ nhắc khi nhận diện **chắc chắn**:
+**Chọn bản khác với máy đang dùng** (người dùng 2026-10-02: "khi tải k cần cảnh báo, nhưng có thể focus đúng vào
+bản phù hợp nhất với hđh của client. nếu bấm cài đặt bản k phù hợp thì báo lỗi và k cài đặt"):
 
-| Tình huống | Hiện gì |
-| --- | --- |
-| Khác hệ điều hành (vd. máy Windows, chọn macOS) | `Alert` (default, icon `Info`) ngay trên khối info: `mismatch_os` "Bản này dành cho macOS. Máy bạn đang dùng Windows, nên bản này chỉ cài được trên máy khác." + link `back_to_detected` "Chọn lại bản cho Windows". Nút chính đổi chữ thành `download_os_build` "Tải bản macOS" |
-| macOS: chọn Intel trên máy Apple Silicon | `mismatch_rosetta` "Bản Intel vẫn chạy trên Mac chip Apple qua Rosetta nhưng chậm hơn. Nên chọn Apple Silicon." |
-| macOS: chọn Apple Silicon trên máy Intel | `mismatch_arch` "Bản Apple Silicon không chạy được trên Mac chip Intel." + link chọn lại |
-| Linux: `.deb` ↔ AppImage | không nhắc (cả hai chạy được trên Ubuntu x64) |
-| Nhận diện không chắc (Mac không rõ chip, không hỗ trợ) | không nhắc kiến trúc; khác hệ điều hành vẫn nhắc như dòng 1 nếu hệ điều hành chắc |
-
-Hướng dẫn "Sau khi tải" theo **bản đã chọn**, không theo máy đang dùng. Dòng trạng thái sau khi tải ghi rõ hệ điều
-hành: `started_for` "Đã bắt đầu tải bản macOS: <tệp>." Nếu người dùng vẫn chạy nhầm bộ cài thì hệ điều hành tự từ
-chối (`.exe` không mở trên macOS/Linux, `.dmg` không mở trên Windows), bộ cài không cài gì sai; lane B kiểm thêm
-`.deb` báo lỗi kiến trúc rõ ràng khi không phải amd64 (`Architecture: amd64` trong control).
+- Modal **không cảnh báo, không hỏi xác nhận** khi người dùng chọn hoặc tải bản khác máy đang dùng. Nút chính luôn là
+  "Tải cho <OS đang chọn>".
+- Khi mở modal: thẻ hệ điều hành và chip của bản phù hợp nhất được **chọn sẵn**, có tag "Phù hợp", và **focus ban
+  đầu nằm trên nút "Tải cho <OS>" của bản đó** (Enter là tải đúng bản). Đổi thẻ/chip rồi quay lại vẫn thấy tag.
+- Bản phù hợp nhất theo thứ tự: đúng hệ điều hành + đúng kiến trúc → đúng hệ điều hành, kiến trúc chưa rõ (Mac:
+  Apple Silicon; Windows: `.exe`; Linux: `.deb`) → không nhận diện được: không tag, chọn bản đầu tiên.
+- Hướng dẫn "Sau khi tải" theo **bản đã chọn**.
+- Việc chặn bản không phù hợp nằm ở **bộ cài** (lane B, §4 "Chặn cài sai máy"): chạy bộ cài trên máy không đúng thì
+  báo lỗi rõ ràng và **không cài gì**.
 
 ### 6.4 Tải về
 
@@ -309,12 +329,6 @@ chối (`.exe` không mở trên macOS/Linux, `.dmg` không mở trên Windows),
 | `unsupported` | UniWork Office chưa hỗ trợ thiết bị này. Bạn vẫn có thể tải cho máy khác. | UniWork Office doesn't support this device yet. You can still download it for another computer. |
 | `started` | Đã bắt đầu tải {{file}}. | Download started: {{file}}. |
 | `retry` | Thử lại | Try again |
-| `mismatch_os` | Bản này dành cho {{os}}. Máy bạn đang dùng {{current}}, nên bản này chỉ cài được trên máy khác. | This build is for {{os}}. You're on {{current}}, so it installs only on another computer. |
-| `back_to_detected` | Chọn lại bản cho {{current}} | Switch back to {{current}} |
-| `download_os_build` | Tải bản {{os}} | Download {{os}} build |
-| `mismatch_rosetta` | Bản Intel vẫn chạy trên Mac chip Apple qua Rosetta nhưng chậm hơn. Nên chọn Apple Silicon. | The Intel build runs on Apple chips through Rosetta, but slower. Apple Silicon is recommended. |
-| `mismatch_arch` | Bản Apple Silicon không chạy được trên Mac chip Intel. | The Apple Silicon build doesn't run on Intel Macs. |
-| `started_for` | Đã bắt đầu tải bản {{os}}: {{file}}. | Download started for {{os}}: {{file}}. |
 | `copy_command` | Sao chép lệnh | Copy command |
 | `copied` | Đã sao chép | Copied |
 | `fmt.win_exe` / `fmt.win_exe_hint` | x64 · .exe / Intel / AMD | x64 · .exe / Intel / AMD |
@@ -342,5 +356,5 @@ giữ nguyên; `download_description` bỏ (thay bằng `description_download`).
 
 Visual Tester đặt ảnh cạnh mockup (mở `docs/office/g3g4/design/installer-picker-mockup.html` trong cùng trình duyệt)
 và chụp: mỗi hệ điều hành được nhận diện (Windows, macOS rõ chip, macOS không rõ chip, Linux), không hỗ trợ, kênh
-thiếu một hệ điều hành, kênh không có bản nào, chọn khác hệ điều hành, Intel trên Mac chip Apple, đang tải, lỗi, "Sau khi tải" của 6 định dạng; 1440 và 390 CSS px;
+thiếu một hệ điều hành, kênh không có bản nào, focus ban đầu đúng bản phù hợp (Windows, Mac Apple Silicon, Mac Intel, Ubuntu), đang tải, lỗi, "Sau khi tải" của 6 định dạng; 1440 và 390 CSS px;
 sáng và tối; chấm 9 tiêu chí UI (team-rules "Tester visual"). Người dùng duyệt giao diện cuối.
