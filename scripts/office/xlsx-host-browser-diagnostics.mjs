@@ -15,6 +15,8 @@ const evidence = path.join(REPO_ROOT, '.go-tmp/uni824-r5', baseline ? 'host-befo
 fs.mkdirSync(evidence, { recursive: true });
 const scratch = path.join(REPO_ROOT, '.go-tmp', `uni824-host-browser-${process.pid}`);
 fs.mkdirSync(scratch, { recursive: true });
+process.env.TMP = scratch;
+process.env.TEMP = scratch;
 const viewRequire = createRequire(path.join(REPO_ROOT, 'packages/views/package.json'));
 const { chromium } = createRequire(path.join(REPO_ROOT, 'e2e/package.json'))('@playwright/test');
 const alias = Object.fromEntries(['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'].map(spec => [spec, viewRequire.resolve(spec)]));

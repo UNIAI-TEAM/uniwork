@@ -16,6 +16,8 @@ const { chromium } = browserRequire('@playwright/test');
 const evidenceDir = process.env.XLSX_RENDERER_SMOKE_REPORT_DIR;
 const navigationBaseline = process.env.XLSX_NAVIGATION_BASELINE === '1';
 const profile = path.join(REPO_ROOT, '.go-tmp', `xlsx-smoke-profile-${process.pid}`);
+process.env.TMP = path.join(REPO_ROOT, '.go-tmp');
+process.env.TEMP = process.env.TMP;
 const models = new Map([['', { revision:1,activeTab:0,date1904:false,styles:[],dxfStyles:[],sheets:[{
   id:'sheet-1',name:'Data',rowCount:50,columnCount:10,merges:[],columnWidths:[],rowsMeta:[],hyperlinks:[],cells:{A1:{v:'hello'},B2:{v:42}},
 }] }]]);
