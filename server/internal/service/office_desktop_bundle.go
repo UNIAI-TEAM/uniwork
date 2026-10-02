@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -31,7 +32,7 @@ func (s *OfficeDesktopDownloadService) Bundle(ctx context.Context, profile Offic
 	}
 	ext := path.Ext(u.Path)
 	switch ext {
-	case ".exe", ".dmg", ".pkg", ".zip":
+	case ".exe", ".dmg", ".pkg", ".zip", ".deb", ".AppImage":
 	default:
 		return nil, coded(http.StatusServiceUnavailable, "installer_unavailable", "unsupported installer type")
 	}
@@ -52,7 +53,11 @@ func (s *OfficeDesktopDownloadService) Bundle(ctx context.Context, profile Offic
 	if err != nil {
 		return nil, err
 	}
-	bundle := &OfficeDesktopBundle{installer: file, filename: "UniWork-Office-Setup" + ext, profile: profile}
+	filename := path.Base(u.Path)
+	if filename == "." || strings.ContainsAny(filename, "\\\r\n") {
+		filename = "UniWork-Office-Setup" + ext
+	}
+	bundle := &OfficeDesktopBundle{installer: file, filename: filename, profile: profile}
 	n, err := io.Copy(file, io.LimitReader(response.Body, desktopInstallerMaxBytes+1))
 	if err != nil || n == 0 || n > desktopInstallerMaxBytes {
 		_ = bundle.Close()

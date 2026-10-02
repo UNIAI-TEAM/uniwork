@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
-import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
+import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
   type OfficeLaunchSessionResponse,
@@ -19,9 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { OfficeInstallPrompt, type OfficeInstallerURLs } from "./install-prompt";
+import { OfficeInstallPrompt } from "./install-prompt";
 
-const EMPTY_INSTALLER_URLS: OfficeInstallerURLs = Object.freeze({ dev: "", beta: "", stable: "" });
+const EMPTY_INSTALLERS: OfficeInstallerOption[] = [];
+const UNKNOWN_PLATFORM: DesktopPlatformGuess = { platform: null, confidence: "unsupported" };
 
 export interface OfficeSaveOutcome {
   accepted?: boolean;
@@ -50,9 +51,12 @@ export interface DesktopOpenActionProps {
   versionAfterSave?: (outcome: OfficeSaveOutcome) => number | null | Promise<number | null>;
   createSession?: OfficeLaunchSessionFactory;
   launch?: (url: string) => Promise<OfficeLaunchOutcome>;
-  installerURLs?: OfficeInstallerURLs;
-  loadInstallerURLs?: () => Promise<OfficeInstallerURLs>;
-  downloadInstaller?: () => Promise<void>;
+  installers?: OfficeInstallerOption[];
+  supportedPlatforms?: readonly DesktopPlatform[];
+  platformHint?: DesktopPlatformGuess;
+  loadInstallers?: () => Promise<{ installers: OfficeInstallerOption[]; supportedPlatforms?: readonly DesktopPlatform[] }>;
+  loadPlatformHint?: () => Promise<DesktopPlatformGuess>;
+  downloadInstaller?: (platform: DesktopPlatform) => Promise<void>;
   className?: string;
 }
 
@@ -85,8 +89,11 @@ export function DesktopOpenAction({
   versionAfterSave,
   createSession = createOfficeLaunchSession,
   launch,
-  installerURLs = EMPTY_INSTALLER_URLS,
-  loadInstallerURLs,
+  installers = EMPTY_INSTALLERS,
+  supportedPlatforms = DESKTOP_PLATFORMS,
+  platformHint = UNKNOWN_PLATFORM,
+  loadInstallers,
+  loadPlatformHint,
   downloadInstaller,
   className,
 }: DesktopOpenActionProps) {
@@ -97,7 +104,9 @@ export function DesktopOpenAction({
   const [error, setError] = useState<string | null>(null);
   const [installOpen, setInstallOpen] = useState(false);
   const [installReason, setInstallReason] = useState<"not-installed" | "expired" | "error" | "download">("not-installed");
-  const [resolvedInstallers, setResolvedInstallers] = useState<OfficeInstallerURLs>(installerURLs);
+  const [resolvedInstallers, setResolvedInstallers] = useState(installers);
+  const [resolvedPlatforms, setResolvedPlatforms] = useState(supportedPlatforms);
+  const [resolvedHint, setResolvedHint] = useState(platformHint);
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
   const label = t("action");
@@ -107,13 +116,16 @@ export function DesktopOpenAction({
     setCoordinatorState(saveCoordinator.getState());
     return saveCoordinator.subscribe(setCoordinatorState);
   }, [saveCoordinator]);
-  useEffect(() => setResolvedInstallers(installerURLs), [installerURLs]);
+  useEffect(() => setResolvedInstallers(installers), [installers]);
+  useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
+  useEffect(() => setResolvedHint(platformHint), [platformHint]);
 
   const openInstallPrompt = async (reason: "not-installed" | "expired" | "error" | "download") => {
     setInstallReason(reason);
-    if (loadInstallerURLs) {
-      try { setResolvedInstallers(await loadInstallerURLs()); } catch { setResolvedInstallers({ dev: "", beta: "", stable: "" }); }
-    }
+    await Promise.all([
+      loadInstallers ? loadInstallers().then((profile) => { setResolvedInstallers(profile.installers); setResolvedPlatforms(profile.supportedPlatforms ?? DESKTOP_PLATFORMS); }).catch(() => { setResolvedInstallers([]); }) : Promise.resolve(),
+      loadPlatformHint ? loadPlatformHint().then(setResolvedHint).catch(() => { setResolvedHint(UNKNOWN_PLATFORM); }) : Promise.resolve(),
+    ]);
     setInstallOpen(true);
   };
 
@@ -173,7 +185,7 @@ export function DesktopOpenAction({
     else setError(t("version_unavailable"));
   };
 
-  const installProps = { open: installOpen, channel, installers: resolvedInstallers, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason };
+  const installProps = { open: installOpen, channel, installers: resolvedInstallers, supportedPlatforms: resolvedPlatforms, platformHint: resolvedHint, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason };
 
   return (
     <>
@@ -196,7 +208,7 @@ export function DesktopOpenAction({
         </DialogContent>
       </Dialog>
       <Button type="button" variant="ghost" onClick={() => void openInstallPrompt("download")}><Download aria-hidden />{t("download")}</Button>
-      <OfficeInstallPrompt {...installProps} onDownload={downloadInstaller} />
+      <OfficeInstallPrompt {...installProps} onDownload={downloadInstaller ?? (async () => { throw new Error("download handler unavailable"); })} />
     </>
   );
 }

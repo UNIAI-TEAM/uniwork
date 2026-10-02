@@ -97,10 +97,13 @@ type Config struct {
 	VAPIDSubject    string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
-	RUMSampleRate            float64
-	OfficeInstallerDevURL    string
-	OfficeInstallerBetaURL   string
-	OfficeInstallerStableURL string
+	RUMSampleRate             float64
+	OfficeInstallerDevURL     string
+	OfficeInstallerBetaURL    string
+	OfficeInstallerStableURL  string
+	OfficeInstallerDevURLs    string
+	OfficeInstallerBetaURLs   string
+	OfficeInstallerStableURLs string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 }
@@ -200,6 +203,9 @@ func Load() (Config, error) {
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),
 		OfficeInstallerStableURL:      os.Getenv("OFFICE_INSTALLER_STABLE_URL"),
+		OfficeInstallerDevURLs:        os.Getenv("OFFICE_INSTALLER_DEV_URLS"),
+		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
+		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 	}
 	if c.VAPIDSubject == "" {
