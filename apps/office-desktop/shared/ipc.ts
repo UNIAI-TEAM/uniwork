@@ -88,7 +88,7 @@ export const desktopFileMetadataSchema = z.object({
   /** A new local document has no backing path until its first Save As. */
   untitled: z.boolean().optional(),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional() }).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional() }).strict();
 const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
 export const recentFileSchema = z.object({
   id: recentFileIdSchema,
@@ -122,7 +122,7 @@ const draftMetadataSchema = z.object({
   byteLength: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 }).strict();
-export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema) }).strict();
+export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema), locked: z.boolean().optional() }).strict();
 export type DesktopDraftMetadata = z.infer<typeof draftMetadataSchema>;
 export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),

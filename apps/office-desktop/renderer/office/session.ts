@@ -63,6 +63,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   const recoverView = async (): Promise<DraftRecoveryView> => {
     try {
       const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId }));
+      if (listed.locked) return { status: "locked" };
       const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
       const newest = rows[0];
       if (!newest) return { status: "none" };

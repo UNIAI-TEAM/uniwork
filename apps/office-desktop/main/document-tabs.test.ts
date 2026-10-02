@@ -170,7 +170,7 @@ it("a global leave snapshot cannot omit a tab removed while the dialog was open"
   const h = await harness();
   await h.checkpoint("a", "YQ==");
   const evidence = createDocumentLeaveEvidence({ documents: h.documents, store: h.store, saveBusy: () => false });
-  evidence.capture();
+  evidence.capture("close");
   h.documents.update({ documentIds: ["b"], activeDocumentId: "b" });
   await expect(evidence.confirmKeep()).resolves.toBe(false);
   await expect(evidence.confirmDiscard()).resolves.toBe(false);

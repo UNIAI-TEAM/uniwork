@@ -26,11 +26,12 @@ const recent = (id: string, name: string, missing = false, directory = "…\\Doc
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
 
-function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean } = {}) {
+function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   let fileListener: ((event: { handle: string }) => void) | undefined;
   let loginListener: ((event: { reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }) => void) | undefined;
+  let leaveListener: ((event: { requestId: string; reason: "close" | "logout" | "update" }) => void) | undefined;
   const response: (channel: string, payload: Record<string, unknown>) => unknown = (channel, payload) => {
     switch (channel) {
       case "desktop:auth-config": return { clientId: "uniwork-office-dev", deploymentId: "lane" };
@@ -42,7 +43,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:library-list": return { documents: [], nextCursor: null, engineAvailable: true };
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
-      case "desktop:recent-open": return { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: "aGVsbG8=" };
+      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: "aGVsbG8=" };
       case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: "aGVsbG8=" };
       case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: "aGVsbG8=" };
       case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: "aGVsbG8=" };
@@ -64,6 +65,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     onSessionChanged: (listener) => { sessionListener = listener; return () => undefined; },
     onFileOpenRequested: (listener) => { fileListener = listener; return () => undefined; },
     onLoginRequested: (listener) => { loginListener = listener; return () => undefined; },
+    onLeaveRequested: (listener) => { leaveListener = listener; return () => undefined; },
   };
   const rendered = render(<App bridge={bridge} />);
   return {
@@ -74,11 +76,16 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     emitSession: (metadata: DesktopSessionMetadata) => act(() => sessionListener?.(metadata)),
     emitFile: (handle: string) => act(() => fileListener?.({ handle })),
     emitLoginRequest: () => act(() => loginListener?.({ reason: "signed_out" })),
+    emitLeave: (reason: "close" | "logout" | "update" = "close") => act(() => leaveListener?.({ requestId: "leave-r5", reason })),
   };
 }
 
 async function enterLocal(h: ReturnType<typeof harness>) {
-  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));
+  // With the boot gate the first paint is settled init: a remembered-local
+  // device is already on the local home, a first run shows the sign-in card.
+  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]') ?? screen.queryByRole("button", { name: i18n.t("officeDesktop.login.useLocal") })).not.toBeNull());
+  if (h.container.querySelector('[data-local-home="true"]')) return;
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));
   await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
 }
 
@@ -140,9 +147,9 @@ it("opens a .docx from the OS while signed out straight into the local mode", as
   const h = harness();
   await screen.findByText(i18n.t("officeDesktop.login.localNote"));
   h.emitFile(`file_${"a".repeat(32)}`);
-  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:local-mode", expect.objectContaining({ local: true })));
-  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-open", expect.objectContaining({ handle: `file_${"a".repeat(32)}` })));
-  expect(await screen.findByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
+  await screen.findByRole("tab", { name: /Opened\.docx/ });
+  expect(h.call).toHaveBeenCalledWith("desktop:local-mode", expect.objectContaining({ local: true }));
+  expect(h.call).toHaveBeenCalledWith("desktop:file-open", expect.objectContaining({ handle: `file_${"a".repeat(32)}` }));
 });
 
 it("asks for sign-in on a web deep link and keeps local tabs when the user cancels", async () => {
@@ -229,6 +236,51 @@ it("creates a new local document and writes it through Save As", async () => {
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle: `file_${"1".repeat(32)}` })));
   expect(h.channels()).not.toContain("desktop:file-save");
+});
+
+it("shows the missing copy when a recent file vanished before the click", async () => {
+  const h = harness({ localMode: true, files: [recent(RECENT_ID, "Plan.docx")], recentMissing: true });
+  await enterLocal(h);
+  await screen.findByText("Plan.docx");
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.openNamed", { name: "Plan.docx" }) }));
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.local.missing"))).toBeInTheDocument());
+  expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
+});
+
+it("does not fetch the scope draft offer while signed out", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  expect(h.channels()).not.toContain("desktop:draft-list");
+});
+
+it("keeps the leave dialog reachable while the sign-in card is shown", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Local\.docx/ });
+  await edit(`file_${"f".repeat(32)}`);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") }));
+  await waitFor(() => expect(h.container.querySelector("[data-login-state]")).not.toBeNull());
+  h.emitLeave("close");
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText(i18n.t("office.leave.title"))).toBeInTheDocument();
+  fireEvent.click(within(dialog).getAllByRole("button", { name: i18n.t("office.leave.stay") })[0]!);
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-r5", choice: "stay", proceeded: false })));
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));
+  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
+  expect(screen.getByRole("tab", { name: /Local\.docx/ })).toBeInTheDocument();
+});
+
+it("keeps local tabs on a workspace switch", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  h.emitFile(`file_${"a".repeat(32)}`);
+  await screen.findByRole("tab", { name: /Opened\.docx/ });
+  h.emitSession({ status: "signed-in", accountId: "account-1", deploymentId: "lane" });
+  await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("officeDesktop.tabs.account", { name: "Me" })) }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.switchWorkspace") }));
+  await waitFor(() => expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument());
 });
 
 it("serves every local-mode flow with a bridge that refuses any cloud channel", async () => {

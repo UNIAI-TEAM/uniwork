@@ -15,6 +15,7 @@ import { sameDocumentSession } from "./opened-documents";
 import { blankDocxBytes } from "./files/blank-docx";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
+import { LocalDeviceError } from "./local/device";
 
 /** Main-process transport for cloud Documents and Office operations. The
  * implementation owns the bearer token and is injected by the Electron
@@ -175,6 +176,9 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       const path = await options.pickOpen();
       if (!path) return { opened: false };
+      // The desktop host is DOCX-only: a non-docx pick is refused here, before
+      // any handle, document context or recent row exists.
+      if (!/\.docx$/i.test(path)) return { opened: false, unsupported: true };
       assertSession(session);
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
@@ -185,7 +189,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
     "desktop:file-create": async () => {
       const session = options.session?.();
       const bytes = blankDocxBytes();
-      const metadata = options.registry.createUntitled(bytes, "Untitled.docx");
+      const metadata = await safeFile(async () => options.registry.createUntitled(bytes, "Untitled.docx"));
       assertSession(session);
       options.onOpened?.(metadata);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
@@ -193,9 +197,18 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
     "desktop:recent-open": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-open">) => {
       if (!options.recents) throw new FileIpcError("invalid_path");
       const entry = await options.recents.resolve(request.id);
-      if (!entry) throw new FileIpcError("not_found");
+      if (!entry) return { opened: false, missing: true };
+      if (!/\.docx$/i.test(entry.path)) return { opened: false, unsupported: true };
       const session = options.session?.();
-      const metadata = await safeFile(() => options.registry.openPath(entry.path));
+      let metadata: import("./files/registry").OpenFileMetadata;
+      try {
+        metadata = await safeFile(() => options.registry.openPath(entry.path));
+      } catch (error) {
+        // A file removed after the list rendered stays a typed, non-throwing
+        // answer so the renderer can show the missing copy.
+        if ((error as { code?: string }).code === "not_found") return { opened: false, missing: true };
+        throw error;
+      }
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
@@ -342,7 +355,12 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
         } });
         assertCurrent(request.documentId!, current);
         return { drafts };
-      } catch (error) { translateDraftError(error); }
+      } catch (error) {
+        // The locked state is a reasoned answer, not a transport failure: the
+        // renderer shows the locked notice from this typed result.
+        if (error instanceof DraftRecoveryError && error.code === "draft_recovery_locked") return { drafts: [], locked: true };
+        translateDraftError(error);
+      }
     },
     "desktop:draft-recover": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; currentBase: { revision: string; version: string } }>) => {
       try {
@@ -394,17 +412,22 @@ class FileIpcError extends Error {
 
 export interface LocalIpcOptions {
   readonly mode: LocalModeStore;
-  readonly recents: RecentFilesStore;
+  /** Absent while the device record is unusable: local mode is unavailable. */
+  readonly recents?: RecentFilesStore;
 }
 
 /** Local-mode state and the encrypted recent-file list. Both are device-owned
  * and expose no path: recent rows carry an opaque id and a display directory. */
 export function createLocalIpcHandlers(options: LocalIpcOptions) {
+  const requireRecents = (): RecentFilesStore => {
+    if (!options.recents) throw new LocalDeviceError("unavailable", "local mode is unavailable");
+    return options.recents;
+  };
   return {
     "desktop:local-state": () => ({ localMode: options.mode.get() }),
     "desktop:local-mode": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:local-mode">) => ({ localMode: await options.mode.set(request.local) }),
-    "desktop:recent-list": async () => ({ files: await options.recents.list() }),
-    "desktop:recent-remove": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-remove">) => ({ removed: await options.recents.remove(request.id) }),
+    "desktop:recent-list": async () => ({ files: await requireRecents().list() }),
+    "desktop:recent-remove": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-remove">) => ({ removed: await requireRecents().remove(request.id) }),
   };
 }
 

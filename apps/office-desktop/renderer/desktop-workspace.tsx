@@ -46,7 +46,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   const signedIn = mode === "signed-in" && Boolean(metadata);
   const tabs = useDocumentTabs(bridge);
   const currentTabs = tabs.current;
-  const accountDrafts = useAccountDrafts(bridge, mode !== "login");
+  const accountDrafts = useAccountDrafts(bridge, mode === "signed-in");
   const recents = useLocalRecents(bridge, mode === "local");
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
   const scopeRef = useRef(scope);
@@ -134,7 +134,13 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
-    if (!result.opened) return;
+    if (!result.opened) {
+      // Typed non-throwing answers: a recent whose file vanished and a
+      // non-docx pick each get their own copy instead of a guessed error code.
+      if (result.missing) setActionError(t("officeDesktop.local.missing"));
+      else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
+      return;
+    }
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     const file = result.metadata;
     if (!/\.docx$/i.test(file.name)) { setActionError(t("officeDesktop.local.unsupported")); return; }
@@ -142,7 +148,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
     if (tabs.open({ kind: "local", title, format: "docx", bytes: { dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
-  const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void, errorMessage?: (error: unknown) => string) => {
+  const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void) => {
     if (actionBusy.current || leaveRef.current) return;
     const epoch = lifetime.current;
     actionBusy.current = true; setBusy(true); setActionError(null);
@@ -154,7 +160,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
       });
       syncQueue.current = opened.catch(() => undefined);
       await opened;
-    } catch (error) { if (mounted.current && epoch === lifetime.current) setActionError(errorMessage?.(error) ?? t("officeDesktop.library.actionError")); }
+    } catch { if (mounted.current && epoch === lifetime.current) setActionError(t("officeDesktop.library.actionError")); }
     finally { actionBusy.current = false; if (mounted.current) setBusy(false); }
   };
   const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version">, allowSave = true) => {
@@ -166,7 +172,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
   const openRecent = (id: string) => {
     if (!canOpen()) return;
-    void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal, (error) => (error as { code?: string } | null)?.code === "not_found" ? t("officeDesktop.local.missing") : t("officeDesktop.library.actionError")).then(() => recents.reload());
+    void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal).then(() => recents.reload());
   };
   const create = () => {
     if (modeRef.current === "local") { createLocal(); return; }
@@ -179,9 +185,12 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   const openLocalTicket = useRef(0);
   useEffect(() => {
     if (mode !== "local" || openLocalRequest === 0 || openLocalRequest === openLocalTicket.current) return;
+    // A blocked moment (busy open, leave dialog) keeps the ticket queued
+    // instead of silently dropping the user's pick request.
+    if (busy || leave) return;
     openLocalTicket.current = openLocalRequest;
     openLocalRef.current();
-  }, [mode, openLocalRequest]);
+  }, [mode, openLocalRequest, busy, leave]);
 
   const sendHostAnswer = async (request: HostLeave, choice: LeaveChoice, proceeded: boolean) => {
     if (answered.current.has(request.requestId)) return;
@@ -189,7 +198,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
     try { await bridge.call("desktop:leave-resolved", { sessionGeneration: SESSION_GENERATION, requestId: request.requestId, choice, proceeded }); }
     catch { if (mounted.current) setActionError(t("officeDesktop.library.actionError")); }
   };
-  const switchWorkspace = () => { ++lifetime.current; tabs.reset(); setScope(null); setPendingOpens([]); };
+  // A workspace switch is a cloud-scope change: local-device tabs stay open.
+  const switchWorkspace = () => { ++lifetime.current; tabs.closeCloud(); setScope(null); setPendingOpens([]); };
   const requestLeave = (request: PendingLeave) => {
     if (leaveRef.current) {
       if (request.host) void sendHostAnswer(request.host, "stay", false);
@@ -287,21 +297,27 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingOpens, scope, busy, leave, mode]);
 
+  // Dialogs and alerts have no mode dependency: the leave contract must hold
+  // while the sign-in card is shown too (close/update, deep-link prompt).
+  const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
+  const leaveDialog = <LeaveDialog open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
+    onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
+
   if (mode === "login") {
     return (
       <div className="flex h-full min-h-0 flex-col">
         <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
         <LoginScreen state={loginState} onStart={onLoginStart} onCancel={onLoginCancel} onOpenLocal={() => onUseLocal("open-local")} onUseLocal={() => onUseLocal("home")} />
+        {leaveDialog}
       </div>
     );
   }
 
-  const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const account = context?.accounts.find((entry) => entry.id === metadata?.accountId);
   const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
   const homeKind = mode === "local" ? "local" : "library";
   return <DesktopShell mode={mode === "local" ? "local" : "signed-in"} onSignIn={mode === "local" ? onSignIn : undefined} onSignOut={mode === "signed-in" ? () => { void Promise.resolve().then(onLogout).catch(() => setActionError(t("officeDesktop.library.actionError"))); } : undefined}
-    accountName={mode === "signed-in" ? account?.name : undefined} accountEmail={mode === "signed-in" ? account?.email : undefined} workspaceName={workspace?.name} onSwitchWorkspace={mode === "signed-in" ? () => requestLeave({ ids: tabs.tabs.map((tab) => tab.id), switchWorkspace: true }) : undefined}
+    accountName={mode === "signed-in" ? account?.name : undefined} accountEmail={mode === "signed-in" ? account?.email : undefined} workspaceName={workspace?.name} onSwitchWorkspace={mode === "signed-in" ? () => requestLeave({ ids: tabs.cloudTabIds(), switchWorkspace: true }) : undefined}
     tabs={tabs.summaries} activeTabId={tabs.activeTabId} onTabSelect={tabs.select} onTabClose={close} onCreate={create} onOpenLocal={openLocal}
     createDisabled={mode === "signed-in" && !scope} busy={busy || leave !== null}>
     <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
@@ -313,7 +329,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
       {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
       <div role="tabpanel" id={`desktop-panel-${homeKind}`} aria-labelledby={`desktop-tab-${homeKind}`} hidden={tabs.activeTabId !== null} inert={tabs.activeTabId !== null} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === null}>
         {mode === "local"
-          ? <LocalHomeView files={recents.files} error={recents.error} busy={busy} onOpen={openLocal} onCreate={createLocal} onOpenRecent={openRecent} onRemoveRecent={(id) => { void recents.remove(id); }} onRetry={recents.reload} />
+          ? <LocalHomeView files={recents.files} error={recents.error} busy={busy} onOpen={openLocal} onCreate={createLocal} onOpenRecent={openRecent} onRemoveRecent={(id) => { void recents.remove(id).then((removed) => { if (!removed) setActionError(t("officeDesktop.library.actionError")); }); }} onRetry={recents.reload} />
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
@@ -322,7 +338,6 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}
     {accountDrafts.draft && tabs.tabs.length === 0 ? <DraftRecoveryPrompt open metadata={accountDrafts.draft} recoverable={false} onOpenChange={(open) => { if (!open) accountDrafts.dismiss(); }} onRecover={async () => false} onKeep={async () => { accountDrafts.dismiss(); return true; }} onDiscard={accountDrafts.discard} /> : null}
-    <LeaveDialog open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
-      onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />
+    {leaveDialog}
   </DesktopShell>;
 }

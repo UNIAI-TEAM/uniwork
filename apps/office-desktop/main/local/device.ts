@@ -36,6 +36,24 @@ export function deviceScopeAccountId(deviceId: string): string {
   return `local:${deviceId}`;
 }
 
+/** Non-throwing boot resolution: a corrupt or unreadable record keeps the app
+ * usable (local mode is just unavailable) and is never replaced. */
+export type LocalDeviceResolution =
+  | { readonly deviceId: string; readonly error?: undefined }
+  | { readonly deviceId?: undefined; readonly error: LocalDeviceError };
+
+export async function resolveLocalDevice(options: {
+  userDataDirectory: string;
+  fileSystem?: LocalDeviceFileSystem;
+  randomBytes?: (size: number) => Uint8Array;
+}): Promise<LocalDeviceResolution> {
+  try {
+    return { deviceId: await loadOrCreateDeviceId(options) };
+  } catch (error) {
+    return { error: error instanceof LocalDeviceError ? error : new LocalDeviceError("unavailable") };
+  }
+}
+
 /** Reads the durable per-device id, creating it once. A corrupt record is a
  * typed failure: silently replacing it would orphan every local draft key. */
 export async function loadOrCreateDeviceId(options: {

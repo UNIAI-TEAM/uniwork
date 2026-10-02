@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { LocalDeviceError, deviceScopeAccountId, loadOrCreateDeviceId } from "./device";
+import { LocalDeviceError, deviceScopeAccountId, loadOrCreateDeviceId, resolveLocalDevice } from "./device";
 import { createLocalModeStore } from "./mode";
 import { createRecentFilesStore, shortenDirectory } from "./recent-files";
 import { createFakeDraftKeyStore } from "../drafts/test-fake";
@@ -28,6 +28,18 @@ describe("local device identity", () => {
     await fs.writeFile(join(directory, "local", "device.json"), "not-json");
     await expect(loadOrCreateDeviceId({ userDataDirectory: directory })).rejects.toMatchObject({ code: "corrupt" });
     expect(LocalDeviceError).toBeDefined();
+  });
+
+  it("degrades to local-mode-unavailable instead of killing the host, leaving the record untouched", async () => {
+    const directory = await root();
+    await fs.mkdir(join(directory, "local"), { recursive: true });
+    await fs.writeFile(join(directory, "local", "device.json"), "not-json");
+    const resolution = await resolveLocalDevice({ userDataDirectory: directory });
+    expect(resolution.deviceId).toBeUndefined();
+    expect(resolution.error?.code).toBe("corrupt");
+    expect(await fs.readFile(join(directory, "local", "device.json"), "utf8")).toBe("not-json");
+    const healthy = await resolveLocalDevice({ userDataDirectory: await root() });
+    expect(healthy.deviceId).toMatch(/^[0-9a-f]{32}$/);
   });
 });
 

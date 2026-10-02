@@ -29,6 +29,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   const [localMode, setLocalMode] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
   const [openLocalRequest, setOpenLocalRequest] = useState(0);
+  const [booted, setBooted] = useState(false);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
   const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
 
@@ -70,10 +71,12 @@ export function App({ bridge }: { bridge: RendererBridge }) {
           metadataRef.current = session.value;
           setMetadata(session.value);
           setState(loginStateFromMetadata(session.value));
+          setBooted(true);
           return;
         }
       }
       setState("error");
+      setBooted(true);
     })();
     return () => { unsubscribe(); unsubscribeLogin?.(); unsubscribeController?.(); };
   }, [bridge]);
@@ -86,6 +89,9 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   };
   const signedIn = state === "signed-in" && metadata?.status === "signed-in" && Boolean(metadata.accountId) && Boolean(metadata.deploymentId);
   const mode = signedIn ? "signed-in" : localMode && !loginPrompt ? "local" : "login";
+  // No card before the init triplet settles: a remembered-local device must
+  // not flash the sign-in card before the local home.
+  if (!booted) return null;
   return (
     <DesktopWorkspace
       bridge={bridge}
@@ -93,9 +99,11 @@ export function App({ bridge }: { bridge: RendererBridge }) {
       metadata={signedIn ? (metadata as SignedInMetadata) : undefined}
       loginState={state}
       onLoginStart={() => {
-        if (!controllerRef.current) return;
+        // Without a resolved auth binding the flow cannot start: surface the
+        // error state instead of a silent no-op.
+        if (!controllerRef.current) { setState("error"); return; }
         setState("pending");
-        void controllerRef.current?.start().then(setState);
+        void controllerRef.current.start().then(setState);
       }}
       onLoginCancel={() => { void controllerRef.current?.cancel().then(setState).catch(() => setState("error")); }}
       onUseLocal={useLocal}

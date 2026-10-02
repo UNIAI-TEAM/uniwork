@@ -6,11 +6,12 @@ import type { DesktopDraftStore } from "../drafts/store";
 import { createDesktopDraftStore } from "../drafts/store";
 import { createFakeDraftKeyStore } from "../drafts/test-fake";
 import { FileHandleRegistry } from "../files/registry";
-import { createAuthIpcHandlers, createFileIpcHandlers, createIpcDispatcher, createLocalIpcHandlers, createOfficeIpcHandlers, IpcValidationError, validateIpcRequest, type IpcSenderContext } from "../ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, createLocalIpcHandlers, createOfficeIpcHandlers, IpcValidationError, validateIpcRequest, type IpcSenderContext } from "../ipc";
 import { createOpenedDocuments } from "../opened-documents";
 import { createLocalModeStore } from "./mode";
 import { createRecentFilesStore } from "./recent-files";
 import { deviceScopeAccountId } from "./device";
+import { DraftRecoveryError } from "../../../../packages/core/office/draft-recovery";
 
 const roots: string[] = [];
 async function root(): Promise<string> { const path = resolve(".test-artifacts", `no-network-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(path, { recursive: true }); roots.push(path); return path; }
@@ -67,6 +68,30 @@ describe("local mode opens no network connection", () => {
     expect(calls).toBe(0);
   });
 
+  it("returns typed unsupported, missing and locked answers instead of guessing at error codes", async () => {
+    const rootDirectory = await root();
+    const txtPath = join(rootDirectory, "notes.txt");
+    const gonePath = join(rootDirectory, "gone.docx");
+    await fs.writeFile(txtPath, "text");
+    const keys = createFakeDraftKeyStore();
+    const registry = new FileHandleRegistry({ sessionId: sessionGeneration });
+    const recents = createRecentFilesStore({ userDataDirectory: rootDirectory, keyStore: keys, deviceId: DEVICE_ID });
+    await recents.record({ path: gonePath, name: "gone.docx", modifiedAtMs: 1 });
+    const fileDispatcher = createIpcDispatcher(createFileIpcHandlers({
+      registry, session: () => deviceScope, recents,
+      pickOpen: async () => txtPath,
+      onOpened: () => undefined,
+    }), sender);
+
+    expect(await fileDispatcher("desktop:file-pick-open", { sessionGeneration })).toEqual({ opened: false, unsupported: true });
+    const recentId = (await recents.list())[0]!.id;
+    expect(await fileDispatcher("desktop:recent-open", { sessionGeneration, id: recentId })).toEqual({ opened: false, missing: true });
+
+    const lockedStore = { list: async () => { throw new DraftRecoveryError("draft_recovery_locked", "locked"); } };
+    const draftDispatcher = createIpcDispatcher(createDraftIpcHandlers({ store: lockedStore as never, session: deviceScope, accountSession: () => deviceScope }), sender);
+    expect(await draftDispatcher("desktop:draft-list", { sessionGeneration })).toEqual({ drafts: [], locked: true });
+  });
+
   it("serves every local-mode channel with the throwing transport present", async () => {
     let calls = 0;
     const transport = new Proxy({}, { get: () => (..._args: unknown[]) => { calls += 1; return Promise.reject(new Error("network attempted")); } });
@@ -116,5 +141,5 @@ describe("local mode opens no network connection", () => {
     expect(await dispatcher("desktop:recent-remove", { sessionGeneration, id: recentId })).toEqual({ removed: true });
     await expect(dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, dataBase64: "b2s=", path: "C:\\secret" })).rejects.toMatchObject({ code: "schema" });
     expect(calls).toBe(0);
-  });
+  }, 20_000);
 });

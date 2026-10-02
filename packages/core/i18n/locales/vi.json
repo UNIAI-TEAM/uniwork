@@ -7391,7 +7391,6 @@
     },
     "local": {
       "title": "Tệp trên máy",
-      "count_one": "{{count}} tệp",
       "count_other": "{{count}} tệp",
       "open": "Mở tệp",
       "create": "Tài liệu mới",
@@ -7407,7 +7406,7 @@
       "updated": "Mở lần cuối {{time}}",
       "unsupported": "Chỉ hỗ trợ tệp DOCX trên máy.",
       "saveAs": "Lưu thành…",
-      "home": "Về trang chủ"
+      "home": "Về trang chủ trên máy"
     },
     "ai": {
       "entry": "Trợ lý AI",

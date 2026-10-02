@@ -34,7 +34,7 @@ describe("desktop IPC allowlist", () => {
 
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
-    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.txt" });
+    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.docx" });
     await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).rejects.toMatchObject({ code: "symlink_refused", message: "local file operation refused" });
     await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
     const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);

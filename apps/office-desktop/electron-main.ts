@@ -25,7 +25,7 @@ import { createDesktopLeaveCoordinator } from "./main/leave";
 import { leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
 import { createOpenedDocuments, sameDocumentSession } from "./main/opened-documents";
 import { createDocumentLeaveEvidence } from "./main/document-leave";
-import { loadOrCreateDeviceId, deviceScopeAccountId } from "./main/local/device";
+import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
@@ -157,9 +157,13 @@ async function startElectronHost(): Promise<void> {
   });
   const saveGuard = createOfficeSaveGuard();
   const fileRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
-  const deviceId = await loadOrCreateDeviceId({ userDataDirectory: app.getPath("userData") });
+  // A corrupt device record never kills the host: local mode degrades to a
+  // typed unavailable state while the record and its keys stay untouched.
+  const deviceResolution = await resolveLocalDevice({ userDataDirectory: app.getPath("userData") });
+  const deviceId = deviceResolution.deviceId;
+  if (!deviceId) process.stderr.write(`office-desktop: local mode unavailable (${deviceResolution.error?.code ?? "unavailable"})\n`);
   const localMode = await createLocalModeStore({ userDataDirectory: app.getPath("userData") });
-  const recentFiles = createRecentFilesStore({ userDataDirectory: app.getPath("userData"), keyStore: draftKeyStore, deviceId });
+  const recentFiles = deviceId ? createRecentFilesStore({ userDataDirectory: app.getPath("userData"), keyStore: draftKeyStore, deviceId }) : undefined;
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   // One profile-bound credential store is shared by login and launch exchange.
   // The exchange adapter reads it only in the privileged main process; the
@@ -196,7 +200,10 @@ async function startElectronHost(): Promise<void> {
   // Local files always live under the stable `local:<device>` scope so their
   // protected drafts stay device-owned across sign-in and sign-out. Cloud work
   // belongs to the live account scope and is dropped when that scope changes.
-  const deviceScope = (): DraftSession => ({ sessionId: SESSION_GENERATION, accountId: deviceScopeAccountId(deviceId), deploymentId: "local-device", generation: 1 });
+  const deviceScope = (): DraftSession => {
+    if (!deviceId) throw new LocalDeviceError("unavailable", "local mode is unavailable");
+    return { sessionId: SESSION_GENERATION, accountId: deviceScopeAccountId(deviceId), deploymentId: "local-device", generation: 1 };
+  };
   const accountScope = (): DraftSession => {
     const metadata = authManager?.getMetadata();
     const deploymentId = deploymentProfile?.deploymentId ?? "local-device";
@@ -205,20 +212,27 @@ async function startElectronHost(): Promise<void> {
   };
   const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: deviceScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
   const pendingLocalCheckpoints = new Map<string, ProtectedCheckpointRef>();
-  const documents = createOpenedDocuments({ sessionFor: (kind) => kind === "local" ? deviceScope() : accountScope(), onClosed: (id) => {
+  const documents = createOpenedDocuments({ sessionFor: (kind) => kind === "local" ? (deviceId ? deviceScope() : undefined) : accountScope(), onClosed: (id) => {
     fileRegistry.revoke(id);
     pendingLocalCheckpoints.delete(id);
   } });
   const setLocalDocument = (metadata: OpenFileMetadata) => {
-    if (!documents.open(metadata.handle, "local", localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
+    if (documents.open(metadata.handle, "local", localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) return;
+    // A refused open leaves no context behind: release the freshly registered
+    // handle instead of leaking it until the window closes.
+    fileRegistry.revoke(metadata.handle);
+    throw new Error("document_context_refused");
   };
   /** A local open only records the draft context; the durable row is written
    * immediately before a write, so a plain open never offers a draft of the
    * file's own unchanged bytes. Opening also refreshes the encrypted recent list. */
   const localOpenContext = (metadata: OpenFileMetadata) => {
+    // The desktop host is DOCX-only; a non-docx pick/drop is refused before it
+    // can register a context or enter the recent list.
+    if (!/\.docx$/i.test(metadata.name)) { fileRegistry.revoke(metadata.handle); return; }
     setLocalDocument(metadata);
     const path = fileRegistry.pathOf(metadata.handle);
-    if (path) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
+    if (path && recentFiles) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
   };
   const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
     if (!documents.context(metadata.handle)) throw new Error("document_context_refused");
@@ -321,16 +335,24 @@ async function startElectronHost(): Promise<void> {
   };
   const noteConfirmedLocalRebind = (previousHandle: string, metadata: OpenFileMetadata) => {
     consumeLocalCheckpoint({ handle: previousHandle });
-    if (!documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
+    let rebound = false;
+    try { rebound = documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(deviceScope(), fileRegistry.identityFor(metadata.handle), metadata)); }
+    catch { rebound = false; }
+    if (!rebound) {
+      // Fail closed: the renderer keeps its old tab identity, so the new
+      // handle must not stay reachable in main.
+      fileRegistry.revoke(metadata.handle);
+      throw new Error("document_context_refused");
+    }
     documents.noteConfirmedSave(metadata.handle);
     // The Save As target is a file the user chose to keep: it belongs in the
     // recent list beside every other opened file.
     const path = fileRegistry.pathOf(metadata.handle);
-    if (path) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
+    if (path && recentFiles) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
   };
   const leaveEvidence = createDocumentLeaveEvidence({ documents, store: draftStore, saveBusy: () => saveGuard.busy });
   const leave = createDesktopLeaveCoordinator({
-    send: (request) => { leaveEvidence.capture(); window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
+    send: (request) => { leaveEvidence.capture(request.reason); window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
     ...leaveEvidence,
     timeoutMs: 60_000,
   });
@@ -368,8 +390,8 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    local: { mode: localMode, recents: recentFiles },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, recents: recentFiles, beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
