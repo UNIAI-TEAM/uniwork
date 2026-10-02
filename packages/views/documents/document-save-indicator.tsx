@@ -15,6 +15,8 @@ export interface DocumentSaveIndicatorProps {
   onRetry?: () => void;
   onResolveConflict?: () => void;
   className?: string;
+  /** Keep the page header compact below sm; the full status stays accessible. */
+  compact?: boolean;
 }
 
 const BASE = "flex items-center gap-1.5 text-caption text-muted-foreground";
@@ -44,6 +46,7 @@ export function DocumentSaveIndicator({
   onRetry,
   onResolveConflict,
   className,
+  compact = false,
 }: DocumentSaveIndicatorProps) {
   const { t } = useTranslation();
 
@@ -70,10 +73,16 @@ export function DocumentSaveIndicator({
       );
     case "saved": {
       const at = savedTime(state.acked?.updated_at);
+      const label = t("documents.save.saved_at", { time: at ?? "" }).trim();
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, className)}>
+        <span role="status" aria-live="polite" aria-label={label} title={label} className={cn(BASE, className)}>
           <Check aria-hidden className="size-3.5" />
-          {t("documents.save.saved_at", { time: at ?? "" })}
+          {compact ? (
+            <>
+              <span aria-hidden className="sm:hidden">{t("documents.save.saved_at", { time: "" }).trim()}</span>
+              <span className="sr-only sm:not-sr-only">{label}</span>
+            </>
+          ) : label}
         </span>
       );
     }

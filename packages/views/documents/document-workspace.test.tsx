@@ -180,7 +180,7 @@ describe("DocumentWorkspace autosave", () => {
     expect(JSON.stringify(call?.body.content)).toContain("Xin chào");
     expect(call?.headers?.["Idempotency-Key"]).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByText(/^Đã lưu/)).toBeInTheDocument(), {
+    await waitFor(() => expect(screen.getByRole("status", { name: /^Đã lưu/ })).toBeInTheDocument(), {
       timeout: 8_000,
     });
   });
@@ -389,7 +389,7 @@ describe("DocumentWorkspace autosave", () => {
 
     pasteText("Lần một");
     await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
-    await waitFor(() => expect(screen.getByText(/^Đã lưu/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("status", { name: /^Đã lưu/ })).toBeInTheDocument());
 
     pasteText("Lần hai");
     fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));

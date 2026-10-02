@@ -454,6 +454,8 @@ export function DocumentWorkspace({
             {headerActions}
             {doc.kind === "page" && canEdit ? (
               <DocumentSaveIndicator
+                compact
+                className="shrink-0 whitespace-nowrap"
                 state={indicatorState}
                 pendingUploads={pendingUploads}
                 onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
