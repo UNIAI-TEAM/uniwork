@@ -47,6 +47,7 @@ import { installFormulaStreamHold } from "../../upstream/apps/sheets/src/rendere
 import { installForceStringMarkGate, installLongTextRender } from "../../upstream/apps/sheets/src/renderer/long-text-render";
 import { installMergeBorderFix } from "../../upstream/apps/sheets/src/renderer/merge-border-fix";
 import { installNumberAsTextAlertSeverity } from "../../upstream/apps/sheets/src/renderer/number-as-text-alert";
+import { installNumberFormatFix } from "../../upstream/apps/sheets/src/renderer/numfmt-fix";
 import { installRichTextBidiFix } from "../../upstream/apps/sheets/src/renderer/rich-text-bidi-fix";
 import { installRtlGridMirror } from "../../upstream/apps/sheets/src/renderer/rtl-grid-mirror";
 import { installRtlTextDirectionFix } from "../../upstream/apps/sheets/src/renderer/rtl-text-fix";
@@ -101,6 +102,8 @@ export interface XlsxRendererHandle {
   /** Scroll so the given cell is visible (freeze-aware). */
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
   setCellText(sheetId: string, row: number, column: number, text: string): void;
+  /** Commit a pending in-cell edit before the host snapshots an explicit Save. */
+  commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
   setDarkMode(dark: boolean): void;
@@ -258,6 +261,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installFilterRangeOutlineSuppression(runtime);
   installInjectorResolutionGuard(runtime);
   let findRevealDispose: (() => void) | undefined;
+  let numberFormatDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -279,6 +283,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   let dirtyGeneration = 0;
   let fontMappings: XlsxRendererFontMapping[] = [];
   let disposed = false;
+  let commitInProgress = false;
+  let commitDenied = false;
+  let lastSelectionState: LazyWorkbookState | null = null;
+  let lastSelectionKey: string | undefined;
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
 
@@ -289,17 +297,28 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     void loadVisibleRange(runtime, lazyWorkbookRef, active, setMessage).catch(() => undefined);
   };
   const notifySelection = () => {
+    if (disposed) return;
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheet = workbook?.getActiveSheet();
     const range = workbook?.getActiveRange()?.getRange();
-    options.onSelectionChange?.(sheet && range ? { sheetId: sheet.getSheetId(), range } : null);
+    const selection = sheet && range ? { sheetId: sheet.getSheetId(), range: { ...range } } : null;
+    const key = selection ? JSON.stringify([selection.sheetId, selection.range.startRow, selection.range.endRow,
+      selection.range.startColumn, selection.range.endColumn, selection.range.rangeType]) : "null";
+    const state = lazyWorkbookRef.current;
+    if (lastSelectionState === state && lastSelectionKey === key) return;
+    lastSelectionState = state;
+    lastSelectionKey = key;
+    options.onSelectionChange?.(selection);
   };
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
-    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) event.cancel = true;
+    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
+      if (commitInProgress) commitDenied = true;
+      event.cancel = true;
+    }
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -325,6 +344,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   );
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, (event) => {
+      // Pinned sheets-ui installs SelectionChanged only at Steady. Pointer
+      // selections already change the model before then; publish after the
+      // exact view operation completes, using its authoritative active range.
+      if (event.id === "sheet.operation.set-selections") {
+        const state = lazyWorkbookRef.current;
+        queueMicrotask(() => { if (lazyWorkbookRef.current === state) notifySelection(); });
+      }
       const sheetId = (event.params as { subUnitId?: string } | undefined)?.subUnitId;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId) : undefined;
@@ -356,6 +382,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         // Resolving them during renderer construction leaves the grid unmounted.
         installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
         findRevealDispose ??= installFindRevealFix(runtime);
+        numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -388,6 +415,17 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         startRow: row, endRow: row, startColumn: column, endColumn: column,
       })) return;
       runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId)?.getRange(row, column).setValue(parseCellText(text));
+    },
+    async commitEdit() {
+      if (options.readOnly) return;
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      if (disposed || !workbook) throw new Error("xlsx_cell_edit_commit_failed");
+      commitInProgress = true;
+      commitDenied = false;
+      try {
+        const committed = await workbook.endEditingAsync(true);
+        if (!committed || workbook.isCellEditing() || commitDenied) throw new Error("xlsx_cell_edit_commit_failed");
+      } finally { commitInProgress = false; }
     },
     selectSheet(sheetId) {
       const workbook = runtime.univerAPI.getActiveWorkbook();
@@ -424,6 +462,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       disposed = true;
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
+      numberFormatDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {

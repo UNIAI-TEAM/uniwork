@@ -41,6 +41,52 @@ test('controller load is clean and publishes the actual initial sheet selection'
   } finally { mounted.close(); }
 });
 
+test('selection commands publish authoritative ranges before the late UI facade event is ready', async () => {
+  const selections=[];
+  const mounted=mountController({onSelectionChange:selection=>selections.push(selection)});
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const next=mounted.workbook.getActiveSheet().getRange(1,1);
+    mounted.workbook.getActiveRange=()=>next;
+    mounted.h.emit('CommandExecuted',{id:'sheet.operation.set-selections'});
+    await Promise.resolve();
+    assert.equal(selections.at(-1)?.range.startRow,1);
+    assert.equal(selections.at(-1)?.range.startColumn,1);
+    assert.equal(mounted.handle.getDirtyGeneration(),0);
+    const count=selections.length;
+    mounted.h.emit('SelectionChanged');
+    assert.equal(selections.length,count,'late duplicate facade notification is harmless');
+    mounted.h.emit('CommandExecuted',{id:'sheet.operation.set-selections'});
+    mounted.close();
+    await Promise.resolve();
+    assert.equal(selections.length,count,'queued refresh is ignored after disposal');
+  } finally {mounted.close();}
+});
+
+test('pending edit commit awaits the actual workbook facade and refuses failed/unfinished commits', async () => {
+  const mounted = mountController();
+  try {
+    await mounted.handle.loadWorkbook(file);
+    let save;
+    mounted.workbook.endEditingAsync = async value => { save=value;return true; };
+    mounted.workbook.isCellEditing = () => false;
+    await mounted.handle.commitEdit();assert.equal(save,true);
+    mounted.workbook.endEditingAsync = async () => false;
+    await assert.rejects(mounted.handle.commitEdit(),/xlsx_cell_edit_commit_failed/);
+    mounted.workbook.endEditingAsync = async () => true;
+    mounted.workbook.isCellEditing = () => true;
+    await assert.rejects(mounted.handle.commitEdit(),/xlsx_cell_edit_commit_failed/);
+    mounted.workbook.isCellEditing = () => false;
+    mounted.workbook.endEditingAsync = async () => {
+      mounted.h.execute({id:'sheet.mutation.insert-row'});return true;
+    };
+    await assert.rejects(mounted.handle.commitEdit(),/xlsx_cell_edit_commit_failed/);
+  } finally { mounted.close(); }
+  const readonly = mountController({readOnly:true});
+  try { await readonly.handle.loadWorkbook(file);await readonly.handle.commitEdit(); }
+  finally { readonly.close(); }
+});
+
 test('public formula/format/tab/theme commands preserve journals and ignore view commands', async () => {
   const edits = [];
   let dirty = 0;

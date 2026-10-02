@@ -13,6 +13,7 @@
 // renderer controller; it never touches the Rust sidecar.
 import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
+import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -81,6 +82,7 @@ export interface XlsxRenderSheet {
   readonly rowsMeta: readonly XlsxRenderRow[];
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
+  readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -177,6 +179,7 @@ function parseWorksheetXml(
   name: string,
   sharedStrings: readonly string[],
   rels: Readonly<Record<string, string>>,
+  palette?: readonly string[],
 ): XlsxRenderSheet {
   const formatPr = elements(xml, "sheetFormatPr")[0];
   const defaultRowHeight = formatPr ? Number(attribute(formatPr.tag, "defaultRowHeight")) : undefined;
@@ -271,7 +274,9 @@ function parseWorksheetXml(
         };
         continue;
       }
-      const value = rawValue === undefined ? undefined : cellValueOf(type, rawValue, sharedStrings);
+      const value = type === "inlineStr"
+        ? elements(sectionInner(cell.body, "is"), "t").map((part) => decodeXml(part.body)).join("")
+        : rawValue === undefined ? undefined : cellValueOf(type, rawValue, sharedStrings);
       cells[address] = {
         ...(value === undefined ? {} : { v: value }),
         ...(styleIndex === undefined ? {} : { s: Number(styleIndex) }),
@@ -316,6 +321,7 @@ function parseWorksheetXml(
     rowsMeta,
     hyperlinks,
     cells,
+    conditionalRules: parseConditionalRules(xml, parseRefRange, palette),
   };
 }
 
@@ -398,7 +404,7 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
-      ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels)
+      ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
     return { ...parsed, hidden: sheet.hidden ?? false, index };
   });

@@ -105,6 +105,30 @@ describe("render model bridge", () => {
     expect(result.cells).toEqual([]);
   });
 
+  it("resolves omitted cell styles through row, column and workbook defaults", () => {
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!,
+      rowsMeta: [{ row: 1, styleIndex: 1 }],
+      columnWidths: [{ startColumn: 0, endColumn: 0, styleIndex: 1 }],
+      cells: { A1: { v: "column" }, B1: { v: "normal" }, A2: { v: "row" }, B2: { v: "explicit", s: 0 } },
+    }] };
+    const result = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 });
+    expect(result.cells.map((cell) => cell.styleIndex)).toEqual([1, 0, 1, 0]);
+    expect(readRangeFromModel({ ...model, styles: [], sheets: [{ ...model.sheets[0]!, rowsMeta: [], columnWidths: [] }] },
+      "Data", { startRow: 0, endRow: 0, startColumn: 1, endColumn: 1 }).cells[0]?.styleIndex).toBeUndefined();
+  });
+
+  it("returns complete conditional ranges even when the first viewport does not intersect them", () => {
+    const rule = { ranges: [{ startRow: 20, endRow: 30, startColumn: 3, endColumn: 3 }],
+      ruleType: "cellIs", formulas: ["10"], operator: "lessThan", dxfIndex: 0, priority: 1,
+      percent: false, bottom: false, cfvos: [], colors: [], iconReverse: false, showValue: true };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, conditionalRules: [rule] }] };
+    const result = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 });
+    expect(result.conditionalRules).toEqual([rule]);
+    expect(result.conditionalRules[0]!.ranges[0]).not.toBe(rule.ranges[0]);
+    result.conditionalRules[0]!.ranges[0] = { ...result.conditionalRules[0]!.ranges[0]!, startRow: 99 };
+    expect(rule.ranges[0]!.startRow).toBe(20);
+  });
+
   it("builds a host whose readRange speaks the vendored loader contract", async () => {
     const host = createXlsxModelHost(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "b".repeat(64) });
     const result = await host.readRange({ sessionId: "s-1", sheetId: "sheet-2", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } });

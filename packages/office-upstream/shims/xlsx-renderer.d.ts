@@ -119,6 +119,7 @@ export interface XlsxRendererHandle {
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
   setCellText(sheetId: string, row: number, column: number, text: string): void;
+  commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
   setDarkMode(dark: boolean): void;

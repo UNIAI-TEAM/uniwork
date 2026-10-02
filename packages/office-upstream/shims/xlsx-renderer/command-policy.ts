@@ -99,6 +99,22 @@ function canRestoreRange(state: LazyWorkbookState, sheetId: string, range: IRang
   return true;
 }
 
+function canMarkConditionalFormulaDirty(event: RendererCommand, state: LazyWorkbookState | null): boolean {
+  if (!state || event.type !== 2 || !event.options?.onlyLocal || !event.params || typeof event.params !== "object") return false;
+  const units = Object.entries(event.params);
+  const unitId = `file-${state.file.sha256}`;
+  if (units.length !== 1 || units[0]![0] !== unitId) return false;
+  const sheets = units[0]![1];
+  if (!sheets || typeof sheets !== "object") return false;
+  const entries = Object.entries(sheets);
+  return entries.length > 0 && entries.every(([sheetId, formulas]) => {
+    if (!state.file.sheets.some((sheet) => sheet.id === sheetId) || !formulas || typeof formulas !== "object") return false;
+    const dirty = Object.entries(formulas);
+    return dirty.length > 0 && dirty.every(([id, value]) =>
+      id.startsWith(`formula.${unitId}_${sheetId}_cf_`) && value === true);
+  });
+}
+
 /** Default deny keeps unsavable changes out of both commands and shortcuts. */
 export function canExecuteCommand(
   event: RendererCommand,
@@ -108,8 +124,19 @@ export function canExecuteCommand(
   if (VIEW_COMMANDS.has(event.id)) return true;
   // Engine bookkeeping is derived state; no user-facing formula commands.
   if (FORMULA_MUTATIONS.has(event.id)) return true;
+  // Despite its pinned name, this no-op mutation schedules all "other"
+  // formulas, including CF. It carries only bound dirty flags, never cells.
+  if (event.id === "sheet.mutation.data-validation-formula-mark-dirty") return canMarkConditionalFormulaDirty(event, state);
   if (event.options?.fromFormula && event.id === "sheet.mutation.set-range-values") return true;
   if (readOnly || !state) return false;
+  // Pinned docs-ui registers a four-character-suffixed operation for the
+  // normal in-cell editor's Enter/Tab/Escape handler. It closes the editor;
+  // the subsequent cell mutation still passes the loaded-range/write gate.
+  if (/^sheet\.operation\.editor-__INTERNAL_EDITOR__DOCS_NORMAL-keyboard-[A-Za-z0-9_-]{4}$/.test(event.id)) {
+    const params = event.params as { keyCode?: number; metaKey?: number } | undefined;
+    return event.type === 1 && !!params && [9, 13, 27].includes(params.keyCode ?? -1) &&
+      (params.metaKey === undefined || params.metaKey === 0);
+  }
   if (event.id === "sheet.command.paste-by-short-key") {
     const params = event.params as { htmlContent?: string; textContent?: string; files?: unknown[] } | undefined;
     return !!params && !params.htmlContent && !params.files?.length && typeof params.textContent === "string";

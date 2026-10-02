@@ -188,12 +188,12 @@ function parseBorderEdge(xml: string, name: string, palette: readonly string[] |
   return { style, ...(color.rgb ? { color: color.rgb } : {}) };
 }
 
-function parseFill(xml: string, palette: readonly string[] | undefined): { fillColor?: string; fillTheme?: number; fillTint?: number } {
+function parseFill(xml: string, palette: readonly string[] | undefined, differential = false): { fillColor?: string; fillTheme?: number; fillTint?: number } {
   const pattern = elements(xml, "patternFill")[0];
   if (pattern) {
     const patternType = attribute(pattern.tag, "patternType");
-    if (patternType === undefined || patternType === "none") return {};
-    const fg = resolvedColor(parseColorXml(pattern.body.match(/<fgColor\b[^>]*\/?>/)?.[0]), palette);
+    if (!differential && (patternType === undefined || patternType === "none")) return {};
+    const fg = resolvedColor(parseColorXml(pattern.body.match(differential ? /<(?:fgColor|bgColor)\b[^>]*\/?>/ : /<fgColor\b[^>]*\/?>/)?.[0]), palette);
     if (fg.rgb) {
       return {
         fillColor: fg.rgb,
@@ -232,18 +232,25 @@ export function parseStylesXml(xml: string, palette: readonly string[] | undefin
     diagonalDown: attribute(border.tag, "diagonalDown") === "1" || attribute(border.tag, "diagonalDown") === "true",
   }));
 
-  const toStyle = (xfTag: string, xfBody: string): XlsxRenderStyle => {
+  const toStyle = (xfTag: string, xfBody: string, differential = false): XlsxRenderStyle => {
     const fontId = Number(attribute(xfTag, "fontId") ?? 0);
     const fillId = Number(attribute(xfTag, "fillId") ?? 0);
     const borderId = Number(attribute(xfTag, "borderId") ?? 0);
     const numFmtId = Number(attribute(xfTag, "numFmtId") ?? 0);
-    const font = fonts[fontId];
-    const fill = fills[fillId];
-    const border = borders[borderId];
+    const font = differential ? parseFont(sectionInner(xfBody, "font"), palette) : fonts[fontId];
+    const fill = differential ? parseFill(sectionInner(xfBody, "fill"), palette, true) : fills[fillId];
+    const inlineBorder = sectionInner(xfBody, "border");
+    const border = differential ? {
+      top: parseBorderEdge(inlineBorder, "top", palette), bottom: parseBorderEdge(inlineBorder, "bottom", palette),
+      left: parseBorderEdge(inlineBorder, "left", palette), right: parseBorderEdge(inlineBorder, "right", palette),
+      diagonal: parseBorderEdge(inlineBorder, "diagonal", palette), diagonalUp: false, diagonalDown: false,
+    } : borders[borderId];
     const alignment = elements(xfBody, "alignment")[0];
     const indent = alignment ? Number(attribute(alignment.tag, "indent") ?? 0) : 0;
     const textRotation = alignment ? Number(attribute(alignment.tag, "textRotation") ?? 0) : 0;
-    const numberFormat = numFmts.get(numFmtId) ?? BUILTIN_NUMBER_FORMATS[numFmtId];
+    const numberFormat = differential
+      ? attribute(elements(xfBody, "numFmt")[0]?.tag ?? "", "formatCode")
+      : numFmts.get(numFmtId) ?? BUILTIN_NUMBER_FORMATS[numFmtId];
     return {
       ...(font?.fontFamily === undefined ? {} : { fontFamily: font.fontFamily }),
       ...(font?.fontSize === undefined ? {} : { fontSize: font.fontSize }),
@@ -266,7 +273,7 @@ export function parseStylesXml(xml: string, palette: readonly string[] | undefin
       ...(alignment ? { verticalAlignment: attribute(alignment.tag, "vertical") } : {}),
       ...(Number.isInteger(indent) && indent > 0 ? { indent } : {}),
       ...(Number.isInteger(textRotation) && textRotation > 0 ? { textRotation } : {}),
-      ...(numberFormat === undefined ? {} : { numberFormat }),
+      ...(numberFormat === undefined ? {} : { numberFormat: differential ? decodeXml(numberFormat) : numberFormat }),
       ...(border?.top === undefined ? {} : { borderTop: border.top }),
       ...(border?.bottom === undefined ? {} : { borderBottom: border.bottom }),
       ...(border?.left === undefined ? {} : { borderLeft: border.left }),
@@ -278,7 +285,7 @@ export function parseStylesXml(xml: string, palette: readonly string[] | undefin
   };
 
   const styles = elements(sectionInner(xml, "cellXfs"), "xf").map((xf) => toStyle(xf.tag, xf.body));
-  const dxfStyles = elements(sectionInner(xml, "dxfs"), "dxf").map((dxf) => toStyle(dxf.tag, dxf.body));
+  const dxfStyles = elements(sectionInner(xml, "dxfs"), "dxf").map((dxf) => toStyle(dxf.tag, dxf.body, true));
   const normalFontName = fonts[0]?.fontFamily;
   return { styles, dxfStyles, ...(normalFontName === undefined ? {} : { normalFontName }) };
 }

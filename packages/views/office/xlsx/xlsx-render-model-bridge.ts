@@ -81,7 +81,7 @@ export interface RendererRangeResult {
   }[];
   merges: { startRow: number; endRow: number; startColumn: number; endColumn: number }[];
   hyperlinks: { row: number; column: number; target: string }[];
-  conditionalRules: never[];
+  conditionalRules: NonNullable<XlsxRenderSheet["conditionalRules"]>[number][];
   autoFilter: null;
   autoFilterColumns: never[];
   dataValidations: never[];
@@ -193,17 +193,21 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
   const sheet = model.sheets.find((candidate) => candidate.id === sheetIdOrName || candidate.name === sheetIdOrName);
   if (!sheet) throw new Error(`xlsx_range_unknown_sheet:${sheetIdOrName}`);
   const cells: RendererRangeCell[] = [];
+  const rowStyles = new Map(sheet.rowsMeta.map((row) => [row.row, row.styleIndex]));
   for (let row = range.startRow; row <= range.endRow; row += 1) {
     for (let column = range.startColumn; column <= range.endColumn; column += 1) {
       const address = A1(row, column);
       const cell = sheet.cells[address];
       if (!cell) continue;
+      const columnStyle = sheet.columnWidths.findLast((span) => span.styleIndex !== undefined &&
+        column >= span.startColumn && column <= span.endColumn)?.styleIndex;
+      const styleIndex = cell.s ?? rowStyles.get(row) ?? columnStyle ?? (model.styles[0] ? 0 : undefined);
       cells.push({
         row,
         column,
         value: cell.f !== undefined ? (cell.c ?? null) : (cell.v ?? null),
         ...(cell.f === undefined ? {} : { formula: cell.f }),
-        ...(cell.s === undefined ? {} : { styleIndex: cell.s }),
+        ...(styleIndex === undefined ? {} : { styleIndex }),
       });
     }
   }
@@ -223,7 +227,12 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     rows,
     merges: sheet.merges.filter((merge) => intersects(range, merge)).map((merge) => ({ ...merge })),
     hyperlinks: sheet.hyperlinks.filter((link) => link.row >= range.startRow && link.row <= range.endRow && link.column >= range.startColumn && link.column <= range.endColumn),
-    conditionalRules: [],
+    // The pinned loader installs sheet-wide rules once, including offscreen
+    // ranges. Do not clip them to the first requested viewport.
+    conditionalRules: (sheet.conditionalRules ?? []).map((rule) => ({ ...rule,
+      ranges: rule.ranges.map((area) => ({ ...area })), formulas: [...rule.formulas],
+      cfvos: rule.cfvos.map((value) => ({ ...value })), colors: [...rule.colors],
+    })),
     autoFilter: null,
     autoFilterColumns: [],
     dataValidations: [],

@@ -47,6 +47,25 @@ const mutation = (cellValue, extra = {}) => ({
   params: { unitId: 'file-sha', subUnitId: 's1', cellValue }, ...extra,
 });
 
+test('only the pinned cell editor commit/cancel keyboard operations pass the edit gate', () => {
+  const model = state();
+  const operation = { id: 'sheet.operation.editor-__INTERNAL_EDITOR__DOCS_NORMAL-keyboard-PX-v',
+    type: 1, params: { keyCode: 13 } };
+  for (const keyCode of [13, 9, 27]) {
+    const event = { ...operation, params: { keyCode } };
+    assert.equal(canExecuteCommand(event, model, false), true);
+    assert.equal(canExecuteCommand(event, model, true), false);
+    assert.equal(canExecuteCommand(event, null, false), false);
+  }
+  for (const event of [
+    { ...operation, id: operation.id.replace('DOCS_NORMAL', 'ARBITRARY') },
+    { ...operation, params: { keyCode: 65 } },
+    { ...operation, params: { keyCode: 13, metaKey: 4096 } },
+    { ...operation, type: 2 },
+    { ...operation, params: undefined },
+  ]) assert.equal(canExecuteCommand(event, model, false), false);
+});
+
 test('bound grid mutations emit typed values and formulas through the vendored journal', () => {
   const model = state();
   const edits = ingestCellMutation(model, mutation({ 0: {
@@ -173,6 +192,23 @@ test('derived auto-height is allowed only inside supported cell commands and sta
   assert.equal(canExecuteCommand(content, model, false), false);
   content.params.trigger = 'univer.command.undo';
   assert.equal(canExecuteCommand(content, model, false), true);
+});
+
+test('conditional formula dirty bookkeeping is local, bound and derived even for readonly', () => {
+  const model = state();
+  const event = {id:'sheet.mutation.data-validation-formula-mark-dirty',type:2,options:{onlyLocal:true},
+    params:{'file-sha':{s1:{'formula.file-sha_s1_cf_rule_random':true}}}};
+  assert.equal(canExecuteCommand(event,model,false),true);
+  assert.equal(canExecuteCommand(event,model,true),true);
+  assert.deepEqual(ingestCellMutation(model,event),[]);
+  for (const params of [{}, {'file-other':event.params['file-sha']}, {'file-sha':{missing:{}}},
+    {'file-sha':{s1:{'formula.file-sha_s1_cf_rule_random':false}}},
+    {'file-sha':{s1:{'formula.file-sha_s1_dv_rule_random':true}}}]) {
+    assert.equal(canExecuteCommand({...event,params},model,false),false);
+  }
+  assert.equal(canExecuteCommand({...event,options:{}},model,false),false);
+  assert.equal(canExecuteCommand({...event,type:0},model,false),false);
+  assert.equal(canExecuteCommand(event,null,false),false);
 });
 
 test('real Univer commands and undo/redo emit journal restorations and obey the mutation gate', async () => {
