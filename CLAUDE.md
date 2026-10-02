@@ -171,17 +171,14 @@ binary + production Next build against the same services).
 
 ## Accepted Decisions Awaiting Enforcement
 
-ADR 0008 and 0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
-Phase F feature, but their guard tests do not exist yet. Until the named test
-lands, reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
+ADR 0010 (`docs/adr/`) was accepted on 2026-09-04 and shapes every Phase F
+feature, but its guard tests do not exist yet. Until the named test lands,
+reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
 when it lands, move the rule into the section above it belongs to and name the
-test there. Planned guards are written without backticks on purpose: they are
-not paths yet.
+test there (ADR 0008 moved to Database and Migration Rules on 2026-10-02).
+Planned guards are written without backticks on purpose: they are not paths
+yet.
 
-- ADR 0008 — every query filters by `organization_id`; membership still only
-  via `RequireMember`. The column rule itself is enforced (see Database and
-  Migration Rules). Still to land with F-08/F-02: a query-scope scanner over
-  `server/pkg/db/queries/`, a two-organization isolation matrix test.
 - ADR 0010 — the agent runtime never writes business tables; agent writes go
   proposal → human confirm → execute; `accepted` is human-only. The gateway
   half landed with F-09 (see Audit and Events); still to land with F-10: a
@@ -222,11 +219,36 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   `TestEveryBusinessTableCarriesOrganizationID` (migration lint) and
   `TestTenantColumnIsNotNull` (migrated database,
   `server/migrations/tenant_schema_test.go`) hold it.
-- Every query filters by `workspace_id`; membership is decided only in
-  `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins, and only in `OrganizationService.RequireMember`
-  for the organization tier. `server/internal/arch_test.go` fails if any
-  other file calls the membership queries.
+- Membership is decided only in `WorkspaceService.RequireMember`, where
+  organization owners/admins are implicit workspace admins, and only in
+  `OrganizationService.RequireMember` for the organization tier.
+  `server/internal/arch_test.go` fails if any other file calls the membership
+  queries.
+- Every sqlc query that touches a tenant table (one with `organization_id`)
+  constrains it by a parameter — `organization_id = $n` or `workspace_id = $n`,
+  the tenant the service took from `RequireMember` — or carries a
+  `-- tenant:` line from a closed set (`by-id`, `parent <column>`, `self`,
+  `token`, `system`, `platform`) saying why it need not (ADR 0008).
+  `TestEveryQueryNamesItsTenant` (`server/migrations/query_scope_test.go`)
+  holds it; the reason is what a reviewer checks in the caller.
+- Tenant isolation is tested end to end (ADR 0008). `TestIsolationMatrix`
+  (`server/internal/handler/isolation_matrix_test.go`) builds two
+  organizations through the API, with a row of A's in every tenant table but
+  the few `isoUnseeded` names. B's owner calls every tenant route with A's
+  ids, with B's parent and A's child ids, and with A's rows named in a body
+  (`isoReferences`) — the last two again once B's owner also joins A — and
+  the routes are called once more with no session at all. The answer is a
+  refusal (403/404; 401 without a session) carrying no text or id of A's,
+  every row with A's `organization_id` hashes the same before and after, and
+  no row of B's comes to point at A. Each refusal has a control unless
+  `isoRoutes` says why it cannot: the tenant's own owner reads and writes
+  through the same route without being refused, so a broken route cannot
+  pass for an isolated one. A route whose path names a tenant row is covered
+  the day it is registered; one without fails until `isoRoutes` classifies it
+  with a reason. A request field ending in `_id`/`_ids` fails
+  `TestEveryBodyIDFieldHasAReferenceCase` until it has an `isoReferences`
+  case or an exemption with a reason. `TestIsolationRealtime` holds the two
+  WebSockets, delivery included.
 - Organization membership has a lifecycle (F-03). A member with
   `organization_members.deactivated_at` set keeps every row they own —
   workspace membership, authored content, history — and is refused by BOTH

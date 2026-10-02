@@ -16,6 +16,7 @@ mỗi ô có cách kiểm, và ô "không áp dụng" ghi lý do một dòng. Th
 | Commit theo prefix, `Refs:` trailer | `.githooks/commit-msg`, `prepare-commit-msg` |
 | Migration: không FK/cascade, index `CONCURRENTLY` riêng file, có `.down.sql`, bảng mới có `organization_id NOT NULL` | `server/migrations/lint_test.go` |
 | Handler → service → db, membership chỉ qua `RequireMember`, chỉ `internal/audit` ghi audit/outbox | `server/internal/arch_test.go` |
+| Cách ly tenant: mọi route từ chối chủ tổ chức khác, không trả gì của tổ chức kia, không đổi dòng nào của nó; query đụng bảng tenant nêu tenant của mình | `server/internal/handler/isolation_matrix_test.go`, `isolation_realtime_test.go`, `server/migrations/query_scope_test.go` |
 | Command đổi trạng thái có audit; không có action mồ côi | `server/internal/service/audit_coverage_test.go` |
 | Sự kiện `<entity>.<verb>` khớp ở ba nơi | `scripts/events-catalogue.test.mjs` |
 | Endpoint có SDI/SDO và lên Swagger | `server/internal/handler/swagger_test.go` |
@@ -42,10 +43,15 @@ Cách kiểm đứng cạnh từng ô. Không có cách kiểm thì ô đó khô
    `CLAUDE.md` § Testing): service/handler Go, endpoint có schema + case
    malformed-response, view có test trạng thái rỗng/lỗi/có dữ liệu, E2E cho luồng vàng
    nếu có UI. *Kiểm:* diff có file test cạnh file đổi; test đó fail nếu revert code.
-4. **Cách ly tenant** `[fast]` — query mới nhận `organization_id`/`workspace_id` từ
-   `RequireMember`, không từ body; có test actor org B nhận 403/404 (đến khi ma trận
-   cách ly ADR 0008 có, đây là kiểm tay). *Kiểm:* đọc `WHERE` của query mới trong
-   `server/pkg/db/queries/`; tìm test tên có "forbidden"/"other org".
+4. **Cách ly tenant** `[fast]` — máy đã giữ phần cơ học (bảng trên): route mới tự vào
+   ma trận hai tổ chức, query mới phải có `organization_id = $n`/`workspace_id = $n`
+   hoặc một dòng `-- tenant:`, trường `_id` mới trong SDI phải có ca `isoReferences`
+   hoặc lý do miễn. Reviewer kiểm phần máy không đọc được: lý do `-- tenant:` là thật
+   (`by-id`: service kiểm quyền trên dòng trả về trước khi dùng; `parent x_id`: dòng
+   cha đã qua `RequireMember`), và ca `isoReferences` mới gửi đúng id của A vào đúng
+   trường chứ không chỉ để có tên trong `covers`. *Kiểm:* đọc dòng `-- tenant:` trong
+   diff `server/pkg/db/queries/`; đọc ca mới trong
+   `server/internal/handler/isolation_references_test.go`.
 5. **Quyền hai phía** — rule quyền mới có ở Go và mirror trong
    `packages/core/permissions/rules.ts`, mỗi rule cite gate Go nó mirror. *Kiểm:* grep
    tên rule ở cả hai nơi.
