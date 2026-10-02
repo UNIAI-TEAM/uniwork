@@ -44,11 +44,20 @@ type MarkVars = { participantId: string; status: AttendanceStatus; note?: string
 /**
  * Optimistic: a clerk picks a status and the row and counts follow at once
  * (same screen, predictable outcome, rollback is a cache restore).
+ *
+ * Marks made in quick succession share one mutation key, and only the last
+ * one to settle touches the roll: a refetch (or a snapshot restore) while
+ * another PUT is still in flight would answer without that mark and make its
+ * row jump back, then forward again. A mutation still counts as in flight
+ * inside its own callbacks, so "last" is a count of one.
  */
 export function useMarkAttendance(meetingId: string) {
   const qc = useQueryClient();
   const key = meetingKeys.attendance(meetingId);
+  const mutationKey = ["meetings", meetingId, "attendance-mark"];
+  const isLastMark = () => qc.isMutating({ mutationKey }) <= 1;
   return useMutation({
+    mutationKey,
     mutationFn: (v: MarkVars) => api.markAttendance(meetingId, v.participantId, { status: v.status, note: v.note }),
     onMutate: async (v: MarkVars) => {
       await qc.cancelQueries({ queryKey: key });
@@ -57,10 +66,12 @@ export function useMarkAttendance(meetingId: string) {
       return { previous };
     },
     onError: (_err, _v, ctx) => {
-      if (ctx?.previous) qc.setQueryData(key, ctx.previous);
+      // The snapshot predates the other marks still in flight; restoring it
+      // would undo them too. The last mark's refetch corrects this row instead.
+      if (ctx?.previous && isLastMark()) qc.setQueryData(key, ctx.previous);
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: key });
+      if (isLastMark()) void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
     },
   });

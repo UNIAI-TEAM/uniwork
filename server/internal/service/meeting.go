@@ -451,10 +451,12 @@ func tsOrNil(t pgtype.Timestamptz) any {
 	return t.Time.UTC().Format(time.RFC3339)
 }
 
-// quorumOrNil normalizes the nullable quorum for an audit change entry.
+// quorumOrNil normalizes the nullable quorum for an audit change entry: nil
+// for NULL, a plain int otherwise (the smallint column's width is a storage
+// detail, not something the log or its JSON should carry).
 func quorumOrNil(q pgtype.Int2) any {
 	if !q.Valid {
 		return nil
 	}
-	return q.Int16
+	return int(q.Int16)
 }

@@ -30,7 +30,7 @@ import { Notice } from "../common/notice";
 import { moduleTone } from "../layout/module-tones";
 import { toastChatError } from "./chat-error-message";
 import { ChatRoomMark } from "./chat-room-mark";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "../common/search-fold";
 
 /** The server query waits for a pause in typing; the local filter does not. */
 const SERVER_QUERY_DELAY_MS = 250;

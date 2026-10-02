@@ -25,6 +25,7 @@ import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
+import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import {
   createInvalidateScheduler,
@@ -334,6 +335,22 @@ function keysFor(
       // showing a stale one.
       push(peopleRootKey);
       push(orgMemberRootKey);
+      // A role change or a membership change changes what the viewer may do
+      // here (clerk tools, settings, admin actions), so the viewer's own
+      // membership and the member list refetch too. Organization-level frames
+      // such as member.deactivated carry no workspace id but still change an
+      // admin's implicit rights in every workspace.
+      if (
+        (type === "member.role_changed" ||
+          type === "member.removed" ||
+          type === "member.deactivated" ||
+          type === "member.reactivated" ||
+          type === "member.left") &&
+        (!payload.workspace_id || payload.workspace_id === wsId)
+      ) {
+        push(workspaceKeys.me(wsId));
+        push(workspaceKeys.members(wsId));
+      }
       break;
     }
     case "recording.started":
@@ -417,6 +434,13 @@ const RENAMED_EVENTS: Record<string, WSEventType> = {
   "comment.created": "task.comment_added",
 };
 
+/** Prefixes of the per-meeting keys an open meeting page or room reads. */
+const MEETING_DETAIL_ROOT = [meetingKeys.detail("")[0]] as const;
+const MEETING_PARTICIPANTS_ROOT = [meetingKeys.participants("")[0]] as const;
+const MEETING_ATTENDANCE_ROOT = [meetingKeys.attendance("")[0]] as const;
+const MEETING_MOTIONS_ROOT = [meetingKeys.motions("")[0]] as const;
+const MEETING_ACTIVITY_ROOT = [meetingKeys.activity("")[0]] as const;
+
 /** Keys that could have gone stale while the socket was down. */
 function allWorkspaceKeys(wsId: string) {
   return [
@@ -448,6 +472,15 @@ function allWorkspaceKeys(wsId: string) {
     // different branch of the same feature.
     documentKeys.workspace(wsId),
     documentKeys.favoritesRoot,
+    // An open meeting (detail page or room) misses its frames too: the roll,
+    // the roster, the motions and the timeline, plus the meeting itself when
+    // it ended meanwhile. These keys are per meeting, not per workspace, so the
+    // prefix covers every one; only the queries on screen refetch.
+    MEETING_DETAIL_ROOT,
+    MEETING_PARTICIPANTS_ROOT,
+    MEETING_ATTENDANCE_ROOT,
+    MEETING_MOTIONS_ROOT,
+    MEETING_ACTIVITY_ROOT,
   ];
 }
 

@@ -379,7 +379,7 @@ describe("MeetingDetailView", () => {
     expect(notesSlot).not.toBeNull();
   });
 
-  it("hides roster and invite-link mutations after the meeting has ended", async () => {
+  it("keeps only duties on the roster, and no invite-link mutations, after the meeting has ended", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
       if (p.endsWith("/me")) {
@@ -432,7 +432,12 @@ describe("MeetingDetailView", () => {
     });
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Thao tác với/ })).not.toBeInTheDocument();
+    // The roll can still be reviewed, so duties stay; who is on the meeting does not change.
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với user test 01" }));
+    expect(await screen.findByRole("menuitem", { name: "Giao vai thư ký" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Gỡ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thêm người" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tạo liên kết mới" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chuyển chủ trì" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Nhấn «Tạo liên kết mới»/)).not.toBeInTheDocument();

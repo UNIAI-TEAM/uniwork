@@ -41,7 +41,8 @@ export function MeetingAttendanceRowItem({
   avatarUrl?: unknown;
   /** Rejects when the server refuses; the cache is already rolled back by then. */
   onMark: (status: AttendanceStatus, note?: string) => Promise<unknown>;
-  onReset: () => void;
+  /** Rejects when the server refuses, like onMark. */
+  onReset: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
   const noteId = useId();
@@ -49,13 +50,20 @@ export function MeetingAttendanceRowItem({
   const [note, setNote] = useState(row.note ?? "");
   const [noteState, setNoteState] = useState<"idle" | "saving" | "saved">("idle");
   const noteRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const focusNoteNext = useRef(false);
+  // The reset button goes away once the row is back on the suggestion; keep a
+  // keyboard user on this row by handing focus to its picker then.
+  const focusTriggerNext = useRef(false);
+  // The reason last sent, so Enter followed by leaving the field saves once.
+  const submittedNote = useRef<string | null>(null);
   // Only the latest save may report back; an older one landing late must not
   // say "saved" over newer typing or roll it back.
   const saveSeq = useRef(0);
   useEffect(() => setNote(row.note ?? ""), [row.note]);
   useEffect(() => {
     saveSeq.current++;
+    submittedNote.current = null;
     setNoteState("idle");
   }, [status]);
   // Picking "excused" reveals the reason field; take the clerk there, after the
@@ -66,6 +74,12 @@ export function MeetingAttendanceRowItem({
     const frame = requestAnimationFrame(() => noteRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [status]);
+  useEffect(() => {
+    if (row.source === "MANUAL" || !focusTriggerNext.current) return;
+    focusTriggerNext.current = false;
+    const frame = requestAnimationFrame(() => triggerRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [row.source]);
 
   const minutes = Math.round(row.present_seconds / 60);
   const presence = !row.first_joined_at
@@ -79,7 +93,8 @@ export function MeetingAttendanceRowItem({
   const items = ATTENDANCE_STATUSES.map((s) => ({ value: s, label: label(s) }));
   const saveNote = () => {
     const next = note.trim();
-    if (next === (row.note ?? "")) return;
+    if (next === (row.note ?? "") || next === submittedNote.current) return;
+    submittedNote.current = next;
     const seq = ++saveSeq.current;
     const saved = row.note ?? "";
     setNoteState("saving");
@@ -90,6 +105,7 @@ export function MeetingAttendanceRowItem({
       // A refused save puts the saved reason back rather than leaving an unsaved one on screen.
       () => {
         if (seq !== saveSeq.current) return;
+        submittedNote.current = null;
         setNoteState("idle");
         setNote(saved);
       },
@@ -133,6 +149,7 @@ export function MeetingAttendanceRowItem({
               }}
             >
               <SelectTrigger
+                ref={triggerRef}
                 size="sm"
                 variant="subtle"
                 className="min-w-0 flex-1 @md:w-40 @md:flex-none"
@@ -164,7 +181,13 @@ export function MeetingAttendanceRowItem({
                       size="icon-sm"
                       className="text-muted-foreground hover:text-foreground"
                       aria-label={t("meetings.governance.resetToAuto", { name: row.display_name })}
-                      onClick={onReset}
+                      onClick={() => {
+                        focusTriggerNext.current = true;
+                        onReset().catch(() => {
+                          // Refused: the button stays, and so does focus.
+                          focusTriggerNext.current = false;
+                        });
+                      }}
                     />
                   }
                 >
@@ -217,11 +240,13 @@ export function MeetingAttendanceRowItem({
                 className="h-8"
                 onChange={(e) => {
                   saveSeq.current++;
+                  submittedNote.current = null;
                   setNote(e.target.value);
                   setNoteState("idle");
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
+                  // Saves where the clerk is; leaving the field later does not save again.
+                  if (e.key === "Enter") saveNote();
                 }}
                 onBlur={saveNote}
               />

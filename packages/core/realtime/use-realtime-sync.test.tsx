@@ -780,6 +780,25 @@ describe("useRealtimeSync", () => {
     );
   });
 
+  it("refreshes every open meeting's detail, roster, roll, motions and timeline after a reconnect", () => {
+    vi.useFakeTimers();
+    const { qc, client } = setup();
+    // Seed one meeting's caches, then check each is marked stale by prefix.
+    const keys = [
+      ["meeting", "m1"],
+      ["meeting-participants", "m1"],
+      ["meeting-attendance", "m1"],
+      ["meeting-motions", "m1"],
+      ["meeting-activity", "m1"],
+    ];
+    for (const k of keys) qc.setQueryData(k, { version: 3 });
+    client.reconnect();
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    for (const k of keys) expect(qc.getQueryState(k)?.isInvalidated, JSON.stringify(k)).toBe(true);
+  });
+
   it("coalesces transcript.appended until the longer debounce", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -828,6 +847,55 @@ describe("useRealtimeSync › home summary", () => {
       vi.advanceTimersByTime(250);
     });
     expect(keysCalled(invalidate)).not.toContain(home);
+  });
+});
+
+describe("useRealtimeSync › membership", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const me = JSON.stringify(["workspace-me", "ws1"]);
+  const members = JSON.stringify(["members", "ws1"]);
+
+  it.each([
+    { type: "member.role_changed", payload: { workspace_id: "ws1", user_id: "u1" } },
+    { type: "member.removed", payload: { workspace_id: "ws1", user_id: "u1" } },
+    { type: "member.left", payload: { workspace_id: "ws1", user_id: "u1" } },
+    // Organization-level frames name no workspace but change admin rights everywhere.
+    { type: "member.deactivated", payload: { organization_id: "o1", user_id: "u1" } },
+    { type: "member.reactivated", payload: { organization_id: "o1", user_id: "u1" } },
+  ])("refreshes my membership and the member list on $type", ({ type, payload }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([me, members]));
+  });
+
+  it("leaves my membership alone for another workspace's role change", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type: "member.role_changed",
+      payload: { workspace_id: "ws2", user_id: "u1" },
+    } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(me);
+  });
+
+  it("leaves my membership alone for a directory-only change", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "profile.updated", payload: { user_id: "u1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(me);
   });
 });
 

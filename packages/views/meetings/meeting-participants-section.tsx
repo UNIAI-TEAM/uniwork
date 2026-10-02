@@ -38,12 +38,20 @@ export function MeetingParticipantsSection({
   meeting,
   invitations,
   canManage,
+  canEditDuties = canManage,
   showTransferHost,
 }: {
   workspaceId: string;
   meeting: Meeting;
   invitations: MeetingInvitation[];
+  /** Add and remove people; closes when the meeting ends. */
   canManage: boolean;
+  /**
+   * Set standing and the secretary role. Outlives the roster: after the
+   * meeting ends the roll can still be reviewed and finalized
+   * (MeetingService duties accept anything but a canceled meeting).
+   */
+  canEditDuties?: boolean;
   showTransferHost?: boolean;
 }) {
   const { t } = useTranslation();
@@ -56,10 +64,10 @@ export function MeetingParticipantsSection({
   const { memberOf, members } = useMemberIndex(workspaceId);
   const remove = useRemoveParticipant(meeting.id);
   // Same cache as the attendance card on this page; a meeting that has not
-  // started has no roll, and only managers see the menu that needs it.
+  // started has no roll, and only those who set duties see the menu that needs it.
   const rollFinalized = useAttendanceFinalized(
     meeting.id,
-    canManage && (meeting.status === "IN_PROGRESS" || meeting.status === "ENDED"),
+    canEditDuties && (meeting.status === "IN_PROGRESS" || meeting.status === "ENDED"),
   );
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
@@ -77,9 +85,16 @@ export function MeetingParticipantsSection({
   const hasCandidates = members.some((m) => !excludeUserIds.includes(m.user_id));
   const nameOf = (p: MeetingParticipant) =>
     p.display_name_snapshot || memberOf(p.user_id)?.display_name || t("meetings.formerMember");
-  // Only a workspace member already on the roster can take the host role.
+  // Only a workspace member already on the roster can take the host role; an
+  // account that came in by link is a USER but not a member (server: RequireMember).
   const canTakeHost = (p: MeetingParticipant) =>
-    Boolean(showTransferHost && p.principal_type === "USER" && p.user_id && p.user_id !== meeting.host_user_id);
+    Boolean(
+      showTransferHost &&
+        p.principal_type === "USER" &&
+        p.user_id &&
+        p.user_id !== meeting.host_user_id &&
+        memberOf(p.user_id) !== undefined,
+    );
 
   return (
     <PanelCard
@@ -130,6 +145,7 @@ export function MeetingParticipantsSection({
                 ? t("meetings.guest")
                 : member?.email;
             const offerHost = canTakeHost(p);
+            const offerRemove = canManage && !isHost;
             const duty = dutyRole(p);
             return (
               <li key={p.id} className="group flex min-w-0 items-center gap-3 px-4 py-2.5">
@@ -147,7 +163,7 @@ export function MeetingParticipantsSection({
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {rsvp && !isHost ? <MeetingRsvpBadge status={rsvp} /> : null}
-                  {canManage ? (
+                  {offerHost || canEditDuties || offerRemove ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -169,18 +185,20 @@ export function MeetingParticipantsSection({
                             {t("meetings.transferHostMenu")}
                           </DropdownMenuItem>
                         ) : null}
-                        <MeetingDutyMenuItems
-                          meetingId={meeting.id}
-                          participant={p}
-                          name={name}
-                          separatorBefore={offerHost}
-                          rollFinalized={rollFinalized}
-                          // The host keeps the meeting: only its own standing is theirs to change here.
-                          standingOnly={isHost}
-                        />
-                        {isHost ? null : (
+                        {canEditDuties ? (
+                          <MeetingDutyMenuItems
+                            meetingId={meeting.id}
+                            participant={p}
+                            name={name}
+                            separatorBefore={offerHost}
+                            rollFinalized={rollFinalized}
+                            // The host keeps the meeting: only its own standing is theirs to change here.
+                            standingOnly={isHost}
+                          />
+                        ) : null}
+                        {offerRemove ? (
                           <>
-                            <DropdownMenuSeparator />
+                            {offerHost || canEditDuties ? <DropdownMenuSeparator /> : null}
                             <DropdownMenuItem
                               variant="destructive"
                               disabled={remove.isPending && remove.variables === p.id}
@@ -190,7 +208,7 @@ export function MeetingParticipantsSection({
                               {t("meetings.remove")}
                             </DropdownMenuItem>
                           </>
-                        )}
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : null}

@@ -154,7 +154,7 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
 
   await card.getByRole("button", { name: "Mở biểu quyết", exact: true }).click();
   const openConfirm = page.getByRole("alertdialog");
-  await expect(openConfirm.getByText("2 thành viên có mặt sẽ được bỏ phiếu.")).toBeVisible();
+  await expect(openConfirm.getByText("2 thành viên tham dự sẽ được bỏ phiếu.")).toBeVisible();
   await expect(openConfirm.getByText("Người vào phòng sau khi mở sẽ không được bỏ phiếu nội dung này.")).toBeVisible();
   // Both members present against a 50% minimum: no quorum warning.
   await expect(openConfirm.getByText(/Chưa đủ tỉ lệ có mặt tối thiểu/)).toHaveCount(0);

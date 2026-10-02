@@ -74,7 +74,7 @@ func renderMeetingSummary(vars map[string]any, withFacts bool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Output language: %s\nMeeting title: %s\n", language(str(vars, "locale")), str(vars, "title"))
 	if agenda := strings.TrimSpace(str(vars, "agenda")); agenda != "" {
-		fmt.Fprintf(&b, "Agenda:\n<untrusted source=\"agenda\">%s</untrusted>\n", agenda)
+		fmt.Fprintf(&b, "Agenda:\n%s\n", untrusted("agenda", agenda))
 	}
 	if withFacts {
 		// A typed nil (*AttendanceFacts)(nil) still asserts ok, hence the nil check.
@@ -86,28 +86,28 @@ func renderMeetingSummary(vars map[string]any, withFacts bool) string {
 		}
 	}
 	if notes, _ := vars["notes"].([]string); len(notes) > 0 {
-		b.WriteString("\nNotes taken during the meeting:\n<untrusted source=\"notes\">\n")
+		var body strings.Builder
 		for _, n := range notes {
-			fmt.Fprintf(&b, "- %s\n", n)
+			fmt.Fprintf(&body, "- %s\n", n)
 		}
-		b.WriteString("</untrusted>\n")
+		fmt.Fprintf(&b, "\nNotes taken during the meeting:\n%s\n", untrusted("notes", "\n"+body.String()))
 	}
 	if chat, _ := vars["chat"].([]ChatLine); len(chat) > 0 {
-		b.WriteString("\nIn-meeting chat:\n<untrusted source=\"chat\">\n")
+		var body strings.Builder
 		for _, c := range chat {
-			fmt.Fprintf(&b, "%s: %s\n", c.Sender, c.Text)
+			fmt.Fprintf(&body, "%s: %s\n", c.Sender, c.Text)
 		}
-		b.WriteString("</untrusted>\n")
+		fmt.Fprintf(&b, "\nIn-meeting chat:\n%s\n", untrusted("chat", "\n"+body.String()))
 	}
-	b.WriteString("\nTranscript:\n<untrusted source=\"transcript\">\n")
+	var transcript strings.Builder
 	lines, _ := vars["transcript"].([]TranscriptLine)
 	if len(lines) == 0 {
-		b.WriteString("(no transcript captured)\n")
+		transcript.WriteString("(no transcript captured)\n")
 	}
 	for _, l := range lines {
-		fmt.Fprintf(&b, "%s: %s\n", l.Speaker, l.Text)
+		fmt.Fprintf(&transcript, "%s: %s\n", l.Speaker, l.Text)
 	}
-	b.WriteString("</untrusted>\n")
+	fmt.Fprintf(&b, "\nTranscript:\n%s\n", untrusted("transcript", "\n"+transcript.String()))
 	return b.String()
 }
 
@@ -133,7 +133,7 @@ func renderAttendanceFacts(b *strings.Builder, a *AttendanceFacts) {
 	}
 	for _, st := range attendanceOrder {
 		if names := a.NamesByStatus[st.status]; len(names) > 0 {
-			fmt.Fprintf(b, "- %s: <untrusted source=\"attendance\">%s</untrusted>\n", st.label, strings.Join(names, ", "))
+			fmt.Fprintf(b, "- %s: %s\n", st.label, untrusted("attendance", strings.Join(names, ", ")))
 		}
 	}
 }
@@ -149,7 +149,7 @@ func renderMotionFacts(b *strings.Builder, motions []MotionFact) {
 		}
 		fmt.Fprintf(b, "- Vote %d: %s · %s · yes %d · no %d · abstain %d · %s\n",
 			i+1, mo.Outcome, ballotLabel(mo.BallotMode), mo.Yes, mo.No, mo.Abstain, required)
-		fmt.Fprintf(b, "  Title: <untrusted source=\"motions\">%s</untrusted>\n", mo.Title)
+		fmt.Fprintf(b, "  Title: %s\n", untrusted("motions", mo.Title))
 	}
 }
 
@@ -193,7 +193,7 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 			} else {
 				b.WriteString("Sources: (none — the workspace has nothing the asker may read about this)\n")
 			}
-			fmt.Fprintf(&b, "\nQuestion:\n<untrusted source=\"question\">%s</untrusted>\n", str(vars, "question"))
+			fmt.Fprintf(&b, "\nQuestion:\n%s\n", untrusted("question", str(vars, "question")))
 			return b.String()
 		},
 	})
@@ -265,9 +265,7 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 			var b strings.Builder
 			fmt.Fprintf(&b, "Output language: %s\nSubject: %s\nFrom: %s\nTo: %s\nSent: %s\n\n",
 				language(str(vars, "locale")), str(vars, "subject"), str(vars, "from"), str(vars, "to"), str(vars, "sent_at"))
-			b.WriteString("Body:\n<untrusted source=\"email_body\">\n")
-			b.WriteString(str(vars, "body"))
-			b.WriteString("\n</untrusted>\n")
+			fmt.Fprintf(&b, "Body:\n%s\n", untrusted("email_body", "\n"+str(vars, "body")+"\n"))
 			return b.String()
 		},
 	})

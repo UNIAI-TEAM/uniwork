@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode, type SyntheticEvent } from "react";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { foldedIncludes } from "../../chat/chat-search-fold";
+import { foldedIncludes } from "../../common/search-fold";
 import { PillButton } from "../../common/pill-button";
 import {
   PickerEmpty,

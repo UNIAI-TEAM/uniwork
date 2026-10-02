@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -146,6 +146,61 @@ describe("MeetingRoomPeopleTab", () => {
       const standing = await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" });
       await waitFor(() => expect(standing).toHaveAttribute("aria-disabled", "true"));
       expect(screen.getByText("Mở lại điểm danh để đổi tư cách")).toBeInTheDocument();
+    });
+  });
+
+  describe("chips and search in the room view", () => {
+    const person = (id: string, name: string) => ({
+      identity: `uw_participant_${id}`, name, isLocal: false, permissions: null, on: vi.fn(), off: vi.fn(),
+    });
+
+    function renderRoom() {
+      const base = requestMock.getMockImplementation();
+      requestMock.mockImplementation((path: unknown, ...rest: unknown[]) =>
+        String(path).endsWith("/participants")
+          ? Promise.resolve({
+              participants: [
+                { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", role: "MODERATOR", status: "ACTIVE", standing: "MEMBER" },
+                { id: "g-obs", meeting_id: "m1", principal_type: "GUEST", role: "ATTENDEE", status: "ACTIVE", standing: "OBSERVER" },
+                { id: "g-mem", meeting_id: "m1", principal_type: "GUEST", role: "ATTENDEE", status: "ACTIVE", standing: "MEMBER" },
+                { id: "p-tuan", meeting_id: "m1", principal_type: "USER", user_id: "u-tuan", role: "ATTENDEE", status: "ACTIVE", standing: "MEMBER" },
+              ],
+            })
+          : base?.(path, ...rest),
+      );
+      live.participants = [
+        person("g-obs", "Khách Một"),
+        person("g-mem", "Khách Hai"),
+        person("p-tuan", "Trần Tuấn"),
+      ];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+    }
+
+    const rowOf = (name: string) => screen.getByText(name).closest("li")!;
+
+    it("shows a guest's standing beside the guest chip, and no chip on a plain member", async () => {
+      renderRoom();
+      await waitFor(() => expect(within(rowOf("Khách Một")).getByText("Dự thính")).toBeInTheDocument());
+      expect(within(rowOf("Khách Một")).getByText("Khách")).toBeInTheDocument();
+      // Promoted to member: still a guest, and members carry no standing chip.
+      expect(within(rowOf("Khách Hai")).getByText("Khách")).toBeInTheDocument();
+      expect(within(rowOf("Khách Hai")).queryByText("Dự thính")).not.toBeInTheDocument();
+      expect(within(rowOf("Trần Tuấn")).queryByText("Khách")).not.toBeInTheDocument();
+      expect(within(rowOf("Trần Tuấn")).queryByText("Dự thính")).not.toBeInTheDocument();
+    });
+
+    it("finds a name typed without its accents", async () => {
+      renderRoom();
+      await screen.findByText("Trần Tuấn");
+      fireEvent.change(screen.getByRole("textbox", { name: "Tìm người tham dự" }), { target: { value: "tuan" } });
+      expect(screen.getByText("Trần Tuấn")).toBeInTheDocument();
+      expect(screen.queryByText("Khách Một")).not.toBeInTheDocument();
     });
   });
 

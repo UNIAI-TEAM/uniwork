@@ -9,7 +9,7 @@ import type {
 } from "@uniwork/core/projects/stores/view-store";
 import type { ActorFilterValue } from "@uniwork/core/tasks/stores/view-store-types";
 import type { Project, ProjectPriority, ProjectStatus } from "@uniwork/core/types/project";
-import { foldedIncludes } from "../chat/chat-search-fold";
+import { foldedIncludes } from "../common/search-fold";
 import { leadFilterValue, projectProgressRatio } from "./project-row-metrics";
 
 const PRIORITY_ORDER: Record<ProjectPriority, number> = {

@@ -19,7 +19,7 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "../common/search-fold";
 import { ChatMemberRow } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 

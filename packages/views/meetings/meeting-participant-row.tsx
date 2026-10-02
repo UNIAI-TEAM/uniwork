@@ -31,6 +31,7 @@ export function MeetingParticipantRow({
   pinned,
   avatarUrl,
   roleChip = null,
+  dutyChip = null,
   menuExtra = null,
   removable = true,
 }: {
@@ -42,6 +43,11 @@ export function MeetingParticipantRow({
   avatarUrl?: unknown;
   /** Guest, agent, secretary or observer chip beside the name; `null` for a plain member. */
   roleChip?: MeetingParticipantRole | null;
+  /**
+   * Secretary or observer chip after the role chip, so a guest still observing
+   * reads "Guest · Observer" while a promoted guest reads "Guest" alone.
+   */
+  dutyChip?: "secretary" | "observer" | null;
   /** Extra menu entries the caller owns, e.g. the host's role controls. */
   menuExtra?: ReactNode;
   /** False on the meeting host's row: no "remove" entry. */
@@ -70,7 +76,8 @@ export function MeetingParticipantRow({
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5 text-body text-foreground">
           <span className="min-w-0 truncate">{label}</span>
-          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
+          {roleChip ? <MeetingRoleChip role={roleChip} className="shrink-0" /> : null}
+          {dutyChip && dutyChip !== roleChip ? <MeetingRoleChip role={dutyChip} className="shrink-0" /> : null}
         </p>
         {subtitle ? (
           <p className="truncate text-caption text-muted-foreground">{subtitle}</p>

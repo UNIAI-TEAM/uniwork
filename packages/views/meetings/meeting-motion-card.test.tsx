@@ -73,7 +73,7 @@ describe("MeetingMotionCard — draft", () => {
     expect(screen.getByText("Nháp")).toBeInTheDocument();
     expect(screen.getByText("Công khai")).toBeInTheDocument();
     expect(screen.getByText("Quá bán")).toBeInTheDocument();
-    expect(screen.getByText("Trên số có mặt")).toBeInTheDocument();
+    expect(screen.getByText("Trên số tham dự")).toBeInTheDocument();
     expect(screen.getByText("Chi tiết kế hoạch")).toBeInTheDocument();
     const open = screen.getByRole("button", { name: "Mở biểu quyết" });
     // aria-disabled, not disabled: the button stays in the tab order and names its reason.

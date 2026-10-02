@@ -10,7 +10,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { describeChatMediaBody } from "./chat-expression-utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { foldVi } from "./chat-search-fold";
+import { foldVi } from "../common/search-fold";
 import { cn } from "@uniwork/ui/lib/utils";
 
 type NameContextEntry = {

@@ -49,7 +49,7 @@ describe("MeetingMotionOpenDialog", () => {
   it("counts the members present and late as the roll, and says late joiners are out", async () => {
     renderDialog();
     const dialog = await screen.findByRole("alertdialog");
-    expect(await within(dialog).findByText("2 thành viên có mặt sẽ được bỏ phiếu.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("2 thành viên tham dự sẽ được bỏ phiếu.")).toBeInTheDocument();
     expect(within(dialog).getByText("“Thông qua kế hoạch”")).toBeInTheDocument();
     expect(
       within(dialog).getByText("Người vào phòng sau khi mở sẽ không được bỏ phiếu nội dung này."),
@@ -64,7 +64,7 @@ describe("MeetingMotionOpenDialog", () => {
         status: "PRESENT", source: "MANUAL", present_seconds: 0, session_count: 0, removed: true },
     ];
     renderDialog();
-    expect(await screen.findByText("1 thành viên có mặt sẽ được bỏ phiếu.")).toBeInTheDocument();
+    expect(await screen.findByText("1 thành viên tham dự sẽ được bỏ phiếu.")).toBeInTheDocument();
   });
 
   it("warns when attendance is below the minimum, without blocking", async () => {
@@ -79,15 +79,15 @@ describe("MeetingMotionOpenDialog", () => {
     attendance.summary = { members: 2, present: 0, late: 0, excused: 1, absent: 1, quorum_met: null };
     renderDialog();
     expect(
-      await screen.findByText("Chưa có thành viên nào có mặt — sẽ không ai bỏ phiếu được."),
+      await screen.findByText("Chưa có thành viên nào tham dự — sẽ không ai bỏ phiếu được."),
     ).toBeInTheDocument();
-    expect(screen.getByText("0 thành viên có mặt sẽ được bỏ phiếu.")).toBeInTheDocument();
+    expect(screen.getByText("0 thành viên tham dự sẽ được bỏ phiếu.")).toBeInTheDocument();
   });
 
   it("opens the vote on confirm and closes itself", async () => {
     renderDialog();
     const dialog = await screen.findByRole("alertdialog");
-    await within(dialog).findByText("2 thành viên có mặt sẽ được bỏ phiếu.");
+    await within(dialog).findByText("2 thành viên tham dự sẽ được bỏ phiếu.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Mở biểu quyết" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/motions/mo1/open", { method: "POST" }),

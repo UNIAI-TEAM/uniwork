@@ -46,6 +46,9 @@ export function MeetingDetailRoster({
       meeting={meeting}
       invitations={invitations}
       canManage={canMutateRoster}
+      // The roll can still be reviewed after the meeting ends, so standing and
+      // the secretary role stay settable until it is canceled.
+      canEditDuties={canHost && meeting.status !== "CANCELED"}
       showTransferHost={canMutateRoster}
     />
   );

@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { foldedIncludes } from "../../chat/chat-search-fold";
+import { foldedIncludes } from "../../common/search-fold";
 import { useWorkspaceId } from "../../layout/workspace-context";
 import { actorChecked } from "./filter-counts";
 import { FILTER_ITEM_CLASS, HoverCheck } from "./hover-check";
