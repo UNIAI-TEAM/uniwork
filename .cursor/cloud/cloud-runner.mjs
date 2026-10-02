@@ -268,15 +268,20 @@ ${rep ? JSON.stringify(rep, null, 2) : String(rawResult ?? "").slice(0, 4000)}
   writeFileSync(out, md);
 }
 
+// Writes each file of the results commit with `git show`, so it needs no tar
+// (Windows' bsdtar does not read stdin by default).
 function fetchLogs(ref, dir) {
   try {
     git("fetch", "-q", "origin", `${ref}:${ref}`);
-    mkdirSync(dir, { recursive: true });
-    const tar = spawnSync("git", ["archive", ref], { maxBuffer: 1 << 30 });
-    spawnSync("tar", ["-x", "-C", dir], { input: tar.stdout });
+    for (const name of git("ls-tree", "-r", "--name-only", ref).split("\n").filter(Boolean)) {
+      const file = join(dir, name);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, execFileSync("git", ["show", `${ref}:${name}`], { maxBuffer: 1 << 30 }));
+    }
     git("update-ref", "-d", ref);
     return dir;
-  } catch {
+  } catch (e) {
+    console.error(`cloud-runner: could not fetch logs from ${ref}: ${e.message}`);
     return null;
   }
 }
