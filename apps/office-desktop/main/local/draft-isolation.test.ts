@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDesktopDraftStore, type DraftKeyStore } from "../drafts/store";
 import { createFakeDraftKeyStore } from "../drafts/test-fake";
 import { decryptDraft, encryptDraft } from "../drafts/crypto";
+import { createSafeStorageDraftKeyStore } from "../drafts/keystore";
 import { localDraftIdentity } from "../files/protected-files";
 import type { DraftIdentity, DraftSession } from "../../../../packages/core/office/draft-recovery";
 
@@ -80,5 +81,24 @@ describe("local:<device> draft namespace isolation", () => {
     const raw = await fs.readFile(join(rootDirectory, namespaces[0]!, files[0]!), "utf8");
     expect(raw).not.toContain("top secret local bytes");
     expect(raw).not.toContain("device bytes");
+  });
+
+  it("reports a typed reason and writes no fallback when the OS key store is unavailable", async () => {
+    const rootDirectory = await root();
+    const keyStore = createSafeStorageDraftKeyStore({
+      userDataDirectory: join(rootDirectory, "keys"),
+      channel: "dev",
+      keyNamespace: "uniwork-office-test",
+      safeStorage: {
+        isEncryptionAvailable: () => false,
+        encryptString: () => { throw new Error("encrypt must not be reached"); },
+        decryptString: () => { throw new Error("decrypt must not be reached"); },
+      },
+    });
+    await expect(keyStore.getOrCreate("local-device")).rejects.toMatchObject({ code: "locked" });
+    const store = createDesktopDraftStore({ rootDirectory: join(rootDirectory, "drafts"), keyStore });
+    await expect(store.checkpointPlaintext({ session: deviceSession, identity: deviceIdentity, draftId: "device-draft", generation: 1, plaintext: new TextEncoder().encode("must not be stored") }))
+      .rejects.toMatchObject({ code: "draft_recovery_locked" });
+    await expect(fs.readdir(join(rootDirectory, "drafts"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

@@ -6,7 +6,7 @@ import type { DesktopDraftStore } from "../drafts/store";
 import { createDesktopDraftStore } from "../drafts/store";
 import { createFakeDraftKeyStore } from "../drafts/test-fake";
 import { FileHandleRegistry } from "../files/registry";
-import { createAuthIpcHandlers, createFileIpcHandlers, createIpcDispatcher, createLocalIpcHandlers, createOfficeIpcHandlers, type IpcSenderContext } from "../ipc";
+import { createAuthIpcHandlers, createFileIpcHandlers, createIpcDispatcher, createLocalIpcHandlers, createOfficeIpcHandlers, IpcValidationError, validateIpcRequest, type IpcSenderContext } from "../ipc";
 import { createOpenedDocuments } from "../opened-documents";
 import { createLocalModeStore } from "./mode";
 import { createRecentFilesStore } from "./recent-files";
@@ -22,6 +22,17 @@ const DEVICE_ID = "f".repeat(32);
 const deviceScope = { sessionId: sessionGeneration, deploymentId: "local-device", accountId: deviceScopeAccountId(DEVICE_ID), generation: 1 };
 
 describe("local mode opens no network connection", () => {
+  it("never lets the renderer choose a draft namespace, identity or path", () => {
+    const checkpoint = { sessionGeneration, documentId: "doc-1", draftId: "d:1", generation: 1, dataBase64: "b2s=" };
+    expect(() => validateIpcRequest("desktop:draft-checkpoint", checkpoint, sender)).not.toThrow();
+    for (const extra of [{ namespace: "local:zzz" }, { accountId: "account-b" }, { deploymentId: "other" }, { workspaceId: "ws-2" }, { path: "C:\\secret.docx" }]) {
+      expect(() => validateIpcRequest("desktop:draft-checkpoint", { ...checkpoint, ...extra }, sender)).toThrow(IpcValidationError);
+    }
+    expect(() => validateIpcRequest("desktop:draft-list", { sessionGeneration, documentId: "doc-1", namespace: "local:zzz" }, sender)).toThrow(IpcValidationError);
+    expect(() => validateIpcRequest("desktop:recent-open", { sessionGeneration, id: `recent_${"a".repeat(32)}`, path: "C:\\secret.docx" }, sender)).toThrow(IpcValidationError);
+    expect(() => validateIpcRequest("desktop:local-mode", { sessionGeneration, local: true, namespace: "local:zzz" }, sender)).toThrow(IpcValidationError);
+  });
+
   it("refuses every cloud channel signed out without touching the transport", async () => {
     let calls = 0;
     const transport = new Proxy({}, { get: () => (..._args: unknown[]) => { calls += 1; return Promise.reject(new Error("network attempted")); } });
