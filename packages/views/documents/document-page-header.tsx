@@ -1,32 +1,35 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useDocumentComments } from "@uniwork/core/documents/hooks-comments";
 import type { Document } from "@uniwork/core/types/document";
 import { DocumentPageIcon } from "./document-page-icon";
-import { useDocumentPageMetadata } from "./use-document-page-metadata";
+import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
 interface DocumentPageHeaderProps {
   wsId: string;
   doc: Document;
   editable: boolean;
   titleRef?: RefObject<HTMLTextAreaElement | null>;
+  metadataRef?: RefObject<DocumentPageMetadataHandle | null>;
   onTitleChange: (title: string) => void;
   onFocusBody: () => void;
   canPersist?: boolean;
   getRevision?: () => string;
   onPendingChange?: (pending: boolean) => void;
   onSaved?: (doc: Document) => void;
+  onStatusChange?: (status: DocumentPageMetadataStatus) => void;
 }
 
 export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChange, onFocusBody,
-  canPersist, getRevision, onPendingChange, onSaved }: DocumentPageHeaderProps) {
+  metadataRef, canPersist, getRevision, onPendingChange, onSaved, onStatusChange }: DocumentPageHeaderProps) {
   const { t, i18n } = useTranslation();
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = titleRef ?? ownRef;
-  const metadata = useDocumentPageMetadata(wsId, doc, editable, onTitleChange, { canPersist, getRevision, onPendingChange, onSaved });
+  const metadata = useDocumentPageMetadata(wsId, doc, editable, onTitleChange, { canPersist, getRevision, onPendingChange, onSaved, onStatusChange });
+  useImperativeHandle(metadataRef, () => ({ flush: metadata.flush, hasUnsavedWork: metadata.hasUnsavedWork }), [metadata.flush, metadata.hasUnsavedWork]);
   const members = useMembers(wsId);
   const comments = useDocumentComments(wsId, doc.id);
   const author = members.data?.find((member) => member.user_id === doc.updated_by)?.display_name;

@@ -30,6 +30,7 @@ import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
+import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -102,7 +103,12 @@ export function DocumentWorkspace({
   const editorRef = useRef<DocumentEditorHandle>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
-  const [metadataPending, setMetadataPending] = useState(false);
+  const metadataRef = useRef<DocumentPageMetadataHandle>(null);
+  const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
+  const handleMetadataStatus = useCallback((next: DocumentPageMetadataStatus) => {
+    setMetadataStatus((previous) => previous.dirty === next.dirty && previous.pending === next.pending
+      && previous.failed === next.failed ? previous : next);
+  }, []);
   const lastLocalContentRef = useRef<unknown>(undefined);
   const stateRef = useRef(state);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -130,7 +136,7 @@ export function DocumentWorkspace({
    * to use the same definition or the image is lost without a word.
    */
   const hasUnsavedWork = useCallback(
-    () => stateRef.current.dirty || pendingUploadsRef.current > 0,
+    () => stateRef.current.dirty || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
     [],
   );
 
@@ -141,7 +147,7 @@ export function DocumentWorkspace({
 
   // Another writer (or a refetch) moved the base while we were clean: adopt it.
   useEffect(() => {
-    if (!dirty) save.updateBase(doc.revision, doc);
+    if (!dirty && newerPageRevision(stateRef.current.revision, doc.revision) === doc.revision) save.updateBase(doc.revision, doc);
     // `save` is rebuilt on every state change on purpose: updateBase is a no-op
     // unless the machine is clean, and a stale closure here would miss a base.
   }, [doc.revision, doc, dirty, save]);
@@ -200,6 +206,18 @@ export function DocumentWorkspace({
     if (!leavePending || leaveDoneRef.current) return;
     if (pendingUploads > 0) return;
     if (state.phase === "saving" || state.phase === "debouncing") return;
+    if (!state.dirty && state.phase !== "conflict" && metadataRef.current?.hasUnsavedWork()) {
+      // Metadata shares the leave policy, while its PATCH stays outside the
+      // content save machine. Await an existing flight instead of re-sending.
+      leaveDoneRef.current = true;
+      const resolve = leaveResolveRef.current;
+      void metadataRef.current.flush().then((saved) => {
+        if (leaveResolveRef.current !== resolve) return;
+        if (saved) finishLeave(true);
+        else setLeavePending(false);
+      });
+      return;
+    }
     if (state.phase === "saved" && !state.dirty) {
       leaveDoneRef.current = true;
       finishLeave(true);
@@ -230,7 +248,7 @@ export function DocumentWorkspace({
     }
     leaveDoneRef.current = true;
     setLeavePending(false);
-  }, [leavePending, pendingUploads, state.phase, state.dirty, save, finishLeave]);
+  }, [leavePending, pendingUploads, state.phase, state.dirty, metadataStatus.pending, metadataStatus.dirty, save, finishLeave]);
 
   const saveThenLeave = () => {
     leaveDoneRef.current = false;
@@ -343,7 +361,7 @@ export function DocumentWorkspace({
   const leaveCaption = (() => {
     if (leavePending) return t("documents.leave.waiting");
     if (state.phase === "unverifiable") return t("documents.save.unverified");
-    if (state.phase === "error") return t("documents.save.error");
+    if (state.phase === "error" || metadataStatus.failed) return t("documents.save.error");
     return t("documents.save.unsaved");
   })();
 
@@ -374,6 +392,10 @@ export function DocumentWorkspace({
   const backLabel = ownerCrumbHref
     ? t("documents.detail.back_to_owner")
     : t("documents.detail.back_to_library");
+  const indicatorState = metadataStatus.pending ? { ...state, phase: "saving" as const }
+    : !dirty && metadataStatus.failed ? { ...state, phase: "error" as const }
+    : !dirty && metadataStatus.dirty ? { ...state, phase: "debouncing" as const, dirty: true }
+    : state;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -403,10 +425,10 @@ export function DocumentWorkspace({
             {headerActions}
             {doc.kind === "page" ? (
               <DocumentSaveIndicator
-                state={metadataPending ? { ...state, phase: "saving" } : state}
+                state={indicatorState}
                 pendingUploads={pendingUploads}
                 readonly={!canEdit}
-                onRetry={save.retry}
+                onRetry={() => { if (metadataStatus.failed) void metadataRef.current?.flush(); else save.retry(); }}
                 onResolveConflict={() => setConflictOpen(true)}
               />
             ) : null}
@@ -436,11 +458,11 @@ export function DocumentWorkspace({
       >
         {doc.kind === "page" ? (
           <div className="mx-auto w-full min-w-0 max-w-3xl">
-            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef}
+            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef} metadataRef={metadataRef}
               onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
               canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
               getRevision={() => stateRef.current.revision}
-              onPendingChange={setMetadataPending} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
+              onStatusChange={handleMetadataStatus} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
           <Suspense
             fallback={
               <div className="min-h-64 space-y-3" aria-busy>
@@ -459,7 +481,7 @@ export function DocumentWorkspace({
                 content={doc.content}
                 contentRevision={doc.revision}
                 dirty={dirty}
-                editable={canEdit && !metadataPending}
+                editable={canEdit && !metadataStatus.pending}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
