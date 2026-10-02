@@ -205,7 +205,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     // the committed copy on screen, so the flag has to reach the live instance.
     useEffect(() => {
       if (!editor || editor.isDestroyed) return;
-      if (editor.isEditable !== editable) editor.setEditable(editable);
+      if (editor.isEditable !== editable) editor.setEditable(editable, false);
     }, [editor, editable]);
 
     // Adopt server content only while clean. `contentRevision` is the signal:

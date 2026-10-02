@@ -136,7 +136,7 @@ export function useDocumentPageMetadata(
   }, [t, hasChanges, publishStatus]);
 
   useEffect(() => {
-    if (options?.canPersist) void flush();
+    if (options?.canPersist && !failed.current) void flush();
   }, [options?.canPersist, flush]);
 
   const changeTitle = useCallback((value: string) => {

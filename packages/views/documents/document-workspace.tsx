@@ -105,7 +105,12 @@ export function DocumentWorkspace({
   const [pageTitle, setPageTitle] = useState(doc.title);
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
+  const metadataStatusRef = useRef(metadataStatus);
+  const queuedBodyRef = useRef<unknown>(undefined);
+  const [bodyQueued, setBodyQueued] = useState(false);
+  const bodyQueuedRef = useRef(false);
   const handleMetadataStatus = useCallback((next: DocumentPageMetadataStatus) => {
+    metadataStatusRef.current = next;
     setMetadataStatus((previous) => previous.dirty === next.dirty && previous.pending === next.pending
       && previous.failed === next.failed ? previous : next);
   }, []);
@@ -123,12 +128,14 @@ export function DocumentWorkspace({
   const [keepMineError, setKeepMineError] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
+  const [leaveRecheck, setLeaveRecheck] = useState(0);
   const leaveResolveRef = useRef<((allowed: boolean) => void) | null>(null);
   const leaveDoneRef = useRef(false);
 
   stateRef.current = state;
+  bodyQueuedRef.current = bodyQueued;
   pendingUploadsRef.current = pendingUploads;
-  const dirty = state.dirty;
+  const dirty = state.dirty || bodyQueued;
   /**
    * Unsaved means "bytes the server has not acknowledged": a draft, or an
    * upload still in flight whose result has not reached the document yet. The
@@ -136,7 +143,7 @@ export function DocumentWorkspace({
    * to use the same definition or the image is lost without a word.
    */
   const hasUnsavedWork = useCallback(
-    () => stateRef.current.dirty || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
+    () => stateRef.current.dirty || bodyQueuedRef.current || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
     [],
   );
 
@@ -151,6 +158,17 @@ export function DocumentWorkspace({
     // `save` is rebuilt on every state change on purpose: updateBase is a no-op
     // unless the machine is clean, and a stale closure here would miss a base.
   }, [doc.revision, doc, dirty, save]);
+
+  // Title/icon and body share one revision. Keep typing live, but hand the
+  // newest body to the existing save machine only after metadata settles.
+  // The queued flag protects the editor from adopting the old body in its ACK.
+  useEffect(() => {
+    if (metadataStatus.pending || !bodyQueued || queuedBodyRef.current === undefined) return;
+    const content = queuedBodyRef.current;
+    queuedBodyRef.current = undefined;
+    save.edit({ content });
+    setBodyQueued(false);
+  }, [metadataStatus.pending, bodyQueued, save]);
 
   /* ---- leaving with unsaved changes (C-01 §7.3, FE design §5.4) ---- */
 
@@ -204,6 +222,7 @@ export function DocumentWorkspace({
    */
   useEffect(() => {
     if (!leavePending || leaveDoneRef.current) return;
+    if (bodyQueued) return;
     if (pendingUploads > 0) return;
     if (state.phase === "saving" || state.phase === "debouncing") return;
     if (!state.dirty && state.phase !== "conflict" && metadataRef.current?.hasUnsavedWork()) {
@@ -213,8 +232,11 @@ export function DocumentWorkspace({
       const resolve = leaveResolveRef.current;
       void metadataRef.current.flush().then((saved) => {
         if (leaveResolveRef.current !== resolve) return;
-        if (saved) finishLeave(true);
-        else setLeavePending(false);
+        if (saved && !hasUnsavedWork()) finishLeave(true);
+        else if (!metadataStatusRef.current.failed && (bodyQueuedRef.current || stateRef.current.dirty)) {
+          leaveDoneRef.current = false;
+          setLeaveRecheck((value) => value + 1);
+        } else setLeavePending(false);
       });
       return;
     }
@@ -248,7 +270,7 @@ export function DocumentWorkspace({
     }
     leaveDoneRef.current = true;
     setLeavePending(false);
-  }, [leavePending, pendingUploads, state.phase, state.dirty, metadataStatus.pending, metadataStatus.dirty, save, finishLeave]);
+  }, [leavePending, leaveRecheck, bodyQueued, pendingUploads, state.phase, state.dirty, metadataStatus.pending, metadataStatus.dirty, save, finishLeave, hasUnsavedWork]);
 
   const saveThenLeave = () => {
     leaveDoneRef.current = false;
@@ -352,6 +374,12 @@ export function DocumentWorkspace({
   const handleChange = useCallback(
     (content: unknown) => {
       lastLocalContentRef.current = content;
+      if (metadataStatusRef.current.pending || bodyQueuedRef.current) {
+        queuedBodyRef.current = content;
+        bodyQueuedRef.current = true;
+        setBodyQueued(true);
+        return;
+      }
       save.edit({ content });
     },
     [save],
@@ -395,6 +423,7 @@ export function DocumentWorkspace({
   const indicatorState = metadataStatus.pending ? { ...state, phase: "saving" as const }
     : !dirty && metadataStatus.failed ? { ...state, phase: "error" as const }
     : !dirty && metadataStatus.dirty ? { ...state, phase: "debouncing" as const, dirty: true }
+    : bodyQueued ? { ...state, phase: "debouncing" as const, dirty: true }
     : state;
 
   return (
@@ -481,7 +510,7 @@ export function DocumentWorkspace({
                 content={doc.content}
                 contentRevision={doc.revision}
                 dirty={dirty}
-                editable={canEdit && !metadataStatus.pending}
+                editable={canEdit}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}

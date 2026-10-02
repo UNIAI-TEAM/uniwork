@@ -33,7 +33,18 @@ function mountWorkspace() {
   return { push, ...render(wrap(<NavigationProvider value={adapter}><ReactiveWorkspace /></NavigationProvider>)) };
 }
 
-const findTitle = () => screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
+const findBody = () => screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
+const findTitle = async () => {
+  await findBody();
+  return screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
+};
+function pasteText(surface: HTMLElement, text: string) {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: { files: [], getData: (type: string) => type === "text/plain" ? text : "" },
+  });
+  fireEvent(surface, event);
+}
 const back = () => fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
 const saveAndLeave = () => fireEvent.click(screen.getByRole("button", { name: t("documents.leave.save_and_leave") }));
 
@@ -48,6 +59,45 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("page metadata lifecycle", () => {
+  it("preserves immediate body input during a title flight and awaits both saves before leaving", async () => {
+    let acknowledgeTitle: ((value: unknown) => void) | undefined;
+    let acknowledgeBody: ((value: unknown) => void) | undefined;
+    let saved = doc;
+    requestMock.mockImplementation((path: string, options?: Options) => {
+      if (options?.method === "PATCH") return new Promise((done) => {
+        if (options.body?.title) acknowledgeTitle = done;
+        else acknowledgeBody = done;
+      });
+      return Promise.resolve(path === "/api/v1/documents/d1" ? { document: saved } : {});
+    });
+    const { push } = mountWorkspace();
+    const title = await findTitle();
+    const body = await findBody();
+    fireEvent.change(title, { target: { value: "Title before typing" } });
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    await waitFor(() => expect(body).toHaveFocus());
+    expect(body).toHaveAttribute("contenteditable", "true");
+    pasteText(body, "First body words");
+    expect(body).toHaveTextContent("First body words");
+    back();
+    saveAndLeave();
+    expect(push).not.toHaveBeenCalled();
+    expect(patches()).toHaveLength(1);
+    saved = { ...saved, title: "Title before typing", revision: "4" };
+    await act(async () => acknowledgeTitle?.({ document: saved }));
+    await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 8_000 });
+    expect(patches()[1]?.[1]).toMatchObject({ body: { revision: "4", content: { type: "doc" } } });
+    const content = (patches()[1]?.[1] as Options).body?.content;
+    expect(JSON.stringify(content)).toContain("First body words");
+    expect(body).toHaveTextContent("First body words");
+    expect(title).toHaveValue("Title before typing");
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => acknowledgeBody?.({ document: { ...saved, content, revision: "5" } }));
+    await waitFor(() => expect(push).toHaveBeenCalledOnce());
+    expect(patches()).toHaveLength(2);
+  });
+
   it("warns before unloading a title-only edit and clears the warning when reverted", async () => {
     mountWorkspace();
     const title = await findTitle();
@@ -60,6 +110,79 @@ describe("page metadata lifecycle", () => {
     const reverted = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(reverted);
     expect(reverted.defaultPrevented).toBe(false);
+  });
+
+  it("saves the newest queued body before a later title on their acknowledged revisions", async () => {
+    let acknowledgeTitle: ((value: unknown) => void) | undefined;
+    let acknowledgeBody: ((value: unknown) => void) | undefined;
+    let saved = doc;
+    requestMock.mockImplementation((path: string, options?: Options) => {
+      if (options?.method === "PATCH") {
+        if (patches().length === 1) return new Promise((done) => { acknowledgeTitle = done; });
+        if (options.body?.content) return new Promise((done) => { acknowledgeBody = done; });
+        saved = { ...saved, ...options.body, revision: "6" } as Document;
+        return Promise.resolve({ document: saved });
+      }
+      return Promise.resolve(path === "/api/v1/documents/d1" ? { document: saved } : {});
+    });
+    mountWorkspace();
+    const title = await findTitle();
+    const body = await findBody();
+    fireEvent.change(title, { target: { value: "First title" } });
+    fireEvent.blur(title);
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    pasteText(body, "First words ");
+    fireEvent.change(title, { target: { value: "Final title" } });
+    fireEvent.blur(title);
+    pasteText(body, "latest words");
+    saved = { ...saved, title: "First title", revision: "4" };
+    await act(async () => acknowledgeTitle?.({ document: saved }));
+    await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 8_000 });
+    expect(patches()[1]?.[1]).toMatchObject({ body: { revision: "4", content: { type: "doc" } } });
+    const content = (patches()[1]?.[1] as Options).body?.content;
+    expect(JSON.stringify(content)).toContain("latest words");
+    saved = { ...saved, content, revision: "5" } as Document;
+    await act(async () => acknowledgeBody?.({ document: saved }));
+    await waitFor(() => expect(patches()).toHaveLength(3));
+    expect(patches()[2]?.[1]).toMatchObject({ body: { revision: "5", title: "Final title" } });
+    expect(body).toHaveTextContent("latest words");
+    expect(title).toHaveValue("Final title");
+    await waitFor(() => {
+      const unload = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(unload);
+      expect(unload.defaultPrevented).toBe(false);
+    });
+  });
+
+  it("keeps a failed title for explicit retry after queued body content saves", async () => {
+    let rejectTitle: ((error: unknown) => void) | undefined;
+    let saved = doc;
+    requestMock.mockImplementation((path: string, options?: Options) => {
+      if (options?.method === "PATCH") {
+        if (patches().length === 1) return new Promise((_, reject) => { rejectTitle = reject; });
+        saved = { ...saved, ...options.body, revision: options.body?.content ? "4" : "5" } as Document;
+        return Promise.resolve({ document: saved });
+      }
+      return Promise.resolve(path === "/api/v1/documents/d1" ? { document: saved } : {});
+    });
+    const { push } = mountWorkspace();
+    const title = await findTitle();
+    const body = await findBody();
+    fireEvent.change(title, { target: { value: "Retry after body" } });
+    fireEvent.blur(title);
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    pasteText(body, "Body survives title failure");
+    await act(async () => rejectTitle?.(new ApiError("failed", "internal", 500)));
+    await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 8_000 });
+    await screen.findByRole("button", { name: t("documents.save.retry") });
+    expect(patches()[1]?.[1]).toMatchObject({ body: { revision: "3", content: { type: "doc" } } });
+    expect(body).toHaveTextContent("Body survives title failure");
+    expect(title).toHaveValue("Retry after body");
+    back();
+    saveAndLeave();
+    await waitFor(() => expect(push).toHaveBeenCalledOnce());
+    expect(patches()).toHaveLength(3);
+    expect(patches()[2]?.[1]).toMatchObject({ body: { revision: "4", title: "Retry after body" } });
   });
 
   it("waits for the title PATCH acknowledgement before Save and leave permits navigation", async () => {
