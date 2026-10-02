@@ -44,6 +44,9 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
     });
     setSelected(defaults);
   }, [context]);
+  const optionsFor = (group: PickerGroup) => (context?.[group] ?? []).filter((entry) => group !== "workspaces" || !entry.organizationId || entry.organizationId === selected.organizationId);
+  // A group with a single option is already chosen above; asking again only adds noise.
+  const fixed = GROUPS.filter((group) => optionsFor(group).length === 1 && selected[GROUP_TO_KEY[group]] === optionsFor(group)[0]!.id);
   const ready = GROUPS.every((group) => Boolean(selected[GROUP_TO_KEY[group]]));
   const missing = GROUPS.filter((group) => !selected[GROUP_TO_KEY[group]]);
   const choose = (group: PickerGroup, value: string) => {
@@ -66,13 +69,18 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
         <Skeleton className="h-40 w-full max-w-md" />
       ) : (
         <>
-          {GROUPS.map((group) => {
+          {fixed.length > 0 ? (
+            <dl className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-muted-foreground" data-picker-fixed="true">
+              {fixed.map((group) => <div key={group} className="flex gap-1"><dt>{t(group)}:</dt><dd className="break-words text-foreground">{optionsFor(group)[0]!.name}</dd></div>)}
+            </dl>
+          ) : null}
+          {GROUPS.filter((group) => !fixed.includes(group)).map((group) => {
             const key = GROUP_TO_KEY[group];
             return (
               <section key={group} className="flex flex-col gap-2">
                 <h2 className="text-label font-medium text-muted-foreground">{t(group)}</h2>
                 <RadioGroup value={selected[key] ?? ""} onValueChange={(value) => choose(group, value)} aria-label={t(group)} className="grid gap-2 sm:grid-cols-2">
-                  {(context[group] ?? []).filter((entry) => group !== "workspaces" || !entry.organizationId || entry.organizationId === selected.organizationId).map((entry) => <label key={entry.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-body text-foreground"><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /> <span className="break-words">{entry.name}{entry.email ? <span className="block text-caption text-muted-foreground">{entry.email}</span> : null}</span></label>)}
+                  {optionsFor(group).map((entry) => <label key={entry.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-body text-foreground"><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /> <span className="break-words">{entry.name}{entry.email ? <span className="block text-caption text-muted-foreground">{entry.email}</span> : null}</span></label>)}
                 </RadioGroup>
               </section>
             );

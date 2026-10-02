@@ -81,7 +81,7 @@
       "app": "App",
       "device": "Device",
       "account": "Account",
-      "deployment": "Deployment",
+      "deployment": "Server",
       "currentAccount": "Your signed-in account",
       "build": "Build",
       "unknown": "Not provided",
@@ -7274,10 +7274,10 @@
       "switchWorkspace": "Switch workspace"
     },
     "library": {
-      "pickerTitle": "Choose a deployment, account, organization, and workspace",
+      "pickerTitle": "Choose where to work",
       "pickerChoose": "Open documents",
       "pickerRequired": "Choose: {{groups}}",
-      "deployments": "Deployments",
+      "deployments": "Server",
       "accounts": "Accounts",
       "organizations": "Organizations",
       "workspaces": "Workspaces",

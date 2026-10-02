@@ -81,7 +81,7 @@
       "app": "Ứng dụng",
       "device": "Thiết bị",
       "account": "Tài khoản",
-      "deployment": "Môi trường",
+      "deployment": "Máy chủ",
       "currentAccount": "Tài khoản đang đăng nhập",
       "build": "Bản dựng",
       "unknown": "Chưa cung cấp",
@@ -7255,10 +7255,10 @@
       "switchWorkspace": "Đổi workspace"
     },
     "library": {
-      "pickerTitle": "Chọn môi trường, tài khoản, tổ chức và workspace",
+      "pickerTitle": "Chọn nơi làm việc",
       "pickerChoose": "Mở tài liệu",
       "pickerRequired": "Chọn: {{groups}}",
-      "deployments": "Môi trường",
+      "deployments": "Máy chủ",
       "accounts": "Tài khoản",
       "organizations": "Tổ chức",
       "workspaces": "Workspace",
