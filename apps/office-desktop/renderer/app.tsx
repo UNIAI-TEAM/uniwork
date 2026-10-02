@@ -218,9 +218,10 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     if (!/\.docx$/i.test(result.metadata.name)) { setActionError(t("unsupported")); return; }
     // The base pair must be the one main records for a local file
-    // (revision = file mtime, version = bytes checksum); a fabricated revision
-    // would make every local open look like a base conflict.
-    setOpened({ title: result.metadata.name, bytes: { dataBase64: result.dataBase64, checksum: result.metadata.checksum, localHandle: result.metadata.handle }, identity: { deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId: "local", workspaceId: "local", documentId: result.metadata.handle, generation: 1, baseRevision: String(result.metadata.modifiedAtMs), baseVersionId: result.metadata.checksum } });
+    // (revision = file mtime in whole milliseconds, version = bytes checksum);
+    // a fabricated or fractional revision would make every local open look
+    // like a base conflict or break the decimal revision arithmetic.
+    setOpened({ title: result.metadata.name, bytes: { dataBase64: result.dataBase64, checksum: result.metadata.checksum, localHandle: result.metadata.handle }, identity: { deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId: "local", workspaceId: "local", documentId: result.metadata.handle, generation: 1, baseRevision: String(Math.trunc(result.metadata.modifiedAtMs)), baseVersionId: result.metadata.checksum } });
   };
   const perform = async (operation: () => Promise<void>) => {
     if (busy) return;

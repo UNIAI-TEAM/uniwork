@@ -17,7 +17,10 @@ export interface ProtectedCheckpointRef {
 }
 
 /** One stable local identity for a file: the caller supplies an opaque id
- * (a path hash) so the raw path never enters the draft envelope. */
+ * (a path hash) so the raw path never enters the draft envelope. The revision
+ * is the file mtime truncated to whole milliseconds: Windows reports
+ * fractional mtimeMs, and a fractional revision would break the renderer's
+ * decimal revision arithmetic. */
 export function localDraftIdentity(scope: ProtectedFileScope, stableId: string, metadata: OpenFileMetadata): DraftIdentity {
   return {
     accountId: scope.accountId,
@@ -25,7 +28,7 @@ export function localDraftIdentity(scope: ProtectedFileScope, stableId: string, 
     organizationId: "local",
     workspaceId: "local",
     documentId: stableId,
-    base: { version: metadata.checksum, revision: String(metadata.modifiedAtMs) },
+    base: { version: metadata.checksum, revision: String(Math.trunc(metadata.modifiedAtMs)) },
   };
 }
 

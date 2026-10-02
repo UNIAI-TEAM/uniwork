@@ -120,7 +120,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (opened.localHandle) {
         const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: opened.localHandle, dataBase64: output.dataBase64 }));
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
-        versionId = result.metadata.checksum; revision = (BigInt(intent.identity.baseRevision) + 1n).toString(); checksum = result.metadata.checksum;
+        // Local revisions are decimal strings; never feed a non-integer value
+        // (a fractional Windows mtime) into BigInt.
+        const base = intent.identity.baseRevision;
+        versionId = result.metadata.checksum; revision = (/^\d+$/.test(base) ? BigInt(base) + 1n : 1n).toString(); checksum = result.metadata.checksum;
       } else {
         const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;

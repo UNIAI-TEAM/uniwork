@@ -58,6 +58,17 @@ it("consumes exactly the checkpoint a confirmed write superseded", async () => {
   expect(other.draftId).not.toBe(ref.draftId);
 });
 
+it("keeps a fractional Windows mtime out of the local revision", async () => {
+  const { store } = await tempStore();
+  const checkpoint = createProtectedFileCheckpoints({ store, scope, identityFor: () => stableId });
+  const fractional = { ...metadata, modifiedAtMs: 1759322123456.789 };
+  const ref = await checkpoint(fractional, new TextEncoder().encode("bytes"));
+  const listed = await store.list({ session: scope(), lookup: { deploymentId: "lane", accountId: "account", organizationId: "local", workspaceId: "local", documentId: stableId } });
+  expect(listed).toHaveLength(1);
+  expect(listed[0]!.identity.base.revision).toBe("1759322123456");
+  expect(ref.draftId.startsWith(stableId)).toBe(true);
+});
+
 it("refuses a local snapshot if the OS key store is locked and writes nothing", async () => {
   const parent = resolve(process.cwd(), "../../.uniwork-dev-run/local-draft-tests");
   await fs.mkdir(parent, { recursive: true });

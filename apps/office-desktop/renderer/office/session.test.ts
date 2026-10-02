@@ -33,6 +33,15 @@ it("routes local Save to the original opaque handle and records a confirmed save
   expect(session.coordinator.getState().lastSavedGeneration).toBe(session.coordinator.getState().dirtyGeneration);
 });
 
+it("saves a local file even when the captured revision is not an integer", async () => {
+  const handle = `file_${"y".repeat(40)}`;
+  const call = vi.fn(async () => ({ opened: true, metadata: { handle, name: "Local.docx", byteLength: 5, modifiedAtMs: 1759322123456.789, checksum } }));
+  const session = createByteDocumentSession({ call: call as never }, { ...identity, documentId: handle, baseRevision: "1759322123456" }, { ...opened, localHandle: handle });
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+  expect(call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle }));
+  expect(session.coordinator.getState().identity.baseRevision).toBe("1759322123457");
+});
+
 const draft = { draftId: "doc:v2:2", identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "2", version: "v2" } }, generation: 3, checksum: `sha256:${"c".repeat(64)}`, byteLength: 5, updatedAt: 7 };
 
 function bridgeWith(handler: (channel: string, payload: unknown) => Promise<unknown>) {
