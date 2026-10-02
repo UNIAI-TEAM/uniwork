@@ -68,4 +68,3 @@ export function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { 
     /></>
   );
 }
-

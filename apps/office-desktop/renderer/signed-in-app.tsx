@@ -16,6 +16,7 @@ const SESSION_GENERATION = "desktop-dev-session";
 export type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
 type HostLeave = { requestId: string; reason: "close" | "logout" | "update" };
 type PendingLeave = { ids: readonly string[]; host?: HostLeave; switchWorkspace?: boolean };
+type NativeOpenRequest = { kind: "file"; handle: string } | { kind: "launch"; documentId: string; operation: "view" | "edit"; version?: number };
 
 /** One account owns the tab set; each document owns its editor and save session. */
 export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void | Promise<void> }) {
@@ -38,8 +39,7 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
   const answered = useRef(new Set<string>());
   const lifetime = useRef(0);
   const mounted = useRef(true);
-  const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
-  const [pendingFile, setPendingFile] = useState<string | null>(null);
+  const [pendingOpens, setPendingOpens] = useState<readonly NativeOpenRequest[]>([]);
   const [syncError, setSyncError] = useState(false);
 
   useEffect(() => () => { mounted.current = false; ++lifetime.current; }, []);
@@ -128,7 +128,7 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
     try { await bridge.call("desktop:leave-resolved", { sessionGeneration: SESSION_GENERATION, requestId: request.requestId, choice, proceeded }); }
     catch { if (mounted.current) setActionError(t("officeDesktop.library.actionError")); }
   };
-  const switchWorkspace = () => { ++lifetime.current; tabs.reset(); setScope(null); setPendingLaunch(null); setPendingFile(null); };
+  const switchWorkspace = () => { ++lifetime.current; tabs.reset(); setScope(null); setPendingOpens([]); };
   const requestLeave = (request: PendingLeave) => {
     if (leaveRef.current) return;
     const dirty = tabs.current.current.tabs.some((tab) => request.ids.includes(tab.id) && isDocumentDirty(tab.data.session));
@@ -169,8 +169,8 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
   handlers.current = { requestLeave, close, acceptLocal };
   useEffect(() => {
     const offLeave = bridge.onLeaveRequested?.((host) => handlers.current.requestLeave({ ids: tabs.current.current.tabs.map((tab) => tab.id), host }));
-    const offLaunch = bridge.onLaunchRequested?.(setPendingLaunch);
-    const offFile = bridge.onFileOpenRequested?.((event) => setPendingFile(event.handle));
+    const offLaunch = bridge.onLaunchRequested?.((event) => setPendingOpens((previous) => [...previous, { kind: "launch", ...event }]));
+    const offFile = bridge.onFileOpenRequested?.((event) => setPendingOpens((previous) => [...previous, { kind: "file", handle: event.handle }]));
     const offSave = bridge.onOfficeSaveRequested?.((event) => {
       const active = tabs.current.current.tabs.find((tab) => tab.id === tabs.current.current.activeTabId);
       if (active?.id === event.documentId && !leaveRef.current && !document.querySelector('[role="dialog"]')) void active.data.session.coordinator.save("menu");
@@ -192,21 +192,18 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);
   useEffect(() => {
-    if (!pendingFile || busy || leave) return;
-    const handle = pendingFile; setPendingFile(null);
-    if (canOpen(handle)) void perform(() => bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }), acceptLocal);
-  // Native open is queued only while an action/dialog is settling, never behind another tab.
+    const request = pendingOpens[0];
+    if (!request || busy || actionBusy.current || leave || (request.kind === "launch" && !scope)) return;
+    setPendingOpens((previous) => previous.slice(1));
+    if (request.kind === "file") {
+      if (canOpen(request.handle)) void perform(() => bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: request.handle }), acceptLocal);
+    } else if (scope && canOpen(request.documentId)) {
+      const selected = scope;
+      void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: request.documentId, ...(request.version === undefined ? {} : { version: request.version }) }), (raw) => acceptCloud(raw, selected, request.operation === "edit"));
+    }
+  // One account-bound FIFO preserves the order of file and launch requests.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFile, busy, leave]);
-  useEffect(() => {
-    if (!pendingLaunch || !scope || busy || leave) return;
-    const launch = pendingLaunch; setPendingLaunch(null);
-    if (!canOpen(launch.documentId)) return;
-    const selected = scope;
-    void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: launch.documentId, ...(launch.version === undefined ? {} : { version: launch.version }) }), (raw) => acceptCloud(raw, selected, launch.operation === "edit"));
-  // Ticket lifetime is bound to the current account, scope and action queue.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingLaunch, scope, busy, leave]);
+  }, [pendingOpens, scope, busy, leave]);
 
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const account = context?.accounts.find((entry) => entry.id === metadata.accountId);
