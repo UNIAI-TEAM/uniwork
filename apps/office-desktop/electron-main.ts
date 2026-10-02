@@ -3,12 +3,15 @@
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
+import { release as osRelease } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
+import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
+import { registerAppImageScheme } from "./main/linux-desktop-integration";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
 import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
@@ -34,6 +37,25 @@ const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 const nativeFiles: string[] = [];
 app.on("open-file", (event, path) => { event.preventDefault(); nativeFiles.push(path); });
+
+// macOS delivers a cold-start deep link through open-url, which can fire before
+// the app is ready and the host has attached its handler. Queue those URLs at
+// module load; the deep-link system drains them once it is registered.
+const pendingOpenUrls: string[] = [];
+let captureOpenUrls = true;
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  if (captureOpenUrls) pendingOpenUrls.push(url);
+});
+
+// A second launch (deep link from a browser/launcher) can arrive while the
+// primary is still booting, before the host attaches its listener. Queue the
+// command line at module load; the deep-link system drains it once registered.
+const pendingSecondInstance: string[][] = [];
+let captureSecondInstance = true;
+app.on("second-instance", (_event, argv) => {
+  if (captureSecondInstance) pendingSecondInstance.push([...argv]);
+});
 
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   // Electron requires literal colors. These mirror --muted and
@@ -90,10 +112,17 @@ function installRendererProtocol(): void {
 
 function createDeepLinkSystem(): DeepLinkSystem {
   return {
-    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+    // The host already took the lock at bootstrap; report the held state so a
+    // repeated call cannot be mistaken for a secondary instance.
+    requestSingleInstanceLock: () => (typeof app.hasSingleInstanceLock === "function" ? app.hasSingleInstanceLock() : app.requestSingleInstanceLock()),
     registerProtocolClient: (scheme) => {
       if (process.platform === "win32" && app.isPackaged) app.setAsDefaultProtocolClient(scheme);
-      else if (process.argv[1]) app.setAsDefaultProtocolClient(scheme, process.execPath, [resolve(process.argv[1])]);
+      else if (process.platform === "linux") {
+        // A .deb registers the scheme from its .desktop MimeType postinst; an
+        // AppImage registers itself on first run (registerAppImageScheme).
+        // Both paths call this Electron helper too, best effort only.
+        app.setAsDefaultProtocolClient(scheme);
+      } else if (process.argv[1]) app.setAsDefaultProtocolClient(scheme, process.execPath, [resolve(process.argv[1])]);
       else app.setAsDefaultProtocolClient(scheme);
     },
     onSecondInstance: (listener) => {
@@ -101,6 +130,14 @@ function createDeepLinkSystem(): DeepLinkSystem {
     },
     onOpenUrl: (listener) => {
       app.on("open-url", (event, url) => listener(event, url));
+    },
+    takePendingOpenUrls: () => {
+      captureOpenUrls = false;
+      return pendingOpenUrls.splice(0);
+    },
+    takePendingSecondInstance: () => {
+      captureSecondInstance = false;
+      return pendingSecondInstance.splice(0);
     },
     quit: () => app.quit(),
   };
@@ -125,11 +162,69 @@ async function runSmokeDiagnostics(window: BrowserWindow, deploymentProfile?: De
   process.stdout.write(`${JSON.stringify({ event: "office-desktop-smoke", readyToShow: true, diagnostics: result })}\n`);
 }
 
+/** Node exposes the runtime glibc through the diagnostic report header; absent
+ * on musl or when the report is unavailable, in which case the gate cannot
+ * refuse on glibc alone. */
+export function runtimeGlibcVersion(): string | undefined {
+  try {
+    const report = process.report?.getReport?.() as { header?: { glibcVersionRuntime?: unknown } } | undefined;
+    const value = report?.header?.glibcVersionRuntime;
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function startElectronHost(): Promise<void> {
+  // A launch that cannot take the single-instance lock is a deep-link hand-off
+  // (the running primary receives 'second-instance'). Exit before any window
+  // exists: a renderer-less secondary would otherwise be held open by the
+  // unsaved-work close guard and leave a second app process behind.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+  // Minimum OS/architecture check before anything else: a wrong-machine install
+  // shows one native error box and exits before a user-data path is created or
+  // any file is written. The forced flag is a dev/smoke-only test seam.
+  const gate = evaluatePlatformGate({
+    platform: process.platform,
+    arch: process.arch,
+    release: osRelease(),
+    systemVersion: typeof process.getSystemVersion === "function" ? process.getSystemVersion() : undefined,
+    osRelease: process.platform === "linux" ? readLinuxOsRelease() : undefined,
+    glibcVersion: process.platform === "linux" ? runtimeGlibcVersion() : undefined,
+    forcedFailure: forcedPlatformGate(process.argv, { packaged: app.isPackaged, smokeMode: SMOKE_MODE }),
+  });
+  if (!gate.ok) {
+    const failure = gate.failure;
+    // The native error box needs the ready state on Linux (before it Electron
+    // only writes to stderr). Nothing is created or written here: the user-data
+    // path is never set and no window is made.
+    await app.whenReady();
+    dialog.showErrorBox("UniWork Office", `${failure.messageVi}\n\n${failure.messageEn}`);
+    app.exit(1);
+    return;
+  }
+  // An AppImage has no install step, so register the scheme from the running
+  // AppImage on first launch (the .deb does this in its postinst).
+  if (process.platform === "linux" && process.env.APPIMAGE) {
+    try {
+      registerAppImageScheme({
+        appImagePath: process.env.APPIMAGE,
+        desktopFileName: `${DESKTOP_IDENTITY.executable}.desktop`,
+        productName: DESKTOP_IDENTITY_MANIFEST.product,
+        scheme: DESKTOP_IDENTITY.userScheme,
+        dataHomeDirectory: process.env.XDG_DATA_HOME && process.env.XDG_DATA_HOME.length > 0 ? process.env.XDG_DATA_HOME : join(app.getPath("home"), ".local", "share"),
+      });
+    } catch { /* desktop integration is best effort; the app still runs */ }
+  }
   // A packaged app never accepts a runtime environment override for its data
   // location. The smoke flag is an explicit local test seam and is the only
   // packaged exception; production profile binding remains download-time.
   const configuredUserData = (!app.isPackaged || SMOKE_MODE) ? process.env.UNIWORK_OFFICE_USER_DATA : undefined;
+  // On Linux appData is the XDG config directory (~/.config), so the user data
+  // root is ~/.config/<userDataNamespace>.
   const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.userDataNamespace);
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
   app.setAppUserModelId(DESKTOP_IDENTITY.appId);

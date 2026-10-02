@@ -80,6 +80,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
     <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={() => undefined} onClose={() => undefined} onCreate={() => undefined} onOpenLocal={() => undefined} onSignOut={() => undefined} />
     <LoginScreen
       state={state}
+      lockedReason={metadata?.lockedReason}
       onStart={() => {
         if (!controllerRef.current) return;
         setState("pending");

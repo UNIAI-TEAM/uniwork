@@ -131,6 +131,12 @@ export type DeepLinkSystem = Readonly<{
    * provide the argv as the first argument for the adapter seam. */
   onSecondInstance(listener: (eventOrArgv: unknown, argv?: readonly unknown[]) => void): void;
   onOpenUrl(listener: (event: { preventDefault(): void }, url: string) => void): void;
+  /** macOS only: URLs that arrived before the handler was attached (cold-start
+   * open-url), drained once so no delivery is processed twice. */
+  takePendingOpenUrls?(): readonly string[];
+  /** A second launch that arrived before the listener was attached; each entry
+   * is a command line, drained once. */
+  takePendingSecondInstance?(): readonly (readonly string[])[];
   quit?(): void;
 }>;
 
@@ -159,8 +165,7 @@ export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBri
     }
     void bridge.handleSecondInstance(argv);
   };
-  const open = (event: { preventDefault(): void }, url: string) => {
-    event.preventDefault();
+  const routeUrl = (url: string) => {
     const isAuthCallback = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).some((profile) => url.startsWith(profile.authCallback));
     if (authCallback && isAuthCallback) {
       void authCallback(url);
@@ -168,7 +173,13 @@ export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBri
     }
     void bridge.handleOpenUrl(url);
   };
+  const open = (event: { preventDefault(): void }, url: string) => {
+    event.preventDefault();
+    routeUrl(url);
+  };
   system.onSecondInstance(second);
   system.onOpenUrl(open);
+  for (const url of system.takePendingOpenUrls?.() ?? []) routeUrl(url);
+  for (const argv of system.takePendingSecondInstance?.() ?? []) second(argv);
   return { primary: true, dispose: () => undefined };
 }

@@ -114,6 +114,9 @@ describe("desktop IPC allowlist", () => {
     expect(desktopSessionMetadataSchema.parse({ status: "signed-out" })).toEqual({ status: "signed-out" });
     expect(desktopSessionMetadataSchema.parse({ status: "signed-in", accountId: "account-1", deploymentId: "production-eu" })).toMatchObject({ status: "signed-in" });
     expect(() => desktopSessionMetadataSchema.parse({ status: "signed-in", accessToken: "secret" })).toThrow();
+    expect(desktopSessionMetadataSchema.parse({ status: "locked", lockedReason: "keyring" })).toEqual({ status: "locked", lockedReason: "keyring" });
+    expect(() => desktopSessionMetadataSchema.parse({ status: "signed-out", lockedReason: "keyring" })).toThrow();
+    expect(() => desktopSessionMetadataSchema.parse({ status: "locked", lockedReason: "other" })).toThrow();
     expect(validateIpcRequest("desktop:auth-start", { sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu" }, context)).toEqual({ sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu" });
     expect(validateIpcRequest("desktop:auth-cancel", { sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL" }, context)).toMatchObject({ attemptId: expect.stringMatching(/^attempt_/) });
     expect(validateIpcRequest("desktop:auth-session", { sessionGeneration: "session_1234" }, context)).toEqual({ sessionGeneration: "session_1234" });
