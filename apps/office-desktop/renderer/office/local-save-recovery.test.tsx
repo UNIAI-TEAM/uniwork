@@ -101,7 +101,7 @@ it("retains a confirmed Save when context refresh fails and retries before a lat
     harness.controls.refreshError = true;
     first.session.editor.commands!.setHeading(2);
     expect(await first.session.coordinator.save()).toMatchObject({ accepted: true });
-    expect(first.session.coordinator.getState()).toMatchObject({ state: "saved", lastSavedGeneration: 1 });
+    expect(first.session.coordinator.getState()).toMatchObject({ dirtyGeneration: 1, lastSavedGeneration: 1 });
     const savedA = await fs.readFile(harness.path);
     first.session.editor.commands!.setHeading(3);
     expect(await first.session.keepDraft()).toBe(false);
@@ -120,6 +120,27 @@ it("retains a confirmed Save when context refresh fails and retries before a lat
     expect(await fs.readFile(harness.path)).toEqual(savedA);
     expect(harness.writes).toHaveLength(1);
   } finally { first.session.dispose(); reopened?.session.dispose(); }
+});
+
+it("does not recreate a draft for snapshot N after its pending local Save is confirmed", async () => {
+  const harness = await localHarness();
+  const first = await harness.open();
+  let release!: () => void;
+  harness.controls.refreshWait = new Promise<void>((resolve) => { release = resolve; });
+  try {
+    first.session.editor.commands!.setHeading(2);
+    const saving = first.session.coordinator.save();
+    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1));
+    const snapshotN = await first.session.editor.captureSnapshot();
+    vi.spyOn(first.session.editor, "captureSnapshot").mockResolvedValue(snapshotN);
+    const checkpointing = first.session.coordinator.checkpoint();
+    release();
+    expect(await saving).toMatchObject({ accepted: true });
+    await checkpointing;
+    expect(harness.controls.checkpointCalls).toBe(0);
+    expect(await first.session.listDrafts()).toEqual({ status: "none" });
+    expect(harness.writes).toHaveLength(1);
+  } finally { release(); first.session.dispose(); }
 });
 
 it("defers an N+1 checkpoint during context refresh and refuses another Save", async () => {
