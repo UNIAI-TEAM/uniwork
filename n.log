@@ -1,0 +1,41 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 360 bash -c 'printf %s c2V0IC11CkFJPSQoZmluZCAvdG1wL2c0LTA3ZS1hcnRpZmFjdHMgLW1heGRlcHRoIDEgLW5hbWUgJyouQXBwSW1hZ2UnIC1wcmludCAtcXVpdCkKWyAtbiAiJEFJIiBdIHx8IHsgZWNobyAnTk9UX1JVTiBtaXNzaW5nIEFwcEltYWdlJzsgZXhpdCAzOyB9CmNobW9kICt4ICIkQUkiOyBzaGEyNTZzdW0gIiRBSSIKZXhwb3J0IEhPTUU9JChta3RlbXAgLWQgL3RtcC9nNC0wN2UtcjUtYXBwaW1hZ2UtaG9tZS1YWFhYKQp1bnNldCBYREdfREFUQV9IT01FIFhER19DT05GSUdfSE9NRSBFTEVDVFJPTl9SVU5fQVNfTk9ERQpta2RpciAtcCAvdG1wL2c0LTA3ZS1yNS14ZGctcHJvYmUKUkVBTF9YREc9JChjb21tYW5kIC12IHhkZy1taW1lKQpjYXQgPiAvdG1wL2c0LTA3ZS1yNS14ZGctcHJvYmUveGRnLW1pbWUgPDxFT0YKIyEvYmluL3NoCnByaW50ZiAnJXNcbicgIlwkKiIgPj4gL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2UteGRnLWNhbGxzLmxvZwpleGVjICIkUkVBTF9YREciICJcJEAiCkVPRgpjaG1vZCAreCAvdG1wL2c0LTA3ZS1yNS14ZGctcHJvYmUveGRnLW1pbWUKZXhwb3J0IFBBVEg9L3RtcC9nNC0wN2UtcjUteGRnLXByb2JlOiRQQVRICjogPiAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9hcHBpbWFnZS14ZGctY2FsbHMubG9nCk1PREU9JycKVU5JV09SS19PRkZJQ0VfVVNFUl9EQVRBPS90bXAvZzQtMDdlLXI1LWFpLXVzZXItZGF0YSB0aW1lb3V0IDEyMCB4dmZiLXJ1biAtYSAiJEFJIiAtLW9mZmljZS1kZXNrdG9wLXNtb2tlID4gL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2UtZmlyc3QubG9nIDI+JjEKQz0kPzsgY2F0IC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2FwcGltYWdlLWZpcnN0LmxvZzsgZWNobyAiQXBwSW1hZ2UgZGlyZWN0IGV4aXQ9JEMiCmlmIFsgIiRDIiAtbmUgMCBdICYmIGdyZXAgLUVxaSAnZnVzZXxBcHBJbWFnZXMgcmVxdWlyZScgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2UtZmlyc3QubG9nOyB0aGVuCiBNT0RFPS0tYXBwaW1hZ2UtZXh0cmFjdC1hbmQtcnVuCiBlY2hvICdFTlYgRlVTRSB1bmF2YWlsYWJsZTogb2ZmaWNpYWwgZXh0cmFjdGlvbiBmYWxsYmFjaycKIFVOSVdPUktfT0ZGSUNFX1VTRVJfREFUQT0vdG1wL2c0LTA3ZS1yNS1haS11c2VyLWRhdGEgdGltZW91dCAxMjAgeHZmYi1ydW4gLWEgIiRBSSIgIiRNT0RFIiAtLW9mZmljZS1kZXNrdG9wLXNtb2tlID4gL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2UtZmlyc3QtZXh0cmFjdC5sb2cgMj4mMQogQz0kPzsgY2F0IC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2FwcGltYWdlLWZpcnN0LWV4dHJhY3QubG9nCmZpClsgIiRDIiAtZXEgMCBdIHx8IGV4aXQgMQpERj0iJEhPTUUvLmxvY2FsL3NoYXJlL2FwcGxpY2F0aW9ucy91bml3b3JrLW9mZmljZS10ZXN0LmRlc2t0b3AiCmNhdCAiJERGIiB8fCBleGl0IDEKZ3JlcCAtcSAneC1zY2hlbWUtaGFuZGxlci91bml3b3JrLW9mZmljZS1kZXY7JyAiJERGIiB8fCBleGl0IDEKZGVza3RvcC1maWxlLXZhbGlkYXRlICIkREYiIHx8IGV4aXQgMQpIPSQoc2hhMjU2c3VtICIkREYiKTsgTT0kKHN0YXQgLWMgJyV5JyAiJERGIik7IE49JCh3YyAtbCA8IC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2FwcGltYWdlLXhkZy1jYWxscy5sb2cpCmVjaG8gImZpcnN0IHJlZ2lzdHJhdGlvbiBjYWxscz0kTiBkZXNrdG9wX3NoYT0kSCBtdGltZT0kTSIKWyAiJE4iIC1nZSAxIF0gfHwgZXhpdCAxCnNsZWVwIDIKVU5JV09SS19PRkZJQ0VfVVNFUl9EQVRBPS90bXAvZzQtMDdlLXI1LWFpLXVzZXItZGF0YSB0aW1lb3V0IDEyMCB4dmZiLXJ1biAtYSAiJEFJIiAkTU9ERSAtLW9mZmljZS1kZXNrdG9wLXNtb2tlID4gL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2Utc2Vjb25kLmxvZyAyPiYxCkM9JD87IGNhdCAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9hcHBpbWFnZS1zZWNvbmQubG9nOyBlY2hvICJzZWNvbmQgQXBwSW1hZ2UgZXhpdD0kQyIKWyAiJEMiIC1lcSAwIF0gfHwgZXhpdCAxCmdyZXAgLXEgJyJldmVudCI6Im9mZmljZS1kZXNrdG9wLXNtb2tlIicgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2Utc2Vjb25kLmxvZyB8fCBleGl0IDEKWyAiJEgiID0gIiQoc2hhMjU2c3VtICIkREYiKSIgXSAmJiBbICIkTSIgPSAiJChzdGF0IC1jICcleScgIiRERiIpIiBdIHx8IGV4aXQgMQpbICIkTiIgLWVxICIkKHdjIC1sIDwgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvYXBwaW1hZ2UteGRnLWNhbGxzLmxvZykiIF0gfHwgZXhpdCAxCmNhdCAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9hcHBpbWFnZS14ZGctY2FsbHMubG9nCmVjaG8gJ1BBU1MgQXBwSW1hZ2Ugc2Vjb25kIGxhdW5jaDogc21va2UsIHVuY2hhbmdlZCBmaWxlL2hhc2gvbXRpbWUsIG5vIHhkZy1taW1lIHJlLXJlZ2lzdHJhdGlvbicK | base64 -d | bash' </dev/null
+101b8778482bac3482c59268f73d252739dedd28763e5a1d12318d1e1f90f6f6  /tmp/g4-07e-artifacts/uniwork-office-test_0.1.0-dev.0_unsigned_linux_x64.AppImage
+[17003:1002/204901.311274:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17003:1002/204901.501251:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17003:1002/204901.514146:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17003:1002/204901.542515:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[17003:1002/204901.542615:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17003:1002/204901.567192:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+Error occurred in handler for 'desktop:auth-config': IpcValidationError: IPC channel has no host implementation
+    at Object.dispatch (file:///tmp/.mount_uniworKI4oJk/resources/app.asar/dist/main/index.mjs:15101:25)
+    at file:///tmp/.mount_uniworKI4oJk/resources/app.asar/dist/main/index.mjs:19027:19
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118964)
+    at Session.emit (node:events:514:28) {
+  code: 'unknown_channel'
+}
+{"event":"office-desktop-smoke","readyToShow":true,"diagnostics":{"name":"UniWork Office (test)","appId":"com.uniwork.office.dev","appVersion":"0.1.0-dev.0","engineVersion":"genoffice@09485f88+uniwork-office.0","contractVersion":"uniwork-office-engine-contract/1","protocolVersion":1,"channel":"dev","buildId":"unsigned-dev"}}
+AppImage direct exit=0
+[Desktop Entry]
+Name=UniWork Office (test)
+Exec="/tmp/g4-07e-artifacts/uniwork-office-test_0.1.0-dev.0_unsigned_linux_x64.AppImage" %U
+Type=Application
+Terminal=false
+MimeType=x-scheme-handler/uniwork-office-dev;
+first registration calls=1 desktop_sha=f24b9f1e4309488b1f3565ba7284722020a2ceea3cf77a234d1c9f9d1592f4a5  /tmp/g4-07e-r5-appimage-home-PqvZ/.local/share/applications/uniwork-office-test.desktop mtime=2026-10-02 20:49:01.224906439 +0000
+[17119:1002/204905.196575:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17119:1002/204905.384108:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17119:1002/204905.396340:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17119:1002/204905.426198:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[17119:1002/204905.426595:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[17119:1002/204905.459986:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+Error occurred in handler for 'desktop:auth-config': IpcValidationError: IPC channel has no host implementation
+    at Object.dispatch (file:///tmp/.mount_uniworXeYh0j/resources/app.asar/dist/main/index.mjs:15101:25)
+    at file:///tmp/.mount_uniworXeYh0j/resources/app.asar/dist/main/index.mjs:19027:19
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118964)
+    at Session.emit (node:events:514:28) {
+  code: 'unknown_channel'
+}
+{"event":"office-desktop-smoke","readyToShow":true,"diagnostics":{"name":"UniWork Office (test)","appId":"com.uniwork.office.dev","appVersion":"0.1.0-dev.0","engineVersion":"genoffice@09485f88+uniwork-office.0","contractVersion":"uniwork-office-engine-contract/1","protocolVersion":1,"channel":"dev","buildId":"unsigned-dev"}}
+second AppImage exit=0
+default uniwork-office-test.desktop x-scheme-handler/uniwork-office-dev
+PASS AppImage second launch: smoke, unchanged file/hash/mtime, no xdg-mime re-registration

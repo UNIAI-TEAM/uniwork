@@ -1,0 +1,345 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 180 bash -c 'printf %s c2V0IC11ClsgLWYgL3RtcC9nNC0wN2UtYXJ0aWZhY3RzLyouZGViIF0gfHwgeyBlY2hvICJOT1RfUlVOIG1pc3NpbmcgLmRlYiI7IGV4aXQgMzsgfQpEPSQobHMgL3RtcC9nNC0wN2UtYXJ0aWZhY3RzLyouZGViIHwgaGVhZCAtMSk7IGZhaWw9MApjaGsoKSB7IGlmIGV2YWwgIiQyIjsgdGhlbiBlY2hvICJQQVNTICAkMSI7IGVsc2UgZWNobyAiRkFJTCAgJDEiOyBmYWlsPTE7IGZpOyB9CkM9L3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvZGViLWNvbnRyb2wudHh0OyBMPS90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2RlYi1jb250ZW50cy50eHQKZWNobyAiPT0gZHBrZy1kZWIgLWYiOyBkcGtnLWRlYiAtZiAiJEQiIHwgdGVlICRDCmVjaG8gIj09IGRwa2ctZGViIC1jIjsgZHBrZy1kZWIgLWMgIiREIiA+ICRMOyBoZWFkIC04MCAkTAplY2hvICIuLi4gdG90YWwgZW50cmllczogJCh3YyAtbCA8ICRMKSIKcm0gLXJmIC90bXAvZzQtMDdlLWN0bCAmJiBta2RpciAvdG1wL2c0LTA3ZS1jdGwgJiYgZHBrZy1kZWIgLWUgIiREIiAvdG1wL2c0LTA3ZS1jdGwgJiYgbHMgLWwgL3RtcC9nNC0wN2UtY3RsCmNoayAiQXJjaGl0ZWN0dXJlOiBhbWQ2NCIgImdyZXAgLXF4ICdBcmNoaXRlY3R1cmU6IGFtZDY0JyAkQyIKY2hrICJQYWNrYWdlOiB1bml3b3JrLW9mZmljZS1kZXYiICJncmVwIC1xeCAnUGFja2FnZTogdW5pd29yay1vZmZpY2UtZGV2JyAkQyIKY2hrICJNYWludGFpbmVyIHByZXNlbnQiICJncmVwIC1xICdeTWFpbnRhaW5lcjogLio8LipALio+JyAkQyIKY2hrICJIb21lcGFnZSBwcmVzZW50IChodHRwcykiICJncmVwIC1xICdeSG9tZXBhZ2U6IGh0dHBzOi8vJyAkQyIKY2hrICJwYXlsb2FkIHVuZGVyIC9vcHQvdW5pd29yay1vZmZpY2UtZGV2LyIgImdyZXAgLXEgJyAuL29wdC91bml3b3JrLW9mZmljZS1kZXYvdW5pd29yay1vZmZpY2UtdGVzdCcgJEwiCmNoayAiZGVza3RvcCBmaWxlIGluIC91c3Ivc2hhcmUvYXBwbGljYXRpb25zIiAiZ3JlcCAtcSAnLi91c3Ivc2hhcmUvYXBwbGljYXRpb25zL3VuaXdvcmstb2ZmaWNlLXRlc3QuZGVza3RvcCcgJEwiCmNoayAiaWNvbnMgdW5kZXIgaGljb2xvci8qL2FwcHMiICJncmVwIC1FcSAnLi91c3Ivc2hhcmUvaWNvbnMvaGljb2xvci9bXi9dKy9hcHBzLycgJEwiCmRwa2ctZGViIC0tZnN5cy10YXJmaWxlICIkRCIgfCB0YXIgLXhPIC4vdXNyL3NoYXJlL2FwcGxpY2F0aW9ucy91bml3b3JrLW9mZmljZS10ZXN0LmRlc2t0b3AgPiAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9kZWIuZGVza3RvcAplY2hvICI9PSBkZXNrdG9wIGZpbGUiOyBjYXQgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvZGViLmRlc2t0b3AKY2hrICJNaW1lVHlwZSBzY2hlbWUiICJncmVwIC1xICdeTWltZVR5cGU9Lip4LXNjaGVtZS1oYW5kbGVyL3VuaXdvcmstb2ZmaWNlLWRldjsnIC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2RlYi5kZXNrdG9wIgpjaGsgIk1pbWVUeXBlIGRvY3giICJncmVwIC1xICdeTWltZVR5cGU9LiphcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtb2ZmaWNlZG9jdW1lbnQud29yZHByb2Nlc3NpbmdtbC5kb2N1bWVudCcgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvZGViLmRlc2t0b3AiCmNoayAiZGVza3RvcC1maWxlLXZhbGlkYXRlIiAiZGVza3RvcC1maWxlLXZhbGlkYXRlIC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2RlYi5kZXNrdG9wIgplY2hvICI9PSBwb3N0aW5zdCI7IGNhdCAvdG1wL2c0LTA3ZS1jdGwvcG9zdGluc3QKY2hrICJwb3N0aW5zdCB1cGRhdGUtZGVza3RvcC1kYXRhYmFzZSIgImdyZXAgLXEgdXBkYXRlLWRlc2t0b3AtZGF0YWJhc2UgL3RtcC9nNC0wN2UtY3RsL3Bvc3RpbnN0IgpjaGsgInBvc3RpbnN0IHhkZy1taW1lIiAiZ3JlcCAtcSB4ZGctbWltZSAvdG1wL2c0LTA3ZS1jdGwvcG9zdGluc3QiCmVjaG8gIj09IHByZWluc3QiOyBjYXQgL3RtcC9nNC0wN2UtY3RsL3ByZWluc3QKY2hrICJwcmVpbnN0IC9ldGMvb3MtcmVsZWFzZSBnYXRlIiAiZ3JlcCAtcSAnL2V0Yy9vcy1yZWxlYXNlJyAvdG1wL2c0LTA3ZS1jdGwvcHJlaW5zdCIKY2hrICJubyBwbGFjZWhvbGRlcnMgbGVmdCBpbiBzY3JpcHRzIiAiISBncmVwIC1xICdAW0EtWl9dKkAnIC90bXAvZzQtMDdlLWN0bC9wb3N0aW5zdCAvdG1wL2c0LTA3ZS1jdGwvcHJlaW5zdCIKZWNobyAiPT0gcHJlaW5zdCBvbiB0aGlzIFZNIChVYnVudHUgMjQuMDQsIGV4cGVjdCBleGl0IDApIjsgYmFzaCAvdG1wL2c0LTA3ZS1jdGwvcHJlaW5zdDsgZWNobyAicHJlaW5zdCBleGl0PSQ/IgplY2hvICI9PSBwcmVpbnN0IHdpdGggZml4dHVyZSBvcy1yZWxlYXNlIGZpbGVzIgpmb3IgZnggaW4gInVidW50dSAyMC4wNCByZWZ1c2UiICJ1YnVudHUgMjIuMDQgb2siICJkZWJpYW4gMTIgb2siICJmZWRvcmEgNDAgcmVmdXNlIjsgZG8KICBzZXQgLS0gJGZ4OyBwcmludGYgJ0lEPSVzXG5WRVJTSU9OX0lEPSIlcyJcbicgIiQxIiAiJDIiID4gL3RtcC9nNC0wN2Utb3NyCiAgVU5JV09SS19PU19SRUxFQVNFX0ZJTEU9L3RtcC9nNC0wN2Utb3NyIGJhc2ggL3RtcC9nNC0wN2UtY3RsL3ByZWluc3QgPi9kZXYvbnVsbCAyPiYxOyBlY2hvICJmaXh0dXJlICQxICQyIC0+IGV4aXQ9JD8gKGV4cGVjdCAkMykiCmRvbmUKaWYgZ3JlcCAtbkUgJ1wkXHtbQS1aYS16XStcfScgL3RtcC9nNC0wN2UtY3RsL3Bvc3RpbnN0OyB0aGVuIGVjaG8gIkZBSUwgbGV0dGVyLW9ubHkgbWFjcm8gc3ludGF4IjsgZmFpbD0xOyBlbHNlIGVjaG8gIlBBU1Mgbm8gbGV0dGVyLW9ubHkgbWFjcm8gc3ludGF4IjsgZmkKZm9yIGZ4IGluICJ1YnVudHUgMjAuMDQgMSIgInVidW50dSAyMi4wNCAwIiAidWJ1bnR1IDI0LjA0IDAiICJkZWJpYW4gMTIgMCIgImZlZG9yYSA0MCAxIjsgZG8KIHNldCAtLSAkZng7IHByaW50ZiAnSUQ9JXNcblZFUlNJT05fSUQ9IiVzIlxuJyAiJDEiICIkMiIgPiAvdG1wL2c0LTA3ZS1vc3IKIFVOSVdPUktfT1NfUkVMRUFTRV9GSUxFPS90bXAvZzQtMDdlLW9zciBiYXNoIC90bXAvZzQtMDdlLWN0bC9wcmVpbnN0OyBjb2RlPSQ/CiBlY2hvICJBU1NFUlQgcHJlaW5zdCAkMSAkMiBleGl0PSRjb2RlIGV4cGVjdGVkPSQzIjsgWyAiJGNvZGUiIC1lcSAiJDMiIF0gfHwgZmFpbD0xCmRvbmUKcHl0aG9uMyAtIDw8J01JTUVTJwpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKdGV4dD1QYXRoKCcvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9kZWIuZGVza3RvcCcpLnJlYWRfdGV4dCgpCmVudHJpZXM9W2wuc3BsaXQoJz0nLDEpWzFdIGZvciBsIGluIHRleHQuc3BsaXRsaW5lcygpIGlmIGwuc3RhcnRzd2l0aCgnTWltZVR5cGU9JyldCmFzc2VydCBsZW4oZW50cmllcyk9PTEsIGVudHJpZXMKbWltZXM9ZW50cmllc1swXS5zcGxpdCgnOycpCmZvciBtaW1lIGluIFsneC1zY2hlbWUtaGFuZGxlci91bml3b3JrLW9mZmljZS1kZXYnLCdhcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtb2ZmaWNlZG9jdW1lbnQud29yZHByb2Nlc3NpbmdtbC5kb2N1bWVudCddOgogYXNzZXJ0IG1pbWVzLmNvdW50KG1pbWUpPT0xLChtaW1lLG1pbWVzKQogcHJpbnQoJ1BBU1MgZXhhY3RseSBvbmUgTWltZVR5cGUnLG1pbWUpCk1JTUVTClsgIiQ/IiAtZXEgMCBdIHx8IGZhaWw9MQplY2hvICc9PSBwb3N0cm0nOyBjYXQgL3RtcC9nNC0wN2UtY3RsL3Bvc3RybQpjaGsgInBvc3RybSBtYXBwaW5nIGNsZWFudXAiICJncmVwIC1xIC9ldGMveGRnL21pbWVhcHBzLmxpc3QgL3RtcC9nNC0wN2UtY3RsL3Bvc3RybSIKY2hrICJwb3N0aW5zdCBzeW1saW5rIGNyZWF0aW9uIiAiZ3JlcCAtcSB1cGRhdGUtYWx0ZXJuYXRpdmVzIC90bXAvZzQtMDdlLWN0bC9wb3N0aW5zdCIKY2hrICJkZXNrdG9wIGRpc3BsYXkgbmFtZSIgImdyZXAgLXF4ICdOYW1lPVVuaVdvcmsgT2ZmaWNlICh0ZXN0KScgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvZGViLmRlc2t0b3AiCmNoayAiZGVza3RvcCB1bnF1b3RlZCBFeGVjIiAiZ3JlcCAtcSAnXkV4ZWM9L29wdC91bml3b3JrLW9mZmljZS1kZXYvdW5pd29yay1vZmZpY2UtdGVzdCcgL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2UvZGViLmRlc2t0b3AiCmlmIGdyZXAgLW5FICdcJFx7W0EtWmEtel0rXH0nIC90bXAvZzQtMDdlLWN0bC9wcmVpbnN0IC90bXAvZzQtMDdlLWN0bC9wb3N0aW5zdCAvdG1wL2c0LTA3ZS1jdGwvcG9zdHJtOyB0aGVuIGZhaWw9MTsgZWxzZSBlY2hvICdQQVNTIGFsbCBsaWZlY3ljbGUgc2NyaXB0cyBubyBsZXR0ZXItb25seSBtYWNyb3MnOyBmaQpjaGsgImRlc2t0b3AgZXhhY3QgRXhlYyIgImdyZXAgLXF4ICdFeGVjPS9vcHQvdW5pd29yay1vZmZpY2UtZGV2L3VuaXdvcmstb2ZmaWNlLXRlc3QgJVUnIC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2RlYi5kZXNrdG9wIgpjaGsgImRlc2t0b3AgU3RhcnR1cFdNQ2xhc3MiICJncmVwIC1xeCAnU3RhcnR1cFdNQ2xhc3M9dW5pd29yay1vZmZpY2UtZGV2JyAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9kZWIuZGVza3RvcCIKZXhpdCAkZmFpbAoK | base64 -d | bash' </dev/null
+== dpkg-deb -f
+Package: uniwork-office-dev
+Version: 0.1.0~dev.0
+License: unknown
+Vendor: UniWork <contact@unicomhub.com>
+Architecture: amd64
+Maintainer: UniWork <contact@unicomhub.com>
+Installed-Size: 296245
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
+Recommends: libappindicator3-1
+Section: office
+Priority: optional
+Homepage: https://uniwork.unicomhub.com
+Description: UniWork Office
+  UniWork Office unsigned development desktop host. Electron is an adapter around the shared Office engine and contracts.
+== dpkg-deb -c
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./opt/
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./opt/uniwork-office-dev/
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/
+-rw-r--r-- 0/0           76439 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/source-and-patches.json
+-rw-r--r-- 0/0              37 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/EE-SCAN.json
+-rw-r--r-- 0/0           65657 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/THIRD-PARTY-NOTICES.txt
+-rw-r--r-- 0/0           11345 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/LICENSE
+-rw-r--r-- 0/0            1385 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/release-inventory/NOTICE
+-rw-r--r-- 0/0             272 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/apparmor-profile
+-rw-r--r-- 0/0         7034031 2026-10-02 20:47 ./opt/uniwork-office-dev/resources/app.asar
+-rwxr-xr-x 0/0         4657848 2026-10-02 20:46 ./opt/uniwork-office-dev/libvk_swiftshader.so
+-rwxr-xr-x 0/0       228506952 2026-10-02 20:46 ./opt/uniwork-office-dev/uniwork-office-test
+-rw-r--r-- 0/0            1096 2026-10-02 20:46 ./opt/uniwork-office-dev/LICENSE.electron.txt
+-rwxr-xr-x 0/0         2801736 2026-10-02 20:46 ./opt/uniwork-office-dev/libffmpeg.so
+-rwxr-xr-x 0/0           15232 2026-10-02 20:46 ./opt/uniwork-office-dev/chrome-sandbox
+-rw-r--r-- 0/0          742200 2026-10-02 20:46 ./opt/uniwork-office-dev/v8_context_snapshot.bin
+-rw-r--r-- 0/0        10876560 2026-10-02 20:46 ./opt/uniwork-office-dev/icudtl.dat
+-rw-r--r-- 0/0         1268994 2026-10-02 20:46 ./opt/uniwork-office-dev/chrome_200_percent.pak
+-rw-r--r-- 0/0             107 2026-10-02 20:46 ./opt/uniwork-office-dev/vk_swiftshader_icd.json
+-rwxr-xr-x 0/0         2483184 2026-10-02 20:46 ./opt/uniwork-office-dev/libvulkan.so.1
+drwxr-xr-x 0/0               0 2026-10-02 20:47 ./opt/uniwork-office-dev/locales/
+-rw-r--r-- 0/0          185624 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ar.pak
+-rw-r--r-- 0/0          134875 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/lt.pak
+-rw-r--r-- 0/0          185651 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ur.pak
+-rw-r--r-- 0/0          131479 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/pl.pak
+-rw-r--r-- 0/0          158974 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/he.pak
+-rw-r--r-- 0/0          133943 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/sk.pak
+-rw-r--r-- 0/0          129380 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/es.pak
+-rw-r--r-- 0/0          278957 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/hi.pak
+-rw-r--r-- 0/0          106865 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/en-GB.pak
+-rw-r--r-- 0/0          125317 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/tr.pak
+-rw-r--r-- 0/0          132409 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ro.pak
+-rw-r--r-- 0/0          207665 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ru.pak
+-rw-r--r-- 0/0          196325 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/sr.pak
+-rw-r--r-- 0/0          262702 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/gu.pak
+-rw-r--r-- 0/0          229543 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/el.pak
+-rw-r--r-- 0/0          129791 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ca.pak
+-rw-r--r-- 0/0          106969 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/en-US.pak
+-rw-r--r-- 0/0          103156 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/zh-TW.pak
+-rw-r--r-- 0/0          117618 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ms.pak
+-rw-r--r-- 0/0          128677 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/es-419.pak
+-rw-r--r-- 0/0          127702 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/pt-PT.pak
+-rw-r--r-- 0/0          115867 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/nb.pak
+-rw-r--r-- 0/0          116299 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/sv.pak
+-rw-r--r-- 0/0          269422 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/bn.pak
+-rw-r--r-- 0/0          121445 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/nl.pak
+-rw-r--r-- 0/0          209472 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/uk.pak
+-rw-r--r-- 0/0          116201 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/et.pak
+-rw-r--r-- 0/0          137413 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/hu.pak
+-rw-r--r-- 0/0          135866 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/lv.pak
+-rw-r--r-- 0/0          115408 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/af.pak
+-rw-r--r-- 0/0          180542 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/fa.pak
+-rw-r--r-- 0/0          126084 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/sl.pak
+-rw-r--r-- 0/0          119482 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/da.pak
+-rw-r--r-- 0/0          211672 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/bg.pak
+-rw-r--r-- 0/0          126096 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ko.pak
+-rw-r--r-- 0/0          147791 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ja.pak
+-rw-r--r-- 0/0          124791 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/sw.pak
+-rw-r--r-- 0/0          127411 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/de.pak
+-rw-r--r-- 0/0          249576 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/th.pak
+-rw-r--r-- 0/0          119440 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/fi.pak
+-rw-r--r-- 0/0          312341 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ml.pak
+-rw-r--r-- 0/0          295238 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/kn.pak
+-rw-r--r-- 0/0          136129 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/fr.pak
+-rw-r--r-- 0/0          149276 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/vi.pak
+-rw-r--r-- 0/0          131706 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/fil.pak
+-rw-r--r-- 0/0          186176 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/am.pak
+-rw-r--r-- 0/0          261151 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/mr.pak
+-rw-r--r-- 0/0          126281 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/pt-BR.pak
+-rw-r--r-- 0/0          103981 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/zh-CN.pak
+-rw-r--r-- 0/0          130919 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/cs.pak
+-rw-r--r-- 0/0          289043 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/te.pak
+-rw-r--r-- 0/0          127474 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/it.pak
+-rw-r--r-- 0/0          314512 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/ta.pak
+-rw-r--r-- 0/0          114654 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/id.pak
+-rw-r--r-- 0/0          125949 2026-10-02 20:46 ./opt/uniwork-office-dev/locales/hr.pak
+-rw-r--r-- 0/0        12634346 2026-10-02 20:46 ./opt/uniwork-office-dev/resources.pak
+-rw-r--r-- 0/0          719546 2026-10-02 20:46 ./opt/uniwork-office-dev/chrome_100_percent.pak
+... total entries: 113
+total 28
+-rw-r--r-- 1 ubuntu ubuntu  560 Oct  2 20:47 control
+-rw-r--r-- 1 ubuntu ubuntu 6597 Oct  2 20:47 md5sums
+-rwxr-xr-x 1 ubuntu ubuntu 4725 Oct  2 20:47 postinst
+-rwxr-xr-x 1 ubuntu ubuntu 1674 Oct  2 20:47 postrm
+-rwxr-xr-x 1 ubuntu ubuntu 1882 Oct  2 20:47 preinst
+PASS  Architecture: amd64
+PASS  Package: uniwork-office-dev
+PASS  Maintainer present
+PASS  Homepage present (https)
+PASS  payload under /opt/uniwork-office-dev/
+PASS  desktop file in /usr/share/applications
+PASS  icons under hicolor/*/apps
+== desktop file
+[Desktop Entry]
+Name=UniWork Office (test)
+Exec=/opt/uniwork-office-dev/uniwork-office-test %U
+Terminal=false
+Type=Application
+Icon=uniwork-office-test
+StartupWMClass=uniwork-office-dev
+Comment=UniWork Office unsigned development desktop host. Electron is an adapter around the shared Office engine and contracts.
+MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document;x-scheme-handler/uniwork-office-dev;
+Categories=Office;
+PASS  MimeType scheme
+PASS  MimeType docx
+PASS  desktop-file-validate
+== postinst
+#!/bin/bash
+# Post-install maintainer script. Derived from electron-builder 26.15.3's
+# templates/linux/after-install.tpl (the pinned packaging dependency), with
+# scheme registration added for the manifest user scheme.
+#
+# IMPORTANT: electron-builder reads this file and expands every dollar-brace
+# name whose name is letters-only as its own macro (FpmTarget.writeConfigFile),
+# and throws "Macro NAME is not defined" for unknown ones. Shell variables in
+# this file therefore use the unbraced form ("$EXECUTABLE"), never the braced
+# form. The at-placeholders below are substituted by scripts/package.mjs; the
+# substituted copy is the reviewed artifact. package.test.mjs fails if
+# letter-only brace syntax reappears.
+set -u
+
+EXECUTABLE="uniwork-office-test"
+INSTALL_DIR="/opt/uniwork-office-dev"
+DESKTOP_ENTRY="$EXECUTABLE.desktop"
+SCHEME_HANDLER="x-scheme-handler/uniwork-office-dev"
+SYSTEM_MIMEAPPS="/etc/xdg/mimeapps.list"
+
+if type update-alternatives >/dev/null 2>&1; then
+    # Remove previous link if it doesn't use update-alternatives
+    if [ -L "/usr/bin/$EXECUTABLE" ] && [ -e "/usr/bin/$EXECUTABLE" ] && [ "$(readlink "/usr/bin/$EXECUTABLE")" != "/etc/alternatives/$EXECUTABLE" ]; then
+        rm -f "/usr/bin/$EXECUTABLE"
+    fi
+    update-alternatives --install "/usr/bin/$EXECUTABLE" "$EXECUTABLE" "$INSTALL_DIR/$EXECUTABLE" 100 || ln -sf "$INSTALL_DIR/$EXECUTABLE" "/usr/bin/$EXECUTABLE"
+else
+    ln -sf "$INSTALL_DIR/$EXECUTABLE" "/usr/bin/$EXECUTABLE"
+fi
+
+# Check if user namespaces are supported by the kernel and working with a quick test:
+if ! { [ -L /proc/self/ns/user ] && unshare --user true; }; then
+    # Use SUID chrome-sandbox only on systems without user namespaces:
+    chmod 4755 "$INSTALL_DIR/chrome-sandbox" || true
+else
+    chmod 0755 "$INSTALL_DIR/chrome-sandbox" || true
+fi
+
+if hash update-mime-database 2>/dev/null; then
+    update-mime-database /usr/share/mime || true
+fi
+
+if hash update-desktop-database 2>/dev/null; then
+    update-desktop-database /usr/share/applications || true
+fi
+
+# Register the manifest user scheme as a handler. update-desktop-database only
+# lists the desktop entry; xdg-open needs a default handler. apt runs this
+# script as root, so register the desktop user when sudo started the install
+# and always write the system-wide default under /etc/xdg for every user.
+if hash xdg-mime 2>/dev/null; then
+    # ${SUDO_USER:-} is safe from the macro expansion: the name contains "_".
+    if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ] && hash su 2>/dev/null; then
+        su -s /bin/sh "$SUDO_USER" -c "xdg-mime default '$DESKTOP_ENTRY' '$SCHEME_HANDLER'" >/dev/null 2>&1 || true
+    fi
+    mkdir -p /etc/xdg
+    tmp="$(mktemp)"
+    if [ -f "$SYSTEM_MIMEAPPS" ]; then cp "$SYSTEM_MIMEAPPS" "$tmp"; else printf '[Default Applications]\n' > "$tmp"; fi
+    grep -q '^\[Default Applications\]' "$tmp" || printf '\n[Default Applications]\n' >> "$tmp"
+    grep -v "^$SCHEME_HANDLER=" "$tmp" > "$tmp.filtered" || true
+    mv "$tmp.filtered" "$tmp"
+    printf '%s=%s\n' "$SCHEME_HANDLER" "$DESKTOP_ENTRY" >> "$tmp"
+    install -m 0644 "$tmp" "$SYSTEM_MIMEAPPS"
+    rm -f "$tmp"
+fi
+
+# Install the apparmor profile. (Ubuntu 24+)
+# First check if the version of AppArmor running on the device supports our profile.
+# This is in order to keep backwards compatibility with Ubuntu 22.04 which does not support abi/4.0.
+# In that case, we just skip installing the profile since the app runs fine without it on 22.04.
+#
+# Those apparmor_parser flags are akin to performing a dry run of loading a profile.
+# https://wiki.debian.org/AppArmor/HowToUse
+if apparmor_status --enabled > /dev/null 2>&1; then
+  APPARMOR_PROFILE_SOURCE="$INSTALL_DIR/resources/apparmor-profile"
+  APPARMOR_PROFILE_TARGET="/etc/apparmor.d/$EXECUTABLE"
+  if apparmor_parser --skip-kernel-load --debug "$APPARMOR_PROFILE_SOURCE" > /dev/null 2>&1; then
+    cp -f "$APPARMOR_PROFILE_SOURCE" "$APPARMOR_PROFILE_TARGET"
+
+    # Updating the current AppArmor profile is not possible and probably not meaningful in a chroot'ed environment.
+    # Use cases are for example environments where images for clients are maintained.
+    # There, AppArmor might correctly be installed but live updating makes no sense.
+    if ! { [ -x '/usr/bin/ischroot' ] && /usr/bin/ischroot; } && hash apparmor_parser 2>/dev/null; then
+      # Extra flags taken from dh_apparmor:
+      # > By using '-W -T' we ensure that any abstraction updates are also pulled in.
+      apparmor_parser --replace --write-cache --skip-read-cache "$APPARMOR_PROFILE_TARGET"
+    fi
+  else
+    echo "Skipping the installation of the AppArmor profile as this version of AppArmor does not seem to support the bundled profile"
+  fi
+fi
+
+exit 0
+PASS  postinst update-desktop-database
+PASS  postinst xdg-mime
+== preinst
+#!/bin/bash
+# Runs before dpkg copies any file. A refusal here aborts the install with a
+# non-zero exit code, so nothing is written and no half-installed package is
+# left behind. The at-placeholders are substituted by scripts/package.mjs; the
+# substituted copy is what fpm embeds.
+set -u
+
+OS_RELEASE_FILE="${UNIWORK_OS_RELEASE_FILE:-/etc/os-release}"
+REFUSED=1
+
+fail() {
+  echo "UniWork Office: installation refused - this system is not supported." >&2
+  echo "UniWork Office: từ chối cài đặt - hệ điều hành này không được hỗ trợ." >&2
+  echo "$1" >&2
+  echo "Install the .AppImage instead: it runs on any x64 Linux distribution." >&2
+  echo "Hãy dùng bản .AppImage: bản này chạy trên mọi bản phân phối Linux x64." >&2
+  exit "$REFUSED"
+}
+
+version_at_least() {
+  # GNU sort -V orders dotted versions; the smaller of the two inputs first.
+  [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n 1)" = "$2" ]
+}
+
+[ -r "$OS_RELEASE_FILE" ] || fail "Cannot read ${OS_RELEASE_FILE}."
+
+# shellcheck disable=SC1090
+. "$OS_RELEASE_FILE"
+
+case "${ID:-}" in
+  ubuntu)
+    version_at_least "${VERSION_ID:-0}" "22.04" || fail "Ubuntu ${VERSION_ID:-unknown} found; Ubuntu 22.04 or 24.04 (x64) is required. / Đã tìm thấy Ubuntu ${VERSION_ID:-không rõ}; cần Ubuntu 22.04 hoặc 24.04 (x64)."
+    ;;
+  debian)
+    # Electron 44 needs glibc >= 2.31; Debian 11 (bullseye) is the first release with it.
+    version_at_least "${VERSION_ID:-0}" "11" || fail "Debian ${VERSION_ID:-unknown} found; Debian 11 or newer (x64) is required. / Đã tìm thấy Debian ${VERSION_ID:-không rõ}; cần Debian 11 trở lên (x64)."
+    ;;
+  *)
+    fail "Detected ${ID:-unknown} ${VERSION_ID:-}; the .deb package supports Ubuntu and Debian only. / Phát hiện ${ID:-không rõ} ${VERSION_ID:-}; gói .deb chỉ hỗ trợ Ubuntu và Debian."
+    ;;
+esac
+
+exit 0
+PASS  preinst /etc/os-release gate
+PASS  no placeholders left in scripts
+== preinst on this VM (Ubuntu 24.04, expect exit 0)
+preinst exit=0
+== preinst with fixture os-release files
+fixture ubuntu 20.04 -> exit=1 (expect refuse)
+fixture ubuntu 22.04 -> exit=0 (expect ok)
+fixture debian 12 -> exit=0 (expect ok)
+fixture fedora 40 -> exit=1 (expect refuse)
+PASS no letter-only macro syntax
+UniWork Office: installation refused - this system is not supported.
+UniWork Office: từ chối cài đặt - hệ điều hành này không được hỗ trợ.
+Ubuntu 20.04 found; Ubuntu 22.04 or 24.04 (x64) is required. / Đã tìm thấy Ubuntu 20.04; cần Ubuntu 22.04 hoặc 24.04 (x64).
+Install the .AppImage instead: it runs on any x64 Linux distribution.
+Hãy dùng bản .AppImage: bản này chạy trên mọi bản phân phối Linux x64.
+ASSERT preinst ubuntu 20.04 exit=1 expected=1
+ASSERT preinst ubuntu 22.04 exit=0 expected=0
+ASSERT preinst ubuntu 24.04 exit=0 expected=0
+ASSERT preinst debian 12 exit=0 expected=0
+UniWork Office: installation refused - this system is not supported.
+UniWork Office: từ chối cài đặt - hệ điều hành này không được hỗ trợ.
+Detected fedora 40; the .deb package supports Ubuntu and Debian only. / Phát hiện fedora 40; gói .deb chỉ hỗ trợ Ubuntu và Debian.
+Install the .AppImage instead: it runs on any x64 Linux distribution.
+Hãy dùng bản .AppImage: bản này chạy trên mọi bản phân phối Linux x64.
+ASSERT preinst fedora 40 exit=1 expected=1
+PASS exactly one MimeType x-scheme-handler/uniwork-office-dev
+PASS exactly one MimeType application/vnd.openxmlformats-officedocument.wordprocessingml.document
+== postrm
+#!/bin/bash
+# Removal maintainer script. Derived from electron-builder 26.15.3's
+# templates/linux/after-remove.tpl (the pinned packaging dependency) plus the
+# cleanup of the system-wide scheme mapping after-install.sh adds. Same macro
+# caveat as after-install.sh: electron-builder expands letter-only brace
+# syntax as its own macro, so shell variables stay in the unbraced form.
+# The at-placeholders are substituted by scripts/package.mjs.
+set -u
+
+EXECUTABLE="uniwork-office-test"
+INSTALL_DIR="/opt/uniwork-office-dev"
+SCHEME_HANDLER="x-scheme-handler/uniwork-office-dev"
+SYSTEM_MIMEAPPS="/etc/xdg/mimeapps.list"
+
+# Delete the link to the binary
+if type update-alternatives >/dev/null 2>&1; then
+    update-alternatives --remove "$EXECUTABLE" "$INSTALL_DIR/$EXECUTABLE"
+else
+    rm -f "/usr/bin/$EXECUTABLE"
+fi
+
+APPARMOR_PROFILE_DEST="/etc/apparmor.d/$EXECUTABLE"
+
+# Remove and unload the apparmor profile.
+if [ -f "$APPARMOR_PROFILE_DEST" ]; then
+  if apparmor_status --enabled > /dev/null 2>&1; then
+    if ! { [ -x '/usr/bin/ischroot' ] && /usr/bin/ischroot; } && hash apparmor_parser 2>/dev/null; then
+      apparmor_parser --remove "$APPARMOR_PROFILE_DEST" || true
+    fi
+  fi
+  rm -f "$APPARMOR_PROFILE_DEST"
+fi
+
+# Strip the scheme mapping after-install.sh wrote, so a removed package leaves
+# no system-wide default pointing at a deleted desktop entry.
+if [ -f "$SYSTEM_MIMEAPPS" ]; then
+  grep -v "^$SCHEME_HANDLER=" "$SYSTEM_MIMEAPPS" > "$SYSTEM_MIMEAPPS.uniwork-remove" || true
+  mv "$SYSTEM_MIMEAPPS.uniwork-remove" "$SYSTEM_MIMEAPPS"
+fi
+
+if hash update-desktop-database 2>/dev/null; then
+  update-desktop-database /usr/share/applications || true
+fi
+
+exit 0
+PASS  postrm mapping cleanup
+PASS  postinst symlink creation
+PASS  desktop display name
+PASS  desktop unquoted Exec
+PASS all lifecycle scripts no letter-only macros
+PASS  desktop exact Exec
+PASS  desktop StartupWMClass

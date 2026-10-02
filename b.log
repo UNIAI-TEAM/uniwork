@@ -1,0 +1,423 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 600 bash -c 'cd apps/office-desktop && pnpm exec vitest run --passWithNoTests=false --coverage --reporter=verbose' </dev/null
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/apps/office-desktop
+      Coverage enabled with v8
+
+ ✓ main/ipc.test.ts > desktop IPC allowlist > enumerates only opaque operations 2ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > accepts a valid engine request 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects renderer paths and accepts only opaque file handles 10ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > accepts realistic documents without regex stack overflow 689ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > allows DOCX save bytes above the control-message budget 1241ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > sanitizes file handler errors and validates handler responses 3ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > shares one non-queueing guard across local Save calls and releases it on failure 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > records a local open without a durable draft, and checkpoints only before a write 3ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > binds draft checkpoint identity in main and does not expose draft errors 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects unknown channel 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects wrong sender 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects wrong frame 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects wrong origin 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects stale session 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects bad schema 0ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects payloads over the byte limit 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects structured-clone values instead of measuring only JSON 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > requires the external channel to use the exact HTTPS host allowlist 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > accepts only metadata and opaque auth commands at the IPC boundary 3ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > returns diagnostics without content or credential fields 2ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > maps auth handlers to metadata-only responses 1ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > binds library and DOCX save operations to the typed main transport 4ms
+ ✓ main/ipc.test.ts > desktop IPC allowlist > rejects token-shaped fields returned by an untrusted manager implementation 0ms
+ ✓ renderer/tab-strip.test.tsx > renders format-neutral tabs with linked panels, dirty/saving labels and a pinned library 159ms
+ ✓ renderer/tab-strip.test.tsx > roves through library and document tabs with arrows, Home and End 29ms
+ ✓ renderer/tab-strip.test.tsx > opens the create menu with Ctrl+T and invokes the existing DOCX action 106ms
+ ✓ renderer/tab-strip.test.tsx > disables creation independently of local open 85ms
+ ✓ main/drafts/migration.test.ts > actual desktop draft format migration > reads v1 then v2 then rollback v1 with the same ciphertext and key namespace 40ms
+ ✓ main/drafts/migration.test.ts > actual desktop draft format migration > retains original durable bytes if migration fails 7ms
+ ✓ main/drafts/migration.test.ts > actual desktop draft format migration > refuses unsupported records without hiding or deleting them 6ms
+ ✓ renderer/tab-strip.test.tsx > selects an overflow document and offers workspace/sign-out in the account menu 215ms
+ ✓ renderer/tab-strip.test.tsx > maps the mouse wheel to horizontal overflow and reveals the selected tab 22ms
+ ✓ renderer/tab-strip.test.tsx > keeps signed-out chrome free of account/document actions and shortcuts 7ms
+ ✓ renderer/tab-strip.test.tsx > renders the same actions and document state in English 93ms
+ ✓ renderer/tab-strip.test.tsx > blocks create and open actions while busy 60ms
+ ✓ renderer/library/picker.test.tsx > shows a loading skeleton before context arrives 33ms
+office-desktop: Electron bootstrap failed: __vite_ssr_import_0__.app.requestSingleInstanceLock is not a function
+ ✓ main/native-titlebar.test.ts > matches the 40px strip and semantic muted/foreground colors in both themes 398ms
+ ✓ renderer/library/picker.test.tsx > preselects singleton groups and enables the choose action 79ms
+ ✓ renderer/library/picker.test.tsx > hides singleton groups behind a summary and asks only where there is a choice 35ms
+ ✓ renderer/library/picker.test.tsx > chooses the selected workspace while preserving fixed server/account/organization 55ms
+ ✓ renderer/library/view.test.tsx > renders open/download actions and an engine-down status 100ms
+ ✓ renderer/library/view.test.tsx > renders an empty state and fires mode changes 38ms
+ ✓ renderer/library/view.test.tsx > shows search-specific copy when a submitted query matches nothing 12ms
+ ✓ renderer/library/view.test.tsx > preserves the typed query and submits it on search 18ms
+ ✓ renderer/library/view.test.tsx > announces the collection count alongside its title and header actions 23ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > downloads, verifies and checkpoints before installer and restart 19ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > refuses a real untrusted TLS certificate without disabling verification 4ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > refuses redirect and oversize responses 5ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > refuses tampered installer bytes and exposes nothing to install 5ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > aborts installation and restart on a checkpoint failure 3ms
+ ✓ main/updates/client.test.ts > local HTTPS update feed > default packaged policy refuses before network activity 0ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the signed-out state with the wordmark and no raw-text fallback 69ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the pending state with the wordmark and no raw-text fallback 10ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the error state with the wordmark and no raw-text fallback 8ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the cancelled state with the wordmark and no raw-text fallback 7ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the signed-in state with the wordmark and no raw-text fallback 12ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the locked state with the wordmark and no raw-text fallback 8ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > renders the login-required state with the wordmark and no raw-text fallback 8ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > shows Start and calls onStart when not pending 13ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > shows Cancel and calls onCancel while pending 8ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > disables the start action once signed in 7ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > carries the state as a data attribute for host-level checks 5ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > shows the keyring fix hint when the locked store names that cause 5ms
+ ✓ renderer/login-screen.test.tsx > LoginScreen > keeps the generic locked copy when the reason is unknown 7ms
+ ✓ main/recovery-q8.test.ts > Q8 logout keeps the ciphertext and its key while every draft command fails closed 19ms
+ ✓ main/recovery-q8.test.ts > Q8 account B sees neither account A payload nor metadata 18ms
+ ✓ main/recovery-q8.test.ts > Q8 login A recovers only with a live session, a live edit ACL and the matching base pair 10ms
+ ✓ main/recovery-q8.test.ts > Q8 disk-full, key-lost and corrupt never create an empty replacement draft 6ms
+ ✓ main/recovery-q8.test.ts > Q8 a corrupt envelope is a typed locked state and is never replaced 5ms
+ ✓ main/recovery-q8.test.ts > Q8 a draft id alone cannot consume another document's row, and the account offer can discard without an open document 9ms
+ ✓ main/recovery-q8.test.ts > Q8 a blocked or locked draft has no export, copy or clipboard path 1ms
+ ✓ main/document-tabs.test.ts > checkpoints and recovers A independently while B is selected, with document-specific live ACL 27ms
+ ✓ main/document-tabs.test.ts > rejects unknown, closed and stale-account document operations instead of using the active tab 5ms
+ ✓ main/document-tabs.test.ts > withholds recovery bytes if account changes during the live ACL lookup 2ms
+ ✓ main/document-tabs.test.ts > global leave checks inactive A even after active B has saved or discarded 8ms
+ ✓ main/document-tabs.test.ts > native Save emits only the tab selected through validated IPC, and Library emits nothing 3ms
+ ✓ main/document-tabs.test.ts > keeps all leave choices blocked during an inactive checkpoint, and keep blocked after failure 1ms
+ ✓ main/document-tabs.test.ts > does not use a Save N receipt to confirm a newer checkpoint N+1 8ms
+ ✓ main/document-tabs.test.ts > registers created DOCX documents and rejects late cloud opens from the previous account 4ms
+ ✓ main/document-tabs.test.ts > reopening one local path reuses its opaque handle until the tab closes 2ms
+ ✓ main/document-tabs.test.ts > a global leave snapshot cannot omit a tab removed while the dialog was open 6ms
+ ✓ main/document-tabs.test.ts > requires an unsaved checkpoint row for Keep while allowing a clean or confirmed-saved document 10ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > creates a valid blank DOCX through file creation and opens the committed bytes without an engine 33ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > refreshes once across concurrent expired requests and replays with the rotated token 54ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > reports login_required when refresh fails without replaying 1ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > stops after one replay if the replacement token also receives 401 1ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > does not replay a request into a different account after refresh 0ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > uses only profile-bound routes and keeps bearer credentials in main 2ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > rejects an origin outside the deployment profile policy 0ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > maps a list row with no file metadata using the title's extension 1ms
+ ✓ main/transport/office-transport.test.ts > desktop office HTTP transport > drops a list row whose title has no recognised office extension 1ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > accepts the exact redirect once the state and query are valid 4ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects wrong redirect with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects wrong state with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects duplicate query with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects unexpected query with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects missing code with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects missing state with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects fragment with a typed reason 0ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > rejects no attempt, expired, restart and binding mismatches without secret-shaped logs 1ms
+ ✓ main/auth/callback.test.ts > custom-scheme callback validator > does not accept a manager override of the registered redirect 61ms
+ ✓ renderer/office/session.test.ts > sends the opened snapshot once through coordinator save and blocks a concurrent menu save 61ms
+ ✓ renderer/office/session.test.ts > routes local Save to the original opaque handle and records a confirmed save 4ms
+ ✓ renderer/office/session.test.ts > saves a local file even when the captured revision is not an integer 1ms
+ ✓ renderer/office/session.test.ts > keeps a draft through the typed checkpoint and raises the generation floor 4ms
+ ✓ renderer/office/session.test.ts > reports a failed keep and refuses recovery when the store refuses 4ms
+ ✓ renderer/office/session.test.ts > lists drafts and distinguishes conflict, locked, blocked and unavailable stores 1ms
+ ✓ renderer/office/session.test.ts > recovers the chosen draft into the editor bytes and discards only that row 2ms
+ ✓ renderer/office/session.test.ts > skips the cloud checkpoint for a local file and only keeps against a durable row 1ms
+ ✓ renderer/office/session.test.ts > FE-R1-03 accepts Keep once the editor-owned local checkpoint seam supplies a durable row 1ms
+ ✓ renderer/index.test.tsx > mounts the app onto #root once i18n and the bridge are ready 67ms
+ ✓ renderer/index.test.tsx > does nothing when the host never injected the bridge 12ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > checkpoints pending drafts, confirms, opens verified installer, then quits once 28ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > does not open installer or quit after checkpoint IO failure 2ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > reopens draft writes after cancellation or failed install (false, ) 23ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > reopens draft writes after cancellation or failed install (true, OS refused installer) 33ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > exposes the packaged unsigned refusal without network or installer access 0ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > refuses an unsupported installer before opening it 0ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > refuses changed installer bytes after writing them 2ms
+ ✓ main/updates/native.test.ts > native update action with real verifier and draft store > sweeps leftover installer directories before writing the next installer 3ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > passes the shared Q8 adapter behavior suite 24ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > computes a stable ciphertext checksum 0ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > encrypts/authenticates with identity and base AAD 3ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > round-trips encrypted plaintext and isolates account/base 8ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > fails closed on a lost key without replacing the confirmed ciphertext 6ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > serializes overlapping checkpoints so an older generation cannot win 8ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > refuses compare-and-delete when a draft id is ambiguous 10ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > atomically preserves the previous row and cleans plaintext temps 9ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > checkpoint scheduler writes only its durable draft row 8ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > returns locked rather than an empty draft for a corrupt record 4ms
+ ✓ main/drafts/store.test.ts > desktop protected drafts > does not treat an adapter ciphertext row as plaintext 7ms
+ ✓ main/files/protected-files.test.ts > writes a local snapshot as an encrypted row in the shared draft store 14ms
+ ✓ main/files/protected-files.test.ts > keeps the generation monotonic across restarts and recovers through the same store 15ms
+ ✓ main/files/protected-files.test.ts > consumes exactly the checkpoint a confirmed write superseded 6ms
+ ✓ main/files/protected-files.test.ts > keeps a fractional Windows mtime out of the local revision 4ms
+ ✓ main/files/protected-files.test.ts > refuses a local snapshot if the OS key store is locked and writes nothing 1ms
+ ✓ main/files/registry.test.ts > desktop local file handles > issues an opaque handle only from an OS-selected path and revokes it 22ms
+ ✓ main/files/registry.test.ts > desktop local file handles > refuses symlinks and external modifications 5ms
+ ✓ main/files/registry.test.ts > desktop local file handles > refuses an ancestor symlink before opening the selected file 3ms
+ ✓ main/files/registry.test.ts > desktop local file handles > refuses a locked target before atomic replacement 13ms
+ ✓ main/files/registry.test.ts > desktop local file handles > keeps target bytes when temp write, fsync, or replace fails 17ms
+ ✓ main/files/registry.test.ts > desktop local file handles > Save As uses the main picker and never accepts a renderer path 5ms
+ ✓ shared/ipc.test.ts > validates tab membership, uniqueness, opaque ids, maximum eight and live IPC session 6ms
+ ✓ shared/ipc.test.ts > requires document id on checkpoint and recovery but keeps account-level list/discard 3ms
+ ✓ shared/ipc.test.ts > validates tabs-update responses 1ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > sends the ticket only in the main-process request and returns a metadata receipt 26ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > does not call the server for a stale account binding 1ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > rejects a response that tries to hand back a storage URL 1ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > rejects an incompatible engine descriptor or malformed receipt 1ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > maps the contract's anti-enumeration 403 to a refusal 0ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > accepts the first-party versioned download path for historical read-only opens 0ms
+ ✓ main/deep-links/http-exchange.test.ts > profile-bound Office launch exchange > rejects a current download path when the descriptor claims a historical version 0ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > sends only the allowlisted TLS routes and parses the server wire 19ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > maps typed revocation/reuse responses and rejects profile mismatch 1ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > uses bearer auth for refresh, device listing and revocation 2ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > maps a revoked snake_case device and rejects malformed device rows 1ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > maps malformed and network responses without exposing payloads 0ms
+ ✓ main/transport/http-auth-transport.test.ts > real desktop auth HTTP transport > does not expose server messages in transport errors 0ms
+ ✓ main/drafts/restart.test.ts > restart with the real protected draft store > keeps draft writes open through the leave decision, then seals and restarts 24ms
+ ✓ main/drafts/restart.test.ts > restart with the real protected draft store > retains background IO failures so restart cannot silently succeed 8ms
+ ✓ main/drafts/restart.test.ts > restart with the real protected draft store > reopens writes after cancellation 9ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > routes cold and warm delivery through one handler and emits only id/operation 4ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > checks local session before exchange and asks for login without metadata 2ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > maps a ticket owned by another account to a login outcome without descriptor metadata 0ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > does not exchange invalid, expired, or replayed tickets twice 1ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > registers one primary scheme owner and feeds both warm callbacks 1ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > routes a Windows second-instance auth callback to the login manager 4ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > drains a macOS cold-start open-url exactly once through the shared router 1ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > drains a second launch that arrived before the listener was attached 0ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > routes a drained cold-start auth callback to the login manager 2ms
+ ✓ main/deep-links/bridge.test.ts > launch bridge routing > quits a secondary process without registering a second protocol owner 0ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > allows only bound start/exchange operations and rejects arbitrary routes 2ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > runs a happy-path exchange once and rejects replay 4ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > cancels before callback and never opens a credential-shaped IPC result 1ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > does not let a stale cancel id clear a newer pending attempt 0ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > does not let an earlier same-generation browser failure clear a newer attempt 5ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > fails closed when the browser or exchange binding is invalid 3ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > serializes concurrent refresh calls and handles replay as login-required 1ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > revokes the device server-side before clearing local credentials on logout 1ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > retains credentials when logout cannot reach the server 1ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > does not let a logout completion after scope switch clear the new pair 4ms
+ ✓ main/transport/auth-transport.test.ts > desktop auth transport and fake contract > bumps scope generation, clears old scope hooks, and drops a late exchange 1ms
+ ✓ main/platform-gate.test.ts > platform release parsing > parses quoted, bare and commented os-release lines 2ms
+ ✓ main/platform-gate.test.ts > platform release parsing > compares dotted versions numerically with missing segments as zero 1ms
+ ✓ main/platform-gate.test.ts > platform release parsing > reads an os-release file and returns undefined when it cannot be read 1ms
+ ✓ main/platform-gate.test.ts > startup platform gate > accepts the supported Windows, macOS and Linux floors 2ms
+ ✓ main/platform-gate.test.ts > startup platform gate > refuses Windows older than 10 with the reported release 0ms
+ ✓ main/platform-gate.test.ts > startup platform gate > refuses a non-x64 Windows architecture 0ms
+ ✓ main/platform-gate.test.ts > startup platform gate > refuses macOS before 13 and accepts an unknown version 0ms
+ ✓ main/platform-gate.test.ts > startup platform gate > refuses Ubuntu before 22.04 and Debian before 11 but allows other distributions 0ms
+ ✓ main/platform-gate.test.ts > startup platform gate > maps the dev test seam to the production failure it simulates 0ms
+ ✓ main/platform-gate.test.ts > startup platform gate > honors the forced flag only for dev or smoke launches 0ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > round-trips an encrypted pair in the channel/deployment/account namespace 9ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > fails closed when the OS store is locked and never falls back to plaintext 1ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > refuses the Linux basic_text backend with the keyring reason and fix hint 1ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > accepts a Secret Service backend and treats a failing probe as unknown 6ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > keeps the previous pair if replacing the encrypted file tears 5ms
+ ✓ main/auth/credentials.test.ts > OS-backed credential store > reports corrupt selectors and clears the active pair without touching other namespaces 6ms
+ ✓ main/local-tab-lifecycle.test.ts > retains a local context through atomic replacement and consumes its protected checkpoint before closing 24ms
+ ✓ main/local-tab-lifecycle.test.ts > releases a local context after a refused save without marking a receipt 2ms
+ ✓ main/local-tab-lifecycle.test.ts > rebinds Save As at eight documents without writing and then reporting a capacity failure 6ms
+ ✓ main/updates/restart.test.ts > restart-to-update checkpoint > asks the leave decision, then flushes drafts, then restarts 2ms
+ ✓ main/updates/restart.test.ts > restart-to-update checkpoint > aborts on checkpoint IO failure 2ms
+ ✓ main/updates/restart.test.ts > restart-to-update checkpoint > requires explicit draft confirmation 0ms
+ ✓ main/updates/restart.test.ts > restart-to-update checkpoint > reopens draft writes when the leave decision itself fails 1ms
+ ✓ preload/index.test.ts > allowlists tab updates and accepts opaque local ids for native Save 7ms
+ ✓ preload/index.test.ts > exposes only the typed bridge and forwards an allowlisted call 1ms
+ ✓ preload/index.test.ts > uses context isolation's explicit main-world name 1ms
+ ✓ preload/index.test.ts > accepts only the narrow launch event and never forwards a ticket 1ms
+ ✓ preload/index.test.ts > forwards only metadata from auth session change events 2ms
+ ✓ preload/index.test.ts > buffers a leave request that arrives before the renderer subscribes 11ms
+ ✓ preload/index.test.ts > delivers every buffered native file and launch in channel order after subscription 1ms
+ ✓ main/leave.test.ts > desktop leave coordinator > resolves one request and rejects stale or duplicate ids 4ms
+ ✓ main/leave.test.ts > desktop leave coordinator > fails closed on a timeout and never blocks a later request 3ms
+ ✓ main/leave.test.ts > desktop leave coordinator > never proceeds on a stay answer, even when the renderer claims proceeded 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > fails closed when a verifier cannot read the store 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > refuses a second decision while one is outstanding 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > stays busy throughout main verification (confirmed=true) 1ms
+ ✓ main/leave.test.ts > desktop leave coordinator > stays busy throughout main verification (confirmed=false) 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > fails closed and releases busy when main verification rejects 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > fails closed and releases busy when request delivery throws 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > times out a held verifier and ignores its later success during a new decision 1ms
+ ✓ main/leave.test.ts > desktop leave coordinator > never proceeds on keep without a durable row main can see 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > requires a save receipt observed after the request 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > proceeds on discard only when the draft row is gone 0ms
+ ✓ main/leave.test.ts > desktop leave coordinator > forwards the renderer answer through the IPC handler 0ms
+ ✓ main/leave.test.ts > main leave Save evidence > refuses empty rows while a guarded Save is in flight 0ms
+ ✓ main/leave.test.ts > main leave Save evidence > allows a clean document with empty rows and an idle guard 0ms
+ ✓ main/leave.test.ts > main leave Save evidence > fails closed when the draft store cannot be read 0ms
+ ✓ main/leave.test.ts > main leave Save evidence > keeps the fresh-receipt rule for existing rows (busy=false) 0ms
+ ✓ main/leave.test.ts > main leave Save evidence > keeps the fresh-receipt rule for existing rows (busy=true) 0ms
+ ✓ main/lifecycle.test.ts > requires confirmed durability before allowing keep-draft close 3ms
+ ✓ main/lifecycle.test.ts > keeps the editor open when Save is refused or a concurrent lifecycle action runs 0ms
+ ✓ main/lifecycle.test.ts > does not call save or discard for stay and clean lifecycle 0ms
+ ✓ main/lifecycle.test.ts > maps a thrown Save to a typed stay result and blocks byte escape actions 1ms
+ ✓ main/lifecycle.test.ts > passes the main-bound session and base pair through the shared recovery adapter 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > accepts an artifact signed by the installed test publisher key 5ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 0 1ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 1 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 2 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 3 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 4 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 5 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 6 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 7 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 8 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses signed incompatible metadata 9 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > rejects an attacker self-signing with a different key 1ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > binds the signature to metadata as well as bytes 1ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses malformed signatures  0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses malformed signatures !!!! 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses malformed signatures YQ== 0ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > refuses missing trust and malformed feed configuration with typed reasons 1ms
+ ✓ main/updates/verifier.test.ts > desktop update verification > keeps unsigned automatic updates disabled by default 0ms
+ ✓ main/identity.test.ts > accepted desktop identity > keeps dev and stable namespaces separate 2ms
+ ✓ main/identity.test.ts > accepted desktop identity > uses the same manifest values for host identity and diagnostics 1ms
+ ✓ main/identity.test.ts > accepted desktop identity > has no duplicated identity literals in production host modules 3ms
+ ✓ main/index.test.ts > desktop host bootstrap > pins secure window preferences and injects the host seams 4ms
+ ✓ main/index.test.ts > desktop host bootstrap > rejects a native window seam that changes the secure preferences 1ms
+ ✓ main/index.test.ts > desktop host bootstrap > dispatches a validated operation to the supplied slot 2ms
+ ✓ main/index.test.ts > desktop host bootstrap > mediates approved external URLs through the system-browser seam 1ms
+ ✓ main/index.test.ts > desktop host bootstrap > wires the shared desktop engine through the injected IPC port 1ms
+ ✓ main/index.test.ts > desktop host bootstrap > exposes the attached draft key port and lifecycle factory to the editor host 0ms
+ ✓ main/index.test.ts > desktop host bootstrap > revokes local handles when the native window closes 1ms
+ ✓ main/index.test.ts > desktop host bootstrap > registers the scheme and emits only the narrow launch event after exchange 3ms
+ ✓ main/index.test.ts > desktop host bootstrap > routes a cold-start auth callback to the manager instead of the launch bridge 1ms
+ ✓ main/updates/config.test.ts > desktop update configuration > is disabled with no feed or publisher by default 2ms
+ ✓ main/updates/config.test.ts > desktop update configuration > refuses a missing configuration 1ms
+ ✓ main/updates/config.test.ts > desktop update configuration > refuses invalid values and upstream-shaped feeds 1ms
+ ✓ main/updates/config.test.ts > desktop update configuration > refuses a channel that is not the manifest channel 0ms
+ ✓ main/updates/config.test.ts > desktop update configuration > refuses every enabled unsigned-dev configuration 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > accepts only the canonical single-ticket URL 2ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa without exposing the value 1ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&server_url=https%3A%2F%2Fevil.test without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&path=%2Ftmp%2Fx without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&title=secret without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&bytes=abc without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&refresh_token=secret without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses https://open?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://other?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open/nested?ticket=ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=code_abcdefghijklmnopqrstuvwxyz012345 without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=fake-code-1 without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > refuses uniwork-office://open?ticket=not-a-ticket without exposing the value 0ms
+ ✓ main/deep-links/parser.test.ts > Office launch URL parser > extracts a cold-start URL without accepting arbitrary argv values 0ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > removes Work Product and unknown formats before rendering 2ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > keeps DOCX download available while the engine is down 0ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > clears cache before switching scope and rejects a late response 2ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > uses workspace-scoped list channel 2ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > uses workspace-scoped recent channel 0ms
+ ✓ renderer/library/model.test.ts > desktop library scope and filtering > uses workspace-scoped search channel 0ms
+ ✓ renderer/office/host.test.ts > desktop office host injection > reads through the typed download command and rejects unsupported formats 4ms
+ ✓ renderer/office/host.test.ts > desktop office host injection > uses one office-save command with the same intent and idempotency key 2ms
+ ✓ renderer/login.test.ts > uses only start/cancel IPC commands and exposes no secret fields 3ms
+ ✓ renderer/login.test.ts > maps host metadata to a renderer state 0ms
+ ✓ renderer/login.test.ts > renders error and cancelled states when command ports fail or no attempt exists 0ms
+ ✓ renderer/login.test.ts > moves a pending attempt to expired once its TTL passes 3ms
+ ✓ renderer/login.test.ts > never flips a settled attempt to expired 0ms
+ ✓ renderer/tabs/tab-model.test.ts > opens format-neutral tabs and focuses an existing document without replacing its editor 3ms
+ ✓ renderer/tabs/tab-model.test.ts > keeps library pinned, switches through all tabs and chooses a neighbour when closing 1ms
+ ✓ renderer/tabs/tab-model.test.ts > enforces eight document tabs but still focuses a duplicate at the limit 0ms
+ ✓ renderer/office/editor.test.ts > routes native menu Save to the same guarded action as the editor 3ms
+ ✓ main/auth/manager.test.ts > login manager credential failures > names the missing keyring on restore so the UI can show its fix 3ms
+ ✓ main/auth/manager.test.ts > login manager credential failures > keeps ordinary locked and corrupt stores on their existing states 0ms
+ ✓ main/auth/manager.test.ts > login manager credential failures > returns the typed locked state when the callback cannot persist the session 4ms
+ ✓ main/auth/manager.test.ts > login manager credential failures > does not add a keyring reason for a generic locked store 1ms
+ ✓ main/drafts/keystore.test.ts > round trips one key per namespace and deletes it explicitly 4ms
+ ✓ main/drafts/keystore.test.ts > fails closed while the OS store is locked and for corrupt ciphertext 2ms
+ ✓ main/drafts/keystore.test.ts > refuses a plaintext safeStorage backend and creates no key material 0ms
+ ✓ main/drafts/keystore.test.ts > keeps one key across concurrent calls and independent store instances 2ms
+ ✓ main/drafts/keystore.test.ts > rejects an invalid key namespace without revealing path data 0ms
+ ✓ main/drafts/keystore.test.ts > resolves whoami through the absolute Windows System32 path 1ms
+ ✓ main/navigation.test.ts > desktop navigation policy > allows only internal app schemes 1ms
+ ✓ main/navigation.test.ts > desktop navigation policy > requires https and an explicit host allowlist for external URLs 0ms
+ ✓ main/navigation.test.ts > desktop navigation policy > blocks navigation and window.open while forwarding approved external URLs 3ms
+ ✓ main/auth/attempt-store.test.ts > login attempt store > keeps independent opaque state and attempt ids and expires at ten minutes 4ms
+ ✓ main/auth/attempt-store.test.ts > login attempt store > makes an attempt single-use and a new start invalidates the previous one 1ms
+ ✓ main/deep-links/exchange.test.ts > fake Office exchange port > checks account/deployment before a single-use redemption 4ms
+ ✓ main/deep-links/exchange.test.ts > fake Office exchange port > expires with the explicit clock-skew budget and never returns metadata 1ms
+ ✓ main/linux-desktop-integration.test.ts > AppImage first-run scheme registration > writes a quoted desktop entry with the scheme MimeType 1ms
+ ✓ main/linux-desktop-integration.test.ts > AppImage first-run scheme registration > writes once and registers xdg-mime on the first run 2ms
+ ✓ main/linux-desktop-integration.test.ts > AppImage first-run scheme registration > registers on the first run only, so a user-chosen handler survives 0ms
+ ✓ main/linux-desktop-integration.test.ts > AppImage first-run scheme registration > reports a refused registration without throwing 0ms
+ ✓ main/linux-desktop-integration.test.ts > AppImage first-run scheme registration > does not throw when xdg-mime is unavailable, on any host 1ms
+ ✓ shared/deployment.test.ts > deployment profile resolver > prefers a strict installed profile over build environment 4ms
+ ✓ shared/deployment.test.ts > deployment profile resolver > uses build environment only for the dev fallback 1ms
+ ✓ shared/deployment.test.ts > deployment profile resolver > returns a typed no-profile state and refuses channel mismatch or invalid origins 2ms
+ ✓ main/auth/pkce.test.ts > RFC 7636 PKCE > matches Appendix B S256 2ms
+ ✓ main/auth/pkce.test.ts > RFC 7636 PKCE > generates an ASCII verifier in the RFC bounds from the injected CSPRNG 2ms
+ ✓ main/auth/pkce.test.ts > RFC 7636 PKCE > creates independent verifier challenge pair and opaque values 1ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > preserves inactive contexts and removes closed documents without allowing resurrection 2ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > rejects invalid tab sets atomically and keeps the eight-document limit 1ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > clears all context and active state on account or generation changes 0ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > resolves local handles separately from restart-stable draft ids and preserves existing base 0ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > pins only the saving document, releases once on failure and never confirms a failed write 1ms
+ ✓ main/opened-documents.test.ts > main-owned open documents > refuses a rebind of an unknown, cloud, busy or different-account context 0ms
+ ✓ test/desktop-auth-real-server.integration.test.ts > desktop auth against the real Go server > is opt-in (set OFFICE_DESKTOP_REAL_SERVER_URL for AC-2) 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  renderer/app.test.tsx [ renderer/app.test.tsx ]
+ FAIL  renderer/signed-in-app.test.tsx [ renderer/signed-in-app.test.tsx ]
+Error: Failed to resolve import "@uniwork/office-upstream/docs-renderer-editor" from "../../packages/views/office/docx/use-docx-tiptap-handle.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/docx/use-docx-tiptap-handle.ts:14:93
+  8  |  import { EditorContent } from "@tiptap/react";
+  9  |  import { createElement, useEffect, useState } from "react";
+  10 |  import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts } from "@uniwork/office-upstream/docs-renderer-editor";
+     |                                                                           ^
+  11 |  import { blocksToDoc } from "./docx-doc-convert";
+  12 |  import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  renderer/native-open-queue.test.tsx [ renderer/native-open-queue.test.tsx ]
+ FAIL  renderer/office/open-document.test.tsx [ renderer/office/open-document.test.tsx ]
+Error: Failed to resolve import "@uniwork/office-upstream/docs-renderer-editor" from "../../packages/views/office/docx/use-docx-tiptap-handle.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/docx/use-docx-tiptap-handle.ts:14:93
+  8  |  import { EditorContent } from "@tiptap/react";
+  9  |  import { createElement, useEffect, useState } from "react";
+  10 |  import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts } from "@uniwork/office-upstream/docs-renderer-editor";
+     |                                                                           ^
+  11 |  import { blocksToDoc } from "./docx-doc-convert";
+  12 |  import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+ ❯ fetchModule ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:34343:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: app.exit is not a function
+ ❯ electron-main.ts:546:7
+    544| void startElectronHost().catch((error) => {
+    545|   process.stderr.write(`office-desktop: Electron bootstrap failed: ${e…
+    546|   app.exit(1);
+       |       ^
+    547| });
+    548|
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+
+This error originated in "main/native-titlebar.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  4 failed | 51 passed (55)
+      Tests  339 passed (339)
+     Errors  1 error
+   Start at  20:46:31
+   Duration  12.57s (transform 2.11s, setup 11.95s, import 3.83s, tests 7.07s, environment 2.70s)
+

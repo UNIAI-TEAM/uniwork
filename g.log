@@ -1,0 +1,17 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 150 bash -c 'printf %s c2V0IC11CmNvbW1hbmQgLXYgdW5pd29yay1vZmZpY2UtdGVzdCB8fCB7IGVjaG8gIk5PVF9SVU4gcGFja2FnZSBub3QgaW5zdGFsbGVkIjsgZXhpdCAzOyB9CnVuc2V0IEVMRUNUUk9OX1JVTl9BU19OT0RFClVOSVdPUktfT0ZGSUNFX1VTRVJfREFUQT0vdG1wL2c0LTA3ZS11c2VyLWRhdGEgdGltZW91dCAxMjAgeHZmYi1ydW4gLWEgdW5pd29yay1vZmZpY2UtdGVzdCAtLW9mZmljZS1kZXNrdG9wLXNtb2tlID4gL3RtcC9nNC0wN2UtcjUtZXZpZGVuY2Uvc21va2UubG9nIDI+JjEKY29kZT0kPzsgY2F0IC90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL3Ntb2tlLmxvZzsgZWNobyAicGFja2FnZWQgc21va2UgZXhpdD0kY29kZSIKWyAiJGNvZGUiIC1lcSAwIF0gJiYgZ3JlcCAtcSAnImV2ZW50Ijoib2ZmaWNlLWRlc2t0b3Atc21va2UiJyAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9zbW9rZS5sb2cK | base64 -d | bash' </dev/null
+/usr/bin/uniwork-office-test
+[16154:1002/204816.299466:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[16154:1002/204816.320948:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[16154:1002/204816.333643:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[16154:1002/204816.355886:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[16154:1002/204816.356122:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[16154:1002/204816.359460:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+Error occurred in handler for 'desktop:auth-config': IpcValidationError: IPC channel has no host implementation
+    at Object.dispatch (file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:15101:25)
+    at file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:19027:19
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118964)
+    at Session.emit (node:events:514:28) {
+  code: 'unknown_channel'
+}
+{"event":"office-desktop-smoke","readyToShow":true,"diagnostics":{"name":"UniWork Office (test)","appId":"com.uniwork.office.dev","appVersion":"0.1.0-dev.0","engineVersion":"genoffice@09485f88+uniwork-office.0","contractVersion":"uniwork-office-engine-contract/1","protocolVersion":1,"channel":"dev","buildId":"unsigned-dev"}}
+packaged smoke exit=0

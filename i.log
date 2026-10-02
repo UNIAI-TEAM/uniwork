@@ -1,0 +1,13 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 60 bash -c 'printf %s c2V0IC11CnVuc2V0IEVMRUNUUk9OX1JVTl9BU19OT0RFCnVuaXdvcmstb2ZmaWNlLXRlc3QgLS1vZmZpY2UtZGVza3RvcC1wbGF0Zm9ybS1nYXRlPW1hY29zX3Rvb19vbGQgPi90bXAvZzQtMDdlLXI1LWV2aWRlbmNlL2luZXJ0LmxvZyAyPiYxICYgUD0kIQp0cmFwICdraWxsICIkUCIgMj4vZGV2L251bGwgfHwgdHJ1ZScgRVhJVApzbGVlcCAxMgpXPSQoeGRvdG9vbCBzZWFyY2ggLS1vbmx5dmlzaWJsZSAtLXBpZCAiJFAiIDI+L2Rldi9udWxsIHwgaGVhZCAtMSkKZmFpbD0wCmlmIGtpbGwgLTAgIiRQIiAmJiBbIC1uICIkVyIgXTsgdGhlbiBlY2hvICdQQVNTIHBhY2thZ2VkIGdhdGUgZmxhZyBpbmVydDsgYXBwIHJ1bm5pbmcgd2l0aCB2aXNpYmxlIHdpbmRvdyc7IHhkb3Rvb2wgZ2V0d2luZG93bmFtZSAiJFciOyBlbHNlIGVjaG8gJ0ZBSUwgcGFja2FnZWQgbGF1bmNoIHdpdGggZm9yY2VkIGdhdGUnOyBmYWlsPTE7IGZpCmNhdCAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9pbmVydC5sb2cKZXhpdCAkZmFpbAo= | base64 -d > /tmp/g4-07e-r5-inert-inner.sh && printf %s c2V0IC1ldQpjb21tYW5kIC12IHVuaXdvcmstb2ZmaWNlLXRlc3QgfHwgeyBlY2hvICdOT1RfUlVOIHBhY2thZ2Ugbm90IGluc3RhbGxlZCc7IGV4aXQgMzsgfQpkYnVzLXJ1bi1zZXNzaW9uIC0tIHh2ZmItcnVuIC1hIGJhc2ggL3RtcC9nNC0wN2UtcjUtaW5lcnQtaW5uZXIuc2gK | base64 -d | bash' </dev/null
+/usr/bin/uniwork-office-test
+dbus-daemon[16550]: [session uid=1000 pid=16550] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=16565 comm="/opt/uniwork-office-dev/uniwork-office-test --offi" label="kernel")
+dbus-daemon[16550]: [session uid=1000 pid=16550] Successfully activated service 'org.a11y.Bus'
+PASS packaged gate flag inert; app running with visible window
+UniWork Office
+Error occurred in handler for 'desktop:auth-config': IpcValidationError: IPC channel has no host implementation
+    at Object.dispatch (file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:15101:25)
+    at file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:19027:19
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118964)
+    at Session.emit (node:events:514:28) {
+  code: 'unknown_channel'
+}

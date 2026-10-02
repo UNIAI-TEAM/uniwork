@@ -1,0 +1,10 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 150 bash -c 'printf %s c2V0IC11CnVuc2V0IEVMRUNUUk9OX1JVTl9BU19OT0RFCkhBUk5FU1NfTU9ERT1iYXNpYyB0aW1lb3V0IDEyMCBkYnVzLXJ1bi1zZXNzaW9uIC0tIHh2ZmItcnVuIC1hICIkUFdEL2FwcHMvb2ZmaWNlLWRlc2t0b3Avbm9kZV9tb2R1bGVzLy5iaW4vZWxlY3Ryb24iIC0tbm8tc2FuZGJveCAtLXBhc3N3b3JkLXN0b3JlPWJhc2ljIC90bXAvZzQtMDdlLXI1LWhhcm5lc3MvaGFybmVzcy5janMgPiAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9rZXlyaW5nLWJhc2ljLmxvZyAyPiYxCkM9JD87IGNhdCAvdG1wL2c0LTA3ZS1yNS1ldmlkZW5jZS9rZXlyaW5nLWJhc2ljLmxvZzsgZWNobyAiYmFzaWMgaGFybmVzcyBleGl0PSRDIjsgZXhpdCAiJEMiCg== | base64 -d | bash' </dev/null
+CredentialStoreError: Secure credential storage needs a Secret Service keyring (gnome-keyring or KWallet with libsecret). Install and unlock one, then sign in again. / Cần gnome-keyring hoặc KWallet (libsecret) để lưu đăng nhập. Hãy cài và mở khoá rồi đăng nhập lại.
+    at ensureAvailable (/tmp/g4-07e-r5-harness/credentials.cjs:57:79)
+    at Object.save (/tmp/g4-07e-r5-harness/credentials.cjs:80:7)
+    at /tmp/g4-07e-r5-harness/harness.cjs:9:20 {
+  code: 'keyring_required'
+}
+HARNESS_RESULT {"mode":"basic","backend":"basic_text","encryptionAvailable":false,"userData":"/tmp/g4-07e-r5-cred-U8LDkm","errorCode":"keyring_required","errorMessage":"Secure credential storage needs a Secret Service keyring (gnome-keyring or KWallet with libsecret). Install and unlock one, then sign in again. / Cần gnome-keyring hoặc KWallet (libsecret) để lưu đăng nhập. Hãy cài và mở khoá rồi đăng nhập lại.","files":[],"plaintextOnDisk":false}
+HARNESS_PASS basic
+basic harness exit=0

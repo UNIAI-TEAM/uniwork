@@ -1,0 +1,106 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 240 bash -c 'node --test apps/office-desktop/scripts/package.test.mjs apps/office-desktop/scripts/release-inventory.test.mjs' </dev/null
+TAP version 13
+# Subtest: Windows x64 dev package is explicitly labelled and installs per-user
+ok 1 - Windows x64 dev package is explicitly labelled and installs per-user
+  ---
+  duration_ms: 2.027831
+  ...
+# Subtest: beta and stable share install identity while dev is isolated
+ok 2 - beta and stable share install identity while dev is isolated
+  ---
+  duration_ms: 0.401061
+  ...
+# Subtest: download-time deployment env fallback is strict and typed
+ok 3 - download-time deployment env fallback is strict and typed
+  ---
+  duration_ms: 0.307149
+  ...
+# Subtest: macOS arm64/x64 targets are config validated without a build
+ok 4 - macOS arm64/x64 targets are config validated without a build
+  ---
+  duration_ms: 1.520887
+  ...
+# Subtest: packaging rejects an esbuild input outside the repository
+ok 5 - packaging rejects an esbuild input outside the repository
+  ---
+  duration_ms: 0.389074
+  ...
+# Subtest: packaged asar inspection rejects raw node_modules
+ok 6 - packaged asar inspection rejects raw node_modules
+  ---
+  duration_ms: 0.101389
+  ...
+# Subtest: identity declares linux x64 alongside win32 and darwin
+ok 7 - identity declares linux x64 alongside win32 and darwin
+  ---
+  duration_ms: 0.177814
+  ...
+# Subtest: Linux x64 dev package declares the deb and AppImage unsigned artifacts
+ok 8 - Linux x64 dev package declares the deb and AppImage unsigned artifacts
+  ---
+  duration_ms: 0.431339
+  ...
+# Subtest: beta and stable Linux packages share the upgrade namespace
+ok 9 - beta and stable Linux packages share the upgrade namespace
+  ---
+  duration_ms: 0.446355
+  ...
+# Subtest: macOS config pins the Ventura floor, one architecture and the URL scheme
+ok 10 - macOS config pins the Ventura floor, one architecture and the URL scheme
+  ---
+  duration_ms: 0.525352
+  ...
+# Subtest: cross-platform builds are refused with an actionable error
+ok 11 - cross-platform builds are refused with an actionable error
+  ---
+  duration_ms: 0.21132
+  ...
+# Subtest: Linux deb maintainer scripts are generated from the reviewed templates
+ok 12 - Linux deb maintainer scripts are generated from the reviewed templates
+  ---
+  duration_ms: 14.204511
+  ...
+# Subtest: Linux packaging metadata follows the build-time env with the accepted defaults
+ok 13 - Linux packaging metadata follows the build-time env with the accepted defaults
+  ---
+  duration_ms: 0.238992
+  ...
+# Subtest: generated maintainer scripts avoid electron-builder macro syntax
+ok 14 - generated maintainer scripts avoid electron-builder macro syntax
+  ---
+  duration_ms: 2.978825
+  ...
+# Subtest: the deb preinst refuses unsupported distributions and old Ubuntu
+ok 15 - the deb preinst refuses unsupported distributions and old Ubuntu
+  ---
+  duration_ms: 25.331642
+  ...
+# Subtest: the NSIS wrong-machine gate stays off unless the dev test flag is set
+ok 16 - the NSIS wrong-machine gate stays off unless the dev test flag is set
+  ---
+  duration_ms: 0.299717
+  ...
+# Subtest: the Linux docker build uses only a digest-pinned builder image
+ok 17 - the Linux docker build uses only a digest-pinned builder image
+  ---
+  duration_ms: 0.326176
+  ...
+# Subtest: packaged asar location covers flat and macOS bundle layouts
+ok 18 - packaged asar location covers flat and macOS bundle layouts
+  ---
+  duration_ms: 0.702676
+  ...
+# Subtest: release inventory copies provenance, notices, fonts and a clean ee scan
+ok 19 - release inventory copies provenance, notices, fonts and a clean ee scan
+  ---
+  duration_ms: 3389.99556
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3446.274425

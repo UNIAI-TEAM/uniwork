@@ -1,0 +1,28 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 240 bash -c 'printf %s c2V0IC11CmNvbW1hbmQgLXYgdW5pd29yay1vZmZpY2UtdGVzdCB8fCB7IGVjaG8gJ05PVF9SVU4gcGFja2FnZSBub3QgaW5zdGFsbGVkJzsgZXhpdCAzOyB9Cm1rZGlyIC1wICIkSE9NRS8uY29uZmlnL3VuaXdvcmstb2ZmaWNlLWRldiI7IGVjaG8ga2VlcCA+ICIkSE9NRS8uY29uZmlnL3VuaXdvcmstb2ZmaWNlLWRldi9nNC0wN2Utc2VudGluZWwiCnRpbWVvdXQgLWsgMTAgMTgwIHN1ZG8gLW4gZW52IERFQklBTl9GUk9OVEVORD1ub25pbnRlcmFjdGl2ZSBhcHQtZ2V0IC1vIERwa2c6Ok9wdGlvbnM6Oj0tLWZvcmNlLWNvbmZvbGQgcmVtb3ZlIC15IHVuaXdvcmstb2ZmaWNlLWRldiA8L2Rldi9udWxsIHx8IGV4aXQgMQpmYWlsPTAKZm9yIHAgaW4gJy9vcHQvdW5pd29yay1vZmZpY2UtZGV2JyAvdXNyL2Jpbi91bml3b3JrLW9mZmljZS10ZXN0IC91c3Ivc2hhcmUvYXBwbGljYXRpb25zL3VuaXdvcmstb2ZmaWNlLXRlc3QuZGVza3RvcDsgZG8gaWYgWyAtZSAiJHAiIF0gfHwgWyAtTCAiJHAiIF07IHRoZW4gZWNobyAiRkFJTCByZW1haW5zICRwIjsgZmFpbD0xOyBlbHNlIGVjaG8gIlBBU1MgcmVtb3ZlZCAkcCI7IGZpOyBkb25lCmlmIGdyZXAgLXF4IGtlZXAgIiRIT01FLy5jb25maWcvdW5pd29yay1vZmZpY2UtZGV2L2c0LTA3ZS1zZW50aW5lbCI7IHRoZW4gZWNobyAnUEFTUyB1c2VyLWRhdGEgc2VudGluZWwgcHJlc2VydmVkJzsgZWxzZSBmYWlsPTE7IGZpCmVjaG8gJz09IHN5c3RlbSBzY2hlbWUgbWFwcGluZyBhZnRlciByZW1vdmFsJwppZiBbIC1mIC9ldGMveGRnL21pbWVhcHBzLmxpc3QgXTsgdGhlbiBjYXQgL2V0Yy94ZGcvbWltZWFwcHMubGlzdDsgZmkKaWYgZ3JlcCAtcSAnXngtc2NoZW1lLWhhbmRsZXIvdW5pd29yay1vZmZpY2UtZGV2PScgL2V0Yy94ZGcvbWltZWFwcHMubGlzdCAyPi9kZXYvbnVsbDsgdGhlbiBlY2hvICdGQUlMIHN5c3RlbSBtYXBwaW5nIHJlbWFpbnMnOyBmYWlsPTE7IGVsc2UgZWNobyAnUEFTUyBzeXN0ZW0gbWFwcGluZyByZW1vdmVkJzsgZmkKZXhpdCAkZmFpbAo= | base64 -d | bash' </dev/null
+/usr/bin/uniwork-office-test
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following package was automatically installed and is no longer required:
+  libappindicator3-1
+Use 'sudo apt autoremove' to remove it.
+The following packages will be REMOVED:
+  uniwork-office-dev
+0 upgraded, 0 newly installed, 1 to remove and 149 not upgraded.
+After this operation, 303 MB disk space will be freed.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 97902 files and directories currently installed.)
+Removing uniwork-office-dev (0.1.0~dev.0) ...
+update-alternatives: warning: alternative /opt/uniwork-office-dev/uniwork-office-test (part of link group uniwork-office-test) doesn't exist; removing from list of alternatives
+update-alternatives: warning: /etc/alternatives/uniwork-office-test is dangling; it will be updated with best choice
+Processing triggers for desktop-file-utils (0.27-2build1) ...
+Processing triggers for hicolor-icon-theme (0.17-2) ...
+Processing triggers for shared-mime-info (2.4-4) ...
+Processing triggers for bamfdaemon (0.5.6+22.04.20220217-0ubuntu5) ...
+Rebuilding /usr/share/applications/bamf-2.index...
+PASS removed /opt/uniwork-office-dev
+PASS removed /usr/bin/uniwork-office-test
+PASS removed /usr/share/applications/uniwork-office-test.desktop
+PASS user-data sentinel preserved
+== system scheme mapping after removal
+[Default Applications]
+PASS system mapping removed

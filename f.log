@@ -1,0 +1,51 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; timeout -k 15 300 bash -c 'printf %s c2V0IC1ldQpEPSQoZmluZCAvdG1wL2c0LTA3ZS1hcnRpZmFjdHMgLW1heGRlcHRoIDEgLW5hbWUgJyouZGViJyAtcHJpbnQgLXF1aXQpClsgLW4gIiREIiBdIHx8IHsgZWNobyAiTk9UX1JVTiBtaXNzaW5nIC5kZWIiOyBleGl0IDM7IH0KdGltZW91dCAtayAxMCAyNDAgc3VkbyAtbiBlbnYgREVCSUFOX0ZST05URU5EPW5vbmludGVyYWN0aXZlIGFwdC1nZXQgLW8gRHBrZzo6T3B0aW9uczo6PS0tZm9yY2UtY29uZm9sZCBpbnN0YWxsIC15ICIkRCIgPC9kZXYvbnVsbApkcGtnIC1zIHVuaXdvcmstb2ZmaWNlLWRldgpscyAtbGQgJy9vcHQvdW5pd29yay1vZmZpY2UtZGV2JyAvdXNyL2Jpbi91bml3b3JrLW9mZmljZS10ZXN0IC91c3Ivc2hhcmUvYXBwbGljYXRpb25zL3VuaXdvcmstb2ZmaWNlLXRlc3QuZGVza3RvcAo= | base64 -d | bash' </dev/null
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libappindicator3-1
+Suggested packages:
+  indicator-application
+The following NEW packages will be installed:
+  libappindicator3-1 uniwork-office-dev
+0 upgraded, 2 newly installed, 0 to remove and 149 not upgraded.
+Need to get 23.3 kB/100 MB of archives.
+After this operation, 303 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu noble/universe amd64 libappindicator3-1 amd64 12.10.1+20.10.20200706.1-0ubuntu5 [23.3 kB]
+Get:2 /tmp/g4-07e-artifacts/uniwork-office-test_0.1.0-dev.0_unsigned_linux_x64.deb uniwork-office-dev amd64 0.1.0~dev.0 [100 MB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 23.3 kB in 0s (59.8 kB/s)
+Selecting previously unselected package libappindicator3-1.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 97806 files and directories currently installed.)
+Preparing to unpack .../libappindicator3-1_12.10.1+20.10.20200706.1-0ubuntu5_amd64.deb ...
+Unpacking libappindicator3-1 (12.10.1+20.10.20200706.1-0ubuntu5) ...
+Selecting previously unselected package uniwork-office-dev.
+Preparing to unpack .../uniwork-office-test_0.1.0-dev.0_unsigned_linux_x64.deb ...
+Unpacking uniwork-office-dev (0.1.0~dev.0) ...
+Setting up uniwork-office-dev (0.1.0~dev.0) ...
+update-alternatives: using /opt/uniwork-office-dev/uniwork-office-test to provide /usr/bin/uniwork-office-test (uniwork-office-test) in auto mode
+Setting up libappindicator3-1 (12.10.1+20.10.20200706.1-0ubuntu5) ...
+Processing triggers for bamfdaemon (0.5.6+22.04.20220217-0ubuntu5) ...
+Rebuilding /usr/share/applications/bamf-2.index...
+Processing triggers for desktop-file-utils (0.27-2build1) ...
+Processing triggers for hicolor-icon-theme (0.17-2) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+Processing triggers for shared-mime-info (2.4-4) ...
+Package: uniwork-office-dev
+Status: install ok installed
+Priority: optional
+Section: office
+Installed-Size: 296245
+Maintainer: UniWork <contact@unicomhub.com>
+Architecture: amd64
+Version: 0.1.0~dev.0
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
+Recommends: libappindicator3-1
+Description: UniWork Office
+  UniWork Office unsigned development desktop host. Electron is an adapter around the shared Office engine and contracts.
+License: unknown
+Vendor: UniWork <contact@unicomhub.com>
+Homepage: https://uniwork.unicomhub.com
+drwxr-xr-x 4 root root 4096 Oct  2 20:48 /opt/uniwork-office-dev
+lrwxrwxrwx 1 root root   37 Oct  2 20:46 /usr/bin/uniwork-office-test -> /etc/alternatives/uniwork-office-test
+-rw-r--r-- 1 root root  451 Oct  2 20:47 /usr/share/applications/uniwork-office-test.desktop
