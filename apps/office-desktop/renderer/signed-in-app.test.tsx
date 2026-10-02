@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { DesktopSessionMetadata } from "../shared/ipc";
+import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 
 const sessions = vi.hoisted(() => new Map<string, import("./office/session").ByteDocumentSession>());
@@ -23,17 +23,25 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
   let sessionListener: ((value: DesktopSessionMetadata) => void) | undefined;
   let nativeSave: ((value: { documentId: string }) => void) | undefined;
   let hostLeave: ((value: { requestId: string; reason: "close" }) => void) | undefined;
+  const drafts = new Map<string, DesktopDraftMetadata>();
   const call = vi.fn(async (channel: string, payload: unknown) => {
-    const request = payload as { documentId?: string; intentId?: string; idempotencyKey?: string; generation?: number };
+    const request = payload as { documentId?: string; draftId?: string; intentId?: string; idempotencyKey?: string; generation?: number };
     if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
     if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: "aGVsbG8=", checksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
-    if (channel === "desktop:draft-list") return { drafts: [] };
-    if (channel === "desktop:draft-checkpoint") return { stored: true, generation: request.generation };
-    if (channel === "desktop:draft-discard") return { discarded: true };
+    if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
+    if (channel === "desktop:draft-checkpoint") {
+      const parts = request.draftId!.split(":");
+      drafts.set(request.draftId!, {
+        draftId: request.draftId!, generation: request.generation!, checksum, byteLength: 5, updatedAt: Date.now(),
+        identity: { deploymentId: "lane", accountId: account, organizationId: "org", workspaceId: "ws", documentId: request.documentId!, base: { version: parts.at(-2)!, revision: parts.at(-1)! } },
+      });
+      return { stored: true, generation: request.generation };
+    }
+    if (channel === "desktop:draft-discard") return { discarded: drafts.get(request.draftId!)?.generation === request.generation && drafts.delete(request.draftId!) };
     if (channel === "desktop:office-save") {
       await options.beforeSave?.();
       if (options.failSave) throw new Error("save refused");
@@ -134,13 +142,19 @@ it("shows dirty state, cancels dirty close and keeps a failed dialog Save open",
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await screen.findByRole("dialog");
   fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: i18n.t("office.leave.stay") }).at(-1)!);
+  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
   expect(screen.getByRole("tab", { name: /Plan0/ })).toBeInTheDocument();
+  // After initial recovery and cancellation settle, create a durable checkpoint
+  // so Discard exercises row consumption without depending on its timer.
+  await act(async () => { expect(await sessions.get("doc-0")!.keepDraft()).toBe(true); });
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+  await screen.findByRole("dialog");
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.save") }));
   await screen.findByText(i18n.t("office.leave.write_failed"));
   expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.discard") }));
   await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
+  expect(h.call).toHaveBeenCalledWith("desktop:draft-discard", expect.objectContaining({ documentId: "doc-0", draftId: "doc-0:1:1", generation: 1 }));
 });
 
 it("saves all dirty documents from one window leave dialog", async () => {
