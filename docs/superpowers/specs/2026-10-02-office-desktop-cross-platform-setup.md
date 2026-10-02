@@ -301,8 +301,9 @@ bản phù hợp nhất với hđh của client. nếu bấm cài đặt bản k
 
 ### 6.6 Yêu cầu hệ thống (dòng "Yêu cầu")
 
-- Windows: "Windows 10/11 64-bit". macOS: "macOS 12 Monterey trở lên" - lane đối chiếu mức tối thiểu của bản
-  Electron đang pin và sửa nếu khác, ghi nguồn trong report. Linux: "Ubuntu 22.04 / 24.04 (x64)"; AppImage: "Linux x64,
+- Windows: "Windows 10/11 64-bit". macOS: "macOS 13 Ventura trở lên" (Electron 44.5.0 đang pin yêu cầu macOS 13+, nguồn: electronjs.org breaking-changes
+  và release notes v44.0.0; lane UNI-919 xác nhận 2026-10-02). Lane UNI-920 dùng cùng mức này cho
+  `LSMinimumSystemVersion` và kiểm tra lúc khởi động. Linux: "Ubuntu 22.04 / 24.04 (x64)"; AppImage: "Linux x64,
   cần libfuse2".
 - Server có thể trả `requirements` cho từng bản; có thì dùng giá trị server, không thì dùng chuỗi i18n trên.
 
