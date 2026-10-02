@@ -1,0 +1,13 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; bash -c 'timeout -k 10 60 bash -c '"'"'dbus-run-session -- xvfb-run -a bash /tmp/g4-07e-r5-inert-inner.sh'"'"' </dev/null; C=$?; echo '"'"'EXPLICIT_EXIT inert='"'"'$C; exit "$C"' </dev/null
+dbus-daemon[18440]: [session uid=1000 pid=18440] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=18455 comm="/opt/uniwork-office-dev/uniwork-office-test --offi" label="kernel")
+dbus-daemon[18440]: [session uid=1000 pid=18440] Successfully activated service 'org.a11y.Bus'
+PASS packaged gate flag inert; app running with visible window
+UniWork Office
+Error occurred in handler for 'desktop:auth-config': IpcValidationError: IPC channel has no host implementation
+    at Object.dispatch (file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:15101:25)
+    at file:///opt/uniwork-office-dev/resources/app.asar/dist/main/index.mjs:19027:19
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118964)
+    at Session.emit (node:events:514:28) {
+  code: 'unknown_channel'
+}
+EXPLICIT_EXIT inert=0

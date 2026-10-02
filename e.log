@@ -1,0 +1,21 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; bash -c 'timeout -k 10 240 bash -c '"'"'sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y uniwork-office-dev; C=$?; test ! -e /opt/uniwork-office-dev && test ! -L /usr/bin/uniwork-office-test && test ! -e /usr/share/applications/uniwork-office-test.desktop && grep -qx keep "$HOME/.config/uniwork-office-dev/g4-07e-sentinel" && ! grep -q '"'"'"'"'"'"'"'"'^x-scheme-handler/uniwork-office-dev='"'"'"'"'"'"'"'"' /etc/xdg/mimeapps.list; T=$?; test "$C" -eq 0 && test "$T" -eq 0'"'"' </dev/null; C=$?; echo '"'"'EXPLICIT_EXIT remove-after-metadata='"'"'$C; exit "$C"' </dev/null
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following package was automatically installed and is no longer required:
+  libappindicator3-1
+Use 'sudo apt autoremove' to remove it.
+The following packages will be REMOVED:
+  uniwork-office-dev
+0 upgraded, 0 newly installed, 1 to remove and 149 not upgraded.
+After this operation, 303 MB disk space will be freed.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 97902 files and directories currently installed.)
+Removing uniwork-office-dev (0.1.0~dev.0) ...
+update-alternatives: warning: alternative /opt/uniwork-office-dev/uniwork-office-test (part of link group uniwork-office-test) doesn't exist; removing from list of alternatives
+update-alternatives: warning: /etc/alternatives/uniwork-office-test is dangling; it will be updated with best choice
+Processing triggers for desktop-file-utils (0.27-2build1) ...
+Processing triggers for hicolor-icon-theme (0.17-2) ...
+Processing triggers for shared-mime-info (2.4-4) ...
+Processing triggers for bamfdaemon (0.5.6+22.04.20220217-0ubuntu5) ...
+Rebuilding /usr/share/applications/bamf-2.index...
+EXPLICIT_EXIT remove-after-metadata=0

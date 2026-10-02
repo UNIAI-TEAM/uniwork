@@ -1,0 +1,6 @@
+$ export DEBIAN_FRONTEND=noninteractive CI=1; bash -c 'timeout -k 10 60 bash -c '"'"'apps/office-desktop/node_modules/.bin/esbuild apps/office-desktop/main/auth/credentials.ts --bundle --platform=node --format=cjs --outfile=/tmp/g4-07e-r5-harness/credentials.cjs'"'"' </dev/null; C=$?; echo '"'"'EXPLICIT_EXIT keyring-build='"'"'$C; exit "$C"' </dev/null
+
+  ../tmp/g4-07e-r5-harness/credentials.cjs  8.3kb
+
+⚡ Done in 3ms
+EXPLICIT_EXIT keyring-build=0
