@@ -7140,6 +7140,25 @@
         "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
         "engine_error": "Engine XLSX không thể mở sổ tính này.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
+      },
+      "editor": {
+        "appClosureActive": "{count} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",
+        "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
+        "appColumnLabel": "Cột {col}",
+        "appFullyLoaded": "Sổ tính đã tải đầy đủ — công thức tính lại trực tiếp, có thể sửa hàng/cột.",
+        "appIndexing": "Đang lập chỉ mục {name}: {rows} hàng sẵn sàng.",
+        "appLinkInternal": "Liên kết trỏ trong cùng sổ tính: {location}",
+        "appLinkJumpFailed": "Không thể nhảy tới {location}.",
+        "appLinkSheetNotFound": "Không tìm thấy trang tính \"{name}\".",
+        "appLoadRangeFailed": "Không thể tải vùng hiển thị.",
+        "appProtectedWithPassword": "Trang tính này được bảo vệ bằng mật khẩu — không hỗ trợ gỡ bảo vệ.",
+        "appProtectionNeedsIndexed": "Cần lập chỉ mục xong trang tính trước khi bảo vệ — thử lại sau giây lát.",
+        "appRangeMustBeVector": "{range} phải là một hàng hoặc một cột ô.",
+        "appRangeTooManyCells": "{range} vượt quá {max} ô.",
+        "appRecalcDone": "Đã tính lại công thức từ các sửa đổi của bạn ({count} ô, dùng công cụ dự phòng).",
+        "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {count} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
+        "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
+        "appStreamingRows": "Đang truyền {name}: {rows} hàng khả dụng."
       }
     },
     "markdown": {

@@ -136,6 +136,51 @@ Third-party transitives also enter: `rxjs` 1.31 MB (204 KB gz), `lodash-es`
 the lockfile review). `rxjs` and friends are **new catalog entries** — this is
 one of the go/no-go questions (section 8).
 
+### 1.4 Phase-1 close-out (AC-1, after the Advisor go)
+
+Confirmed at vendor time, file-by-file (the build reaches every file, so the
+list is the real runtime closure, not the estimate):
+
+- **Vendored renderer subset: 34 files** under
+  `apps/sheets/src/renderer/` — `univer-sync.ts`, `univer-state.ts`,
+  `create-univer.ts`, `edit-journal.ts`, `view-transform.ts`, `numfmt-fix.ts`,
+  `cell-font-fallback.ts`, `app-constants.ts`, `calc-options.ts`,
+  `selection-format.ts`, `undo-carry.ts`, `protected-ranges.ts`,
+  `filter-range-outline.ts`, `formula-*.ts` (5), `autofit-*.ts` (2),
+  `rtl-grid-mirror.ts`, `rtl-text-fix.ts`, `rich-text-bidi-fix.ts`,
+  `merge-border-fix.ts`, `thick-border-fix.ts`, `cell-clip-anchor-fix.ts`,
+  `center-continuous.ts`, `long-text-render.ts`, `number-as-text-alert.ts`,
+  `load-perf-patches.ts`, `chart-sync-pending.ts`, `cf-formula-fold.ts`,
+  `cf-thresholds.ts`, `shared-formula-journal.ts`, `formula-stream-hold.ts` —
+  plus the two Carlito faces (`packages/ui/src/fonts/Carlito-{Regular,Bold}.ttf`,
+  SIL OFL) and the OFL text (`apps/docs/src/renderer/fonts/LICENSE-OFL.txt`).
+  `vendor-upstream --check --source <pin>` green, pinned-tree blob check green.
+- **Artifact**: `packages/office-upstream/dist/xlsx-renderer.mjs` —
+  **14,115,703 B raw / 3,761,066 B gzip**, react/react-dom/i18next external,
+  Univer bundled, 9 Univer stylesheets repackaged under `@scope
+  (.xlsx-surface)` (global resets cannot leak), Carlito Regular+Bold inlined
+  as data URLs. Build: `scripts/office/build-xlsx-browser.mjs` with fail-loud
+  patch checks (0001 `xfIdentity`, 0002 `lazilyLoadedXmls`) and artifact
+  symbol assertions; a new `build-xlsx-browser.test.mjs` + 
+  `xlsx-renderer-styles.test.mjs` cover it (office scripts 42/42).
+- **Shims (UniWork code)**: `shims/xlsx-renderer/controller.ts` (the mount
+  controller and `window.desktopApi` host bridge),
+  `shims/xlsx-renderer/locale.ts` (the `./i18n/locale` seam; 17
+  `office.xlsx.editor.*` keys added to en/vi), and two scope-boundary shims:
+  `workbook-visuals.ts` (visuals/charts/shapes install as no-ops — the
+  approved render scope) and `advanced-filter-dialog.ts` (typed refusal).
+- **Dependencies**: 21 individual `@univerjs/*` 0.25.1 packages + `rxjs` +
+  `numfmt` pinned once in the catalog; `packages/office-upstream` declares
+  them. `pnpm audit --audit-level high` **clean** after a
+  `nanoid@>=4.0.0 <5.1.16 → 5.1.16` override (GHSA-28wg-ghj8-5hjv) in the
+  root `package.json` `pnpm.overrides`; knip clean; `check-boundaries` green.
+- **Deviations from the estimate above**: the visuals/charts subgraph is
+  shimmed rather than vendored (it was in the closure only through
+  `univer-sync`'s install calls), which is why the subset is 34 files rather
+  than the 40–56 estimated; the Carlito faces come from
+  `packages/ui/src/fonts` (the pin's sheets font path), not the docs font
+  directory.
+
 ## 2. Excluded, and why
 
 | Excluded | Reason |

@@ -7146,6 +7146,25 @@
         "not_office_file": "The selected file is not an OOXML XLSX workbook.",
         "engine_error": "The XLSX engine could not open this workbook.",
         "capabilityUnavailable": "XLSX editing is not available for this engine build."
+      },
+      "editor": {
+        "appClosureActive": "{count} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",
+        "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
+        "appColumnLabel": "Column {col}",
+        "appFullyLoaded": "Workbook fully loaded — formulas recalculate live, rows/columns editable.",
+        "appIndexing": "Indexing {name}: {rows} rows ready.",
+        "appLinkInternal": "Link points inside the workbook: {location}",
+        "appLinkJumpFailed": "Unable to jump to {location}.",
+        "appLinkSheetNotFound": "Sheet \"{name}\" was not found.",
+        "appLoadRangeFailed": "Unable to load the visible range.",
+        "appProtectedWithPassword": "This sheet is protected with a password — removing its protection is not supported.",
+        "appProtectionNeedsIndexed": "Protection needs this sheet fully indexed first — try again in a moment.",
+        "appRangeMustBeVector": "{range} must be a single row or a single column of cells.",
+        "appRangeTooManyCells": "{range} covers more than {max} cells.",
+        "appRecalcDone": "Formulas recalculated from your edits ({count} cells, engine fallback).",
+        "appRecalcPartial": "Formulas recalculated from your edits — {count} kept cached values (functions the fallback engine lacks).",
+        "appSheetStillIndexing": "The sheet is still indexing — try again in a moment.",
+        "appStreamingRows": "Streaming {name}: {rows} rows available."
       }
     },
     "markdown": {

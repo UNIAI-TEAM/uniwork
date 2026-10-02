@@ -56,6 +56,43 @@
     "apps/html/src/renderer/document/parse-map.ts",
     "apps/html/src/renderer/document/patch.ts",
     "apps/html/src/renderer/document/blank.ts",
+    "apps/sheets/src/renderer/app-constants.ts",
+    "apps/sheets/src/renderer/autofit-line-pitch.ts",
+    "apps/sheets/src/renderer/autofit-wrap-budget.ts",
+    "apps/sheets/src/renderer/calc-options.ts",
+    "apps/sheets/src/renderer/cell-clip-anchor-fix.ts",
+    "apps/sheets/src/renderer/cell-font-fallback.ts",
+    "apps/sheets/src/renderer/center-continuous.ts",
+    "apps/sheets/src/renderer/cf-formula-fold.ts",
+    "apps/sheets/src/renderer/cf-thresholds.ts",
+    "apps/sheets/src/renderer/chart-sync-pending.ts",
+    "apps/sheets/src/renderer/create-univer.ts",
+    "apps/sheets/src/renderer/edit-journal.ts",
+    "apps/sheets/src/renderer/filter-range-outline.ts",
+    "apps/sheets/src/renderer/formula-cached-fallback.ts",
+    "apps/sheets/src/renderer/formula-closure.ts",
+    "apps/sheets/src/renderer/formula-cost.ts",
+    "apps/sheets/src/renderer/formula-functions.ts",
+    "apps/sheets/src/renderer/formula-stream-hold.ts",
+    "apps/sheets/src/renderer/load-perf-patches.ts",
+    "apps/sheets/src/renderer/long-text-render.ts",
+    "apps/sheets/src/renderer/merge-border-fix.ts",
+    "apps/sheets/src/renderer/number-as-text-alert.ts",
+    "apps/sheets/src/renderer/numfmt-fix.ts",
+    "apps/sheets/src/renderer/protected-ranges.ts",
+    "apps/sheets/src/renderer/rich-text-bidi-fix.ts",
+    "apps/sheets/src/renderer/rtl-grid-mirror.ts",
+    "apps/sheets/src/renderer/rtl-text-fix.ts",
+    "apps/sheets/src/renderer/selection-format.ts",
+    "apps/sheets/src/renderer/shared-formula-journal.ts",
+    "apps/sheets/src/renderer/thick-border-fix.ts",
+    "apps/sheets/src/renderer/undo-carry.ts",
+    "apps/sheets/src/renderer/univer-state.ts",
+    "apps/sheets/src/renderer/univer-sync.ts",
+    "apps/sheets/src/renderer/view-transform.ts",
+    "packages/ui/src/fonts/Carlito-Regular.ttf",
+    "packages/ui/src/fonts/Carlito-Bold.ttf",
+    "apps/docs/src/renderer/fonts/LICENSE-OFL.txt",
     "LICENSE",
     "LICENSE-UNICODE.txt",
     "NOTICE",
@@ -64,9 +101,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 841,
+  "fileCount": 878,
   "integrity": {
-    "filesDigest": "7af0b415f18594aa035d061d38b6c83b15aeaa57a32120667bf4a4a85efd72cf"
+    "filesDigest": "8adb5d9da8237bf64addfe924a92b61c44972e92495b4c6098c414d9d6676e73"
   },
   "files": [
     {
@@ -564,6 +601,13 @@
       "bytes": 3374,
       "sha256": "EEE04958A582B7BD976DD39DF4878403BFABC3C3ACA4B7D1FDA750B35B9FEDB6",
       "blob": "49795ea8fb8e1ac2549db009db72c5121a4531ce",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/fonts/LICENSE-OFL.txt",
+      "bytes": 5154,
+      "sha256": "992656DF2B40E317EA54B4D3B7CA47A48EEC11C2EAAF46BD74EFFD600714841A",
+      "blob": "0700f5a8343170acbdc1d8e0f5dacf12d918c40d",
       "mode": "100644"
     },
     {
@@ -1194,6 +1238,244 @@
       "bytes": 10706,
       "sha256": "8EDA243682256798B38CD1621658C5E8AF30FD703E3147C3D2F0DF2E16C3366F",
       "blob": "588a781f47186965bd411e2e70e880f3761a08f6",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/app-constants.ts",
+      "bytes": 12799,
+      "sha256": "6C23AC521DE3EAAB60B7C6A691B9ABABC74C2C2EDDBA7E4D03908BC0BB73FFCD",
+      "blob": "ca63af8ca1330645950808c93c63245650c66866",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/autofit-line-pitch.ts",
+      "bytes": 9957,
+      "sha256": "7F20C857BCB8A9938971477D7D81C9BFA7BBBB722E299C34962B72FA711E1B7F",
+      "blob": "e242ef18c1bce49758a57047ddd49b824b1d5700",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/autofit-wrap-budget.ts",
+      "bytes": 1821,
+      "sha256": "E5F418CEF4DA8C08AD8D65A1DDDECCCBB3281F48BC7ABE99E19B438EE33DD10F",
+      "blob": "b79ff173ad84f13a61b828824c845b51b8b211ee",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/calc-options.ts",
+      "bytes": 4422,
+      "sha256": "C1C3EA932C24CF667340EB5F280450AC2C3D4365A782CA292FA30E8E3235B5A6",
+      "blob": "23ab44cd75fce93c1d0029d1f32e12623aa454a9",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/cell-clip-anchor-fix.ts",
+      "bytes": 5087,
+      "sha256": "0386476ED262BCA01D596F1D0E9A8244484AE5896BA702F105C292ED744FB121",
+      "blob": "163e4b2f7274b5e073b558776eebfb68239502fb",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/cell-font-fallback.ts",
+      "bytes": 33191,
+      "sha256": "60524CE15FC249C73EC2915CD921EC59E0559AD40A6A4BFD691096F6555C1CB1",
+      "blob": "84ab6e8d78d3e31fb2547b2c63ae255f85da694a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/center-continuous.ts",
+      "bytes": 3523,
+      "sha256": "51838D7604ADC7882C5F551F4AF4DC4B38DA79F752ADE5430E3440531ABBAE30",
+      "blob": "bc1489bfdf6c20cea2c67401b95a6441a2d05d1a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/cf-formula-fold.ts",
+      "bytes": 18944,
+      "sha256": "E071A2FEF721C07CEDFCA5B3D9468B1898BA458C2A88DB353C44D8C20AB73FDC",
+      "blob": "8247e145664710721b43d164707ba6ea592adb16",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/cf-thresholds.ts",
+      "bytes": 20247,
+      "sha256": "6A9B706424D97035DF070D811BF752D4851CC0FACCA8B8AF94226BE5A870FB49",
+      "blob": "34c6d9d9f042a72ee193ae8a8df26dbb08cb31ce",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/chart-sync-pending.ts",
+      "bytes": 3912,
+      "sha256": "E2886A055565ED5304AF4EDE6C622C97D289862CEBEE305DE473F1F7F65BAE56",
+      "blob": "cb0b38ee41579cb8047695b27316334fe38a3234",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/create-univer.ts",
+      "bytes": 2739,
+      "sha256": "85E1C9A11B783DAAE2E6C640DE4CF6A107E331F7E8AA133476D375C8ADD59946",
+      "blob": "66ff7fda74e97fc6eb0c93cb7bcabd956f7d366e",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/edit-journal.ts",
+      "bytes": 83602,
+      "sha256": "2B30FAB0462423B452E2699543E1BFEC5FB73E5F592BB3B8935D570C045DA84D",
+      "blob": "3406379d45b642d9d512bac4381106a35ad94c06",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/filter-range-outline.ts",
+      "bytes": 1399,
+      "sha256": "A437BFAEE7AB363DC56258663F23DDAC178CA032D09E8B76EEA3A2A706E0EDEF",
+      "blob": "e9740dce82217bd9e1e2c7d9731259babcec0fe2",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/formula-cached-fallback.ts",
+      "bytes": 4631,
+      "sha256": "C4FF7057AD4FB957D83EF67C34F4CD35B6E5D6B90444956E34F30640169B8F5B",
+      "blob": "0b497e0375cf2e78068e5ce8654900eae44d45bd",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/formula-closure.ts",
+      "bytes": 11520,
+      "sha256": "8D5BB4E49DA43BEC60A9C645C4EF22D3E964DAD212864139D95DAF6A55C5A085",
+      "blob": "1631257b6c6a7bf69676073ec7b3f6982410e35e",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/formula-cost.ts",
+      "bytes": 11488,
+      "sha256": "7957B3A9D217CC4A9E69FDC094CE561CACBD370D3BFAEB41F0A214F6C193993A",
+      "blob": "75cae85d67c634987c0a20eb5f9ee34de37569b1",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/formula-functions.ts",
+      "bytes": 3842,
+      "sha256": "D72FB02A0D2B635C4AEB9B63035D3EC64B9CEB2C57AF4E3974F17AB9B2C2B57C",
+      "blob": "f267bb4f001828f3e76f1519ce6a23e3d21ddb4d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/formula-stream-hold.ts",
+      "bytes": 5439,
+      "sha256": "18954CAE9DA18545C0063F6E39FE2562A9D3B64B8EBB27444B92BB437D0FF132",
+      "blob": "9fac09bfb7f43219e74ab647cc5136bc9c009f19",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/load-perf-patches.ts",
+      "bytes": 1108,
+      "sha256": "37C4D7C51280151D7327F0082D0A785A47126D8125B16777AE6FC671C15E0FAD",
+      "blob": "3cdb5cef87d147b1beff12ce3c3e23010b5346b1",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/long-text-render.ts",
+      "bytes": 15102,
+      "sha256": "1F657E66D5E545E00058CFB9221D5CC06B978E6FC08734A340527955E955DC3B",
+      "blob": "d0b2067fd6db9798c75f40b41c216714b2dce1b2",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/merge-border-fix.ts",
+      "bytes": 2300,
+      "sha256": "2A39DE8A10C84AD6EFF198B15B579726370E03A358E97F936E6C7CB0AB1ADEB1",
+      "blob": "2524ae524da84d8d13c50602684d9622030f250c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/number-as-text-alert.ts",
+      "bytes": 1079,
+      "sha256": "6AF40552007EB45975EB59566A25A3F21221C960AC3A1395A036D125D7708C1E",
+      "blob": "93b045f90e9c86d7f0fa255e5ae3708a1dbf867f",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/numfmt-fix.ts",
+      "bytes": 40778,
+      "sha256": "0C78786DC6551BDCFBF0B698C972818855A00151D519C979490A2976EB8E337A",
+      "blob": "415a707f1d0be131196809d461c93fad74bef059",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/protected-ranges.ts",
+      "bytes": 3755,
+      "sha256": "66C4EADAC12C4DCEB26283DC1DFD28FD022968457DCBBDF8C7FDB06E95CEACF0",
+      "blob": "b87058f129c348a0c57f8c77614af5196f9de055",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/rich-text-bidi-fix.ts",
+      "bytes": 21536,
+      "sha256": "B51BCE7940884A4169735523F0085114CC17DDCCE79DA773B8DA13E3F3B03E26",
+      "blob": "8b33f7d50c45b996470faa6d68dfd667753810ca",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/rtl-grid-mirror.ts",
+      "bytes": 49755,
+      "sha256": "0E8379603475372AC0F32E00C8D389992D39C8C9BB8D8D135DA743E5BB6E1147",
+      "blob": "72d2f3b85b20f0fd980ae7c13839ebe12e5d7a96",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/rtl-text-fix.ts",
+      "bytes": 8133,
+      "sha256": "1467964AE4524D92358B4A85AA3B727DEA503586B99E1AEEC5814EEB68ABFD76",
+      "blob": "b373fafb57a8316040e5e82cf482d3e8676a2643",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/selection-format.ts",
+      "bytes": 5755,
+      "sha256": "A6F19F0A93D1ADC15A707B23E79C54BC4309C16A26FA428A9B5DA9E7E5293DEC",
+      "blob": "a66f101791179b3a2b4d560f8acd5bdd4aa03cec",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/shared-formula-journal.ts",
+      "bytes": 2603,
+      "sha256": "1B0626C1E365CE0E954D777FDDCCA0F1DAC181F22119648915B3CBB5412BAAE7",
+      "blob": "249f6c65307e219a9935b5203acc9d55bdef2f8a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/thick-border-fix.ts",
+      "bytes": 6682,
+      "sha256": "7A88AD3248C415B87CEDBD9E4FA902F65D46416B936731AB4BD34844ABD69A4B",
+      "blob": "bd0bad32454c30a9ed41f6097ae078a7a88c7817",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/undo-carry.ts",
+      "bytes": 10831,
+      "sha256": "7C270790702E85EFB86F0A2407BBD5DD3148A0A18C6D649A8BB99625E81E0846",
+      "blob": "20f27d4d2e3a066e8ef4b5c26aef0ecc004a8abc",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/univer-state.ts",
+      "bytes": 15030,
+      "sha256": "590AEF8D371D07013E5A6837EA6972E4EBCF42D4EC6C204F932C16BE348A216C",
+      "blob": "bd8f07143759211bb5b14f0ce57df0d944d703ee",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/univer-sync.ts",
+      "bytes": 303686,
+      "sha256": "A5797CE9E1FC7DA907DD7FF7FE09E91DBCAD1B6D67E8FE025B29CA900F0AB45F",
+      "blob": "81164ffa6098f78bab4416bbd41059a57be6ec4c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/sheets/src/renderer/view-transform.ts",
+      "bytes": 13629,
+      "sha256": "0093162315D054A2E441E19AA38022C4B9F516327DB83718F8863EE87C31E262",
+      "blob": "17df2d23b8606639545fe4139ba140eed3ad3b90",
       "mode": "100644"
     },
     {
@@ -5569,6 +5851,20 @@
       "bytes": 156,
       "sha256": "4E19E07C1D033C237EB8AD0CF525C3769C0D4D64BF8615B3AA448F7E5871679A",
       "blob": "b31aa2a51f86a95aa5f989b9c40948b2ce9aac59",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/fonts/Carlito-Bold.ttf",
+      "bytes": 686240,
+      "sha256": "ED778B78CE652F5B17647344FB9A4C4DCB2E6F8BAFE75A0366300DA7F8C199AC",
+      "blob": "0d2e3a7a35598e08c9be31d984ba4a702dec8dcd",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/fonts/Carlito-Regular.ttf",
+      "bytes": 631712,
+      "sha256": "CCA497A63F1CF8111D2189424EC38B95002E43799EFE4F1486EC7F8063BB93C1",
+      "blob": "82d3b3f5c4b326940aafa5bc4c34d9a8a05107f8",
       "mode": "100644"
     },
     {

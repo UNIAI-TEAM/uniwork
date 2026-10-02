@@ -65,10 +65,13 @@
       ],
       "entry": [
         "shims/docs-renderer-entry.ts",
-        "shims/genoffice-ui.ts"
+        "shims/genoffice-ui.ts",
+        "shims/xlsx-renderer-entry.ts",
+        "shims/xlsx-renderer/*.ts"
       ],
       "ignoreDependencies": [
-        "react"
+        "@univerjs/*",
+        "numfmt"
       ]
     },
     "packages/views": {
