@@ -104,7 +104,7 @@ function readError(error: unknown): { code: string | null; errorClass: string | 
   if (error && typeof error === "object") {
     const record = error as Record<string, unknown>;
     return {
-      code: stringValue(record.code ?? record.error_code),
+      code: stringValue(record.code) ?? stringValue(record.error_code),
       errorClass: stringValue(record.errorClass ?? record.error_class),
       status: typeof record.status === "number" ? record.status : null,
       retryable: record.retryable === true,
@@ -121,7 +121,9 @@ function normalizeClass(value: string | null): OfficeErrorClass {
 
 export function dispatchOfficeError(error: unknown): OfficeErrorDispatch {
   const parsed = readError(error);
-  const code = parsed.code ?? (error instanceof Error && error.name === "AbortError" ? "request_aborted" : "office_unknown_error");
+  const cancellation = (error instanceof Error || (typeof DOMException !== "undefined" && error instanceof DOMException)) &&
+    error.name === "AbortError";
+  const code = parsed.code ?? (cancellation ? "request_aborted" : "office_unknown_error");
   const status = parsed.status;
   // A bodiless 401 defaults its code to "internal" (api/http.ts); the status is
   // the only reliable signal left, and the doc maps it to the auth baseline.
