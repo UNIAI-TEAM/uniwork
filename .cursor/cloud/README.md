@@ -63,6 +63,16 @@ node <this dir>/cloud-runner.mjs status
 node <this dir>/cloud-runner.mjs close    # deletes the agent and its results refs
 ```
 
+A worktree can run several VMs at once. `--shard <name>` on `test`/`ensure`/`close`
+selects a separate agent (state `cloud-runner.<name>.json`, results under
+`refs/test-results/<lane>-<name>/`). `suite` starts one shard per spec file in
+parallel and writes `cloud-suite-<sha>.md` with the worst verdict:
+
+```bash
+node <this dir>/cloud-runner.mjs suite --specs ts.txt,go.txt,e2e.txt --lane g3g4-root --out-dir reports/root
+node <this dir>/cloud-runner.mjs close --all yes --lane g3g4-root
+```
+
 `tests.txt` holds one shell command per line (`#` comments), run from the
 repository root. The report separates `stage_outcome` from `test_verdict`,
 records the run's cost, and the logs come back from

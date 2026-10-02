@@ -6,12 +6,16 @@
 // writes a Markdown report and pulls the logs back.
 //
 //   node cloud-runner.mjs ensure  [--branch b] [--model m]
-//   node cloud-runner.mjs test    --spec file [--lane slug] [--out report.md] [--timeout s]
+//   node cloud-runner.mjs test    --spec file [--lane slug] [--shard name] [--out report.md] [--timeout s]
+//   node cloud-runner.mjs suite   --specs a.txt,b.txt,... [--lane slug] [--out-dir dir] [--timeout s]
 //   node cloud-runner.mjs status
-//   node cloud-runner.mjs close   [--lane slug]
+//   node cloud-runner.mjs close   [--lane slug] [--shard name | --all yes]
 //
 // Run it from inside the worktree. State lives in that worktree's git dir
-// (cloud-runner.json), so it disappears with the worktree. API saved
+// (cloud-runner.json, or cloud-runner.<shard>.json for a shard), so it
+// disappears with the worktree. A shard is a separate agent (its own VM) of the
+// same worktree and publishes to refs/test-results/<lane>-<shard>/<sha>; suite
+// runs one shard per spec file in parallel and exits with the worst result. API saved
 // environments do not apply to API-launched agents, so a fresh VM provisions
 // itself from test/cursor-cloud-env on its first run (about 3 minutes); later
 // runs are follow-ups on the same warm VM. A round is one command (run-tests.sh)
@@ -19,9 +23,9 @@
 //
 // Exit codes: 0 pass, 1 tests failed, 2 blocked or runner error.
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 
 const API = "https://api.cursor.com/v1";
 const REPO_URL = "https://github.com/UNIAI-TEAM/uniwork";
@@ -39,7 +43,7 @@ const REFRESH = [
 
 function usage(msg) {
   if (msg) console.error(`cloud-runner: ${msg}`);
-  console.error("usage: cloud-runner.mjs ensure|test|status|close [--branch b] [--spec f] [--lane s] [--out f] [--model m] [--timeout s]");
+  console.error("usage: cloud-runner.mjs ensure|test|suite|status|close [--branch b] [--spec f] [--specs a,b] [--lane s] [--shard n] [--out f] [--out-dir d] [--model m] [--timeout s] [--all yes]");
   process.exit(2);
 }
 
@@ -93,21 +97,37 @@ async function api(method, path, body) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function statePath() {
-  return join(resolve(git("rev-parse", "--git-dir")), "cloud-runner.json");
+function shardName(shard) {
+  if (shard && !/^[A-Za-z0-9._-]{1,30}$/.test(shard)) usage(`bad shard name ${shard}`);
+  return shard || "";
 }
 
-function loadState() {
-  const p = statePath();
+function statePath(shard) {
+  const name = shardName(shard) ? `cloud-runner.${shard}.json` : "cloud-runner.json";
+  return join(resolve(git("rev-parse", "--git-dir")), name);
+}
+
+function loadState(shard) {
+  const p = statePath(shard);
   return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 }
 
-function saveState(s) {
-  writeFileSync(statePath(), `${JSON.stringify(s, null, 2)}\n`);
+function saveState(s, shard) {
+  writeFileSync(statePath(shard), `${JSON.stringify(s, null, 2)}\n`);
+}
+
+// Every runner state file of this worktree as [shard ("" = default runner), path].
+function allStates() {
+  const dir = resolve(git("rev-parse", "--git-dir"));
+  return readdirSync(dir)
+    .map((f) => /^cloud-runner(?:\.([A-Za-z0-9._-]+))?\.json$/.exec(f))
+    .filter(Boolean)
+    .map((m) => [m[1] || "", join(dir, m[0])]);
 }
 
 function laneSlug(opts, branch) {
-  return opts.lane || branch.replace(/^[a-z]+\//, "").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 60);
+  const base = opts.lane || branch.replace(/^[a-z]+\//, "").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 60);
+  return opts.shard ? `${base}-${opts.shard}` : base;
 }
 
 async function waitRun(agentId, runId, timeoutS) {
@@ -243,7 +263,17 @@ ${rep ? JSON.stringify(rep, null, 2) : String(rawResult ?? "").slice(0, 4000)}
 // (Windows' bsdtar does not read stdin by default).
 function fetchLogs(ref, dir) {
   try {
-    git("fetch", "-q", "origin", `${ref}:${ref}`);
+    // Shards of one suite fetch from the same repository at once; retry a
+    // fetch that lost a lock race.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        git("fetch", "-q", "origin", `${ref}:${ref}`);
+        break;
+      } catch (e) {
+        if (attempt >= 4) throw e;
+        execFileSync(process.execPath, ["-e", `setTimeout(() => {}, ${attempt * 3000})`]);
+      }
+    }
     for (const name of git("ls-tree", "-r", "--name-only", ref).split("\n").filter(Boolean)) {
       const file = join(dir, name);
       mkdirSync(dirname(file), { recursive: true });
@@ -259,15 +289,15 @@ function fetchLogs(ref, dir) {
 
 async function cmdEnsure(opts) {
   const branch = opts.branch || git("rev-parse", "--abbrev-ref", "HEAD");
-  let state = loadState();
+  let state = loadState(opts.shard);
   if (await agentAlive(state)) {
     console.log(`runner ready: ${state.agentId} (${state.branch})`);
     return 0;
   }
   const model = opts.model || DEFAULT_MODEL;
   const { agentId, runId } = await createAgent(branch, model, ensurePrompt(branch));
-  state = { agentId, branch, model, lane: laneSlug(opts, branch), createdAt: new Date().toISOString() };
-  saveState(state);
+  state = { agentId, branch, model, lane: laneSlug(opts, branch), shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+  saveState(state, opts.shard);
   console.log(`runner created: ${agentId}; provisioning (about 10 min)`);
   const run = await waitRun(agentId, runId, Number(opts.timeout || 1800));
   const rep = extractReport(run.result);
@@ -286,7 +316,7 @@ async function cmdTest(opts) {
   if (!remote.startsWith(git("rev-parse", "HEAD").slice(0, 12))) {
     usage(`origin/${branch} is not at HEAD ${sha}; push the branch first`);
   }
-  let state = loadState();
+  let state = loadState(opts.shard);
   const lane = laneSlug(opts, branch);
   const prompt = testPrompt({ branch, sha, lane, commands });
   const before = (await agentAlive(state)) ? await costCents(state.agentId) : 0;
@@ -297,8 +327,8 @@ async function cmdTest(opts) {
     runId = await sendRun(agentId, prompt);
   } else {
     ({ agentId, runId } = await createAgent(branch, opts.model || DEFAULT_MODEL, prompt));
-    state = { agentId, branch, model: opts.model || DEFAULT_MODEL, lane, createdAt: new Date().toISOString() };
-    saveState(state);
+    state = { agentId, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+    saveState(state, opts.shard);
   }
   console.log(`run ${runId} on ${agentId} for ${sha}`);
   const run = await waitRun(agentId, runId, Number(opts.timeout || 3600));
@@ -319,36 +349,87 @@ async function cmdTest(opts) {
 }
 
 async function cmdStatus() {
-  const state = loadState();
-  if (!state) {
+  const states = allStates();
+  if (states.length === 0) {
     console.log("no runner for this worktree");
     return 0;
   }
-  const a = await api("GET", `/agents/${state.agentId}`).catch((e) => ({ status: `gone (${e.status})` }));
-  console.log(JSON.stringify({ ...state, status: a.status, latestRunId: a.latestRunId,
-    costCents: await costCents(state.agentId) }, null, 2));
+  for (const [, p] of states) {
+    const state = JSON.parse(readFileSync(p, "utf8"));
+    const a = await api("GET", `/agents/${state.agentId}`).catch((e) => ({ status: `gone (${e.status})` }));
+    console.log(JSON.stringify({ ...state, status: a.status, latestRunId: a.latestRunId,
+      costCents: await costCents(state.agentId) }, null, 2));
+  }
   return 0;
 }
 
-async function cmdClose(opts) {
-  const state = loadState();
+async function closeOne(shard, laneOpt) {
+  const state = loadState(shard);
   if (state?.agentId) {
     await api("DELETE", `/agents/${state.agentId}`).catch((e) => { if (e.status !== 404) throw e; });
-    console.log(`deleted ${state.agentId}`);
+    console.log(`deleted ${state.agentId}${shard ? ` (shard ${shard})` : ""}`);
   }
-  const lane = opts.lane || state?.lane;
+  const lane = laneOpt ? (shard ? `${laneOpt}-${shard}` : laneOpt) : state?.lane;
   if (lane) {
     const refs = git("ls-remote", "origin", `refs/test-results/${lane}/*`)
       .split("\n").map((l) => l.split(/\s+/)[1]).filter(Boolean);
     if (refs.length) git("push", "-q", "origin", ...refs.map((r) => `:${r}`));
     console.log(`deleted ${refs.length} results refs for ${lane}`);
   }
-  if (existsSync(statePath())) rmSync(statePath());
+  if (existsSync(statePath(shard))) rmSync(statePath(shard));
+}
+
+async function cmdClose(opts) {
+  const shards = opts.all ? allStates().map(([s]) => s) : [shardName(opts.shard)];
+  if (shards.length === 0) shards.push("");
+  for (const shard of shards) await closeOne(shard, opts.lane);
   return 0;
 }
 
+// Runs one shard per spec file in parallel, each on its own agent and VM, then
+// writes a summary. The exit code is the worst shard's (2 over 1 over 0).
+async function cmdSuite(opts) {
+  if (!opts.specs) usage("suite needs --specs a.txt,b.txt");
+  const specs = opts.specs.split(",").map((x) => x.trim()).filter(Boolean);
+  const branch = git("rev-parse", "--abbrev-ref", "HEAD");
+  const sha = git("rev-parse", "--short=8", "HEAD");
+  const outDir = resolve(opts["out-dir"] || join("reports", laneSlug({ lane: opts.lane }, branch)));
+  const shards = specs.map((spec) => ({
+    spec,
+    shard: basename(spec).replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 30),
+  }));
+  if (new Set(shards.map((x) => x.shard)).size !== shards.length) usage("spec file names must give distinct shard names");
+  const names = ["pass", "fail", "blocked"];
+  const results = await Promise.all(shards.map(({ spec, shard }) => new Promise((done) => {
+    const out = join(outDir, `cloud-suite-${sha}-${shard}.md`);
+    const args = [process.argv[1], "test", "--spec", spec, "--shard", shard, "--out", out];
+    for (const k of ["lane", "timeout", "model"]) if (opts[k]) args.push(`--${k}`, opts[k]);
+    const started = Date.now();
+    const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+    child.stdout.on("data", (d) => process.stdout.write(`[${shard}] ${d}`));
+    child.stderr.on("data", (d) => process.stderr.write(`[${shard}] ${d}`));
+    child.on("close", (code) => done({ shard, spec, out, code: code ?? 2, seconds: Math.round((Date.now() - started) / 1000) }));
+  })));
+  const worst = results.some((r) => r.code !== 0 && r.code !== 1) ? 2 : results.some((r) => r.code === 1) ? 1 : 0;
+  const rows = results.map((r) =>
+    `| ${r.shard} | \`${r.spec}\` | ${names[r.code] ?? "blocked"} (exit ${r.code}) | ${r.seconds} | [report](${basename(r.out)}) |`).join("\n");
+  const summary = join(outDir, `cloud-suite-${sha}.md`);
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(summary, `# Cloud suite: ${branch} @ ${sha}
+
+- suite_verdict: **${names[worst]}** (worst shard)
+- shards: ${results.length}, run in parallel
+
+| shard | spec | verdict | seconds | report |
+| --- | --- | --- | --- | --- |
+${rows}
+`);
+  console.log(`suite: ${names[worst]}; summary ${summary}`);
+  return worst;
+}
+
 const { cmd, opts } = parseArgs(process.argv.slice(2));
-const handlers = { ensure: cmdEnsure, test: cmdTest, status: cmdStatus, close: cmdClose };
+const handlers = { ensure: cmdEnsure, test: cmdTest, suite: cmdSuite, status: cmdStatus, close: cmdClose };
 if (!handlers[cmd]) usage(cmd ? `unknown command ${cmd}` : undefined);
 handlers[cmd](opts).then((code) => process.exit(code), (e) => {
   console.error(`cloud-runner: ${e.message}`);
