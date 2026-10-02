@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDesktopLeaveCoordinator, createLeaveIpcHandler, type LeaveRequest, type LeaveResolution } from "./leave";
+import { createDesktopLeaveCoordinator, createLeaveIpcHandler, isLeaveSaveConfirmed, type LeaveRequest, type LeaveResolution } from "./leave";
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -67,6 +67,58 @@ describe("desktop leave coordinator", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it.each([true, false])("stays busy throughout main verification (confirmed=%s)", async (confirmed) => {
+    let finishVerification!: (value: boolean) => void;
+    const confirmKeep = vi.fn(() => new Promise<boolean>((resolve) => { finishVerification = resolve; }));
+    const { coordinator, requests } = harness({ confirmKeep });
+    const first = coordinator.request("close");
+    const requestId = requests[0]!.requestId;
+    expect(coordinator.resolve(answer(requestId, "keep"))).toBe(true);
+    await Promise.resolve();
+    expect(confirmKeep).toHaveBeenCalledOnce();
+    expect(coordinator.busy).toBe(true);
+    expect(coordinator.resolve(answer(requestId, "discard"))).toBe(false);
+    await expect(coordinator.request("logout")).resolves.toEqual({ requestId, choice: "stay", proceeded: false, code: "busy" });
+    expect(requests).toHaveLength(1);
+    finishVerification(confirmed);
+    await expect(first).resolves.toMatchObject(confirmed
+      ? { choice: "keep", proceeded: true }
+      : { choice: "stay", proceeded: false, code: "unconfirmed" });
+    expect(coordinator.busy).toBe(false);
+  });
+
+  it("fails closed and releases busy when main verification rejects", async () => {
+    const { coordinator, requests } = harness({ confirmKeep: async () => { throw new Error("store unavailable"); } });
+    const first = coordinator.request("close");
+    coordinator.resolve(answer(requests[0]!.requestId, "keep"));
+    await expect(first).resolves.toMatchObject({ choice: "stay", proceeded: false, code: "unconfirmed" });
+    expect(coordinator.busy).toBe(false);
+  });
+
+  it("fails closed and releases busy when request delivery throws", async () => {
+    const { coordinator } = harness({ send: () => { throw new Error("renderer unavailable"); } });
+    await expect(coordinator.request("close")).resolves.toMatchObject({ choice: "stay", proceeded: false, code: "unconfirmed" });
+    expect(coordinator.busy).toBe(false);
+  });
+
+  it("times out a held verifier and ignores its later success during a new decision", async () => {
+    vi.useFakeTimers();
+    let finishVerification!: (value: boolean) => void;
+    const { coordinator, requests } = harness({ confirmKeep: () => new Promise<boolean>((resolve) => { finishVerification = resolve; }) });
+    const first = coordinator.request("close");
+    coordinator.resolve(answer(requests[0]!.requestId, "keep"));
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(coordinator.busy).toBe(false);
+    await expect(first).resolves.toMatchObject({ choice: "stay", proceeded: false, code: "timeout" });
+    const second = coordinator.request("logout");
+    finishVerification(true);
+    await Promise.resolve();
+    expect(coordinator.busy).toBe(true);
+    coordinator.resolve(answer(requests[1]!.requestId, "stay", false));
+    await expect(second).resolves.toMatchObject({ choice: "stay", proceeded: false });
+  });
+
   it("never proceeds on keep without a durable row main can see", async () => {
     const confirmKeep = vi.fn(async () => false);
     const { coordinator, requests } = harness({ confirmKeep });
@@ -103,5 +155,26 @@ describe("desktop leave coordinator", () => {
     expect(handler["desktop:leave-resolved"]({ requestId: "leave-other", choice: "save", proceeded: true })).toEqual({ resolved: false });
     expect(handler["desktop:leave-resolved"]({ requestId: requests[0]!.requestId, choice: "save", proceeded: true })).toEqual({ resolved: true });
     await expect(pending).resolves.toMatchObject({ choice: "save", proceeded: true });
+  });
+});
+
+describe("main leave Save evidence", () => {
+  const evidence = { draftRows: 0, saveBusy: false, lastConfirmedSaveAt: 0, issuedAt: 100 };
+
+  it("refuses empty rows while a guarded Save is in flight", () => {
+    expect(isLeaveSaveConfirmed({ ...evidence, saveBusy: true })).toBe(false);
+  });
+
+  it("allows a clean document with empty rows and an idle guard", () => {
+    expect(isLeaveSaveConfirmed(evidence)).toBe(true);
+  });
+
+  it("fails closed when the draft store cannot be read", () => {
+    expect(isLeaveSaveConfirmed({ ...evidence, draftRows: null, lastConfirmedSaveAt: 100 })).toBe(false);
+  });
+
+  it.each([false, true])("keeps the fresh-receipt rule for existing rows (busy=%s)", (saveBusy) => {
+    expect(isLeaveSaveConfirmed({ ...evidence, draftRows: 1, saveBusy, lastConfirmedSaveAt: 99 })).toBe(false);
+    expect(isLeaveSaveConfirmed({ ...evidence, draftRows: 1, saveBusy, lastConfirmedSaveAt: 100 })).toBe(true);
   });
 });

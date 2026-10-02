@@ -17,6 +17,18 @@ export interface LeaveOutcome extends LeaveResolution {
   readonly code?: "timeout" | "busy" | "unconfirmed";
 }
 
+/** Main-observed evidence for a leave dialog's Save choice. */
+export function isLeaveSaveConfirmed(evidence: {
+  readonly draftRows: number | null;
+  readonly saveBusy: boolean;
+  readonly lastConfirmedSaveAt: number;
+  readonly issuedAt: number;
+}): boolean {
+  if (evidence.draftRows === null) return false;
+  if (evidence.draftRows === 0) return !evidence.saveBusy;
+  return evidence.lastConfirmedSaveAt >= evidence.issuedAt;
+}
+
 export interface DesktopLeaveCoordinatorOptions {
   /** Delivers the request to the renderer, which shows the ONE leave dialog. */
   readonly send: (request: LeaveRequest) => void;
@@ -35,7 +47,7 @@ export interface DesktopLeaveCoordinatorOptions {
 /** One non-queueing leave decision. Main asks the renderer, blocks any second
  * decision until the first settles, and fails closed (stay) on timeout. */
 export function createDesktopLeaveCoordinator(options: DesktopLeaveCoordinatorOptions) {
-  let pending: { requestId: string; settle: (value: LeaveResolution) => void; timer: ReturnType<typeof setTimeout> } | undefined;
+  let pending: { requestId: string; settle?: (value: LeaveResolution) => void } | undefined;
   let sequence = 0;
   const now = options.now ?? (() => Date.now());
 
@@ -47,26 +59,49 @@ export function createDesktopLeaveCoordinator(options: DesktopLeaveCoordinatorOp
       if (pending) return { requestId: pending.requestId, choice: "stay", proceeded: false, code: "busy" };
       const requestId = nextId();
       const issuedAt = now();
-      let timedOut = false;
-      const resolution = await new Promise<LeaveResolution>((resolve) => {
-        const timer = setTimeout(() => { pending = undefined; timedOut = true; resolve({ requestId, choice: "stay", proceeded: false }); }, options.timeoutMs ?? 30_000);
-        pending = { requestId, timer, settle: (value) => { clearTimeout(timer); pending = undefined; resolve(value); } };
-        options.send({ requestId, reason });
+      return new Promise<LeaveOutcome>((resolve) => {
+        let finished = false;
+        const finish = (outcome: LeaveOutcome) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          pending = undefined;
+          resolve(outcome);
+        };
+        // The deadline covers both the renderer answer and main verification.
+        const timer = setTimeout(() => finish({ requestId, choice: "stay", proceeded: false, code: "timeout" }), options.timeoutMs ?? 30_000);
+        pending = { requestId, settle: (resolution) => {
+          void (async () => {
+            // `stay` is never a proceed, whatever the renderer claims.
+            if (resolution.choice === "stay" || !resolution.proceeded) {
+              finish({ requestId, choice: resolution.choice, proceeded: false });
+              return;
+            }
+            const verifier = resolution.choice === "keep" ? options.confirmKeep
+              : resolution.choice === "save" ? (options.confirmSave ? () => options.confirmSave!(issuedAt) : undefined)
+              : resolution.choice === "discard" ? options.confirmDiscard
+              : undefined;
+            try {
+              if (verifier && !(await verifier())) {
+                finish({ requestId, choice: "stay", proceeded: false, code: "unconfirmed" });
+                return;
+              }
+              finish({ requestId, choice: resolution.choice, proceeded: true });
+            } catch {
+              finish({ requestId, choice: "stay", proceeded: false, code: "unconfirmed" });
+            }
+          })();
+        } };
+        try { options.send({ requestId, reason }); }
+        catch { finish({ requestId, choice: "stay", proceeded: false, code: "unconfirmed" }); }
       });
-      // `stay` is never a proceed, whatever the renderer claims.
-      const proceeded = resolution.choice === "stay" ? false : resolution.proceeded;
-      if (!proceeded) return { requestId, choice: resolution.choice, proceeded: false, ...(timedOut ? { code: "timeout" as const } : {}) };
-      const verifier = resolution.choice === "keep" ? options.confirmKeep
-        : resolution.choice === "save" ? (options.confirmSave ? () => options.confirmSave!(issuedAt) : undefined)
-        : resolution.choice === "discard" ? options.confirmDiscard
-        : undefined;
-      if (verifier && !(await verifier())) return { requestId, choice: "stay", proceeded: false, code: "unconfirmed" };
-      return { requestId, choice: resolution.choice, proceeded: true };
     },
     /** Returns false for an unknown, stale or duplicate request id. */
     resolve(attempt: LeaveResolution): boolean {
-      if (!pending || pending.requestId !== attempt.requestId) return false;
-      pending.settle(attempt);
+      if (!pending?.settle || pending.requestId !== attempt.requestId) return false;
+      const settle = pending.settle;
+      pending.settle = undefined;
+      settle(attempt);
       return true;
     },
   });

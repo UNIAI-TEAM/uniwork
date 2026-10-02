@@ -115,11 +115,13 @@ export/copy/clipboard action (`assertRecoveryActionAllowed`).
 **One leave decision (close/logout/update).** Two typed entries:
 `desktop:leave-requested` (main -> renderer event) and `desktop:leave-resolved`
 (renderer -> main channel), zod-validated in main and preload. Only one
-main-generated request id is outstanding at a time; stale, duplicate and busy
-answers are rejected. Main never trusts `proceeded=true` alone: `keep` requires a
+main-generated request id is outstanding through main verification; stale,
+duplicate and busy answers are rejected. Main never trusts `proceeded=true` alone: `keep` requires a
 durable row main can see, `save` requires a main-observed receipt recorded by the
-guarded file/office save handlers after the request, and `discard` requires no
-row left for the live document. A timeout or a dead renderer means stay. The
+guarded file/office save handlers after the request when draft rows exist. Empty
+rows allow a clean no-op only while the main Save guard is idle. `discard` requires
+no row left for the live document. The deadline covers the renderer and main
+verification; a timeout, verifier failure or dead renderer means stay. The
 renderer renders the shared `views/office` LeaveDialog with `t()`; the 2 s tick
 is a local draft checkpoint only. The update restart uses the same dialog
 (reason `update`) instead of its native message box, runs its pre-flight flush

@@ -21,7 +21,7 @@ import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry
 import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
-import { createDesktopLeaveCoordinator } from "./main/leave";
+import { createDesktopLeaveCoordinator, isLeaveSaveConfirmed } from "./main/leave";
 import { leaveRequestedEventSchema } from "./shared/ipc";
 import type { DraftIdentity, DraftMetadata, DraftSession } from "../../packages/core/office/draft-recovery";
 
@@ -318,14 +318,12 @@ async function startElectronHost(): Promise<void> {
     send: (request) => { window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
     confirmKeep: async () => { const rows = await activeDrafts(); return rows !== null && rows.length > 0; },
     // A save choice needs a fresh main-observed receipt whenever the store holds
-    // unsaved evidence for the live document; with nothing to save, nothing to
-    // prove. A failed store read is unconfirmed, never "nothing pending".
+    // unsaved evidence for the live document. Empty rows permit a clean no-op
+    // only while the main Save guard is idle; the first checkpoint may still
+    // be in flight. A failed store read is always unconfirmed.
     confirmSave: async (issuedAt) => {
-      if (activeDocument === undefined) return true;
       const rows = await activeDrafts();
-      if (rows === null) return false;
-      if (rows.length === 0) return true;
-      return lastConfirmedSaveAt >= issuedAt;
+      return isLeaveSaveConfirmed({ draftRows: rows?.length ?? null, saveBusy: saveGuard.busy, lastConfirmedSaveAt, issuedAt });
     },
     confirmDiscard: async () => { const rows = await activeDrafts(); return rows !== null && rows.length === 0; },
     timeoutMs: 60_000,
