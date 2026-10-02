@@ -105,6 +105,11 @@ export function createFakeXlsxEngine(opts: { failAssert?: boolean } = {}): XlsxG
     async readEntryText(_bytes: Uint8Array, path: string): Promise<string | null> {
       return path.endsWith(".xml") ? "<xml/>" : null;
     },
+    async readEntriesText(_bytes: Uint8Array, paths: readonly string[]): Promise<Record<string, string | null>> {
+      const out: Record<string, string | null> = {};
+      for (const path of paths) out[path] = path.endsWith(".xml") ? "<xml/>" : null;
+      return out;
+    },
     async applyCellEdits(
       source: Uint8Array,
       edits: readonly XlsxCellEdit[],

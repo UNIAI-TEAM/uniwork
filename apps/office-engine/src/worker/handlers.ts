@@ -193,7 +193,9 @@ async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
   try {
     const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
     const model = await openXlsxModel(engine, bytes);
-    const encoded = JSON.stringify({ document_model: model.probe, snapshot: model.snapshot });
+    // G3-05c: the render model rides the same payload (layout/styles/cached
+    // formula results) so the browser can mount the vendored sheets renderer.
+    const encoded = JSON.stringify({ document_model: model.probe, snapshot: model.snapshot, render_model: model.renderModel });
     // The browser consumes this model through the staged output download. A
     // hard bound prevents a pathological workbook from turning a probe job
     // into an unbounded JSON response; the engine's normal output limit still
