@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Cursor Cloud Agent "start" step: runs on every agent boot. Processes do not
+# Cursor cloud agent "start" step: runs on every agent boot. Processes do not
 # survive a snapshot, so Postgres, Redis and MinIO are started here, then the
 # databases and the test bucket are created if missing and migrations applied.
+# Acts on the current git checkout, like install.sh.
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$(git rev-parse --show-toplevel)"
+export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
-[ -f .env ] || bash .cursor/cloud/write-env.sh
+[ -f .env ] || bash "$here/write-env.sh"
 
 # Alias used by DATABASE_URL in cloud.env (see the comment there).
 grep -q ' uniwork-db$' /etc/hosts || echo '127.0.0.1 uniwork-db' | sudo tee -a /etc/hosts > /dev/null
 
-sudo pg_ctlcluster 16 main start 2>/dev/null || true
+sudo pg_ctlcluster 16 main start 2> /dev/null || true
 until pg_isready -h 127.0.0.1 -q; do sleep 1; done
 sudo -u postgres psql -qtAc "SELECT 1 FROM pg_roles WHERE rolname = 'uniwork'" | grep -q 1 \
   || sudo -u postgres psql -qc "CREATE ROLE uniwork LOGIN SUPERUSER PASSWORD 'uniwork'"

@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Cursor Cloud Agent "install" step: runs while Cursor builds the snapshot and
+# Cursor cloud agent "install" step: runs while Cursor builds the snapshot and
 # again on later builds over the saved disk, so every step is idempotent.
 # Only disk state survives into an agent run; services start in start.sh.
+# Works on any branch: it acts on the current git checkout and reads its
+# helpers from its own directory (which may be a copy outside the repo, see
+# README.md).
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$(git rev-parse --show-toplevel)"
 
-# .env = the documented defaults plus the cloud overrides; regenerated each
-# build so a change to either file reaches the next snapshot.
-bash .cursor/cloud/write-env.sh
+bash "$here/provision.sh"
+export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
+
+bash "$here/write-env.sh"
 
 pnpm install --frozen-lockfile
 
