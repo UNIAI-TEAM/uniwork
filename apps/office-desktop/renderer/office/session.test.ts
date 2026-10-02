@@ -58,7 +58,8 @@ it("keeps a draft through the typed checkpoint and raises the generation floor",
   const session = createByteDocumentSession(bridge, identity, opened);
   session.coordinator.markDirty(2);
   await expect(session.keepDraft()).resolves.toBe(true);
-  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ draftId: "doc:v2:2", generation: 3, dataBase64: "aGVsbG8=" });
+  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ documentId: identity.documentId, draftId: "doc:v2:2", generation: 3, dataBase64: "aGVsbG8=" });
+  expect(calls.find((call) => call.channel === "desktop:draft-list")?.payload).toMatchObject({ documentId: identity.documentId });
 });
 
 it("reports a failed keep and refuses recovery when the store refuses", async () => {
