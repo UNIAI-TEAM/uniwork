@@ -3,5 +3,27 @@
   "version": "0.0.0",
   "private": true,
   "description": "Pinned, license-attributed GenOffice engine source vendored for the UniWork Office build graph (UNI-684). Not a publishable package: upstream/ is provenance-checked source, patches/ carries UniWork diffs applied at build time.",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/office/build-upstream.mjs --docx-browser",
+    "prepare": "node ../../scripts/office/build-upstream.mjs --docx-browser"
+  },
+  "dependencies": {
+    "@tiptap/core": "catalog:",
+    "@tiptap/extensions": "catalog:",
+    "@tiptap/pm": "catalog:",
+    "fast-xml-parser": "catalog:",
+    "i18next": "catalog:",
+    "jszip": "catalog:",
+    "utif2": "catalog:",
+    "react": "catalog:"
+  },
+  "exports": {
+    "./browser/locale": "./shims/docs-renderer/locale.ts",
+    "./docs-renderer-editor": {
+      "types": "./shims/docs-renderer.d.ts",
+      "default": "./dist/docs-renderer.mjs"
+    }
+  }
 }

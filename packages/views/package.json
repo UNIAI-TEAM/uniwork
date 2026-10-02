@@ -117,7 +117,8 @@
     "sonner": "catalog:",
     "zustand": "catalog:",
     "motion": "^12.38.0",
-    "@uniwork/office-contracts": "workspace:*"
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-upstream": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
@@ -132,6 +133,7 @@
     "eslint": "^9.32.0",
     "eslint-plugin-i18next": "catalog:",
     "jsdom": "catalog:",
+    "jszip": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/react-dom": "catalog:"

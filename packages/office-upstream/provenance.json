@@ -19,9 +19,27 @@
     "packages/pdf2docx",
     "packages/html2docx",
     "packages/font-metrics",
+    "packages/ui/src/wordart-presets.ts",
+    "packages/ui/src/shape-gallery.tsx",
     "packages/i18n",
     "packages/project-store",
     "apps/docs/src/main",
+    "apps/docs/src/renderer/editor",
+    "apps/docs/src/renderer/styles.css",
+    "packages/ui/src/tokens.css",
+    "apps/docs/src/renderer/line-metrics.ts",
+    "apps/docs/src/renderer/font-list.ts",
+    "apps/docs/src/renderer/font-check.ts",
+    "apps/docs/src/renderer/note-format.ts",
+    "apps/docs/src/renderer/dom-range.ts",
+    "apps/docs/src/renderer/phased-content.ts",
+    "apps/docs/src/renderer/pagination-lines.ts",
+    "apps/docs/src/renderer/pagination-measure.ts",
+    "apps/docs/src/renderer/pagination-slices.ts",
+    "apps/docs/src/renderer/pagination-types.ts",
+    "apps/docs/src/renderer/pagination-sections.ts",
+    "apps/docs/src/renderer/pagination-hf.ts",
+    "apps/docs/src/renderer/pagination.ts",
     "apps/docs/src/shared",
     "apps/sheets/src/main",
     "apps/sheets/src/shared",
@@ -46,9 +64,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 767,
+  "fileCount": 841,
   "integrity": {
-    "filesDigest": "63a07eea0cb66757ffb1695fe85bbc775a2a7a12a93cc0661fab4e2a500a815d"
+    "filesDigest": "7af0b415f18594aa035d061d38b6c83b15aeaa57a32120667bf4a4a85efd72cf"
   },
   "files": [
     {
@@ -126,6 +144,503 @@
       "bytes": 4622,
       "sha256": "BE746AC07DF076252867AD47E40529865824B4DD86B3182DD2A998707D56C6B3",
       "blob": "11db32fe8c329407af6bb0734365a64e6b6b7d08",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/dom-range.ts",
+      "bytes": 288,
+      "sha256": "C55B06C273C916ACFCA48E6A328D44A94D3359823A8194C77DCEA9E02567E9AD",
+      "blob": "1e5724bed88a23ef3af59a387f38d86d2b6030b6",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/active-editor.ts",
+      "bytes": 1513,
+      "sha256": "EDF5DDF9ED73A52639CBC02DBC1AE3647B668626C5AD6CBE73493900AB8C32E8",
+      "blob": "4f2864ccd69bbc69b76764bce2f876b369dd165e",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/ai-queue-anchors.ts",
+      "bytes": 3677,
+      "sha256": "9DB0CDBEA65AE3B065C9274C76E532C1F8544B694176DA637CB7A9538F36E074",
+      "blob": "8cb4c614b0f8c47039374f0730783fcf02555f08",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/border-metrics.ts",
+      "bytes": 2068,
+      "sha256": "93CACFF3BEECD1FCF0BA45BFE533B567477A4E7ABA0CF3DB2DDF56F16C149F85",
+      "blob": "862d23f48bf2ff47e62e1e46c7a77871352ea07a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/caret-marks.ts",
+      "bytes": 8229,
+      "sha256": "A6B982D60686FDA64FEC53D48FC498AC7779CB05AF822329699703A72B5E0887",
+      "blob": "3c6cf0afdb21b14961b99b7ff3c6073492624da5",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/case-transform.ts",
+      "bytes": 2618,
+      "sha256": "2BFCFA083CC066D95B0E132EF3DA9F12985310D848486B6B1241AD18E9D55B91",
+      "blob": "9406adcf80fff2461de4866b932d2ae59de6f37d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/checkbox-toggle.ts",
+      "bytes": 3623,
+      "sha256": "0AF4ABF6911CA6A7870852DDBA9675966BB5017D8C6BB3E61920BF9039D566A4",
+      "blob": "b296d85a71aa5d99dea6f0c95a4f43b37f253232",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/cjk-punct-shrink.ts",
+      "bytes": 31237,
+      "sha256": "B28035F273132B71B01A1FD41CA356DE2DB70DB3F4D0A16FA3D5194DE553E873",
+      "blob": "f031d72f294ecccb3b830288a13fdadeb41dfee2",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/column-layout.ts",
+      "bytes": 9838,
+      "sha256": "DA9C50989F6A870C9C6BA2B3EE483A79F92B0308B1C32A5A681C828ED801AEB2",
+      "blob": "64fbbcbed53607ba6a813352d524c4d4a08020b9",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/comments.ts",
+      "bytes": 6355,
+      "sha256": "8FD05B319C303FFBC9717A74714F3EDBC77278B617BEC26F5B37E3F1E65F16F0",
+      "blob": "cf9fb9f9bb13dbfb0bfafb1cf1315a533b5e9b7c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/compare.ts",
+      "bytes": 2581,
+      "sha256": "CFD92E2BBBBF31027C504C60688DB061E79FF9F86F3689F82DB8E3A9C21875F8",
+      "blob": "a0e9997ca0be7db19d393d360f1102504caf7e7b",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/convert.ts",
+      "bytes": 132360,
+      "sha256": "25216044288AA5912A8D85020A6D262591A415E7C9CAA19E54BFC9D1E77821BF",
+      "blob": "3290108b8799e96edea3fe22617b1539fa732ad9",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/cover-pages.ts",
+      "bytes": 9378,
+      "sha256": "9B51CA9199D13E30DD19FC16C6099F86BB04AA969C53BF2B01F4F9CF28742EFE",
+      "blob": "3390252a2b4f373abff93c6198031aca6ddf8467",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/dark-page.ts",
+      "bytes": 6450,
+      "sha256": "E433A5B622FC37EBA49AEED195F91E72AA87CC226100F22981EE423C12CCCA68",
+      "blob": "14b166739d2dc4f333480029ceb24858394e351c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/decoration-extensions.ts",
+      "bytes": 48484,
+      "sha256": "3528F6C038D3CB7E3B627024710AF64968279FFAA83D20CF244BC2A6BA19358E",
+      "blob": "4289fca179fc0b5362bd3ceb0e0653dd91f76c81",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/direction.ts",
+      "bytes": 7975,
+      "sha256": "18CC1853A7867B06D48DB5D3660AD11FAE193C92D147E660422580A47159F0CD",
+      "blob": "b2958037ad5ebf7bbb9cf65ff0fd87a789486e55",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/equation.ts",
+      "bytes": 1623,
+      "sha256": "225906EF0A6AF2E1B111DA7568EEADAD0A5344C58794B272D1EEE9EE799C5F62",
+      "blob": "1149d09de4092ec84aa7a5dd835926737a18c04b",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/extensions.ts",
+      "bytes": 250857,
+      "sha256": "14220F7EAF6D856A065F2041CAB7AE1A5AFFF15B8A1EFE83C85A14F945B3179F",
+      "blob": "413c119c77e0aa97766188dce7cc22bc7aa56ed3",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/headings.ts",
+      "bytes": 825,
+      "sha256": "63938E0E9DD4F636FC8EF29BF9816967AFC448A61ABE28566E4A62D8184B8CA0",
+      "blob": "c637dabeb32215d9c5994c0ee335c4d1567f4df2",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/hf-dom.ts",
+      "bytes": 55300,
+      "sha256": "B6ED116E8F274216A2C9C62A6852A063E1B80A1A06647E09F29E346B62CFE2D2",
+      "blob": "ca78776e6aaddbe86aa3e28d26f8b1d94704ddc2",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/hf-text.ts",
+      "bytes": 2654,
+      "sha256": "7E76C47C60EF650FCA69819F511A2DECEA54E9BA1956C9AE53E9ED566B84C473",
+      "blob": "3a5424a32170e7991b352858209df419fc1b02dd",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/image-drop.ts",
+      "bytes": 2890,
+      "sha256": "65AEAEBB870D7C6A3B95D9834625B5FA431D9F55A1E3FC6DCDFCF6BDEF52E0D1",
+      "blob": "fa0a3efc2d81a57acb5f715b3310415c4884a502",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/image-rotation.ts",
+      "bytes": 2795,
+      "sha256": "6D625E664B041CB4CE6FB9059FC88B72630129DFB920452C4ECBA17C2E36A234",
+      "blob": "52ddb74bed070ef4bf4b5a6da8f4019f1642d6eb",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/inactive-selection.ts",
+      "bytes": 2370,
+      "sha256": "C08A00238A4F832BB265F7688AE206FCDE09E0D89C33280BDDDE971AF474557C",
+      "blob": "ae68e38dc48a64a5b9d9d47a751013d5feec8740",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/indent.ts",
+      "bytes": 660,
+      "sha256": "965A0C28A9F9951336BC9EAD8BDDF1507C5025F18B8093E70CB6D71EB0B67C3A",
+      "blob": "a13eb9b2db4e763192ffe3a6635e74fefd09c944",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/ink.ts",
+      "bytes": 7785,
+      "sha256": "063CC96B7A2656B80FC4F952FDCC04423A381F207B3A5468B7AEFECF53CA0686",
+      "blob": "263904823277b02e34ec3309f14296c22f859b9c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/inline-rule.ts",
+      "bytes": 1898,
+      "sha256": "DCC2071DF2D7F7846F2DD0596A2DE647477B4190B6717B8EF9F1BA7FA93484AD",
+      "blob": "3c91867a9260fa69a2f39563aa448bda43e42453",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/justify-shrink.ts",
+      "bytes": 20081,
+      "sha256": "8A4AF74FFC2F02F19BA6012FF303CC53A8E575ECE7F99E7B61748E6B7C1C49AF",
+      "blob": "feb2d635cf65296b57c46c95fca82cea4ab7c9b1",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/line-numbers.ts",
+      "bytes": 12202,
+      "sha256": "ED7DB7F4AD9E32EB4360277DE4C323AB0BEE3A125065FCCBF3CD06560F6C164E",
+      "blob": "cf3fa624ff828aed1d29c8fc70e808e20fa88c6a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/margin-annotations.ts",
+      "bytes": 15931,
+      "sha256": "7C198FF7E9DCA37EA46A50AC635C598D8C782C068CFEF45D944593E151254C43",
+      "blob": "2ef53d909c13e5fb8f3cc0ff74a06b16c19dbfb7",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/markdown-paste.ts",
+      "bytes": 2298,
+      "sha256": "82927B2DE099A8A959008BC94DD5B3BA5E5E25B33813D72AC4DDC104B9A56ED0",
+      "blob": "a4fdea41bb6f1f5561c9adee4e7a7aadf149b464",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/marks.ts",
+      "bytes": 27845,
+      "sha256": "F48EF570279A7AA949929DB78BD08E6C1059CE2088BABE36EEC3B41ACCB1EEF7",
+      "blob": "d89bac8e46ec1674ec083b74e70a2bab6efeb995",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/move-block.ts",
+      "bytes": 1736,
+      "sha256": "16E74EE21395D77C2AEF5D5F983C3AB0836A03023EAFF685E29A15395378D620",
+      "blob": "c8ea0029f05a82dd3cced24d0c772eaf43498a06",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/numbering.ts",
+      "bytes": 329,
+      "sha256": "4CD4901B36166EA9BBE9AB52A332CA4EDBDB9BB99417F51F7AA389136FD8E2D4",
+      "blob": "74a0413e0b90fd96233a95eb9dfa81b66036b68f",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/page-break.ts",
+      "bytes": 2274,
+      "sha256": "D078DD480F5D9663697AF5B0F82EF9F931E5E070C299FD62A2B35D867BF60563",
+      "blob": "f4960b2fbb73c745adf84129190d9036de3b02d4",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/page-gap-nav.ts",
+      "bytes": 14840,
+      "sha256": "7C165D3BDD28EE3DE1B5E99AB45918BEE86E9318BC5496818DA2DC83A6C1B66C",
+      "blob": "ac3e30135625ad83b6a608e02b54420106c857ad",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/pagination-gaps.ts",
+      "bytes": 55118,
+      "sha256": "80E5BFB694FE6DA4DC3CA1FC6E2EBF573A10939181A6F780D5B42A8DCF64E2EB",
+      "blob": "0a5ea8ef490946f8e8e34f8101be610ef1905b08",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/para-border-merge.ts",
+      "bytes": 2236,
+      "sha256": "8677DD4C1E9F6C0C0201BF5F0445AE79CC03613AA8414920DC9BBA5DBA8BAA5B",
+      "blob": "253e4031c5bab81909471e02d1e1025495345925",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/para-frame.ts",
+      "bytes": 2767,
+      "sha256": "EBB02BE9F692BE8B87544CD8C7AD5B0E0A10444A6A8312EDBBA6A7AA5994D6AF",
+      "blob": "a5e94976645c917802b4387e52114bc2f5d430db",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/paste-options.ts",
+      "bytes": 9892,
+      "sha256": "2C98FC354DF548C45D0D1141975080881C2A521C11DF6D805ECF781D81B00111",
+      "blob": "3b2a68bb08f3f4357278941786a0e75851d15ffb",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/paste-text.ts",
+      "bytes": 4749,
+      "sha256": "47583C151D83621769BB8011B9A72A1D2E74A929C3216A113503484295C8C63B",
+      "blob": "2e4c12e224ca671e89e5bccae38c2a6167f0b9fb",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/paste-web-html.ts",
+      "bytes": 6486,
+      "sha256": "AE670B1D033D2A0C2E9B4C1CA35E4357AA1776DCEFB383605E350CF7C24C0246",
+      "blob": "b5e082c35cdd23cab3d05aba7d104d4738919c4c",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/protected-render.ts",
+      "bytes": 86910,
+      "sha256": "42E7A6B7D4CCAAE6EFC973982DE18B60764226211340F8A7B37B219B07FAF1FF",
+      "blob": "ae17b329facba0b27c7c6352fc517825e45fa99d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/revisions.ts",
+      "bytes": 45643,
+      "sha256": "4A0DBE1AE5C01E4789BBA4B7E2C33FE473D23937258DD9AB6A80A67B04E80D3B",
+      "blob": "82ea794c919354312010bac7cb8c7f972c5a7f4a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/run-border.ts",
+      "bytes": 1595,
+      "sha256": "7D41850B16B70640E2C3E1E32D61DA32EA64165D751C62B7B4212692AC37CA8B",
+      "blob": "d2e3a29e34e92f6b574e0db114bebbd332127b77",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/settled-measure.ts",
+      "bytes": 4439,
+      "sha256": "3B13A7700AE36D28D1386E806D5D4DBCDDC6E3D54267AED52CA2A3949F3683D6",
+      "blob": "7f654a9acec116f637109ab5db0df667c9a31a08",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/shading-ink.ts",
+      "bytes": 913,
+      "sha256": "FA1E500103B8777E4CC892930538C70673B95005F6CF274B09E70382AD2097A9",
+      "blob": "96d15a95dda97f143cb1dbd27b0e25b86fff5588",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/shape-draw.ts",
+      "bytes": 9161,
+      "sha256": "08AB4541D7A4A040E072DE24B3521AF2D05BF1A839240767F6C3FBA1A1295D70",
+      "blob": "55a56be94c7fdb3d4bdff4ce6f1c1fafd18d8442",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/shape-svg.ts",
+      "bytes": 9363,
+      "sha256": "997887165F376FE5B54AAA5D13223552FDD4CA75AC1549DB7CBFCFEAF5C2ED07",
+      "blob": "1f6d36fbf9054aabaf650f761920fe6e9f1add5f",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/table-handle.ts",
+      "bytes": 10141,
+      "sha256": "B09B62337C0998BFF94F594F5F4BD3D098487A64608D067C82EB163D1D369083",
+      "blob": "632aa851c423717844f937dbd1c0253109de8a58",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/table-properties.ts",
+      "bytes": 6977,
+      "sha256": "BBFF51FA2DA6198DF69FB290B8DD5624C00C87713C381B32713D9CF36FD0001F",
+      "blob": "50fc391de3a74496135ba69e680c12d407c383be",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/table-sizing.ts",
+      "bytes": 6747,
+      "sha256": "11BF07E33DF9EAB1DF537C8FAAC383BA89212EDA8AB9BF962ACAC9F0F7EB0B8A",
+      "blob": "c71c28f6697f99845efdbc5c5500a8360c965ca7",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/text-color.ts",
+      "bytes": 623,
+      "sha256": "F95020AEC7DA04D898B781E1D486453E560749E655BE7A0E5CBEDCDF6320DA13",
+      "blob": "128557b18a1ec93876a633967734a9fa76fa3e15",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/text-effects.ts",
+      "bytes": 3319,
+      "sha256": "BBAA886C834401008D5CEF07868F40E445774C4795F178F9D7EEF27EFF265832",
+      "blob": "16b87918ee266e7b78a5a5649acbbe6aff12ec15",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/text-outline.ts",
+      "bytes": 927,
+      "sha256": "DF96CBB61C140345C69737FD0437E6364311D710280A397D4EBA9398EC165796",
+      "blob": "39cb2c5efd79b0c3f3a59d3c07d9217f1e5e9bc4",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/text-style-resolve.ts",
+      "bytes": 1489,
+      "sha256": "190863A664FE1028BD21C168A64DD7D54E7A0246C51CFCDFF6601C7230E955A6",
+      "blob": "57c5c67c4bc1ee48b909d03cc7d2f463dfda9692",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/toc-refresh.ts",
+      "bytes": 2060,
+      "sha256": "817BADA1C3C85C072D179A8A02511C716281DDB4E7EE2C88833A10641F80A2C0",
+      "blob": "f4b5bf6a7975e7f47cee5c6c2f2386cd6f67c70f",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/editor/trailing-table-exit.ts",
+      "bytes": 1465,
+      "sha256": "86B7F2642B79233342A2820A7DBF95E76B804E69C5F89425592A79E0302EB01F",
+      "blob": "630fad4848dc8f9a275c1cf1e45403f886876982",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/font-check.ts",
+      "bytes": 3818,
+      "sha256": "F63FBAAF01760E5E56382EB24B17AACA322B629A308766405A4C8EE40EE94A6B",
+      "blob": "20e56b25c4f581f9298cbe300113eba39c2d1b99",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/font-list.ts",
+      "bytes": 3374,
+      "sha256": "EEE04958A582B7BD976DD39DF4878403BFABC3C3ACA4B7D1FDA750B35B9FEDB6",
+      "blob": "49795ea8fb8e1ac2549db009db72c5121a4531ce",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/line-metrics.ts",
+      "bytes": 99550,
+      "sha256": "0EA26D0D9F2E4866D37173E4D000167CD5E689486FCF4973E39932BB7F5B79A4",
+      "blob": "296b28d4aa370be4a10c82b07bb61594d0e39d0d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/note-format.ts",
+      "bytes": 2429,
+      "sha256": "265E38158353DBED1783850A64EB7A471D6F2B06CC441DFAC4E4824794B3F882",
+      "blob": "40e734f7cfeb287ed897614314f2de2925f37023",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-hf.ts",
+      "bytes": 5641,
+      "sha256": "AC3B0768E2E3AEAF9C8915BEB1F0F0B2629701025EE7D8A88E2CA7C28DD047C5",
+      "blob": "747daf6d163f0c9bb33ccb5486b3478010bd7c46",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-lines.ts",
+      "bytes": 45416,
+      "sha256": "DBBC4EDED7149F84AF59913F70E811C0D8F0EB4231AED4E02B949E1CA1CFA8F6",
+      "blob": "c764f8cff92813ce22c167c7303f8092a67fb4fd",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-measure.ts",
+      "bytes": 25635,
+      "sha256": "C98B9D490A054F86C22233433FACA0483E8DFB3F5A4D0D2DE089BCFEF48781A2",
+      "blob": "f0d3863fec0c7f903edd73b21ba2dab6a0a85bf5",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-sections.ts",
+      "bytes": 32585,
+      "sha256": "59BB6E76EDDDEF5A849D75C755B41F8FFCB213F15EB352B5C7113D652F38B494",
+      "blob": "f3ef08234963da7fea4da81ce146a78721e37d2d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-slices.ts",
+      "bytes": 88848,
+      "sha256": "8611458FF32A1BAD34FF354DF4B14DD62BED0D2AA1B26C2A7114D0C7E3C2B093",
+      "blob": "72c231b7d140828ecbebff4a8caf4a0c312f0fe0",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-types.ts",
+      "bytes": 24868,
+      "sha256": "9511E3496F3B31CC9CC9D54304E540C8FC0819A2CC0B99E748E3E931556741B4",
+      "blob": "73da067630c1e6b24b90f1f4be082af212f431b0",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination.ts",
+      "bytes": 928,
+      "sha256": "AD335E9610A58248A4080C16D81403C4920B4360B6E56C1FCA4033D5F859C3A6",
+      "blob": "3529ce055f25db9745a5cb6732a96358fa8716bf",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/phased-content.ts",
+      "bytes": 4724,
+      "sha256": "FBF808CE7F0F91D97C1095B15D03D4C91E135C1DCFB95B87131818FB65061562",
+      "blob": "3dcb146cc58986b99d11fe0721f1e0305ff156a6",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/styles.css",
+      "bytes": 268295,
+      "sha256": "D4BEC6BD6C1D451178760FAB6F42DFC4BBACE61FCECE1CB8424DB5CDA89AC66A",
+      "blob": "a06c52d4855ba324f22d608c2ea2cd40085af31b",
       "mode": "100644"
     },
     {
@@ -5054,6 +5569,27 @@
       "bytes": 156,
       "sha256": "4E19E07C1D033C237EB8AD0CF525C3769C0D4D64BF8615B3AA448F7E5871679A",
       "blob": "b31aa2a51f86a95aa5f989b9c40948b2ce9aac59",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/shape-gallery.tsx",
+      "bytes": 11821,
+      "sha256": "316B6D345E3AD1DA3CC3C14813AC9196A993D461CF12EC8B8C5D39E76BF41E95",
+      "blob": "5983009d01d71e870ab517ccf469966d23d32450",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/tokens.css",
+      "bytes": 5803,
+      "sha256": "A41E5C3B42996C8F297D83138AFE8AE6859B0E562B7CC6BC506EF911F45DC9E3",
+      "blob": "aef6ff5ed58f099d1879560f9017feea2ab475d6",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/wordart-presets.ts",
+      "bytes": 3418,
+      "sha256": "5FF2E934A4A3893963F8464CCB869D3E762F324E854ED7D5762C986E079F94EB",
+      "blob": "3c8d26b443b6a6f0d7d5ac511ea221beec01a354",
       "mode": "100644"
     },
     {

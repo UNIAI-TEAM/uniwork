@@ -62,6 +62,13 @@
     "packages/office-upstream": {
       "ignore": [
         "upstream/**"
+      ],
+      "entry": [
+        "shims/docs-renderer-entry.ts",
+        "shims/genoffice-ui.ts"
+      ],
+      "ignoreDependencies": [
+        "react"
       ]
     },
     "packages/views": {

@@ -20,7 +20,7 @@ import {
   type OpenOutcome,
 } from "@uniwork/office-contracts";
 import type { OoxmlCrypto } from "./engine";
-import type { DocxEngineFunctions, DocxParsed } from "./engine";
+import type { DocxBlock, DocxEngineFunctions, DocxNumberingDef, DocxParsed } from "./engine";
 import { DocxSessionModel, editableIndexes, visibleIndexes, type DocxEdit } from "./model";
 import { DocPasswordIntents } from "./password";
 import { inventoryDocxAssets, unsupportedDocxWarnings, type DocxAssetInventory } from "./assets";
@@ -392,6 +392,30 @@ export class DocxAdapter {
 
   isDirty(ref: string): boolean {
     return this.sessionOf(ref).model.isDirty;
+  }
+
+  /** Read-only block inventory for a rendering host — the model's own blocks,
+   * never a copy with inferred fields. A view binds an editing surface to
+   * this; it must never reach the session model directly (adapter.ts is the
+   * only seam between the engine and a host). */
+  blocksOf(ref: string): DocxBlock[] {
+    return this.sessionOf(ref).model.blocks;
+  }
+
+  /** Numbering definitions (numId -> def) of the open model, from the parse
+   * (word/numbering.xml). A renderer needs them to draw the document's real
+   * list markers/levels; empty when the parse carried none. */
+  numberingOf(ref: string): Map<string, DocxNumberingDef> {
+    const numbering = this.sessionOf(ref).model.parsed.numbering;
+    return numbering instanceof Map ? numbering : new Map();
+  }
+
+  /** The engine's parse handle for a rendering host: sections (derived by the
+   * engine's readSections) and the header/footer parts a pagination driver
+   * needs. Read-only: the handle is the model's own object, never a copy with
+   * inferred fields, and stays behind the session ref. */
+  parsedOf(ref: string): Readonly<DocxParsed> {
+    return this.sessionOf(ref).model.parsed;
   }
 }
 

@@ -6873,6 +6873,41 @@
   "office": {
     "docx": {
       "title": "DOCX document",
+      "editor": {
+        "editorChartSeries": "Series {{num}}",
+        "editorContentControl": "Content control",
+        "editorCrossReference": "Cross-reference: {{name}}",
+        "editorDefaultAuthor": "User",
+        "editorDeletedBy": "Deleted by {{author}}",
+        "editorEdit": "Edit",
+        "editorEditFormulaLatex": "Edit LaTeX formula",
+        "editorEndnote": "Endnote",
+        "editorEquation": "Equation",
+        "editorEquationEditHint": "Equation: {{latex}}",
+        "editorFieldHint": "Field: {{instr}}",
+        "editorFootnote": "Footnote",
+        "editorFormatChangeBy": "Formatting changed by {{author}}",
+        "editorFormatRevision": "Formatting change",
+        "editorIndexEntry": "Index entry: {{term}}",
+        "editorInsertedBy": "Inserted by {{author}}",
+        "editorJumpHintMac": "Hold ⌘ and click to open the link",
+        "editorJumpHintWin": "Hold Ctrl and click to open the link",
+        "editorMoveChart": "Move chart",
+        "editorMoveEquation": "Move equation",
+        "editorMoveImage": "Move image",
+        "editorMoveTable": "Move table",
+        "editorMoveTextbox": "Move text box",
+        "editorOleExcel": "Embedded spreadsheet",
+        "editorOleGeneric": "Embedded object",
+        "editorOlePdf": "Embedded PDF",
+        "editorOlePpt": "Embedded presentation",
+        "editorOleWord": "Embedded document",
+        "editorPageBreak": "Page break",
+        "editorProtectedContent": "Read-only content",
+        "editorSectionBreak": "Section break",
+        "editorUnknownAuthor": "Unknown author",
+        "ribbonTableHandleTip": "Select table"
+      },
       "toolbar": {
         "label": "DOCX editing commands"
       },
@@ -6884,8 +6919,14 @@
         "retryOpen": "Try opening again"
       },
       "commands": {
-        "bold": "Bold (pending)",
-        "italic": "Italic (pending)",
+        "bold": "Bold",
+        "italic": "Italic",
+        "underline": "Underline",
+        "heading": "Paragraph style",
+        "headingParagraph": "Normal text",
+        "headingLevel": "Heading {{level}}",
+        "bulletList": "Bulleted list",
+        "orderedList": "Numbered list",
         "table": "Table (pending)",
         "image": "Image (pending)"
       },

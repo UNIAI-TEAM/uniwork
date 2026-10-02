@@ -37,11 +37,42 @@ export interface DocxBlock {
   [key: string]: unknown;
 }
 
+/** NumberingLevel — upstream types.ts:779. A renderer that draws list markers
+ * reads these fields (marker format/text, bullet picture, fallback indent);
+ * the engine owns the rest. */
+export interface DocxNumberingLevel {
+  numFmt?: string;
+  lvlText?: string;
+  start?: number;
+  /** twips: fallback geometry for items without their own w:ind */
+  indentLeft?: number;
+  hanging?: number;
+  firstLine?: number;
+  picBulletSrc?: string;
+  [key: string]: unknown;
+}
+
+/** NumberingDef — upstream types.ts:810: one w:num entry from
+ * word/numbering.xml, abstract levels + overrides applied. */
+export interface DocxNumberingDef {
+  numId: string;
+  /** counters continue across w:num entries sharing an abstractNum */
+  abstractNumId: string;
+  /** ilvl -> level definition */
+  levels: Record<number, DocxNumberingLevel>;
+  /** ilvl -> w:lvlOverride/w:startOverride value (restart markers) */
+  startOverrides: Record<number, number>;
+  [key: string]: unknown;
+}
+
 /** ParsedDoc + ParseExtras handle: the adapter treats everything outside
  * `blocks` as opaque and passes the whole object back to saveDocx, exactly
  * like upstream (patch.ts:85 ParsedDocFull). */
 export interface DocxParsed {
   blocks: DocxBlock[];
+  /** numId -> definition, from word/numbering.xml (upstream parse.ts:573);
+   * a rendering host needs these to draw the document's real list markers. */
+  numbering?: Map<string, DocxNumberingDef>;
   internal?: Record<string, unknown>;
   extras?: { chartParts?: Record<string, string>; [key: string]: unknown };
   [key: string]: unknown;

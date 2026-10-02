@@ -14,6 +14,9 @@ catalog:
   # Office build tooling (UNI-684): builds vendored engine source without the
   # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
   esbuild: "0.28.2"
+  fast-xml-parser: "5.11.2"
+  jszip: "3.10.1"
+  utif2: "4.1.0"
   # Desktop packaging (UNI-836): packager is dev-only; production code never imports it.
   electron: "44.5.0"
   electron-builder: "26.15.3"

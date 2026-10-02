@@ -9,6 +9,7 @@ import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import type {
   DocxEditorProps,
+  DocxFormatState,
   DocxOpenFailure,
   DocxOpenOutcome,
   DocxSelection,
@@ -42,6 +43,7 @@ export function DocxEditor<TSnapshot = unknown>({
   capability,
   title,
   className,
+  manageSession = true,
   onOpen,
   onSelectionChange,
 }: DocxEditorProps<TSnapshot>) {
@@ -49,6 +51,7 @@ export function DocxEditor<TSnapshot = unknown>({
   const [viewState, setViewState] = useState<DocxViewState>("opening");
   const [failure, setFailure] = useState<DocxOpenFailure | null>(null);
   const [selection, setSelection] = useState<DocxSelection | null>(null);
+  const [formatState, setFormatState] = useState<DocxFormatState | null>(() => editor.commands?.getState() ?? null);
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [retryToken, setRetryToken] = useState(0);
   const disposedRef = useRef(false);
@@ -77,6 +80,8 @@ export function DocxEditor<TSnapshot = unknown>({
     return coordinator.subscribe(setCoordinatorState);
   }, [coordinator, documentKey]);
 
+  useEffect(() => editor.subscribeDirty?.((generation) => coordinator.markDirty?.(generation)), [editor, coordinator]);
+
   useEffect(() => {
     const selectionPort = editor.selection;
     if (!selectionPort) {
@@ -91,6 +96,16 @@ export function DocxEditor<TSnapshot = unknown>({
     emit(selectionPort.getSelection());
     return selectionPort.subscribe?.(emit);
   }, [editor, onSelectionChange, documentKey]);
+
+  useEffect(() => {
+    const commands = editor.commands;
+    if (!commands) {
+      setFormatState(null);
+      return undefined;
+    }
+    setFormatState(commands.getState());
+    return commands.subscribe(setFormatState);
+  }, [editor, documentKey]);
 
   useEffect(() => {
     const activeEditor = editorRef.current;
@@ -146,13 +161,15 @@ export function DocxEditor<TSnapshot = unknown>({
     return () => {
       disposedRef.current = true;
       controller.abort();
-      void activeEditor.cancel?.("document_changed");
-      void activeCoordinator.cancel?.();
-      void activeEditor.dispose();
+      if (manageSession) {
+        void activeEditor.cancel?.("document_changed");
+        void activeCoordinator.cancel?.();
+        void activeEditor.dispose();
+      }
     };
     // The session is keyed by documentKey/retryToken. Callback and adapter
     // objects are refs so a shell re-render cannot cancel an active document.
-  }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
+  }, [documentKey, retryToken, capabilityOperation, capabilityStatus, manageSession]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;
@@ -206,11 +223,15 @@ export function DocxEditor<TSnapshot = unknown>({
             onUndo={undo}
             onRedo={redo}
             onSave={save}
+            format={formatState}
+            commands={editor.commands}
           />
-          <div className="flex min-h-64 flex-1 items-start justify-center overflow-auto bg-muted/20 p-4 sm:p-8" data-testid="docx-canvas">
-            <div className="min-h-[24rem] w-full max-w-4xl rounded-lg border border-border bg-background p-8 shadow-sm" data-testid="docx-document-surface">
-              <p className="text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
-            </div>
+          <div className="flex min-h-64 min-w-0 flex-1 flex-col" data-testid="docx-canvas">
+            {editor.renderSurface ? (
+              editor.renderSurface()
+            ) : (
+              <p className="p-8 text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
+            )}
           </div>
         </>
       ) : viewState === "error" && failure ? (
