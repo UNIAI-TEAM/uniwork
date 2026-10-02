@@ -6405,6 +6405,7 @@
       "insert_block": "Chèn khối",
       "no_blocks": "Không có khối phù hợp",
       "choose_image": "Chọn ảnh để chèn",
+      "image_loading": "Đang tải ảnh…",
       "focus_end": "Tiếp tục viết cuối tài liệu",
       "toggle_task": "Đánh dấu việc: {{task}}",
       "blocks": {

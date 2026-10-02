@@ -45,6 +45,23 @@
 
 .document-page-prose :is(th, td) {
   border-color: var(--border);
+  min-width: 7rem;
+}
+
+/* React task node views have an extra wrapper around their content column. */
+.document-page-prose .page-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.document-page-prose .page-task-item [data-node-view-content-react] > p {
+  margin-block: 0;
+}
+
+.document-page-prose .page-task-item[data-checked="true"] > [data-node-view-content] > [data-node-view-content-react] > p {
+  color: var(--muted-foreground);
 }
 
 .document-page-prose .is-empty[data-placeholder]::before {

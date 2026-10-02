@@ -72,8 +72,8 @@ export function DocumentImageView({ node, selected }: NodeViewProps) {
           className="inline-flex min-h-16 min-w-32 items-center justify-center rounded-md border border-dashed border-border bg-muted px-3 py-4 text-caption text-muted-foreground"
         >
           {asset.isError
-            ? t("documents.editor.asset_load_failed")
-            : t("documents.editor.asset_uploading")}
+            ? t("documents.save.asset_load_failed")
+            : t(uploading ? "documents.editor.asset_uploading" : "documents.page_ui.image_loading")}
         </span>
       ) : (
         <span className="text-caption text-muted-foreground">{alt}</span>

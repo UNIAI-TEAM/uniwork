@@ -6411,6 +6411,7 @@
       "insert_block": "Insert block",
       "no_blocks": "No matching blocks",
       "choose_image": "Choose an image to insert",
+      "image_loading": "Loading image…",
       "focus_end": "Continue writing at the end of the document",
       "toggle_task": "Toggle task: {{task}}",
       "blocks": {

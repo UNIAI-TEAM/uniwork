@@ -139,6 +139,8 @@ describe("DocumentWorkspace note page UI", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Kế hoạch Q3" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: t("documents.page_ui.title_label") })).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.page_ui.change_icon") })).toBeNull();
+    expect(screen.getAllByText(t("documents.save.readonly"))).toHaveLength(1);
+    expect(screen.queryByText(t("documents.detail.readonly_title"))).toBeNull();
   });
 });
 
@@ -448,6 +450,6 @@ describe("DocumentWorkspace autosave", () => {
     pasteText("không được sửa");
     await new Promise((resolve) => setTimeout(resolve, 2_500));
     expect(patchCalls()).toHaveLength(0);
-    expect(screen.getByText(t("documents.detail.readonly_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.save.readonly"))).toBeInTheDocument();
   });
 });

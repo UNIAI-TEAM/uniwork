@@ -15,7 +15,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import { sanitizePageContent } from "@uniwork/core/documents/schema";
-import { cn } from "@uniwork/ui/lib/utils";
 import { EditorBubbleMenu } from "../editor/bubble-menu";
 import { createPageDocumentExtensions } from "../editor/extensions";
 import { createMentionSuggestion } from "../editor/extensions/mention-suggestion";
@@ -24,6 +23,7 @@ import {
   type DocumentAssetUploader,
 } from "./document-asset-upload";
 import { DocumentImageExtension } from "./document-image-extension";
+import { DocumentAssetScopeProvider } from "./document-asset-context";
 
 /**
  * The page editor: TipTap over the G1-01 page schema, persisted as JSON.
@@ -244,7 +244,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
 
     return (
       <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
-        <EditorContent editor={editor} className="flex flex-1 flex-col" />
+        <DocumentAssetScopeProvider scope={{ wsId, documentId }}>
+          <EditorContent editor={editor} className="flex flex-1 flex-col" />
+        </DocumentAssetScopeProvider>
         {editable ? <input ref={imageInputRef} type="file" accept="image/*" className="hidden"
           aria-label={t("documents.page_ui.choose_image")} onChange={(event) => {
             const files = Array.from(event.target.files ?? []);

@@ -8,7 +8,7 @@ import { PatchedTaskItem } from "./list-item";
 function PageTaskItemView({ node, editor, updateAttributes }: NodeViewProps) {
   const { t } = useTranslation();
   return (
-    <NodeViewWrapper as="li" data-checked={node.attrs.checked === true ? "true" : "false"} className="page-task-item">
+    <NodeViewWrapper data-checked={node.attrs.checked === true ? "true" : "false"} className="page-task-item">
       <span contentEditable={false} className="mt-1 shrink-0">
         <Checkbox checked={node.attrs.checked === true} disabled={!editor.isEditable}
           aria-label={t("documents.page_ui.toggle_task", { task: node.textContent || t("documents.page_ui.blocks.taskList.label") })}
@@ -20,5 +20,6 @@ function PageTaskItemView({ node, editor, updateAttributes }: NodeViewProps) {
 }
 
 export const PageTaskItem = PatchedTaskItem.extend({
-  addNodeView() { return ReactNodeViewRenderer(PageTaskItemView); },
+  // The renderer owns the actual list child; its React wrapper is a div.
+  addNodeView() { return ReactNodeViewRenderer(PageTaskItemView, { as: "li" }); },
 });

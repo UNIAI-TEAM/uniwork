@@ -452,19 +452,19 @@ export function DocumentWorkspace({
         actions={
           <>
             {headerActions}
-            {doc.kind === "page" ? (
+            {doc.kind === "page" && canEdit ? (
               <DocumentSaveIndicator
                 state={indicatorState}
                 pendingUploads={pendingUploads}
-                readonly={!canEdit}
                 onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
                 onResolveConflict={() => setConflictOpen(true)}
               />
             ) : null}
             {!canEdit ? (
-              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground"
+                title={t("documents.detail.readonly_description")}>
                 <Eye aria-hidden className="size-3.5" />
-                {t("documents.detail.readonly_title")}
+                {t(doc.kind === "page" ? "documents.save.readonly" : "documents.detail.readonly_title")}
               </span>
             ) : null}
             <DocumentCommentsHeaderActions />
@@ -473,7 +473,7 @@ export function DocumentWorkspace({
       />
 
       {!canEdit ? (
-        <Notice tone="info" icon={Eye}>
+        <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
           {t("documents.detail.readonly_description")}
         </Notice>
       ) : null}
