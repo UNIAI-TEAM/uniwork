@@ -46,3 +46,25 @@ e2e flow from the `e2e` job in `ci.yml`.
 
 A branch that needs more stack edits `provision.sh` or `install.sh` here,
 pushes `test/cursor-cloud-env`, and rebuilds the environment in Cursor.
+
+## Test runner per worktree
+
+`cloud-runner.mjs` gives each worktree its own cloud agent (one VM) through
+the Cloud Agents API v1. It needs `CURSOR_API_KEY` (env var; on Windows the
+User or Machine scope is read too). Saved environments do not apply to
+API-launched agents, so a new runner provisions itself from this branch on
+its first run (about 10 minutes); later runs are follow-ups on the same VM.
+
+```bash
+git push origin HEAD                      # the runner tests what origin has
+node <this dir>/cloud-runner.mjs ensure   # optional: provision ahead of time
+node <this dir>/cloud-runner.mjs test --spec tests.txt [--lane slug] [--out reports/<lane>/x.md]
+node <this dir>/cloud-runner.mjs status
+node <this dir>/cloud-runner.mjs close    # deletes the agent and its results refs
+```
+
+`tests.txt` holds one shell command per line (`#` comments), run from the
+repository root. The report separates `stage_outcome` from `test_verdict`,
+records the run's cost, and the logs come back from
+`refs/test-results/<lane>/<sha>` beside the report. Exit codes: 0 pass,
+1 tests failed, 2 blocked or runner error.
