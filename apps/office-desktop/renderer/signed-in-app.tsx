@@ -21,6 +21,7 @@ type PendingLeave = { ids: readonly string[]; host?: HostLeave; switchWorkspace?
 export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void | Promise<void> }) {
   const { t } = useTranslation();
   const tabs = useDocumentTabs(bridge);
+  const currentTabs = tabs.current;
   const accountDrafts = useAccountDrafts(bridge);
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
   const scopeRef = useRef(scope);
@@ -65,13 +66,13 @@ export function SignedInApp({ bridge, metadata, onLogout }: { bridge: RendererBr
     syncQueue.current = syncQueue.current.catch(() => undefined).then(async () => {
       if (!mounted.current) return;
       try {
-        const live = tabs.current.current;
+        const live = currentTabs.current;
         const result = desktopTabsUpdateResponseSchema.parse(await bridge.call("desktop:tabs-update", { sessionGeneration: SESSION_GENERATION, documentIds: live.tabs.map((tab) => tab.id), activeDocumentId: live.activeTabId }));
         if (!result.updated) throw new Error("tab_registration_refused");
         if (mounted.current) setSyncError(false);
       } catch { if (mounted.current) setSyncError(true); }
     });
-  }, [bridge, tabs.tabs, tabs.activeTabId]);
+  }, [bridge, tabs.tabs, tabs.activeTabId, currentTabs]);
 
   const canOpen = (documentId?: string) => {
     if (documentId && tabs.current.current.tabs.some((tab) => tab.id === documentId)) { tabs.select(documentId); return false; }
