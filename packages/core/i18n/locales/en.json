@@ -7139,15 +7139,15 @@
       "errors": {
         "title": "This XLSX workbook could not be opened",
         "reason": "Reason: {{reason}}",
-        "unknown": "The XLSX adapter returned an unknown open failure.",
+        "unknown": "This workbook could not be opened. Try opening it again.",
         "corrupted": "The workbook package is corrupt or incomplete.",
         "password_cancelled": "The password prompt was cancelled.",
         "password_required": "A password is required to open this workbook.",
-        "unsupported_feature": "This XLSX feature is not supported by the current engine.",
+        "unsupported_feature": "This XLSX feature is not supported yet.",
         "not_office_file": "The selected file is not an OOXML XLSX workbook.",
-        "engine_error": "The XLSX engine could not open this workbook.",
-        "capabilityUnavailable": "XLSX editing is not available for this engine build.",
-        "rendererFailed": "The workbook renderer could not be loaded.",
+        "engine_error": "This workbook could not be opened. Try opening it again.",
+        "capabilityUnavailable": "XLSX editing is not available here.",
+        "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving."
       },
       "editor": {

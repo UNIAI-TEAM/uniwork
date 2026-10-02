@@ -174,7 +174,7 @@ export function XlsxGridSurface({
   return (
     <div
       ref={containerRef}
-      className={cn("relative min-h-0 flex-1 overflow-hidden bg-background", className)}
+      className={cn("relative h-[min(55vh,32rem)] min-h-64 min-w-0 flex-auto overflow-hidden bg-background", className)}
       data-testid="xlsx-grid-surface"
       data-document-key={documentKey}
       role="group"

@@ -115,6 +115,8 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   title?: string;
   className?: string;
   onOpen?: (outcome: XlsxOpenOutcome) => void;
+  /** Ready is emitted after the grid loads, and error on renderer failure. */
+  onViewStateChange?: (state: XlsxViewState) => void;
   onSelectionChange?: (selection: XlsxSelection | null) => void;
 }
 

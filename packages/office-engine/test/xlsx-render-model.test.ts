@@ -3,10 +3,11 @@
 // not by the repository prepare step; the same source + patches feed it.
 import { beforeAll, describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { build } from "esbuild";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bindXlsxGateway, readXlsxRenderModel, renderModelCellCount, type XlsxGatewayFunctions, type XlsxRenderModel } from "../src/xlsx";
+import { parseThemeXml } from "../src/xlsx/render-model";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
@@ -21,10 +22,8 @@ let engine: XlsxGatewayFunctions;
 
 beforeAll(async () => {
   if (!existsSync(TEST_DIST)) {
-    const require = createRequire(join(REPO, "package.json"));
-    const esbuild = require("esbuild") as { build(options: Record<string, unknown>): Promise<unknown> };
     mkdirSync(dirname(TEST_DIST), { recursive: true });
-    await esbuild.build({
+    await build({
       absWorkingDir: UPSTREAM,
       entryPoints: [GATEWAY_ENTRY],
       bundle: true,
@@ -48,6 +47,13 @@ const readFixture = async (name: string): Promise<{ model: XlsxRenderModel; snap
 };
 
 describe("xlsx render model reader", () => {
+  it("reads a namespaced Office theme and resolves system colors from lastClr", () => {
+    const theme = parseThemeXml(`<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:themeElements>
+      <a:clrScheme name="Office"><a:dk1><a:sysClr val="windowText" lastClr="123456"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:accent1><a:srgbClr val="4472C4"/></a:accent1></a:clrScheme>
+      <a:fontScheme name="Office"><a:majorFont><a:latin typeface="Cambria"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="Yu Gothic"/></a:minorFont></a:fontScheme>
+    </a:themeElements></a:theme>`);
+    expect(theme).toMatchObject({ colors: ["#FFFFFF", "#123456", "#000000", "#000000", "#4472C4", "#000000", "#000000", "#000000", "#000000", "#000000", "#000000", "#000000"], majorFont: "Cambria", minorFont: "Calibri", minorEa: "Yu Gothic" });
+  });
   it("keeps every basic-read cell and materialises the cached formula results", async () => {
     const { model, snapshotSheets } = await readFixture("xlsx-kitchen-sink.xlsx");
     expect(model.sheets.map((sheet) => sheet.name)).toEqual(snapshotSheets.map((sheet) => sheet.name));

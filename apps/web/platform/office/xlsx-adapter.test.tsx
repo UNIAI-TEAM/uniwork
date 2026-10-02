@@ -104,6 +104,17 @@ function documents(): XlsxDocumentsTransport & { uploaded: Blob[]; commits: numb
 afterEach(() => vi.restoreAllMocks());
 
 describe("web XLSX format adapter", () => {
+  it("shares one in-flight native open when React replays the view effect", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    const results = await Promise.all([adapter.open.open(), adapter.open.open()]);
+    expect(results.map(result => result.outcome)).toEqual(["opened", "opened"]);
+    expect(engine.open).toHaveBeenCalledTimes(1);
+    expect(files.read).toHaveBeenCalledTimes(1);
+    await adapter.session.dispose();
+    expect(engine.released).toEqual(["model-1"]);
+  });
   it("opens through the runtime and saves exactly once through upload then commit", async () => {
     const engine = runtime();
     const files = documents();

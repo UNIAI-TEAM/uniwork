@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({ start: vi.fn(), get: vi.fn(), download: vi.fn(),
 vi.mock("@uniwork/core/api/endpoints/office", () => ({ startOfficeJob: api.start, getOfficeJob: api.get, downloadOfficeJobOutput: api.download, cancelOfficeJob: api.cancel }));
 
 const workbook = (): XlsxWorkbookSnapshot => ({ revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells: { A1: { value: 2 }, B1: { value: 4, formula: "=A1*2", rawValue: 4 } } }] });
+const renderModel = () => ({ revision: 1, activeTab: 0, date1904: false, styles: [], dxfStyles: [], sheets: [{ id: "sheet-1", name: "Data", rowCount: 2, columnCount: 2, cells: { A1: { v: 2 }, B1: { f: "=A1*2", c: 4 } }, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [] }] });
 const valueEdit = (value: number) => ({ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value } });
 const styleEdit = { op: "set_cell", target: { sheet: "Data", cell: "B1" }, style: { bold: true } };
 const stable = (engine: XlsxSessionRuntime): StableSnapshot<XlsxWorkbookSnapshot> => ({ generation: engine.snapshot("model").revision, fingerprint: "captured", value: engine.snapshot("model") });
@@ -33,11 +34,16 @@ beforeEach(() => {
   api.start.mockResolvedValue({ jobId: "job" });
   api.get.mockResolvedValue({ jobId: "job", state: "completed" } as OfficeJob);
   api.cancel.mockResolvedValue({});
-  api.download.mockResolvedValue({ text: async () => JSON.stringify({ snapshot: workbook() }), arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer });
+  api.download.mockResolvedValue({ text: async () => JSON.stringify({ snapshot: workbook(), render_model: renderModel() }), arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer });
 });
 afterEach(() => vi.restoreAllMocks());
 
 describe("web XLSX save journal", () => {
+  it.each([undefined, { sheets: [], styles: null }, { ...renderModel(), sheets: [{ id: "sheet-1" }] }])("refuses an absent or malformed renderer model instead of opening a table", async (render_model) => {
+    api.download.mockResolvedValueOnce({ text: async () => JSON.stringify({ snapshot: workbook(), render_model }) });
+    const engine = createWebXlsxSessionRuntime({ documentId: "doc", baseRevision: "1" });
+    expect(await engine.open({ bytes: new Uint8Array([80, 75]), documentId: "doc" })).toMatchObject({ outcome: "failed", failure_class: "engine_error", message: "office_open_render_model_invalid" });
+  });
   it.each(["A1", "B1"])("preserves %s content for a style-only edit and checkpoints its style", async (cell) => {
     const engine = await opened();
     const original = engine.snapshot("model").sheets[0]!.cells[cell];

@@ -257,7 +257,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   // Univer): order mirrors the pin's App wiring where it matters.
   installFilterRangeOutlineSuppression(runtime);
   installInjectorResolutionGuard(runtime);
-  const findRevealDispose = installFindRevealFix(runtime);
+  let findRevealDispose: (() => void) | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -273,7 +273,6 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installAutofitLinePitch();
   installHeaderUnhideDebounce();
   installNumberAsTextAlertSeverity();
-  installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
   installFormulaStreamHold(runtime);
 
   const lazyWorkbookRef: { current: LazyWorkbookState | null } = { current: null };
@@ -353,6 +352,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       loadAutoHeightSuppression.active = true;
       try {
         loadWorkbookSkeleton(runtime, file);
+        // Sheet services are registered when the first workbook unit starts.
+        // Resolving them during renderer construction leaves the grid unmounted.
+        installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
+        findRevealDispose ??= installFindRevealFix(runtime);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;

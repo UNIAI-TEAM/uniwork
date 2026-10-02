@@ -53,6 +53,9 @@ export interface RendererWorkbookSheet {
     styleIndex?: number;
   }[];
   pivotTables: never[];
+  tables: never[];
+  comments: never[];
+  pivotRanges: never[];
 }
 
 type RendererWorkbookStyle = XlsxRenderStyle;
@@ -90,6 +93,7 @@ export interface RendererRangeResult {
   /** A client-side model is fully readable; the field keeps the loader's
    *  retry heuristics from waiting on a sidecar that will never index. */
   indexedThroughRow: number | null;
+  indexingComplete: boolean;
   [key: string]: unknown;
 }
 
@@ -152,6 +156,9 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet 
     ...(sheet.zoomScale === undefined ? {} : { zoomScale: sheet.zoomScale }),
     columnWidths: sheet.columnWidths.map((column) => ({ ...column })),
     pivotTables: [],
+    tables: [],
+    comments: [],
+    pivotRanges: [],
   };
 }
 
@@ -226,6 +233,7 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     rowBreaks: [],
     colBreaks: [],
     indexedThroughRow: sheet.rowCount - 1,
+    indexingComplete: true,
   };
 }
 

@@ -7,6 +7,18 @@ const file = { sessionId: 'session', sha256: 'sha', styles: [], sheets: [
   { id: 's2', name: 'Second', rowCount: 20, columnCount: 10 },
 ] };
 
+test('sheet-dependent render patches wait for a workbook unit and survive reload', async () => {
+  const mounted = mountController({}, { requireWorkbookServices: true });
+  try {
+    assert.equal(mounted.h.sheetInterceptorLookups ?? 0, 0);
+    await mounted.handle.loadWorkbook(file);
+    assert.equal(mounted.h.sheetInterceptorLookups, 1);
+    await mounted.handle.loadWorkbook({ ...file, sha256: 'next' });
+    assert.equal(mounted.h.sheetInterceptorLookups, 2);
+    assert.equal(mounted.handle.getDirtyGeneration(), 0);
+  } finally { mounted.close(); }
+});
+
 test('controller load is clean and publishes the actual initial sheet selection', async () => {
   const edits = [];
   const selections = [];

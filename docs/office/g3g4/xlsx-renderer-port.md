@@ -343,6 +343,25 @@ the model carries them, never an enabled command.
 
 ### 4.1 Delivered integration and binding clarifications
 
+The sheet-dependent render patches resolve their services only after a workbook
+unit is created. The model bridge supplies the pinned loader's required empty
+table/comment/pivot-range collections and marks local viewport results fully
+indexed, so loading paints cells and finishes without index polling. The grid
+surface has a definite responsive height for its inner canvas. Production web
+opening requires a valid rich render model; an older engine returns a typed
+failure rather than silently falling back to the value-only table.
+
+The format adapter exposes optional view readiness to the web host. Ready and
+Save follow the mounted grid, while dirty/saving/error status remains visible.
+Open failures use translated user copy without raw exception/code strings.
+Effect replay preserves the session and shares one in-flight open; actual
+unmount still cancels and releases it. The authored reader is split into model,
+XML and styles/theme modules within the file-size limit, including namespace
+and system-color handling for Office themes. `xlsx-renderer-browser-smoke.mjs`
+exercises the built artifact with the actual bridge, canvas cell paint,
+edit/undo/redo, theme switch and disposal; it is separate from native Save and
+fidelity acceptance.
+
 Read model A supplies the rich render model through `open:xlsx`; the measured
 large fixture's model is 8.39 MB, so no browser-worker fallback was required.
 The controller emits only user cell value/formula/style mutations, including

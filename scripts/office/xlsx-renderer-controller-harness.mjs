@@ -128,7 +128,13 @@ export function mountController(options = {}, environment = {}) {
   };
   h.runtime = {
     univer: {
-      __getInjector: () => ({ get: (token) => token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {} }),
+      __getInjector: () => ({ get: (token) => {
+        if (token === 'SheetInterceptorService') {
+          if (environment.requireWorkbookServices && !file) throw new Error('sheet services require a workbook unit');
+          h.sheetInterceptorLookups = (h.sheetInterceptorLookups ?? 0) + 1;
+        }
+        return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
+      } }),
       dispose: () => { h.disposed = true; },
     },
     univerAPI: {

@@ -313,6 +313,10 @@ export interface XlsxFormatAdapter {
   editorView: ReactNode;
   open: { open(signal?: AbortSignal): Promise<XlsxOpenOutcome> };
   onRecoverSnapshot?: (snapshot: StableSnapshot<XlsxWorkbookSnapshot>) => Promise<void>;
+  viewReadiness: {
+    getSnapshot(): boolean;
+    subscribe(listener: () => void): () => void;
+  };
 }
 
 /**
@@ -324,10 +328,23 @@ export interface XlsxFormatAdapter {
 export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): XlsxFormatAdapter {
   let modelRef: string | null = null;
   let openedBytes: Uint8Array | null = null;
+  let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
+  let viewReady = false;
+  const readinessListeners = new Set<() => void>();
+  const viewReadiness = {
+    getSnapshot: () => viewReady,
+    subscribe(listener: () => void) { readinessListeners.add(listener); return () => readinessListeners.delete(listener); },
+  };
+  const onViewStateChange = (state: "opening" | "ready" | "error") => {
+    const ready = !disposed && state === "ready";
+    if (viewReady === ready) return;
+    viewReady = ready;
+    for (const listener of readinessListeners) listener();
+  };
   const renderModelRef: RenderModelRef = { current: null, listeners: new Set() };
   const publishRenderModel = (host: XlsxModelHost | null) => {
     renderModelRef.current = host;
@@ -344,37 +361,44 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     format: "xlsx",
     async open() {
       if (disposed) throw new Error("xlsx_editor_disposed");
+      if (opening) return opening;
       if (modelRef) return;
-      const bytes = openedBytes ?? await options.documents.read();
-      if (disposed) throw new Error("xlsx_editor_disposed");
-      openedBytes = bytes;
-      const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
-      if (disposed) {
-        if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
-        throw new Error("xlsx_editor_disposed");
-      }
-      if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
-      if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
-      modelRef = outcome.document_model_ref;
-      // G3-05c: when the runtime carries the render model, the editor mounts
-      // the vendored grid for this document; otherwise it keeps the table.
-      publishRenderModel(
-        outcome.renderModel
-          ? createXlsxModelHost(outcome.renderModel, {
-              sessionId: modelRef,
-              name: options.title ?? options.identity.documentId,
-              sha256: await digestHex(bytes),
-              fileBytes: bytes.byteLength,
-            })
-          : null,
-      );
-      currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
-      // Opening a workbook establishes the clean baseline.  The identity
-      // generation is the draft/auth session generation, not a content edit
-      // generation; using it here made the host's checkpoint timer treat an
-      // untouched open as dirty and persist a spurious recovery draft.
-      generation = 0;
-      publishSnapshot();
+      opening = (async () => {
+        const bytes = openedBytes ?? await options.documents.read();
+        if (disposed) throw new Error("xlsx_editor_disposed");
+        openedBytes = bytes;
+        const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
+        if (disposed) {
+          if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
+          throw new Error("xlsx_editor_disposed");
+        }
+        if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
+        if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
+        // Production runtimes require this model; legacy injected test ports
+        // can still exercise the shared snapshot seam without a browser grid.
+        const host = outcome.renderModel
+            ? createXlsxModelHost(outcome.renderModel, {
+                sessionId: outcome.document_model_ref,
+                name: options.title ?? options.identity.documentId,
+                sha256: await digestHex(bytes),
+                fileBytes: bytes.byteLength,
+              })
+            : null;
+        if (disposed) {
+          await options.runtime.release(outcome.document_model_ref);
+          throw new Error("xlsx_editor_disposed");
+        }
+        modelRef = outcome.document_model_ref;
+        publishRenderModel(host);
+        currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
+        // Opening a workbook establishes the clean baseline.  The identity
+        // generation is the draft/auth session generation, not a content edit
+        // generation; using it here made the host's checkpoint timer treat an
+        // untouched open as dirty and persist a spurious recovery draft.
+        generation = 0;
+        publishSnapshot();
+      })();
+      try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
     async captureSnapshot() {
@@ -387,12 +411,14 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     async dispose() {
       if (disposed) return;
       disposed = true;
+      onViewStateChange("error");
       if (modelRef) await options.runtime.release(modelRef);
       modelRef = null;
       currentSnapshot = null;
       serialized = null;
       publishRenderModel(null);
       snapshotListeners.clear();
+      readinessListeners.clear();
     },
     async edit(operations) {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
@@ -490,6 +516,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     capability: { ...options.capability, operation: "edit" },
     permissions: { canEdit: !options.readonly && options.capability.status === "available" },
     className: options.editorClassName,
+    onViewStateChange,
   } as never);
-  return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot };
+  return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot, viewReadiness };
 }

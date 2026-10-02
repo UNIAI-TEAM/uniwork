@@ -2,7 +2,7 @@
 // Built by scripts/office/build-xlsx-browser.mjs into dist/xlsx-renderer.mjs;
 // the shared XlsxEditor (packages/views/office/xlsx) consumes the typed
 // surface in shims/xlsx-renderer.d.ts.
-// eslint-disable-next-line import/no-unresolved -- resolved by build-xlsx-browser.mjs (`?xlsx-sheet` plugin)
+// The stylesheet query is resolved by build-xlsx-browser.mjs.
 import rendererSheet from "./xlsx-renderer/styles.css?xlsx-sheet";
 
 export {

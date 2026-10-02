@@ -48,6 +48,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   title,
   className,
   onOpen,
+  onViewStateChange,
   onSelectionChange,
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
@@ -71,6 +72,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
   const translationRef = useRef(t);
   const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
+  const mountRef = useRef<{ documentKey: string; editor: XlsxEditorProps<TSnapshot>["editor"]; replayed: boolean } | null>(null);
   translationRef.current = t;
   sessionPropsRef.current = { editor, open, coordinator, capability, onOpen };
 
@@ -80,6 +82,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const activeCell = selection && activeSheetModel?.name === selection.sheet ? activeSheetModel.cells[selection.address] : undefined;
   const canEdit = typeof editor.edit === "function" && !readOnly;
   const recalcController = editor.recalculate;
+  const rendererLoading = viewState === "ready" && rendererHost !== undefined && !gridReady;
+  const visibleState = rendererLoading ? "opening" : viewState;
+
+  useEffect(() => { onViewStateChange?.(visibleState); }, [onViewStateChange, visibleState]);
 
   const refreshSnapshot = useCallback(() => {
     const next = editor.getWorkbookSnapshot?.();
@@ -125,6 +131,11 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   useEffect(() => {
     const cleanupSession = sessionPropsRef.current;
+    if (mountRef.current?.documentKey === documentKey && mountRef.current.editor === cleanupSession.editor) {
+      mountRef.current.replayed = true;
+    }
+    const mount = { documentKey, editor: cleanupSession.editor, replayed: false };
+    mountRef.current = mount;
     disposedRef.current = false;
 
     const run = async () => {
@@ -190,9 +201,15 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       openAbortRef.current = null;
       recalcAbortRef.current?.abort();
       recalcAbortRef.current = null;
-      void cleanupSession.editor.cancel?.("document_changed");
-      void cleanupSession.coordinator.cancel?.();
-      void cleanupSession.editor.dispose();
+      // React replays effects in development. A replay of these same ports
+      // cancels this queued release; real unmount/document changes release them.
+      queueMicrotask(() => {
+        if (mount.replayed) return;
+        void cleanupSession.editor.cancel?.("document_changed");
+        void cleanupSession.coordinator.cancel?.();
+        void cleanupSession.editor.dispose();
+        if (mountRef.current === mount) mountRef.current = null;
+      });
       openAttemptRef.current = null;
     };
   }, [documentKey]);
@@ -266,14 +283,14 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
-    if (viewState !== "ready" || readOnly) return;
+    if (visibleState !== "ready" || readOnly) return;
     if (!rendererHost) { void coordinator.save(entryPoint); return; }
     void (async () => {
       await commitCell();
       await gridEdits.flush();
       await coordinator.save(entryPoint);
     })().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
-  }, [commitCell, coordinator, gridEdits, readOnly, rendererHost, viewState]);
+  }, [commitCell, coordinator, gridEdits, readOnly, rendererHost, visibleState]);
 
   const recalculate = useCallback(async () => {
     if (!recalcController || readOnly || recalcProgress !== null) return;
@@ -377,7 +394,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="xlsx-open-state">
-          {viewState === "opening" ? t("office.xlsx.state.opening") : viewState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}
+          {visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}
         </span>
       </header>
       {viewState === "ready" ? (
@@ -386,7 +403,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             coordinator={coordinator}
             dirty={dirty}
             saving={saving}
-            readOnly={readOnly}
+            readOnly={readOnly || rendererLoading}
             permissions={{ ...permissions, canCopy: permissions.canCopy !== false && typeof editor.clipboard?.writeText === "function", canPaste: permissions.canPaste !== false && typeof editor.clipboard?.readText === "function" }}
             selection={selection}
             canUndo={gridReady || typeof editor.undo === "function"}

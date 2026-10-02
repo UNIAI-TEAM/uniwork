@@ -5,11 +5,19 @@ import { isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderM
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
 
-/** Loose guard for the additive render_model the G3-05c open job carries. */
+/** Required renderer fields: an older engine must fail clearly instead of
+ * silently mounting the legacy value-only table. */
 function isRenderModel(value: unknown): value is XlsxRenderModel {
   if (!value || typeof value !== "object") return false;
-  const sheets = (value as { sheets?: unknown }).sheets;
-  return Array.isArray(sheets) && (value as { styles?: unknown }).styles !== undefined;
+  const model = value as Partial<XlsxRenderModel>;
+  return Number.isSafeInteger(model.revision) && Number.isSafeInteger(model.activeTab) &&
+    typeof model.date1904 === "boolean" && Array.isArray(model.styles) && Array.isArray(model.dxfStyles) &&
+    [...model.styles, ...model.dxfStyles].every((style) => style !== null && typeof style === "object") &&
+    Array.isArray(model.sheets) && model.sheets.length > 0 && model.sheets.every((sheet) =>
+      sheet !== null && typeof sheet === "object" && typeof sheet.id === "string" && typeof sheet.name === "string" &&
+      Number.isSafeInteger(sheet.rowCount) && sheet.rowCount > 0 && Number.isSafeInteger(sheet.columnCount) && sheet.columnCount > 0 &&
+      sheet.cells !== null && typeof sheet.cells === "object" && !Array.isArray(sheet.cells) &&
+      Array.isArray(sheet.merges) && Array.isArray(sheet.columnWidths) && Array.isArray(sheet.rowsMeta) && Array.isArray(sheet.hyperlinks));
 }
 
 const JOB_TIMEOUT_MS = 120_000;
@@ -111,7 +119,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     return job;
   }
 
-  async function openModel(signal?: AbortSignal): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel?: XlsxRenderModel }> {
+  async function openModel(signal?: AbortSignal): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel: XlsxRenderModel }> {
     const started = await startOfficeJob(options.documentId, { operation: "open", format: "xlsx", base_revision: baseRevision }, { idempotencyKey: `xlsx-open-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`, signal });
     if (!started) throw new Error("office_open_job_malformed");
     activeJob = started.jobId;
@@ -122,7 +130,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     const candidate = value && typeof value === "object" ? (value as { snapshot?: unknown }).snapshot : undefined;
     if (!isXlsxWorkbookSnapshot(candidate)) throw new Error("office_open_snapshot_invalid");
     const renderModel = value && typeof value === "object" ? (value as { render_model?: unknown }).render_model : undefined;
-    return { snapshot: candidate, ...(isRenderModel(renderModel) ? { renderModel } : {}) };
+    if (!isRenderModel(renderModel)) throw new Error("office_open_render_model_invalid");
+    return { snapshot: candidate, renderModel };
   }
 
   async function runServerEdit(edits: OfficeEditOp[], revision: string, signal?: AbortSignal): Promise<Uint8Array> {

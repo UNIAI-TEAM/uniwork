@@ -71,6 +71,12 @@ describe("render model bridge", () => {
     expect(file.date1904).toBe(true);
     expect(file.readOnly).toBe(false);
     expect(file.visuals).toEqual([]);
+    // The pinned viewport loader iterates these even without table/note features.
+    for (const sheet of file.sheets) {
+      expect(sheet.tables).toEqual([]);
+      expect(sheet.comments).toEqual([]);
+      expect(sheet.pivotRanges).toEqual([]);
+    }
   });
 
   it("serves a viewport window with cached formula results and layout", () => {
@@ -86,6 +92,7 @@ describe("render model bridge", () => {
     expect(result.merges).toEqual([{ startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 }]);
     expect(result.hyperlinks).toEqual([{ row: 2, column: 0, target: "https://example.com" }]);
     expect(result.indexedThroughRow).toBe(99);
+    expect(result.indexingComplete).toBe(true);
     // Cells outside the requested window are not materialised.
     expect(result.cells.some((cell) => cell.row === 4 && cell.column === 0)).toBe(true);
     expect(result.cells.some((cell) => cell.column > 1)).toBe(false);
