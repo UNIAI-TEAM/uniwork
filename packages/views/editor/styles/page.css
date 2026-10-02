@@ -48,19 +48,19 @@
   min-width: 7rem;
 }
 
-/* Intrinsic task layout also applies to the read-only public page host. */
-.page-task-item {
+/* Both page hosts override shell.css's inline NodeView at equal specificity. */
+.rich-text-editor .page-task-item {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   min-width: 0;
 }
 
-.page-task-item [data-node-view-content-react] > p {
+.rich-text-editor .page-task-item [data-node-view-content-react] > p {
   margin-block: 0;
 }
 
-.page-task-item[data-checked="true"] > [data-node-view-content] > [data-node-view-content-react] > p {
+.rich-text-editor .page-task-item[data-checked="true"] > [data-node-view-content] > [data-node-view-content-react] > p {
   color: var(--muted-foreground);
 }
 

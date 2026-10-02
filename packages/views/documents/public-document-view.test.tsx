@@ -42,7 +42,11 @@ describe("PublicDocumentView", () => {
       ] }] }, { type: "paragraph" }],
     } } });
     const style = document.createElement("style");
-    style.textContent = readFileSync(new FileURL("../editor/styles/page.css", import.meta.url), "utf8");
+    // Match index.css's shared-wrapper then page order. jsdom does not implement
+    // selector specificity; real-browser checks verify the production cascade.
+    style.textContent = ["shell", "page"]
+      .map((sheet) => readFileSync(new FileURL(`../editor/styles/${sheet}.css`, import.meta.url), "utf8"))
+      .join("\n");
     document.head.appendChild(style);
     try {
       const { container } = render(wrap(<PublicDocumentView token={TOKEN} />));
