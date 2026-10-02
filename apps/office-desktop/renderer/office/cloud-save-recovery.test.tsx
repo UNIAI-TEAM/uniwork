@@ -37,7 +37,7 @@ async function cloudHarness() {
         await controls.refreshWait;
         if (controls.refreshError) throw controls.refreshError;
       }
-      const opened = { document: { ...document }, dataBase64: Buffer.from(savedBytes).toString("base64"), filename: document.title, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", checksum: bytesChecksum(savedBytes) };
+      const opened: DesktopOfficeOpenResponse = { document: { ...document }, dataBase64: Buffer.from(savedBytes).toString("base64"), filename: document.title, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", checksum: bytesChecksum(savedBytes) };
       return controls.modify?.(opened) ?? opened;
     },
     save: async (request) => {

@@ -17,7 +17,13 @@ it("sends the opened snapshot once through coordinator save and blocks a concurr
   const call = vi.fn((channel: string) => {
     if (channel === "desktop:draft-list") return Promise.resolve({ drafts: [] });
     if (channel === "desktop:draft-discard") return Promise.resolve({ discarded: true });
-    return new Promise((resolve) => { complete = resolve; });
+    if (channel === "desktop:office-open") return Promise.resolve({
+      ...opened,
+      document: { id: "doc", workspaceId: "ws", title: "Cloud.docx", kind: "file", format: "docx", version: 3, revision: "3", updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true },
+      filename: "Cloud.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    if (channel === "desktop:office-save") return new Promise((resolve) => { complete = resolve; });
+    throw new Error(`unexpected ${channel}`);
   });
   const session = await openSession({ call: call as never }, identity, opened);
   session.coordinator.markDirty(1);
@@ -28,8 +34,10 @@ it("sends the opened snapshot once through coordinator save and blocks a concurr
   expect(request[0]).toBe("desktop:office-save");
   expect(request[1].dataBase64).toBe(opened.dataBase64);
   complete({ documentId: "doc", intentId: request[1].intentId, idempotencyKey: request[1].idempotencyKey, revision: "3", versionId: "v3", checksum });
-  await expect(first).resolves.toMatchObject({ accepted: true });
-  expect(session.coordinator.getState().identity.baseVersionId).toBe("v3");
+  await expect(first).resolves.toMatchObject({ accepted: true, receipt: { revision: "3", versionId: "v3" } });
+  expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "3" });
+  expect(call).toHaveBeenCalledWith("desktop:office-open", { sessionGeneration: "desktop-dev-session", workspaceId: "ws", documentId: "doc" });
+  expect(call.mock.calls.filter(([channel]) => channel === "desktop:office-save")).toHaveLength(1);
 });
 
 it("routes local Save to the original opaque handle and records a confirmed save", async () => {
