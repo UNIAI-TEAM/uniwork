@@ -22,7 +22,7 @@ $SUDO mkdir -p "$MARKERS"
 # Postgres 16 and Redis 7 are the noble packages (CI: postgres:16, redis:7).
 # postgresql-contrib carries pg_trgm (migration 134).
 packages=(ca-certificates curl git gnupg sudo make jq unzip xz-utils build-essential
-  tzdata procps lsof postgresql-16 postgresql-contrib-16 redis-server)
+  tzdata procps lsof postgresql-16 postgresql-contrib redis-server)
 missing=()
 for p in "${packages[@]}"; do dpkg -s "$p" > /dev/null 2>&1 || missing+=("$p"); done
 if [ "${#missing[@]}" -gt 0 ]; then
@@ -47,7 +47,10 @@ esac
 [ "$(pnpm --version 2>/dev/null)" = "$PNPM_VERSION" ] || $SUDO npm install -g "pnpm@${PNPM_VERSION}"
 
 if [ ! -f "$MARKERS/playwright-deps-$PLAYWRIGHT_VERSION" ]; then
-  $SUDO npx -y "playwright@${PLAYWRIGHT_VERSION}" install-deps chromium
+  # npm 10 treats `npx pkg@version` as a shell command, and a checkout with
+  # packageManager set makes `npm exec` look only at local bins. Run outside
+  # the repo. install-deps escalates with sudo itself.
+  (cd /tmp && npx --yes --package="playwright@${PLAYWRIGHT_VERSION}" -- playwright install-deps chromium)
   $SUDO touch "$MARKERS/playwright-deps-$PLAYWRIGHT_VERSION"
 fi
 

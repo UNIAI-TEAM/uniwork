@@ -34,6 +34,10 @@ Start:
 bash ~/.uniwork-cloud/.cursor/cloud/start.sh
 ```
 
+The setup run saw a fresh agent boot without the start script having run, so
+a test runner calls `bash ~/.uniwork-cloud/.cursor/cloud/start.sh` itself
+before its first command; it is idempotent.
+
 After start, the usual commands work: `make test-go`, `make migrate-up`,
 `bash scripts/test-go.sh`, `pnpm test`, `pnpm --filter <pkg> test`, and the
 e2e flow from the `e2e` job in `ci.yml`.
