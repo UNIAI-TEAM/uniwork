@@ -7,6 +7,9 @@
 // host supplies (desktop's Electron renderer is a DOM host too).
 import { Editor, type JSONContent } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
+// Pulls in the UndoRedo command typings (chain().undo()/redo()) for every
+// consuming program; the desktop host does not resolve them otherwise.
+import type {} from "@tiptap/starter-kit";
 import { createElement, useEffect, useState, type ReactNode } from "react";
 import { installDocxRendererStyles, pmDocOptions } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
