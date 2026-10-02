@@ -69,6 +69,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const openAbortRef = useRef<AbortController | null>(null);
   const recalcAbortRef = useRef<AbortController | null>(null);
   const sheetTabsRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<XlsxGridHandle | null>(null);
   const [gridReady, setGridReady] = useState(false);
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
@@ -396,14 +397,19 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     }
   }, [clipboardFailure, copy, gridReady, paste, redo, undo]);
 
-  const captureSave = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
-    // The native grid stops bubbling key events. Capture Save at the host
-    // boundary, then finish its current edit before freezing the Save prefix.
+  const captureSave = useCallback((event: globalThis.KeyboardEvent) => {
+    if (event.isComposing || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+    // Univer's imperative input has no fiber inside its nested React root,
+    // so JSX capture misses it even though its DOM path crosses this root.
     event.preventDefault();
     event.stopPropagation();
     save("shortcut");
   }, [save]);
+  useEffect(() => {
+    const root = rootRef.current;
+    root?.addEventListener("keydown", captureSave, true);
+    return () => root?.removeEventListener("keydown", captureSave, true);
+  }, [captureSave, documentKey, editor]);
 
   const sheets = snapshot?.sheets ?? [];
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
@@ -414,7 +420,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const saving = coordinatorState.state === "saving";
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDownCapture={captureSave} onKeyDown={keyboardHandler} role="application" aria-busy={visibleState === "opening"} tabIndex={-1}>
+    <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-busy={visibleState === "opening"} tabIndex={-1}>
       {!embedded ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="xlsx-open-state">
