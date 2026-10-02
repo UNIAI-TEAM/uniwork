@@ -28,12 +28,17 @@ const JOB_POLL_MS = 1_000;
 
 function jobError(native: OfficeJobError): Error {
   const rule = dispatchOfficeError({ code: native.code });
+  const known = rule.retryable || (rule.action !== "stop" && !rule.ambiguous);
   return Object.assign(new Error(native.reason ?? native.code), {
     ...native,
+    nativeCode: native.code,
+    // Transport ambiguity aliases are not native engine rules. A future
+    // native code with one of those names must still terminally refuse.
+    code: !known && rule.ambiguous ? "office_unknown_error" : native.code,
     // A raw native kind (e.g. malformed_result) is not an Office error class.
     // Unknown codes must not cause automatic attempts via the raw true flag.
-    retryable: rule.action !== "stop" && native.retryable,
-    errorClass: rule.action !== "stop" && native.code.startsWith("engine_") ? "engine" : "unknown",
+    retryable: known && native.retryable,
+    errorClass: known && native.code.startsWith("engine_") ? "engine" : "unknown",
   });
 }
 

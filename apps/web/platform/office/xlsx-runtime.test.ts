@@ -297,11 +297,11 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     expect(persisted).toHaveBeenCalledOnce();
     expect(editRequests()[3].edits).toEqual([valueEdit(7)]);
   });
-  it("default denies an unknown native code even with retryable=true", async () => {
+  it.each(["new_native_code", "network_error", "request_aborted"])("default denies native %s even with retryable=true", async code => {
     const { coordinator, documents } = await setup();
-    api.get.mockResolvedValue(failed("new_native_code"));
+    api.get.mockResolvedValue(failed(code));
     await coordinator.save();
-    expect(coordinator.getState().error).toMatchObject({ code: "new_native_code", action: "stop", retryable: false, errorClass: "unknown" });
+    expect(coordinator.getState().error).toMatchObject({ action: "stop", retryable: false, errorClass: "unknown" });
     expect(editRequests()).toHaveLength(1);
     expect(await coordinator.retry()).toEqual({ accepted: false, reason: "error" });
     expect(editRequests()).toHaveLength(1);
