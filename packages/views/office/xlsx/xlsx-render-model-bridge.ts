@@ -155,6 +155,9 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet 
   };
 }
 
+/** A1 address for a 0-based row/column (shared with the editor selection). */
+export const toA1Address = (row: number, column: number): string => A1(row, column);
+
 const A1 = (row: number, column: number): string => {
   let name = "";
   for (let value = column + 1; value > 0; value = Math.floor((value - 1) / 26)) {
