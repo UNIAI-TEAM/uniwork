@@ -23,7 +23,7 @@ import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
 import { leaveRequestedEventSchema } from "./shared/ipc";
-import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
+import type { DraftIdentity, DraftMetadata, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -254,11 +254,17 @@ async function startElectronHost(): Promise<void> {
   } }) : undefined;
   // The library context is the only main-side source that maps a workspace id
   // to its organization; caching it keeps a cloud draft identity resolvable
-  // without another renderer-supplied field.
+  // without another renderer-supplied field. A library listing also means the
+  // renderer left the editor, so the live document context is cleared here
+  // instead of lingering until window close.
   const cachedOfficeTransport = officeTransport ? { ...officeTransport, context: async () => {
     const context = await officeTransport.context();
     for (const workspace of context.workspaces) if (workspace.organizationId) organizationByWorkspace.set(workspace.id, workspace.organizationId);
     return context;
+  }, list: async (input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }) => {
+    activeDocument = undefined;
+    activeDocumentId = undefined;
+    return officeTransport.list(input);
   } } : undefined;
   const cloudDraftIdentity = (document: { id: string; workspaceId: string; version: number; revision: string }): DraftIdentity | undefined => {
     if (!deploymentProfile) return undefined;
@@ -299,20 +305,29 @@ async function startElectronHost(): Promise<void> {
   let lastConfirmedSaveAt = 0;
   const noteConfirmedSave = () => { lastConfirmedSaveAt = Date.now(); };
   const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => { noteConfirmedSave(); consumeLocalCheckpoint(metadata); };
-  const activeDrafts = async () => {
+  /** `null` means the store read failed: every verifier treats that as
+   * unconfirmed, never as "nothing to check". */
+  const activeDrafts = async (): Promise<readonly DraftMetadata[] | null> => {
     const active = activeDocument;
     if (!active) return [];
     try {
       return await draftStore.list({ session: draftScope(), lookup: { deploymentId: active.identity.deploymentId, accountId: active.identity.accountId, organizationId: active.identity.organizationId, workspaceId: active.identity.workspaceId, documentId: active.identity.documentId, base: active.identity.base } });
-    } catch { return []; }
+    } catch { return null; }
   };
   const leave = createDesktopLeaveCoordinator({
     send: (request) => { window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
-    confirmKeep: async () => (await activeDrafts()).length > 0,
+    confirmKeep: async () => { const rows = await activeDrafts(); return rows !== null && rows.length > 0; },
     // A save choice needs a fresh main-observed receipt whenever the store holds
-    // unsaved evidence for the live document; with nothing to save, nothing to prove.
-    confirmSave: async (issuedAt) => activeDocument === undefined || (await activeDrafts()).length === 0 || lastConfirmedSaveAt >= issuedAt,
-    confirmDiscard: async () => (await activeDrafts()).length === 0,
+    // unsaved evidence for the live document; with nothing to save, nothing to
+    // prove. A failed store read is unconfirmed, never "nothing pending".
+    confirmSave: async (issuedAt) => {
+      if (activeDocument === undefined) return true;
+      const rows = await activeDrafts();
+      if (rows === null) return false;
+      if (rows.length === 0) return true;
+      return lastConfirmedSaveAt >= issuedAt;
+    },
+    confirmDiscard: async () => { const rows = await activeDrafts(); return rows !== null && rows.length === 0; },
     timeoutMs: 60_000,
   });
   let closeApproved = false;

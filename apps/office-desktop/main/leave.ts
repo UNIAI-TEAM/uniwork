@@ -53,7 +53,9 @@ export function createDesktopLeaveCoordinator(options: DesktopLeaveCoordinatorOp
         pending = { requestId, timer, settle: (value) => { clearTimeout(timer); pending = undefined; resolve(value); } };
         options.send({ requestId, reason });
       });
-      if (!resolution.proceeded) return { requestId, choice: resolution.choice, proceeded: false, ...(timedOut ? { code: "timeout" as const } : {}) };
+      // `stay` is never a proceed, whatever the renderer claims.
+      const proceeded = resolution.choice === "stay" ? false : resolution.proceeded;
+      if (!proceeded) return { requestId, choice: resolution.choice, proceeded: false, ...(timedOut ? { code: "timeout" as const } : {}) };
       const verifier = resolution.choice === "keep" ? options.confirmKeep
         : resolution.choice === "save" ? (options.confirmSave ? () => options.confirmSave!(issuedAt) : undefined)
         : resolution.choice === "discard" ? options.confirmDiscard

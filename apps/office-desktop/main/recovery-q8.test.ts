@@ -17,8 +17,8 @@ const SESSION_GENERATION = "desktop-dev-session";
 const bytes = (...values: number[]) => Uint8Array.from(values);
 const encoded = (value: Uint8Array) => Buffer.from(value).toString("base64");
 
-function identity(accountId: string, base = BASE): DraftIdentity {
-  return { deploymentId: DEPLOYMENT, accountId, organizationId: "org-1", workspaceId: WORKSPACE, documentId: DOCUMENT, base };
+function identity(accountId: string, base = BASE, documentId = DOCUMENT): DraftIdentity {
+  return { deploymentId: DEPLOYMENT, accountId, organizationId: "org-1", workspaceId: WORKSPACE, documentId, base };
 }
 
 function session(accountId: string, generation = 1): DraftSession {
@@ -155,6 +155,17 @@ it("Q8 a corrupt envelope is a typed locked state and is never replaced", async 
   await expect(q8.recover("draft-a")).rejects.toMatchObject({ code: "draft_recovery_locked" });
   await expect(q8.checkpoint(bytes(2), "draft-a", 2)).rejects.toMatchObject({ code: "draft_recovery_locked" });
   expect(await fs.readFile(rowFile!, "utf8")).toBe("{ not-json");
+});
+
+it("Q8 a draft id alone cannot consume another document's row, and the account offer can discard without an open document", async () => {
+  const q8 = await harness();
+  await q8.checkpoint(bytes(1), "draft-a");
+  const otherDocument = createDraftIpcHandlers({ store: q8.store, context: () => ({ session: session("account-a"), identity: identity("account-a", BASE, "doc-2") }), currentBase: () => BASE });
+  await expect(otherDocument["desktop:draft-discard"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", generation: 1 })).rejects.toMatchObject({ code: "forbidden" });
+  expect(await q8.draftFiles()).toHaveLength(1);
+  const accountOffer = createDraftIpcHandlers({ store: q8.store, context: () => undefined, accountSession: () => session("account-a"), currentBase: () => BASE });
+  await expect(accountOffer["desktop:draft-discard"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", generation: 1 })).resolves.toEqual({ discarded: true });
+  expect(await q8.draftFiles()).toHaveLength(0);
 });
 
 it("Q8 a blocked or locked draft has no export, copy or clipboard path", () => {

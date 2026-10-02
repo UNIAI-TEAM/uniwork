@@ -260,8 +260,18 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     },
     "desktop:draft-discard": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number }>) => {
       try {
-        const current = context();
-        await options.store.deleteDurable({ session: current.session, draftId: request.draftId, generation: request.generation });
+        const current = options.context?.() ?? (options.session && options.identity ? { session: options.session, identity: options.identity } : undefined);
+        // A discard may also come from the account-level offer, where no
+        // document is open: the live account session is then the only scope.
+        const session = current?.session ?? options.accountSession?.();
+        if (!session) throw new DraftIpcError("token_expired");
+        // Bind the row to the live scope before deleting: a draft id alone must
+        // never let one document (or account) consume another's row.
+        const row = (await options.store.list({ session })).find((candidate) => candidate.draftId === request.draftId);
+        if (!row) return { discarded: true };
+        if (row.identity.accountId !== session.accountId || row.identity.deploymentId !== session.deploymentId) throw new DraftIpcError("forbidden");
+        if (current && row.identity.documentId !== current.identity.documentId) throw new DraftIpcError("forbidden");
+        await options.store.deleteDurable({ session, draftId: request.draftId, generation: request.generation });
         return { discarded: true };
       } catch (error) { translateDraftError(error); }
     },

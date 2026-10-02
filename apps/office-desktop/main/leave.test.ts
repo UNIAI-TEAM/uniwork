@@ -44,6 +44,20 @@ describe("desktop leave coordinator", () => {
     expect(requests[1]!.requestId).not.toBe(requests[0]!.requestId);
   });
 
+  it("never proceeds on a stay answer, even when the renderer claims proceeded", async () => {
+    const { coordinator, requests } = harness({ confirmSave: async () => true });
+    const pending = coordinator.request("close");
+    coordinator.resolve(answer(requests[0]!.requestId, "stay", true));
+    await expect(pending).resolves.toMatchObject({ choice: "stay", proceeded: false });
+  });
+
+  it("fails closed when a verifier cannot read the store", async () => {
+    const { coordinator, requests } = harness({ confirmKeep: async () => false });
+    const pending = coordinator.request("logout");
+    coordinator.resolve(answer(requests[0]!.requestId, "keep", true));
+    await expect(pending).resolves.toMatchObject({ choice: "stay", proceeded: false, code: "unconfirmed" });
+  });
+
   it("refuses a second decision while one is outstanding", async () => {
     const { coordinator, requests } = harness();
     const first = coordinator.request("close");
