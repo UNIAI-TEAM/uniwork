@@ -147,8 +147,23 @@ test("the real engine container advertises the pin and the honesty rule", async 
       assert.equal(convert?.supported, false, "convert must stay unbound for " + format);
       assert.match(convert?.reason ?? "", /q7 converter/i);
     }
+    // Keep this list in sync with capability.ts PROVEN_BOUND_OPERATIONS;
+    // that private TS registry cannot be imported by this dependency-free test.
+    const provenXlsxOperations = ["open", "edit", "serialize"];
+    if (format === "xlsx") {
+      for (const operation of provenXlsxOperations) {
+        const row = body.capabilities.find((candidate) => candidate.operation === operation);
+        assert.equal(row?.supported, true, "proven XLSX loop must be bound: " + operation);
+        assert.equal(row?.runtime, "internal_service");
+        assert.equal(row?.evidence_level, "proven");
+        assert.match(row?.reason ?? "", /G3-05b real-loop evidence/);
+      }
+    }
     for (const row of body.capabilities) {
-      if (row.supported && row.operation !== "convert") assert.equal(row.evidence_level, "pending");
+      if (row.supported && row.operation !== "convert") {
+        const provenXlsxLoop = format === "xlsx" && provenXlsxOperations.includes(row.operation);
+        assert.equal(row.evidence_level, provenXlsxLoop ? "proven" : "pending");
+      }
       assert.ok(row.operation && row.runtime, "capability row without an operation/runtime");
     }
   }
