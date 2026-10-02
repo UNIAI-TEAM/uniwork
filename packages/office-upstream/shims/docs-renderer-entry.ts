@@ -3,6 +3,9 @@ import rendererSheet from "../upstream/apps/docs/src/renderer/styles.css?docx-sh
 export { editorExtensions } from "../upstream/apps/docs/src/renderer/editor/extensions";
 export { blocksToPmDoc, pmDocToSavePlan, pmDocOptions, inlineToRuns, pmNodeToGeneratedBlock } from "../upstream/apps/docs/src/renderer/editor/convert";
 export { parseDocx, saveDocx, readSections } from "../upstream/packages/docx-engine/src/index";
+export { PageFootnotes, PageEndnotes } from "../upstream/apps/docs/src/renderer/components/PageNoteAreas";
+export { setNoteNumFmts } from "../upstream/apps/docs/src/renderer/note-format";
+export { endnotesAnchorY } from "../upstream/apps/docs/src/renderer/pagination-measure";
 // G3-04c T-02 (UNI-823): the pagination engine and the HF strip builders. The
 // UniWork handle is the App for this renderer, so it drives measure -> slice ->
 // gap itself; these are the vendored pure functions that loop calls.

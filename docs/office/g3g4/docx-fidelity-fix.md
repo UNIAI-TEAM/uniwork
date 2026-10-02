@@ -88,8 +88,9 @@ typography) one newly vendored engine module — no serializer or save-path chan
   to their content. (Uniform multi-column pages skip the pad — the browser compresses the
   flow; mixed-column pages use `slice.physHeight` and pull the gap up instead — both ported
   with the same expressions.)
-- Fix (host driver): port the `pad`/`pullUp` computation into `buildPaginationFrame` and add
-  it to every gap kind's `marginBottom` (block, inline, and the new in-table gap).
+- Fix (host driver): port the `pad`/`pullUp` computation into `buildPaginationFrame` for
+  block and in-table cuts. Inline cuts retain the measured line boundary without pad,
+  matching the upstream App's separate inline path (see the r2 findings below).
 - Pinning tests: `docx-pagination.test.ts` — a short page before a forced break yields a gap
   whose `marginBottom` includes the shortfall and a frame height equal to the page box; the
   last page's frame is a full sheet.
@@ -124,3 +125,22 @@ typography) one newly vendored engine module — no serializer or save-path chan
   required) a numbered fail-loud patch under `packages/office-upstream/patches/`.
 - `vendor-upstream --check`, `check-boundaries`, `knip`, typecheck/lint/test for the touched
   packages, and the scripts suites run before the Tester stage.
+
+## Real-browser r2 findings after `8e2a8c38`
+
+The first r2 capture confirmed the column and repeated-row structure and document
+styles, but showed three remaining host omissions. These are measured against the
+accepted tolerance; fidelity remains for the user to sign.
+
+| Finding | Root cause at `8e2a8c38` | Fix and regression evidence |
+| --- | --- | --- |
+| Final column/table wrap differs by 26px; Vietnamese/table-image/table notes are absent | The host mounts only `EditorContent`, while upstream mounts `PageFootnotes` and `PageEndnotes` after it. The source `.page-notes` flow margin/padding changes the page-wrap height and paints the original footnote at the page bottom. | Vendor `apps/docs/src/renderer/components/PageNoteAreas.tsx` through SELECTION (already covered by the source-manifest `apps/docs` allowlist). Patch 0005 adds opt-in `readOnly`, hiding note edit/delete buttons. Mount the source components and source `endnotesAnchorY` helper. `docx-note-areas.test.tsx` parses the Vietnamese fixture, adds an endnote part in memory, and pins both display areas plus the measured endnote anchor. No new package or save/serializer change. |
+| HF pages 3/5/7 grow by 8/15/15px, accumulating 38px displacement | The initial R3 port adds underflow pad to mid-paragraph inline cuts. Upstream uses plain metrics for these cuts; only block/table boundaries absorb underflow. | Use plain metrics in the inline path. `docx-frame-inline.test.ts` checks a line cut 15px before capacity keeps the plain bottom margin; existing block/table tests continue to pin full sheets. |
+| Edge HF fallback font differs from the oracle | The host copies the body PM font and line-height to the edge-strip host; the upstream `HeaderFooterArea` inherits the page-wrap UI fallback, with explicit typed runs styled separately. | Remove the body-font mirror. Source `makeGapHfEl` still owns typed run styles and page numbering. Real-browser computed styles and sheet diffs verify the resulting edge strips. |
+| Vietnamese body/table pixels still differ after note mounting | Tailwind Preflight sets `sup` to zero line-height, relative positioning and baseline alignment; genoffice uses native superscript layout. The note-ref paragraph is 19.3125px versus 20.203125px in the oracle, moving every later block by 0.890625px. | The host's scoped renderer-sheet packaging restores native sup/sub line layout without changing source bytes, note text, font size or document serialization. The browser probe records body-block and note-ref geometry on both sides. |
+
+Raster origins also differ by 0.5px because the two application shells center the
+same sheet at different fractional viewport coordinates. Both r2 drivers use the
+same rounding correction on the whole `.page-wrap` before capture; document-local
+geometry is unchanged. Before/after measurements and the exact driver change are
+recorded in `reports/g3-d3-docx-r2/`, separate from product fixes.

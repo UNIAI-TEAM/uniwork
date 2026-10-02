@@ -23,6 +23,22 @@ export interface RendererParsed {
   blocks: RendererBlock[];
   [key: string]: unknown;
 }
+export interface RendererNote {
+  id: string;
+  text: string;
+  noRefMark?: true;
+}
+interface RendererNoteAreaProps {
+  notes: RendererNote[];
+  numberOf?: (note: RendererNote, index: number) => number;
+  readOnly?: boolean;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+export function PageFootnotes(props: RendererNoteAreaProps & { skipIds: ReadonlySet<string> }): import("react").ReactNode;
+export function PageEndnotes(props: RendererNoteAreaProps & { top: number | null }): import("react").ReactNode;
+export function endnotesAnchorY(pm: HTMLElement, baseTop: number, factor: number): number | null;
+export function setNoteNumFmts(props: { footnote?: { numFmt?: string }; endnote?: { numFmt?: string } }): void;
 export const editorExtensions: Extensions;
 export const DOCX_RENDERER_STYLE_ELEMENT_ID: string;
 /** Mounts the vendored renderer stylesheet (scoped to `.docx-surface`) once per document. */

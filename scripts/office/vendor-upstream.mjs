@@ -71,6 +71,8 @@ export const SELECTION = [
   // docThemeCss / docLineFactor). Without it the surface renders the
   // stylesheet's own defaults instead of styles.xml + theme (G3-D3 T).
   'apps/docs/src/renderer/doc-style-css.ts',
+  // G3-04d: display-only footnote/endnote areas; locale uses the existing shim.
+  'apps/docs/src/renderer/components/PageNoteAreas.tsx',
   'packages/ui/src/tokens.css',
   'apps/docs/src/renderer/line-metrics.ts',
   'apps/docs/src/renderer/font-list.ts',

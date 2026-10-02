@@ -35,12 +35,14 @@ test('the built artifact carries the patched symbols (a no-op series must fail)'
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'docs-renderer-build.json'), 'utf8'));
   assert.ok(record.patchesApplied.some((p) => p.patch.startsWith('0003')), 'patch 0003 recorded as applied');
   assert.ok(record.patchesApplied.some((p) => p.patch.startsWith('0004')), 'patch 0004 recorded as applied');
+  assert.ok(record.patchesApplied.some((p) => p.patch.startsWith('0005')), 'patch 0005 recorded as applied');
   assert.deepEqual(
     (record.patchedSymbols ?? []).map((s) => s.symbol),
-    ['formulaLatexEdit', '.docx-surface'],
+    ['page-note-readonly', 'formulaLatexEdit', '.docx-surface'],
     'the build records the enforced patched symbols',
   );
   const artifact = fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'docs-renderer.mjs'), 'utf8');
   assert.ok(artifact.includes('formulaLatexEdit'), 'artifact carries the 0003 formula-edit option');
+  assert.ok(artifact.includes('page-note-readonly'), 'artifact carries the 0005 display-only note option');
   assert.match(artifact, /querySelector\(["']\.docx-surface["']\)\s*\?\?\s*document\.body/, 'artifact carries the 0004 scoped hf-probe mount');
 });

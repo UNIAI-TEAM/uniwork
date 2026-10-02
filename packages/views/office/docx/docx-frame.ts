@@ -337,7 +337,9 @@ export function buildPaginationFrame(input: {
     const anchor = crossing?.el ? lineStartAnchor(crossing.el, slice.start - crossing.top, factor) ?? nextLineAnchor(crossing.el, slice.start - crossing.top, factor) : null;
     const pos = anchor && view ? posFromAnchor(view, anchor) : undefined;
     if (pos !== undefined) {
-      gaps.push({ pos, kind: "inline", ...shared });
+      // Upstream inline cuts use the measured line boundary directly. Underflow
+      // padding is reserved for a block boundary (including an explicit break).
+      gaps.push({ pos, kind: "inline", ...shared, metrics });
       continue;
     }
     const next = blocks.find((block) => block.el && block.top >= slice.start - 0.5);
@@ -472,15 +474,8 @@ export function mountEdgeHf(
 ): void {
   const host = wrap.querySelector<HTMLElement>(":scope > .docx-page-hf-host");
   if (!host) return;
-  // F-1 (visual r1): the gap strips live inside the editor root and inherit the
-  // document typography; the edge strips are siblings of it, so mirror the
-  // editor root's computed font on the host (family + line metrics).
-  const editorRoot = wrap.querySelector<HTMLElement>(".doc-page");
-  if (editorRoot) {
-    const computed = getComputedStyle(editorRoot);
-    host.style.fontFamily = computed.fontFamily;
-    host.style.lineHeight = computed.lineHeight;
-  }
+  // Edge strips inherit the page-wrap typography, like HeaderFooterArea upstream.
+  // A body theme face (e.g. Cambria) must not replace their declared/default face.
   host.replaceChildren();
   const add = (kind: "header" | "footer", strip: PaginationEdgeHfStrip) => {
     if (!strip.piece.value || !hfHasVisibleContent(strip.piece.value, strip.piece.images)) return;
