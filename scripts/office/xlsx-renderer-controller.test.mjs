@@ -95,10 +95,11 @@ test('shifted native inline keys commit before reverse navigation, serialize con
     let finish;
     mounted.workbook.endEditingAsync = () => new Promise(resolve => { finish=resolve; });
     const first = mounted.key({key:'Tab'});
+    mounted.h.editing = false;
     const second = mounted.key({key:'Enter'});
     assert.ok(first.prevented && first.stopped && second.prevented);
     assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection').length,0);
-    mounted.h.editing=false;finish(true);
+    finish(true);
     await new Promise(resolve=>setImmediate(resolve));
     const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection');
     assert.equal(movement.length,1);

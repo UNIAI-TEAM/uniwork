@@ -12,6 +12,7 @@ export function installShiftedNavigation(
   let disposed = false;
   let composing = false;
   let pending = false;
+  let pendingTarget: HTMLElement | null = null;
   let interaction = 0;
   const pointerdown = () => { interaction += 1; };
   const compositionStart = () => { composing = true; interaction += 1; };
@@ -24,6 +25,11 @@ export function installShiftedNavigation(
     if (!target || target !== container.ownerDocument.activeElement || !container.contains(target) ||
       !target.isContentEditable || target.id !== "__editor___INTERNAL_EDITOR__DOCS_NORMAL" ||
       target.getAttribute("data-u-comp") !== "editor") return;
+    if (pending && target === pendingTarget) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const state = ports.getState();
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheet = workbook?.getActiveSheet();
@@ -34,6 +40,7 @@ export function installShiftedNavigation(
     event.stopImmediatePropagation();
     if (pending || event.repeat) return;
     pending = true;
+    pendingTarget = target;
     const key = event.key;
     const capturedInteraction = interaction;
     void (async () => {
@@ -53,7 +60,7 @@ export function installShiftedNavigation(
         target.focus({ preventScroll: true });
       }
     })().catch(() => { if (!disposed && ports.getState() === state) ports.onFailure(); })
-      .finally(() => { pending = false; });
+      .finally(() => { pending = false; pendingTarget = null; });
   };
   container.addEventListener("compositionstart", compositionStart, true);
   container.addEventListener("compositionend", compositionEnd, true);

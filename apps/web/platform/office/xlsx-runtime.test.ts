@@ -327,4 +327,23 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     await engine.serialize("model", { intentId: "cancel", snapshot: stable(engine) });
     expect(editRequests()).toHaveLength(2);
   });
+  it("preserves transport AbortError through coordinator cancel without automatic retries and later reuses the intent", async () => {
+    const { engine, coordinator, documents, persisted } = await setup();
+    api.get.mockImplementationOnce((_documentId, _jobId, signal: AbortSignal) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true });
+    }));
+    const saving = coordinator.save();
+    await vi.waitFor(() => expect(editRequests()).toHaveLength(1));
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    await coordinator.cancel();
+    expect(await saving).toEqual({ accepted: false, reason: "error" });
+    expect(coordinator.getState().error).toMatchObject({ code: "request_aborted", action: "reconcile", retryable: false });
+    expect(editRequests()).toHaveLength(1);
+    expect(documents.upload).not.toHaveBeenCalled();
+    await engine.edit("model", [valueEdit(8)]);
+    coordinator.markDirty(stable(engine).generation);
+    expect(await coordinator.retry()).toMatchObject({ accepted: true });
+    expect(persisted).toHaveBeenCalledOnce();
+    expect(editRequests()[1].edits).toEqual([valueEdit(7)]);
+  });
 });
