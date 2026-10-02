@@ -40,7 +40,12 @@ export function OpenByteDocument({ identity, session, title, onBack, active = tr
   } }), [capability, identity.documentId, session, title]);
   return <>{offer ? <DraftRecoveryPrompt open={active} metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
     onOpenChange={(open) => { if (!open) setOffer(null); }}
-    onRecover={async () => { const applied = await session.recoverDraft(offer.metadata); setRecovered(applied); if (applied) setOffer(null); return applied; }}
+    onRecover={async () => {
+      const outcome = await session.recoverDraft(offer.metadata);
+      if (outcome === "locked") { setNotice("locked"); setOffer(null); return true; }
+      const applied = outcome === "recovered";
+      setRecovered(applied); if (applied) setOffer(null); return applied;
+    }}
     onKeep={async () => { setOffer(null); return true; }}
     onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
     <OfficeShell title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && session.canSave}

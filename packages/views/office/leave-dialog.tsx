@@ -27,6 +27,9 @@ export interface LeaveDialogProps {
   onKeepDraft: () => Promise<boolean>;
   onDiscard: () => Promise<boolean>;
   onChoice?: (choice: LeaveChoice) => void;
+  /** Overrides the account save wording for a leave set that saves to the
+   * device instead of the UniWork library. */
+  saveLabel?: string;
 }
 
 export interface DraftRecoveryPromptProps {
@@ -55,6 +58,7 @@ export function LeaveDialog({
   onKeepDraft,
   onDiscard,
   onChoice,
+  saveLabel,
 }: LeaveDialogProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.leave" });
   const [pending, setPending] = useState<LeaveChoice | null>(null);
@@ -114,7 +118,7 @@ export function LeaveDialog({
         {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
         <DialogFooter className="sm:flex-col sm:items-stretch">
           <Button type="button" onClick={() => void run("save", onSave)} disabled={Boolean(pending) || saving}>
-            {pending === "save" ? t("working") : t("save")}
+            {pending === "save" ? t("working") : (saveLabel ?? t("save"))}
           </Button>
           <Button type="button" variant="outline" onClick={() => void run("keep", onKeepDraft)} disabled={Boolean(pending)}>
             {pending === "keep" ? t("working") : t("keep")}

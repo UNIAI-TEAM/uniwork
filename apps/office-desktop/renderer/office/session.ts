@@ -31,6 +31,10 @@ export type DraftRecoveryView =
   | { readonly status: "found"; readonly metadata: DesktopDraftMetadata; readonly conflict: boolean }
   | { readonly status: "blocked" | "locked" | "unavailable" };
 
+/** A locked store is a reasoned answer, not a generic failure: the screen
+ * shows the typed locked notice for it instead of the retry copy. */
+export type DraftRecoverOutcome = "recovered" | "locked" | "failed";
+
 /** Byte-preserving adapter until G3 supplies a content editing surface. It
  * owns the renderer half of the ONE 04b draft store: every checkpoint crosses
  * the typed IPC seam, a confirmed save consumes exactly the committed draft,
@@ -239,19 +243,25 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     },
     /** Lists this document's drafts and reports the newest one for its base. */
     listDrafts: recoverView,
-    /** Recover applies the chosen durable draft into the editor bytes. */
-    async recoverDraft(metadata: DesktopDraftMetadata): Promise<boolean> {
+    /** Recover applies the chosen durable draft into the editor bytes. A locked
+     * store keeps its own outcome so the screen can show the typed locked
+     * notice instead of the generic write-failed copy. */
+    async recoverDraft(metadata: DesktopDraftMetadata): Promise<DraftRecoverOutcome> {
       try {
         const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId: metadata.draftId, currentBase: { revision: identity.baseRevision, version: identity.baseVersionId } }));
-        if (result.status !== "recovered") return false;
+        if (result.status === "locked") return "locked";
+        if (result.status !== "recovered") return "failed";
         bytes = decode(result.dataBase64);
         generation += 1;
         generationFloor = Math.max(generationFloor, result.metadata.generation);
         durableRows.set(result.metadata.draftId, result.metadata.generation);
         checkpoint = null;
         baseCoordinator.markDirty(generation);
-        return true;
-      } catch { return false; }
+        return "recovered";
+      } catch (error) {
+        if ((error as { code?: string }).code === "draft_recovery_locked") return "locked";
+        return "failed";
+      }
     },
     dispose: () => { void editor.dispose(); },
     get snapshotChecksum(): string { return opened.checksum; },

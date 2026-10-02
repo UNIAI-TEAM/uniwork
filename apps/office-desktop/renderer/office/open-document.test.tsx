@@ -79,6 +79,20 @@ it("renders the typed locked notice instead of a generic found-draft prompt", as
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
 });
 
+it("shows the typed locked notice when recovery is refused by a locked store", async () => {
+  const { calls } = mount(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [draft] };
+    if (channel === "desktop:draft-recover") return { status: "locked", metadata: draft, code: "draft_recovery_locked" };
+    return {};
+  });
+  expect(await screen.findByText(i18n.t("office.recovery.title"))).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.recovery.recover") }));
+  await waitFor(() => expect(calls.some((call) => call.channel === "desktop:draft-recover")).toBe(true));
+  await waitFor(() => expect(document.querySelector('[data-testid="office-recovery-locked"]')).not.toBeNull());
+  expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
+  expect(screen.queryByText(i18n.t("office.recovery.write_failed"))).not.toBeInTheDocument();
+});
+
 it("shows no recovery prompt when the store holds no draft for this document", async () => {
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
   await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument());

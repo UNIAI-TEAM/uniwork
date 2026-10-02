@@ -214,6 +214,18 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   expect(screen.queryByRole("tab", { name: /Local\.docx/ })).toBeNull();
 });
 
+it("keeps the protection warning visible while the sign-in card is shown", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Local\.docx/ });
+  await edit(`file_${"f".repeat(32)}`);
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 5_000 });
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") }));
+  await waitFor(() => expect(h.container.querySelector("[data-login-state]")).not.toBeNull());
+  expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument();
+});
+
 it("clears the protective-checkpoint warning once a local save is confirmed", async () => {
   const h = harness({ localMode: true });
   await enterLocal(h);
@@ -264,6 +276,9 @@ it("keeps the leave dialog reachable while the sign-in card is shown", async () 
   h.emitLeave("close");
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText(i18n.t("office.leave.title"))).toBeInTheDocument();
+  // A device-local leave set saves to the machine, not the UniWork library.
+  expect(within(dialog).getByRole("button", { name: i18n.t("officeDesktop.local.leaveSave") })).toBeInTheDocument();
+  expect(within(dialog).queryByRole("button", { name: i18n.t("office.leave.save") })).toBeNull();
   fireEvent.click(within(dialog).getAllByRole("button", { name: i18n.t("office.leave.stay") })[0]!);
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-r5", choice: "stay", proceeded: false })));
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));

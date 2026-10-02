@@ -7426,6 +7426,7 @@
       "updated": "Last opened {{time}}",
       "unsupported": "Only DOCX files on this device are supported.",
       "saveAs": "Save as…",
+      "leaveSave": "Save on this device",
       "home": "Back to on-device home"
     },
     "ai": {

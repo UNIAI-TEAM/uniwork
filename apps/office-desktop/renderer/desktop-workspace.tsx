@@ -300,13 +300,21 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
   // Dialogs and alerts have no mode dependency: the leave contract must hold
   // while the sign-in card is shown too (close/update, deep-link prompt).
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
+  const deviceLeaveSet = affected.length > 0 && affected.every((tab) => tab.data.kind === "local");
+  const alerts = <>
+    {actionError ? <p role="alert" className="p-4 text-body text-destructive">{actionError}</p> : null}
+    {syncError ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.sessionError")}</p> : null}
+    {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
+  </>;
   const leaveDialog = <LeaveDialog open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
+    saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
     onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
 
   if (mode === "login") {
     return (
       <div className="flex h-full min-h-0 flex-col">
         <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
+        {alerts}
         <LoginScreen state={loginState} onStart={onLoginStart} onCancel={onLoginCancel} onOpenLocal={() => onUseLocal("open-local")} onUseLocal={() => onUseLocal("home")} />
         {leaveDialog}
       </div>
@@ -324,9 +332,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, onLoginSt
       event.preventDefault(); const file = event.dataTransfer.files[0];
       if (file && bridge.openDroppedFile && canOpen()) void perform(() => bridge.openDroppedFile!(file), acceptLocal);
     }}>
-      {actionError ? <p role="alert" className="p-4 text-body text-destructive">{actionError}</p> : null}
-      {syncError ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.sessionError")}</p> : null}
-      {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
+      {alerts}
       <div role="tabpanel" id={`desktop-panel-${homeKind}`} aria-labelledby={`desktop-tab-${homeKind}`} hidden={tabs.activeTabId !== null} inert={tabs.activeTabId !== null} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === null}>
         {mode === "local"
           ? <LocalHomeView files={recents.files} error={recents.error} busy={busy} onOpen={openLocal} onCreate={createLocal} onOpenRecent={openRecent} onRemoveRecent={(id) => { void recents.remove(id).then((removed) => { if (!removed) setActionError(t("officeDesktop.library.actionError")); }); }} onRetry={recents.reload} />

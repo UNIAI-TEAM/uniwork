@@ -72,7 +72,7 @@ it("reports a failed keep and refuses recovery when the store refuses", async ()
   await expect(session.keepDraft()).resolves.toBe(true);
   session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(false);
-  await expect(session.recoverDraft(draft)).resolves.toBe(false);
+  await expect(session.recoverDraft(draft)).resolves.toBe("failed");
   await expect(session.discardDraft()).resolves.toBe(true);
 });
 
@@ -91,6 +91,20 @@ it("lists drafts and distinguishes conflict, locked, blocked and unavailable sto
   await expect(createByteDocumentSession(unavailable.bridge, identity, opened).listDrafts()).resolves.toEqual({ status: "unavailable" });
 });
 
+it("reports a locked store as its own recover outcome instead of a generic failure", async () => {
+  const refused = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [draft] };
+    if (channel === "desktop:draft-recover") return { status: "locked", metadata: draft, code: "draft_recovery_locked" };
+    return {};
+  });
+  await expect(createByteDocumentSession(refused.bridge, identity, opened).recoverDraft(draft)).resolves.toBe("locked");
+  const thrown = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [draft] };
+    throw Object.assign(new Error("draft operation refused"), { code: "draft_recovery_locked" });
+  });
+  await expect(createByteDocumentSession(thrown.bridge, identity, opened).recoverDraft(draft)).resolves.toBe("locked");
+});
+
 it("recovers the chosen draft into the editor bytes and discards only that row", async () => {
   const { bridge, calls } = bridgeWith(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [draft] };
@@ -99,7 +113,7 @@ it("recovers the chosen draft into the editor bytes and discards only that row",
     return {};
   });
   const session = createByteDocumentSession(bridge, identity, opened);
-  await expect(session.recoverDraft(draft)).resolves.toBe(true);
+  await expect(session.recoverDraft(draft)).resolves.toBe("recovered");
   expect((await session.editor.captureSnapshot()).value).toEqual(Uint8Array.from([119, 111, 114, 108, 100]));
   expect(session.coordinator.getState().state).toBe("dirty");
   await expect(session.discardDraft()).resolves.toBe(true);
