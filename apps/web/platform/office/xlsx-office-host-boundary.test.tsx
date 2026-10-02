@@ -73,7 +73,9 @@ describe("XLSX loading/readonly composition across the real Shared host", () => 
     expect(container.querySelector('[role="grid"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="office-host-unbound"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
-    act(() => container.querySelector('[role="grid"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })));
+    await act(async () => {
+      container.querySelector('[role="grid"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true }));
+    });
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(mocks.save).not.toHaveBeenCalled();
     expect(mocks.checkpoint).not.toHaveBeenCalled();
