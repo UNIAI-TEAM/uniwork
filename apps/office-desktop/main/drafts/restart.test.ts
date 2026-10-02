@@ -16,14 +16,15 @@ async function fixture() {
 afterEach(() => { vi.useRealTimers(); });
 
 describe("restart with the real protected draft store", () => {
-  it("flushes multiple documents and blocks changes during confirmation", async () => {
+  it("keeps draft writes open through the leave decision, then seals and restarts", async () => {
     const store = await fixture();
     store.scheduleCheckpoint(input, true);
     store.scheduleCheckpoint({ ...input, identity: { ...identity, documentId: "other" }, draftId: "other" }, true);
     const restart = vi.fn();
     await restartToUpdate({ drafts: store, confirmDrafts: async () => {
       expect(await store.list({ session })).toHaveLength(2);
-      await expect(store.checkpointPlaintext({ ...input, generation: 2 })).rejects.toMatchObject({ code: "storage_unavailable" });
+      // The dialog's own keep/save writes must still be possible here.
+      await expect(store.checkpointPlaintext({ ...input, generation: 2 })).resolves.toMatchObject({ generation: 2 });
       return true;
     }, restart });
     expect(restart).toHaveBeenCalledOnce();

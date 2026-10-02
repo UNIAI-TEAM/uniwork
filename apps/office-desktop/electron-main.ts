@@ -15,11 +15,15 @@ import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
-import { FileHandleRegistry } from "./main/files/registry";
-import { createProtectedFileCheckpoints } from "./main/files/protected-files";
+import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
-import { createSecureDraftKeyStore } from "./main/drafts/secure-keys";
+import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
+import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
+import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
+import { createDesktopLeaveCoordinator, isLeaveSaveConfirmed } from "./main/leave";
+import { leaveRequestedEventSchema } from "./shared/ipc";
+import type { DraftIdentity, DraftMetadata, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -135,6 +139,19 @@ async function startElectronHost(): Promise<void> {
   });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
+  const draftKeyStore = createSafeStorageDraftKeyStore({
+    userDataDirectory: app.getPath("userData"),
+    channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    keyNamespace: DESKTOP_IDENTITY.keyNamespace,
+    safeStorage,
+  });
+  const draftStore = createDesktopDraftStore({
+    rootDirectory: join(app.getPath("userData"), "drafts"),
+    tempDirectory: join(app.getPath("userData"), "draft-temp"),
+    keyStore: draftKeyStore,
+  });
+  const saveGuard = createOfficeSaveGuard();
+  const fileRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   // One profile-bound credential store is shared by login and launch exchange.
   // The exchange adapter reads it only in the privileged main process; the
@@ -168,18 +185,46 @@ async function startElectronHost(): Promise<void> {
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   let nativeSaveListener: (() => void) | undefined;
-  const localRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
-  const protectFile = createProtectedFileCheckpoints(app.getPath("userData"), safeStorage, () => ({
-    accountId: authManager?.getMetadata().accountId ?? "local-device",
-    deploymentId: deploymentProfile?.deploymentId ?? "local-device",
-    generation: authManager?.getGeneration() ?? 1,
-  }));
+  // The active draft identity is main-owned: it is set by a local open/save
+  // checkpoint or by a cloud document open, and cleared on logout. The draft
+  // IPC never accepts an identity from the renderer.
+  let activeDocument: { readonly kind: "local" | "cloud"; readonly identity: DraftIdentity } | undefined;
+  const draftScope = () => {
+    const metadata = authManager?.getMetadata();
+    const accountId = metadata?.status === "signed-in" && metadata.accountId ? metadata.accountId : "local-device";
+    return { sessionId: SESSION_GENERATION, accountId, deploymentId: deploymentProfile?.deploymentId ?? "local-device", generation: authManager?.getGeneration() ?? 1 };
+  };
+  const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: draftScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
   let activeDocumentId: string | undefined;
-  const localCheckpoint: typeof protectFile = async (metadata, bytes) => { await protectFile(metadata, bytes); activeDocumentId = metadata.handle; };
+  // The row a local write is protecting right now; a confirmed write consumes it.
+  const pendingLocalCheckpoints = new Map<string, ProtectedCheckpointRef>();
+  const setLocalDocument = (metadata: OpenFileMetadata) => {
+    activeDocument = { kind: "local", identity: localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata) };
+    activeDocumentId = metadata.handle;
+  };
+  /** A local open only records the draft context; the durable row is written
+   * immediately before a write, so a plain open never offers a draft of the
+   * file's own unchanged bytes. */
+  const localOpenContext = (metadata: OpenFileMetadata) => { setLocalDocument(metadata); };
+  const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
+    setLocalDocument(metadata);
+    pendingLocalCheckpoints.set(metadata.handle, await protectFile(metadata, bytes));
+  };
+  /** After a confirmed write the pre-write checkpoint is obsolete: consume it so
+   * an identical-bytes draft never becomes a stale conflict on the next open. */
+  const consumeLocalCheckpoint = (metadata: OpenFileMetadata) => {
+    const ref = pendingLocalCheckpoints.get(metadata.handle);
+    if (!ref) return;
+    pendingLocalCheckpoints.delete(metadata.handle);
+    void discardProtectedCheckpoint(draftStore, draftScope(), ref).catch(() => undefined);
+  };
   window.on("closed", () => { activeDocumentId = undefined; });
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
-    if (parsed.status !== "signed-in") localRegistry.revoke();
+    // Logout keeps the ciphertext and its draft key, but the cloud document
+    // context dies with the session: no cloud checkpoint or recovery can be
+    // started for account A while B (or nobody) is signed in.
+    if (parsed.status !== "signed-in") { fileRegistry.revoke(); if (activeDocument?.kind === "cloud") activeDocument = undefined; }
     window.webContents.send?.("desktop:auth-session-changed", parsed);
   };
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
@@ -202,10 +247,96 @@ async function startElectronHost(): Promise<void> {
       }
     },
   }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
-  const draftStore = createDesktopDraftStore({
-    rootDirectory: join(app.getPath("userData"), "drafts"),
-    tempDirectory: join(app.getPath("userData"), "draft-temp"),
-    keyStore: createSecureDraftKeyStore(join(app.getPath("userData"), "draft-keys"), safeStorage),
+  const organizationByWorkspace = new Map<string, string>();
+  const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
+    const session = await authManager?.refreshSession();
+    if (session?.status !== "signed-in") throw new Error("login_required");
+  } }) : undefined;
+  // The library context is the only main-side source that maps a workspace id
+  // to its organization; caching it keeps a cloud draft identity resolvable
+  // without another renderer-supplied field. A library listing also means the
+  // renderer left the editor, so the live document context is cleared here
+  // instead of lingering until window close.
+  const cachedOfficeTransport = officeTransport ? { ...officeTransport, context: async () => {
+    const context = await officeTransport.context();
+    for (const workspace of context.workspaces) if (workspace.organizationId) organizationByWorkspace.set(workspace.id, workspace.organizationId);
+    return context;
+  }, list: async (input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }) => {
+    activeDocument = undefined;
+    activeDocumentId = undefined;
+    return officeTransport.list(input);
+  } } : undefined;
+  const cloudDraftIdentity = (document: { id: string; workspaceId: string; version: number; revision: string }): DraftIdentity | undefined => {
+    if (!deploymentProfile) return undefined;
+    const metadata = authManager?.getMetadata();
+    const organizationId = organizationByWorkspace.get(document.workspaceId);
+    if (metadata?.status !== "signed-in" || !metadata.accountId || !organizationId) return undefined;
+    return { deploymentId: deploymentProfile.deploymentId, accountId: metadata.accountId, organizationId, workspaceId: document.workspaceId, documentId: document.id, base: { version: String(document.version), revision: document.revision } };
+  };
+  const liveDraftContext = (): { session: DraftSession; identity: DraftIdentity } | undefined => {
+    const active = activeDocument;
+    if (!active) return undefined;
+    if (active.kind === "cloud" && authManager?.getMetadata().status !== "signed-in") return undefined;
+    return { session: draftScope(), identity: active.identity };
+  };
+  /** A recovery is never granted from cached access: for a cloud document the
+   * live workspace list is re-read (bounded pagination) and the document's edit
+   * ACL re-checked, so a document beyond the first page is not failed closed. */
+  const liveDraftAccess = async (): Promise<"edit" | "none"> => {
+    const active = activeDocument;
+    if (!active) return "none";
+    if (active.kind === "local") return "edit";
+    if (!officeTransport) return "none";
+    try {
+      let cursor: string | undefined;
+      for (let page = 0; page < 5; page += 1) {
+        const result = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list", ...(cursor ? { cursor } : {}) });
+        const document = result.documents.find((row) => row.id === active.identity.documentId);
+        if (document) return document.canEdit ? "edit" : "none";
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+      return "none";
+    } catch { return "none"; }
+  };
+  // Main-side leave evidence: a save receipt is recorded only when main itself
+  // completed a guarded write, and the live document's draft rows are re-read
+  // for keep/discard. The renderer's `proceeded` is never trusted alone.
+  let lastConfirmedSaveAt = 0;
+  const noteConfirmedSave = () => { lastConfirmedSaveAt = Date.now(); };
+  const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => { noteConfirmedSave(); consumeLocalCheckpoint(metadata); };
+  /** `null` means the store read failed: every verifier treats that as
+   * unconfirmed, never as "nothing to check". */
+  const activeDrafts = async (): Promise<readonly DraftMetadata[] | null> => {
+    const active = activeDocument;
+    if (!active) return [];
+    try {
+      return await draftStore.list({ session: draftScope(), lookup: { deploymentId: active.identity.deploymentId, accountId: active.identity.accountId, organizationId: active.identity.organizationId, workspaceId: active.identity.workspaceId, documentId: active.identity.documentId, base: active.identity.base } });
+    } catch { return null; }
+  };
+  const leave = createDesktopLeaveCoordinator({
+    send: (request) => { window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
+    confirmKeep: async () => { const rows = await activeDrafts(); return rows !== null && rows.length > 0; },
+    // A save choice needs a fresh main-observed receipt whenever the store holds
+    // unsaved evidence for the live document. Empty rows permit a clean no-op
+    // only while the main Save guard is idle; the first checkpoint may still
+    // be in flight. A failed store read is always unconfirmed.
+    confirmSave: async (issuedAt) => {
+      const rows = await activeDrafts();
+      return isLeaveSaveConfirmed({ draftRows: rows?.length ?? null, saveBusy: saveGuard.busy, lastConfirmedSaveAt, issuedAt });
+    },
+    confirmDiscard: async () => { const rows = await activeDrafts(); return rows !== null && rows.length === 0; },
+    timeoutMs: 60_000,
+  });
+  let closeApproved = false;
+  window.on("close", (event) => {
+    if (closeApproved || SMOKE_MODE) return;
+    event.preventDefault();
+    void leave.request("close").then((outcome) => {
+      if (!outcome.proceeded) return;
+      closeApproved = true;
+      window.close();
+    });
   });
   const host = createDesktopHost({
     handlers: { "desktop:window-theme": (request) => {
@@ -231,7 +362,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    localFiles: { registry: localRegistry, checkpoint: localCheckpoint,
+    localFiles: { registry: fileRegistry, saveGuard, onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
@@ -243,23 +374,30 @@ async function startElectronHost(): Promise<void> {
     },
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
-    ...(deploymentProfile && credentials ? { office: { transport: createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
-      const session = await authManager?.refreshSession();
-      if (session?.status !== "signed-in") throw new Error("login_required");
-    } }), isSignedIn: () => authManager?.getMetadata().status === "signed-in", onDocumentOpened: (documentId: string) => { activeDocumentId = documentId; } } } : {}),
+    draftKeyStore,
+    drafts: {
+      store: draftStore,
+      context: liveDraftContext,
+      // Before a document is open (app start / restart) only the live
+      // account's own rows can be offered, filtered by the session in main.
+      accountSession: () => (authManager?.getMetadata().status === "signed-in" ? draftScope() : undefined),
+      liveAccess: liveDraftAccess,
+      currentBase: () => activeDocument?.identity.base,
+    },
+    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, isSignedIn: () => authManager?.getMetadata().status === "signed-in", saveGuard, onSaveConfirmed: noteConfirmedSave, onDocumentOpened: (document: { id: string; workspaceId: string; version: number; revision: string }) => {
+      const identity = cloudDraftIdentity(document);
+      if (identity) { activeDocument = { kind: "cloud", identity }; activeDocumentId = document.id; }
+    } } } : {}),
     activeDocumentId: () => activeDocumentId,
     draftStore,
+    leave,
     updates: {
       restart: {
         drafts: draftStore,
-        confirmDrafts: async () => (await dialog.showMessageBox(window, {
-          type: "question",
-          title: "Cập nhật UniWork Office",
-          message: "Bản nháp cục bộ đã được lưu. Đóng ứng dụng và mở bộ cài cập nhật?",
-          detail: "Bản nháp không được tự động gửi lên máy chủ hoặc ghi đè tệp gốc.",
-          buttons: ["Hủy", "Cập nhật"], defaultId: 0, cancelId: 0, noLink: true,
-        })).response === 1,
-        restart: async () => { app.quit(); },
+        // The update restart uses the ONE leave dialog: save/keep/discard/stay
+        // decide first (so a keep can still write), then the durable flush runs.
+        confirmDrafts: async () => (await leave.request("update")).proceeded,
+        restart: async () => { closeApproved = true; app.quit(); },
       },
     },
   });
@@ -288,15 +426,15 @@ async function startElectronHost(): Promise<void> {
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
-    const metadata = await localRegistry.openEvent(payload.path);
-    const bytes = await localRegistry.read(metadata.handle);
-    await localCheckpoint(metadata, bytes);
+    const metadata = await fileRegistry.openEvent(payload.path);
+    const bytes = await fileRegistry.read(metadata.handle);
+    localOpenContext(metadata);
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });
   const announceFile = async (path: string) => {
     if (!isAbsolute(path) || !/\.docx$/i.test(path)) return;
     try {
-      const metadata = await localRegistry.openEvent(path);
+      const metadata = await fileRegistry.openEvent(path);
       window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
     } catch { /* Refused local files never cross the preload seam. */ }
   };

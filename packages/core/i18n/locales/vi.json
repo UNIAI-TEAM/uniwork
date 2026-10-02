@@ -7053,7 +7053,12 @@
       "discard": "Bỏ bản nháp",
       "working": "Đang xử lý…",
       "write_failed": "Không thể cập nhật bản nháp.",
-      "updated": "Cập nhật {{date}}"
+      "updated": "Cập nhật {{date}}",
+      "available": "Bản nháp sẵn sàng khôi phục",
+      "conflict": "Bản nháp thuộc phiên bản tài liệu khác",
+      "blocked": "Khôi phục bản nháp bị chặn",
+      "locked": "Bản nháp đang bị khóa",
+      "unavailable": "Khôi phục bản nháp tạm thời không khả dụng"
     },
     "tabs": "Chế độ xem Office",
     "editor": {
@@ -7289,7 +7294,8 @@
       "local": "Tệp trên máy",
       "ownerUnknown": "Thành viên workspace",
       "updated": "Cập nhật {{time}}",
-      "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp."
+      "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
+      "draftRecovered": "Đã khôi phục bản nháp đã chọn."
     }
   }
 }

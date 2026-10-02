@@ -43,6 +43,13 @@ describe("desktop host bootstrap", () => {
     const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, engineIpc: ipc });
     expect(host.adapters?.transport.supports?.("open")).toBe(true);
   });
+  it("exposes the attached draft key port and lifecycle factory to the editor host", () => {
+    const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn() };
+    const draftKeyStore = { get: vi.fn(), getOrCreate: vi.fn() };
+    const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, draftKeyStore: draftKeyStore as never });
+    expect(host.draftKeyStore).toBe(draftKeyStore);
+    expect(host.createLifecycleCoordinator).toBeTypeOf("function");
+  });
   it("revokes local handles when the native window closes", () => {
     const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn() };
     const revokeSession = vi.fn();

@@ -14,15 +14,18 @@ The desktop library filters to file DOCX rows and keeps download available when 
 
 New DOCX creation uploads an original minimal OOXML template through the Documents file-creation route, which creates its first version. Provenance and the template checksum are documented in `apps/office-desktop/main/files/blank-docx.ts`. It does not depend on the server blank generator, which supports only Markdown and HTML.
 
-The native picker, dropped files and OS open events use the same file registry. Main encrypts local snapshots through the existing G4-04 draft store and protects its separate key with OS safeStorage; a locked store refuses the checkpoint. Save preserves the registry's external-modification checks. Cloud Save and native-menu Save share the G3 coordinator and one intent/idempotency key. Engine serialization currently preserves the opened bytes; no text mutation is claimed.
+The native picker, dropped files and OS open events use the same file registry. Main encrypts local snapshots through the existing G4-04 draft store and protects its key with OS safeStorage; a locked store refuses the checkpoint. r4 unifies the stores: local checkpoints and cloud drafts are rows in the one protected store, a plain open writes nothing, a durable row is written immediately before a write and consumed once that write is confirmed, and a confirmed save consumes the committed cloud draft. Save preserves the registry's external-modification checks. Cloud Save and native-menu Save share the G3 coordinator and one intent/idempotency key. Engine serialization currently preserves the opened bytes; no text mutation is claimed.
 
 | Acceptance row | Evidence / remaining verification |
 | --- | --- |
 | G4-A05 library scope and context | `renderer/library/model.test.ts`, `renderer/app.test.tsx`; real display names, workspace picker, Work Product filtering, request failure and Retry |
-| G4-A06 DOCX host and save | `renderer/office/session.test.ts`, `renderer/app.test.tsx`; shared editor mounting, snapshot bytes, concurrent Save rejection, native-menu action |
-| G4-A07 local file open/save | `main/files/registry.test.ts`, `main/files/protected-files.test.ts`; picker/drop/native-event wiring, encrypted checkpoint, local save transport |
+| G4-A06 DOCX host and save | `renderer/office/session.test.ts`, `renderer/app.test.tsx`; shared editor mounting, snapshot bytes, concurrent Save rejection, native-menu action; r4 adds the single leave decision used by close/logout/update (`main/leave.test.ts`) and the one guard shared by local, cloud and dialog Save |
+| G4-A07 local file open/save | `main/files/registry.test.ts`, `main/files/protected-files.test.ts`; picker/drop/native-event wiring, local save transport; r4 checkpoints the pre-write bytes only and consumes the row once the write is confirmed |
 | G4-A08 launch ticket | `renderer/app.test.tsx`, `preload/index.test.ts`; queued ticket and picked workspace/version; no overwrite of an already open editor |
-| G4-A09 capability limits | DOCX only; other formats explicitly unsupported; protected local draft recovery UI remains owned by G4-04 |
+| G4-A09 capability limits | DOCX only; other formats explicitly unsupported; the protected local/cloud recovery UI is now supplied by this lane (`renderer/office/open-document.tsx`, `renderer/app.tsx`) |
+| G4-A10 logout/restart/login A/B, key lost/IO/disk full (Q8) | `main/recovery-q8.test.ts` (logout keeps ciphertext+key, account-B payload/metadata isolation, live session+ACL+base gating, disk-full/key-lost/corrupt typed states, blocked export/copy/clipboard refusal); `smoke:recovery-system` adds the real Windows DPAPI Q8 system leg; packaged visual leg recorded in the r4 acceptance packet |
+| G4-A11 local untouched, no arbitrary path, receipt-only cloud binding | `main/files/registry.test.ts` (external-modification refusal), `main/files/protected-files.test.ts` (checkpoint consume), `main/ipc.test.ts` (opaque handles only, no renderer paths) |
+| G4-A13 IPC misuse / crash / cancel-complete race | `main/leave.test.ts` (one outstanding request id; stale, duplicate and busy answers rejected; timeout = stay; a stay answer can never proceed), `main/ipc.test.ts` (typed refusals, cross-scope draft-discard binding), `main/recovery-q8.test.ts` (crash leaves the last confirmed row) |
 
 ## Acceptance limitations
 

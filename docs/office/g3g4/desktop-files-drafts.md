@@ -1,7 +1,8 @@
-# Desktop local files and protected drafts (G4-04a)
+# Desktop local files and protected drafts (G4-04a/04b)
 
-> **Status:** in progress — 04a unit/contract slice. OS credential adapters,
-> live ACL recovery and crash/system evidence remain 04b work.
+> **Status:** 04a/04b host ports and blocked-state surface are implemented.
+> The editor-host recovery driver and packaged OS/system evidence are separate
+> stages; a missing macOS runner remains explicitly not run.
 
 ## Handle model
 
@@ -49,9 +50,11 @@ plaintext and no raw key.
 store. The real G4-D2 adapters are Windows DPAPI plus a restricted-ACL key file
 and macOS Keychain; the proposed implementation library is Electron's
 `safeStorage` for DPAPI/Keychain wrapping, with `node:fs/promises` plus the OS
-ACL tooling for the Windows key-file permissions. This slice supplies only the
-port and an in-memory test fake; the library choice remains subject to the
-04b packaged-system review. A missing key, bad tag, checksum mismatch or corrupt envelope is a typed
+ACL tooling for the Windows key-file permissions. The production adapter wraps
+the key with Electron `safeStorage`, persists only the wrapped key in a
+channel- and namespace-isolated file, and applies a
+restricted ACL (Windows `icacls`, mode `0600` elsewhere). A missing key, bad
+tag, checksum mismatch or corrupt envelope is a typed
 `draft_recovery_locked` outcome and never creates an empty replacement.
 
 The store implements the shared `DraftRecoveryAdapter`: metadata-only list,
@@ -86,11 +89,59 @@ not-protected error and leaves the prior row unchanged.
 | session/account mismatch | `forbidden` / `token_expired` | no metadata or payload disclosure |
 | disk full/unavailable | `storage_unavailable` | last confirmed draft remains |
 
-## 04b open items
+## 04b lifecycle and recovery
 
-04b owns the shared Q8/system matrix: the real DPAPI/ACL and Keychain adapters,
-logout/restart/re-login live-session and ACL checks, account-B isolation in a
-packaged binary, disk-full/key-loss/corrupt recovery UI, crash recovery to the
-last confirmed checkpoint, and the single local/cloud Save guard. It must also
-run the filesystem/crash Q-DESKTOP-SYSTEM evidence on each supported OS. This
-04a unit slice does not claim those system or real-OS-store results.
+r4 status: the recovery / Save-guard / lifecycle behaviour now runs on the real
+G4-06a editor host (React renderer, OfficeShell/DocxEditor) with G4-07b merged.
+
+**One protected store, one key store.** `createDesktopDraftStore`
+(`userData/drafts`) with the AC-1 `createSafeStorageDraftKeyStore`
+(DPAPI/safeStorage-wrapped key file, restricted ACL) is the only draft store.
+Cloud drafts and local file checkpoints are rows in it:
+`createProtectedFileCheckpoints` writes a local snapshot under a path-free stable
+identity (`local:<sha256(canonical path)>`), one draft id per (file, base), and
+its generation floor is read from the durable row so a restart cannot regress a
+confirmed checkpoint. The G4-07b update restart flushes that one store, so local
+and cloud drafts are covered by the same durability pass.
+
+**Typed draft IPC.** `desktop:draft-checkpoint|list|recover|discard` bind
+account/deployment/document identity in main; `desktop:draft-list` also answers
+with the live account's own rows when no document is open (restart offer) and
+always filters by the live session. Recover returns bytes only for a live edit
+ACL and a matching revision/version base; a base mismatch is an explicit
+conflict and the draft stays. Blocked or locked states have no
+export/copy/clipboard action (`assertRecoveryActionAllowed`).
+
+**One leave decision (close/logout/update).** Two typed entries:
+`desktop:leave-requested` (main -> renderer event) and `desktop:leave-resolved`
+(renderer -> main channel), zod-validated in main and preload. Only one
+main-generated request id is outstanding through main verification; stale,
+duplicate and busy answers are rejected. Main never trusts `proceeded=true` alone: `keep` requires a
+durable row main can see, `save` requires a main-observed receipt recorded by the
+guarded file/office save handlers after the request when draft rows exist. Empty
+rows allow a clean no-op only while the main Save guard is idle. `discard` requires
+no row left for the live document. The deadline covers the renderer and main
+verification; a timeout, verifier failure or dead renderer means stay. The
+renderer renders the shared `views/office` LeaveDialog with `t()`; the 2 s tick
+is a local draft checkpoint only. The update restart uses the same dialog
+(reason `update`) instead of its native message box, runs its pre-flight flush
+before the decision, seals only afterwards (so keep/save can still write) and
+reopens writes if the install fails.
+
+**Recovery UI.** The account-level draft offer, the document-level
+`DraftRecoveryPrompt` (recover / keep / discard; recover only for a live ACL and
+a matching base) and the blocked/locked/unavailable states render through the
+shared registry primitives (`packages/views/office` leave-dialog and
+save-status) with `t()` in vi and en, styled like the G4-06a library/editor
+screens. A blocked draft exposes no export, copy or clipboard affordance.
+
+The Windows system smoke is runnable with `pnpm --filter @uniwork/office-desktop smoke:recovery-system`. It launches the real Electron binary with an isolated `userData` directory, exercises the DPAPI-backed `safeStorage` key adapter, verifies that the persisted file contains only the wrapped key (never the raw 256-bit key), checks the namespace directory ACL is restricted to the current Windows account, and deletes the key. The successful run is recorded in `D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/office-g3g4/reports/g4-04b-desktop-recovery/windows-safe-storage-system.log`.
+
+The editor host context is now attached (r4): main owns the live document
+identity (local checkpoint or cloud open) and the leaving flow runs through the
+one save guard. The packaged-dev AC-4 visual sequence (edit -> kill -> restart ->
+offer/restore; logout -> login B -> login A; close with unsaved edits) is
+executed by the AC-4 visual Tester on the final SHA and recorded in the lane's
+acceptance packet; macOS runtime evidence remains `not run` (no macOS runner).
+
+The smoke resolves the Windows principal through `whoami.exe` (the inherited `USERDOMAIN`/`USERNAME` values are not trusted), and parses both the namespace directory and generated key-file ACLs. It rejects inherited or unexpected explicit principals; the Windows defaults permitted by the platform are the current account with Modify, `NT AUTHORITY\SYSTEM` with Full Control, and the per-session `NT AUTHORITY\LogonSessionId_*` read/execute entry. When `dist/build-identity.json` exists, the smoke uses that packaged channel projection; otherwise it uses the source manifest projection, matching the corresponding Electron host mode.

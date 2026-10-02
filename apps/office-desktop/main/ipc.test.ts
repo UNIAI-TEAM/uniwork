@@ -3,13 +3,14 @@ import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, c
 import { NativeLoginManager } from "./auth/manager";
 import { LocalFileError, type FileHandleRegistry } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
+import { createOfficeSaveGuard } from "../../../packages/core/office/save-guard";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234", allowedExternalHosts: ["docs.uniwork.com"] };
 const valid = { sessionGeneration: "session_1234", operation: "capability", handle: "handle:1", args: {} } as const;
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -38,6 +39,34 @@ describe("desktop IPC allowlist", () => {
     await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
     const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);
     await expect(dispatcher("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toThrow(IpcValidationError);
+  });
+  it("shares one non-queueing guard across local Save calls and releases it on failure", async () => {
+    const guard = createOfficeSaveGuard();
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.txt", byteLength: 1, modifiedAtMs: 1, checksum: `sha256:${"a".repeat(64)}` };
+    const registry = { save: async () => { await pending; return metadata; } } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, saveGuard: guard });
+    const first = handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" });
+    expect(guard.busy).toBe(true);
+    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "saving" });
+    release();
+    await expect(first).resolves.toEqual({ opened: true, metadata });
+    expect(guard.busy).toBe(false);
+  });
+
+  it("records a local open without a durable draft, and checkpoints only before a write", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.docx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
+    const checkpoint = vi.fn(async () => undefined);
+    const onOpened = vi.fn();
+    const registry = { openPath: async () => metadata, openPathFromHandle: async () => metadata, read: async () => new Uint8Array([1]), save: async () => metadata } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, onOpened, checkpoint, pickOpen: async () => "C:\\x.docx", pickSaveAs: async () => "C:\\x.docx" });
+    await handlers["desktop:file-open"]({ sessionGeneration: "session_1234", handle: metadata.handle });
+    await handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" });
+    expect(onOpened).toHaveBeenCalledTimes(2);
+    expect(checkpoint).not.toHaveBeenCalled();
+    await handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" });
+    expect(checkpoint).toHaveBeenCalledWith(metadata, expect.any(Uint8Array));
   });
 
   it("binds draft checkpoint identity in main and does not expose draft errors", async () => {

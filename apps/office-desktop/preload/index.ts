@@ -4,7 +4,7 @@
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { fileOpenRequestedSchema } from "../shared/ipc";
-import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
+import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
   invoke(channel: string, payload: unknown): Promise<unknown>;
@@ -19,6 +19,7 @@ export type DesktopRendererBridge = {
   onLaunchRequested(listener: (event: LaunchRequestedEvent) => void): () => void;
   onOfficeSaveRequested(listener: (event: OfficeSaveRequestedEvent) => void): () => void;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
+  onLeaveRequested(listener: (event: LeaveRequestedEvent) => void): () => void;
   openDroppedFile(file: File): Promise<unknown>;
   onFileOpenRequested(listener: (event: { handle: string }) => void): () => void;
 };
@@ -28,6 +29,14 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
   let fileListener: ((event: { handle: string }) => void) | undefined;
   let pendingLaunch: LaunchRequestedEvent | undefined;
   let launchListener: ((event: LaunchRequestedEvent) => void) | undefined;
+  let pendingLeave: LeaveRequestedEvent | undefined;
+  let leaveListener: ((event: LeaveRequestedEvent) => void) | undefined;
+  ipcRenderer.on?.("desktop:leave-requested", (...args: unknown[]) => {
+    const parsed = leaveRequestedEventSchema.safeParse(args.at(-1));
+    if (!parsed.success) return;
+    if (leaveListener) leaveListener(parsed.data);
+    else pendingLeave = parsed.data;
+  });
   ipcRenderer.on?.("desktop:file-open-requested", (...args: unknown[]) => {
     const parsed = fileOpenRequestedSchema.safeParse(args.at(-1));
     if (!parsed.success) return;
@@ -71,6 +80,11 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
       if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
       ipcRenderer.on(eventChannel, handler);
       return () => ipcRenderer.removeListener?.(eventChannel, handler);
+    },
+    onLeaveRequested(listener) {
+      leaveListener = listener;
+      if (pendingLeave) { const event = pendingLeave; pendingLeave = undefined; listener(event); }
+      return () => { if (leaveListener === listener) leaveListener = undefined; };
     },
     onOfficeSaveRequested(listener) {
       if (!ipcRenderer.on) return () => undefined;

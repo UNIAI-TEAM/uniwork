@@ -167,6 +167,14 @@ export class FileHandleRegistry {
     else this.records.clear();
   }
 
+  /** Restart-stable opaque identity for a handle. Draft recovery needs to find
+   * the same local file after a restart, while the raw path stays in main and
+   * only its hash reaches the encrypted draft identity. */
+  identityFor(handle: string): string {
+    const record = this.getRecord(handle);
+    return `local:${createHash("sha256").update(record.canonicalPath).digest("hex")}`;
+  }
+
   revokeSession(): void { this.revoked = true; this.records.clear(); }
   get size(): number { return this.records.size; }
 
