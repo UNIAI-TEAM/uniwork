@@ -221,9 +221,10 @@ func TestAttendanceRefusesAnotherMeetingsParticipant(t *testing.T) {
 	if n := countRows(t, s, `SELECT count(*) FROM meeting_attendance_marks WHERE meeting_id = $1`, m.ID); n != 0 {
 		t.Fatalf("marks written on the wrong meeting = %d", n)
 	}
-	// Clear through the wrong meeting leaves the other meeting's mark alone.
-	if err := s.ClearAttendanceMark(ctx, ua.ID, m.ID, otherPID); err != nil {
-		t.Fatal(err)
+	// Clear through the wrong meeting is refused like mark, and leaves the
+	// other meeting's mark alone.
+	if err := s.ClearAttendanceMark(ctx, ua.ID, m.ID, otherPID); err != ErrNotFound {
+		t.Fatalf("clear another meeting's participant: %v", err)
 	}
 	if n := countRows(t, s, `SELECT count(*) FROM meeting_attendance_marks
 		WHERE meeting_id = $1 AND participant_id = $2 AND status = 'EXCUSED'`, other.ID, otherPID); n != 1 {

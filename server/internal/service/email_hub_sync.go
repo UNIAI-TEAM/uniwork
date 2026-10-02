@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
@@ -382,6 +383,9 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrNotFound
+		}
 		return false, err
 	}
 

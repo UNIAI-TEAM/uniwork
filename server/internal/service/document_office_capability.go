@@ -311,7 +311,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 		return DocumentFileResult{}, err
 	}
 	if in.ParentID != "" {
-		if _, _, err := s.documents.authorizeDocument(ctx, actor, in.ParentID, DocumentLevelEdit); err != nil {
+		if err := s.documents.authorizeParentIn(ctx, actor, in.ParentID, ws.WorkspaceID); err != nil {
 			return DocumentFileResult{}, err
 		}
 	}

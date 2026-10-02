@@ -47,9 +47,13 @@ func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingD
 }
 
 func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
+	caps, err := h.Meetings.Capabilities(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
-		AISummary: h.Meetings.AIEnabled(), Recording: h.Meetings.RecordingEnabled(r.Context()),
-		ServerSTT: h.Meetings.STTAgentEnabled(),
+		AISummary: caps.AISummary, Recording: caps.Recording, ServerSTT: caps.ServerSTT,
 	})
 }
 

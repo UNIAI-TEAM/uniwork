@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -114,6 +115,9 @@ func (s *TaskService) CreateProject(ctx context.Context, actor Actor, workspaceI
 	}
 	leadType, leadID, err := normalizeProjectLead(in.LeadType, in.LeadID)
 	if err != nil {
+		return db.Project{}, err
+	}
+	if err := s.requireProjectLead(ctx, workspaceID, leadType, leadID); err != nil {
 		return db.Project{}, err
 	}
 	startDate, err := parseProjectDate(in.StartDate, "start_date")
@@ -317,6 +321,9 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 		if err != nil {
 			return db.Project{}, err
 		}
+		if err := s.requireProjectLead(ctx, workspaceID, leadTypeArg, leadIDArg); err != nil {
+			return db.Project{}, err
+		}
 	}
 	setStart := in.StartDate != nil
 	var startDate pgtype.Date
@@ -512,6 +519,30 @@ func (s *TaskService) loadProject(ctx context.Context, q *db.Queries, orgID, wor
 		return db.Project{}, ErrNotFound
 	}
 	return p, err
+}
+
+// requireProjectLead holds a project's lead to the rule a task's assignee
+// follows: a member or an agent of the project's own workspace. Without it
+// a lead id from another organization is stored, and every reader of the
+// project is shown a person who is not theirs (ADR 0008 isolation matrix).
+func (s *TaskService) requireProjectLead(ctx context.Context, workspaceID string, leadType, leadID pgtype.Text) error {
+	if !leadID.Valid {
+		return nil
+	}
+	switch leadType.String {
+	case "member":
+		if _, err := s.ws.RequireMember(ctx, workspaceID, leadID.String); err != nil {
+			if errors.Is(err, ErrOrganizationSuspended) {
+				return err
+			}
+			return coded(http.StatusUnprocessableEntity, "lead_not_member", "người phụ trách không phải thành viên workspace")
+		}
+	case "agent":
+		if _, err := s.ws.RequireAgentMember(ctx, workspaceID, leadID.String); err != nil {
+			return coded(http.StatusUnprocessableEntity, "agent_not_member", "agent không phải thành viên workspace")
+		}
+	}
+	return nil
 }
 
 func normalizeProjectLead(leadType, leadID *string) (pgtype.Text, pgtype.Text, error) {

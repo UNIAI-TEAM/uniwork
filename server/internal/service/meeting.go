@@ -268,6 +268,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if in.AllowJoinRequest != nil {
 		allow = *in.AllowJoinRequest
 	}
+	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, in.ProjectID); err != nil {
+		return db.Meeting{}, err
+	}
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

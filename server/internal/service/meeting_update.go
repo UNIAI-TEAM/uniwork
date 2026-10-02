@@ -58,6 +58,15 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	if in.QuorumPercent != nil && (*in.QuorumPercent < 0 || *in.QuorumPercent > 100) {
 		return db.Meeting{}, Invalid("tỉ lệ có mặt tối thiểu phải từ 1 đến 100")
 	}
+	// Checked before the transaction: it reads through the pool, and taking a
+	// second connection while this one holds the meeting row lock can starve
+	// the pool. A meeting never changes organization or workspace, so the row
+	// requireHostOrAdmin loaded is as good as the locked one.
+	if in.ProjectID != nil {
+		if err := s.requireMeetingProject(ctx, m.OrganizationID, m.WorkspaceID, *in.ProjectID); err != nil {
+			return db.Meeting{}, err
+		}
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.Meeting{}, err

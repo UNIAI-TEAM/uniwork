@@ -163,6 +163,23 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 
 func (s *MeetingService) AIEnabled() bool { return s.AI.Enabled() }
 
+// MeetingCapabilities is what the meeting screens of one workspace may offer.
+type MeetingCapabilities struct {
+	AISummary, Recording, ServerSTT bool
+}
+
+// Capabilities answers GET /workspaces/{id}/meeting-capabilities. The flags
+// are process-wide today, but the route names a workspace, so only its
+// members get an answer - like every other workspace route (ADR 0008).
+func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID string) (MeetingCapabilities, error) {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return MeetingCapabilities{}, err
+	}
+	return MeetingCapabilities{
+		AISummary: s.AIEnabled(), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
+	}, nil
+}
+
 // Summarize gathers transcript, notes, chat, the attendance report and the
 // closed votes, asks the gateway (capability meeting_summarization) and
 // stores the result with the usage row that paid for it. Any host/admin may

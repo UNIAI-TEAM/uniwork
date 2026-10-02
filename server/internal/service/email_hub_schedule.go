@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -37,6 +38,9 @@ func (s *EmailHubService) ScheduleSend(
 		ID: in.AccountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EmailHubScheduledSendView{}, ErrNotFound
+		}
 		return EmailHubScheduledSendView{}, err
 	}
 	if err := validateSendInput(in); err != nil {

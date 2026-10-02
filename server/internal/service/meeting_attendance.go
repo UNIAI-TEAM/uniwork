@@ -282,6 +282,14 @@ func (s *MeetingService) ClearAttendanceMark(ctx context.Context, actorID, meeti
 	if _, err := s.attendanceMeeting(ctx, actorID, meetingID); err != nil {
 		return err
 	}
+	// The same participant check MarkAttendance makes: a participant of
+	// another meeting - another organization's included - is not found here,
+	// rather than a silent "ok".
+	if p, err := s.q.GetMeetingParticipant(ctx, participantID); errors.Is(err, pgx.ErrNoRows) || (err == nil && p.MeetingID != meetingID) {
+		return ErrNotFound
+	} else if err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
