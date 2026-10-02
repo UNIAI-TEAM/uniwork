@@ -101,7 +101,7 @@ beforeEach(async () => {
   await setLocale("en");
 });
 
-function renderHost(session: OfficeEditorSession<unknown>) {
+function renderHost(session: OfficeEditorSession<unknown>, overrides: Partial<OfficeEditorHostProps> = {}) {
   const props: OfficeEditorHostProps = {
     document: officeDocument,
     wsId: "workspace",
@@ -109,6 +109,7 @@ function renderHost(session: OfficeEditorSession<unknown>) {
     session,
     capability,
     editorView: React.createElement("div", { contentEditable: true, role: "textbox", suppressContentEditableWarning: true }),
+    ...overrides,
   };
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -135,6 +136,23 @@ async function settle(): Promise<void> {
 }
 
 describe("OfficeEditorHost composition", () => {
+  it("gates Save on an optional renderer readiness port and keeps dirty evidence", async () => {
+    const { session } = makeSession();
+    let ready = false;
+    const listeners = new Set<() => void>();
+    const viewReadiness = { getSnapshot: () => ready, subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); } };
+    const rendered = renderHost(session, { formatAdapter: { session, capability, editorView: React.createElement("div"), viewReadiness } });
+    await settle();
+    const saveButton = () => rendered.container.querySelector('button[aria-label="Save to UniWork"]');
+    expect(saveButton()).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-save-not-sent"]')).toBeTruthy();
+    act(() => { ready = true; listeners.forEach(listener => listener()); });
+    expect(saveButton()).toBeTruthy();
+    act(() => { ready = false; listeners.forEach(listener => listener()); });
+    expect(saveButton()).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-save-not-sent"]')).toBeTruthy();
+    rendered.root.unmount();
+  });
   it("shows a localized unavailable state when the flag-on route has no 0Xb adapter", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

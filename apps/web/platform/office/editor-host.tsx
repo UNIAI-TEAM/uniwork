@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeCapabilityEntry, OfficeHost, SaveCoordinatorState, StableSnapshot } from "@uniwork/core/office";
@@ -43,7 +43,12 @@ export interface OfficeFormatAdapter<TSnapshot = unknown> {
   editorView: ReactNode;
   capability: OfficeCapabilityEntry;
   onRecoverSnapshot?: (snapshot: StableSnapshot<TSnapshot>) => Promise<void> | void;
+  /** Optional renderer readiness; existing format adapters keep their behavior. */
+  viewReadiness?: { getSnapshot(): boolean; subscribe(listener: () => void): () => void };
 }
+
+const assumeViewReady = () => true;
+const subscribeUnboundView = () => () => undefined;
 
 function stateIsDirty(state: SaveCoordinatorState): boolean {
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "dirty" || state.state === "saving" || state.state === "error" || state.state === "conflict";
@@ -82,6 +87,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   const activeEditorView = formatAdapter?.editorView ?? editorView;
   const activeCapability = formatAdapter?.capability ?? capability;
   const activeRecoverSnapshot = formatAdapter?.onRecoverSnapshot ?? onRecoverSnapshot;
+  const viewReady = useSyncExternalStore(formatAdapter?.viewReadiness?.subscribe ?? subscribeUnboundView, formatAdapter?.viewReadiness?.getSnapshot ?? assumeViewReady, assumeViewReady);
   const [coordinatorState, setCoordinatorState] = useState<SaveCoordinatorState | null>(() => activeSession?.coordinator.getState() ?? null);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [recovery, setRecovery] = useState<OfficeRecoveryState<TSnapshot> | null>(null);
@@ -217,7 +223,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         )}
         saveCoordinator={activeSession?.coordinator}
         saveState={coordinatorState}
-        editorReady={Boolean(activeSession && !readonly && effectiveCapability.status === "available")}
+        editorReady={Boolean(activeSession && viewReady && !readonly && effectiveCapability.status === "available")}
         desktopAction={activeSession && !readonly ? (
           <DesktopOpenAction
             documentId={document.id}

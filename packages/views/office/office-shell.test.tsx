@@ -22,6 +22,26 @@ function coordinator(state: "ready" | "saving" | "saved"): OfficeSaveCoordinator
 }
 
 describe("OfficeShell", () => {
+  it("does not advertise Ready or offer Save before the editor is ready", () => {
+    const saveCoordinator = coordinator("ready");
+    render(<OfficeShell title="Document" editor={<div />} saveCoordinator={saveCoordinator} />);
+    expect(screen.queryByTestId("office-save-ready")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lưu lên UniWork" })).not.toBeInTheDocument();
+  });
+
+  it("preserves a real saving status when the editor is unavailable", () => {
+    render(<OfficeShell title="Document" editor={<div />} saveCoordinator={coordinator("saving")} />);
+    expect(screen.getByTestId("office-save-saving")).toBeInTheDocument();
+  });
+
+  it("omits the empty toolbar band and renders supplied toolbar content", () => {
+    const view = render(<OfficeShell title="Document" editor={<div data-testid="canvas" />} />);
+    const shell = view.container.querySelector("[data-office-shell]")!;
+    expect(shell.children).toHaveLength(2);
+    view.rerender(<OfficeShell title="Document" toolbar={<div data-testid="toolbar-content" />} editor={<div />} />);
+    expect(screen.getByTestId("toolbar-content")).toBeInTheDocument();
+    expect(shell.children).toHaveLength(3);
+  });
   it("uses one coordinator guard for button and shortcut while saving", () => {
     const saveCoordinator = coordinator("saving");
     const { container } = render(
