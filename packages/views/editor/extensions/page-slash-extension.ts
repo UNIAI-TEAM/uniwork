@@ -4,6 +4,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import { createSuggestionPopupRender } from "./suggestion-popup";
 import { PageBlockList, type PageBlockListHandle } from "./page-block-list";
 import { filterPageBlocks, insertPageBlock, type PageBlock, type PageTranslate } from "./page-blocks";
+import { isTriggerArmedAt } from "./suggestion-trigger-arming";
 
 const PageSlashKey = new PluginKey("pageDocumentSlash");
 
@@ -16,6 +17,7 @@ export function createPageSlashExtension(options: { translate: PageTranslate; ch
         pluginKey: PageSlashKey,
         char: "/",
         allowedPrefixes: null,
+        shouldShow: ({ editor, range }) => isTriggerArmedAt(editor, range.from),
         allow: ({ editor, state, range }) => {
           if (!editor.isEditable || state.selection.$from.parent.type.name === "codeBlock") return false;
           const before = state.doc.resolve(range.from);

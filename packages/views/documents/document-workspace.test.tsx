@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Editor } from "@tiptap/core";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -53,7 +54,7 @@ function findEditor() {
   return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }
 
-/** Paste through the real ProseMirror handler, the way a user types text in. */
+/** Paste through the real ProseMirror clipboard handler. */
 function pasteText(text: string) {
   const surface = screen.getByRole("textbox", { name: t("documents.editor.aria_label") });
   const event = new Event("paste", { bubbles: true, cancelable: true });
@@ -61,6 +62,16 @@ function pasteText(text: string) {
     value: { files: [], getData: (type: string) => (type === "text/plain" ? text : "") },
   });
   fireEvent(surface, event);
+}
+
+function typeText(surface: HTMLElement, text: string) {
+  const editor = (surface as HTMLElement & { editor: Editor }).editor;
+  for (const char of text) {
+    const { from, to } = editor.state.selection;
+    const handled = editor.view.someProp("handleTextInput", (fn) =>
+      fn(editor.view, from, to, char, () => editor.state.tr.insertText(char, from, to)));
+    if (!handled) editor.view.dispatch(editor.state.tr.insertText(char, from, to));
+  }
 }
 
 interface PatchCall {
@@ -125,7 +136,7 @@ describe("DocumentWorkspace note page UI", () => {
     renderWorkspace({ content: { type: "doc", content: [{ type: "paragraph" }] } });
     const body = await findEditor();
     fireEvent.keyDown(screen.getByRole("textbox", { name: t("documents.page_ui.title_label") }), { key: "Enter" });
-    pasteText("/");
+    await act(async () => { typeText(body, "/"); });
     expect(await screen.findByRole("listbox", { name: t("documents.page_ui.insert_block") })).toBeInTheDocument();
     fireEvent.keyDown(body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());

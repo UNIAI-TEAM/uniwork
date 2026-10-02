@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { URL as FileURL } from "node:url";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -29,6 +31,47 @@ afterEach(() => {
 });
 
 describe("PublicDocumentView", () => {
+  it("aligns read-only public tasks and mutes only the checked item's own paragraph", async () => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({ document: { title: "Public tasks", kind: "page", content: {
+      type: "doc", content: [{ type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [
+        { type: "paragraph", content: [{ type: "text", text: "Checked parent" }] },
+        { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [
+          { type: "paragraph", content: [{ type: "text", text: "Unchecked child" }] },
+        ] }] },
+      ] }] }, { type: "paragraph" }],
+    } } });
+    const style = document.createElement("style");
+    style.textContent = readFileSync(new FileURL("../editor/styles/page.css", import.meta.url), "utf8");
+    document.head.appendChild(style);
+    try {
+      const { container } = render(wrap(<PublicDocumentView token={TOKEN} />));
+      const parent = await screen.findByText("Checked parent");
+      const child = await screen.findByText("Unchecked child");
+      const body = container.querySelector<HTMLElement>(".ProseMirror")!;
+      expect(body).not.toHaveClass("document-page-prose");
+      body.style.color = "rgb(20, 20, 20)";
+      body.style.setProperty("--muted-foreground", "rgb(100, 100, 100)");
+      const rows = container.querySelectorAll<HTMLElement>(".page-task-item");
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.parentElement?.tagName).toBe("LI");
+        expect(getComputedStyle(row).display).toBe("flex");
+      }
+      // jsdom retains CSS variable references; browser tests verify resolved colors.
+      expect(["var(--muted-foreground)", "rgb(100, 100, 100)"]).toContain(getComputedStyle(parent).color);
+      expect(getComputedStyle(child).color).toBe("rgb(20, 20, 20)");
+      const checkboxes = screen.getAllByRole("checkbox");
+      expect(checkboxes).toHaveLength(2);
+      for (const checkbox of checkboxes) expect(checkbox).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(checkboxes[1]!);
+      expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
+      expect(requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string })?.method === "PATCH")).toHaveLength(0);
+    } finally {
+      style.remove();
+    }
+  });
+
   it("loads the token-scoped document and renders the sanitized JSON read-only", async () => {
     configureRuntime({ apiUrl: "https://api.uniwork.test" });
     requestMock.mockReset();
