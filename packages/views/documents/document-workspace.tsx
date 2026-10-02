@@ -425,6 +425,23 @@ export function DocumentWorkspace({
     : !dirty && metadataStatus.dirty ? { ...state, phase: "debouncing" as const, dirty: true }
     : bodyQueued ? { ...state, phase: "debouncing" as const, dirty: true }
     : state;
+  const recoveryNotice = doc.kind === "page" && canEdit && (
+    pendingUploads > 0 || indicatorState.phase === "error" || indicatorState.phase === "unverifiable" || indicatorState.phase === "conflict"
+  );
+  const recoveryNoticeLive = indicatorState.phase === "conflict" || indicatorState.phase === "error" || indicatorState.phase === "unverifiable"
+    ? "assertive" as const
+    : "polite" as const;
+  const saveIndicator = (
+    <DocumentSaveIndicator
+      compact
+      state={indicatorState}
+      pendingUploads={pendingUploads}
+      announce={!recoveryNotice}
+      className={recoveryNotice ? "flex-wrap [&>svg]:hidden" : "shrink-0 whitespace-nowrap"}
+      onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
+      onResolveConflict={() => setConflictOpen(true)}
+    />
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -452,16 +469,7 @@ export function DocumentWorkspace({
         actions={
           <>
             {headerActions}
-            {doc.kind === "page" && canEdit ? (
-              <DocumentSaveIndicator
-                compact
-                className="shrink-0 whitespace-nowrap"
-                state={indicatorState}
-                pendingUploads={pendingUploads}
-                onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
-                onResolveConflict={() => setConflictOpen(true)}
-              />
-            ) : null}
+            {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
             {!canEdit ? (
               <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground"
                 title={t("documents.detail.readonly_description")}>
@@ -477,6 +485,11 @@ export function DocumentWorkspace({
       {!canEdit ? (
         <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
           {t("documents.detail.readonly_description")}
+        </Notice>
+      ) : null}
+      {recoveryNotice ? (
+        <Notice tone="warning" icon={FileWarning} live={recoveryNoticeLive} className="[&>div]:min-w-0">
+          {saveIndicator}
         </Notice>
       ) : null}
 
