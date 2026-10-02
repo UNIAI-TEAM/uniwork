@@ -21,8 +21,13 @@ $SUDO mkdir -p "$MARKERS"
 
 # Postgres 16 and Redis 7 are the noble packages (CI: postgres:16, redis:7).
 # postgresql-contrib carries pg_trgm (migration 134).
+# The desktop Linux proof (UNI-920) builds .deb/AppImage and runs them under
+# Xvfb with a keyring: xvfb, dbus-x11, gnome-keyring, libsecret, xdg-utils,
+# desktop-file-utils, fakeroot/dpkg-dev; libfuse2t64 is noble's libfuse2.
 packages=(ca-certificates curl git gnupg sudo make jq unzip xz-utils build-essential
-  tzdata procps lsof postgresql-16 postgresql-contrib redis-server)
+  tzdata procps lsof postgresql-16 postgresql-contrib redis-server
+  xvfb xauth dbus-x11 gnome-keyring libsecret-1-0 libsecret-tools xdg-utils desktop-file-utils
+  fakeroot dpkg-dev libfuse2t64)
 missing=()
 for p in "${packages[@]}"; do dpkg -s "$p" > /dev/null 2>&1 || missing+=("$p"); done
 if [ "${#missing[@]}" -gt 0 ]; then
