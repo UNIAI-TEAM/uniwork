@@ -66,10 +66,11 @@ WHERE thread_root_id = $1 AND workspace_id = $2;
 -- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body,
-  reply_to_message_id, thread_root_id, mirrored_from_comment_id
+  reply_to_message_id, thread_root_id, mirrored_from_comment_id, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6,
-  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id)
+  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id),
+  sqlc.arg(organization_id)
 )
 RETURNING *;
 

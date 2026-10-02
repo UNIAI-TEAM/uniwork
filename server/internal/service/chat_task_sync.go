@@ -137,7 +137,7 @@ func (c *ChatTaskSyncConsumer) syncTaskToChat(ctx context.Context, payload map[s
 	q := c.q.WithTx(tx)
 	anchorWS := link.WorkspaceID
 	msg, err := q.CreateMirroredChatThreadReply(ctx, db.CreateMirroredChatThreadReplyParams{
-		ID: util.NewID(), RoomID: link.RoomID, WorkspaceID: anchorWS,
+		ID: util.NewID(), RoomID: link.RoomID, OrganizationID: link.OrganizationID, WorkspaceID: anchorWS,
 		SenderID: comment.AuthorID, SenderKind: comment.AuthorKind, Body: comment.Body,
 		ReplyToMessageID:      pgtype.Text{String: link.ThreadRootID, Valid: true},
 		ThreadRootID:          pgtype.Text{String: link.ThreadRootID, Valid: true},
@@ -184,7 +184,7 @@ func (c *ChatTaskSyncConsumer) dropLinkAndNotify(ctx context.Context, link db.Ch
 		return err
 	}
 	msg, err := q.CreateMirroredChatThreadReply(ctx, db.CreateMirroredChatThreadReplyParams{
-		ID: util.NewID(), RoomID: link.RoomID, WorkspaceID: link.WorkspaceID,
+		ID: util.NewID(), RoomID: link.RoomID, OrganizationID: link.OrganizationID, WorkspaceID: link.WorkspaceID,
 		SenderID: link.CreatedBy, SenderKind: string(audit.KindSystem), Body: body,
 		ReplyToMessageID:      pgtype.Text{String: link.ThreadRootID, Valid: true},
 		ThreadRootID:          pgtype.Text{String: link.ThreadRootID, Valid: true},

@@ -1,10 +1,12 @@
 -- name: CreateMeeting :one
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
-  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key
+  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
+  organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
-  $9, $10, $11, $12, $13, 1, $8, $14, $15
+  $9, $10, $11, $12, $13, 1, $8, $14, $15,
+  $17
 )
 RETURNING *;
 
@@ -133,11 +135,11 @@ RETURNING *;
 DELETE FROM meetings WHERE id = $1;
 
 -- name: AddMeetingAttendee :exec
-INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+INSERT INTO meeting_attendees (meeting_id, user_id, organization_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: CreateMeetingNote :one
-INSERT INTO meeting_notes (id, meeting_id, author_id, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO meeting_notes (id, meeting_id, author_id, body, organization_id)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListMeetingNotes :many

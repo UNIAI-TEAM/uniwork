@@ -150,7 +150,7 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 			ID:              roomID,
 			Kind:            chatRoomKindChannel,
 			WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-			OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
+			OrganizationID:  w.OrganizationID,
 			Name:            w.Name,
 			MemberSetKey:    pgtype.Text{},
 			LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -168,13 +168,13 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		return WorkspaceChat{}, err
 	}
 
-	if err := s.syncWorkspaceRoomMembers(ctx, room.ID, workspaceID); err != nil {
+	if err := s.syncWorkspaceRoomMembers(ctx, room, workspaceID); err != nil {
 		return WorkspaceChat{}, err
 	}
 	return WorkspaceChat{RoomID: room.ID, WorkspaceID: workspaceID}, nil
 }
 
-func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, workspaceID string) error {
+func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, room db.ChatRoom, workspaceID string) error {
 	members, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -183,11 +183,11 @@ func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, work
 	for _, m := range members {
 		keep[m.UserID] = struct{}{}
 		role := workspaceChatMemberRole(m.Role)
-		if err := s.syncRoomMember(ctx, roomID, workspaceID, m.UserID, role); err != nil {
+		if err := s.syncRoomMember(ctx, room, workspaceID, m.UserID, role); err != nil {
 			return err
 		}
 	}
-	activeIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, roomID)
+	activeIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, work
 			continue
 		}
 		if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
-			RoomID: roomID, UserID: uid,
+			RoomID: room.ID, UserID: uid,
 		}); err != nil {
 			return err
 		}
@@ -213,41 +213,42 @@ func workspaceChatMemberRole(wsRole string) string {
 
 // syncRoomMember adds the member when absent and raises an existing member to
 // admin when the workspace role demands it; it never demotes.
-func (s *ChatService) syncRoomMember(ctx context.Context, roomID, workspaceID, userID, floorRole string) error {
+func (s *ChatService) syncRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, floorRole string) error {
 	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
+		RoomID: room.ID, UserID: userID,
 	})
 	if err == nil {
 		if floorRole != "admin" || existing.Role == "admin" {
 			return nil
 		}
 		return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-			RoomID: roomID, UserID: userID, Role: "admin",
+			RoomID: room.ID, UserID: userID, Role: "admin",
 		})
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	_, err = s.addRoomMember(ctx, s.q, roomID, workspaceID, userID, floorRole)
+	_, err = s.addRoomMember(ctx, s.q, room, workspaceID, userID, floorRole)
 	return err
 }
 
-func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
-	return s.ensureRoomMemberTx(ctx, s.q, roomID, workspaceID, userID, role)
+func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
+	return s.ensureRoomMemberTx(ctx, s.q, room, workspaceID, userID, role)
 }
 
 // ensureRoomMemberTx adds the member inside the caller's transaction; it drops
 // the added flag for callers that have nothing to audit.
-func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) error {
-	_, err := s.addRoomMember(ctx, q, roomID, workspaceID, userID, role)
+func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) error {
+	_, err := s.addRoomMember(ctx, q, room, workspaceID, userID, role)
 	return err
 }
 
 // addRoomMember reports whether it added the row, so a caller inside a
-// transaction can audit exactly the members it actually added.
-func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) (bool, error) {
+// transaction can audit exactly the members it actually added. The member
+// row takes the room's organization (ADR 0008), never the caller's.
+func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) (bool, error) {
 	_, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
+		RoomID: room.ID, UserID: userID,
 	})
 	if err == nil {
 		return false, nil
@@ -256,12 +257,13 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, 
 		return false, err
 	}
 	_, err = q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
-		ID:          util.NewID(),
-		RoomID:      roomID,
-		WorkspaceID: workspaceID,
-		UserID:      userID,
-		Role:        role,
-		Status:      "active",
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		WorkspaceID:    workspaceID,
+		UserID:         userID,
+		Role:           role,
+		Status:         "active",
+		OrganizationID: room.OrganizationID,
 	})
 	return err == nil, err
 }
@@ -494,6 +496,7 @@ func (s *ChatService) sendMessage(
 	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
+		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      anchorWS,
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),

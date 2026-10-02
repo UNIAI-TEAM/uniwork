@@ -155,7 +155,7 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return ChatMessageRow{}, err
@@ -171,6 +171,7 @@ func (s *ChatService) SendThreadReply(
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
+		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      anchorWS,
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),
@@ -285,7 +286,7 @@ func (s *ChatService) FollowThread(ctx context.Context, userID, workspaceID, thr
 	if !threadAllowedOnRoom(room) {
 		return errChatThreadNotFound()
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	if _, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
 		ThreadRootID: root.ID, UserID: userID,
@@ -316,7 +317,7 @@ func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, t
 	if err != nil {
 		return err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	// Prefer at least last_reply_at: Go's clock can lag Postgres, and writing a
 	// stale "now" would move last_read backwards and leave the thread unread.

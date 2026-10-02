@@ -93,7 +93,7 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: "owner"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: userID, Role: "owner"}); err != nil {
 		return WorkspaceView{}, err
 	}
 	w, err = q.UpdateWorkspaceTaskPrefix(ctx, db.UpdateWorkspaceTaskPrefixParams{
@@ -240,7 +240,7 @@ func (s *WorkspaceService) RequireMemberQ(ctx context.Context, q *db.Queries, wo
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).
 	telemetry.SetTenant(ctx, access.OrganizationID, workspaceID)
-	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: access.Role}, nil
+	return db.WorkspaceMember{WorkspaceID: workspaceID, OrganizationID: access.OrganizationID, UserID: userID, Role: access.Role}, nil
 }
 
 // RequireAgentMember is the agent counterpart of RequireMember: an agent is
@@ -688,7 +688,7 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		return AcceptResult{}, err
 	}
 	if inv.WorkspaceID.Valid {
-		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, UserID: userID, Role: inv.Role}); err != nil {
+		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, UserID: userID, Role: inv.Role}); err != nil {
 			return AcceptResult{}, err
 		}
 	}

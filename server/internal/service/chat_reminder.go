@@ -122,12 +122,13 @@ func (s *ChatService) SendReminderMessage(
 
 	anchorWS := roomAnchorWorkspaceID(room)
 	msg, err := s.q.CreateChatReminderMessage(ctx, db.CreateChatReminderMessageParams{
-		ID:          util.NewID(),
-		RoomID:      room.ID,
-		WorkspaceID: anchorWS,
-		SenderID:    userID,
-		Body:        body,
-		Metadata:    meta,
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       userID,
+		Body:           body,
+		Metadata:       meta,
 	})
 	if err != nil {
 		return ChatMessageRow{}, err

@@ -168,7 +168,7 @@ func TestCreateTaskRejectsForeignOrAlreadyBoundAttachment(t *testing.T) {
 func TestStagedAttachmentIsPrivateToUploader(t *testing.T) {
 	s, _, _, ua, ub, w := taskFixtureWithStorage(t)
 	ctx := context.Background()
-	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: ub.ID, Role: "member"}); err != nil {
+	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: ub.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "", "private.txt", "text/plain", 1, strings.NewReader("x"))

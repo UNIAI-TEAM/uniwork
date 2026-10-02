@@ -179,6 +179,7 @@ func (s *ChatService) commitChatMediaMessage(
 	params := db.CreateChatFileMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
+		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      roomAnchorWorkspaceID(room),
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),
@@ -191,6 +192,7 @@ func (s *ChatService) commitChatMediaMessage(
 		msg, err = q.CreateChatVoiceMessage(ctx, db.CreateChatVoiceMessageParams{
 			ID:               params.ID,
 			RoomID:           params.RoomID,
+			OrganizationID:   params.OrganizationID,
 			WorkspaceID:      params.WorkspaceID,
 			SenderID:         params.SenderID,
 			SenderKind:       params.SenderKind,
@@ -279,7 +281,7 @@ func chatMediaUploadKey(kind, roomID, senderID, clientMsgID string, payload []by
 // the workspace branch is optional for chat purposes.
 func chatFileScope(room db.ChatRoom) files.Scope {
 	return files.Scope{
-		OrganizationID: roomOrganizationID(room),
+		OrganizationID: room.OrganizationID,
 		WorkspaceID:    roomAnchorWorkspaceID(room),
 	}
 }

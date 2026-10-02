@@ -1,22 +1,22 @@
 -- name: InsertTranscriptSegment :one
-INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: ListTranscriptSegments :many
 SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at ASC, id ASC LIMIT $2;
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetLatestMeetingSummary :one
 SELECT * FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1;
 
 -- name: InsertMeetingRecording :one
-INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by, file_id)
-VALUES ($1, $2, $3, $4, sqlc.narg('file_id'))
+INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by, file_id, organization_id)
+VALUES ($1, $2, $3, $4, sqlc.narg('file_id'), sqlc.arg('organization_id'))
 RETURNING *;
 
 -- name: GetMeetingRecordingByEgressID :one

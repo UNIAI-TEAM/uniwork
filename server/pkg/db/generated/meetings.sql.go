@@ -12,16 +12,17 @@ import (
 )
 
 const addMeetingAttendee = `-- name: AddMeetingAttendee :exec
-INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+INSERT INTO meeting_attendees (meeting_id, user_id, organization_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
 `
 
 type AddMeetingAttendeeParams struct {
-	MeetingID string `json:"meeting_id"`
-	UserID    string `json:"user_id"`
+	MeetingID      string `json:"meeting_id"`
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) AddMeetingAttendee(ctx context.Context, arg AddMeetingAttendeeParams) error {
-	_, err := q.db.Exec(ctx, addMeetingAttendee, arg.MeetingID, arg.UserID)
+	_, err := q.db.Exec(ctx, addMeetingAttendee, arg.MeetingID, arg.UserID, arg.OrganizationID)
 	return err
 }
 
@@ -35,7 +36,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $3 AND status = 'SCHEDULED' AND version = $4
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type CancelMeetingParams struct {
@@ -82,6 +83,7 @@ func (q *Queries) CancelMeeting(ctx context.Context, arg CancelMeetingParams) (M
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -133,12 +135,14 @@ func (q *Queries) CountMeetingsByWorkspaceFiltered(ctx context.Context, arg Coun
 const createMeeting = `-- name: CreateMeeting :one
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
-  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key
+  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
+  organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
-  $9, $10, $11, $12, $13, 1, $8, $14, $15
+  $9, $10, $11, $12, $13, 1, $8, $14, $15,
+  $17
 )
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type CreateMeetingParams struct {
@@ -158,6 +162,7 @@ type CreateMeetingParams struct {
 	ProjectID            pgtype.Text        `json:"project_id"`
 	PreferredProviderKey pgtype.Text        `json:"preferred_provider_key"`
 	CreatedByKind        string             `json:"created_by_kind"`
+	OrganizationID       string             `json:"organization_id"`
 }
 
 func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (Meeting, error) {
@@ -178,6 +183,7 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 		arg.ProjectID,
 		arg.PreferredProviderKey,
 		arg.CreatedByKind,
+		arg.OrganizationID,
 	)
 	var i Meeting
 	err := row.Scan(
@@ -209,21 +215,23 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createMeetingNote = `-- name: CreateMeetingNote :one
-INSERT INTO meeting_notes (id, meeting_id, author_id, body)
-VALUES ($1, $2, $3, $4)
-RETURNING id, meeting_id, author_id, body, created_at
+INSERT INTO meeting_notes (id, meeting_id, author_id, body, organization_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, meeting_id, author_id, body, created_at, organization_id
 `
 
 type CreateMeetingNoteParams struct {
-	ID        string `json:"id"`
-	MeetingID string `json:"meeting_id"`
-	AuthorID  string `json:"author_id"`
-	Body      string `json:"body"`
+	ID             string `json:"id"`
+	MeetingID      string `json:"meeting_id"`
+	AuthorID       string `json:"author_id"`
+	Body           string `json:"body"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateMeetingNote(ctx context.Context, arg CreateMeetingNoteParams) (MeetingNote, error) {
@@ -232,6 +240,7 @@ func (q *Queries) CreateMeetingNote(ctx context.Context, arg CreateMeetingNotePa
 		arg.MeetingID,
 		arg.AuthorID,
 		arg.Body,
+		arg.OrganizationID,
 	)
 	var i MeetingNote
 	err := row.Scan(
@@ -240,6 +249,7 @@ func (q *Queries) CreateMeetingNote(ctx context.Context, arg CreateMeetingNotePa
 		&i.AuthorID,
 		&i.Body,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -261,7 +271,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $2 AND status = 'IN_PROGRESS' AND version = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type EndMeetingParams struct {
@@ -302,12 +312,13 @@ func (q *Queries) EndMeeting(ctx context.Context, arg EndMeetingParams) (Meeting
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getMeeting = `-- name: GetMeeting :one
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by FROM meetings WHERE id = $1
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings WHERE id = $1
 `
 
 func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
@@ -342,6 +353,7 @@ func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -393,7 +405,7 @@ func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]Lis
 }
 
 const listMeetingsByWorkspace = `-- name: ListMeetingsByWorkspace :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID string) ([]Meeting, error) {
@@ -434,6 +446,7 @@ func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID strin
 			&i.QuorumPercent,
 			&i.AttendanceFinalizedAt,
 			&i.AttendanceFinalizedBy,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -446,7 +459,7 @@ func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID strin
 }
 
 const listMeetingsByWorkspaceFiltered = `-- name: ListMeetingsByWorkspaceFiltered :many
-SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description, meetings.starts_at, meetings.ends_at, meetings.room_name, meetings.created_by, meetings.created_at, meetings.updated_at, meetings.status, meetings.meeting_type, meetings.host_user_id, meetings.actual_start_at, meetings.actual_end_at, meetings.timezone, meetings.allow_join_request, meetings.preferred_provider_key, meetings.version, meetings.updated_by, meetings.canceled_by, meetings.canceled_at, meetings.cancel_reason, meetings.project_id, meetings.created_by_kind, meetings.quorum_percent, meetings.attendance_finalized_at, meetings.attendance_finalized_by,
+SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description, meetings.starts_at, meetings.ends_at, meetings.room_name, meetings.created_by, meetings.created_at, meetings.updated_at, meetings.status, meetings.meeting_type, meetings.host_user_id, meetings.actual_start_at, meetings.actual_end_at, meetings.timezone, meetings.allow_join_request, meetings.preferred_provider_key, meetings.version, meetings.updated_by, meetings.canceled_by, meetings.canceled_at, meetings.cancel_reason, meetings.project_id, meetings.created_by_kind, meetings.quorum_percent, meetings.attendance_finalized_at, meetings.attendance_finalized_by, meetings.organization_id,
   EXISTS (
     SELECT 1 FROM meeting_recordings r
     WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
@@ -560,6 +573,7 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 			&i.Meeting.QuorumPercent,
 			&i.Meeting.AttendanceFinalizedAt,
 			&i.Meeting.AttendanceFinalizedBy,
+			&i.Meeting.OrganizationID,
 			&i.HasPlayableRecording,
 		); err != nil {
 			return nil, err
@@ -623,7 +637,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $2 AND status = 'SCHEDULED' AND version = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type StartMeetingParams struct {
@@ -664,6 +678,7 @@ func (q *Queries) StartMeeting(ctx context.Context, arg StartMeetingParams) (Mee
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -676,7 +691,7 @@ UPDATE meetings SET
   version = version + 1
 WHERE id = $3 AND version = $4
   AND status IN ('SCHEDULED', 'IN_PROGRESS')
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type TransferMeetingHostParams struct {
@@ -723,6 +738,7 @@ func (q *Queries) TransferMeetingHost(ctx context.Context, arg TransferMeetingHo
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -745,7 +761,7 @@ UPDATE meetings SET
   updated_at  = now(),
   version     = version + 1
 WHERE id = $10 AND version = $11
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
 `
 
 type UpdateMeetingParams struct {
@@ -806,6 +822,7 @@ func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (M
 		&i.QuorumPercent,
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
 	)
 	return i, err
 }

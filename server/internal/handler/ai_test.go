@@ -48,7 +48,7 @@ func TestAIEndpoints(t *testing.T) {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, UserID: memberID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC

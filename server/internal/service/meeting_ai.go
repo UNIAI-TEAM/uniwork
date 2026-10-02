@@ -75,7 +75,7 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 		}
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
 		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
 	})
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingI
 		speaker = participantIdentity
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
 		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
 	})
 	if err != nil {
@@ -261,7 +261,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	decisions, _ := json.Marshal(res.Decisions)
 	items, _ := json.Marshal(res.ActionItems)
 	row, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: meetingID, Summary: res.Summary,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,
 		UsageEventID: strText(resp.UsageEventID),
 	})
@@ -269,7 +269,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		return db.MeetingSummary{}, err
 	}
 	s.count("summary_ok")
-	_ = s.writeAudit(ctx, s.q, meetingID, "SUMMARY_CREATED", userID, "", row.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "SUMMARY_CREATED", userID, "", row.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "summary.created", Payload: map[string]string{"meeting_id": meetingID}})
 	return row, nil
 }
@@ -397,7 +397,7 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		out = append(out, t)
 	}
 	payload, _ := json.Marshal(map[string]int{"count": len(out)})
-	_ = s.writeAudit(ctx, s.q, meetingID, "TASKS_CREATED_FROM_SUMMARY", userID, "", "", string(payload))
+	_ = s.writeAudit(ctx, s.q, m, "TASKS_CREATED_FROM_SUMMARY", userID, "", "", string(payload))
 	return out, nil
 }
 
@@ -477,12 +477,12 @@ func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID s
 	// until the session expires; the reconciler collects it — the egress
 	// writes an object nobody claims.
 	rec, err := s.q.InsertMeetingRecording(ctx, db.InsertMeetingRecordingParams{
-		ID: recID, MeetingID: meetingID, EgressID: ref.RecordingID, StartedBy: userID, FileID: fileID,
+		ID: recID, MeetingID: meetingID, OrganizationID: m.OrganizationID, EgressID: ref.RecordingID, StartedBy: userID, FileID: fileID,
 	})
 	if err != nil {
 		return db.MeetingRecording{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "RECORDING_STARTED", userID, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "RECORDING_STARTED", userID, "", rec.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.started", Payload: map[string]string{"meeting_id": meetingID}})
 	return rec, nil
 }
@@ -529,7 +529,7 @@ func (s *MeetingService) stopActiveRecording(ctx context.Context, m db.Meeting, 
 	if err != nil {
 		return db.MeetingRecording{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, "RECORDING_STOPPED", actorID, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "RECORDING_STOPPED", actorID, "", rec.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.stopped", Payload: map[string]string{"meeting_id": m.ID}})
 	return rec, nil
 }
@@ -678,7 +678,7 @@ func (s *MeetingService) finishRecordingFileClaim(ctx context.Context, ev Provid
 	}); err != nil {
 		return
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "RECORDING_COMPLETED", rec.StartedBy, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, q, m, "RECORDING_COMPLETED", rec.StartedBy, "", rec.ID, "{}")
 	if err := tx.Commit(ctx); err != nil {
 		return
 	}

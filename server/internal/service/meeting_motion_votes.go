@@ -131,7 +131,7 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 	if err != nil {
 		return db.MeetingMotion{}, err
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MOTION_OPENED", actorID, MotionDraft, MotionOpen, payload); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MOTION_OPENED", actorID, MotionDraft, MotionOpen, payload); err != nil {
 		return db.MeetingMotion{}, err
 	}
 	s.record(ctx, q, m, audit.User(actorID), "motion.opened",
@@ -201,7 +201,7 @@ func (s *MeetingService) closeMotionTx(ctx context.Context, q *db.Queries, m db.
 	if err != nil {
 		return db.MeetingMotion{}, err
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MOTION_CLOSED", timelineActor, MotionOpen, outcome, payload); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MOTION_CLOSED", timelineActor, MotionOpen, outcome, payload); err != nil {
 		return db.MeetingMotion{}, err
 	}
 	s.record(ctx, q, m, actor, "motion.closed",

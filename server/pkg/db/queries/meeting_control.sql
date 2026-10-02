@@ -3,10 +3,10 @@
 -- join approval); a user starts as a member.
 INSERT INTO meeting_participants (
   id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot,
-  role, status, source_type, source_id, added_by, standing
+  role, status, source_type, source_id, added_by, standing, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, $10, $11,
-  CASE WHEN $3 = 'GUEST' THEN 'OBSERVER' ELSE 'MEMBER' END
+  CASE WHEN $3 = 'GUEST' THEN 'OBSERVER' ELSE 'MEMBER' END, $12
 )
 RETURNING *;
 
@@ -47,8 +47,8 @@ RETURNING *;
 
 -- name: CreateMeetingInvitation :one
 INSERT INTO meeting_invitations (
-  id, meeting_id, participant_id, response_status, invited_by
-) VALUES ($1, $2, $3, 'PENDING', $4)
+  id, meeting_id, participant_id, response_status, invited_by, organization_id
+) VALUES ($1, $2, $3, 'PENDING', $4, $5)
 RETURNING *;
 
 -- name: GetMeetingInvitation :one
@@ -69,8 +69,8 @@ RETURNING *;
 
 -- name: CreateAccessGrant :one
 INSERT INTO meeting_access_grants (
-  id, meeting_id, participant_id, source_type, source_id, status, valid_from, expires_at, granted_by
-) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', now(), $6, $7)
+  id, meeting_id, participant_id, source_type, source_id, status, valid_from, expires_at, granted_by, organization_id
+) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', now(), $6, $7, $8)
 RETURNING *;
 
 -- name: ListActiveGrantsForParticipant :many
@@ -104,8 +104,8 @@ WHERE source_type = 'INVITE_LINK' AND source_id = $1 AND status = 'ACTIVE';
 
 -- name: CreateInviteLink :one
 INSERT INTO meeting_invite_links (
-  id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, created_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, created_by, organization_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetInviteLink :one
@@ -131,8 +131,9 @@ RETURNING *;
 
 -- name: CreateJoinRequest :one
 INSERT INTO meeting_join_requests (
-  id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7)
+  id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, expires_at,
+  organization_id
+) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7, $8)
 RETURNING *;
 
 -- name: GetJoinRequest :one
@@ -186,8 +187,8 @@ WHERE meeting_id = $1 AND status = 'PENDING';
 
 -- name: CreateConferenceSession :one
 INSERT INTO meeting_conference_sessions (
-  id, meeting_id, provider_key, provider_room_name, status, provider_sync_status
-) VALUES ($1, $2, $3, $4, 'PENDING', 'PENDING')
+  id, meeting_id, provider_key, provider_room_name, status, provider_sync_status, organization_id
+) VALUES ($1, $2, $3, $4, 'PENDING', 'PENDING', $5)
 RETURNING *;
 
 -- name: GetOpenConferenceSession :one
@@ -230,8 +231,8 @@ RETURNING *;
 -- name: InsertAuditLog :exec
 INSERT INTO meeting_audit_logs (
   id, meeting_id, event_type, actor_type, actor_id, target_type, target_id,
-  from_state, to_state, payload, request_id, ip_address, user_agent, occurred_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now());
+  from_state, to_state, payload, request_id, ip_address, user_agent, occurred_at, organization_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), $14);
 
 -- name: ListMeetingAuditLogs :many
 SELECT * FROM meeting_audit_logs WHERE meeting_id = $1 ORDER BY occurred_at DESC LIMIT $2 OFFSET $3;
@@ -371,12 +372,12 @@ ON CONFLICT DO NOTHING;
 -- future; NULL means now().
 INSERT INTO meeting_attendance_sessions (
   id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, provider_event_id,
-  provider_participant_sid
+  provider_participant_sid, organization_id
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('meeting_id'), sqlc.arg('conference_session_id'), sqlc.arg('participant_id'),
   sqlc.arg('provider_participant_identity'),
   LEAST(now(), COALESCE(sqlc.narg('joined_at')::timestamptz, now())),
-  sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid')
+  sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid'), sqlc.arg('organization_id')
 )
 ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
   provider_event_id = COALESCE(meeting_attendance_sessions.provider_event_id, EXCLUDED.provider_event_id)
@@ -453,7 +454,7 @@ RETURNING *;
 -- and close queries: never in the future, never closing before opening.
 INSERT INTO meeting_attendance_sessions (
   id, meeting_id, conference_session_id, participant_id, provider_participant_identity,
-  joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid
+  joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('meeting_id'), sqlc.arg('conference_session_id'), sqlc.arg('participant_id'),
   sqlc.arg('provider_participant_identity'),
@@ -462,7 +463,8 @@ INSERT INTO meeting_attendance_sessions (
     LEAST(now(), COALESCE(sqlc.narg('joined_at')::timestamptz, now())),
     LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))
   ),
-  sqlc.narg('leave_reason'), sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid')
+  sqlc.narg('leave_reason'), sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid'),
+  sqlc.arg('organization_id')
 )
 RETURNING *;
 

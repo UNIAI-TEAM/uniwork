@@ -43,9 +43,13 @@ func seedMotionGuest(t *testing.T, q *db.Queries, meetingID, name string) (map[s
 	if _, err := q.CreateMeetingGuest(ctx, guestID); err != nil {
 		t.Fatal(err)
 	}
+	m, err := q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pid := util.NewID()
 	if _, err := q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: pid, MeetingID: meetingID, PrincipalType: service.PrincipalGuest,
+		ID: pid, MeetingID: meetingID, OrganizationID: m.OrganizationID, PrincipalType: service.PrincipalGuest,
 		GuestID: pgtype.Text{String: guestID, Valid: true}, DisplayNameSnapshot: name,
 		Role: service.RoleAttendee, SourceType: service.GrantInviteLink,
 		SourceID: pgtype.Text{String: "link", Valid: true}, AddedBy: guestID,

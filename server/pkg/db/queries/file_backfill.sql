@@ -36,7 +36,7 @@ LIMIT sqlc.arg('limit_n');
 -- name: FileBackfillScanChatMessages :many
 -- M3/M4 (kind file/voice: object_key in metadata) and M7 (voice_call_log:
 -- recording_url in metadata — a second reference to a call-recording object).
--- Tenant derives through the room; chat_rooms.organization_id may be NULL.
+-- Tenant derives through the room; it is NULL only when the room is gone.
 SELECT m.id, m.room_id, m.workspace_id, m.sender_id, m.sender_kind, m.kind,
        m.metadata, m.deleted_at, m.file_id, m.created_at,
        r.organization_id AS room_organization_id,

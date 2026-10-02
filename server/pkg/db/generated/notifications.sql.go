@@ -294,7 +294,7 @@ func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID s
 }
 
 const listMeetingsStartingBetween = `-- name: ListMeetingsStartingBetween :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by FROM meetings
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings
 WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2
 `
 
@@ -341,6 +341,7 @@ func (q *Queries) ListMeetingsStartingBetween(ctx context.Context, arg ListMeeti
 			&i.QuorumPercent,
 			&i.AttendanceFinalizedAt,
 			&i.AttendanceFinalizedBy,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}

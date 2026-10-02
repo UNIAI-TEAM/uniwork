@@ -359,7 +359,7 @@ func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetin
 	if err != nil {
 		return err
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "ATTENDANCE_FINALIZED", actorID, "", "", "{}")
+	_ = s.writeAudit(ctx, q, m, "ATTENDANCE_FINALIZED", actorID, "", "", "{}")
 	s.record(ctx, q, up, audit.User(actorID), "attendance.finalized", nil, nil)
 	return tx.Commit(ctx)
 }

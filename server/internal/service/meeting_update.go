@@ -109,7 +109,7 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	_ = s.writeAudit(ctx, q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
+	_ = s.writeAudit(ctx, q, m, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
 		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt), "quorum_percent": quorumOrNil(m.QuorumPercent)},
 		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt), "quorum_percent": quorumOrNil(up.QuorumPercent)},
@@ -156,7 +156,7 @@ func (s *MeetingService) Extend(ctx context.Context, userID, meetingID string, m
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
 		map[string]any{"ends_at": tsOrNil(m.EndsAt)},
 		map[string]any{"ends_at": tsOrNil(up.EndsAt)},

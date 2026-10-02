@@ -34,8 +34,12 @@ func governanceFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Meet
 
 func newGuestParticipant(t *testing.T, s *MeetingService, meetingID string) db.MeetingParticipant {
 	t.Helper()
+	m, err := s.q.GetMeeting(context.Background(), meetingID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	g, err := s.q.CreateMeetingParticipant(context.Background(), db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: meetingID, PrincipalType: PrincipalGuest,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 		GuestID: strText(util.NewID()), DisplayNameSnapshot: "Khách", Role: RoleAttendee,
 		SourceType: GrantInviteLink, AddedBy: "system",
 	})
@@ -143,7 +147,7 @@ func TestSecretaryMustBeWorkspaceMember(t *testing.T) {
 	ctx := context.Background()
 	outsider := workspaceUser(t, s, m.WorkspaceID, "outsider@example.com", "")
 	p, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser, UserID: strText(outsider.ID),
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser, UserID: strText(outsider.ID),
 		DisplayNameSnapshot: "Ngoài", Role: RoleAttendee, SourceType: GrantInviteLink, AddedBy: "system",
 	})
 	if err != nil {

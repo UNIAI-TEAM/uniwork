@@ -24,10 +24,10 @@ func (s *MeetingService) ReconcileProviderDesync(ctx context.Context, limit int3
 		}
 		sess, serr := s.q.GetOpenConferenceSession(ctx, meetingID)
 		if serr != nil {
-			_ = s.writeAudit(ctx, s.q, meetingID, "PROVIDER_ROOM_IDLE_DESYNC", "", "IN_PROGRESS", "IDLE", "{}")
+			_ = s.writeAudit(ctx, s.q, m, "PROVIDER_ROOM_IDLE_DESYNC", "", "IN_PROGRESS", "IDLE", "{}")
 			continue
 		}
-		_ = s.writeAudit(ctx, s.q, meetingID, "PROVIDER_ROOM_IDLE_DESYNC", "", "IN_PROGRESS", "IDLE", "{}")
+		_ = s.writeAudit(ctx, s.q, m, "PROVIDER_ROOM_IDLE_DESYNC", "", "IN_PROGRESS", "IDLE", "{}")
 		_ = s.enqueue(ctx, s.q, m.WorkspaceID, "provider.ensure_session", map[string]string{
 			"meeting_id": m.ID, "session_id": sess.ID, "room_name": sess.ProviderRoomName,
 		})

@@ -47,8 +47,8 @@ LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND 
 WHERE w.id = $1;
 
 -- name: AddWorkspaceMember :exec
-INSERT INTO workspace_members (workspace_id, user_id, role)
-VALUES ($1, $2, $3)
+INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
 -- name: GetWorkspaceMember :one

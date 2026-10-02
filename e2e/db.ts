@@ -214,8 +214,8 @@ export async function seedCompletedMeetingRecording(meetingId: string, fileUrl: 
   const id = e2eUlid();
   return withClient(async (c) => {
     const result = await c.query<{ id: string }>(
-      `INSERT INTO meeting_recordings (id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at)
-       SELECT $1, m.id, $3, 'COMPLETE', $4, m.host_user_id, now() - interval '5 minutes', now() - interval '1 minute'
+      `INSERT INTO meeting_recordings (id, meeting_id, organization_id, egress_id, status, file_url, started_by, started_at, ended_at)
+       SELECT $1, m.id, m.organization_id, $3, 'COMPLETE', $4, m.host_user_id, now() - interval '5 minutes', now() - interval '1 minute'
          FROM meetings m WHERE m.id = $2
        RETURNING id`,
       [id, meetingId, `e2e-egress-${id}`, fileUrl],

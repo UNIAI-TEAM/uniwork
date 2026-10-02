@@ -14,7 +14,7 @@ func insertRoom(t *testing.T, pool *pgxpool.Pool, id, org, ws string) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(),
 		`INSERT INTO chat_rooms (id, kind, workspace_id, organization_id, livekit_room_name, created_by)
-		 VALUES ($1,'group',$2,$3,$4,'user-1')`, id, nilIfEmpty(ws), nilIfEmpty(org), "lk-"+id); err != nil {
+		 VALUES ($1,'group',$2,$3,$4,'user-1')`, id, nilIfEmpty(ws), org, "lk-"+id); err != nil {
 		t.Fatalf("seed room %s: %v", id, err)
 	}
 }
@@ -29,10 +29,16 @@ func insertChatMessage(t *testing.T, pool *pgxpool.Pool, id, room, ws, kind, met
 			t.Logf("cleanup chat_messages: %v", err)
 		}
 	})
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO chat_messages (id, room_id, workspace_id, sender_id, sender_kind, kind, metadata, body)
-		 VALUES ($1,$2,$3,'user-1','human',$4,$5::jsonb,'')`, id, room, ws, kind, metadata); err != nil {
+	// The message takes its room's organization, as the service does.
+	tag, err := pool.Exec(context.Background(),
+		`INSERT INTO chat_messages (id, room_id, workspace_id, organization_id, sender_id, sender_kind, kind, metadata, body)
+		 SELECT $1, r.id, $3, r.organization_id, 'user-1', 'human', $4, $5::jsonb, ''
+		 FROM chat_rooms r WHERE r.id = $2`, id, room, ws, kind, metadata)
+	if err != nil {
 		t.Fatalf("seed message %s: %v", id, err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf("seed message %s: no room %s", id, room)
 	}
 	if deleted {
 		if _, err := pool.Exec(context.Background(), `UPDATE chat_messages SET deleted_at = now() WHERE id = $1`, id); err != nil {
@@ -101,7 +107,7 @@ func TestPlanChatFilesAndVoice(t *testing.T) {
 	insertUser(t, pool, "user-1")
 	insertOrg(t, pool, "org-1", "ws-1", "user-1")
 	insertRoom(t, pool, "room-1", "org-1", "ws-1")
-	insertRoom(t, pool, "room-orphan", "", "")
+	insertRoom(t, pool, "room-orphan", "org-1", "ws-1")
 
 	insertChatMessage(t, pool, "msg-file", "room-1", "ws-1", "file",
 		`{"object_key":"chat/files/org-1/room-1/x.pdf","filename":"x.pdf","size_bytes":42}`, false)
@@ -114,6 +120,11 @@ func TestPlanChatFilesAndVoice(t *testing.T) {
 		`{"object_key":"chat/files/org-1/room-1/d.pdf"}`, true)
 	insertChatMessage(t, pool, "msg-noroom", "room-orphan", "ws-1", "file",
 		`{"object_key":"chat/files/org-1/room-orphan/z.pdf"}`, false)
+	// The room is the only tenant anchor: once it is gone the message cannot
+	// prove its key, whatever organization the message row carries.
+	if _, err := pool.Exec(context.Background(), `DELETE FROM chat_rooms WHERE id = 'room-orphan'`); err != nil {
+		t.Fatal(err)
+	}
 
 	files := planCohort(t, q, nil, CohortChatFiles).Cohorts[0]
 	if got := itemByID(files, "msg-file"); got.Class != ClassVerified || got.Purpose != "chat_attachment" {
@@ -199,26 +210,28 @@ func TestPlanRecordings(t *testing.T) {
 	insertRoom(t, pool, "room-1", "org-1", "ws-1")
 
 	ctx := context.Background()
-	if _, err := pool.Exec(ctx, `INSERT INTO meetings (id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id)
-		VALUES ('meeting-1','ws-1','M', now(), now()+interval '1 hour','lk-m1','user-1','user-1')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, room_name, created_by, host_user_id)
+		VALUES ('meeting-1','ws-1','org-1','M', now(), now()+interval '1 hour','lk-m1','user-1','user-1')`); err != nil {
 		t.Fatalf("meeting: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-1','meeting-1','ENDED','http://localhost:9000/uniwork/meetings/ws-1/meeting-1-0001.mp4','user-1')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, status, file_url, started_by)
+		VALUES ('rec-1','meeting-1','org-1','ENDED','http://localhost:9000/uniwork/meetings/ws-1/meeting-1-0001.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-1: %v", err)
 	}
 	// Tenant cross-check: the key embeds a different workspace than the row's.
-	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-ws','meeting-1','ENDED','http://localhost:9000/uniwork/meetings/ws-9/meeting-1-0002.mp4','user-1')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, status, file_url, started_by)
+		VALUES ('rec-ws','meeting-1','org-1','ENDED','http://localhost:9000/uniwork/meetings/ws-9/meeting-1-0002.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-ws: %v", err)
 	}
 	// A resolvable URL whose key is not the egress shape is held, not applied.
-	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-shape','meeting-1','ENDED','http://localhost:9000/uniwork/recordings/x.mp4','user-1')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, status, file_url, started_by)
+		VALUES ('rec-shape','meeting-1','org-1','ENDED','http://localhost:9000/uniwork/recordings/x.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-shape: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-orphan','meeting-gone','ENDED','http://localhost:9000/uniwork/meetings/ws-1/x-0003.mp4','user-1')`); err != nil {
+	// Its meeting is gone; the row keeps the tenant it was written with, but
+	// the backfill derives the tenant from the meeting only.
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, status, file_url, started_by)
+		VALUES ('rec-orphan','meeting-gone','org-1','ENDED','http://localhost:9000/uniwork/meetings/ws-1/x-0003.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-orphan: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO chat_voice_recordings

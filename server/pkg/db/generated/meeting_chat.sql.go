@@ -12,9 +12,9 @@ import (
 )
 
 const insertMeetingChatMessage = `-- name: InsertMeetingChatMessage :one
-INSERT INTO meeting_chat_messages (id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at
+INSERT INTO meeting_chat_messages (id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id
 `
 
 type InsertMeetingChatMessageParams struct {
@@ -25,6 +25,7 @@ type InsertMeetingChatMessageParams struct {
 	SenderName     string             `json:"sender_name"`
 	Message        string             `json:"message"`
 	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 func (q *Queries) InsertMeetingChatMessage(ctx context.Context, arg InsertMeetingChatMessageParams) (MeetingChatMessage, error) {
@@ -36,6 +37,7 @@ func (q *Queries) InsertMeetingChatMessage(ctx context.Context, arg InsertMeetin
 		arg.SenderName,
 		arg.Message,
 		arg.SentAt,
+		arg.OrganizationID,
 	)
 	var i MeetingChatMessage
 	err := row.Scan(
@@ -47,12 +49,13 @@ func (q *Queries) InsertMeetingChatMessage(ctx context.Context, arg InsertMeetin
 		&i.Message,
 		&i.SentAt,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const listMeetingChatMessages = `-- name: ListMeetingChatMessages :many
-SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at FROM meeting_chat_messages WHERE meeting_id = $1 ORDER BY sent_at ASC, id ASC LIMIT $2
+SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages WHERE meeting_id = $1 ORDER BY sent_at ASC, id ASC LIMIT $2
 `
 
 type ListMeetingChatMessagesParams struct {
@@ -78,6 +81,7 @@ func (q *Queries) ListMeetingChatMessages(ctx context.Context, arg ListMeetingCh
 			&i.Message,
 			&i.SentAt,
 			&i.CreatedAt,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}

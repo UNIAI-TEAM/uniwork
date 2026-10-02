@@ -130,7 +130,7 @@ func (s *ChatService) UnblockChatUser(ctx context.Context, blockerID, workspaceI
 func (s *ChatService) hideDMWithPeer(ctx context.Context, userID, orgID, workspaceID, peerID string) {
 	key := memberSetKey([]string{userID, peerID})
 	room, err := s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
-		OrganizationID: pgtype.Text{String: orgID, Valid: true},
+		OrganizationID: orgID,
 		Kind:           chatRoomKindDM,
 		MemberSetKey:   pgtype.Text{String: key, Valid: true},
 	})

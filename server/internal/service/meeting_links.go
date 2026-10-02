@@ -60,14 +60,14 @@ func (s *MeetingService) CreateInviteLink(ctx context.Context, userID, meetingID
 		max = pgtype.Int4{Int32: *maxUses, Valid: true}
 	}
 	link, err := s.q.CreateInviteLink(ctx, db.CreateInviteLinkParams{
-		ID: util.NewID(), MeetingID: meetingID, Name: name, SecretHash: hashInviteSecret(raw),
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Name: name, SecretHash: hashInviteSecret(raw),
 		AccessMode: mode, ExpiresAt: pgtype.Timestamptz{Time: expiresAt.UTC(), Valid: true},
 		MaxUses: max, CreatedBy: userID,
 	})
 	if err != nil {
 		return CreatedInviteLink{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, "INVITE_LINK_CREATED", userID, "", link.ID, `{"access_mode":"`+mode+`"}`)
+	_ = s.writeAudit(ctx, s.q, m, "INVITE_LINK_CREATED", userID, "", link.ID, `{"access_mode":"`+mode+`"}`)
 	return CreatedInviteLink{Link: link, RawSecret: raw}, nil
 }
 
@@ -100,7 +100,7 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 		return ErrNotFound
 	}
 	_ = q.RevokeGrantsByInviteLink(ctx, db.RevokeGrantsByInviteLinkParams{SourceID: strText(linkID), RevokedBy: strText(userID)})
-	_ = s.writeAudit(ctx, q, m.ID, "INVITE_LINK_REVOKED", userID, "", linkID, "{}")
+	_ = s.writeAudit(ctx, q, m, "INVITE_LINK_REVOKED", userID, "", linkID, "{}")
 	s.record(ctx, q, m, audit.User(userID), "invite_link.revoked",
 		meetingRelatedPayload(m, map[string]string{"invite_link_id": linkID}), nil)
 	if err := tx.Commit(ctx); err != nil {

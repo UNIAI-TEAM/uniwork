@@ -12,19 +12,25 @@ import (
 )
 
 const addWorkspaceMember = `-- name: AddWorkspaceMember :exec
-INSERT INTO workspace_members (workspace_id, user_id, role)
-VALUES ($1, $2, $3)
+INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING
 `
 
 type AddWorkspaceMemberParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
-	Role        string `json:"role"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) AddWorkspaceMember(ctx context.Context, arg AddWorkspaceMemberParams) error {
-	_, err := q.db.Exec(ctx, addWorkspaceMember, arg.WorkspaceID, arg.UserID, arg.Role)
+	_, err := q.db.Exec(ctx, addWorkspaceMember,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Role,
+		arg.OrganizationID,
+	)
 	return err
 }
 
@@ -297,7 +303,7 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 }
 
 const getWorkspaceMember = `-- name: GetWorkspaceMember :one
-SELECT workspace_id, user_id, role, created_at FROM workspace_members WHERE workspace_id = $1 AND user_id = $2
+SELECT workspace_id, user_id, role, created_at, organization_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2
 `
 
 type GetWorkspaceMemberParams struct {
@@ -313,6 +319,7 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -661,7 +668,7 @@ const updateWorkspaceMemberRole = `-- name: UpdateWorkspaceMemberRole :one
 UPDATE workspace_members
 SET role = $3
 WHERE workspace_id = $1 AND user_id = $2
-RETURNING workspace_id, user_id, role, created_at
+RETURNING workspace_id, user_id, role, created_at, organization_id
 `
 
 type UpdateWorkspaceMemberRoleParams struct {
@@ -678,6 +685,7 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }

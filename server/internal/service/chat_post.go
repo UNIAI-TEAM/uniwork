@@ -119,12 +119,13 @@ func (s *ChatService) SendPostMessage(
 
 	anchorWS := roomAnchorWorkspaceID(room)
 	msg, err := s.q.CreateChatPostMessage(ctx, db.CreateChatPostMessageParams{
-		ID:          util.NewID(),
-		RoomID:      room.ID,
-		WorkspaceID: anchorWS,
-		SenderID:    userID,
-		Body:        body,
-		Metadata:    meta,
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       userID,
+		Body:           body,
+		Metadata:       meta,
 	})
 	if err != nil {
 		return ChatMessageRow{}, err

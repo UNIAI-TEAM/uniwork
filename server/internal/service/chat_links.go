@@ -339,7 +339,7 @@ func (s *ChatService) UnlinkChatMessage(
 	// Same topic as linking: clients refetch the message's links either way,
 	// so other viewers stop showing the task without waiting for staleTime.
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: roomOrganizationID(room), WorkspaceID: roomAnchorWorkspaceID(room),
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
 		Actor: Human(userID), Action: audit.ActionChatMessageUnlinked,
 		ResourceType: "chat_message", ResourceID: msg.ID,
 		Metadata: map[string]any{"link_id": linkID},
@@ -361,7 +361,7 @@ func (s *ChatService) insertMessageLink(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	row, err := q.CreateChatMessageLink(ctx, db.CreateChatMessageLinkParams{
 		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: anchorWS, RoomID: room.ID,
@@ -446,7 +446,7 @@ func (s *ChatService) SyncThreadTask(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	row, err := q.CreateChatThreadTaskLink(ctx, db.CreateChatThreadTaskLinkParams{
 		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: anchorWS, RoomID: room.ID,

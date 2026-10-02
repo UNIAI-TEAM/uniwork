@@ -123,7 +123,7 @@ func (s *MeetingService) roomParticipantJoined(ctx context.Context, sess db.Meet
 		return nil
 	case olderConnection(open, ev):
 		past, err := q.InsertClosedAttendanceSession(ctx, db.InsertClosedAttendanceSessionParams{
-			ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
+			ID: util.NewID(), MeetingID: sess.MeetingID, OrganizationID: sess.OrganizationID, ConferenceSessionID: sess.ID,
 			ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
 			JoinedAt: eventTime(ev), LeftAt: open.JoinedAt, LeaveReason: strText(leaveReasonReplaced),
 			ProviderEventID: strText(ev.ProviderEventID), ProviderParticipantSid: strText(ev.ParticipantSID),
@@ -144,7 +144,7 @@ func (s *MeetingService) roomParticipantJoined(ctx context.Context, sess db.Meet
 		closed = &replaced
 	}
 	if _, err := q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
-		ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
+		ID: util.NewID(), MeetingID: sess.MeetingID, OrganizationID: sess.OrganizationID, ConferenceSessionID: sess.ID,
 		ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
 		JoinedAt: eventTime(ev), ProviderEventID: strText(ev.ProviderEventID),
 		ProviderParticipantSid: strText(ev.ParticipantSID),
@@ -205,7 +205,7 @@ func (s *MeetingService) roomParticipantLeft(ctx context.Context, sess db.Meetin
 		return nil
 	}
 	if _, err := q.InsertClosedAttendanceSession(ctx, db.InsertClosedAttendanceSessionParams{
-		ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
+		ID: util.NewID(), MeetingID: sess.MeetingID, OrganizationID: sess.OrganizationID, ConferenceSessionID: sess.ID,
 		ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
 		JoinedAt: eventTime(ev), LeftAt: eventTime(ev), LeaveReason: strText(reason),
 		ProviderEventID: strText(ev.ProviderEventID), ProviderParticipantSid: strText(ev.ParticipantSID),

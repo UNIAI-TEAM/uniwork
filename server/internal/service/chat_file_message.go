@@ -115,7 +115,7 @@ func (s *ChatService) PrepareFileMessage(
 		return FileMessagePreparation{}, err
 	}
 	prep := FileMessagePreparation{
-		OrganizationID: roomOrganizationID(room),
+		OrganizationID: room.OrganizationID,
 		room:           room,
 		actorID:        userID,
 		input:          in,
@@ -184,6 +184,7 @@ func (s *ChatService) CreateFileMessage(
 	msg, err := s.q.CreateChatFileMessage(ctx, db.CreateChatFileMessageParams{
 		ID:               util.NewID(),
 		RoomID:           prep.room.ID,
+		OrganizationID:   prep.room.OrganizationID,
 		WorkspaceID:      roomAnchorWorkspaceID(prep.room),
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),

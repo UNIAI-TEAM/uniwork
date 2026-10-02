@@ -212,13 +212,16 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   agents join a workspace through `workspace_agent_members`
   (`RequireAgentMember`, same file as `RequireMember`). `TestActorKindOnEveryCreatedBy`
   (migration lint) and `TestActorConstructedOnlyInService` (arch test) hold it.
-- Every business table created after migration `065` declares
-  `organization_id TEXT NOT NULL` (ADR 0008); identity and infrastructure
-  tables are exempted by name, with a reason, in `tenantExemptTables`. The
-  older tables still missing the column are listed in `tenantBackfillDebt`
-  and the list only shrinks — a backfill migration removes its table there.
-  `TestNewTablesCarryOrganizationID` and
-  `TestTablesWithoutOrganizationIDAreTheKnownDebt` hold both.
+- Every business table carries `organization_id TEXT NOT NULL` (ADR 0008).
+  A table created after migration `065` declares it in its first migration;
+  the older ones were backfilled from their parent rows, so the debt is paid.
+  Identity and infrastructure tables are exempted by name, with a reason, in
+  `tenantExemptTables`; a column that may hold NULL is listed with the rows
+  that need it (`nullableTenantTables`, `nullableTenantColumns`), and an entry
+  whose column is NOT NULL fails. `TestNewTablesCarryOrganizationID` and
+  `TestEveryBusinessTableCarriesOrganizationID` (migration lint) and
+  `TestTenantColumnIsNotNull` (migrated database,
+  `server/migrations/tenant_schema_test.go`) hold it.
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
   implicit workspace admins, and only in `OrganizationService.RequireMember`

@@ -409,7 +409,7 @@ func TestMeetingRecordingPlaybackAuthorizationLegacyBehavior(t *testing.T) {
 	}
 	participantID := util.NewID()
 	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: participantID, MeetingID: m.ID, PrincipalType: PrincipalGuest,
+		ID: participantID, MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalGuest,
 		GuestID: strText(guestID), DisplayNameSnapshot: "Guest",
 		Role: RoleAttendee, SourceType: GrantInviteLink, SourceID: strText("link"), AddedBy: guestID,
 	}); err != nil {

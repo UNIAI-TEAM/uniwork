@@ -58,7 +58,7 @@ WHERE id = $2
   AND workspace_id = $4
   AND thread_root_id IS NULL
   AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type BumpChatThreadReplyStatsParams struct {
@@ -95,16 +95,19 @@ func (q *Queries) BumpChatThreadReplyStats(ctx context.Context, arg BumpChatThre
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9, $10
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9, $10,
+  $11
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatFileMessageParams struct {
@@ -118,6 +121,7 @@ type CreateChatFileMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	FileID           pgtype.Text `json:"file_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileMessageParams) (ChatMessage, error) {
@@ -132,6 +136,7 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.FileID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -153,16 +158,19 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9,
+  $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatMessageParams struct {
@@ -175,6 +183,7 @@ type CreateChatMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	ThreadRootID     pgtype.Text `json:"thread_root_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error) {
@@ -188,6 +197,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.ThreadRootID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -209,25 +219,27 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatNoteMessage = `-- name: CreateChatNoteMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'note', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatNoteMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteMessageParams) (ChatMessage, error) {
@@ -238,6 +250,7 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -259,25 +272,27 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatPollMessage = `-- name: CreateChatPollMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'poll', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatPollMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollMessageParams) (ChatMessage, error) {
@@ -288,6 +303,7 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -309,25 +325,27 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatPostMessage = `-- name: CreateChatPostMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'post', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatPostMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostMessageParams) (ChatMessage, error) {
@@ -338,6 +356,7 @@ func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -359,25 +378,27 @@ func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatReminderMessage = `-- name: CreateChatReminderMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'reminder', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatReminderMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatReminderMessageParams) (ChatMessage, error) {
@@ -388,6 +409,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -409,6 +431,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -427,7 +450,7 @@ type CreateChatRoomParams struct {
 	ID              string      `json:"id"`
 	Kind            string      `json:"kind"`
 	WorkspaceID     pgtype.Text `json:"workspace_id"`
-	OrganizationID  pgtype.Text `json:"organization_id"`
+	OrganizationID  string      `json:"organization_id"`
 	Name            string      `json:"name"`
 	MemberSetKey    pgtype.Text `json:"member_set_key"`
 	LivekitRoomName string      `json:"livekit_room_name"`
@@ -481,18 +504,19 @@ func (q *Queries) CreateChatRoom(ctx context.Context, arg CreateChatRoomParams) 
 
 const createChatVoiceCallLog = `-- name: CreateChatVoiceCallLog :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'voice_call_log', '', $5
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'voice_call_log', '', $5, $6
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatVoiceCallLogParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoiceCallLogParams) (ChatMessage, error) {
@@ -502,6 +526,7 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		arg.WorkspaceID,
 		arg.SenderID,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -523,16 +548,19 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatVoiceMessage = `-- name: CreateChatVoiceMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8, $9,
+  $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatVoiceMessageParams struct {
@@ -545,6 +573,7 @@ type CreateChatVoiceMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	FileID           pgtype.Text `json:"file_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoiceMessageParams) (ChatMessage, error) {
@@ -558,6 +587,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.FileID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -579,6 +609,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -632,7 +663,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 }
 
 const getChatMessageByClientMsgID = `-- name: GetChatMessageByClientMsgID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
@@ -667,12 +698,13 @@ func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMe
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -698,12 +730,13 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id string) (ChatMessag
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatMessageInRoom = `-- name: GetChatMessageInRoom :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 `
 
@@ -735,6 +768,7 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -776,7 +810,7 @@ LIMIT 1
 `
 
 type GetChatRoomByKindAndMemberSetParams struct {
-	OrganizationID pgtype.Text `json:"organization_id"`
+	OrganizationID string      `json:"organization_id"`
 	Kind           string      `json:"kind"`
 	MemberSetKey   pgtype.Text `json:"member_set_key"`
 }
@@ -913,19 +947,20 @@ func (q *Queries) GetWorkspaceChatRoom(ctx context.Context, workspaceID pgtype.T
 
 const insertChatRoomMember = `-- name: InsertChatRoomMember :one
 INSERT INTO chat_room_members (
-  id, room_id, workspace_id, user_id, role, status, joined_at, created_at, updated_at
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted
+  $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
+) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id
 `
 
 type InsertChatRoomMemberParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
-	Role        string `json:"role"`
-	Status      string `json:"status"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMemberParams) (ChatRoomMember, error) {
@@ -936,6 +971,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		arg.UserID,
 		arg.Role,
 		arg.Status,
+		arg.OrganizationID,
 	)
 	var i ChatRoomMember
 	err := row.Scan(
@@ -952,6 +988,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SendRestricted,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -1813,8 +1850,8 @@ ORDER BY COALESCE(last_msg.created_at, r.updated_at) DESC
 `
 
 type ListChatRoomsForMemberParams struct {
-	UserID         string      `json:"user_id"`
-	OrganizationID pgtype.Text `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 type ListChatRoomsForMemberRow struct {
@@ -2227,7 +2264,7 @@ const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type SoftDeleteChatMessageParams struct {
@@ -2264,6 +2301,7 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2390,7 +2428,7 @@ const updateChatMessageBody = `-- name: UpdateChatMessageBody :one
 UPDATE chat_messages
 SET body = $4, edited_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $5 AND kind = 'text' AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type UpdateChatMessageBodyParams struct {
@@ -2429,6 +2467,7 @@ func (q *Queries) UpdateChatMessageBody(ctx context.Context, arg UpdateChatMessa
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2437,7 +2476,7 @@ const updateChatMessageMetadata = `-- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type UpdateChatMessageMetadataParams struct {
@@ -2474,6 +2513,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }

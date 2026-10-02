@@ -1187,7 +1187,7 @@ type FileBackfillScanChatMessagesRow struct {
 
 // M3/M4 (kind file/voice: object_key in metadata) and M7 (voice_call_log:
 // recording_url in metadata — a second reference to a call-recording object).
-// Tenant derives through the room; chat_rooms.organization_id may be NULL.
+// Tenant derives through the room; it is NULL only when the room is gone.
 func (q *Queries) FileBackfillScanChatMessages(ctx context.Context, arg FileBackfillScanChatMessagesParams) ([]FileBackfillScanChatMessagesRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanChatMessages, arg.AfterID, arg.LimitN)
 	if err != nil {

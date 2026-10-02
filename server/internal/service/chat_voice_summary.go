@@ -45,7 +45,7 @@ func (s *ChatService) emitVoiceCallCompleted(ctx context.Context, room db.ChatRo
 	if s.ai == nil || !s.ai.Enabled() {
 		return nil
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	return auditRecorder.Emit(ctx, s.q, audit.System("chat"), audit.Event{
 		Topic: "chat.voice.call.completed", Version: 1,
@@ -210,7 +210,7 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 	}
 	msgID := util.NewID()
 	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
-		ID: msgID, RoomID: room.ID, WorkspaceID: workspaceID,
+		ID: msgID, RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: workspaceID,
 		SenderID: callerID, SenderKind: string(audit.KindHuman), Body: body,
 	})
 	if err != nil {

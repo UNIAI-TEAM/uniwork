@@ -431,7 +431,7 @@ func TestAutoEndOverdue(t *testing.T) {
 		t.Fatal(err)
 	}
 	idleSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-		ID: util.NewID(), MeetingID: idle.ID, ProviderKey: s.rt.ProviderKey,
+		ID: util.NewID(), MeetingID: idle.ID, OrganizationID: idle.OrganizationID, ProviderKey: s.rt.ProviderKey,
 		ProviderRoomName: meetings.RoomNameForMeeting(idle.ID),
 	})
 	if err != nil {
@@ -462,7 +462,7 @@ func TestAutoEndOverdue(t *testing.T) {
 		t.Fatal(err)
 	}
 	liveSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-		ID: util.NewID(), MeetingID: live.ID, ProviderKey: s.rt.ProviderKey,
+		ID: util.NewID(), MeetingID: live.ID, OrganizationID: live.OrganizationID, ProviderKey: s.rt.ProviderKey,
 		ProviderRoomName: meetings.RoomNameForMeeting(live.ID),
 	})
 	if err != nil {
@@ -493,7 +493,7 @@ func TestAutoEndOverdue(t *testing.T) {
 		t.Fatal(err)
 	}
 	capSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-		ID: util.NewID(), MeetingID: capped.ID, ProviderKey: s.rt.ProviderKey,
+		ID: util.NewID(), MeetingID: capped.ID, OrganizationID: capped.OrganizationID, ProviderKey: s.rt.ProviderKey,
 		ProviderRoomName: meetings.RoomNameForMeeting(capped.ID),
 	})
 	if err != nil {

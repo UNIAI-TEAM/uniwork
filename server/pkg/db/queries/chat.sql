@@ -23,9 +23,9 @@ LIMIT 1;
 
 -- name: InsertChatRoomMember :one
 INSERT INTO chat_room_members (
-  id, room_id, workspace_id, user_id, role, status, joined_at, created_at, updated_at
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, now(), now(), now()
+  $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
 ) RETURNING *;
 
 -- name: ListChatRoomMemberUserIDs :many
@@ -66,51 +66,57 @@ LIMIT sqlc.arg(msg_limit);
 
 -- name: CreateChatPollMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6
+  $1, $2, $3, $4, 'poll', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatReminderMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6
+  $1, $2, $3, $4, 'reminder', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatNoteMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6
+  $1, $2, $3, $4, 'note', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatPostMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6
+  $1, $2, $3, $4, 'post', $5, $6, $7
 ) RETURNING *;
 
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id)
+  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: CreateChatVoiceMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(file_id)
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(file_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id), sqlc.narg(file_id)
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id), sqlc.narg(file_id),
+  sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: ListChatMessageFileRefs :many
@@ -128,9 +134,9 @@ WHERE room_id = $1
 
 -- name: CreateChatVoiceCallLog :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'voice_call_log', '', $5
+  $1, $2, $3, $4, 'voice_call_log', '', $5, $6
 ) RETURNING *;
 
 -- name: GetChatMessageInRoom :one

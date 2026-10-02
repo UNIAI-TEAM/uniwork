@@ -75,8 +75,8 @@ func (f homeFix) task(t *testing.T, title, status, priority, due string, created
 
 func (f homeFix) meeting(t *testing.T, id, host, status string, starts time.Time) {
 	t.Helper()
-	f.exec(t, `INSERT INTO meetings (id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id, status)
-		VALUES ($1, $2, $1, $3, $4, $1, $5, $5, $6)`, id, f.w.ID, starts, starts.Add(30*time.Minute), host, status)
+	f.exec(t, `INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, room_name, created_by, host_user_id, status)
+		VALUES ($1, $2, $7, $1, $3, $4, $1, $5, $5, $6)`, id, f.w.ID, starts, starts.Add(30*time.Minute), host, status, f.w.OrganizationID)
 }
 
 func (f homeFix) participant(t *testing.T, meetingID, userID string, removed bool) {
@@ -85,8 +85,8 @@ func (f homeFix) participant(t *testing.T, meetingID, userID string, removed boo
 	if removed {
 		removedAt = time.Now()
 	}
-	f.exec(t, `INSERT INTO meeting_participants (id, meeting_id, principal_type, user_id, added_by, removed_at)
-		VALUES ($1, $2, 'USER', $3, $3, $4)`, meetingID+"-"+userID, meetingID, userID, removedAt)
+	f.exec(t, `INSERT INTO meeting_participants (id, meeting_id, organization_id, principal_type, user_id, added_by, removed_at)
+		SELECT $1, m.id, m.organization_id, 'USER', $3, $3, $4 FROM meetings m WHERE m.id = $2`, meetingID+"-"+userID, meetingID, userID, removedAt)
 }
 
 func titles(ts []db.Task) string {
