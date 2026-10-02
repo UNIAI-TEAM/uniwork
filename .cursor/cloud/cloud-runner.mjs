@@ -13,8 +13,9 @@
 // Run it from inside the worktree. State lives in that worktree's git dir
 // (cloud-runner.json), so it disappears with the worktree. API saved
 // environments do not apply to API-launched agents, so a fresh VM provisions
-// itself from test/cursor-cloud-env on its first run (about 10 minutes); later
-// runs are follow-ups on the same warm VM.
+// itself from test/cursor-cloud-env on its first run (about 3 minutes); later
+// runs are follow-ups on the same warm VM. A round is one command (run-tests.sh)
+// because every agent step re-reads the whole conversation.
 //
 // Exit codes: 0 pass, 1 tests failed, 2 blocked or runner error.
 
@@ -28,17 +29,13 @@ const ENV_BRANCH = "test/cursor-cloud-env";
 const DEFAULT_MODEL = "composer-2.5";
 const POLL_MS = 20_000;
 
-const BOOTSTRAP = [
+// Refreshes the runner scripts from the environment branch, then hands the
+// whole round to run-tests.sh, so the agent makes one tool call per round.
+const REFRESH = [
+  "mkdir -p ~/.uniwork-cloud",
   `git fetch -q origin ${ENV_BRANCH}`,
-  "rm -rf ~/.uniwork-cloud && mkdir -p ~/.uniwork-cloud",
   "git archive FETCH_HEAD .cursor/cloud | tar -x -C ~/.uniwork-cloud",
-  "bash ~/.uniwork-cloud/.cursor/cloud/install.sh",
 ].join(" && ");
-
-const RULES = `You are a test runner. You run the commands you are given and report.
-Never edit, create, commit or push a tracked file; never open a PR; never try
-to fix or investigate a failure beyond reading its output. The only push you
-make is the results ref described below.`;
 
 function usage(msg) {
   if (msg) console.error(`cloud-runner: ${msg}`);
@@ -161,52 +158,26 @@ async function sendRun(agentId, prompt) {
   }
 }
 
-function provisionStep() {
-  return `If ~/.uniwork-cloud/.cursor/cloud/start.sh does not exist, provision this VM first
-(about 10 minutes) and stop with stage_outcome "failed" if it fails:
-    ${BOOTSTRAP}
-Then always run: bash ~/.uniwork-cloud/.cursor/cloud/start.sh
-It is idempotent; record how long it took as start_seconds.`;
+function oneCommandPrompt(args) {
+  return `You are a test runner. Run exactly one command, from the repository root,
+and wait for it to finish (up to 30 minutes on a new VM). Do not run anything
+else, do not edit, commit or push any file, do not open a PR, and do not look
+into failures:
+
+    ${REFRESH} && bash ~/.uniwork-cloud/.cursor/cloud/run-tests.sh ${args}
+
+The last line it prints is a JSON object. Reply with only that object, unchanged,
+inside one \`\`\`json fence. If it printed no JSON, reply inside the fence with
+{"stage_outcome": "failed", "test_verdict": "blocked", "notes": "<its last 3 output lines>"}.`;
 }
 
-const REPORT_SHAPE = `Your final message is exactly one fenced \`\`\`json block and nothing else:
-{"sha": "<short sha of HEAD>", "stage_outcome": "succeeded|failed", "test_verdict": "pass|fail|blocked|not_run",
- "provisioned": true|false, "start_seconds": 0,
- "ran": [{"cmd": "", "result": "pass|fail", "duration_s": 0}],
- "failures": [{"test": "", "file": "", "msg": ""}],
- "not_run": [], "log_ref": "<ref or null>", "notes": ""}
-stage_outcome is whether you could carry out the steps; test_verdict is what
-the tests said. Keep msg to the assertion line, never paste whole logs.`;
-
-function ensurePrompt() {
-  return `${RULES}
-
-Prepare this VM; run no tests.
-${provisionStep()}
-
-${REPORT_SHAPE}
-Use test_verdict "not_run" and ran [].`;
+function ensurePrompt(branch) {
+  return oneCommandPrompt(`--branch ${branch} --provision-only`);
 }
 
 function testPrompt({ branch, sha, lane, commands }) {
-  const list = commands.map((c, i) => `   ${String.fromCharCode(97 + i)}. ${c}`).join("\n");
-  return `${RULES}
-
-1. From the repository root:
-       git fetch -q origin ${branch} && git reset -q --hard origin/${branch} && git clean -qfdx -e .env -e node_modules
-   HEAD must now be ${sha}. If it is not, stop: stage_outcome "failed", notes "sha mismatch".
-2. ${provisionStep()}
-3. If pnpm-lock.yaml or server/go.sum changed since the last run on this VM, run
-   \`pnpm install --frozen-lockfile\` / \`(cd server && go mod download)\` first.
-4. rm -rf /tmp/test-results && mkdir -p /tmp/test-results. Run each command from
-   the repository root, in order, even after a failure. Save its full output to
-   /tmp/test-results/<letter>.log and time it with bash's \`time\`:
-${list}
-5. Publish the logs on a ref, never a branch:
-       cd /tmp/test-results && git init -q && git add -A && git -c user.name=runner -c user.email=runner@local commit -qm "${lane} ${sha}" && git push -qf "$(git -C <repo root> remote get-url origin)" HEAD:refs/test-results/${lane}/${sha}
-   log_ref is that ref, or null with the error in notes if the push fails.
-
-${REPORT_SHAPE}`;
+  const specB64 = Buffer.from(`${commands.join("\n")}\n`).toString("base64");
+  return oneCommandPrompt(`--branch ${branch} --sha ${sha} --lane ${lane} --spec-b64 ${specB64}`);
 }
 
 function extractReport(result) {
@@ -294,7 +265,7 @@ async function cmdEnsure(opts) {
     return 0;
   }
   const model = opts.model || DEFAULT_MODEL;
-  const { agentId, runId } = await createAgent(branch, model, ensurePrompt());
+  const { agentId, runId } = await createAgent(branch, model, ensurePrompt(branch));
   state = { agentId, branch, model, lane: laneSlug(opts, branch), createdAt: new Date().toISOString() };
   saveState(state);
   console.log(`runner created: ${agentId}; provisioning (about 10 min)`);
