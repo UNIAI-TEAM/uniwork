@@ -34,22 +34,25 @@ export function installShiftedNavigation(
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheet = workbook?.getActiveSheet();
     const range = workbook?.getActiveRange();
-    if (!state || !workbook || !sheet || !range || !workbook.isCellEditing() ||
+    if (!state || !workbook || !sheet || !range ||
       !canEditRange(state, sheet.getSheetId(), range.getRange())) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (pending || event.repeat) return;
     pending = true;
     pendingTarget = target;
+    const editing = workbook.isCellEditing();
     const key = event.key;
     const capturedInteraction = interaction;
     void (async () => {
-      await ports.commitEdit();
+      // A bare selection key must never close an editor or create an edit.
+      if (editing) await ports.commitEdit();
       if (disposed || capturedInteraction !== interaction || ports.getState() !== state || runtime.univerAPI.getActiveWorkbook()?.getId() !== workbook.getId() ||
-        workbook.getActiveSheet()?.getSheetId() !== sheet.getSheetId() || !container.contains(container.ownerDocument.activeElement)) return;
+        workbook.getActiveSheet()?.getSheetId() !== sheet.getSheetId() || !workbook.getActiveRange() ||
+        !container.contains(container.ownerDocument.activeElement)) return;
       // endEditingAsync(true) uses plain Enter and may move down. Restore its
       // captured selection before invoking the existing reverse command.
-      workbook.setActiveRange(range);
+      if (editing) workbook.setActiveRange(range);
       // Pinned enter-tab indexes the preceding selection at -1 when there
       // is only one selection, clearing its primary. The existing directional
       // move command retains the primary and handles merges/worksheet edges.

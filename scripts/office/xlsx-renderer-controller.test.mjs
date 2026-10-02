@@ -87,6 +87,33 @@ test('pending edit commit awaits the actual workbook facade and refuses failed/u
   finally { readonly.close(); }
 });
 
+test('bare shifted selection requests reverse movement without committing or dirtying', async () => {
+  for (const key of ['Tab', 'Enter']) {
+    for (const position of ['B2', 'A1', 'B2:C3']) {
+      const mounted = mountController();
+      try {
+        await mounted.handle.loadWorkbook(file);
+        const range = position === 'A1' ? mounted.workbook.getActiveSheet().getRange(0, 0) :
+          mounted.workbook.getActiveSheet().getRange(1, 1);
+        if (position === 'B2:C3') Object.assign(range.getRange(), { endRow: 2, endColumn: 2 });
+        mounted.workbook.setActiveRange(range);
+        let commits = 0;
+        mounted.workbook.endEditingAsync = async () => { commits++; return true; };
+        const input = mounted.key({ key });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.ok(input.prevented && input.stopped, `${position} ${key}`);
+        const movements = mounted.events.filter(event => event.id === 'sheet.command.move-selection');
+        assert.equal(movements.length, 1);
+        assert.equal(movements[0].params.direction, key === 'Tab' ? 3 : 0);
+        assert.equal(commits, 0);
+        assert.equal(mounted.workbook.getActiveRange(), range, 'shim never clears the captured primary');
+        assert.equal(mounted.handle.getDirtyGeneration(), 0);
+        assert.equal(mounted.handle.getJournal().cells.size, 0);
+      } finally { mounted.close(); }
+    }
+  }
+});
+
 test('shifted native inline keys commit before reverse navigation, serialize concurrent keys and detach', async () => {
   const mounted = mountController();
   try {
@@ -115,10 +142,11 @@ test('shifted native inline keys commit before reverse navigation, serialize con
 });
 
 test('shifted keys leave ordinary keys, IME, formula controls, readonly and unloaded ranges untouched', async () => {
+  for (const editing of [false, true]) {
   const mounted=mountController();
   try {
     await mounted.handle.loadWorkbook(file);
-    mounted.h.editing=true;
+    mounted.h.editing=editing;
     for (const input of [{shiftKey:false},{key:'Escape'},{ctrlKey:true},{altKey:true},{metaKey:true},{keyCode:229},{isComposing:true},
       {target:{id:'formula-input',isContentEditable:true}}]) {
       assert.equal(mounted.key(input).prevented,undefined);
@@ -130,12 +158,13 @@ test('shifted keys leave ordinary keys, IME, formula controls, readonly and unlo
     assert.equal(mounted.key({}).prevented,undefined,'streaming range must be loaded');
   } finally {mounted.close();}
   const readonly=mountController({readOnly:true});
-  try {await readonly.handle.loadWorkbook(file);readonly.h.editing=true;assert.equal(readonly.key({}).prevented,undefined);}
+  try {await readonly.handle.loadWorkbook(file);readonly.h.editing=editing;assert.equal(readonly.key({}).prevented,undefined);}
   finally {readonly.close();}
+  }
 });
 
 test('rejected commit, intervening pointer, scope replacement and disposal never navigate', async () => {
-  for (const cause of ['reject','pointer','replace','dispose']) {
+  for (const cause of ['reject','pointer','ordinary-key','replace','sheet','unit','selection','focus','dispose']) {
     const mounted=mountController();
     try {
       await mounted.handle.loadWorkbook(file);
@@ -144,13 +173,34 @@ test('rejected commit, intervening pointer, scope replacement and disposal never
       mounted.workbook.endEditingAsync=()=>new Promise(resolve=>{finish=resolve;});
       mounted.key({});
       if(cause==='pointer')mounted.emitDom('pointerdown');
+      if(cause==='ordinary-key')mounted.key({key:'ArrowRight',shiftKey:false});
       if(cause==='replace')await mounted.handle.loadWorkbook({...file,sha256:'next'});
+      if(cause==='sheet')mounted.handle.selectSheet('s2');
+      if(cause==='unit')mounted.h.runtime.univerAPI.getActiveWorkbook=()=>null;
+      if(cause==='selection')mounted.workbook.setActiveRange(null);
+      if(cause==='focus')mounted.container.ownerDocument.activeElement={id:'outside'};
       if(cause==='dispose')mounted.close();
       mounted.h.editing=false;finish(cause!=='reject');
       await new Promise(resolve=>setImmediate(resolve));
       assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection').length,0,cause);
     } finally {mounted.close();}
   }
+});
+
+test('bare shifted keys require a current selection and exact native focus, and suppress repeats', async () => {
+  const mounted = mountController();
+  try {
+    await mounted.handle.loadWorkbook(file);
+    mounted.workbook.setActiveRange(null);
+    assert.equal(mounted.key({}).prevented, undefined);
+    mounted.workbook.setActiveRange(mounted.workbook.getActiveSheet().getRange(1, 1));
+    assert.equal(mounted.key({ target: { id: '__editor___INTERNAL_EDITOR__DOCS_NORMAL', isContentEditable: true } }).prevented, undefined);
+    assert.ok(mounted.key({ repeat: true }).prevented);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(mounted.events.filter(event => event.id === 'sheet.command.move-selection').length, 0);
+    mounted.close();
+    assert.equal(mounted.key({}).prevented, undefined);
+  } finally { mounted.close(); }
 });
 
 test('public formula/format/tab/theme commands preserve journals and ignore view commands', async () => {
