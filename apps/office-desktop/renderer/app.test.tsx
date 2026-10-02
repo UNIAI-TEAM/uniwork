@@ -244,6 +244,6 @@ it("resolves a clean empty window leave without an unnecessary prompt", async ()
   await waitFor(() => expect(document.querySelector("[data-session-status='signed-in']")).not.toBeNull());
   expect(screen.queryByText(i18n.t("office.leave.title"))).not.toBeInTheDocument();
   act(() => request?.({ requestId: "leave-1", reason: "close" }));
-  await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "discard", proceeded: true }));
+  await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "keep", proceeded: true }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
