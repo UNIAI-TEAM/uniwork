@@ -7266,6 +7266,27 @@
     }
   },
   "officeDesktop": {
+    "tabs": {
+      "appTitle": "UniWork Office",
+      "label": "Document tabs",
+      "library": "Library",
+      "close": "Close {{name}}",
+      "dirty": "Unsaved changes",
+      "saving": "Saving…",
+      "newTab": "Open new tab",
+      "allTabs": "All tabs",
+      "createDocx": "Create DOCX document",
+      "openLocal": "Open local file",
+      "account": "Account: {{name}}",
+      "accountUnknown": "UniWork account",
+      "switchWorkspace": "Switch workspace",
+      "signOut": "Sign out",
+      "documentCount_one": "{{count}} document",
+      "documentCount_other": "{{count}} documents",
+      "limit": "All 8 document tabs are open. Close a tab to open another document.",
+      "checkpointFailed": "Changes could not be protected locally. Keep this tab open to avoid losing changes.",
+      "sessionError": "Document tabs could not be synchronized. Retry before continuing."
+    },
     "login": {
       "title": "UniWork Office",
       "subtitle": "Sign in to open your document library.",

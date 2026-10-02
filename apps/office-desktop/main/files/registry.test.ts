@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { FileHandle } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import { FileHandleRegistry, LocalFileError, atomicReplace, type FileSystemPort } from "./registry";
 
 const tempRoots: string[] = [];
-async function tempRoot(): Promise<string> { const root = join("D:\\", "uniwork-office-tests", `files-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(root, { recursive: true }); tempRoots.push(root); return root; }
+async function tempRoot(): Promise<string> { const root = resolve("../../.uniwork-dev-run/files", `files-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(root, { recursive: true }); tempRoots.push(root); return root; }
 afterEach(async () => { while (tempRoots.length) await fs.rm(tempRoots.pop()!, { recursive: true, force: true }); });
 
 describe("desktop local file handles", () => {

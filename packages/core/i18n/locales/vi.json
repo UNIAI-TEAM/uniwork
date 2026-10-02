@@ -7247,6 +7247,27 @@
     }
   },
   "officeDesktop": {
+    "tabs": {
+      "appTitle": "UniWork Office",
+      "label": "Tab tài liệu",
+      "library": "Thư viện",
+      "close": "Đóng {{name}}",
+      "dirty": "Chưa lưu",
+      "saving": "Đang lưu…",
+      "newTab": "Mở tab mới",
+      "allTabs": "Tất cả tab",
+      "createDocx": "Tạo tài liệu DOCX",
+      "openLocal": "Mở tệp trên máy",
+      "account": "Tài khoản: {{name}}",
+      "accountUnknown": "Tài khoản UniWork",
+      "switchWorkspace": "Đổi workspace",
+      "signOut": "Đăng xuất",
+      "documentCount_one": "{{count}} tài liệu",
+      "documentCount_other": "{{count}} tài liệu",
+      "limit": "Đã mở đủ 8 tab tài liệu. Đóng một tab để mở tài liệu khác.",
+      "checkpointFailed": "Không thể bảo vệ thay đổi trên máy. Giữ tab này mở để tránh mất thay đổi.",
+      "sessionError": "Không thể đồng bộ các tab tài liệu. Thử lại trước khi tiếp tục."
+    },
     "login": {
       "title": "UniWork Office",
       "subtitle": "Đăng nhập để mở thư viện tài liệu của bạn.",

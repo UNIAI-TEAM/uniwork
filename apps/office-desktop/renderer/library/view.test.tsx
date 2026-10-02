@@ -60,3 +60,11 @@ it("preserves the typed query and submits it on search", () => {
   fireEvent.click(container.querySelector("button[type=submit]")!);
   expect(onSearch).toHaveBeenCalledWith("notes");
 });
+
+it("announces the collection count alongside its title and header actions", () => {
+  render(<LibraryView mode="list" documents={[row]} engineAvailable />);
+  expect(screen.getByRole("heading", { level: 1, name: "Tài liệu" })).toBeInTheDocument();
+  expect(screen.getByText("1 tài liệu")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Tài liệu mới" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Mở tệp trên máy" })).toBeInTheDocument();
+});

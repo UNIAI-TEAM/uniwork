@@ -8,6 +8,16 @@ import type { DesktopLibraryContextResponse } from "../../shared/ipc";
 export type PickerGroup = keyof DesktopLibraryContextResponse;
 const GROUPS: readonly PickerGroup[] = ["deployments", "accounts", "organizations", "workspaces"];
 
+function PickerIcon({ group, className = "size-5" }: { group: PickerGroup; className?: string }) {
+  const paths = {
+    deployments: "M4 3h16v7H4zM4 14h16v7H4zM7 6h.01M7 17h.01",
+    accounts: "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M4 21v-2a8 8 0 0 1 16 0v2",
+    organizations: "M5 21V3h14v18M3 21h18M9 7h1M14 7h1M9 11h1M14 11h1M10 21v-6h4v6",
+    workspaces: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  };
+  return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[group]} /></svg>;
+}
+
 export interface LibraryPickerSelection {
   deploymentId: string;
   accountId: string;
@@ -58,8 +68,8 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-auto p-6" data-desktop-library-picker="true">
-      <div className="flex w-full max-w-2xl flex-col gap-6">
-      <h1 className="text-title font-semibold text-foreground">{t("pickerTitle")}</h1>
+      <div className="my-auto flex w-full max-w-xl shrink-0 flex-col gap-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <div className="flex items-center gap-4"><span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><PickerIcon group="workspaces" /></span><h1 className="text-title font-semibold text-foreground">{t("pickerTitle")}</h1></div>
       {error ? (
         <div className="flex flex-col gap-3" role="alert">
           <p className="text-body text-muted-foreground">{t("contextError")}</p>
@@ -71,7 +81,7 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
         <>
           {fixed.length > 0 ? (
             <dl className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-muted-foreground" data-picker-fixed="true">
-              {fixed.map((group) => <div key={group} className="flex gap-1"><dt>{t("pickerSummaryLabel", { group: t(group) })}</dt><dd className="break-words text-foreground">{optionsFor(group)[0]!.name}</dd></div>)}
+              {fixed.map((group) => <div key={group} className="flex items-center gap-2"><PickerIcon group={group} className="size-4 shrink-0" /><dt>{t("pickerSummaryLabel", { group: t(group) })}</dt><dd className="break-words text-foreground">{optionsFor(group)[0]!.name}</dd></div>)}
             </dl>
           ) : null}
           {GROUPS.filter((group) => !fixed.includes(group)).map((group) => {
@@ -79,8 +89,8 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
             return (
               <section key={group} className="flex flex-col gap-2">
                 <h2 className="text-label font-medium text-muted-foreground">{t(group)}</h2>
-                <RadioGroup value={selected[key] ?? ""} onValueChange={(value) => choose(group, value)} aria-label={t(group)} className="grid gap-2 sm:grid-cols-2">
-                  {optionsFor(group).map((entry) => <label key={entry.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-body text-foreground"><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /> <span className="break-words">{entry.name}{entry.email ? <span className="block text-caption text-muted-foreground">{entry.email}</span> : null}</span></label>)}
+                <RadioGroup value={selected[key] ?? ""} onValueChange={(value) => choose(group, value)} aria-label={t(group)} className="grid gap-2">
+                  {optionsFor(group).map((entry) => <label key={entry.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-body text-foreground transition-colors hover:bg-muted has-[[data-checked]]:border-primary has-[[data-checked]]:bg-accent"><PickerIcon group={group} className="size-5 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 break-words">{entry.name}{entry.email ? <span className="block text-caption text-muted-foreground">{entry.email}</span> : null}</span><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /></label>)}
                 </RadioGroup>
               </section>
             );

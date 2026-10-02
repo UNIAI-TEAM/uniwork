@@ -10,7 +10,7 @@ import { App, type RendererBridge } from "./app";
 function makeBridge(call: RendererBridge["call"]): { bridge: RendererBridge; emit: (metadata: DesktopSessionMetadata) => void } {
   let listener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   const bridge: RendererBridge = {
-    call,
+    call: ((channel, payload) => channel === "desktop:tabs-update" ? Promise.resolve({ updated: true }) : call(channel, payload)) as RendererBridge["call"],
     onSessionChanged: (next) => { listener = next; return () => undefined; },
   };
   return { bridge, emit: (metadata) => listener?.(metadata) };
@@ -22,7 +22,7 @@ it("mounts the sign-in card for a signed-out session", async () => {
   ) as RendererBridge["call"]);
   const { container } = render(<App bridge={bridge} />);
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
-  expect(screen.getByText("UniWork Office")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "UniWork Office" })).toBeInTheDocument();
 });
 
 it("moves signed-out -> pending -> error when the browser cannot open", async () => {
@@ -114,7 +114,7 @@ it("opens a launch ticket against the picked workspace when auth metadata has no
   await screen.findByText("Chưa có tài liệu");
   act(() => launch?.({ documentId: "ticket-document", version: 4, operation: "edit" }));
   await waitFor(() => expect(call).toHaveBeenCalledWith("desktop:office-open", expect.objectContaining({ workspaceId: "ws", documentId: "ticket-document", version: 4 })));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Không thể thực hiện thao tác");
+  await waitFor(() => expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("Không thể thực hiện thao tác"))).toBe(true));
 });
 
 it("shows a typed retryable list error when the library request rejects", async () => {
@@ -132,7 +132,7 @@ it("shows a typed retryable list error when the library request rejects", async 
   expect(screen.queryByText("Trình soạn thảo không khả dụng; vẫn có thể tải xuống")).not.toBeInTheDocument();
 });
 
-it("queues a file-open request while a document is open and opens it once the document settles", async () => {
+it("opens an OS file in a new tab while another document remains mounted", async () => {
   let fileOpen: ((event: { handle: string }) => void) | undefined;
   const calls: string[] = [];
   const document = { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file" as const, format: "docx" as const, version: 1, revision: "1", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
@@ -152,11 +152,9 @@ it("queues a file-open request while a document is open and opens it once the do
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   await screen.findByRole("button", { name: "Về thư viện" });
   act(() => fileOpen?.({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF" }));
-  expect(await screen.findByText("Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.")).toBeInTheDocument();
-  expect(calls).not.toContain("desktop:file-open");
-  fireEvent.click(screen.getByRole("button", { name: "Về thư viện" }));
   await waitFor(() => expect(calls).toContain("desktop:file-open"));
-  expect(await screen.findByText("Local plan.docx")).toBeInTheDocument();
+  expect(await screen.findByRole("tab", { name: /Local plan\.docx/ })).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: /Plan\.docx/ })).toBeInTheDocument();
 });
 
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
@@ -191,12 +189,13 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
   await screen.findByRole("button", { name: "Về thư viện" });
   await waitFor(() => expect(container.querySelector('[data-testid="docx-editor"]')).not.toBeNull());
-  expect(container.querySelector("[data-desktop-library]")).toBeNull();
+  expect(container.querySelector("#desktop-panel-library")).toHaveAttribute("hidden");
   act(() => nativeSave?.({ documentId: document.id }));
   await waitFor(() => expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(1));
   expect(calls.find((call) => call.channel === "desktop:office-save")?.payload).toMatchObject({ dataBase64: "aGVsbG8=" });
 
-  fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+  fireEvent.click(screen.getByRole("button", { name: /Tài khoản:/ }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Đăng xuất" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
   click.mockRestore();
 });
@@ -235,7 +234,7 @@ it("renders a locked draft store with the shared recovery vocabulary and no expo
   expect(screen.queryByRole("button", { name: /export|clipboard/i })).toBeNull();
 });
 
-it("shows the shared leave dialog for a host leave request and answers through the typed channel", async () => {
+it("resolves a clean empty window leave without an unnecessary prompt", async () => {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let request: ((event: { requestId: string; reason: "close" | "logout" | "update" }) => void) | undefined;
   const call = signedInCalls(() => ({})) as (channel: string, payload: unknown) => Promise<unknown>;
@@ -245,7 +244,6 @@ it("shows the shared leave dialog for a host leave request and answers through t
   await waitFor(() => expect(document.querySelector("[data-session-status='signed-in']")).not.toBeNull());
   expect(screen.queryByText(i18n.t("office.leave.title"))).not.toBeInTheDocument();
   act(() => request?.({ requestId: "leave-1", reason: "close" }));
-  await waitFor(() => expect(screen.getByText(i18n.t("office.leave.title"))).toBeInTheDocument());
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.keep") }));
-  await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "keep", proceeded: true }));
+  await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "discard", proceeded: true }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

@@ -1,9 +1,8 @@
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity";
-import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, type DesktopOfficeTransport, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, type OfficeIpcOptions, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
-import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import type { NativeLoginManager } from "./auth/manager";
 import { launchRequestedEventSchema, desktopSessionMetadataSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
@@ -45,7 +44,7 @@ export type DesktopHostOptions = {
   drafts?: DraftIpcOptions;
   /** Main-owned cloud Documents/Office transport. Renderer receives only
    * validated metadata and bounded DOCX bytes. */
-  office?: { transport: DesktopOfficeTransport; isSignedIn?: () => boolean; onDocumentOpened?: (document: { id: string; workspaceId: string; version: number; revision: string }) => void; saveGuard?: OfficeSaveGuard; onSaveConfirmed?: (documentId: string) => void };
+  office?: OfficeIpcOptions;
   /** One durable store shared by document IPC and native restart checkpoint. */
   draftStore?: DesktopDraftStore;
   /** One non-queueing leave decision used by close, logout and update. */

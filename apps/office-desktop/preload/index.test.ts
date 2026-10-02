@@ -1,6 +1,23 @@
 import { expect, it, vi } from "vitest";
 import { createPreloadBridge, exposePreloadBridge } from "./index";
 
+it("allowlists tab updates and accepts opaque local ids for native Save", async () => {
+  const invoke = vi.fn().mockResolvedValue({ updated: true });
+  let event: ((...args: unknown[]) => void) | undefined;
+  const bridge = createPreloadBridge({ invoke, on: (channel, listener) => { if (channel === "desktop:office-save-requested") event = listener; } });
+  const documentId = `file_${"a".repeat(150)}`;
+  const payload = { sessionGeneration: "session_1234", documentIds: [documentId], activeDocumentId: documentId };
+  await expect(bridge.call("desktop:tabs-update", payload)).resolves.toEqual({ updated: true });
+  expect(invoke).toHaveBeenCalledWith("desktop:tabs-update", payload);
+  const received = vi.fn();
+  bridge.onOfficeSaveRequested(received);
+  event?.({}, { documentId });
+  expect(received).toHaveBeenCalledWith({ documentId });
+  event?.({}, { documentId: "/secret" });
+  event?.({}, { documentId, path: "/secret" });
+  expect(received).toHaveBeenCalledOnce();
+});
+
 it("exposes only the typed bridge and forwards an allowlisted call", async () => {
   const invoke = vi.fn().mockResolvedValue({ ok: true });
   const bridge = createPreloadBridge({ invoke });
