@@ -24,6 +24,7 @@ type FinishMeetingRecordingParams struct {
 	FileUrl pgtype.Text `json:"file_url"`
 }
 
+// tenant: by-id
 func (q *Queries) FinishMeetingRecording(ctx context.Context, arg FinishMeetingRecordingParams) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, finishMeetingRecording, arg.ID, arg.Status, arg.FileUrl)
 	var i MeetingRecording
@@ -55,6 +56,7 @@ type FinishRecordingByEgressParams struct {
 	FileUrl  pgtype.Text `json:"file_url"`
 }
 
+// tenant: system
 func (q *Queries) FinishRecordingByEgress(ctx context.Context, arg FinishRecordingByEgressParams) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, finishRecordingByEgress, arg.EgressID, arg.Status, arg.FileUrl)
 	var i MeetingRecording
@@ -77,6 +79,7 @@ const getActiveMeetingRecording = `-- name: GetActiveMeetingRecording :one
 SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE meeting_id = $1 AND status = 'ACTIVE' ORDER BY started_at DESC LIMIT 1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID string) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, getActiveMeetingRecording, meetingID)
 	var i MeetingRecording
@@ -99,6 +102,7 @@ const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
 SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string) (MeetingSummary, error) {
 	row := q.db.QueryRow(ctx, getLatestMeetingSummary, meetingID)
 	var i MeetingSummary
@@ -121,6 +125,7 @@ const getMeetingRecordingByEgressID = `-- name: GetMeetingRecordingByEgressID :o
 SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1
 `
 
+// tenant: system
 func (q *Queries) GetMeetingRecordingByEgressID(ctx context.Context, egressID string) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, getMeetingRecordingByEgressID, egressID)
 	var i MeetingRecording
@@ -148,6 +153,7 @@ type GetMeetingRecordingByIDParams struct {
 	MeetingID string `json:"meeting_id"`
 }
 
+// tenant: by-id
 func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRecordingByIDParams) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, getMeetingRecordingByID, arg.ID, arg.MeetingID)
 	var i MeetingRecording
@@ -298,6 +304,7 @@ FROM meeting_recordings
 WHERE file_id = ANY($1::text[])
 `
 
+// tenant: system
 // FS-C1 section 6: a live recording row holds its file.
 func (q *Queries) ListMeetingRecordingFileHolds(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, listMeetingRecordingFileHolds, dollar_1)
@@ -323,6 +330,7 @@ const listMeetingRecordings = `-- name: ListMeetingRecordings :many
 SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) ([]MeetingRecording, error) {
 	rows, err := q.db.Query(ctx, listMeetingRecordings, meetingID)
 	if err != nil {
@@ -374,6 +382,7 @@ type ListOverdueInProgressMeetingsParams struct {
 	OvertimeCutoff pgtype.Timestamptz `json:"overtime_cutoff"`
 }
 
+// tenant: system
 // Empty/idle rooms past ends_at, or ACTIVE rooms past the overtime cutoff
 // (now − 2h). Live = session status ACTIVE only; IDLE does not keep the row.
 func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOverdueInProgressMeetingsParams) ([]Meeting, error) {
@@ -435,6 +444,7 @@ type ListTranscriptSegmentsParams struct {
 	Limit     int32  `json:"limit"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) ListTranscriptSegments(ctx context.Context, arg ListTranscriptSegmentsParams) ([]MeetingTranscriptSegment, error) {
 	rows, err := q.db.Query(ctx, listTranscriptSegments, arg.MeetingID, arg.Limit)
 	if err != nil {

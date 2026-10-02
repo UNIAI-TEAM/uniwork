@@ -543,6 +543,7 @@ const getTask = `-- name: GetTask :one
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 	row := q.db.QueryRow(ctx, getTask, id)
 	var i Task
@@ -1128,6 +1129,7 @@ type ListTasksByIdentifierParams struct {
 	Number int64       `json:"number"`
 }
 
+// tenant: by-id
 // Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
 func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIdentifierParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listTasksByIdentifier, arg.Prefix, arg.Number)

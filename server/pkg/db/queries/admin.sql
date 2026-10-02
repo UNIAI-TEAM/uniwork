@@ -3,6 +3,7 @@
 -- message, no file ever leaves through here.
 
 -- name: AdminListOrganizations :many
+-- tenant: platform
 -- total_count is the window count over the filtered set, so the console can
 -- paginate without a second round trip. Sorting is decided here, never in the
 -- browser: a client-side sort would only order the page it happens to hold.
@@ -35,6 +36,7 @@ WHERE (sqlc.narg('status')::text IS NULL OR o.status = sqlc.narg('status')::text
   AND (sqlc.narg('q')::text IS NULL OR o.name ILIKE '%' || sqlc.narg('q')::text || '%' OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%');
 
 -- name: AdminGetOrganization :one
+-- tenant: platform
 SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,
   COALESCE(p.code, '')::text AS plan_code,
   (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
@@ -61,14 +63,17 @@ SELECT * FROM admin_actions WHERE target_type = $1 AND target_id = $2 ORDER BY c
 SELECT * FROM admin_actions WHERE trace_id = $1 ORDER BY created_at ASC LIMIT 500;
 
 -- name: AdminListAuditEventsByCorrelation :many
+-- tenant: platform
 SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, request_id, occurred_at
 FROM audit_events WHERE correlation_id = $1 ORDER BY occurred_at ASC LIMIT 500;
 
 -- name: AdminListOutboxEventsByCorrelation :many
+-- tenant: platform
 SELECT id, organization_id, workspace_id, topic, status, attempts, last_error, created_at, done_at, dead_at
 FROM outbox_events WHERE correlation_id = $1 ORDER BY created_at ASC LIMIT 500;
 
 -- name: AdminOutboxSummary :one
+-- tenant: platform
 SELECT count(*) FILTER (WHERE status = 'PENDING')::bigint AS pending,
   count(*) FILTER (WHERE dead_at IS NOT NULL)::bigint AS dead,
   COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at) FILTER (WHERE status = 'PENDING'))), 0)::float8 AS oldest_pending_age_seconds

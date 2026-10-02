@@ -152,6 +152,7 @@ WHERE id = $1
 // the shared comment core. Every query filters the tenant pair; reactions
 // reuse the shared comment_reactions table, reached only through a document
 // comment row.
+// tenant: by-id
 func (q *Queries) GetDocumentCommentByID(ctx context.Context, id string) (DocumentComment, error) {
 	row := q.db.QueryRow(ctx, getDocumentCommentByID, id)
 	var i DocumentComment

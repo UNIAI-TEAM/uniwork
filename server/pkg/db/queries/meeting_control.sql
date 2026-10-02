@@ -11,32 +11,39 @@ INSERT INTO meeting_participants (
 RETURNING *;
 
 -- name: GetMeetingParticipant :one
+-- tenant: by-id
 SELECT * FROM meeting_participants WHERE id = $1;
 
 -- name: ListMeetingParticipants :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_participants WHERE meeting_id = $1 ORDER BY added_at;
 
 -- name: GetActiveUserParticipant :one
+-- tenant: self
 SELECT * FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'USER' AND user_id = $2 AND status = 'ACTIVE';
 
 -- name: GetActiveGuestParticipant :one
+-- tenant: self
 SELECT * FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2 AND status = 'ACTIVE';
 
 -- name: GetUserParticipantAnyStatus :one
+-- tenant: self
 SELECT * FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'USER' AND user_id = $2
 ORDER BY added_at DESC
 LIMIT 1;
 
 -- name: GetGuestParticipantAnyStatus :one
+-- tenant: self
 SELECT * FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2
 ORDER BY added_at DESC
 LIMIT 1;
 
 -- name: RemoveMeetingParticipant :one
+-- tenant: by-id
 UPDATE meeting_participants SET
   status = 'REMOVED',
   removed_by = $2,
@@ -52,15 +59,19 @@ INSERT INTO meeting_invitations (
 RETURNING *;
 
 -- name: GetMeetingInvitation :one
+-- tenant: by-id
 SELECT * FROM meeting_invitations WHERE id = $1;
 
 -- name: GetInvitationByParticipant :one
+-- tenant: parent participant_id
 SELECT * FROM meeting_invitations WHERE participant_id = $1;
 
 -- name: ListMeetingInvitations :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_invitations WHERE meeting_id = $1 ORDER BY invited_at;
 
 -- name: UpdateInvitationResponse :one
+-- tenant: by-id
 UPDATE meeting_invitations SET
   response_status = $2,
   responded_at = now()
@@ -74,11 +85,13 @@ INSERT INTO meeting_access_grants (
 RETURNING *;
 
 -- name: ListActiveGrantsForParticipant :many
+-- tenant: parent participant_id
 SELECT * FROM meeting_access_grants
 WHERE participant_id = $1 AND status = 'ACTIVE'
   AND (expires_at IS NULL OR expires_at > now());
 
 -- name: RevokeGrantsForParticipant :exec
+-- tenant: parent participant_id
 UPDATE meeting_access_grants SET
   status = 'REVOKED',
   revoked_by = $2,
@@ -87,6 +100,7 @@ UPDATE meeting_access_grants SET
 WHERE participant_id = $1 AND status = 'ACTIVE';
 
 -- name: RevokeGrantsForMeeting :exec
+-- tenant: parent meeting_id
 UPDATE meeting_access_grants SET
   status = 'REVOKED',
   revoked_by = $2,
@@ -95,6 +109,7 @@ UPDATE meeting_access_grants SET
 WHERE meeting_id = $1 AND status = 'ACTIVE';
 
 -- name: RevokeGrantsByInviteLink :exec
+-- tenant: parent source_id
 UPDATE meeting_access_grants SET
   status = 'REVOKED',
   revoked_by = $2,
@@ -109,19 +124,23 @@ INSERT INTO meeting_invite_links (
 RETURNING *;
 
 -- name: GetInviteLink :one
+-- tenant: token
 SELECT * FROM meeting_invite_links WHERE id = $1;
 
 -- name: ListInviteLinks :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_invite_links WHERE meeting_id = $1 ORDER BY created_at DESC;
 
 -- name: RevokeInviteLink :one
+-- tenant: parent meeting_id
 UPDATE meeting_invite_links SET
   revoked_by = $2,
   revoked_at = now()
-WHERE id = $1 AND revoked_at IS NULL
+WHERE id = $1 AND meeting_id = $3 AND revoked_at IS NULL
 RETURNING *;
 
 -- name: ConsumeInviteLinkUse :one
+-- tenant: by-id
 UPDATE meeting_invite_links SET used_count = used_count + 1
 WHERE id = $1
   AND revoked_at IS NULL
@@ -137,35 +156,43 @@ INSERT INTO meeting_join_requests (
 RETURNING *;
 
 -- name: GetJoinRequest :one
+-- tenant: by-id
 SELECT * FROM meeting_join_requests WHERE id = $1;
 
 -- name: GetPendingJoinRequestForUser :one
+-- tenant: self
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_user_id = $2 AND status = 'PENDING';
 
 -- name: GetPendingJoinRequestForGuest :one
+-- tenant: self
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_guest_id = $2 AND status = 'PENDING';
 
 -- name: GetLatestJoinRequestForUser :one
+-- tenant: self
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_user_id = $2
 ORDER BY requested_at DESC, id DESC
 LIMIT 1;
 
 -- name: GetLatestJoinRequestForGuest :one
+-- tenant: self
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_guest_id = $2
 ORDER BY requested_at DESC, id DESC
 LIMIT 1;
 
 -- name: ListJoinRequests :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_join_requests WHERE meeting_id = $1 ORDER BY requested_at DESC;
 
 -- name: ListPendingJoinRequests :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_join_requests WHERE meeting_id = $1 AND status = 'PENDING' ORDER BY requested_at;
 
 -- name: DecideJoinRequest :one
+-- tenant: by-id
 UPDATE meeting_join_requests SET
   status = $2,
   reviewed_by = $3,
@@ -175,6 +202,7 @@ WHERE id = $1 AND status = 'PENDING'
 RETURNING *;
 
 -- name: CancelJoinRequest :one
+-- tenant: by-id
 UPDATE meeting_join_requests SET
   status = 'CANCELED',
   reviewed_at = now()
@@ -182,6 +210,7 @@ WHERE id = $1 AND status = 'PENDING'
 RETURNING *;
 
 -- name: ExpirePendingJoinRequests :exec
+-- tenant: parent meeting_id
 UPDATE meeting_join_requests SET status = 'EXPIRED', reviewed_at = now()
 WHERE meeting_id = $1 AND status = 'PENDING';
 
@@ -192,15 +221,18 @@ INSERT INTO meeting_conference_sessions (
 RETURNING *;
 
 -- name: GetOpenConferenceSession :one
+-- tenant: parent meeting_id
 SELECT * FROM meeting_conference_sessions
 WHERE meeting_id = $1 AND status <> 'ENDED' AND status <> 'FAILED'
 ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: GetConferenceSession :one
+-- tenant: by-id
 SELECT * FROM meeting_conference_sessions WHERE id = $1;
 
 -- name: UpdateConferenceSessionStatus :one
+-- tenant: by-id
 UPDATE meeting_conference_sessions SET
   status = COALESCE(sqlc.narg('status'), status),
   provider_sync_status = COALESCE(sqlc.narg('provider_sync_status'), provider_sync_status),
@@ -212,6 +244,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: MarkConferenceSessionResyncing :one
+-- tenant: by-id
 -- Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
 -- keeps concurrent joins from queueing the same instruction twice.
 UPDATE meeting_conference_sessions SET
@@ -221,6 +254,7 @@ WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
 RETURNING *;
 
 -- name: EndConferenceSession :one
+-- tenant: by-id
 UPDATE meeting_conference_sessions SET
   status = 'ENDED',
   ended_at = now(),
@@ -235,9 +269,11 @@ INSERT INTO meeting_audit_logs (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), $14);
 
 -- name: ListMeetingAuditLogs :many
+-- tenant: parent meeting_id
 SELECT * FROM meeting_audit_logs WHERE meeting_id = $1 ORDER BY occurred_at DESC LIMIT $2 OFFSET $3;
 
 -- name: ReleaseStaleOutboxClaims :exec
+-- tenant: system
 UPDATE outbox_events SET
   status = 'PENDING',
   locked_by = NULL,
@@ -249,6 +285,7 @@ WHERE status = 'PROCESSING'
   AND locked_until < now();
 
 -- name: ClaimPendingOutbox :many
+-- tenant: system
 UPDATE outbox_events SET
   status = 'PROCESSING',
   locked_by = sqlc.arg('locked_by'),
@@ -265,6 +302,7 @@ WHERE id IN (
 RETURNING *;
 
 -- name: ListPendingOutbox :many
+-- tenant: system
 SELECT * FROM outbox_events
 WHERE status = 'PENDING' AND available_at <= now()
 ORDER BY created_at
@@ -272,6 +310,7 @@ LIMIT $1
 FOR UPDATE SKIP LOCKED;
 
 -- name: MarkOutboxDone :exec
+-- tenant: system
 UPDATE outbox_events SET
   status = 'DONE',
   completed_at = now(),
@@ -282,6 +321,7 @@ UPDATE outbox_events SET
 WHERE id = $1;
 
 -- name: MarkOutboxFailed :exec
+-- tenant: system
 UPDATE outbox_events SET
   attempts = attempts + 1,
   last_error = $2,
@@ -294,6 +334,7 @@ UPDATE outbox_events SET
 WHERE id = $1;
 
 -- name: CloseOpenAttendanceForConference :many
+-- tenant: system
 UPDATE meeting_attendance_sessions SET
   left_at = GREATEST(joined_at, now()),
   leave_reason = $2
@@ -301,6 +342,7 @@ WHERE conference_session_id = $1 AND left_at IS NULL
 RETURNING *;
 
 -- name: CloseOpenAttendanceForMeeting :many
+-- tenant: parent meeting_id
 -- Closes every open room session of a meeting. left_at caps the close time —
 -- the meeting's actual_end_at once it has ended — so a late sweep never
 -- stretches a session past the end; NULL closes at now(). A session never
@@ -312,6 +354,7 @@ WHERE meeting_id = sqlc.arg('meeting_id') AND left_at IS NULL
 RETURNING *;
 
 -- name: ListEndedMeetingsWithOpenAttendance :many
+-- tenant: system
 SELECT DISTINCT m.id FROM meetings m
 JOIN meeting_attendance_sessions a ON a.meeting_id = m.id
 WHERE m.status IN ('ENDED', 'CANCELED') AND a.left_at IS NULL
@@ -368,6 +411,7 @@ VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING;
 
 -- name: OpenAttendanceSession :one
+-- tenant: system
 -- joined_at is the provider's event time when it sent one, never in the
 -- future; NULL means now().
 INSERT INTO meeting_attendance_sessions (
@@ -384,6 +428,7 @@ ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
 RETURNING *;
 
 -- name: OutboxOldestPendingAgeSeconds :one
+-- tenant: system
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))), 0)::float8 AS age_seconds
 FROM outbox_events
 WHERE status IN ('PENDING', 'PROCESSING');
@@ -394,6 +439,7 @@ FROM webhook_inbox
 WHERE status IN ('PENDING', 'PROCESSING');
 
 -- name: ListInProgressMeetingsWithIdleSession :many
+-- tenant: system
 SELECT m.id FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND EXISTS (
@@ -407,6 +453,7 @@ WHERE m.status = 'IN_PROGRESS'
 LIMIT $1;
 
 -- name: LockOpenAttendance :one
+-- tenant: system
 -- The participant's open room session, locked so a join that replaces it and
 -- a leave that closes it take turns.
 SELECT * FROM meeting_attendance_sessions
@@ -422,12 +469,14 @@ FOR UPDATE;
 SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || sqlc.arg(participant_id)::text, 0));
 
 -- name: ShareLockMeetingStatus :one
+-- tenant: by-id
 -- The meeting's status, share-locked so End (which updates the row, then
 -- closes every open room session) cannot interleave with a join: a join
 -- either commits before End's close or sees the meeting ENDED.
 SELECT status FROM meetings WHERE id = $1 FOR SHARE;
 
 -- name: AttendanceConnectionSeen :one
+-- tenant: system
 -- Whether one provider connection (SID) of a participant already has a room
 -- session, open or closed: its join was handled, or its leave came first.
 SELECT EXISTS (
@@ -437,6 +486,7 @@ SELECT EXISTS (
 )::bool;
 
 -- name: BackdateConnectionJoin :many
+-- tenant: system
 -- A join that arrives after its connection's session was already recorded
 -- (its leave came first and wrote a zero-length session at the leave time)
 -- moves that session's start back to the join's time, so first-join and
@@ -469,6 +519,7 @@ INSERT INTO meeting_attendance_sessions (
 RETURNING *;
 
 -- name: CloseAttendanceSession :one
+-- tenant: system
 -- left_at is the provider's event time when it sent one, clamped to
 -- [joined_at, now()]; NULL means now().
 UPDATE meeting_attendance_sessions SET
@@ -478,6 +529,7 @@ WHERE id = sqlc.arg('id') AND left_at IS NULL
 RETURNING *;
 
 -- name: CountUniqueAttendees :one
+-- tenant: parent meeting_id
 SELECT count(DISTINCT participant_id)::bigint FROM meeting_attendance_sessions WHERE meeting_id = $1;
 
 -- name: InvitationResponseBreakdown :one
@@ -511,6 +563,7 @@ JOIN meetings m ON m.id = l.meeting_id
 WHERE m.workspace_id = $1;
 
 -- name: MeetingListStats :one
+-- tenant: parent meeting_id
 SELECT
   (SELECT count(*) FROM meeting_participants p WHERE p.meeting_id = $1)::bigint AS invited_count,
   (SELECT count(*) FROM meeting_invitations i WHERE i.meeting_id = $1 AND i.response_status = 'ACCEPTED')::bigint AS accepted_count,

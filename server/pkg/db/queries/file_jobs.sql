@@ -17,15 +17,18 @@ ON CONFLICT (file_id, operation) WHERE status IN ('pending', 'leased')
 DO NOTHING;
 
 -- name: GetFileJob :one
+-- tenant: system
 SELECT * FROM file_jobs WHERE id = sqlc.arg('id');
 
 -- name: ListFileJobsByFile :many
+-- tenant: system
 -- Reconcile/claim-time view of every job queued for a file.
 SELECT * FROM file_jobs
 WHERE file_id = sqlc.arg('file_id')
 ORDER BY created_at, id;
 
 -- name: LockFileJobsInIDOrder :many
+-- tenant: system
 -- Lock contract step 3: after files and sessions, lock job rows ordered by id
 -- before mutating them (spec 9.5).
 SELECT * FROM file_jobs
@@ -34,6 +37,7 @@ ORDER BY id
 FOR UPDATE;
 
 -- name: ClaimFileJobs :many
+-- tenant: system
 -- Lease the next runnable batch. SKIP LOCKED lets replicas share the scan;
 -- the UPDATE flips each winner to leased with owner + expiry + a bumped
 -- generation, so a late-finish from an older lease is fenced off. `now` and
@@ -54,6 +58,7 @@ WHERE id IN (
 RETURNING *;
 
 -- name: ReleaseExpiredFileJobLeases :execrows
+-- tenant: system
 -- Crashed-worker recovery: a lease that outlived its expiry returns to
 -- pending and is claimable again. `now` is the caller's sweep instant.
 UPDATE file_jobs SET
@@ -64,6 +69,7 @@ UPDATE file_jobs SET
 WHERE status = 'leased' AND lease_expires_at <= sqlc.arg('now');
 
 -- name: CompleteFileJob :execrows
+-- tenant: system
 -- leased -> succeeded, fenced by owner + generation so only the live holder
 -- can close the job. finished_at is caller-supplied.
 UPDATE file_jobs SET
@@ -80,6 +86,7 @@ WHERE id = sqlc.arg('id')
   AND lease_owner = sqlc.arg('lease_owner');
 
 -- name: RetryFileJob :execrows
+-- tenant: system
 -- leased -> pending with the next-scan backoff. The job is never dropped:
 -- alerting keys off attempt count and age, not a terminal failure state.
 UPDATE file_jobs SET
@@ -96,6 +103,7 @@ WHERE id = sqlc.arg('id')
   AND lease_owner = sqlc.arg('lease_owner');
 
 -- name: FailFileJob :execrows
+-- tenant: system
 -- Terminal failure after a retry sequence the worker chooses to stop:
 -- leased -> failed, fenced the same way. finished_at is caller-supplied.
 UPDATE file_jobs SET
@@ -112,6 +120,7 @@ WHERE id = sqlc.arg('id')
   AND lease_owner = sqlc.arg('lease_owner');
 
 -- name: CancelPendingFileJobs :execrows
+-- tenant: parent file_id
 -- Claim/GC voids queued same-operation work for a file (e.g. a cleanup job
 -- whose file just got referenced). Only pending rows cancel - a leased row
 -- is fenced by its generation instead. finished_at is caller-supplied.

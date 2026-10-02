@@ -50,6 +50,7 @@ const aiDeleteConversation = `-- name: AiDeleteConversation :exec
 DELETE FROM ai_conversations WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiDeleteConversation(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, aiDeleteConversation, id)
 	return err
@@ -59,6 +60,7 @@ const aiDeleteMessages = `-- name: AiDeleteMessages :exec
 DELETE FROM ai_messages WHERE conversation_id = $1
 `
 
+// tenant: parent conversation_id
 func (q *Queries) AiDeleteMessages(ctx context.Context, conversationID string) error {
 	_, err := q.db.Exec(ctx, aiDeleteMessages, conversationID)
 	return err
@@ -84,6 +86,7 @@ type AiFinishUsageEventParams struct {
 	ToolCalls    string      `json:"tool_calls"`
 }
 
+// tenant: by-id
 func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEventParams) (AiUsageEvent, error) {
 	row := q.db.QueryRow(ctx, aiFinishUsageEvent,
 		arg.ID,
@@ -128,6 +131,7 @@ const aiGetConversation = `-- name: AiGetConversation :one
 SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at FROM ai_conversations WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversation, error) {
 	row := q.db.QueryRow(ctx, aiGetConversation, id)
 	var i AiConversation
@@ -147,6 +151,7 @@ const aiGetUsageEvent = `-- name: AiGetUsageEvent :one
 SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent, error) {
 	row := q.db.QueryRow(ctx, aiGetUsageEvent, id)
 	var i AiUsageEvent
@@ -402,6 +407,7 @@ const aiListMessages = `-- name: AiListMessages :many
 SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200
 `
 
+// tenant: parent conversation_id
 func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]AiMessage, error) {
 	rows, err := q.db.Query(ctx, aiListMessages, conversationID)
 	if err != nil {
@@ -441,6 +447,7 @@ type AiTouchConversationParams struct {
 	Title string `json:"title"`
 }
 
+// tenant: by-id
 func (q *Queries) AiTouchConversation(ctx context.Context, arg AiTouchConversationParams) error {
 	_, err := q.db.Exec(ctx, aiTouchConversation, arg.ID, arg.Title)
 	return err

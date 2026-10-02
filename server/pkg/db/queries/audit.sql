@@ -43,6 +43,7 @@ FROM audit_events
 WHERE organization_id = $1 AND occurred_at < $2;
 
 -- name: ListAuditOrganizations :many
+-- tenant: system
 SELECT DISTINCT organization_id FROM audit_events WHERE organization_id <> '';
 
 -- name: GetAuditRetentionPolicy :one
@@ -73,14 +74,17 @@ FROM audit_exports
 WHERE organization_id = $1 AND completed_at IS NULL AND failed_at IS NULL;
 
 -- name: StartAuditExport :exec
+-- tenant: system
 UPDATE audit_exports SET started_at = now() WHERE id = $1 AND started_at IS NULL;
 
 -- name: CompleteAuditExport :exec
+-- tenant: system
 UPDATE audit_exports SET
   completed_at = now(), object_key = $2, row_count = $3, expires_at = now() + interval '24 hours'
 WHERE id = $1;
 
 -- name: CompleteAuditExportWithFile :one
+-- tenant: system
 -- Đường FileService: chỉ ghi khi job chưa chốt — cả completed lẫn failed — để
 -- một lần phát lại của outbox không ghi đè kết quả đã gắn, và một nhánh đã
 -- fail không bị nhánh khác hồi sinh thành done. ClaimInTx chạy trước, trong
@@ -91,21 +95,25 @@ WHERE id = $1 AND completed_at IS NULL AND failed_at IS NULL
 RETURNING id;
 
 -- name: ListExpiredAuditExportFiles :many
+-- tenant: system
 -- Tham chiếu file còn gắn sau expires_at: hết cửa sổ tải, chờ giải phóng cho
 -- collector. Hàng đường cũ (object_key, không file_id) không nằm trong đây.
 SELECT id, file_id FROM audit_exports
 WHERE file_id IS NOT NULL AND expires_at IS NOT NULL AND expires_at <= now();
 
 -- name: ReleaseAuditExportFile :execrows
+-- tenant: system
 -- Gỡ tham chiếu sau khi hết hạn; caller gọi files.ReleaseInTx trong cùng
 -- transaction. Điều kiện file_id khớp để một lần gỡ trùng không xóa nhầm.
 UPDATE audit_exports SET file_id = NULL WHERE id = $1 AND file_id = $2;
 
 -- name: AuditExportHeldFileIDs :many
+-- tenant: system
 -- ReferenceProvider của FileService: id file nào một job export còn giữ.
 SELECT file_id FROM audit_exports WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: FailAuditExport :exec
+-- tenant: system
 UPDATE audit_exports SET failed_at = now(), error = $2 WHERE id = $1;
 
 -- name: ListAuditExports :many
@@ -115,6 +123,7 @@ ORDER BY created_at DESC
 LIMIT $2;
 
 -- name: GetAuditEventByCorrelation :one
+-- tenant: system
 -- The notification consumer asks "which fields moved" here rather than
 -- having the task service say so in its payload (OPEN_QUESTIONS N1).
 SELECT * FROM audit_events

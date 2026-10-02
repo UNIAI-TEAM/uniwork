@@ -15,6 +15,7 @@ const auditExportHeldFileIDs = `-- name: AuditExportHeldFileIDs :many
 SELECT file_id FROM audit_exports WHERE file_id = ANY($1::text[])
 `
 
+// tenant: system
 // ReferenceProvider của FileService: id file nào một job export còn giữ.
 func (q *Queries) AuditExportHeldFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, auditExportHeldFileIDs, fileIds)
@@ -48,6 +49,7 @@ type CompleteAuditExportParams struct {
 	RowCount  int32       `json:"row_count"`
 }
 
+// tenant: system
 func (q *Queries) CompleteAuditExport(ctx context.Context, arg CompleteAuditExportParams) error {
 	_, err := q.db.Exec(ctx, completeAuditExport, arg.ID, arg.ObjectKey, arg.RowCount)
 	return err
@@ -66,6 +68,7 @@ type CompleteAuditExportWithFileParams struct {
 	RowCount int32       `json:"row_count"`
 }
 
+// tenant: system
 // Đường FileService: chỉ ghi khi job chưa chốt — cả completed lẫn failed — để
 // một lần phát lại của outbox không ghi đè kết quả đã gắn, và một nhánh đã
 // fail không bị nhánh khác hồi sinh thành done. ClaimInTx chạy trước, trong
@@ -117,6 +120,7 @@ type FailAuditExportParams struct {
 	Error pgtype.Text `json:"error"`
 }
 
+// tenant: system
 func (q *Queries) FailAuditExport(ctx context.Context, arg FailAuditExportParams) error {
 	_, err := q.db.Exec(ctx, failAuditExport, arg.ID, arg.Error)
 	return err
@@ -167,6 +171,7 @@ type GetAuditEventByCorrelationParams struct {
 	ResourceID    string `json:"resource_id"`
 }
 
+// tenant: system
 // The notification consumer asks "which fields moved" here rather than
 // having the task service say so in its payload (OPEN_QUESTIONS N1).
 func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEventByCorrelationParams) (AuditEvent, error) {
@@ -522,6 +527,7 @@ const listAuditOrganizations = `-- name: ListAuditOrganizations :many
 SELECT DISTINCT organization_id FROM audit_events WHERE organization_id <> ''
 `
 
+// tenant: system
 func (q *Queries) ListAuditOrganizations(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, listAuditOrganizations)
 	if err != nil {
@@ -552,6 +558,7 @@ type ListExpiredAuditExportFilesRow struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 // Tham chiếu file còn gắn sau expires_at: hết cửa sổ tải, chờ giải phóng cho
 // collector. Hàng đường cũ (object_key, không file_id) không nằm trong đây.
 func (q *Queries) ListExpiredAuditExportFiles(ctx context.Context) ([]ListExpiredAuditExportFilesRow, error) {
@@ -638,6 +645,7 @@ type ReleaseAuditExportFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 // Gỡ tham chiếu sau khi hết hạn; caller gọi files.ReleaseInTx trong cùng
 // transaction. Điều kiện file_id khớp để một lần gỡ trùng không xóa nhầm.
 func (q *Queries) ReleaseAuditExportFile(ctx context.Context, arg ReleaseAuditExportFileParams) (int64, error) {
@@ -652,6 +660,7 @@ const startAuditExport = `-- name: StartAuditExport :exec
 UPDATE audit_exports SET started_at = now() WHERE id = $1 AND started_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) StartAuditExport(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, startAuditExport, id)
 	return err

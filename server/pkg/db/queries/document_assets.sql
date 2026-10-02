@@ -53,6 +53,7 @@ WHERE id = sqlc.arg(id)
 -- (internal/document isAssetRef); asset ids are fixed-width ULIDs, so one
 -- id is never a prefix of another.
 -- name: ListDocumentAssetFileHolds :many
+-- tenant: system
 SELECT a.file_id,
   CASE
     WHEN d.archived_at IS NOT NULL THEN 'soft_deleted'

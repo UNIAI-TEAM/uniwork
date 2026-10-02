@@ -33,6 +33,7 @@ type AttendanceSessionTotalsRow struct {
 	PresentSeconds int64              `json:"present_seconds"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) AttendanceSessionTotals(ctx context.Context, meetingID string) ([]AttendanceSessionTotalsRow, error) {
 	rows, err := q.db.Query(ctx, attendanceSessionTotals, meetingID)
 	if err != nil {
@@ -69,6 +70,7 @@ type DeleteAttendanceMarkParams struct {
 	ParticipantID string `json:"participant_id"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) DeleteAttendanceMark(ctx context.Context, arg DeleteAttendanceMarkParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAttendanceMark, arg.MeetingID, arg.ParticipantID)
 	if err != nil {
@@ -81,6 +83,7 @@ const deleteAutoAttendanceMarks = `-- name: DeleteAutoAttendanceMarks :exec
 DELETE FROM meeting_attendance_marks WHERE meeting_id = $1 AND source = 'AUTO'
 `
 
+// tenant: parent meeting_id
 func (q *Queries) DeleteAutoAttendanceMarks(ctx context.Context, meetingID string) error {
 	_, err := q.db.Exec(ctx, deleteAutoAttendanceMarks, meetingID)
 	return err
@@ -92,6 +95,7 @@ USING meeting_participants p
 WHERE mk.participant_id = p.id AND mk.meeting_id = $1 AND p.status <> 'ACTIVE'
 `
 
+// tenant: parent meeting_id
 // Drops the marks of people who are no longer participants (removed or left
 // while the roll was open), so a finalized roll is exactly the people who
 // were on it when it was finalized.
@@ -132,6 +136,7 @@ const listAttendanceMarks = `-- name: ListAttendanceMarks :many
 SELECT id, organization_id, meeting_id, participant_id, status, note, source, marked_by, marked_at FROM meeting_attendance_marks WHERE meeting_id = $1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListAttendanceMarks(ctx context.Context, meetingID string) ([]MeetingAttendanceMark, error) {
 	rows, err := q.db.Query(ctx, listAttendanceMarks, meetingID)
 	if err != nil {
@@ -166,6 +171,7 @@ const lockMeetingForAttendance = `-- name: LockMeetingForAttendance :one
 SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings WHERE id = $1 FOR UPDATE
 `
 
+// tenant: by-id
 // Serializes finalize, reopen and clear on one meeting so each re-reads the
 // finalized flag under the lock instead of trusting a pre-transaction read.
 func (q *Queries) LockMeetingForAttendance(ctx context.Context, id string) (Meeting, error) {
@@ -219,6 +225,7 @@ type SetAttendanceFinalizedParams struct {
 	ID          string             `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) SetAttendanceFinalized(ctx context.Context, arg SetAttendanceFinalizedParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, setAttendanceFinalized, arg.FinalizedAt, arg.FinalizedBy, arg.ID)
 	var i Meeting
@@ -270,6 +277,7 @@ type UpdateParticipantDutiesParams struct {
 	ID          string      `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateParticipantDuties(ctx context.Context, arg UpdateParticipantDutiesParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, updateParticipantDuties, arg.Standing, arg.IsSecretary, arg.ID)
 	var i MeetingParticipant
@@ -319,6 +327,7 @@ type UpsertAttendanceMarkParams struct {
 	MarkedBy       pgtype.Text `json:"marked_by"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) UpsertAttendanceMark(ctx context.Context, arg UpsertAttendanceMarkParams) (MeetingAttendanceMark, error) {
 	row := q.db.QueryRow(ctx, upsertAttendanceMark,
 		arg.ID,

@@ -36,6 +36,7 @@ type ChangeSubscriptionPlanParams struct {
 	UpdatedByKind string `json:"updated_by_kind"`
 }
 
+// tenant: by-id
 func (q *Queries) ChangeSubscriptionPlan(ctx context.Context, arg ChangeSubscriptionPlanParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, changeSubscriptionPlan,
 		arg.ID,
@@ -460,6 +461,7 @@ type SetSubscriptionCancelAtParams struct {
 	UpdatedByKind string             `json:"updated_by_kind"`
 }
 
+// tenant: by-id
 func (q *Queries) SetSubscriptionCancelAt(ctx context.Context, arg SetSubscriptionCancelAtParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, setSubscriptionCancelAt,
 		arg.ID,

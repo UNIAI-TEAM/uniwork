@@ -23,6 +23,7 @@ type ArchiveChatChannelParams struct {
 	ArchivedBy pgtype.Text `json:"archived_by"`
 }
 
+// tenant: by-id
 func (q *Queries) ArchiveChatChannel(ctx context.Context, arg ArchiveChatChannelParams) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, archiveChatChannel, arg.ID, arg.ArchivedBy)
 	var i ChatRoom
@@ -641,6 +642,7 @@ type GetActiveChatRoomMemberRow struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+// tenant: parent room_id
 func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChatRoomMemberParams) (GetActiveChatRoomMemberRow, error) {
 	row := q.db.QueryRow(ctx, getActiveChatRoomMember, arg.RoomID, arg.UserID)
 	var i GetActiveChatRoomMemberRow
@@ -676,6 +678,7 @@ type GetChatMessageByClientMsgIDParams struct {
 	ClientMsgID pgtype.Text `json:"client_msg_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMessageByClientMsgIDParams) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByClientMsgID, arg.RoomID, arg.SenderID, arg.ClientMsgID)
 	var i ChatMessage
@@ -708,6 +711,7 @@ SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_mess
 WHERE id = $1 AND deleted_at IS NULL
 `
 
+// tenant: by-id
 func (q *Queries) GetChatMessageByID(ctx context.Context, id string) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByID, id)
 	var i ChatMessage
@@ -777,6 +781,7 @@ const getChatRoomByID = `-- name: GetChatRoomByID :one
 SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetChatRoomByID(ctx context.Context, id string) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, getChatRoomByID, id)
 	var i ChatRoom
@@ -851,6 +856,7 @@ type GetChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) GetChatThreadFollower(ctx context.Context, arg GetChatThreadFollowerParams) (ChatThreadFollower, error) {
 	row := q.db.QueryRow(ctx, getChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	var i ChatThreadFollower
@@ -1004,6 +1010,7 @@ type LeaveChatRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) LeaveChatRoomMember(ctx context.Context, arg LeaveChatRoomMemberParams) error {
 	_, err := q.db.Exec(ctx, leaveChatRoomMember, arg.RoomID, arg.UserID)
 	return err
@@ -1348,6 +1355,7 @@ WHERE file_id = ANY($1::text[])
   AND deleted_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) ListChatMessageFileRefs(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, listChatMessageFileRefs, dollar_1)
 	if err != nil {
@@ -1723,6 +1731,7 @@ SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active')
 `
 
+// tenant: parent room_id
 func (q *Queries) ListChatRoomMemberUserIDs(ctx context.Context, roomID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listChatRoomMemberUserIDs, roomID)
 	if err != nil {
@@ -1764,6 +1773,7 @@ type ListChatRoomMembersRow struct {
 	DisplayName    string `json:"display_name"`
 }
 
+// tenant: parent room_id
 func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]ListChatRoomMembersRow, error) {
 	rows, err := q.db.Query(ctx, listChatRoomMembers, roomID)
 	if err != nil {
@@ -1909,6 +1919,7 @@ SELECT user_id FROM chat_thread_followers
 WHERE thread_root_id = $1 AND muted = false
 `
 
+// tenant: parent thread_root_id
 func (q *Queries) ListChatThreadFollowerUserIDs(ctx context.Context, threadRootID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listChatThreadFollowerUserIDs, threadRootID)
 	if err != nil {
@@ -2135,6 +2146,7 @@ type MarkChatThreadReadParams struct {
 	LastReadAt   pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) MarkChatThreadRead(ctx context.Context, arg MarkChatThreadReadParams) error {
 	_, err := q.db.Exec(ctx, markChatThreadRead, arg.ThreadRootID, arg.UserID, arg.LastReadAt)
 	return err
@@ -2151,6 +2163,7 @@ type MuteChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) MuteChatThreadFollower(ctx context.Context, arg MuteChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, muteChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	return err
@@ -2167,6 +2180,7 @@ type ReactivateChatRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) ReactivateChatRoomMember(ctx context.Context, arg ReactivateChatRoomMemberParams) error {
 	_, err := q.db.Exec(ctx, reactivateChatRoomMember, arg.RoomID, arg.UserID)
 	return err
@@ -2310,6 +2324,7 @@ const touchChatRoomUpdatedAt = `-- name: TouchChatRoomUpdatedAt :exec
 UPDATE chat_rooms SET updated_at = now() WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) TouchChatRoomUpdatedAt(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, touchChatRoomUpdatedAt, id)
 	return err
@@ -2322,6 +2337,7 @@ WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
 RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
 `
 
+// tenant: by-id
 func (q *Queries) UnarchiveChatChannel(ctx context.Context, id string) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, unarchiveChatChannel, id)
 	var i ChatRoom
@@ -2359,6 +2375,7 @@ type UnmuteChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) UnmuteChatThreadFollower(ctx context.Context, arg UnmuteChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, unmuteChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	return err
@@ -2391,6 +2408,7 @@ type UpdateChatChannelParams struct {
 	ID           string      `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatChannel(ctx context.Context, arg UpdateChatChannelParams) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, updateChatChannel,
 		arg.Name,
@@ -2530,6 +2548,7 @@ type UpdateChatRoomMemberLastReadParams struct {
 	LastReadAt pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberLastRead(ctx context.Context, arg UpdateChatRoomMemberLastReadParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberLastRead, arg.RoomID, arg.UserID, arg.LastReadAt)
 	return err
@@ -2544,6 +2563,7 @@ type UpdateChatRoomMemberPermissionsParams struct {
 	MemberPermissions []byte `json:"member_permissions"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatRoomMemberPermissions(ctx context.Context, arg UpdateChatRoomMemberPermissionsParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberPermissions, arg.ID, arg.MemberPermissions)
 	return err
@@ -2561,6 +2581,7 @@ type UpdateChatRoomMemberRoleParams struct {
 	Role   string `json:"role"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberRole(ctx context.Context, arg UpdateChatRoomMemberRoleParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberRole, arg.RoomID, arg.UserID, arg.Role)
 	return err
@@ -2578,6 +2599,7 @@ type UpdateChatRoomMemberSendRestrictedParams struct {
 	SendRestricted bool   `json:"send_restricted"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberSendRestricted(ctx context.Context, arg UpdateChatRoomMemberSendRestrictedParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberSendRestricted, arg.RoomID, arg.UserID, arg.SendRestricted)
 	return err
@@ -2592,6 +2614,7 @@ type UpdateChatRoomNameParams struct {
 	Name string `json:"name"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatRoomName(ctx context.Context, arg UpdateChatRoomNameParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomName, arg.ID, arg.Name)
 	return err
@@ -2630,6 +2653,7 @@ type UpsertChatThreadFollowerParams struct {
 	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) UpsertChatThreadFollower(ctx context.Context, arg UpsertChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, upsertChatThreadFollower,
 		arg.ID,

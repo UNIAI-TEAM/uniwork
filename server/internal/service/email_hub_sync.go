@@ -150,7 +150,7 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
 	}); err != nil {
 		return false, 0, err
 	}
@@ -323,7 +323,7 @@ func (s *EmailHubService) syncSingleFolder(
 		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
 	}); err != nil {
 		return false, 0, err
 	}
@@ -435,7 +435,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		return false, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
 	}); err != nil {
 		return false, err
 	}

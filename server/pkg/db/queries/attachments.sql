@@ -43,6 +43,7 @@ WHERE id = $1
   AND workspace_id = $3;
 
 -- name: GetAttachmentByID :one
+-- tenant: by-id
 SELECT *
 FROM attachments
 WHERE id = $1;
@@ -82,6 +83,7 @@ WHERE organization_id = $1
 -- URL — the embed survives unbinding, and its row is the only map from the
 -- URL back to the file.
 -- name: ListAttachmentFileHolds :many
+-- tenant: system
 SELECT a.id, a.file_id, a.purpose
 FROM attachments a
 WHERE a.file_id = ANY(sqlc.arg('file_ids')::text[])

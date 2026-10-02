@@ -57,6 +57,7 @@ type AdminGetOrganizationRow struct {
 	LastActivityAt  pgtype.Timestamptz `json:"last_activity_at"`
 }
 
+// tenant: platform
 func (q *Queries) AdminGetOrganization(ctx context.Context, id string) (AdminGetOrganizationRow, error) {
 	row := q.db.QueryRow(ctx, adminGetOrganization, id)
 	var i AdminGetOrganizationRow
@@ -94,6 +95,7 @@ type AdminListAuditEventsByCorrelationRow struct {
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
 }
 
+// tenant: platform
 func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correlationID string) ([]AdminListAuditEventsByCorrelationRow, error) {
 	rows, err := q.db.Query(ctx, adminListAuditEventsByCorrelation, correlationID)
 	if err != nil {
@@ -173,6 +175,7 @@ type AdminListOrganizationsRow struct {
 // Platform admin (F-11). Only service/admin.go calls these (arch test
 // TestAdminQueriesStayInAdminService). Metadata only: no task body, no
 // message, no file ever leaves through here.
+// tenant: platform
 // total_count is the window count over the filtered set, so the console can
 // paginate without a second round trip. Sorting is decided here, never in the
 // browser: a client-side sort would only order the page it happens to hold.
@@ -231,6 +234,7 @@ type AdminListOutboxEventsByCorrelationRow struct {
 	DeadAt         pgtype.Timestamptz `json:"dead_at"`
 }
 
+// tenant: platform
 func (q *Queries) AdminListOutboxEventsByCorrelation(ctx context.Context, correlationID pgtype.Text) ([]AdminListOutboxEventsByCorrelationRow, error) {
 	rows, err := q.db.Query(ctx, adminListOutboxEventsByCorrelation, correlationID)
 	if err != nil {
@@ -275,6 +279,7 @@ type AdminOutboxSummaryRow struct {
 	OldestPendingAgeSeconds float64 `json:"oldest_pending_age_seconds"`
 }
 
+// tenant: platform
 func (q *Queries) AdminOutboxSummary(ctx context.Context) (AdminOutboxSummaryRow, error) {
 	row := q.db.QueryRow(ctx, adminOutboxSummary)
 	var i AdminOutboxSummaryRow

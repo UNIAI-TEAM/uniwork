@@ -82,6 +82,7 @@ const countOwnedOrganizationsForUser = `-- name: CountOwnedOrganizationsForUser 
 SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner'
 `
 
+// tenant: self
 func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countOwnedOrganizationsForUser, userID)
 	var count int64
@@ -196,6 +197,7 @@ UPDATE organization_members SET deactivated_at = now(), deactivated_by = $1, upd
 WHERE user_id = $1 AND deactivated_at IS NULL
 `
 
+// tenant: self
 func (q *Queries) DeactivateAllOrganizationMembershipsForUser(ctx context.Context, deactivatedBy pgtype.Text) error {
 	_, err := q.db.Exec(ctx, deactivateAllOrganizationMembershipsForUser, deactivatedBy)
 	return err
@@ -650,6 +652,7 @@ UPDATE organization_member_profiles SET
 WHERE user_id = $1
 `
 
+// tenant: self
 func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, scrubMemberProfilesForUser, userID)
 	return err

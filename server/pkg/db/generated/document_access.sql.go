@@ -132,6 +132,7 @@ WHERE id = $1
 // Authorize-by-id (the GetTask pattern): the id alone finds the row, then the
 // service decides visibility from the row's own organization/workspace pair.
 // The caller never learns anything about a row it cannot read.
+// tenant: by-id
 func (q *Queries) GetDocumentByID(ctx context.Context, id string) (Document, error) {
 	row := q.db.QueryRow(ctx, getDocumentByID, id)
 	var i Document
@@ -349,6 +350,7 @@ WHERE token_hash = $1
 
 // The anonymous entry point: the token hash alone finds the link (the
 // token is the credential), and only a live one answers.
+// tenant: token
 func (q *Queries) GetLiveDocumentShareLinkByTokenHash(ctx context.Context, tokenHash string) (DocumentShareLink, error) {
 	row := q.db.QueryRow(ctx, getLiveDocumentShareLinkByTokenHash, tokenHash)
 	var i DocumentShareLink
@@ -721,6 +723,7 @@ FOR UPDATE
 // The mutation gate: the row lock serializes every command on a document
 // with share grants/revokes (which take the same lock), so the access
 // decision inside a mutation transaction always sees the committed ACL.
+// tenant: by-id
 func (q *Queries) LockDocumentByID(ctx context.Context, id string) (Document, error) {
 	row := q.db.QueryRow(ctx, lockDocumentByID, id)
 	var i Document

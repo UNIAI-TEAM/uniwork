@@ -139,6 +139,7 @@ RETURNING *;
 -- queue, and each row it returns is then read and written through the
 -- tenant-scoped queries above.
 -- name: ListLiveOfficeJobs :many
+-- tenant: system
 SELECT *
 FROM office_jobs
 WHERE state IN ('accepted', 'running')
@@ -149,6 +150,7 @@ LIMIT sqlc.arg(max_rows);
 -- live (the engine may still be writing it). Provider-facing, so
 -- intentionally NOT tenant filtered.
 -- name: ListOfficeJobOutputHolds :many
+-- tenant: system
 SELECT output_file_id
 FROM office_jobs
 WHERE output_file_id = ANY(sqlc.arg(file_ids)::text[])
@@ -156,6 +158,7 @@ WHERE output_file_id = ANY(sqlc.arg(file_ids)::text[])
 
 -- Tenant of every job naming one of these output files (collector audit).
 -- name: FileGCOfficeJobRefTenants :many
+-- tenant: system
 SELECT output_file_id, organization_id
 FROM office_jobs
 WHERE output_file_id = ANY(sqlc.arg(file_ids)::text[]);

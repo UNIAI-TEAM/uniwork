@@ -89,15 +89,12 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	link, err := q.RevokeInviteLink(ctx, db.RevokeInviteLinkParams{ID: linkID, RevokedBy: strText(userID)})
-	if errors.Is(err, pgx.ErrNoRows) {
+	// Scoped by the meeting the caller hosts: a link of another meeting is
+	// never touched, not even inside a transaction that is rolled back.
+	if _, err := q.RevokeInviteLink(ctx, db.RevokeInviteLinkParams{ID: linkID, RevokedBy: strText(userID), MeetingID: meetingID}); errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
-	}
-	if err != nil {
+	} else if err != nil {
 		return err
-	}
-	if link.MeetingID != meetingID {
-		return ErrNotFound
 	}
 	_ = q.RevokeGrantsByInviteLink(ctx, db.RevokeGrantsByInviteLinkParams{SourceID: strText(linkID), RevokedBy: strText(userID)})
 	_ = s.writeAudit(ctx, q, m, "INVITE_LINK_REVOKED", userID, "", linkID, "{}")

@@ -22,6 +22,7 @@ type CastPublicMeetingBallotParams struct {
 	ParticipantID string      `json:"participant_id"`
 }
 
+// tenant: parent motion_id
 // Zero rows: not on the roll, or already voted (the caller tells them apart).
 func (q *Queries) CastPublicMeetingBallot(ctx context.Context, arg CastPublicMeetingBallotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, castPublicMeetingBallot, arg.Choice, arg.MotionID, arg.ParticipantID)
@@ -41,6 +42,7 @@ type CastSecretMeetingBallotParams struct {
 	ParticipantID string `json:"participant_id"`
 }
 
+// tenant: parent motion_id
 // A secret ballot records only that the member voted: choice is never written,
 // the vote lands in the motion's counters (CountMeetingMotionVote) instead.
 func (q *Queries) CastSecretMeetingBallot(ctx context.Context, arg CastSecretMeetingBallotParams) (int64, error) {
@@ -69,6 +71,7 @@ type CloseMeetingMotionParams struct {
 	ID       string      `json:"id"`
 }
 
+// tenant: by-id
 // closed_by is NULL when the meeting ended on its own (no person closed it).
 func (q *Queries) CloseMeetingMotion(ctx context.Context, arg CloseMeetingMotionParams) (MeetingMotion, error) {
 	row := q.db.QueryRow(ctx, closeMeetingMotion, arg.Outcome, arg.ClosedBy, arg.ID)
@@ -118,6 +121,7 @@ type CountMeetingMotionVoteParams struct {
 	ID     string `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) CountMeetingMotionVote(ctx context.Context, arg CountMeetingMotionVoteParams) error {
 	_, err := q.db.Exec(ctx, countMeetingMotionVote, arg.Choice, arg.ID)
 	return err
@@ -149,6 +153,7 @@ type CreateMeetingMotionParams struct {
 	CreatedBy      string `json:"created_by"`
 }
 
+// tenant: parent meeting_id
 // A new item goes after the last one in its meeting. Two clerks adding at the
 // same instant can share a position; ListMeetingMotions breaks the tie by
 // created_at and the next reorder separates them.
@@ -201,6 +206,7 @@ const deleteMeetingMotionDraft = `-- name: DeleteMeetingMotionDraft :execrows
 DELETE FROM meeting_motions WHERE id = $1 AND status = 'DRAFT'
 `
 
+// tenant: by-id
 func (q *Queries) DeleteMeetingMotionDraft(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMeetingMotionDraft, id)
 	if err != nil {
@@ -222,6 +228,7 @@ type GetMeetingMotionAtPositionParams struct {
 	ID        string `json:"id"`
 }
 
+// tenant: parent meeting_id
 // The neighbour a reorder swaps with; locked so both rows move together.
 func (q *Queries) GetMeetingMotionAtPosition(ctx context.Context, arg GetMeetingMotionAtPositionParams) (MeetingMotion, error) {
 	row := q.db.QueryRow(ctx, getMeetingMotionAtPosition, arg.MeetingID, arg.Position, arg.ID)
@@ -266,6 +273,7 @@ type GetMeetingMotionBallotParams struct {
 	ParticipantID string `json:"participant_id"`
 }
 
+// tenant: parent motion_id
 func (q *Queries) GetMeetingMotionBallot(ctx context.Context, arg GetMeetingMotionBallotParams) (MeetingMotionBallot, error) {
 	row := q.db.QueryRow(ctx, getMeetingMotionBallot, arg.MotionID, arg.ParticipantID)
 	var i MeetingMotionBallot
@@ -285,6 +293,7 @@ const getOpenMeetingMotion = `-- name: GetOpenMeetingMotion :one
 SELECT id, organization_id, workspace_id, meeting_id, title, description, position, ballot_mode, threshold, base, status, total_members, roll_size, yes_count, no_count, abstain_count, outcome, opened_at, opened_by, closed_at, closed_by, created_by, created_by_kind, created_at, updated_at, version FROM meeting_motions WHERE meeting_id = $1 AND status = 'OPEN'
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetOpenMeetingMotion(ctx context.Context, meetingID string) (MeetingMotion, error) {
 	row := q.db.QueryRow(ctx, getOpenMeetingMotion, meetingID)
 	var i MeetingMotion
@@ -348,6 +357,7 @@ const listClosedMeetingMotions = `-- name: ListClosedMeetingMotions :many
 SELECT id, organization_id, workspace_id, meeting_id, title, description, position, ballot_mode, threshold, base, status, total_members, roll_size, yes_count, no_count, abstain_count, outcome, opened_at, opened_by, closed_at, closed_by, created_by, created_by_kind, created_at, updated_at, version FROM meeting_motions WHERE meeting_id = $1 AND status = 'CLOSED' ORDER BY position
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListClosedMeetingMotions(ctx context.Context, meetingID string) ([]MeetingMotion, error) {
 	rows, err := q.db.Query(ctx, listClosedMeetingMotions, meetingID)
 	if err != nil {
@@ -404,6 +414,7 @@ type ListMeetingBallotsForParticipantParams struct {
 	ParticipantID string `json:"participant_id"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingBallotsForParticipant(ctx context.Context, arg ListMeetingBallotsForParticipantParams) ([]MeetingMotionBallot, error) {
 	rows, err := q.db.Query(ctx, listMeetingBallotsForParticipant, arg.MeetingID, arg.ParticipantID)
 	if err != nil {
@@ -436,6 +447,7 @@ const listMeetingMotions = `-- name: ListMeetingMotions :many
 SELECT id, organization_id, workspace_id, meeting_id, title, description, position, ballot_mode, threshold, base, status, total_members, roll_size, yes_count, no_count, abstain_count, outcome, opened_at, opened_by, closed_at, closed_by, created_by, created_by_kind, created_at, updated_at, version FROM meeting_motions WHERE meeting_id = $1 ORDER BY position, created_at
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingMotions(ctx context.Context, meetingID string) ([]MeetingMotion, error) {
 	rows, err := q.db.Query(ctx, listMeetingMotions, meetingID)
 	if err != nil {
@@ -487,6 +499,7 @@ const listOpenMeetingMotionsForUpdate = `-- name: ListOpenMeetingMotionsForUpdat
 SELECT id, organization_id, workspace_id, meeting_id, title, description, position, ballot_mode, threshold, base, status, total_members, roll_size, yes_count, no_count, abstain_count, outcome, opened_at, opened_by, closed_at, closed_by, created_by, created_by_kind, created_at, updated_at, version FROM meeting_motions WHERE meeting_id = $1 AND status = 'OPEN' ORDER BY position FOR UPDATE
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListOpenMeetingMotionsForUpdate(ctx context.Context, meetingID string) ([]MeetingMotion, error) {
 	rows, err := q.db.Query(ctx, listOpenMeetingMotionsForUpdate, meetingID)
 	if err != nil {
@@ -548,6 +561,7 @@ type ListPublicMeetingVotersRow struct {
 	DisplayNameSnapshot string      `json:"display_name_snapshot"`
 }
 
+// tenant: parent meeting_id
 // Secret ballots never carry a choice, so they fall out of choice IS NOT NULL.
 func (q *Queries) ListPublicMeetingVoters(ctx context.Context, meetingID string) ([]ListPublicMeetingVotersRow, error) {
 	rows, err := q.db.Query(ctx, listPublicMeetingVoters, meetingID)
@@ -580,6 +594,7 @@ type LockMeetingMotionParams struct {
 	MeetingID string `json:"meeting_id"`
 }
 
+// tenant: by-id
 // Scoped by meeting so a motion id from another meeting reads as not found.
 func (q *Queries) LockMeetingMotion(ctx context.Context, arg LockMeetingMotionParams) (MeetingMotion, error) {
 	row := q.db.QueryRow(ctx, lockMeetingMotion, arg.ID, arg.MeetingID)
@@ -635,6 +650,7 @@ type OpenMeetingMotionParams struct {
 	ID           string      `json:"id"`
 }
 
+// tenant: by-id
 // Freezes the denominators at the moment voting opens; the roll rows are
 // inserted in the same transaction.
 func (q *Queries) OpenMeetingMotion(ctx context.Context, arg OpenMeetingMotionParams) (MeetingMotion, error) {
@@ -686,6 +702,7 @@ type SetMeetingMotionPositionParams struct {
 	ID       string `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) SetMeetingMotionPosition(ctx context.Context, arg SetMeetingMotionPositionParams) error {
 	_, err := q.db.Exec(ctx, setMeetingMotionPosition, arg.Position, arg.ID)
 	return err
@@ -715,6 +732,7 @@ type UpdateMeetingMotionDraftParams struct {
 	ID          string `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateMeetingMotionDraft(ctx context.Context, arg UpdateMeetingMotionDraftParams) (MeetingMotion, error) {
 	row := q.db.QueryRow(ctx, updateMeetingMotionDraft,
 		arg.Title,

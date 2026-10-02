@@ -30,6 +30,7 @@ WHERE organization_id = $1 AND workspace_id = $2
 ORDER BY status, position, created_at;
 
 -- name: GetTask :one
+-- tenant: by-id
 SELECT * FROM tasks WHERE id = $1;
 
 -- name: GetTaskInWorkspace :one
@@ -184,6 +185,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'));
 
 -- name: ListTasksByIdentifier :many
+-- tenant: by-id
 -- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
 SELECT t.* FROM tasks t
 INNER JOIN workspaces w

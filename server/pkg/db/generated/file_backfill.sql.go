@@ -28,6 +28,7 @@ type FileBackfillClearAttachmentFileParams struct {
 // run recorded, so a row that moved on is never rewritten. Objects are never
 // touched — legacy locators still name them.
 // ---------------------------------------------------------------------------
+// tenant: system
 func (q *Queries) FileBackfillClearAttachmentFile(ctx context.Context, arg FileBackfillClearAttachmentFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillClearAttachmentFile, arg.ID, arg.FileID)
 	if err != nil {
@@ -46,6 +47,7 @@ type FileBackfillClearAuditExportFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillClearAuditExportFile(ctx context.Context, arg FileBackfillClearAuditExportFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillClearAuditExportFile, arg.ID, arg.FileID)
 	if err != nil {
@@ -64,6 +66,7 @@ type FileBackfillClearCallRecordingFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillClearCallRecordingFile(ctx context.Context, arg FileBackfillClearCallRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillClearCallRecordingFile, arg.ID, arg.FileID)
 	if err != nil {
@@ -83,6 +86,7 @@ type FileBackfillClearChatMessageFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillClearChatMessageFile(ctx context.Context, arg FileBackfillClearChatMessageFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillClearChatMessageFile, arg.ID, arg.FileID)
 	if err != nil {
@@ -101,6 +105,7 @@ type FileBackfillClearMeetingRecordingFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillClearMeetingRecordingFile(ctx context.Context, arg FileBackfillClearMeetingRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillClearMeetingRecordingFile, arg.ID, arg.FileID)
 	if err != nil {
@@ -119,6 +124,7 @@ type FileBackfillClearPromotedChatFileParams struct {
 	FileID pgtype.Text `json:"file_id"`
 }
 
+// tenant: system
 // Rollback of a promote: the metadata file_id predates the run (a data-fix
 // row carried it), so only the column is cleared — the as-was state keeps
 // its metadata snapshot untouched.
@@ -183,6 +189,7 @@ const fileBackfillDeleteFile = `-- name: FileBackfillDeleteFile :execrows
 DELETE FROM files WHERE id = $1 AND status IN ('pending', 'ready', 'failed')
 `
 
+// tenant: system
 // Physical delete, not a tombstone: the file never owned the object, so the
 // row must not pin the locator in uidx_files_locator against a re-run.
 func (q *Queries) FileBackfillDeleteFile(ctx context.Context, id string) (int64, error) {
@@ -202,6 +209,7 @@ type FileBackfillDeleteSessionParams struct {
 	FileID string `json:"file_id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillDeleteSession(ctx context.Context, arg FileBackfillDeleteSessionParams) error {
 	_, err := q.db.Exec(ctx, fileBackfillDeleteSession, arg.ID, arg.FileID)
 	return err
@@ -211,6 +219,7 @@ const fileBackfillDeleteSessionsForFile = `-- name: FileBackfillDeleteSessionsFo
 DELETE FROM file_upload_sessions WHERE file_id = $1
 `
 
+// tenant: system
 func (q *Queries) FileBackfillDeleteSessionsForFile(ctx context.Context, fileID string) error {
 	_, err := q.db.Exec(ctx, fileBackfillDeleteSessionsForFile, fileID)
 	return err
@@ -236,6 +245,7 @@ const fileBackfillGetChatMessageFileID = `-- name: FileBackfillGetChatMessageFil
 SELECT file_id FROM chat_messages WHERE id = $1
 `
 
+// tenant: system
 // Conflict read for the promote path: a zero-row guarded update means the
 // column moved; this tells apply whether it landed the same value or a
 // different one (file_id_conflict).
@@ -250,6 +260,7 @@ const fileBackfillGetFileByID = `-- name: FileBackfillGetFileByID :one
 SELECT id, organization_id, storage, bucket, object_key, object_version, original_filename, content_type, size_bytes, checksum_sha256, status, metadata, ready_at, created_at, updated_at, deleted_at FROM files WHERE id = $1
 `
 
+// tenant: system
 // verify reads the row a business file_id points at.
 func (q *Queries) FileBackfillGetFileByID(ctx context.Context, id string) (File, error) {
 	row := q.db.QueryRow(ctx, fileBackfillGetFileByID, id)
@@ -292,6 +303,7 @@ type FileBackfillGetFileByLocatorParams struct {
 // ---------------------------------------------------------------------------
 // files / sessions
 // ---------------------------------------------------------------------------
+// tenant: system
 // The locator identity matches uidx_files_locator (storage, coalesce(bucket,
 // ”), object_key) and must see tombstones too: a deleted file keeps the
 // locator claimed forever, so a tombstone hit is reported, not reused.
@@ -335,6 +347,7 @@ type FileBackfillGetFilesByIDsRow struct {
 	Status         string      `json:"status"`
 }
 
+// tenant: system
 // The promote-candidate check: a chat message carrying file_id only in its
 // metadata snapshot must prove the row exists and belongs to the message's
 // organization before apply promotes the reference into the column.
@@ -564,6 +577,7 @@ type FileBackfillListDoneItemKeysRow struct {
 	SourceID    string `json:"source_id"`
 }
 
+// tenant: system
 // The resume index: committed item rows mean the business write committed,
 // so a resumed run skips exactly the work that already landed.
 func (q *Queries) FileBackfillListDoneItemKeys(ctx context.Context, runID string) ([]FileBackfillListDoneItemKeysRow, error) {
@@ -592,6 +606,7 @@ WHERE run_id = $1
 ORDER BY cohort, source_table, source_id
 `
 
+// tenant: system
 func (q *Queries) FileBackfillListRunItems(ctx context.Context, runID string) ([]FileBackfillItem, error) {
 	rows, err := q.db.Query(ctx, fileBackfillListRunItems, runID)
 	if err != nil {
@@ -640,6 +655,7 @@ type FileBackfillListRunItemsByStatusParams struct {
 	Status string `json:"status"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillListRunItemsByStatus(ctx context.Context, arg FileBackfillListRunItemsByStatusParams) ([]FileBackfillItem, error) {
 	rows, err := q.db.Query(ctx, fileBackfillListRunItemsByStatus, arg.RunID, arg.Status)
 	if err != nil {
@@ -683,6 +699,7 @@ WHERE file_id = $1
 ORDER BY id
 `
 
+// tenant: system
 // verify checks scope/purpose coverage; rollback checks remaining claims.
 func (q *Queries) FileBackfillListSessionsForFile(ctx context.Context, fileID string) ([]FileUploadSession, error) {
 	rows, err := q.db.Query(ctx, fileBackfillListSessionsForFile, fileID)
@@ -746,6 +763,7 @@ type FileBackfillMarkFileReadyParams struct {
 	ID             string             `json:"id"`
 }
 
+// tenant: system
 // Backfill's MarkFileReady: the row this command inserts starts pending and
 // is readied with the object-verified fields in the same transaction.
 func (q *Queries) FileBackfillMarkFileReady(ctx context.Context, arg FileBackfillMarkFileReadyParams) (int64, error) {
@@ -834,6 +852,7 @@ type FileBackfillPutItemParams struct {
 	Details         []byte      `json:"details"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillPutItem(ctx context.Context, arg FileBackfillPutItemParams) error {
 	_, err := q.db.Exec(ctx, fileBackfillPutItem,
 		arg.RunID,
@@ -875,6 +894,7 @@ type FileBackfillRestoreFileStateParams struct {
 	ID             string      `json:"id"`
 }
 
+// tenant: system
 // Undo an adopted row's ready-marking on rollback: the as-was state the run
 // snapshot into the item's details is written back. Guarded to rows still
 // 'ready' — a file that moved on since apply is never rewound.
@@ -941,6 +961,7 @@ type FileBackfillScanAttachmentsRow struct {
 // ---------------------------------------------------------------------------
 // Cohort scans (plan / dry-run / apply / verify share them)
 // ---------------------------------------------------------------------------
+// tenant: system
 // M1/M2: object_key is the locator; object_url is only a hint. The row's own
 // organization_id is the verified tenant and the workspaces join is the key
 // cross-check (workspaces/<ws>/attachments/<id>/<name>).
@@ -1009,6 +1030,7 @@ type FileBackfillScanAuditExportsRow struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+// tenant: system
 // M12: object_key is the locator; organization_id is on the row.
 func (q *Queries) FileBackfillScanAuditExports(ctx context.Context, arg FileBackfillScanAuditExportsParams) ([]FileBackfillScanAuditExportsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanAuditExports, arg.AfterID, arg.LimitN)
@@ -1118,6 +1140,7 @@ type FileBackfillScanCallRecordingsRow struct {
 	StartedAt        pgtype.Timestamptz `json:"started_at"`
 }
 
+// tenant: system
 // M6: file_url is the locator; organization_id is on the row.
 func (q *Queries) FileBackfillScanCallRecordings(ctx context.Context, arg FileBackfillScanCallRecordingsParams) ([]FileBackfillScanCallRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanCallRecordings, arg.AfterID, arg.LimitN)
@@ -1185,6 +1208,7 @@ type FileBackfillScanChatMessagesRow struct {
 	RoomWorkspaceID    pgtype.Text        `json:"room_workspace_id"`
 }
 
+// tenant: system
 // M3/M4 (kind file/voice: object_key in metadata) and M7 (voice_call_log:
 // recording_url in metadata — a second reference to a call-recording object).
 // Tenant derives through the room; it is NULL only when the room is gone.
@@ -1241,6 +1265,7 @@ type FileBackfillScanCommentRefsRow struct {
 	Content        string `json:"content"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillScanCommentRefs(ctx context.Context, arg FileBackfillScanCommentRefsParams) ([]FileBackfillScanCommentRefsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanCommentRefs, arg.AfterID, arg.LimitN)
 	if err != nil {
@@ -1296,6 +1321,7 @@ type FileBackfillScanMeetingRecordingsRow struct {
 	MeetingOrganizationID pgtype.Text        `json:"meeting_organization_id"`
 }
 
+// tenant: system
 // M5: file_url is the locator; the tenant derives meetings -> workspaces.
 func (q *Queries) FileBackfillScanMeetingRecordings(ctx context.Context, arg FileBackfillScanMeetingRecordingsParams) ([]FileBackfillScanMeetingRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanMeetingRecordings, arg.AfterID, arg.LimitN)
@@ -1347,6 +1373,7 @@ type FileBackfillScanSourceContextRefsRow struct {
 	Content        string `json:"content"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillScanSourceContextRefs(ctx context.Context, arg FileBackfillScanSourceContextRefsParams) ([]FileBackfillScanSourceContextRefsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanSourceContextRefs, arg.AfterID, arg.LimitN)
 	if err != nil {
@@ -1398,6 +1425,7 @@ type FileBackfillScanTaskDescriptionRefsRow struct {
 // task descriptions, comment bodies and source-context snapshots. They never
 // create files; they are reference evidence for the report and verify.
 // ---------------------------------------------------------------------------
+// tenant: system
 func (q *Queries) FileBackfillScanTaskDescriptionRefs(ctx context.Context, arg FileBackfillScanTaskDescriptionRefsParams) ([]FileBackfillScanTaskDescriptionRefsRow, error) {
 	rows, err := q.db.Query(ctx, fileBackfillScanTaskDescriptionRefs, arg.AfterID, arg.LimitN)
 	if err != nil {
@@ -1441,6 +1469,7 @@ type FileBackfillSetAttachmentFileParams struct {
 // (avatars: avatar_file_id), so a replayed apply is a no-op and a row that
 // raced to a different value reports zero rows instead of being overwritten.
 // ---------------------------------------------------------------------------
+// tenant: system
 func (q *Queries) FileBackfillSetAttachmentFile(ctx context.Context, arg FileBackfillSetAttachmentFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillSetAttachmentFile, arg.FileID, arg.Purpose, arg.ID)
 	if err != nil {
@@ -1460,6 +1489,7 @@ type FileBackfillSetAuditExportFileParams struct {
 	ID     string      `json:"id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillSetAuditExportFile(ctx context.Context, arg FileBackfillSetAuditExportFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillSetAuditExportFile, arg.FileID, arg.ID)
 	if err != nil {
@@ -1479,6 +1509,7 @@ type FileBackfillSetCallRecordingFileParams struct {
 	ID     string      `json:"id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillSetCallRecordingFile(ctx context.Context, arg FileBackfillSetCallRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillSetCallRecordingFile, arg.FileID, arg.ID)
 	if err != nil {
@@ -1499,6 +1530,7 @@ type FileBackfillSetChatMessageFileParams struct {
 	ID     string      `json:"id"`
 }
 
+// tenant: system
 // The column is authoritative; metadata carries the same id the FS writer
 // would have written, while the legacy object_key entry stays in place.
 func (q *Queries) FileBackfillSetChatMessageFile(ctx context.Context, arg FileBackfillSetChatMessageFileParams) (int64, error) {
@@ -1520,6 +1552,7 @@ type FileBackfillSetMeetingRecordingFileParams struct {
 	ID     string      `json:"id"`
 }
 
+// tenant: system
 func (q *Queries) FileBackfillSetMeetingRecordingFile(ctx context.Context, arg FileBackfillSetMeetingRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, fileBackfillSetMeetingRecordingFile, arg.FileID, arg.ID)
 	if err != nil {

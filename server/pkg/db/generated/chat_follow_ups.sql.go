@@ -102,6 +102,7 @@ type GetChatMessageFollowUpByUserMessageParams struct {
 	MessageID string `json:"message_id"`
 }
 
+// tenant: parent message_id
 func (q *Queries) GetChatMessageFollowUpByUserMessage(ctx context.Context, arg GetChatMessageFollowUpByUserMessageParams) (ChatMessageFollowUp, error) {
 	row := q.db.QueryRow(ctx, getChatMessageFollowUpByUserMessage, arg.UserID, arg.MessageID)
 	var i ChatMessageFollowUp

@@ -4,6 +4,7 @@
 -- comment row.
 
 -- name: GetDocumentCommentByID :one
+-- tenant: by-id
 SELECT *
 FROM document_comments
 WHERE id = $1;

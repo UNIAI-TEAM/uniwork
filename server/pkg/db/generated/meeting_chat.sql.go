@@ -63,6 +63,7 @@ type ListMeetingChatMessagesParams struct {
 	Limit     int32  `json:"limit"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingChatMessages(ctx context.Context, arg ListMeetingChatMessagesParams) ([]MeetingChatMessage, error) {
 	rows, err := q.db.Query(ctx, listMeetingChatMessages, arg.MeetingID, arg.Limit)
 	if err != nil {

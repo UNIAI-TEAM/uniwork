@@ -20,9 +20,11 @@ INSERT INTO file_upload_sessions (
 ) RETURNING *;
 
 -- name: GetUploadSessionByID :one
+-- tenant: by-id
 SELECT * FROM file_upload_sessions WHERE id = sqlc.arg('id');
 
 -- name: GetUploadSessionByIDForUpdate :one
+-- tenant: by-id
 SELECT * FROM file_upload_sessions WHERE id = sqlc.arg('id') FOR UPDATE;
 
 -- name: FindUploadSessionByIdempotencyKey :one
@@ -35,6 +37,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND idempotency_key = sqlc.arg('idempotency_key');
 
 -- name: FindUserUploadSessionByIdempotencyKey :one
+-- tenant: self
 -- Identity branch (organization_id IS NULL, ADR 0023): the key is unique per
 -- uploader, so a replay finds the stored session by actor + key.
 SELECT * FROM file_upload_sessions
@@ -43,16 +46,19 @@ WHERE organization_id IS NULL
   AND idempotency_key = sqlc.arg('idempotency_key');
 
 -- name: GetUploadSessionByProviderOp :one
+-- tenant: parent provider_operation_id
 -- Provider callback -> session (egress/job completion retry path).
 SELECT * FROM file_upload_sessions
 WHERE provider_operation_id = sqlc.arg('provider_operation_id');
 
 -- name: GetUploadSessionByFile :one
+-- tenant: parent file_id
 -- file_id is unique per session; the session row is the temporary grant the
 -- claim path consumes.
 SELECT * FROM file_upload_sessions WHERE file_id = sqlc.arg('file_id');
 
 -- name: LockUploadSessionsByFileIDs :many
+-- tenant: parent file_id
 -- Lock contract step 2: after LockFilesInIDOrder, lock sessions in the same
 -- file_id order before mutating (spec 9.5).
 SELECT * FROM file_upload_sessions
@@ -61,6 +67,7 @@ ORDER BY file_id
 FOR UPDATE;
 
 -- name: AcquireUploadSessionLease :execrows
+-- tenant: by-id
 -- Write lease: take it only while the session is still open and no live lease
 -- blocks it. Zero rows means another writer owns it - refuse, do not wait.
 -- `now` comes from the caller so the expiry check is deterministic in tests.
@@ -75,6 +82,7 @@ WHERE id = sqlc.arg('id')
        OR lease_owner = sqlc.arg('lease_owner'));
 
 -- name: ReleaseUploadSessionLease :execrows
+-- tenant: by-id
 UPDATE file_upload_sessions SET
   lease_owner = NULL,
   lease_expires_at = NULL,
@@ -82,6 +90,7 @@ UPDATE file_upload_sessions SET
 WHERE id = sqlc.arg('id') AND lease_owner = sqlc.arg('lease_owner');
 
 -- name: MarkUploadSessionStaged :execrows
+-- tenant: by-id
 -- receiving -> staged when the file readies: stamp the 24h claim deadline
 -- (ready_at + 24h, T1-Q5) and drop the write lease.
 UPDATE file_upload_sessions SET
@@ -93,6 +102,7 @@ UPDATE file_upload_sessions SET
 WHERE id = sqlc.arg('id') AND status = 'receiving';
 
 -- name: ConsumeUploadSession :execrows
+-- tenant: by-id
 -- Claim consumes the grant: staged -> claimed, only inside the deadline.
 -- Zero rows means already claimed/canceled/expired or past the window - the
 -- service maps that to file_already_claimed / file_claim_expired (T1-Q5).
@@ -106,6 +116,7 @@ WHERE id = sqlc.arg('id')
   AND claim_expires_at > sqlc.arg('now');
 
 -- name: CancelUploadSession :execrows
+-- tenant: by-id
 -- Either open state -> canceled; terminal rows never resurrect (T1-Q8).
 UPDATE file_upload_sessions SET
   status = 'canceled',
@@ -116,6 +127,7 @@ UPDATE file_upload_sessions SET
 WHERE id = sqlc.arg('id') AND status IN ('receiving', 'staged');
 
 -- name: RefuseUploadSession :execrows
+-- tenant: by-id
 -- A permanent refusal (file_too_large | file_type_rejected) closes the
 -- session WITH its code, so a replay of the same idempotency key answers the
 -- same refusal without reading a body (T1-Q8, contract
@@ -141,6 +153,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND status IN ('receiving', 'staged');
 
 -- name: ExpireUploadSessions :many
+-- tenant: system
 -- Daily sweep: staged sessions past the claim deadline. The update marks
 -- them and returns the rows so the worker can schedule file cleanup. `now`
 -- is the caller's sweep instant.
@@ -152,6 +165,7 @@ WHERE status = 'staged' AND claim_expires_at <= sqlc.arg('now')
 RETURNING *;
 
 -- name: BumpUploadSessionFile :execrows
+-- tenant: by-id
 -- Technical retry after an uncertain write (spec 9.4): repoint the session
 -- at the new attempt file, bump the write generation and drop the lease, so
 -- a stale completion carrying the old generation is refused.

@@ -25,6 +25,7 @@ type AttendanceConnectionSeenParams struct {
 	ProviderParticipantSid pgtype.Text `json:"provider_participant_sid"`
 }
 
+// tenant: system
 // Whether one provider connection (SID) of a participant already has a room
 // session, open or closed: its join was handled, or its leave came first.
 func (q *Queries) AttendanceConnectionSeen(ctx context.Context, arg AttendanceConnectionSeenParams) (bool, error) {
@@ -49,6 +50,7 @@ type BackdateConnectionJoinParams struct {
 	ProviderParticipantSid pgtype.Text        `json:"provider_participant_sid"`
 }
 
+// tenant: system
 // A join that arrives after its connection's session was already recorded
 // (its leave came first and wrote a zero-length session at the leave time)
 // moves that session's start back to the join's time, so first-join and
@@ -98,6 +100,7 @@ WHERE id = $1 AND status = 'PENDING'
 RETURNING id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at, organization_id
 `
 
+// tenant: by-id
 func (q *Queries) CancelJoinRequest(ctx context.Context, id string) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, cancelJoinRequest, id)
 	var i MeetingJoinRequest
@@ -142,6 +145,7 @@ type ClaimPendingOutboxParams struct {
 	LimitN       int32       `json:"limit_n"`
 }
 
+// tenant: system
 func (q *Queries) ClaimPendingOutbox(ctx context.Context, arg ClaimPendingOutboxParams) ([]OutboxEvent, error) {
 	rows, err := q.db.Query(ctx, claimPendingOutbox, arg.LockedBy, arg.LeaseSeconds, arg.LimitN)
 	if err != nil {
@@ -249,6 +253,7 @@ type CloseAttendanceSessionParams struct {
 	ID          string             `json:"id"`
 }
 
+// tenant: system
 // left_at is the provider's event time when it sent one, clamped to
 // [joined_at, now()]; NULL means now().
 func (q *Queries) CloseAttendanceSession(ctx context.Context, arg CloseAttendanceSessionParams) (MeetingAttendanceSession, error) {
@@ -283,6 +288,7 @@ type CloseOpenAttendanceForConferenceParams struct {
 	LeaveReason         pgtype.Text `json:"leave_reason"`
 }
 
+// tenant: system
 func (q *Queries) CloseOpenAttendanceForConference(ctx context.Context, arg CloseOpenAttendanceForConferenceParams) ([]MeetingAttendanceSession, error) {
 	rows, err := q.db.Query(ctx, closeOpenAttendanceForConference, arg.ConferenceSessionID, arg.LeaveReason)
 	if err != nil {
@@ -329,6 +335,7 @@ type CloseOpenAttendanceForMeetingParams struct {
 	MeetingID   string             `json:"meeting_id"`
 }
 
+// tenant: parent meeting_id
 // Closes every open room session of a meeting. left_at caps the close time —
 // the meeting's actual_end_at once it has ended — so a late sweep never
 // stretches a session past the end; NULL closes at now(). A session never
@@ -374,6 +381,7 @@ WHERE id = $1
 RETURNING id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, used_count, revoked_by, revoked_at, created_by, created_at, organization_id
 `
 
+// tenant: by-id
 func (q *Queries) ConsumeInviteLinkUse(ctx context.Context, id string) (MeetingInviteLink, error) {
 	row := q.db.QueryRow(ctx, consumeInviteLinkUse, id)
 	var i MeetingInviteLink
@@ -399,6 +407,7 @@ const countUniqueAttendees = `-- name: CountUniqueAttendees :one
 SELECT count(DISTINCT participant_id)::bigint FROM meeting_attendance_sessions WHERE meeting_id = $1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) CountUniqueAttendees(ctx context.Context, meetingID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countUniqueAttendees, meetingID)
 	var column_1 int64
@@ -731,6 +740,7 @@ type DecideJoinRequestParams struct {
 	DecisionReason pgtype.Text `json:"decision_reason"`
 }
 
+// tenant: by-id
 func (q *Queries) DecideJoinRequest(ctx context.Context, arg DecideJoinRequestParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, decideJoinRequest,
 		arg.ID,
@@ -766,6 +776,7 @@ WHERE id = $1 AND status <> 'ENDED'
 RETURNING id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at, organization_id
 `
 
+// tenant: by-id
 func (q *Queries) EndConferenceSession(ctx context.Context, id string) (MeetingConferenceSession, error) {
 	row := q.db.QueryRow(ctx, endConferenceSession, id)
 	var i MeetingConferenceSession
@@ -792,6 +803,7 @@ UPDATE meeting_join_requests SET status = 'EXPIRED', reviewed_at = now()
 WHERE meeting_id = $1 AND status = 'PENDING'
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ExpirePendingJoinRequests(ctx context.Context, meetingID string) error {
 	_, err := q.db.Exec(ctx, expirePendingJoinRequests, meetingID)
 	return err
@@ -807,6 +819,7 @@ type GetActiveGuestParticipantParams struct {
 	GuestID   pgtype.Text `json:"guest_id"`
 }
 
+// tenant: self
 func (q *Queries) GetActiveGuestParticipant(ctx context.Context, arg GetActiveGuestParticipantParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, getActiveGuestParticipant, arg.MeetingID, arg.GuestID)
 	var i MeetingParticipant
@@ -844,6 +857,7 @@ type GetActiveUserParticipantParams struct {
 	UserID    pgtype.Text `json:"user_id"`
 }
 
+// tenant: self
 func (q *Queries) GetActiveUserParticipant(ctx context.Context, arg GetActiveUserParticipantParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, getActiveUserParticipant, arg.MeetingID, arg.UserID)
 	var i MeetingParticipant
@@ -875,6 +889,7 @@ const getConferenceSession = `-- name: GetConferenceSession :one
 SELECT id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at, organization_id FROM meeting_conference_sessions WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetConferenceSession(ctx context.Context, id string) (MeetingConferenceSession, error) {
 	row := q.db.QueryRow(ctx, getConferenceSession, id)
 	var i MeetingConferenceSession
@@ -908,6 +923,7 @@ type GetGuestParticipantAnyStatusParams struct {
 	GuestID   pgtype.Text `json:"guest_id"`
 }
 
+// tenant: self
 func (q *Queries) GetGuestParticipantAnyStatus(ctx context.Context, arg GetGuestParticipantAnyStatusParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, getGuestParticipantAnyStatus, arg.MeetingID, arg.GuestID)
 	var i MeetingParticipant
@@ -939,6 +955,7 @@ const getInvitationByParticipant = `-- name: GetInvitationByParticipant :one
 SELECT id, meeting_id, participant_id, response_status, invited_by, invited_at, responded_at, delivery_status, last_notified_at, organization_id FROM meeting_invitations WHERE participant_id = $1
 `
 
+// tenant: parent participant_id
 func (q *Queries) GetInvitationByParticipant(ctx context.Context, participantID string) (MeetingInvitation, error) {
 	row := q.db.QueryRow(ctx, getInvitationByParticipant, participantID)
 	var i MeetingInvitation
@@ -961,6 +978,7 @@ const getInviteLink = `-- name: GetInviteLink :one
 SELECT id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, used_count, revoked_by, revoked_at, created_by, created_at, organization_id FROM meeting_invite_links WHERE id = $1
 `
 
+// tenant: token
 func (q *Queries) GetInviteLink(ctx context.Context, id string) (MeetingInviteLink, error) {
 	row := q.db.QueryRow(ctx, getInviteLink, id)
 	var i MeetingInviteLink
@@ -986,6 +1004,7 @@ const getJoinRequest = `-- name: GetJoinRequest :one
 SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at, organization_id FROM meeting_join_requests WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetJoinRequest(ctx context.Context, id string) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, getJoinRequest, id)
 	var i MeetingJoinRequest
@@ -1019,6 +1038,7 @@ type GetLatestJoinRequestForGuestParams struct {
 	RequesterGuestID pgtype.Text `json:"requester_guest_id"`
 }
 
+// tenant: self
 func (q *Queries) GetLatestJoinRequestForGuest(ctx context.Context, arg GetLatestJoinRequestForGuestParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, getLatestJoinRequestForGuest, arg.MeetingID, arg.RequesterGuestID)
 	var i MeetingJoinRequest
@@ -1052,6 +1072,7 @@ type GetLatestJoinRequestForUserParams struct {
 	RequesterUserID pgtype.Text `json:"requester_user_id"`
 }
 
+// tenant: self
 func (q *Queries) GetLatestJoinRequestForUser(ctx context.Context, arg GetLatestJoinRequestForUserParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, getLatestJoinRequestForUser, arg.MeetingID, arg.RequesterUserID)
 	var i MeetingJoinRequest
@@ -1088,6 +1109,7 @@ const getMeetingInvitation = `-- name: GetMeetingInvitation :one
 SELECT id, meeting_id, participant_id, response_status, invited_by, invited_at, responded_at, delivery_status, last_notified_at, organization_id FROM meeting_invitations WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetMeetingInvitation(ctx context.Context, id string) (MeetingInvitation, error) {
 	row := q.db.QueryRow(ctx, getMeetingInvitation, id)
 	var i MeetingInvitation
@@ -1110,6 +1132,7 @@ const getMeetingParticipant = `-- name: GetMeetingParticipant :one
 SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary, organization_id FROM meeting_participants WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetMeetingParticipant(ctx context.Context, id string) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, getMeetingParticipant, id)
 	var i MeetingParticipant
@@ -1144,6 +1167,7 @@ ORDER BY created_at DESC
 LIMIT 1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetOpenConferenceSession(ctx context.Context, meetingID string) (MeetingConferenceSession, error) {
 	row := q.db.QueryRow(ctx, getOpenConferenceSession, meetingID)
 	var i MeetingConferenceSession
@@ -1175,6 +1199,7 @@ type GetPendingJoinRequestForGuestParams struct {
 	RequesterGuestID pgtype.Text `json:"requester_guest_id"`
 }
 
+// tenant: self
 func (q *Queries) GetPendingJoinRequestForGuest(ctx context.Context, arg GetPendingJoinRequestForGuestParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, getPendingJoinRequestForGuest, arg.MeetingID, arg.RequesterGuestID)
 	var i MeetingJoinRequest
@@ -1206,6 +1231,7 @@ type GetPendingJoinRequestForUserParams struct {
 	RequesterUserID pgtype.Text `json:"requester_user_id"`
 }
 
+// tenant: self
 func (q *Queries) GetPendingJoinRequestForUser(ctx context.Context, arg GetPendingJoinRequestForUserParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, getPendingJoinRequestForUser, arg.MeetingID, arg.RequesterUserID)
 	var i MeetingJoinRequest
@@ -1239,6 +1265,7 @@ type GetUserParticipantAnyStatusParams struct {
 	UserID    pgtype.Text `json:"user_id"`
 }
 
+// tenant: self
 func (q *Queries) GetUserParticipantAnyStatus(ctx context.Context, arg GetUserParticipantAnyStatusParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, getUserParticipantAnyStatus, arg.MeetingID, arg.UserID)
 	var i MeetingParticipant
@@ -1521,6 +1548,7 @@ WHERE participant_id = $1 AND status = 'ACTIVE'
   AND (expires_at IS NULL OR expires_at > now())
 `
 
+// tenant: parent participant_id
 func (q *Queries) ListActiveGrantsForParticipant(ctx context.Context, participantID string) ([]MeetingAccessGrant, error) {
 	rows, err := q.db.Query(ctx, listActiveGrantsForParticipant, participantID)
 	if err != nil {
@@ -1563,6 +1591,7 @@ WHERE m.status IN ('ENDED', 'CANCELED') AND a.left_at IS NULL
 LIMIT $1
 `
 
+// tenant: system
 func (q *Queries) ListEndedMeetingsWithOpenAttendance(ctx context.Context, limit int32) ([]string, error) {
 	rows, err := q.db.Query(ctx, listEndedMeetingsWithOpenAttendance, limit)
 	if err != nil {
@@ -1597,6 +1626,7 @@ WHERE m.status = 'IN_PROGRESS'
 LIMIT $1
 `
 
+// tenant: system
 func (q *Queries) ListInProgressMeetingsWithIdleSession(ctx context.Context, limit int32) ([]string, error) {
 	rows, err := q.db.Query(ctx, listInProgressMeetingsWithIdleSession, limit)
 	if err != nil {
@@ -1621,6 +1651,7 @@ const listInviteLinks = `-- name: ListInviteLinks :many
 SELECT id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, used_count, revoked_by, revoked_at, created_by, created_at, organization_id FROM meeting_invite_links WHERE meeting_id = $1 ORDER BY created_at DESC
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListInviteLinks(ctx context.Context, meetingID string) ([]MeetingInviteLink, error) {
 	rows, err := q.db.Query(ctx, listInviteLinks, meetingID)
 	if err != nil {
@@ -1659,6 +1690,7 @@ const listJoinRequests = `-- name: ListJoinRequests :many
 SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at, organization_id FROM meeting_join_requests WHERE meeting_id = $1 ORDER BY requested_at DESC
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListJoinRequests(ctx context.Context, meetingID string) ([]MeetingJoinRequest, error) {
 	rows, err := q.db.Query(ctx, listJoinRequests, meetingID)
 	if err != nil {
@@ -1703,6 +1735,7 @@ type ListMeetingAuditLogsParams struct {
 	Offset    int32  `json:"offset"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingAuditLogs(ctx context.Context, arg ListMeetingAuditLogsParams) ([]MeetingAuditLog, error) {
 	rows, err := q.db.Query(ctx, listMeetingAuditLogs, arg.MeetingID, arg.Limit, arg.Offset)
 	if err != nil {
@@ -1743,6 +1776,7 @@ const listMeetingInvitations = `-- name: ListMeetingInvitations :many
 SELECT id, meeting_id, participant_id, response_status, invited_by, invited_at, responded_at, delivery_status, last_notified_at, organization_id FROM meeting_invitations WHERE meeting_id = $1 ORDER BY invited_at
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingInvitations(ctx context.Context, meetingID string) ([]MeetingInvitation, error) {
 	rows, err := q.db.Query(ctx, listMeetingInvitations, meetingID)
 	if err != nil {
@@ -1778,6 +1812,7 @@ const listMeetingParticipants = `-- name: ListMeetingParticipants :many
 SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary, organization_id FROM meeting_participants WHERE meeting_id = $1 ORDER BY added_at
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingParticipants(ctx context.Context, meetingID string) ([]MeetingParticipant, error) {
 	rows, err := q.db.Query(ctx, listMeetingParticipants, meetingID)
 	if err != nil {
@@ -1822,6 +1857,7 @@ const listPendingJoinRequests = `-- name: ListPendingJoinRequests :many
 SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at, organization_id FROM meeting_join_requests WHERE meeting_id = $1 AND status = 'PENDING' ORDER BY requested_at
 `
 
+// tenant: parent meeting_id
 func (q *Queries) ListPendingJoinRequests(ctx context.Context, meetingID string) ([]MeetingJoinRequest, error) {
 	rows, err := q.db.Query(ctx, listPendingJoinRequests, meetingID)
 	if err != nil {
@@ -1864,6 +1900,7 @@ LIMIT $1
 FOR UPDATE SKIP LOCKED
 `
 
+// tenant: system
 func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxEvent, error) {
 	rows, err := q.db.Query(ctx, listPendingOutbox, limit)
 	if err != nil {
@@ -1914,6 +1951,7 @@ LIMIT 1
 FOR UPDATE
 `
 
+// tenant: system
 // The participant's open room session, locked so a join that replaces it and
 // a leave that closes it take turns.
 func (q *Queries) LockOpenAttendance(ctx context.Context, participantID string) (MeetingAttendanceSession, error) {
@@ -1955,6 +1993,7 @@ WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
 RETURNING id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at, organization_id
 `
 
+// tenant: by-id
 // Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
 // keeps concurrent joins from queueing the same instruction twice.
 func (q *Queries) MarkConferenceSessionResyncing(ctx context.Context, id string) (MeetingConferenceSession, error) {
@@ -1989,6 +2028,7 @@ UPDATE outbox_events SET
 WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) MarkOutboxDone(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markOutboxDone, id)
 	return err
@@ -2014,6 +2054,7 @@ type MarkOutboxFailedParams struct {
 	Status      string             `json:"status"`
 }
 
+// tenant: system
 func (q *Queries) MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error {
 	_, err := q.db.Exec(ctx, markOutboxFailed,
 		arg.ID,
@@ -2082,6 +2123,7 @@ type MeetingListStatsRow struct {
 	JoinRejectedCount int64 `json:"join_rejected_count"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) MeetingListStats(ctx context.Context, meetingID string) (MeetingListStatsRow, error) {
 	row := q.db.QueryRow(ctx, meetingListStats, meetingID)
 	var i MeetingListStatsRow
@@ -2123,6 +2165,7 @@ type OpenAttendanceSessionParams struct {
 	OrganizationID              string             `json:"organization_id"`
 }
 
+// tenant: system
 // joined_at is the provider's event time when it sent one, never in the
 // future; NULL means now().
 func (q *Queries) OpenAttendanceSession(ctx context.Context, arg OpenAttendanceSessionParams) (MeetingAttendanceSession, error) {
@@ -2160,6 +2203,7 @@ FROM outbox_events
 WHERE status IN ('PENDING', 'PROCESSING')
 `
 
+// tenant: system
 func (q *Queries) OutboxOldestPendingAgeSeconds(ctx context.Context) (float64, error) {
 	row := q.db.QueryRow(ctx, outboxOldestPendingAgeSeconds)
 	var age_seconds float64
@@ -2179,6 +2223,7 @@ WHERE status = 'PROCESSING'
   AND locked_until < now()
 `
 
+// tenant: system
 func (q *Queries) ReleaseStaleOutboxClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, releaseStaleOutboxClaims)
 	return err
@@ -2212,6 +2257,7 @@ type RemoveMeetingParticipantParams struct {
 	RemoveReason pgtype.Text `json:"remove_reason"`
 }
 
+// tenant: by-id
 func (q *Queries) RemoveMeetingParticipant(ctx context.Context, arg RemoveMeetingParticipantParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, removeMeetingParticipant, arg.ID, arg.RemovedBy, arg.RemoveReason)
 	var i MeetingParticipant
@@ -2253,6 +2299,7 @@ type RevokeGrantsByInviteLinkParams struct {
 	RevokedBy pgtype.Text `json:"revoked_by"`
 }
 
+// tenant: parent source_id
 func (q *Queries) RevokeGrantsByInviteLink(ctx context.Context, arg RevokeGrantsByInviteLinkParams) error {
 	_, err := q.db.Exec(ctx, revokeGrantsByInviteLink, arg.SourceID, arg.RevokedBy)
 	return err
@@ -2273,6 +2320,7 @@ type RevokeGrantsForMeetingParams struct {
 	RevokeReason pgtype.Text `json:"revoke_reason"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) RevokeGrantsForMeeting(ctx context.Context, arg RevokeGrantsForMeetingParams) error {
 	_, err := q.db.Exec(ctx, revokeGrantsForMeeting, arg.MeetingID, arg.RevokedBy, arg.RevokeReason)
 	return err
@@ -2293,6 +2341,7 @@ type RevokeGrantsForParticipantParams struct {
 	RevokeReason  pgtype.Text `json:"revoke_reason"`
 }
 
+// tenant: parent participant_id
 func (q *Queries) RevokeGrantsForParticipant(ctx context.Context, arg RevokeGrantsForParticipantParams) error {
 	_, err := q.db.Exec(ctx, revokeGrantsForParticipant, arg.ParticipantID, arg.RevokedBy, arg.RevokeReason)
 	return err
@@ -2302,17 +2351,19 @@ const revokeInviteLink = `-- name: RevokeInviteLink :one
 UPDATE meeting_invite_links SET
   revoked_by = $2,
   revoked_at = now()
-WHERE id = $1 AND revoked_at IS NULL
+WHERE id = $1 AND meeting_id = $3 AND revoked_at IS NULL
 RETURNING id, meeting_id, name, secret_hash, access_mode, expires_at, max_uses, used_count, revoked_by, revoked_at, created_by, created_at, organization_id
 `
 
 type RevokeInviteLinkParams struct {
 	ID        string      `json:"id"`
 	RevokedBy pgtype.Text `json:"revoked_by"`
+	MeetingID string      `json:"meeting_id"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) RevokeInviteLink(ctx context.Context, arg RevokeInviteLinkParams) (MeetingInviteLink, error) {
-	row := q.db.QueryRow(ctx, revokeInviteLink, arg.ID, arg.RevokedBy)
+	row := q.db.QueryRow(ctx, revokeInviteLink, arg.ID, arg.RevokedBy, arg.MeetingID)
 	var i MeetingInviteLink
 	err := row.Scan(
 		&i.ID,
@@ -2336,6 +2387,7 @@ const shareLockMeetingStatus = `-- name: ShareLockMeetingStatus :one
 SELECT status FROM meetings WHERE id = $1 FOR SHARE
 `
 
+// tenant: by-id
 // The meeting's status, share-locked so End (which updates the row, then
 // closes every open room session) cannot interleave with a join: a join
 // either commits before End's close or sees the meeting ENDED.
@@ -2367,6 +2419,7 @@ type UpdateConferenceSessionStatusParams struct {
 	ID                 string             `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateConferenceSessionStatus(ctx context.Context, arg UpdateConferenceSessionStatusParams) (MeetingConferenceSession, error) {
 	row := q.db.QueryRow(ctx, updateConferenceSessionStatus,
 		arg.Status,
@@ -2408,6 +2461,7 @@ type UpdateInvitationResponseParams struct {
 	ResponseStatus string `json:"response_status"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateInvitationResponse(ctx context.Context, arg UpdateInvitationResponseParams) (MeetingInvitation, error) {
 	row := q.db.QueryRow(ctx, updateInvitationResponse, arg.ID, arg.ResponseStatus)
 	var i MeetingInvitation

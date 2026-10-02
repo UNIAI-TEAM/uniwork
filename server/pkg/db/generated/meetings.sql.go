@@ -46,6 +46,7 @@ type CancelMeetingParams struct {
 	Version      int32       `json:"version"`
 }
 
+// tenant: by-id
 func (q *Queries) CancelMeeting(ctx context.Context, arg CancelMeetingParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, cancelMeeting,
 		arg.CanceledBy,
@@ -258,6 +259,7 @@ const deleteMeeting = `-- name: DeleteMeeting :exec
 DELETE FROM meetings WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) DeleteMeeting(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, deleteMeeting, id)
 	return err
@@ -280,6 +282,7 @@ type EndMeetingParams struct {
 	Version   int32       `json:"version"`
 }
 
+// tenant: by-id
 func (q *Queries) EndMeeting(ctx context.Context, arg EndMeetingParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, endMeeting, arg.UpdatedBy, arg.ID, arg.Version)
 	var i Meeting
@@ -321,6 +324,7 @@ const getMeeting = `-- name: GetMeeting :one
 SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 	row := q.db.QueryRow(ctx, getMeeting, id)
 	var i Meeting
@@ -375,6 +379,7 @@ type ListMeetingNotesRow struct {
 	AvatarFileID pgtype.Text        `json:"avatar_file_id"`
 }
 
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]ListMeetingNotesRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingNotes, meetingID)
 	if err != nil {
@@ -646,6 +651,7 @@ type StartMeetingParams struct {
 	Version   int32       `json:"version"`
 }
 
+// tenant: by-id
 func (q *Queries) StartMeeting(ctx context.Context, arg StartMeetingParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, startMeeting, arg.UpdatedBy, arg.ID, arg.Version)
 	var i Meeting
@@ -701,6 +707,7 @@ type TransferMeetingHostParams struct {
 	Version    int32       `json:"version"`
 }
 
+// tenant: by-id
 func (q *Queries) TransferMeetingHost(ctx context.Context, arg TransferMeetingHostParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, transferMeetingHost,
 		arg.HostUserID,
@@ -778,6 +785,7 @@ type UpdateMeetingParams struct {
 	Version          int32              `json:"version"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, updateMeeting,
 		arg.Title,

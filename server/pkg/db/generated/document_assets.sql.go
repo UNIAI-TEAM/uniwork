@@ -161,6 +161,7 @@ type ListDocumentAssetFileHoldsRow struct {
 // A reference is the asset://{asset id} source in the page JSON
 // (internal/document isAssetRef); asset ids are fixed-width ULIDs, so one
 // id is never a prefix of another.
+// tenant: system
 func (q *Queries) ListDocumentAssetFileHolds(ctx context.Context, fileIds []string) ([]ListDocumentAssetFileHoldsRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentAssetFileHolds, fileIds)
 	if err != nil {

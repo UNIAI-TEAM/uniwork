@@ -28,6 +28,7 @@ type GetAvatarFileForUserParams struct {
 	UserID pgtype.Text `json:"user_id"`
 }
 
+// tenant: by-id
 // Identity branch only: the row must carry the NULL tenant AND trace to an
 // upload session staged by this user for purpose user_avatar. (The
 // users.avatar_file_id half of the grant lands with the identity lane's
@@ -60,6 +61,7 @@ const getFileByID = `-- name: GetFileByID :one
 SELECT id, organization_id, storage, bucket, object_key, object_version, original_filename, content_type, size_bytes, checksum_sha256, status, metadata, ready_at, created_at, updated_at, deleted_at FROM files WHERE id = $1
 `
 
+// tenant: by-id
 // Internal read (worker, service internals). No tenant predicate: callers in
 // internal/service must never use it to answer a tenant request.
 func (q *Queries) GetFileByID(ctx context.Context, id string) (File, error) {
@@ -194,6 +196,7 @@ type ListGCFileCandidatesParams struct {
 	LimitN      int32              `json:"limit_n"`
 }
 
+// tenant: system
 // Internal worker scan (no tenant filter): ready files past the claim/GC age
 // cutoff. Reference and session state are checked per-row under lock by the
 // worker before any transition.
@@ -291,6 +294,7 @@ ORDER BY id
 FOR UPDATE
 `
 
+// tenant: by-id
 // Lock contract: every multi-row mutation locks file rows first, ordered by
 // id, before touching sessions or jobs (spec 9.5). Pass sorted ids.
 func (q *Queries) LockFilesInIDOrder(ctx context.Context, fileIds []string) ([]File, error) {
@@ -343,6 +347,7 @@ type MarkFileDeletedParams struct {
 	ID        string             `json:"id"`
 }
 
+// tenant: by-id
 // Tombstone: only from deleting, after bytes are gone. deleted_at is
 // caller-supplied so reconcile and GC share one clock.
 func (q *Queries) MarkFileDeleted(ctx context.Context, arg MarkFileDeletedParams) (int64, error) {
@@ -360,6 +365,7 @@ UPDATE files SET
 WHERE id = $1 AND status IN ('ready', 'failed')
 `
 
+// tenant: by-id
 // GC barrier: only a finished file can enter deleting. Zero rows means the
 // file was claimed, already terminal or still open - the worker must stop.
 func (q *Queries) MarkFileDeleting(ctx context.Context, id string) (int64, error) {
@@ -377,6 +383,7 @@ UPDATE files SET
 WHERE id = $1 AND status IN ('pending', 'processing')
 `
 
+// tenant: by-id
 // Terminal write failure; only a still-open file can fail.
 func (q *Queries) MarkFileFailed(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.Exec(ctx, markFileFailed, id)
@@ -409,6 +416,7 @@ type MarkFileReadyParams struct {
 	ID             string             `json:"id"`
 }
 
+// tenant: by-id
 // Pending/processing -> ready with the verified content fields; ready_at is
 // set exactly once (COALESCE keeps the first stamp) and never moves again.
 // ready_at is caller-supplied so the file-age anchor is deterministic.
@@ -440,6 +448,7 @@ type SetFileChecksumParams struct {
 	ID             string      `json:"id"`
 }
 
+// tenant: by-id
 // Late verification backfill: write-once, never overwrite an existing digest.
 func (q *Queries) SetFileChecksum(ctx context.Context, arg SetFileChecksumParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setFileChecksum, arg.ChecksumSha256, arg.ID)

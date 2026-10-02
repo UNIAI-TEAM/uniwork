@@ -429,6 +429,7 @@ type ListDocumentsForAutoVersionRow struct {
 // content_saved_at the row drops out of the scan. after_* keysets past the
 // previous batch inside one pass so a page that keeps failing cannot pin
 // the sweep on the first page.
+// tenant: system
 func (q *Queries) ListDocumentsForAutoVersion(ctx context.Context, arg ListDocumentsForAutoVersionParams) ([]ListDocumentsForAutoVersionRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsForAutoVersion,
 		arg.QuietBefore,
@@ -498,6 +499,7 @@ type ListDocumentsForPurgeRow struct {
 // transaction; FileService GC owns the bytes (ADR 0024). after_* keysets
 // past the previous batch inside one pass so a row that keeps failing can
 // never pin the sweep on the first page.
+// tenant: system
 func (q *Queries) ListDocumentsForPurge(ctx context.Context, arg ListDocumentsForPurgeParams) ([]ListDocumentsForPurgeRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsForPurge,
 		arg.Before,
@@ -555,6 +557,7 @@ type ListDocumentsOverVersionLimitRow struct {
 // Compaction scan: documents whose version count passed the keep bound.
 // after_id keysets past the previous batch inside one pass so a document
 // that cannot be compacted (protected overflow) never pins the sweep.
+// tenant: system
 func (q *Queries) ListDocumentsOverVersionLimit(ctx context.Context, arg ListDocumentsOverVersionLimitParams) ([]ListDocumentsOverVersionLimitRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsOverVersionLimit, arg.AfterID, arg.Keep, arg.MaxRows)
 	if err != nil {
@@ -614,6 +617,7 @@ type ListOrphanedDocumentAssetsRow struct {
 // Orphaned assets on a live document, past the 7-day grace. The scan skips
 // archived documents: they purge whole with their rows. after_* keysets
 // past the previous batch inside one pass.
+// tenant: system
 func (q *Queries) ListOrphanedDocumentAssets(ctx context.Context, arg ListOrphanedDocumentAssetsParams) ([]ListOrphanedDocumentAssetsRow, error) {
 	rows, err := q.db.Query(ctx, listOrphanedDocumentAssets,
 		arg.Before,
