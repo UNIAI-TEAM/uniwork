@@ -135,6 +135,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       // read-only context refresh before assigning N+1 to that new base.
       if (localSaveSettled) await localSaveSettled;
       if (disposed) throw new Error("docx_editor_disposed");
+      // A snapshot that the completed Save already persisted needs no draft.
+      if (localHandle && snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
       if (localContextError) await bindLocalContext();
       const draftId = draftIdFor(currentIdentity());
       const rows = await listRows();
