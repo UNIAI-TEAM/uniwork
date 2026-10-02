@@ -289,7 +289,8 @@ bản phù hợp nhất với hđh của client. nếu bấm cài đặt bản k
 
 - Windows `.exe`: 1. Giải nén tệp ZIP. 2. Chạy tệp `…-setup.exe`. 3. Nếu Windows báo "Windows protected your PC",
   chọn **More info** → **Run anyway** (bản nội bộ chưa ký).
-- Windows ZIP portable: 1. Giải nén. 2. Chạy `uniwork-office*.exe` trong thư mục vừa giải nén.
+- Windows ZIP portable: 1. Giải nén tệp ZIP đã tải. 2. Giải nén tiếp tệp ZIP portable bên trong (gói tải về bọc bản portable cùng hồ sơ
+  triển khai). 3. Chạy `uniwork-office*.exe` trong thư mục vừa giải nén. (Advisor 2026-10-02, câu hỏi UNI-919.)
 - macOS: 1. Giải nén ZIP, mở tệp `.dmg`. 2. Kéo UniWork Office vào Applications. 3. Lần đầu mở: chuột phải vào app
   → **Open** → **Open** (bản nội bộ chưa ký).
 - Linux `.deb`: 1. Giải nén ZIP. 2. Mở tệp `.deb` bằng App Center, hoặc chạy `sudo apt install ./<tệp>.deb`.
