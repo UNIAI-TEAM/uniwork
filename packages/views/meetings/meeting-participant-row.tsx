@@ -32,6 +32,7 @@ export function MeetingParticipantRow({
   avatarUrl,
   roleChip = null,
   menuExtra = null,
+  removable = true,
 }: {
   participant: Participant;
   subtitle?: string;
@@ -43,6 +44,8 @@ export function MeetingParticipantRow({
   roleChip?: MeetingParticipantRole | null;
   /** Extra menu entries the caller owns, e.g. the host's role controls. */
   menuExtra?: ReactNode;
+  /** False on the meeting host's row: no "remove" entry. */
+  removable?: boolean;
 }) {
   const { t } = useTranslation();
   const speaking = useIsSpeaking(participant);
@@ -134,7 +137,9 @@ export function MeetingParticipantRow({
               )}
               {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
             </DropdownMenuItem>
-            {canHost ? <MeetingModerationMenuItems participant={participant} micMuted={micMuted} /> : null}
+            {canHost ? (
+              <MeetingModerationMenuItems participant={participant} micMuted={micMuted} removable={removable} />
+            ) : null}
             {menuExtra}
           </DropdownMenuContent>
         </DropdownMenu>

@@ -23,6 +23,14 @@ DELETE FROM meeting_attendance_marks WHERE meeting_id = $1 AND participant_id = 
 -- name: DeleteAutoAttendanceMarks :exec
 DELETE FROM meeting_attendance_marks WHERE meeting_id = $1 AND source = 'AUTO';
 
+-- name: DeleteInactiveAttendanceMarks :execrows
+-- Drops the marks of people who are no longer participants (removed or left
+-- while the roll was open), so a finalized roll is exactly the people who
+-- were on it when it was finalized.
+DELETE FROM meeting_attendance_marks mk
+USING meeting_participants p
+WHERE mk.participant_id = p.id AND mk.meeting_id = $1 AND p.status <> 'ACTIVE';
+
 -- name: SetAttendanceFinalized :one
 UPDATE meetings SET
   attendance_finalized_at = sqlc.narg('finalized_at'),

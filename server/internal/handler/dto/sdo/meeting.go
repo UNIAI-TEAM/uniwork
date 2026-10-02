@@ -279,20 +279,22 @@ type ParticipantSDO struct {
 }
 
 type AttendanceRowDTO struct {
-	ParticipantID  string `json:"participant_id"`
-	PrincipalType  string `json:"principal_type" example:"USER"`
-	UserID         string `json:"user_id,omitempty"`
-	DisplayName    string `json:"display_name"`
-	Standing       string `json:"standing" example:"MEMBER"`
-	IsSecretary    bool   `json:"is_secretary"`
-	Status         string `json:"status" description:"PRESENT | LATE | EXCUSED | ABSENT" example:"PRESENT"`
-	Source         string `json:"source" description:"AUTO | MANUAL | SUGGESTED" example:"SUGGESTED"`
-	Note           string `json:"note"`
-	FirstJoinedAt  string `json:"first_joined_at,omitempty"`
-	LastLeftAt     string `json:"last_left_at,omitempty"`
-	InRoom         bool   `json:"in_room"`
-	PresentSeconds int64  `json:"present_seconds"`
-	SessionCount   int32  `json:"session_count"`
+	ParticipantID       string `json:"participant_id"`
+	PrincipalType       string `json:"principal_type" example:"USER"`
+	UserID              string `json:"user_id,omitempty"`
+	DisplayName         string `json:"display_name"`
+	Standing            string `json:"standing" example:"MEMBER"`
+	IsSecretary         bool   `json:"is_secretary"`
+	Status              string `json:"status" description:"PRESENT | LATE | EXCUSED | ABSENT" example:"PRESENT"`
+	Source              string `json:"source" description:"AUTO | MANUAL | SUGGESTED" example:"SUGGESTED"`
+	Note                string `json:"note"`
+	FirstJoinedAt       string `json:"first_joined_at,omitempty"`
+	LastLeftAt          string `json:"last_left_at,omitempty"`
+	InRoom              bool   `json:"in_room"`
+	PresentSeconds      int64  `json:"present_seconds"`
+	SessionCount        int32  `json:"session_count"`
+	Removed             bool   `json:"removed" description:"true khi điểm danh đã chốt và người này đã bị gỡ khỏi cuộc họp sau khi được ghi nhận; vẫn được tính trong bản chốt"`
+	JoinedAfterFinalize bool   `json:"joined_after_finalize" description:"true khi điểm danh đã chốt và người này được thêm sau đó (source SUGGESTED); không tính vào tổng số, tỉ lệ có mặt hay danh sách biểu quyết"`
 }
 
 type AttendanceSummaryDTO struct {

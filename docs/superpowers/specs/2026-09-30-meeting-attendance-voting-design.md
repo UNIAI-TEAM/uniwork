@@ -126,6 +126,23 @@ phải **Mở lại** trước (quyết định 2026-09-30 sau audit giao diện
 **Mở lại** (`reopen`): xoá các dòng `source='AUTO'`, xoá `attendance_finalized_*`;
 dòng `MANUAL` giữ nguyên.
 
+**Bản chốt là ảnh chụp các dòng điểm danh** (cập nhật 2026-10-01, UNI-911): mời hay gỡ
+người sau khi chốt không bị chặn (chặn sẽ làm người được mời không vào họp được), nhưng
+không đổi được số đã chốt. Khi đã chốt, tổng hợp và tỉ lệ chỉ đếm thành viên **có dòng**
+điểm danh. Người có dòng nhưng đã bị gỡ vẫn nằm trong bản chốt (`removed=true`); người
+thêm sau khi chốt không có dòng nên hiện riêng, không được đếm (`joined_after_finalize=true`)
+cho tới khi Mở lại. Lúc Chốt, dòng của người đã không còn `ACTIVE` bị xoá trước, để bản
+chốt đúng bằng những người có mặt trong danh sách lúc đó. Danh sách cử tri khi mở biểu
+quyết loại cả hai nhóm này. Đổi `quorum_percent` sang giá trị khác khi đã chốt → 409
+`attendance_finalized`.
+
+**Phiên vào/ra phòng** (`meeting_attendance_sessions`, cập nhật 2026-10-01): mỗi phiên
+mang SID kết nối của LiveKit (`provider_participant_sid`) và giờ của sự kiện, không phải
+giờ worker xử lý. Webhook của cùng một người xử lý tuần tự; join của kết nối mới đóng
+phiên cũ (`replaced`); leave chỉ đóng phiên đúng SID; leave đến trước join được ghi thành
+phiên đã đóng và join đến sau kéo giờ vào về đúng lúc. Kết thúc họp đóng mọi phiên đang
+mở tại `actual_end_at` (`meeting_ended`).
+
 Dự thính cũng có trạng thái (chỉ để ghi có mặt), nhưng không vào tổng hợp thành viên
 và không tính tỉ lệ.
 
@@ -227,9 +244,9 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
 
 | Method + path | Quyền | Ghi chú |
 |---|---|---|
-| `PATCH /meetings/{meetingID}/participants/{participantID}` `{standing?, is_secretary?}` | chủ trì/admin | Khách + `is_secretary=true` → 422. Đổi `standing` khi điểm danh đã chốt → 409 `attendance_finalized` (vai thư ký vẫn đổi được). |
+| `PATCH /meetings/{meetingID}/participants/{participantID}` `{standing?, is_secretary?}` | chủ trì/admin | Khách + `is_secretary=true` → 422 `guest_cannot_be_secretary`; tài khoản không thuộc workspace → 422 `secretary_not_workspace_member`. Đổi `standing` khi điểm danh đã chốt → 409 `attendance_finalized` (vai thư ký vẫn đổi được). |
 | `GET /meetings/{meetingID}/attendance` | thành viên workspace | §5.3 |
-| `PUT /meetings/{meetingID}/attendance/{participantID}` `{status, note}` | clerk | Meeting `IN_PROGRESS` hoặc `ENDED`, không thì 409 `invalid_state`; đã chốt → 409 `attendance_finalized`. `note` chỉ lưu khi `EXCUSED`. |
+| `PUT /meetings/{meetingID}/attendance/{participantID}` `{status, note}` | clerk | Meeting `IN_PROGRESS` hoặc `ENDED`, không thì 409 `invalid_meeting_state`; đã chốt → 409 `attendance_finalized`. `note` chỉ lưu khi `EXCUSED`. |
 | `DELETE /meetings/{meetingID}/attendance/{participantID}` | clerk | Trả về gợi ý tự động; khi đã chốt → 409. |
 | `POST /meetings/{meetingID}/attendance/finalize` | clerk | Idempotent. |
 | `POST /meetings/{meetingID}/attendance/reopen` | clerk | |
@@ -258,7 +275,8 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
     "standing": "MEMBER", "is_secretary": false,
     "status": "PRESENT", "source": "AUTO" | "MANUAL" | "SUGGESTED", "note": "",
     "first_joined_at": "…" | null, "last_left_at": "…" | null,
-    "present_seconds": 3120, "session_count": 2
+    "present_seconds": 3120, "session_count": 2,
+    "removed": false, "joined_after_finalize": false
   }]
 }
 ```
@@ -266,6 +284,8 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
 `source='SUGGESTED'` = chưa có dòng, đang dùng gợi ý tự động (§3.4 bước 2).
 `quorum_met` = `(present + late) * 100 >= quorum_percent * members`; NULL khi không đặt
 tỉ lệ. `present_seconds` cộng các phiên (phiên đang mở tính tới `now()`).
+`removed` / `joined_after_finalize`: xem "Bản chốt là ảnh chụp" ở §3.4; luôn có mặt, mặc
+định `false`.
 
 ### 5.4 `GET motions` — dạng trả về mỗi phần tử
 

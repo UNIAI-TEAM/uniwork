@@ -25,6 +25,12 @@ type ProviderNeutralEvent struct {
 	Identity        string
 	ProviderEventID string
 	RoomSID         string
+	// ParticipantSID is the provider's id for one connection of Identity; a
+	// reconnect keeps the identity and gets a new SID. Empty on old payloads.
+	ParticipantSID string
+	// OccurredAt is when the provider says the event happened; zero when it
+	// did not say. Room sessions use it so a retried delivery keeps its time.
+	OccurredAt time.Time
 	// Recording fields are set for conference.recording_ended.
 	RecordingID     string
 	RecordingURL    string
@@ -70,40 +76,18 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
 			ID: sess.ID, Status: strText("IDLE"), EndedAt: optTimestamptz(ptrTime(time.Now())),
 		})
-		_ = s.q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
+		closed, err := s.q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
 			ConferenceSessionID: sess.ID, LeaveReason: strText("room_finished"),
 		})
+		if err == nil && len(closed) > 0 {
+			s.meterAttendanceSessions(ctx, sess.MeetingID, closed)
+			s.publishAttendanceChanged(ctx, sess.MeetingID)
+		}
 		s.endIfOverdueEmpty(ctx, sess.MeetingID)
 	case "conference.participant_joined":
-		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
-		if pid == ev.Identity || pid == "" {
-			return nil
-		}
-		if _, err := s.q.GetOpenAttendance(ctx, pid); err == nil {
-			return nil
-		}
-		if _, err := s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
-			ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
-			ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
-			ProviderEventID: strText(ev.ProviderEventID),
-		}); err == nil {
-			s.publishAttendanceChanged(ctx, sess.MeetingID)
-		}
+		return s.roomParticipantJoined(ctx, sess, ev)
 	case "conference.participant_left", "conference.participant_connection_aborted":
-		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
-		open, err := s.q.GetOpenAttendance(ctx, pid)
-		if err != nil {
-			return nil
-		}
-		reason := "left"
-		if ev.Type == "conference.participant_connection_aborted" {
-			reason = "connection_aborted"
-		}
-		closed, err := s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
-		if err == nil {
-			s.meterAttendance(ctx, sess.MeetingID, closed)
-			s.publishAttendanceChanged(ctx, sess.MeetingID)
-		}
+		return s.roomParticipantLeft(ctx, sess, ev)
 	}
 	return nil
 }
@@ -111,11 +95,9 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 // meterAttendance adds a closed attendance session to
 // meeting.participant_minutes, idempotent on the session id. Minutes already
 // spent cannot be refused, so this records rather than consumes; the counter
-// still moves and the threshold events still fire.
-//
-// ponytail: only the single-session close path is metered. The bulk closes on
-// room_finished and stale reconciliation are not; meter them when C-05 shows
-// people the number.
+// still moves and the threshold events still fire. Every close path meters:
+// a leave, a reconnect that replaces a session, room_finished, End and the
+// stale sweep.
 func (s *MeetingService) meterAttendance(ctx context.Context, meetingID string, sess db.MeetingAttendanceSession) {
 	if !sess.LeftAt.Valid {
 		return

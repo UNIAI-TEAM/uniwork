@@ -45,6 +45,25 @@ describe("meeting attendance endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/attendance");
   });
 
+  it("reads removed and joined_after_finalize, and defaults them to false for an older server", async () => {
+    const finalized = {
+      ...attendance,
+      finalized_at: "2026-09-30T03:00:00Z",
+      rows: [
+        ...attendance.rows,
+        { ...attendance.rows[0], participant_id: "p2", removed: true, joined_after_finalize: false },
+        { ...attendance.rows[0], participant_id: "p3", removed: false, joined_after_finalize: true },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json(finalized));
+    const got = await getMeetingAttendance("m1");
+    expect(got.rows.map((r) => [r.removed, r.joined_after_finalize])).toEqual([
+      [false, false],
+      [true, false],
+      [false, true],
+    ]);
+  });
+
   it("getMeetingAttendance throws on drift instead of showing an empty roll", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ rows: "nope" }));
     await expect(getMeetingAttendance("m1")).rejects.toThrow("meeting_attendance_invalid");

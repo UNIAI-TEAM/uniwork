@@ -2,7 +2,7 @@
 import { TriangleAlert, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { attendanceQuorum, useMeetingAttendance } from "@uniwork/core/meetings/attendance";
+import { attendanceQuorum, motionVoterCount, useMeetingAttendance } from "@uniwork/core/meetings/attendance";
 import { useOpenMotion } from "@uniwork/core/meetings/motions";
 import type { Meeting, MeetingMotion } from "@uniwork/core/types/meeting";
 import {
@@ -44,6 +44,7 @@ export function MeetingMotionOpenDialog({
   const { data, isError } = useMeetingAttendance(meetingId, open && Boolean(meeting));
   const openMotion = useOpenMotion(meetingId);
   const q = data ? attendanceQuorum(data) : null;
+  const voters = data ? motionVoterCount(data) : 0;
 
   const confirm = () => {
     if (openMotion.isPending) return;
@@ -69,12 +70,12 @@ export function MeetingMotionOpenDialog({
           </p>
           {q ? (
             <p className="text-body text-foreground tabular-nums">
-              {t("meetings.governance.motionOpenRoll", { count: q.attended })}
+              {t("meetings.governance.motionOpenRoll", { count: voters })}
             </p>
           ) : meeting && !isError ? (
             <Skeleton className="h-4 w-48" />
           ) : null}
-          {q && q.attended === 0 ? (
+          {q && voters === 0 ? (
             <Notice tone="warning" icon={UserX} layout="inline">
               {t("meetings.governance.motionOpenNoVoters")}
             </Notice>

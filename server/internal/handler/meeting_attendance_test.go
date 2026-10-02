@@ -35,6 +35,12 @@ func TestAttendanceHTTPFlow(t *testing.T) {
 	if hostRow["status"] != "ABSENT" || hostRow["source"] != "SUGGESTED" || hostRow["standing"] != "MEMBER" {
 		t.Fatalf("host row = %v", hostRow)
 	}
+	// The snapshot flags are always present, false on a live roll.
+	for _, key := range []string{"removed", "joined_after_finalize"} {
+		if v, ok := hostRow[key].(bool); !ok || v {
+			t.Fatalf("%s = %v (present=%v), want false", key, hostRow[key], ok)
+		}
+	}
 	if out["summary"].(map[string]any)["members"].(float64) != 1 {
 		t.Fatalf("summary = %v", out["summary"])
 	}
@@ -74,6 +80,24 @@ func TestAttendanceHTTPFlow(t *testing.T) {
 	res, out = doJSON(t, srv, "PATCH", "/api/v1/meetings/"+meetingID, token, map[string]any{"quorum_percent": 60})
 	if res.StatusCode != http.StatusOK || out["meeting"].(map[string]any)["quorum_percent"].(float64) != 60 {
 		t.Fatalf("patch quorum: %d %v", res.StatusCode, out)
+	}
+	// Finalized: the quorum and the host row's standing are locked; the
+	// same quorum sent back with an edit passes.
+	res, _ = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/attendance/finalize", token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("finalize again: %d", res.StatusCode)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/meetings/"+meetingID, token, map[string]any{"quorum_percent": 70})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "attendance_finalized" {
+		t.Fatalf("quorum change on a finalized roll: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/meetings/"+meetingID, token, map[string]any{"quorum_percent": 60, "title": "Giao ban tuần"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("same quorum on a finalized roll: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/meetings/"+meetingID+"/participants/"+pid, token, map[string]any{"standing": "MEMBER"})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "attendance_finalized" {
+		t.Fatalf("host standing on a finalized roll: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/attendance", "", nil)
 	if res.StatusCode != http.StatusUnauthorized {

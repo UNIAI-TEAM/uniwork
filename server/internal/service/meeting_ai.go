@@ -275,7 +275,8 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 }
 
 // summaryAttendanceFacts turns the attendance report into prompt facts.
-// Members only: observers are neither counted nor named. nil when the
+// Counted members only (attendanceReport's summary): observers, and anyone
+// who joined after the roll was finalized, are neither counted nor named. nil when the
 // meeting has no members, so the prompt carries no empty attendance block.
 func summaryAttendanceFacts(m db.Meeting, rep AttendanceReport) *ai.AttendanceFacts {
 	if rep.Summary.Members == 0 {
@@ -291,7 +292,7 @@ func summaryAttendanceFacts(m db.Meeting, rep AttendanceReport) *ai.AttendanceFa
 		f.QuorumPercent = int(m.QuorumPercent.Int16)
 	}
 	for _, r := range rep.Rows {
-		if r.Participant.Standing != StandingMember {
+		if !r.counted() {
 			continue
 		}
 		// Same bucketing as attendanceReport's summary: anything else is absent.

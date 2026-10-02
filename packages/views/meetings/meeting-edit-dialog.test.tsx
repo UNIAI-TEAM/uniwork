@@ -71,6 +71,21 @@ describe("MeetingEditDialog", () => {
     );
   });
 
+  it("leaves an untouched quorum out, so a title edit still saves on a finalized roll", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Standup mới" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ title: "Standup mới" }) }),
+      ),
+    );
+    const call = requestMock.mock.calls.find(([url]) => url === "/api/v1/meetings/m1");
+    expect(call?.[1]?.body).not.toHaveProperty("quorum_percent");
+  });
+
   it("rejects a quorum outside 1–100 and keeps focus on it", () => {
     const dialog = openDialog();
     const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu");

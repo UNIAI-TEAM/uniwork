@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ArrowRightLeft, Crown, MoreHorizontal, UserMinus, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { useAttendanceFinalized } from "@uniwork/core/meetings/attendance";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -54,6 +55,12 @@ export function MeetingParticipantsSection({
   } = useParticipants(meeting.id);
   const { memberOf, members } = useMemberIndex(workspaceId);
   const remove = useRemoveParticipant(meeting.id);
+  // Same cache as the attendance card on this page; a meeting that has not
+  // started has no roll, and only managers see the menu that needs it.
+  const rollFinalized = useAttendanceFinalized(
+    meeting.id,
+    canManage && (meeting.status === "IN_PROGRESS" || meeting.status === "ENDED"),
+  );
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const [handingOver, setHandingOver] = useState<{ userId: string; name: string } | null>(null);
@@ -140,7 +147,7 @@ export function MeetingParticipantsSection({
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {rsvp && !isHost ? <MeetingRsvpBadge status={rsvp} /> : null}
-                  {canManage && !isHost ? (
+                  {canManage ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -162,16 +169,28 @@ export function MeetingParticipantsSection({
                             {t("meetings.transferHostMenu")}
                           </DropdownMenuItem>
                         ) : null}
-                        <MeetingDutyMenuItems meetingId={meeting.id} participant={p} name={name} separatorBefore={offerHost} />
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          disabled={remove.isPending && remove.variables === p.id}
-                          onClick={() => setRemoving({ id: p.id, name })}
-                        >
-                          <UserMinus aria-hidden className="size-4" />
-                          {t("meetings.remove")}
-                        </DropdownMenuItem>
+                        <MeetingDutyMenuItems
+                          meetingId={meeting.id}
+                          participant={p}
+                          name={name}
+                          separatorBefore={offerHost}
+                          rollFinalized={rollFinalized}
+                          // The host keeps the meeting: only its own standing is theirs to change here.
+                          standingOnly={isHost}
+                        />
+                        {isHost ? null : (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={remove.isPending && remove.variables === p.id}
+                              onClick={() => setRemoving({ id: p.id, name })}
+                            >
+                              <UserMinus aria-hidden className="size-4" />
+                              {t("meetings.remove")}
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : null}

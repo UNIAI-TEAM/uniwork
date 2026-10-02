@@ -2771,6 +2771,18 @@
       "draftNotice": "Chưa chốt — số liệu còn có thể thay đổi.",
       "draftNoticeClerk": "Chưa chốt. Dòng “Tự động” lấy theo lượt vào phòng — chọn trạng thái khác để ghi đè, rồi chốt để khóa danh sách.",
       "lockedHint": "Mở lại để sửa.",
+      "addedAfterFinalize_one": "Thêm sau khi chốt ({{count}})",
+      "addedAfterFinalize_other": "Thêm sau khi chốt ({{count}})",
+      "addedAfterFinalizeHint": "Chưa được tính vào số liệu đã chốt. Mở lại điểm danh để tính.",
+      "removedChip": "Đã gỡ",
+      "standingLockedHint": "Mở lại điểm danh để đổi tư cách",
+      "errors": {
+        "attendance_finalized": "Điểm danh đã chốt. Mở lại điểm danh rồi thử lại.",
+        "not_meeting_clerk": "Chỉ chủ trì, thư ký hoặc quản trị workspace mới làm được việc này.",
+        "invalid_meeting_state": "Trạng thái hiện tại của cuộc họp không cho phép việc này.",
+        "guest_cannot_be_secretary": "Khách không thể làm thư ký.",
+        "secretary_not_workspace_member": "Chỉ thành viên workspace mới làm thư ký được."
+      },
       "inRoomSince": "Đang trong phòng · vào lúc {{time}}",
       "joinedBrief": "Vào lúc {{time}} · dưới 1 phút",
       "excuseNote": "Lý do: {{note}}",

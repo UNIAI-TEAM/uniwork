@@ -77,14 +77,16 @@ func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) e
 	}
 	results := make([]rowResult, len(rows))
 	var wg sync.WaitGroup
-	for i, row := range rows {
+	for _, group := range webhookRowGroups(rows) {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, row db.WebhookInbox) {
+		go func(group []int) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[i] = rowResult{row: row, err: s.processWebhookRow(ctx, row)}
-		}(i, row)
+			for _, i := range group {
+				results[i] = rowResult{row: rows[i], err: s.processWebhookRow(ctx, rows[i])}
+			}
+		}(group)
 	}
 	wg.Wait()
 
@@ -102,6 +104,29 @@ func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) e
 		}
 	}
 	return nil
+}
+
+// webhookRowGroups splits a claimed batch into groups that may run in
+// parallel: the events of one provider identity stay together, in the order
+// they were received, because a reconnect's join and leave only make sense in
+// order. Every other row is a group of its own.
+func webhookRowGroups(rows []db.WebhookInbox) [][]int {
+	groups := make([][]int, 0, len(rows))
+	byIdentity := map[string]int{}
+	for i, row := range rows {
+		var ev struct{ Identity string }
+		if json.Unmarshal([]byte(row.Payload), &ev) != nil || ev.Identity == "" {
+			groups = append(groups, []int{i})
+			continue
+		}
+		if g, ok := byIdentity[ev.Identity]; ok {
+			groups[g] = append(groups[g], i)
+			continue
+		}
+		byIdentity[ev.Identity] = len(groups)
+		groups = append(groups, []int{i})
+	}
+	return groups
 }
 
 func (s *MeetingService) processWebhookRow(ctx context.Context, row db.WebhookInbox) error {
@@ -133,9 +158,20 @@ func (s *MeetingService) ReconcileStaleAttendance(ctx context.Context, limit int
 		return err
 	}
 	for _, meetingID := range ids {
-		_ = s.q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
-			MeetingID: meetingID, LeaveReason: strText("reconciled"),
+		m, err := s.q.GetMeeting(ctx, meetingID)
+		if err != nil {
+			continue
+		}
+		// An ended meeting's sessions close at its end, however late the
+		// sweep runs; a canceled one never started, so now() is all there is.
+		closed, err := s.q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
+			MeetingID: meetingID, LeaveReason: strText("reconciled"), LeftAt: m.ActualEndAt,
 		})
+		if err != nil || len(closed) == 0 {
+			continue
+		}
+		s.meterAttendanceSessions(ctx, meetingID, closed)
+		s.publishAttendanceChanged(ctx, meetingID)
 	}
 	return nil
 }

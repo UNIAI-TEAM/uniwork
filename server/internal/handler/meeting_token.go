@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/livekit/protocol/auth"
@@ -54,6 +55,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	if ev.Participant != nil {
 		mapped.Identity = ev.Participant.Identity
+		mapped.ParticipantSID = ev.Participant.Sid
+	}
+	if at := ev.GetCreatedAt(); at > 0 {
+		mapped.OccurredAt = time.Unix(at, 0).UTC()
 	}
 	switch ev.Event {
 	case "room_started":

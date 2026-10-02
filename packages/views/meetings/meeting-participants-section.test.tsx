@@ -166,6 +166,77 @@ describe("MeetingParticipantsSection", () => {
     expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
   });
 
+  it("gives the host's own row its standing only, plus lifting a secretary role", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", display_name_snapshot: "Me", role: "HOST", status: "ACTIVE", standing: "MEMBER", is_secretary: true },
+          ],
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({ participant: { id: "p-host", meeting_id: "m1", principal_type: "USER", role: "HOST", status: "ACTIVE" } });
+    });
+    renderManaged();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Me" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p-host", {
+        method: "PATCH",
+        body: { standing: "OBSERVER" },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Thao tác với Me" }));
+    expect(await screen.findByRole("menuitem", { name: "Bỏ vai thư ký" })).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Chuyển sang dự thính", "Bỏ vai thư ký"]);
+  });
+
+  it("never hands the host the secretary role, and locks standing once the roll is finalized", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", display_name_snapshot: "Me", role: "HOST", status: "ACTIVE", standing: "OBSERVER" },
+          ],
+        });
+      }
+      if (p.endsWith("/attendance")) {
+        return Promise.resolve({
+          finalized_at: "2026-09-22T02:20:00Z",
+          summary: { members: 0, present: 0, late: 0, excused: 0, absent: 0 },
+          rows: [],
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+    render(
+      wrapWithNav(
+        <MeetingParticipantsSection workspaceId="w1" meeting={{ ...meeting, status: "IN_PROGRESS" }} invitations={[]} canManage />,
+      ),
+    );
+
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/attendance"));
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Me" }));
+    const standing = await screen.findByRole("menuitem", { name: "Chuyển về thành viên" });
+    await waitFor(() => expect(standing).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByText("Mở lại điểm danh để đổi tư cách")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Giao vai thư ký" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Gỡ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+  });
+
+  it("does not fetch the roll for a meeting that has not started", async () => {
+    rosterRespond();
+    renderManaged();
+    await screen.findByText("Lan Anh");
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/attendance");
+  });
+
   it("invites from the panel header instead of a picker that grabs focus on load", async () => {
     rosterRespond();
     renderManaged();

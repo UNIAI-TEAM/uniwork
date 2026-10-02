@@ -33,6 +33,7 @@ func toAttendanceSDO(rep service.AttendanceReport) sdo.AttendanceSDO {
 			Status: r.Status, Source: r.Source, Note: r.Note,
 			FirstJoinedAt: rfc3339(r.FirstJoinedAt), LastLeftAt: rfc3339(r.LastLeftAt),
 			InRoom: r.InRoom, PresentSeconds: r.PresentSeconds, SessionCount: r.SessionCount,
+			Removed: r.Removed, JoinedAfterFinalize: r.JoinedAfterFinalize,
 		})
 	}
 	return out
