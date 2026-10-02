@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
-  app: { on: vi.fn(), getPath: () => process.cwd(), setPath: vi.fn(), setAppUserModelId: vi.fn(), whenReady: () => new Promise(() => undefined) },
+  // Importing electron-main boots the host; whenReady never settles here, so the
+  // mock only needs the calls reached before it (single-instance lock first).
+  app: {
+    on: vi.fn(), getPath: () => process.cwd(), setPath: vi.fn(), setAppUserModelId: vi.fn(),
+    requestSingleInstanceLock: vi.fn(() => true), hasSingleInstanceLock: vi.fn(() => true),
+    quit: vi.fn(), exit: vi.fn(), whenReady: () => new Promise(() => undefined),
+  },
   protocol: { registerSchemesAsPrivileged: vi.fn() },
   BrowserWindow: vi.fn(), dialog: {}, ipcMain: {}, Menu: {}, nativeTheme: {}, net: {}, safeStorage: {}, shell: {},
 }));
