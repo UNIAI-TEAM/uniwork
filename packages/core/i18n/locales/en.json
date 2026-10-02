@@ -7277,6 +7277,7 @@
       "pickerTitle": "Choose where to work",
       "pickerChoose": "Open documents",
       "pickerRequired": "Choose: {{groups}}",
+      "pickerSummaryLabel": "{{group}}:",
       "deployments": "Server",
       "accounts": "Accounts",
       "organizations": "Organizations",

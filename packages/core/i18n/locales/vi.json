@@ -7258,6 +7258,7 @@
       "pickerTitle": "Chọn nơi làm việc",
       "pickerChoose": "Mở tài liệu",
       "pickerRequired": "Chọn: {{groups}}",
+      "pickerSummaryLabel": "{{group}}:",
       "deployments": "Máy chủ",
       "accounts": "Tài khoản",
       "organizations": "Tổ chức",

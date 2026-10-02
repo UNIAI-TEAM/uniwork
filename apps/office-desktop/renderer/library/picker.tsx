@@ -71,7 +71,7 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
         <>
           {fixed.length > 0 ? (
             <dl className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-muted-foreground" data-picker-fixed="true">
-              {fixed.map((group) => <div key={group} className="flex gap-1"><dt>{t(group)}:</dt><dd className="break-words text-foreground">{optionsFor(group)[0]!.name}</dd></div>)}
+              {fixed.map((group) => <div key={group} className="flex gap-1"><dt>{t("pickerSummaryLabel", { group: t(group) })}</dt><dd className="break-words text-foreground">{optionsFor(group)[0]!.name}</dd></div>)}
             </dl>
           ) : null}
           {GROUPS.filter((group) => !fixed.includes(group)).map((group) => {
