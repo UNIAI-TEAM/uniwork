@@ -199,15 +199,24 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return err
 	}
-	if err := s.q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+	// Only the caller's own live mailbox in this organization is theirs to
+	// disconnect. Nothing below may run for any other id: the cleanup deletes
+	// a mailbox's cached mail, and the account id is all a caller supplies
+	// (ADR 0008 isolation matrix).
+	n, err := s.q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
 		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
+	if n == 0 {
+		return ErrNotFound
+	}
 	s.hubWatch.forceStop(accountID)
-	_ = s.q.DeleteEmailHubAttachmentsForAccount(ctx, accountID)
-	_ = s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, accountID)
-	return s.q.DeleteEmailHubThreadsForAccount(ctx, accountID)
+	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: ws.OrganizationID}
+	_ = s.q.DeleteEmailHubAttachmentsForAccount(ctx, scope)
+	_ = s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope))
+	return s.q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope))
 }
 
 func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, fetchBody, markRead bool) (EmailHubThreadView, error) {

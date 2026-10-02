@@ -376,11 +376,16 @@ func (q *Queries) CreateEmailHubScheduledSend(ctx context.Context, arg CreateEma
 
 const deleteEmailHubAttachmentsForAccount = `-- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, accountID)
+type DeleteEmailHubAttachmentsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, arg DeleteEmailHubAttachmentsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -424,11 +429,16 @@ func (q *Queries) DeleteEmailHubThread(ctx context.Context, arg DeleteEmailHubTh
 
 const deleteEmailHubThreadAiSummariesForAccount = `-- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, accountID)
+type DeleteEmailHubThreadAiSummariesForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, arg DeleteEmailHubThreadAiSummariesForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -472,11 +482,16 @@ func (q *Queries) DeleteEmailHubThreadsByIDs(ctx context.Context, arg DeleteEmai
 
 const deleteEmailHubThreadsForAccount = `-- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, accountID)
+type DeleteEmailHubThreadsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, arg DeleteEmailHubThreadsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -523,7 +538,7 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 	return err
 }
 
-const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :exec
+const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -538,9 +553,12 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) error {
-	_, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
-	return err
+func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const emailHubAccountSidebarCounts = `-- name: EmailHubAccountSidebarCounts :one

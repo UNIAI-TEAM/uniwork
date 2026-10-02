@@ -28,7 +28,7 @@ SELECT *
 FROM email_hub_accounts
 WHERE id = $1;
 
--- name: DisconnectEmailHubAccount :exec
+-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -305,7 +305,7 @@ FROM (
 
 -- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: UpdateEmailHubThreadRead :one
 UPDATE email_hub_threads
@@ -595,7 +595,7 @@ WHERE thread_id = $1;
 
 -- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: CreateEmailHubAttachment :one
 INSERT INTO email_hub_attachments (
@@ -718,7 +718,7 @@ WHERE thread_id = $1;
 
 -- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: EmailHubAccountSidebarCounts :one
 SELECT
