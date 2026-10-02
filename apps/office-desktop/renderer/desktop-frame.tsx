@@ -1,10 +1,8 @@
 import { useEffect, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import type { RendererBridge } from "./app";
 
-/** Reserve a caption strip so native window controls never cover app actions. */
+/** Keep the host sized to its window and synchronize native control colours. */
 export function DesktopFrame({ bridge, children }: { bridge: RendererBridge; children: ReactNode }) {
-  const { t } = useTranslation();
   useEffect(() => {
     const root = document.documentElement;
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -17,5 +15,5 @@ export function DesktopFrame({ bridge, children }: { bridge: RendererBridge; chi
     publish();
     return () => { observer.disconnect(); media?.removeEventListener("change", onSystemTheme); };
   }, [bridge]);
-  return <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"><div className="desktop-titlebar flex h-8 shrink-0 items-center border-b border-border px-3 pr-40 text-caption">{t("officeDesktop.login.title")}</div><div className="min-h-0 flex-1 overflow-auto">{children}</div></div>;
+  return <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"><div className="min-h-0 flex-1 overflow-auto">{children}</div></div>;
 }

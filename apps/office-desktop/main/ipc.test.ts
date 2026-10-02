@@ -10,7 +10,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -72,7 +72,7 @@ describe("desktop IPC allowlist", () => {
   it("binds draft checkpoint identity in main and does not expose draft errors", async () => {
     const store = { checkpointPlaintext: async () => { throw new Error("/secret/key and plaintext"); } } as unknown as DesktopDraftStore;
     const handlers = createDraftIpcHandlers({ store, session: { sessionId: "s", deploymentId: "dep", accountId: "a", generation: 1 }, identity: { deploymentId: "dep", accountId: "a", organizationId: "o", workspaceId: "w", documentId: "d", base: { revision: "1", version: "v" } } });
-    await expect(handlers["desktop:draft-checkpoint"]({ sessionGeneration: "session_1234", draftId: "draft", generation: 1, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "storage_unavailable", message: "draft operation refused" });
+    await expect(handlers["desktop:draft-checkpoint"]({ sessionGeneration: "session_1234", documentId: "d", draftId: "draft", generation: 1, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "storage_unavailable", message: "draft operation refused" });
   });
   it.each([
     ["unknown channel", "desktop:unknown", valid, "unknown_channel"],

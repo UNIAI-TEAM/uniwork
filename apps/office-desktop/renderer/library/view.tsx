@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { forwardRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
+import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
 import type { DesktopLibraryDocument } from "../../shared/ipc";
 import { canDownloadDocument, type LibraryMode } from "./model";
 
@@ -24,6 +25,9 @@ export interface LibraryViewProps {
 }
 
 const MODES: readonly LibraryMode[] = ["list", "recent", "search"];
+
+const LibraryIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 4h4v16H4zM11 4h3v16h-3zM17 4l3-1 4 16-3 1z" /></svg>);
+LibraryIcon.displayName = "LibraryIcon";
 
 /** The library screen: shared primitives drive list/recent/search and the
  * per-document actions a workspace member may take from the desktop host. */
@@ -47,8 +51,9 @@ export function LibraryView({
   const searching = mode === "search" && searchQuery.trim() !== "";
   const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div>;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-6" data-desktop-library="true">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-title font-semibold text-foreground">{t("title")}</h1>{documents.length > 0 || loading || error ? actions : null}</div>
+    <div className="flex min-h-0 flex-1 flex-col gap-4" data-desktop-library="true">
+      <CollectionPageHeader icon={LibraryIcon} title={t("title")} count={loading || error ? undefined : documents.length} countLabel={t("officeDesktop.tabs.documentCount", { keyPrefix: "", count: documents.length })} actions={documents.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6">
       <nav aria-label={t("title")} className="flex gap-1">
         {MODES.map((candidate) => (
           <Button
@@ -122,6 +127,7 @@ export function LibraryView({
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

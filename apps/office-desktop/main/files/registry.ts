@@ -109,6 +109,10 @@ export class FileHandleRegistry {
     try { bytes = await this.fs.readFile(absolute); } catch { throw new LocalFileError("not_found"); }
     this.assertSize(bytes.byteLength);
     const canonicalPath = await this.fs.realpath(absolute).catch(() => { throw new LocalFileError("not_found"); });
+    // Reopening the same local file selects its existing tab and preserves the
+    // original external-change baseline until Save or an explicit close.
+    const existing = [...this.records.values()].find((record) => record.canonicalPath === canonicalPath);
+    if (existing) return existing.metadata;
     const handle = this.newHandle();
     const metadata = Object.freeze({ handle, name: basename(absolute), byteLength: bytes.byteLength, modifiedAtMs: signature.modifiedAtMs, checksum: checksum(bytes) });
     this.records.set(handle, { path: absolute, canonicalPath, signature: signature.signature, metadata });

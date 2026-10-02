@@ -42,12 +42,12 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   const durableRows = new Map<string, number>();
 
   const listRows = async (): Promise<readonly DesktopDraftMetadata[] | null> => {
-    try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION })).drafts; }
+    try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId })).drafts; }
     catch { return null; }
   };
   const recoverView = async (): Promise<DraftRecoveryView> => {
     try {
-      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId }));
       const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
       const newest = rows[0];
       if (!newest) return { status: "none" };
@@ -64,7 +64,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   };
   const discardRow = async (draftId: string, generation: number): Promise<boolean> => {
     try {
-      desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId, generation: Math.max(1, generation) }));
+      desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: Math.max(1, generation) }));
       durableRows.delete(draftId);
       return true;
     } catch { return false; }
@@ -85,7 +85,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       const rows = await listRows();
       generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
       const next = Math.max(1, generationFloor, snapshot.generation);
-      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, draftId: currentDraftId, generation: next, dataBase64: encode(snapshot.value) }));
+      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId: currentDraftId, generation: next, dataBase64: encode(snapshot.value) }));
       generationFloor = Math.max(generationFloor, result.generation);
       durableRows.set(currentDraftId, result.generation);
     },
@@ -179,7 +179,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     /** Recover applies the chosen durable draft into the editor bytes. */
     async recoverDraft(metadata: DesktopDraftMetadata): Promise<boolean> {
       try {
-        const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, draftId: metadata.draftId, currentBase: { revision: identity.baseRevision, version: identity.baseVersionId } }));
+        const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId: metadata.draftId, currentBase: { revision: identity.baseRevision, version: identity.baseVersionId } }));
         if (result.status !== "recovered") return false;
         bytes = decode(result.dataBase64);
         generation += 1;

@@ -1,6 +1,23 @@
 import { expect, it, vi } from "vitest";
 import { createPreloadBridge, exposePreloadBridge } from "./index";
 
+it("allowlists tab updates and accepts opaque local ids for native Save", async () => {
+  const invoke = vi.fn().mockResolvedValue({ updated: true });
+  let event: ((...args: unknown[]) => void) | undefined;
+  const bridge = createPreloadBridge({ invoke, on: (channel, listener) => { if (channel === "desktop:office-save-requested") event = listener; } });
+  const documentId = `file_${"a".repeat(150)}`;
+  const payload = { sessionGeneration: "session_1234", documentIds: [documentId], activeDocumentId: documentId };
+  await expect(bridge.call("desktop:tabs-update", payload)).resolves.toEqual({ updated: true });
+  expect(invoke).toHaveBeenCalledWith("desktop:tabs-update", payload);
+  const received = vi.fn();
+  bridge.onOfficeSaveRequested(received);
+  event?.({}, { documentId });
+  expect(received).toHaveBeenCalledWith({ documentId });
+  event?.({}, { documentId: "/secret" });
+  event?.({}, { documentId, path: "/secret" });
+  expect(received).toHaveBeenCalledOnce();
+});
+
 it("exposes only the typed bridge and forwards an allowlisted call", async () => {
   const invoke = vi.fn().mockResolvedValue({ ok: true });
   const bridge = createPreloadBridge({ invoke });
@@ -51,4 +68,31 @@ it("buffers a leave request that arrives before the renderer subscribes", () => 
   listener?.({}, { requestId: "leave-4", reason: "close", extra: "secret" });
   expect(received).toHaveLength(1);
   expect(JSON.stringify(received)).not.toContain("secret");
+});
+
+it("delivers every buffered native file and launch in channel order after subscription", () => {
+  const listeners = new Map<string, (...args: unknown[]) => void>();
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, listener) => { listeners.set(channel, listener); } });
+  const file = (handle: string) => listeners.get("desktop:file-open-requested")?.({}, { handle });
+  const launch = (documentId: string, version: number) => listeners.get("desktop:launch-requested")?.({}, { documentId, operation: "view", version });
+  const handles = ["a", "b", "c"].map((letter) => `file_${letter.repeat(40)}`);
+  handles.forEach(file);
+  launch("a", 7); launch("b", 8);
+  const files: string[] = [];
+  const launches: unknown[] = [];
+  const offFile = bridge.onFileOpenRequested((event) => files.push(event.handle));
+  const offLaunch = bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toEqual(handles);
+  expect(launches).toEqual([{ documentId: "a", operation: "view", version: 7 }, { documentId: "b", operation: "view", version: 8 }]);
+  offFile(); offLaunch();
+  file(handles[0]!); file(handles[1]!);
+  launch("c", 9); launch("d", 10);
+  bridge.onFileOpenRequested((event) => files.push(event.handle));
+  bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toEqual([...handles, handles[0], handles[1]]);
+  expect(launches.slice(2)).toEqual([{ documentId: "c", operation: "view", version: 9 }, { documentId: "d", operation: "view", version: 10 }]);
+  bridge.onFileOpenRequested((event) => files.push(event.handle));
+  bridge.onLaunchRequested((event) => launches.push(event));
+  expect(files).toHaveLength(5);
+  expect(launches).toHaveLength(4);
 });

@@ -14,6 +14,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-logout",
   "desktop:diagnostics",
   "desktop:window-theme",
+  "desktop:tabs-update",
   "desktop:file-pick-open",
   "desktop:file-open",
   "desktop:file-save",
@@ -184,6 +185,7 @@ export const desktopDiagnosticsResponseSchema = z.object({
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
 export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
+export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
   "desktop:file-open": desktopFileResponseSchema,
@@ -195,6 +197,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:draft-discard": desktopDraftDiscardResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
   "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
+  "desktop:tabs-update": desktopTabsUpdateResponseSchema,
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
   "desktop:library-recent": desktopLibraryResponseSchema,
@@ -207,7 +210,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
-export const officeSaveRequestedEventSchema = z.object({ documentId: documentIdSchema }).strict();
+export const officeSaveRequestedEventSchema = z.object({ documentId: opaqueHandleSchema }).strict();
 export type OfficeSaveRequestedEvent = z.infer<typeof officeSaveRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
   status: z.enum(["signed-out", "pending", "signed-in", "locked", "login-required"]),
@@ -231,14 +234,15 @@ const requestSchemas = {
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
+  "desktop:tabs-update": z.object({ sessionGeneration: sessionGenerationSchema, documentIds: z.array(opaqueHandleSchema).max(8), activeDocumentId: opaqueHandleSchema.nullable() }).strict().refine((value) => new Set(value.documentIds).size === value.documentIds.length && (value.activeDocumentId === null || value.documentIds.includes(value.activeDocumentId)), "invalid tab membership"),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
   "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
-  "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
-  "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
-  "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),
-  "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
+  "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
+  "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional() }).strict(),
+  "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),
+  "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional(), draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
   "desktop:library-list": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),

@@ -46,10 +46,10 @@ async function harness() {
     currentBase: () => live.identity.base,
   });
   const checkpoint = async (value: Uint8Array, draftId: string, generation = 1) => {
-    await handlers["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, draftId, generation, dataBase64: encoded(value) });
+    await handlers["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId, generation, dataBase64: encoded(value) });
   };
-  const list = () => handlers["desktop:draft-list"]({ sessionGeneration: SESSION_GENERATION });
-  const recover = (draftId: string, base = BASE) => handlers["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, draftId, currentBase: base });
+  const list = () => handlers["desktop:draft-list"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT });
+  const recover = (draftId: string, base = BASE) => handlers["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId, currentBase: base });
   const draftFiles = async () => {
     const namespaces = await fs.readdir(join(root, "drafts"), { withFileTypes: true });
     const files: string[] = [];
@@ -73,9 +73,9 @@ it("Q8 logout keeps the ciphertext and its key while every draft command fails c
 
   // Logout: no live session and no live account scope remain in main.
   const detached = createDraftIpcHandlers({ store: q8.store, context: () => undefined, accountSession: () => undefined, currentBase: () => BASE });
-  await expect(detached["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", generation: 2, dataBase64: encoded(bytes(9)) })).rejects.toMatchObject({ code: "token_expired" });
+  await expect(detached["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", generation: 2, dataBase64: encoded(bytes(9)) })).rejects.toMatchObject({ code: "token_expired" });
   await expect(detached["desktop:draft-list"]({ sessionGeneration: SESSION_GENERATION })).rejects.toMatchObject({ code: "token_expired" });
-  await expect(detached["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", currentBase: BASE })).rejects.toMatchObject({ code: "token_expired" });
+  await expect(detached["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", currentBase: BASE })).rejects.toMatchObject({ code: "token_expired" });
 
   expect(await fs.readFile(rowFile!, "utf8")).toBe(before);
   expect(await q8.keyFiles()).toHaveLength(1);
@@ -121,9 +121,9 @@ it("Q8 login A recovers only with a live session, a live edit ACL and the matchi
 
   // A newer session generation is accepted; an older one is stale.
   const newer = createDraftIpcHandlers({ store: q8.store, context: () => ({ session: session("account-a", 3), identity: identity("account-a") }), liveAccess: async () => "edit", currentBase: () => BASE });
-  await expect(newer["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", currentBase: BASE })).resolves.toMatchObject({ status: "recovered" });
+  await expect(newer["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", currentBase: BASE })).resolves.toMatchObject({ status: "recovered" });
   const stale = createDraftIpcHandlers({ store: q8.store, context: () => ({ session: session("account-a", 2), identity: identity("account-a") }), liveAccess: async () => "edit", currentBase: () => BASE });
-  await expect(stale["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", currentBase: BASE })).rejects.toMatchObject({ code: "token_expired" });
+  await expect(stale["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", currentBase: BASE })).rejects.toMatchObject({ code: "token_expired" });
 });
 
 it("Q8 disk-full, key-lost and corrupt never create an empty replacement draft", async () => {
@@ -161,7 +161,7 @@ it("Q8 a draft id alone cannot consume another document's row, and the account o
   const q8 = await harness();
   await q8.checkpoint(bytes(1), "draft-a");
   const otherDocument = createDraftIpcHandlers({ store: q8.store, context: () => ({ session: session("account-a"), identity: identity("account-a", BASE, "doc-2") }), currentBase: () => BASE });
-  await expect(otherDocument["desktop:draft-discard"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", generation: 1 })).rejects.toMatchObject({ code: "forbidden" });
+  await expect(otherDocument["desktop:draft-discard"]({ sessionGeneration: SESSION_GENERATION, documentId: "doc-2", draftId: "draft-a", generation: 1 })).rejects.toMatchObject({ code: "forbidden" });
   expect(await q8.draftFiles()).toHaveLength(1);
   const accountOffer = createDraftIpcHandlers({ store: q8.store, context: () => undefined, accountSession: () => session("account-a"), currentBase: () => BASE });
   await expect(accountOffer["desktop:draft-discard"]({ sessionGeneration: SESSION_GENERATION, draftId: "draft-a", generation: 1 })).resolves.toEqual({ discarded: true });

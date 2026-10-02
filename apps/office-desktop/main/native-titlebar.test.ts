@@ -1,0 +1,23 @@
+import { readFileSync } from "node:fs";
+import { expect, it, vi } from "vitest";
+
+vi.mock("electron", () => ({
+  app: { on: vi.fn(), getPath: () => process.cwd(), setPath: vi.fn(), setAppUserModelId: vi.fn(), whenReady: () => new Promise(() => undefined) },
+  protocol: { registerSchemesAsPrivileged: vi.fn() },
+  BrowserWindow: vi.fn(), dialog: {}, ipcMain: {}, Menu: {}, nativeTheme: {}, net: {}, safeStorage: {}, shell: {},
+}));
+vi.mock("../shared/deployment", () => ({ resolveDeploymentProfile: () => ({ kind: "setup-required" }) }));
+
+it("matches the 40px strip and semantic muted/foreground colors in both themes", async () => {
+  const { nativeWindowOptions, DESKTOP_TITLE_BAR_TOKENS } = await import("../electron-main");
+  const tokens = readFileSync(new URL("../../../packages/ui/styles/tokens.css", import.meta.url), "utf8");
+  const light = tokens.slice(0, tokens.indexOf(".dark {"));
+  const dark = tokens.slice(tokens.indexOf(".dark {"));
+  for (const [mode, source] of [["light", light], ["dark", dark]] as const) {
+    const expected = DESKTOP_TITLE_BAR_TOKENS[mode];
+    expect(source).toContain(`--muted: ${expected.color};`);
+    expect(source).toContain(`--foreground: ${expected.symbolColor};`);
+    expect(nativeWindowOptions("win32", mode === "dark").titleBarOverlay).toEqual({ ...expected, height: 40 });
+  }
+  expect(nativeWindowOptions("darwin")).toEqual({});
+});
