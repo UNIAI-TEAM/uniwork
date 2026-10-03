@@ -7713,7 +7713,7 @@
         "identical": "Không có khác biệt trong phần văn bản được so sánh.",
         "summary": "{{added}} đoạn thêm · {{removed}} đoạn bớt · {{changed}} đoạn thay đổi",
         "against": "So sánh với {{name}}",
-        "sameRun": "{{n}} đoạn giống nhau",
+        "sameRun": "{{count}} đoạn giống nhau",
         "current": "Tài liệu hiện tại",
         "compared": "Tài liệu so sánh",
         "empty": "(đoạn trống)",
@@ -7726,7 +7726,8 @@
         },
         "errors": {
           "invalid_docx": "Tệp đã chọn không phải là tài liệu .docx đọc được.",
-          "unreadable": "Không đọc được tệp đã chọn."
+          "unreadable": "Không đọc được tệp đã chọn.",
+          "failed": "Không thể hoàn tất so sánh."
         }
       },
       "review": {

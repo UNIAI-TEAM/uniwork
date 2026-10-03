@@ -103,6 +103,32 @@ describe("DocxCompareDialog", () => {
     expect(await screen.findByTestId("docx-compare-error")).toHaveTextContent("Không đọc được tệp đã chọn.");
   });
 
+  it("turns an unexpected read failure into a retryable failure state, not a stuck spinner", async () => {
+    renderDialog({
+      readFile: vi.fn(async (): Promise<CompareReadResult> => {
+        throw new Error("seam failure");
+      }),
+    });
+    pickFile("broken.docx");
+
+    expect(await screen.findByTestId("docx-compare-error")).toHaveTextContent("Không thể hoàn tất so sánh.");
+    expect(screen.queryByTestId("docx-compare-reading")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chọn tệp khác" })).toBeEnabled();
+  });
+
+  it("labels the empty side of a changed pair instead of rendering a blank paragraph", async () => {
+    renderDialog({
+      currentTexts: () => [""],
+      readFile: vi.fn(async (): Promise<CompareReadResult> => ({ ok: true, texts: ["new text"] })),
+    });
+    pickFile();
+
+    const rows = within(await screen.findByTestId("docx-compare-rows"));
+    const changed = rows.getByTestId("docx-compare-kind-changed").closest("li");
+    expect(changed).toHaveTextContent("(đoạn trống)");
+    expect(changed).toHaveTextContent("new text");
+  });
+
   it("closes through the footer button without comparing", () => {
     const props = renderDialog();
     fireEvent.click(screen.getByTestId("docx-compare-close"));

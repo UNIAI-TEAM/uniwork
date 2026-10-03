@@ -7719,7 +7719,8 @@
         "identical": "No differences in the compared text.",
         "summary": "{{added}} added · {{removed}} removed · {{changed}} changed",
         "against": "Compared with {{name}}",
-        "sameRun": "{{n}} unchanged paragraphs",
+        "sameRun_one": "{{count}} unchanged paragraph",
+        "sameRun_other": "{{count}} unchanged paragraphs",
         "current": "Current document",
         "compared": "Compared document",
         "empty": "(empty paragraph)",
@@ -7732,7 +7733,8 @@
         },
         "errors": {
           "invalid_docx": "The chosen file is not a readable .docx document.",
-          "unreadable": "The chosen file could not be read."
+          "unreadable": "The chosen file could not be read.",
+          "failed": "The comparison could not be completed."
         }
       },
       "review": {

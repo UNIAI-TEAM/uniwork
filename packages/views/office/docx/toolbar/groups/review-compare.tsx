@@ -14,7 +14,9 @@ import type { DocxToolbarGroupContext } from "../types";
 export function ReviewCompareGroup({ format, commands }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const ready = format?.docxCompareReady === true;
+  // Both halves matter: without a command runtime the dialog has no live-text
+  // reader, and every compared block would read as "added".
+  const ready = format?.docxCompareReady === true && commands != null;
 
   return (
     <>

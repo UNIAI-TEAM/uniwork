@@ -48,7 +48,7 @@ describe("editorJsonTexts", () => {
     expect(editorJsonTexts(doc)).toEqual(["Table 2×2", ""]);
   });
 
-  it("flattens nested table content into one row", () => {
+  it("joins table cell texts with one space, like the parse's table preview", () => {
     const doc: JSONContent = {
       type: "doc",
       content: [
@@ -57,17 +57,38 @@ describe("editorJsonTexts", () => {
           content: [
             {
               type: "docTableRow",
-              content: [{ type: "docTableCell", content: [{ type: "docParagraph", content: [{ type: "text", text: "cell one" }] }] }],
+              content: [
+                { type: "docTableCell", content: [{ type: "docParagraph", content: [{ type: "text", text: "cell one" }] }] },
+                { type: "docTableHeader", content: [{ type: "docParagraph", content: [{ type: "text", text: "cell two" }] }] },
+              ],
             },
             {
               type: "docTableRow",
-              content: [{ type: "docTableCell", content: [{ type: "docParagraph", content: [{ type: "text", text: "cell two" }] }] }],
+              content: [{ type: "docTableCell", content: [{ type: "docParagraph", content: [{ type: "text", text: "cell three" }] }] }],
             },
           ],
         },
       ],
     };
-    expect(editorJsonTexts(doc)).toEqual(["cell onecell two"]);
+    expect(editorJsonTexts(doc)).toEqual(["cell one cell two cell three"]);
+  });
+
+  it("caps table text at the parsed side's 120-char preview", () => {
+    const doc: JSONContent = {
+      type: "doc",
+      content: [
+        {
+          type: "docTable",
+          content: [
+            {
+              type: "docTableRow",
+              content: [{ type: "docTableCell", content: [{ type: "docParagraph", content: [{ type: "text", text: "x".repeat(130) }] }] }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(editorJsonTexts(doc)).toEqual(["x".repeat(120)]);
   });
 
   it("returns one row per top-level node and none for an empty document", () => {

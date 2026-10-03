@@ -18,19 +18,24 @@ import { readCompareFile, type CompareReadFailure, type CompareReadResult } from
 export interface DocxCompareDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Live document text blocks, captured when a comparison starts; the live
-   * document is only read — never edited, saved or replaced. */
+  /** Live document text blocks, read when the comparison builds its result —
+   * after the picked file finishes parsing. The live document is only read —
+   * never edited, saved or replaced. */
   currentTexts: () => string[];
   /** Read seam. Production reads and parses the picked file; tests inject a
    * fake so the dialog's states are exercised without real bytes. */
   readFile?: (file: File) => Promise<CompareReadResult>;
 }
 
+/** Parse refusals are named by the seam; an unexpected throw anywhere in the
+ * read/build path maps to the generic "failed". */
+type CompareFailure = CompareReadFailure | "failed";
+
 type ComparePhase =
   | { phase: "idle" }
   | { phase: "reading"; fileName: string }
   | { phase: "result"; fileName: string; entries: CompareEntry[] }
-  | { phase: "failed"; fileName: string; reason: CompareReadFailure };
+  | { phase: "failed"; fileName: string; reason: CompareFailure };
 
 export function DocxCompareDialog({ open, onOpenChange, currentTexts, readFile = readCompareFile }: DocxCompareDialogProps) {
   const { t } = useTranslation();
@@ -42,15 +47,22 @@ export function DocxCompareDialog({ open, onOpenChange, currentTexts, readFile =
     if (!file) return;
     const request = ++requestRef.current;
     setState({ phase: "reading", fileName: file.name });
-    const result = await readFile(file);
-    // A newer pick (or a dialog unmounted mid-read) must not overwrite the
-    // newer state with a stale result.
-    if (requestRef.current !== request) return;
-    if (!result.ok) {
-      setState({ phase: "failed", fileName: file.name, reason: result.reason });
-      return;
+    try {
+      const result = await readFile(file);
+      // A newer pick (or a dialog unmounted mid-read) must not overwrite the
+      // newer state with a stale result.
+      if (requestRef.current !== request) return;
+      if (!result.ok) {
+        setState({ phase: "failed", fileName: file.name, reason: result.reason });
+        return;
+      }
+      setState({ phase: "result", fileName: file.name, entries: compareTextBlocks(currentTexts(), result.texts) });
+    } catch {
+      // Never leave the dialog spinning: an unexpected throw is a failure the
+      // user can retry, not an unhandled rejection.
+      if (requestRef.current !== request) return;
+      setState({ phase: "failed", fileName: file.name, reason: "failed" });
     }
-    setState({ phase: "result", fileName: file.name, entries: compareTextBlocks(currentTexts(), result.texts) });
   };
 
   const pickLabel = state.phase === "result" || state.phase === "failed" ? t("office.docx.compare.pickAnother") : t("office.docx.compare.pick");

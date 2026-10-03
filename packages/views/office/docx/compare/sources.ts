@@ -25,13 +25,32 @@ function jsonText(node: JSONContent): string {
   return (node.content ?? []).map(jsonText).join("");
 }
 
+/** The live table's text in the shape the parsed side holds: the engine's
+ * table preview is `plainText(xml).slice(0, 120)`, which joins cell texts with
+ * one space and caps the result. A plain `jsonText` concat would make an
+ * unchanged table read as changed (cell boundaries, cap); nested-table cell
+ * boundaries remain approximate — the live node tree has no table XML to
+ * tokenize exactly. */
+function tableText(table: JSONContent): string {
+  const cells: string[] = [];
+  for (const row of table.content ?? []) {
+    for (const cell of row.content ?? []) {
+      const text = jsonText(cell);
+      if (text !== "") cells.push(text);
+    }
+  }
+  return cells.join(" ").slice(0, 120);
+}
+
 /** One live-editor top-level node as text: protected blocks (images, drawings)
- * carry the same preview text the parse holds; every other node (paragraph,
- * heading, list item, table, …) contributes its plain text content. */
+ * carry the same preview text the parse holds; tables reproduce its table
+ * preview; every other node (paragraph, heading, list item, …) contributes its
+ * plain text content. */
 function editorNodeText(node: JSONContent): string {
   if (node.type === "docProtected") {
     return typeof node.attrs?.previewText === "string" ? node.attrs.previewText : "";
   }
+  if (node.type === "docTable") return tableText(node);
   return jsonText(node);
 }
 

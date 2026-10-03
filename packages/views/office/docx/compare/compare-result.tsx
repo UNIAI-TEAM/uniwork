@@ -20,8 +20,8 @@ function Words({ words }: { words: readonly CompareWord[] }) {
             data-compare-word={word.kind}
             className={
               word.kind === "removed"
-                ? "rounded-xs bg-destructive-soft text-destructive-soft-foreground"
-                : "rounded-xs bg-success-soft text-success-soft-foreground"
+                ? "rounded-sm bg-destructive-soft text-destructive-soft-foreground"
+                : "rounded-sm bg-success-soft text-success-soft-foreground"
             }
           >
             {word.text}
@@ -55,7 +55,7 @@ function CompareEntryRow({ entry }: { entry: CompareEntry }) {
             }
           >
             <h4 className="sr-only">{currentLabel}</h4>
-            {entry.leftWords ? <Words words={entry.leftWords} /> : <p className="whitespace-pre-wrap break-words text-body">{entry.left === "" ? emptyLabel : entry.left}</p>}
+            {entry.leftWords?.length ? <Words words={entry.leftWords} /> : <p className="whitespace-pre-wrap break-words text-body">{entry.left === "" ? emptyLabel : entry.left}</p>}
           </section>
         ) : null}
         {entry.kind !== "removed" ? (
@@ -69,7 +69,7 @@ function CompareEntryRow({ entry }: { entry: CompareEntry }) {
             }
           >
             <h4 className="sr-only">{comparedLabel}</h4>
-            {entry.rightWords ? <Words words={entry.rightWords} /> : <p className="whitespace-pre-wrap break-words text-body">{entry.right === "" ? emptyLabel : entry.right}</p>}
+            {entry.rightWords?.length ? <Words words={entry.rightWords} /> : <p className="whitespace-pre-wrap break-words text-body">{entry.right === "" ? emptyLabel : entry.right}</p>}
           </section>
         ) : null}
       </div>
@@ -101,7 +101,7 @@ export function DocxCompareResult({ fileName, entries }: DocxCompareResultProps)
         {rows.map((row, index) =>
           row.kind === "same" ? (
             <li key={`same-${index}`} className="text-caption text-muted-foreground" data-testid="docx-compare-same-run">
-              {t("office.docx.compare.sameRun", { n: row.count })}
+              {t("office.docx.compare.sameRun", { count: row.count })}
             </li>
           ) : (
             <CompareEntryRow key={`entry-${index}`} entry={row.entry} />
