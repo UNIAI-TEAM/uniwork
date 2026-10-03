@@ -24,7 +24,7 @@ export class PdfOpError extends Error {
 }
 
 export type Dict = Record<string, unknown>;
-const isDict = (v: unknown): v is Dict =>
+export const isDict = (v: unknown): v is Dict =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
 /** Cheap count bounds — the HTTP body cap bounds memory, but each parsed edit
@@ -39,17 +39,17 @@ export function capEdits(edits: unknown[]): void {
   if (edits.length > MAX_EDITS) throw new PdfOpError("<edits>", "", `at most ${MAX_EDITS} ops per job`);
 }
 
-function capList(v: unknown[], op: string, f: string): unknown[] {
+export function capList(v: unknown[], op: string, f: string): unknown[] {
   if (v.length > MAX_LIST_ITEMS) throw new PdfOpError(op, f, `at most ${MAX_LIST_ITEMS} items`);
   return v;
 }
 
-function capText(s: string, op: string, f: string): string {
+export function capText(s: string, op: string, f: string): string {
   if (s.length > MAX_TEXT_LEN) throw new PdfOpError(op, f, `text exceeds ${MAX_TEXT_LEN} chars`);
   return s;
 }
 
-function capImageB64(s: string, op: string, f: string): string {
+export function capImageB64(s: string, op: string, f: string): string {
   if (s.length > MAX_IMAGE_B64_LEN) throw new PdfOpError(op, f, "image data exceeds the bound");
   return s;
 }
@@ -58,45 +58,45 @@ function capPdfB64(s: string, op: string, f: string): string {
   return s;
 }
 
-function num(v: unknown, op: string, f: string): number {
+export function num(v: unknown, op: string, f: string): number {
   if (typeof v !== "number" || !Number.isFinite(v)) throw new PdfOpError(op, f, "number required");
   return v;
 }
-function int(v: unknown, op: string, f: string): number {
+export function int(v: unknown, op: string, f: string): number {
   const n = num(v, op, f);
   if (!Number.isSafeInteger(n)) throw new PdfOpError(op, f, "integer required");
   return n;
 }
-function str(v: unknown, op: string, f: string): string {
+export function str(v: unknown, op: string, f: string): string {
   if (typeof v !== "string") throw new PdfOpError(op, f, "string required");
   return v;
 }
-function bool(v: unknown, op: string, f: string): boolean {
+export function bool(v: unknown, op: string, f: string): boolean {
   if (typeof v !== "boolean") throw new PdfOpError(op, f, "boolean required");
   return v;
 }
-function vec4(v: unknown, op: string, f: string): [number, number, number, number] {
+export function vec4(v: unknown, op: string, f: string): [number, number, number, number] {
   if (!Array.isArray(v) || v.length !== 4 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
     throw new PdfOpError(op, f, "[x1,y1,x2,y2] number tuple required");
   }
   return [v[0], v[1], v[2], v[3]] as [number, number, number, number];
 }
-function vec2(v: unknown, op: string, f: string): [number, number] {
+export function vec2(v: unknown, op: string, f: string): [number, number] {
   if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
     throw new PdfOpError(op, f, "[x,y] number tuple required");
   }
   return [v[0], v[1]] as [number, number];
 }
-function rgb255(v: unknown, op: string, f: string): [number, number, number] {
+export function rgb255(v: unknown, op: string, f: string): [number, number, number] {
   if (!Array.isArray(v) || v.length !== 3 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
     throw new PdfOpError(op, f, "[r,g,b] 0-255 tuple required");
   }
   return [v[0], v[1], v[2]] as [number, number, number];
 }
-function opt<T>(v: unknown, parse: (v: unknown, op: string, f: string) => T, op: string, f: string): T | undefined {
+export function opt<T>(v: unknown, parse: (v: unknown, op: string, f: string) => T, op: string, f: string): T | undefined {
   return v === undefined ? undefined : parse(v, op, f);
 }
-function attrsOf(item: Dict): Dict {
+export function attrsOf(item: Dict): Dict {
   const merged: Dict = {};
   if (isDict(item.target)) Object.assign(merged, item.target);
   if (isDict(item.attributes)) Object.assign(merged, item.attributes);
@@ -139,7 +139,7 @@ function optName(v: unknown, op: string, f: string): string | undefined {
   return name === "" ? undefined : name;
 }
 
-function parseInsertBlankPage(a: Dict, op: string): InsertBlankPageInput {
+export function parseInsertBlankPage(a: Dict, op: string): InsertBlankPageInput {
   const width = opt(a.width, positiveNumber, op, "width");
   const height = opt(a.height, positiveNumber, op, "height");
   if ((width === undefined) !== (height === undefined)) {
@@ -151,7 +151,7 @@ function parseInsertBlankPage(a: Dict, op: string): InsertBlankPageInput {
   };
 }
 
-function parseInsertPdfPages(a: Dict, op: string): InsertPdfPagesInput {
+export function parseInsertPdfPages(a: Dict, op: string): InsertPdfPagesInput {
   return {
     afterPageIndex: pageIndexOrFront(a.afterPageIndex, op, "afterPageIndex"),
     pdf: capPdfB64(str(a.pdf, op, "pdf"), op, "pdf"),
@@ -159,11 +159,11 @@ function parseInsertPdfPages(a: Dict, op: string): InsertPdfPagesInput {
   };
 }
 
-function parseExtractPages(a: Dict, op: string): ExtractPagesInput {
+export function parseExtractPages(a: Dict, op: string): ExtractPagesInput {
   return { pages: pageList(a.pages, op, "pages"), name: optName(a.name, op, "name") };
 }
 
-function parseMergePdfs(a: Dict, op: string): MergePdfsInput {
+export function parseMergePdfs(a: Dict, op: string): MergePdfsInput {
   const pdfs = a.pdfs;
   if (!Array.isArray(pdfs) || pdfs.length === 0) throw new PdfOpError(op, "pdfs", "at least one pdf required");
   return {
@@ -172,6 +172,6 @@ function parseMergePdfs(a: Dict, op: string): MergePdfsInput {
   };
 }
 
-function parseSplitPdf(a: Dict, op: string): SplitPdfInput {
+export function parseSplitPdf(a: Dict, op: string): SplitPdfInput {
   return { chunkSize: positiveInt(a.chunkSize, op, "chunkSize"), name: optName(a.name, op, "name") };
 }
