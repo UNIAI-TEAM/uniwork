@@ -26,7 +26,7 @@ import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftI
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
-import { leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
+import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
 import { createOpenedDocuments, sameDocumentSession } from "./main/opened-documents";
 import { createDocumentLeaveEvidence } from "./main/document-leave";
 import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
@@ -440,7 +440,8 @@ async function startElectronHost(): Promise<void> {
   const leave = createDesktopLeaveCoordinator({
     send: (request) => { leaveEvidence.capture(request.reason); window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
     ...leaveEvidence,
-    timeoutMs: 60_000,
+    timeoutMs: 30_000,
+    onTimeout: (requestId) => { window.webContents.send("desktop:leave-expired", leaveExpiredEventSchema.parse({ requestId })); },
   });
   let closeApproved = false;
   window.on("close", (event) => {

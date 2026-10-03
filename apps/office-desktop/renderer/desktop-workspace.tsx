@@ -241,11 +241,13 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     if (!request) return false;
     const affected = tabs.current.current.tabs.filter((tab) => request.ids.includes(tab.id));
     for (const tab of affected) {
+      if (leaveRef.current !== request) return false;
       const session = tab.data.session;
       if (action === "save") {
         if (isDocumentDirty(session) && (!(await session.coordinator.save("dialog")).accepted || isDocumentDirty(session))) return false;
       } else if (action === "keep") { if (!await session.keepDraft()) return false; }
       else if (!await session.discardDraft()) return false;
+      if (leaveRef.current !== request) return false;
     }
     // Typing may continue while Save N settles: a newer dirty generation stays.
     return action !== "save" || affected.every((tab) => !isDocumentDirty(tab.data.session));
@@ -260,6 +262,13 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
         ? tabs.current.current.tabs.filter((tab) => tab.data.kind === "cloud").map((tab) => tab.id)
         : tabs.current.current.tabs.map((tab) => tab.id);
       handlers.current.requestLeave({ ids, host });
+    });
+    const offExpired = bridge.onLeaveExpired?.(({ requestId }) => {
+      if (leaveRef.current?.host?.requestId !== requestId) return;
+      answered.current.add(requestId);
+      leaveRef.current = null;
+      setLeave(null);
+      setActionError(t("office.leave.timeout"));
     });
     const offLaunch = bridge.onLaunchRequested?.((event) => setPendingOpens((previous) => [...previous, { kind: "launch", ...event }]));
     const offFile = bridge.onFileOpenRequested?.((event) => {
@@ -284,7 +293,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       else if (/^[1-8]$/.test(event.key)) { const id = tabs.current.current.tabs[Number(event.key) - 1]?.id; if (id) { stop(); tabs.select(id); } }
     };
     window.addEventListener("keydown", shortcut, true);
-    return () => { offLeave?.(); offLaunch?.(); offFile?.(); offSave?.(); window.removeEventListener("keydown", shortcut, true); };
+    return () => { offLeave?.(); offExpired?.(); offLaunch?.(); offFile?.(); offSave?.(); window.removeEventListener("keydown", shortcut, true); };
   // The mode subscriptions use live refs for tabs and handlers above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);
@@ -313,7 +322,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     {syncError ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.sessionError")}</p> : null}
     {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
   </>;
-  const leaveDialog = <LeaveDialog open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
+  const leaveDialog = <LeaveDialog key={leave?.host?.requestId ?? "tab-leave"} open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
     onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
 

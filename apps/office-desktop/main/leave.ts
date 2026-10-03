@@ -41,6 +41,8 @@ export interface DesktopLeaveCoordinatorOptions {
   readonly confirmDiscard?: () => Promise<boolean>;
   readonly idFactory?: () => string;
   readonly timeoutMs?: number;
+  /** Clears the renderer's matching dialog when main expires its authority. */
+  readonly onTimeout?: (requestId: string) => void;
   readonly now?: () => number;
 }
 
@@ -69,7 +71,10 @@ export function createDesktopLeaveCoordinator(options: DesktopLeaveCoordinatorOp
           resolve(outcome);
         };
         // The deadline covers both the renderer answer and main verification.
-        const timer = setTimeout(() => finish({ requestId, choice: "stay", proceeded: false, code: "timeout" }), options.timeoutMs ?? 30_000);
+        const timer = setTimeout(() => {
+          finish({ requestId, choice: "stay", proceeded: false, code: "timeout" });
+          try { options.onTimeout?.(requestId); } catch { /* Expiry stays fail-closed if the renderer is gone. */ }
+        }, options.timeoutMs ?? 30_000);
         pending = { requestId, settle: (resolution) => {
           void (async () => {
             // `stay` is never a proceed, whatever the renderer claims.

@@ -30,12 +30,14 @@ describe("desktop leave coordinator", () => {
     expect(coordinator.busy).toBe(false);
   });
 
-  it("fails closed on a timeout and never blocks a later request", async () => {
+  it("fails closed on a timeout, notifies the renderer, and never blocks a later request", async () => {
     vi.useFakeTimers();
-    const { coordinator, requests } = harness();
+    const onTimeout = vi.fn();
+    const { coordinator, requests } = harness({ onTimeout });
     const pending = coordinator.request("close");
     await vi.advanceTimersByTimeAsync(1_001);
     await expect(pending).resolves.toMatchObject({ choice: "stay", proceeded: false, code: "timeout" });
+    expect(onTimeout).toHaveBeenCalledExactlyOnceWith(requests[0]!.requestId);
     expect(coordinator.busy).toBe(false);
     const second = coordinator.request("close");
     expect(coordinator.busy).toBe(true);

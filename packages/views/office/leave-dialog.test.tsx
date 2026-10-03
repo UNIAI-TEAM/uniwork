@@ -68,6 +68,14 @@ describe("LeaveDialog", () => {
 });
 
 describe("DraftRecoveryPrompt", () => {
+  it("formats the recovery timestamp with the active locale", async () => {
+    await setLocale("vi");
+    const updatedAt = Date.UTC(2026, 9, 3, 12, 58, 23);
+    render(<DraftRecoveryPrompt open metadata={{ draftId: "draft", generation: 1, checksum: "sha256:abc", byteLength: 1, updatedAt, identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { version: "1", revision: "1" } } }} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
+    const expected = new Intl.DateTimeFormat("vi", { dateStyle: "medium", timeStyle: "short" }).format(new Date(updatedAt));
+    expect(screen.getByText((_content, element) => element?.textContent?.includes(expected) ?? false)).toBeInTheDocument();
+  });
+
   it("offers recovery for the same base", () => {
     render(<DraftRecoveryPrompt open metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Recover draft" })).toBeInTheDocument();

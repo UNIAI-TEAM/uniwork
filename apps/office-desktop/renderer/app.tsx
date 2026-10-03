@@ -11,6 +11,7 @@ export type RendererBridge = Readonly<{
   onLaunchRequested?(listener: (event: { documentId: string; operation: "view" | "edit"; version?: number }) => void): () => void;
   onOfficeSaveRequested?(listener: (event: { documentId: string }) => void): () => void;
   onLeaveRequested?(listener: (event: { requestId: string; reason: "close" | "logout" | "update" }) => void): () => void;
+  onLeaveExpired?(listener: (event: { requestId: string }) => void): () => void;
   openDroppedFile?(file: File): Promise<unknown>;
   onFileOpenRequested?(listener: (event: { handle: string }) => void): () => void;
   onLoginRequested?(listener: (event: { reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }) => void): () => void;

@@ -7143,7 +7143,8 @@
       "discard": "Bỏ thay đổi",
       "stay": "Ở lại",
       "working": "Đang xử lý…",
-      "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở."
+      "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở.",
+      "timeout": "Y?u c?u r?i t?i li?u ?? h?t th?i gian. T?i li?u v?n m?."
     },
     "recovery": {
       "title": "Tìm thấy bản nháp",

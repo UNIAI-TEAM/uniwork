@@ -7,6 +7,23 @@ const scope = { workspaceId: "ws", documentId: "doc" };
 const detail = { id: "doc", workspace_id: "ws", kind: "file", title: "Cloud.docx", revision: "1", current_version: 1 };
 
 describe("main fresh document detail access", () => {
+  it("F-1 regression: uses detail ACL when the list summary omits my_level", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes("/workspaces/ws/documents")) return new Response(JSON.stringify({ documents: [{ ...detail }] }));
+      if (url.endsWith("/documents/doc")) return new Response(JSON.stringify({ document: { ...detail, my_level: "manage" } }));
+      return new Response(null, { status: 404 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const listed = await transport.list({ workspaceId: "ws", mode: "list" });
+    expect(listed.documents[0]?.canEdit).toBe(false);
+    await expect(transport.readDocumentAccess(scope)).resolves.toBe("edit");
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      "http://127.0.0.1:8787/api/v1/workspaces/ws/documents?limit=50&kind=file",
+      "http://127.0.0.1:8787/api/v1/workspaces/ws/members",
+      "http://127.0.0.1:8787/api/v1/documents/doc",
+    ]);
+  });
+
   it.each(["edit", "manage"])("uses live %s detail even when the list omits my_level, without downloading bytes", async (level) => {
     let liveLevel = level;
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
