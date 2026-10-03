@@ -6552,6 +6552,9 @@
     "actions": {
       "menu_label": "More actions",
       "versions": "Version history",
+      "download_original": "Download original file",
+      "upload_version": "Upload new version",
+      "comments": "Comments",
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
@@ -7011,8 +7014,15 @@
       }
     },
     "title": "Office",
+    "shell": {
+      "save": "Save",
+      "save_to_cloud": "Save to UniWork",
+      "save_to_device": "Save to this computer"
+    },
     "desktop": {
-      "action": "Edit in UniWork Office",
+      "action": "Open in UniWork Office",
+      "menu": "UniWork Office options",
+      "download_for": "Download UniWork Office for {{os}}",
       "working": "Preparing UniWork Office…",
       "dirty_title": "Unsaved changes",
       "dirty_description": "Choose which committed version to open in UniWork Office.",
@@ -7109,7 +7119,7 @@
         "permission": "Editing permission required",
         "conflict": "Save conflict",
         "saving": "Saving…",
-        "ready": "Ready to save",
+        "ready": "No changes",
         "error": "Save could not be confirmed"
       },
       "description": {
@@ -7132,7 +7142,18 @@
         "retry": "Try again",
         "done": "Done"
       },
-      "correlation": "Correlation id: {{id}}"
+      "correlation": "Correlation id: {{id}}",
+      "short": {
+        "checkpoint": "Draft on this device",
+        "saved-local": "Saved on this computer",
+        "saved-cloud": "Saved",
+        "not-sent": "Unsaved",
+        "permission": "No edit permission",
+        "conflict": "Save conflict",
+        "saving": "Saving…",
+        "ready": "No changes",
+        "error": "Not saved"
+      }
     },
     "saving": "Saving…",
     "fullscreen": "Enter fullscreen",
@@ -7463,7 +7484,6 @@
       "actionError": "The action could not be completed. Try again.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
-      "saveLocal": "Save file",
       "saveAs": "Save As…",
       "unsupported": "This format is not supported on desktop yet.",
       "local": "Local file",
