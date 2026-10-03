@@ -125,7 +125,7 @@ export function PdfNUpDialog({
             allPages={allPages}
             onAllPagesChange={setAllPages}
             ranges={ranges}
-            onRangesChange={setRanges}
+            onRangesChange={(next) => { setRanges(next); setError(null); }}
             idPrefix="pdf-page-box-nup"
             disabled={locked}
           />
@@ -141,7 +141,7 @@ export function PdfNUpDialog({
                 inputMode="numeric"
                 value={rows}
                 disabled={locked}
-                onChange={(event) => setRows(event.target.value)}
+                onChange={(event) => { setRows(event.target.value); setError(null); }}
               />
             </div>
             <div className="grid gap-1">
@@ -154,7 +154,7 @@ export function PdfNUpDialog({
                 inputMode="numeric"
                 value={cols}
                 disabled={locked}
-                onChange={(event) => setCols(event.target.value)}
+                onChange={(event) => { setCols(event.target.value); setError(null); }}
               />
             </div>
           </div>

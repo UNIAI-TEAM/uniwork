@@ -177,6 +177,7 @@ export function PdfPageSizeDialog({
 
   const updateRect = (index: number, value: string) => {
     setRectFields((current) => current.map((field, at) => (at === index ? value : field)));
+    setError(null);
   };
 
   const submit = () => {
@@ -228,7 +229,7 @@ export function PdfPageSizeDialog({
             allPages={allPages}
             onAllPagesChange={setAllPages}
             ranges={ranges}
-            onRangesChange={setRanges}
+            onRangesChange={(next) => { setRanges(next); setError(null); }}
             idPrefix="pdf-page-box-size"
             disabled={locked}
           />

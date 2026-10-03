@@ -21,8 +21,8 @@ describe("createPdfPageBoxOperationProvider — setPageBox", () => {
 
     await provider.setPageBox({ pages: [2, 1, 2], box: "crop", rect: [0, 0, 595.28, 841.89] });
 
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(submit).toHaveBeenCalledWith([
+    expect(submit.submit).toHaveBeenCalledTimes(1);
+    expect(submit.submit).toHaveBeenCalledWith([
       { op: "setPageBox", pages: [2, 1], box: "crop", rect: [0, 0, 595.28, 841.89] },
     ]);
   });
@@ -31,7 +31,7 @@ describe("createPdfPageBoxOperationProvider — setPageBox", () => {
     const submit = submitter();
     const input: PdfPageBoxSetPageBoxInput = { pages: [1], box: "media", rect: [10, 10, 200, 300] };
     await createPdfPageBoxOperationProvider(submit).setPageBox(input);
-    expect(submit).toHaveBeenCalledWith([
+    expect(submit.submit).toHaveBeenCalledWith([
       { op: "setPageBox", pages: [1], box: "media", rect: [10, 10, 200, 300] },
     ]);
   });
@@ -49,7 +49,7 @@ describe("createPdfPageBoxOperationProvider — setPageBox", () => {
     await expect(provider.setPageBox({ pages: [1], box: "crop", rect: [0, 0, 10] as never })).rejects.toThrow("four finite points");
     await expect(provider.setPageBox({ pages: [1], box: "crop", rect: [0, 0, Number.NaN, 10] })).rejects.toThrow("four finite points");
     await expect(provider.setPageBox({ pages: [1], box: "bleed" as never, rect: [0, 0, 10, 10] })).rejects.toThrow("unsupported page box");
-    expect(submit).not.toHaveBeenCalled();
+    expect(submit.submit).not.toHaveBeenCalled();
   });
 });
 
@@ -57,13 +57,13 @@ describe("createPdfPageBoxOperationProvider — setNUp", () => {
   it("submits a grid without a paper size when none was chosen", async () => {
     const submit = submitter();
     await createPdfPageBoxOperationProvider(submit).setNUp({ pages: [1, 2, 3], layout: { rows: 1, cols: 2 } });
-    expect(submit).toHaveBeenCalledWith([{ op: "setNUp", pages: [1, 2, 3], layout: { rows: 1, cols: 2 } }]);
+    expect(submit.submit).toHaveBeenCalledWith([{ op: "setNUp", pages: [1, 2, 3], layout: { rows: 1, cols: 2 } }]);
   });
 
   it("carries the chosen paper size", async () => {
     const submit = submitter();
     await createPdfPageBoxOperationProvider(submit).setNUp({ pages: [4], layout: { rows: 2, cols: 2 }, paper: "a4" });
-    expect(submit).toHaveBeenCalledWith([
+    expect(submit.submit).toHaveBeenCalledWith([
       { op: "setNUp", pages: [4], layout: { rows: 2, cols: 2 }, paper: "a4" },
     ]);
   });
@@ -77,7 +77,7 @@ describe("createPdfPageBoxOperationProvider — setNUp", () => {
     await expect(provider.setNUp({ pages: [1], layout: { rows: 5, cols: 5 } })).rejects.toThrow(`between 2 and ${MAX_NUP_PAGES_PER_SHEET}`);
     await expect(provider.setNUp({ pages: [], layout: { rows: 1, cols: 2 } })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(provider.setNUp({ pages: [1], layout: { rows: 1, cols: 2 }, paper: "a3" as never })).rejects.toThrow("unsupported paper size");
-    expect(submit).not.toHaveBeenCalled();
+    expect(submit.submit).not.toHaveBeenCalled();
   });
 
   it("keeps every submitted envelope serialisable", async () => {
