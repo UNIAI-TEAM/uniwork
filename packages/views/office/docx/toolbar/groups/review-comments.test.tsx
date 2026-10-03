@@ -33,11 +33,15 @@ vi.mock("@uniwork/ui/components/ui/popover", async () => {
   };
 });
 
-const COMMENTS: DocxCommentInfo[] = [{ id: "1", author: "Alice", text: "xin chào" }];
+const COMMENTS: DocxCommentInfo[] = [
+  { id: "1", author: "Alice", text: "xin chào" },
+  { id: "2", author: "Bob", text: "đồng ý", parentId: "1" },
+];
 
 function runtime(): DocxCommandRuntime {
   return {
     listDocxComments: vi.fn(() => COMMENTS),
+    docxCommentsRevision: vi.fn(() => 0),
     canAddDocxComment: vi.fn(() => true),
     addDocxComment: vi.fn(() => COMMENTS[0]),
     replyToDocxComment: vi.fn(() => null),
@@ -71,9 +75,10 @@ function renderGroup(options: { commands?: DocxCommandRuntime; readOnly?: boolea
 }
 
 describe("ReviewCommentsGroup", () => {
-  it("shows the comment count and opens the pane from the toolbar entry", () => {
+  it("shows the thread count, not the entry count, and opens the pane from the toolbar entry", () => {
     renderGroup();
     const trigger = screen.getByRole("button", { name: "Bình luận" });
+    // one thread with a reply: the badge counts 1, not 2 entries
     expect(trigger).toHaveTextContent("1");
     fireEvent.click(trigger);
     expect(screen.getByText("xin chào")).toBeInTheDocument();

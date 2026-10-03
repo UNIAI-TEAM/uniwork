@@ -16,6 +16,7 @@ import {
 } from "./docx-comment-anchors";
 import {
   applyThreadResolved,
+  commentRootId,
   commentTimestamp,
   nextCommentId,
   removeThread,
@@ -27,6 +28,10 @@ export interface DocxCommentsController {
   /** Replace the list (open/rebase: the parse's own comments). */
   seed(comments: DocxCommentInfo[]): void;
   list(): DocxCommentInfo[];
+  /** Monotonic mutation counter: every accepted list edit advances it, so a
+   * host can detect comment-only changes that leave docChanged false (the F1
+   * dirty-generation fold). Seeding is not a mutation. */
+  revision(): number;
   /** True while the caret/selection can take a new comment. */
   canComment(): boolean;
   /** New comment on the current selection; null when there is nothing to
@@ -49,11 +54,13 @@ export interface DocxCommentsController {
 
 export function createDocxCommentsController(getEditor: () => Editor | null): DocxCommentsController {
   let list: DocxCommentInfo[] = [];
+  let revision = 0;
 
   /** Force a state re-read after a mutation that did not touch the document
-   * (resolve/open of the list): an empty transaction runs TipTap's own
-   * onTransaction -> emitState cycle while docChanged stays false, so the save
-   * generation does not move. */
+   * (resolve/reopen, a delete whose anchors are already gone): an empty
+   * transaction runs TipTap's own onTransaction -> emitState cycle. The
+   * revision bump below is what the handle folds into the save generation
+   * (F1) — docChanged stays false, the dirty signal does not. */
   const touch = (editor: Editor) => {
     editor.view.dispatch(editor.state.tr);
   };
@@ -63,6 +70,7 @@ export function createDocxCommentsController(getEditor: () => Editor | null): Do
       list = comments.map((comment) => ({ ...comment }));
     },
     list: () => list.map((comment) => ({ ...comment })),
+    revision: () => revision,
     canComment: () => {
       const editor = getEditor();
       return editor !== null && selectionRange(editor) !== null;
@@ -81,6 +89,7 @@ export function createDocxCommentsController(getEditor: () => Editor | null): Do
         ...(initials ? { initials } : {}),
       };
       list = [...list, comment];
+      revision += 1;
       touch(editor);
       return { ...comment };
     },
@@ -88,24 +97,31 @@ export function createDocxCommentsController(getEditor: () => Editor | null): Do
       const editor = getEditor();
       const trimmed = text.trim();
       if (!editor || trimmed.length === 0) return null;
-      if (!list.some((comment) => comment.id === parentId)) return null;
+      const parent = list.find((comment) => comment.id === parentId);
+      if (!parent) return null;
       const id = nextCommentId(list);
       if (!addCommentIdToAnchor(editor, parentId, id)) return null;
+      // Word resolves a thread as a unit: a reply into a resolved thread joins
+      // the flag instead of listing as an open entry beside its resolved root.
+      const root = list.find((comment) => comment.id === commentRootId(list, parentId));
       const comment: DocxCommentInfo = {
         id,
         author,
         text: trimmed,
         date: commentTimestamp(),
         parentId,
+        ...(parent.done === true || root?.done === true ? { done: true } : {}),
         ...(initials ? { initials } : {}),
       };
       list = [...list, comment];
+      revision += 1;
       touch(editor);
       return { ...comment };
     },
     resolve: (id, done) => {
       if (!list.some((comment) => comment.id === id)) return false;
       list = applyThreadResolved(list, id, done);
+      revision += 1;
       const editor = getEditor();
       if (editor) touch(editor);
       return true;
@@ -117,6 +133,7 @@ export function createDocxCommentsController(getEditor: () => Editor | null): Do
         for (const victim of threadIds(list, id)) removeCommentAnchor(editor, victim);
       }
       list = removeThread(list, id);
+      revision += 1;
       if (editor) touch(editor);
       return true;
     },

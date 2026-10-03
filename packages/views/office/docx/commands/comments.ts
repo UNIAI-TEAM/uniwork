@@ -15,6 +15,9 @@ export interface DocxCommentsCommands {
   /** Open/restore hook: seed the parse's own comment list. */
   seedDocxComments(comments: DocxCommentInfo[]): void;
   listDocxComments(): DocxCommentInfo[];
+  /** Monotonic comment-mutation counter (F1): the handle compares it across
+   * transactions to turn list-only edits into dirty-generation bumps. */
+  docxCommentsRevision(): number;
   canAddDocxComment(): boolean;
   addDocxComment(text: string, author: string, initials?: string): DocxCommentInfo | null;
   replyToDocxComment(parentId: string, text: string, author: string, initials?: string): DocxCommentInfo | null;
@@ -33,6 +36,7 @@ export function createCommentsCommands(
     commands: {
       seedDocxComments: (comments) => controller.seed(comments),
       listDocxComments: () => controller.list(),
+      docxCommentsRevision: () => controller.revision(),
       canAddDocxComment: () => controller.canComment(),
       addDocxComment: (text, author, initials) => controller.add(text, author, initials),
       replyToDocxComment: (parentId, text, author, initials) => controller.reply(parentId, text, author, initials),

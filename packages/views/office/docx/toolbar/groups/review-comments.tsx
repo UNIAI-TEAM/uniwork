@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { groupCommentThreads } from "../../comments/docx-comment-model";
 import { DocxCommentsPanel } from "../../comments/docx-comments-panel";
 import type { DocxToolbarGroupContext } from "../types";
 
@@ -29,6 +30,10 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
   const author = user?.display_name?.trim() || DEFAULT_COMMENT_AUTHOR;
   const editable = !readOnly && !!commands;
   const canComment = editable && (commands?.canAddDocxComment() ?? false);
+  // Word's badge convention is threads, not entries: replies must not inflate
+  // the count beside the comment icon.
+  const threads = groupCommentThreads(comments);
+  const threadCount = threads.open.length + threads.resolved.length;
   // Read fresh on each render (a cheap .doc-comment pass) so an edited anchor
   // never leaves a stale quote in the pane.
   const anchorTexts = open ? commands?.docxCommentAnchorTexts() ?? EMPTY_ANCHORS : EMPTY_ANCHORS;
@@ -49,7 +54,7 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
         render={
           <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.toolbar.groups.comments")} aria-pressed={open}>
             <MessageSquare aria-hidden />
-            {comments.length > 0 ? <span className="text-caption text-muted-foreground">{comments.length}</span> : null}
+            {threadCount > 0 ? <span className="text-caption text-muted-foreground">{threadCount}</span> : null}
           </Button>
         }
       />
@@ -63,11 +68,12 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
           composing={composing}
           onComposingChange={setComposing}
           onSubmit={(text) => {
-            const created = commands?.addDocxComment(text, author, initials);
+            const created = commands?.addDocxComment(text, author, initials) ?? null;
             if (created) setComposing(false);
+            return created !== null;
           }}
           onReply={(parentId, text) => {
-            commands?.replyToDocxComment(parentId, text, author, initials);
+            return !!commands?.replyToDocxComment(parentId, text, author, initials);
           }}
           onResolve={(id, done) => {
             commands?.resolveDocxComment(id, done);

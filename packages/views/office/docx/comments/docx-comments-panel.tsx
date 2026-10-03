@@ -29,8 +29,11 @@ export interface DocxCommentsPanelProps {
   /** The new-comment composer is open. */
   composing: boolean;
   onComposingChange(composing: boolean): void;
-  onSubmit(text: string): void;
-  onReply(parentId: string, text: string): void;
+  /** True when the comment was created; false keeps the draft (a collapsed
+   * selection or a lost anchor must not silently discard the typed text). */
+  onSubmit(text: string): boolean;
+  /** True when the reply was created; false keeps the draft. */
+  onReply(parentId: string, text: string): boolean;
   onResolve(id: string, done: boolean): void;
   onDelete(id: string): void;
   onJump(id: string): void;
@@ -64,7 +67,9 @@ export function DocxCommentsPanel({
   const submitNew = () => {
     const text = draft.trim();
     if (text.length === 0) return;
-    onSubmit(text);
+    // A refusal (collapsed selection, lost anchor) keeps the composer and the
+    // draft: the user's text is never discarded without a trace (F5).
+    if (!onSubmit(text)) return;
     setDraft("");
     onComposingChange(false);
   };
@@ -72,7 +77,7 @@ export function DocxCommentsPanel({
   const submitReply = (parentId: string) => {
     const text = replyDraft.trim();
     if (text.length === 0) return;
-    onReply(parentId, text);
+    if (!onReply(parentId, text)) return;
     setReplyDraft("");
     setReplyTo(null);
   };

@@ -101,9 +101,10 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
 export interface DocxTiptapSnapshot {
   doc: JSONContent;
   sourceBase64: string;
-  /** The authoritative comment list at capture (B2): comment edits are list
-   * edits, so serializeSnapshot applies them as a set_comments op before the
-   * block plan, and restoreSnapshot re-seeds them. */
+  /** The authoritative comment list at capture (B2) — present only when it
+   * differs from the open base parse's own list (F3): serializeSnapshot then
+   * applies it as a set_comments op before the block plan, while an unchanged
+   * list omits the option so word/comments.xml keeps its exact bytes. */
   comments?: DocxCommentInfo[];
   /** The notes snapshot at capture (B3): footnote/endnote edits are list
    * edits, so serializeSnapshot applies a set_notes op per edited kind before
@@ -147,6 +148,13 @@ async function fingerprintOf(value: unknown): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** F3: the comment list needs the part rewritten exactly when it differs from
+ * the base parse's own list (the bytes every save replays onto). Compared over
+ * the save-relevant fields, in list order — the regenerated part's order. */
+function commentsEdited(current: DocxCommentInfo[], base: DocxCommentInfo[]): boolean {
+  return JSON.stringify(current) !== JSON.stringify(base);
+}
+
 export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTiptapHandle {
   let tiptapEditor: Editor | null = null;
   let ref: string | null = null;
@@ -154,6 +162,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   let openedOutcome: DocxOpenSuccess | null = null;
   let paginationSpec: DocxPaginationSpec | null = null;
   let generation = 0;
+  let lastCommentsRevision = 0;
   let disposed = false;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
   const dirtyListeners = new Set<(generation: number) => void>();
@@ -224,7 +233,17 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // vendored sheet keys the paper and its document rules on that class.
         editorProps: { attributes: { class: "doc-page", ...(docLang ? { lang: docLang } : {}) } },
         onTransaction: ({ transaction }) => {
-          if (transaction.docChanged) {
+          // B2 fix (F1): comment mutations are list edits. Resolve/reopen — and
+          // a delete whose anchors are already gone — leave the document
+          // untouched (the controller dispatches an empty transaction), so the
+          // docChanged gate alone would leave them invisible to the save
+          // coordinator and the save would refuse as `clean`. The comments
+          // area's monotonic revision folds into the same generation, so
+          // subscribeDirty reaches coordinator.markDirty for these edits too.
+          const commentsRevision = commandRuntime.docxCommentsRevision();
+          const commentsChanged = commentsRevision !== lastCommentsRevision;
+          lastCommentsRevision = commentsRevision;
+          if (transaction.docChanged || commentsChanged) {
             generation += 1;
             for (const listener of dirtyListeners) listener(generation);
           }
@@ -249,10 +268,15 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
     async captureSnapshot() {
       if (!tiptapEditor || !ref) throw new Error("docx_snapshot_unavailable");
+      // F3: only an edited list may reach SaveOptions. An unchanged list (or no
+      // comments at all) omits the option, so patch.ts:888 never regenerates
+      // word/comments.xml and no comment-free document gains an empty part.
+      const comments = commandRuntime.listDocxComments();
+      const baseComments = options.adapter.parsedOf(ref).comments ?? [];
       const value: DocxTiptapSnapshot = {
         doc: tiptapEditor.getJSON(),
         sourceBase64,
-        comments: commandRuntime.listDocxComments(),
+        ...(commentsEdited(comments, baseComments) ? { comments } : {}),
         notes: commandRuntime.snapshotDocxNotes(),
         pageSetup: commandRuntime.listDocxPageSetupEdits(),
       };
@@ -309,7 +333,11 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       if (!tiptapEditor || !ref || options.readOnly) throw new Error("docx_restore_unavailable");
       if (snapshot.value.sourceBase64 !== sourceBase64) throw new Error("docx_draft_base_mismatch");
       tiptapEditor.commands.setContent(snapshot.value.doc);
-      commandRuntime.seedDocxComments(snapshot.value.comments ?? []);
+      // A snapshot without comments was captured clean (F3), so the draft's
+      // base parse still owns the list; an edited draft restores its own.
+      commandRuntime.seedDocxComments(
+        snapshot.value.comments ?? options.adapter.parsedOf(ref).comments ?? [],
+      );
       // A draft captured before the notes field restores the open parse's own
       // lists (its base is the same source bytes — asserted above).
       const notes = snapshot.value.notes;

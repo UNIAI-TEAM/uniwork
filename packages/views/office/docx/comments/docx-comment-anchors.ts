@@ -15,6 +15,11 @@ const COMMENT_MARK = "comment";
 const ANCHOR_ATTRS = ["commentStarts", "commentEnds"] as const;
 type AnchorAttr = (typeof ANCHOR_ATTRS)[number];
 
+/** Upstream's revisions.ts:46 TRACK_IGNORE key (not re-exported by the shim, so
+ * the pinned vendored constant is mirrored here). Anchor transactions are not
+ * track-changes edits: the recorder must never log a comment mark/attr move. */
+const TRACK_IGNORE_META = "trackIgnore";
+
 function idList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
@@ -85,6 +90,7 @@ export function addCommentAnchor(editor: Editor, id: string): boolean {
       tr.addMark(from, to, markType.create({ ids: [...ids].sort().join(" ") }));
     });
     if (!tr.docChanged) return false;
+    tr.setMeta(TRACK_IGNORE_META, true);
     editor.view.dispatch(tr);
     return true;
   }
@@ -95,6 +101,7 @@ export function addCommentAnchor(editor: Editor, id: string): boolean {
   if (!start || !end) return false;
   tr.setNodeMarkup(start.pos, undefined, { ...start.node.attrs, commentStarts: [...new Set([...idList(start.node.attrs.commentStarts), id])].sort((a, b) => a.localeCompare(b)) });
   tr.setNodeMarkup(end.pos, undefined, { ...end.node.attrs, commentEnds: [...new Set([...idList(end.node.attrs.commentEnds), id])].sort((a, b) => a.localeCompare(b)) });
+  tr.setMeta(TRACK_IGNORE_META, true);
   editor.view.dispatch(tr);
   return true;
 }
@@ -126,7 +133,10 @@ export function addCommentIdToAnchor(editor: Editor, anchorId: string, newId: st
       setBlockAnchorAttr(tr, pos, attr, newId, true);
     }
   });
-  if (tr.docChanged) editor.view.dispatch(tr);
+  if (tr.docChanged) {
+    tr.setMeta(TRACK_IGNORE_META, true);
+    editor.view.dispatch(tr);
+  }
   return found;
 }
 
@@ -157,7 +167,10 @@ export function removeCommentAnchor(editor: Editor, id: string): void {
       if (idList(node.attrs[attr]).includes(id)) setBlockAnchorAttr(tr, pos, attr, id, false);
     }
   });
-  if (tr.docChanged) editor.view.dispatch(tr);
+  if (tr.docChanged) {
+    tr.setMeta(TRACK_IGNORE_META, true);
+    editor.view.dispatch(tr);
+  }
 }
 
 /** True when the open document still carries `id` (panel hint for a comment
@@ -195,17 +208,30 @@ export function collectCommentAnchorTexts(editor: Editor): Map<string, string> {
   return out;
 }
 
-/** Scroll the first anchor of `id` into view and flash every piece of it. */
+/** Scroll the first anchor of `id` into view and flash every piece of it.
+ * In-paragraph ranges ride `.doc-comment` spans; a cross-paragraph range has
+ * no span (F4) — its boundary blocks carry commentStarts/commentEnds — so the
+ * block elements themselves are flashed, like upstream margin-annotations. */
 export function jumpToCommentAnchor(editor: Editor, id: string): boolean {
   const root = editor.view.dom as HTMLElement | null;
   if (!root) return false;
   const targets = [...root.querySelectorAll<HTMLElement>(".doc-comment")].filter((span) =>
     (span.dataset.commentIds ?? "").split(" ").includes(id),
   );
-  const first = targets[0];
+  const blocks: HTMLElement[] = [];
+  if (targets.length === 0) {
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isBlock) return true;
+      if (!ANCHOR_ATTRS.some((attr) => idList(node.attrs[attr]).includes(id))) return true;
+      const dom = editor.view.nodeDOM(pos);
+      if (dom && dom.nodeType === 1) blocks.push(dom as HTMLElement);
+      return true;
+    });
+  }
+  const first = targets[0] ?? blocks[0];
   if (!first) return false;
   if (typeof first.scrollIntoView === "function") first.scrollIntoView({ behavior: "smooth", block: "center" });
-  for (const target of targets) {
+  for (const target of [...targets, ...blocks]) {
     target.classList.remove("doc-comment-flash");
     void target.offsetWidth;
     target.classList.add("doc-comment-flash");

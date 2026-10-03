@@ -18,8 +18,8 @@ function renderPanel(overrides: Partial<DocxCommentsPanelProps> = {}) {
     canComment: true,
     composing: false,
     onComposingChange: vi.fn(),
-    onSubmit: vi.fn(),
-    onReply: vi.fn(),
+    onSubmit: vi.fn(() => true),
+    onReply: vi.fn(() => true),
     onResolve: vi.fn(),
     onDelete: vi.fn(),
     onJump: vi.fn(),
@@ -67,6 +67,17 @@ describe("DocxCommentsPanel", () => {
     fireEvent.change(screen.getByLabelText("Nhập nội dung trả lời…"), { target: { value: "phản hồi" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     expect(props.onReply).toHaveBeenCalledWith("1", "phản hồi");
+  });
+
+  it("keeps the typed text when the submission is refused (F5)", () => {
+    const props = renderPanel({ composing: true, onSubmit: vi.fn(() => false) });
+    const input = screen.getByLabelText("Nhập nội dung bình luận…");
+    fireEvent.change(input, { target: { value: "không mất chữ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    expect(props.onSubmit).toHaveBeenCalledWith("không mất chữ");
+    // the composer stays open with the draft intact
+    expect(props.onComposingChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Nhập nội dung bình luận…")).toHaveValue("không mất chữ");
   });
 
   it("resolves and reopens through the thread action", () => {

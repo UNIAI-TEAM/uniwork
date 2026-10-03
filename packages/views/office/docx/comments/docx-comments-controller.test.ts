@@ -85,6 +85,30 @@ describe("docx comments controller", () => {
     expect(editor.state.doc.child(0).attrs.commentStarts).toEqual([id]);
     expect(editor.state.doc.child(1).attrs.commentEnds).toEqual([id]);
     expect(anchoredIds(editor)).toEqual([id]);
+    // F4: a block-anchored range has no .doc-comment span; the jump still
+    // reaches the boundary blocks instead of silently no-op'ing.
+    expect(controller.jump(id)).toBe(true);
+  });
+
+  it("advances the revision on every accepted mutation and keeps it on refusals", () => {
+    editor = createEditor();
+    const controller = createDocxCommentsController(() => editor);
+    expect(controller.revision()).toBe(0);
+    controller.seed([{ id: "1", author: "A", text: "seeded" }]);
+    expect(controller.revision()).toBe(0);
+    expect(controller.add("no selection", "Tester")).toBeNull();
+    expect(controller.revision()).toBe(0);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    controller.add("parent", "Tester");
+    expect(controller.revision()).toBe(1);
+    controller.reply("1", "reply", "Tester");
+    expect(controller.revision()).toBe(2);
+    controller.resolve("1", true);
+    expect(controller.revision()).toBe(3);
+    expect(controller.resolve("404", true)).toBe(false);
+    expect(controller.revision()).toBe(3);
+    controller.remove("1");
+    expect(controller.revision()).toBe(4);
   });
 
   it("shares the parent anchor on reply and refuses an unknown parent", () => {
@@ -96,6 +120,17 @@ describe("docx comments controller", () => {
     const reply = controller.reply("1", "agreed", "Tester");
     expect(reply).toMatchObject({ id: "2", parentId: "1" });
     expect(anchoredIds(editor)).toEqual(["1", "2"]);
+  });
+
+  it("keeps a resolved thread's flag on a new reply", () => {
+    editor = createEditor();
+    const controller = createDocxCommentsController(() => editor);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    controller.add("parent", "Tester");
+    controller.resolve("1", true);
+    const reply = controller.reply("1", "still resolved", "Tester");
+    expect(reply).toMatchObject({ id: "2", parentId: "1", done: true });
+    expect(controller.list().map((c) => c.done)).toEqual([true, true]);
   });
 
   it("resolves and reopens a thread, refusing unknown ids", () => {

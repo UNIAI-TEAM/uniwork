@@ -18,9 +18,40 @@ export function nextCommentId(comments: readonly DocxCommentInfo[]): string {
   return String(max + 1);
 }
 
-/** The ids a delete/resolve acts on: the comment plus its direct replies. */
+/** The id of the comment that roots `id`'s thread: the topmost reachable
+ * ancestor, whether it has no parent at all or its parent is missing from the
+ * list (an orphan chain still renders as one thread). A parent cycle is not a
+ * thread — every member degrades to its own root, so the entries stay visible.
+ * Known ids without a parent return themselves. */
+export function commentRootId(comments: readonly DocxCommentInfo[], id: string): string {
+  const byId = new Map(comments.map((comment) => [comment.id, comment]));
+  let current = byId.get(id);
+  const seen = new Set([id]);
+  while (current?.parentId !== undefined) {
+    const parent = byId.get(current.parentId);
+    if (!parent) return current.id;
+    if (seen.has(parent.id)) return id;
+    seen.add(parent.id);
+    current = parent;
+  }
+  return current?.id ?? id;
+}
+
+/** The ids a delete/resolve acts on: the comment plus its whole reply subtree,
+ * transitively (files can carry replies to replies), cycle-safe. */
 export function threadIds(comments: readonly DocxCommentInfo[], id: string): string[] {
-  return [id, ...comments.filter((comment) => comment.parentId === id).map((comment) => comment.id)];
+  const ids = new Set([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const comment of comments) {
+      if (comment.parentId !== undefined && ids.has(comment.parentId) && !ids.has(comment.id)) {
+        ids.add(comment.id);
+        grew = true;
+      }
+    }
+  }
+  return comments.filter((comment) => ids.has(comment.id)).map((comment) => comment.id);
 }
 
 /** Resolve/reopen a whole thread (Word sets the flag on every entry). */
@@ -39,19 +70,19 @@ export function removeThread(comments: readonly DocxCommentInfo[], id: string): 
   return comments.filter((comment) => !ids.has(comment.id));
 }
 
-/** Split the list into open and resolved threads (reply-only entries never
- * stand alone — an orphan reply degrades into its own thread so it stays
- * visible instead of disappearing from every filter). */
+/** Split the list into open and resolved threads. A reply attaches to its
+ * chain root (replies to replies were invisible with a direct-children rule);
+ * an entry whose chain has no root (missing parent, cycle) roots its own thread
+ * so it stays visible instead of disappearing from every filter. */
 export function groupCommentThreads(comments: readonly DocxCommentInfo[]): {
   open: DocxCommentThread[];
   resolved: DocxCommentThread[];
 } {
-  const ids = new Set(comments.map((comment) => comment.id));
-  const roots = comments.filter((comment) => comment.parentId === undefined || !ids.has(comment.parentId));
+  const roots = comments.filter((comment) => commentRootId(comments, comment.id) === comment.id);
   const threads = roots.map((comment) => ({
     id: comment.id,
     comment,
-    replies: comments.filter((c) => c.parentId === comment.id),
+    replies: comments.filter((c) => c.id !== comment.id && commentRootId(comments, c.id) === comment.id),
   }));
   return {
     open: threads.filter((thread) => thread.comment.done !== true),
