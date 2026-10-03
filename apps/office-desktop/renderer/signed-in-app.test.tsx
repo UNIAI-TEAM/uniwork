@@ -1,9 +1,14 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
+import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+
+installDocxGeometry();
+const fixtureBase64 = Buffer.from(docxSource).toString("base64");
+const fixtureChecksum = bytesChecksum(docxSource);
 
 const sessions = vi.hoisted(() => new Map<string, import("./office/session").ByteDocumentSession>());
 vi.mock("./office/session", async (importOriginal) => {
@@ -15,11 +20,15 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
+afterEach(() => { for (const session of sessions.values()) session.dispose(); sessions.clear(); });
 
 function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
-  const checksum = `sha256:${"a".repeat(64)}`;
+  const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
+  let savedChecksum = checksum;
+  let savedVersion = 1;
+  let savedRevision = "1";
   let sessionListener: ((value: DesktopSessionMetadata) => void) | undefined;
   let nativeSave: ((value: { documentId: string }) => void) | undefined;
   let hostLeave: ((value: { requestId: string; reason: "close" }) => void) | undefined;
@@ -30,13 +39,13 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: "aGVsbG8=", checksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
     if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
     if (channel === "desktop:draft-checkpoint") {
       const parts = request.draftId!.split(":");
       drafts.set(request.draftId!, {
-        draftId: request.draftId!, generation: request.generation!, checksum, byteLength: 5, updatedAt: Date.now(),
+        draftId: request.draftId!, generation: request.generation!, checksum, byteLength: docxSource.length, updatedAt: Date.now(),
         identity: { deploymentId: "lane", accountId: account, organizationId: "org", workspaceId: "ws", documentId: request.documentId!, base: { version: parts.at(-2)!, revision: parts.at(-1)! } },
       });
       return { stored: true, generation: request.generation };
@@ -45,7 +54,9 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:office-save") {
       await options.beforeSave?.();
       if (options.failSave) throw new Error("save refused");
-      return { documentId: request.documentId, intentId: request.intentId, idempotencyKey: request.idempotencyKey, versionId: "2", revision: "2", checksum };
+      savedChecksum = (payload as { checksum: string }).checksum;
+      savedVersion = 2; savedRevision = "2";
+      return { documentId: request.documentId, intentId: request.intentId, idempotencyKey: request.idempotencyKey, versionId: String(savedVersion), revision: savedRevision, checksum: savedChecksum };
     }
     if (channel === "desktop:auth-logout") {
       if (options.failLogout) throw new Error("logout unavailable");
@@ -75,6 +86,7 @@ async function open(index: number) {
 /** Simulate an engine edit through its snapshot contract, without wiring G4-06b. */
 async function edit(id: string) {
   const session = sessions.get(id)!;
+  await session.openEditor();
   const snapshot = await session.editor.captureSnapshot();
   vi.spyOn(session.editor, "captureSnapshot").mockResolvedValue({ ...snapshot, generation: 1 });
   vi.spyOn(session.editor, "getDirtyGeneration").mockReturnValue(1);

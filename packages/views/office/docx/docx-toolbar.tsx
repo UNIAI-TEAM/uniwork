@@ -95,19 +95,21 @@ export function DocxToolbar({
         <UnderlineIcon aria-hidden />
       </Button>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-      <Select
-        aria-label={t("office.docx.commands.heading")}
-        triggerVariant="subtle"
-        value={headingValue}
-        disabled={blocked}
-        onValueChange={(value) => commands?.setHeading(value === "paragraph" ? null : Number(value))}
-        items={[
-          { value: "paragraph", label: t("office.docx.commands.headingParagraph") },
-          { value: "1", label: t("office.docx.commands.headingLevel", { level: "1" }) },
-          { value: "2", label: t("office.docx.commands.headingLevel", { level: "2" }) },
-          { value: "3", label: t("office.docx.commands.headingLevel", { level: "3" }) },
-        ]}
-      />
+      <div className="w-36 shrink-0">
+        <Select
+          aria-label={t("office.docx.commands.heading")}
+          triggerVariant="subtle"
+          value={headingValue}
+          disabled={blocked}
+          onValueChange={(value) => commands?.setHeading(value === "paragraph" ? null : Number(value))}
+          items={[
+            { value: "paragraph", label: t("office.docx.commands.headingParagraph") },
+            { value: "1", label: t("office.docx.commands.headingLevel", { level: "1" }) },
+            { value: "2", label: t("office.docx.commands.headingLevel", { level: "2" }) },
+            { value: "3", label: t("office.docx.commands.headingLevel", { level: "3" }) },
+          ]}
+        />
+      </div>
       <Button
         type="button"
         variant="toolbar"

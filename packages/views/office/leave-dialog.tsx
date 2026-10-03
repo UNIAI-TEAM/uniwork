@@ -146,7 +146,7 @@ export function DraftRecoveryPrompt({
   onKeep,
   onOpenChange,
 }: DraftRecoveryPromptProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.recovery" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.recovery" });
   const [pending, setPending] = useState<"recover" | "discard" | "keep" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,7 +171,7 @@ export function DraftRecoveryPrompt({
           <DialogTitle>{t(conflict ? "conflict_title" : "title")}</DialogTitle>
           <DialogDescription>
             {t(conflict ? "conflict_description" : "description")}
-            {metadata ? <span className="mt-2 block text-caption">{t("updated", { date: new Date(metadata.updatedAt).toLocaleString() })}</span> : null}
+            {metadata ? <span className="mt-2 block text-caption">{t("updated", { date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(metadata.updatedAt)) })}</span> : null}
           </DialogDescription>
         </DialogHeader>
         {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
