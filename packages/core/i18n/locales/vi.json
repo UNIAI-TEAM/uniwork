@@ -7285,7 +7285,146 @@
       "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
       "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
       "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa Markdown.",
-      "errors": { "title": "Không mở được tài liệu Markdown này", "unknown": "Adapter Markdown trả về lỗi mở không xác định." }
+      "errors": { "title": "Không mở được tài liệu Markdown này", "unknown": "Adapter Markdown trả về lỗi mở không xác định." },
+      "wysiwyg": {
+        "label": "Trình soạn thảo trực quan",
+        "blockStyle": "Kiểu đoạn văn",
+        "paragraph": "Văn bản thường",
+        "heading": "Tiêu đề {{level}}",
+        "quote": "Trích dẫn",
+        "codeBlock": "Khối code",
+        "bold": "In đậm",
+        "italic": "In nghiêng",
+        "strike": "Gạch ngang",
+        "inlineCode": "Code trong dòng",
+        "link": "Liên kết",
+        "linkApply": "Áp dụng liên kết",
+        "linkRemove": "Gỡ liên kết",
+        "linkPlaceholder": "Dán URL",
+        "bulletList": "Danh sách dấu đầu dòng",
+        "orderedList": "Danh sách đánh số",
+        "taskList": "Danh sách việc cần làm",
+        "insertTable": "Chèn bảng",
+        "insertImage": "Chèn ảnh",
+        "insertHr": "Chèn đường kẻ",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu lên UniWork",
+        "viewSource": "Xem mã nguồn",
+        "viewWysiwyg": "Xem trực quan",
+        "viewOutline": "Xem dàn ý",
+        "viewFrontmatter": "Xem front-matter",
+        "rawBlock": "Khối giữ nguyên",
+        "rawBlockHint": "Trình soạn thảo trực quan không hiển thị được khối này nên giữ nguyên mã nguồn."
+      },
+      "slash": {
+        "label": "Chèn nội dung",
+        "empty": "Không có mục phù hợp",
+        "paragraph": "Văn bản",
+        "heading1": "Tiêu đề 1",
+        "heading2": "Tiêu đề 2",
+        "heading3": "Tiêu đề 3",
+        "bulletList": "Danh sách dấu đầu dòng",
+        "orderedList": "Danh sách đánh số",
+        "taskList": "Danh sách việc cần làm",
+        "quote": "Trích dẫn",
+        "codeBlock": "Khối code",
+        "table": "Bảng",
+        "hr": "Đường kẻ",
+        "math": "Công thức",
+        "diagram": "Sơ đồ",
+        "image": "Ảnh"
+      },
+      "table": {
+        "label": "Bảng",
+        "addRowBefore": "Thêm hàng trên",
+        "addRowAfter": "Thêm hàng dưới",
+        "addColumnBefore": "Thêm cột trái",
+        "addColumnAfter": "Thêm cột phải",
+        "deleteRow": "Xóa hàng",
+        "deleteColumn": "Xóa cột",
+        "toggleHeaderRow": "Bật hàng tiêu đề",
+        "deleteTable": "Xóa bảng"
+      },
+      "code": {
+        "language": "Ngôn ngữ",
+        "languagePlaceholder": "Chọn ngôn ngữ",
+        "plain": "Văn bản thường",
+        "copy": "Sao chép code",
+        "copied": "Đã sao chép code",
+        "copyFailed": "Không sao chép được code. Thử lại."
+      },
+      "diagram": {
+        "label": "Sơ đồ Mermaid",
+        "rendering": "Đang vẽ sơ đồ…",
+        "renderError": "Không hiển thị được sơ đồ. Kiểm tra lại cú pháp Mermaid.",
+        "template": "Chèn sơ đồ mẫu",
+        "edit": "Sửa mã sơ đồ",
+        "showSource": "Xem mã sơ đồ",
+        "showDiagram": "Xem sơ đồ"
+      },
+      "math": {
+        "inlineLabel": "Công thức trong dòng",
+        "blockLabel": "Công thức khối",
+        "insertInline": "Chèn công thức trong dòng",
+        "insertBlock": "Chèn công thức khối",
+        "edit": "Sửa công thức",
+        "latexPlaceholder": "Nhập LaTeX",
+        "renderError": "Không hiển thị được công thức. Kiểm tra lại cú pháp LaTeX.",
+        "pasteNormalised": "Đã chuyển công thức đã dán sang LaTeX."
+      },
+      "image": {
+        "viewer": "Xem ảnh",
+        "uploading": "Đang tải ảnh lên…",
+        "uploadFailed": "Không tải được ảnh lên. Thử lại.",
+        "altLabel": "Chữ thay thế",
+        "altPlaceholder": "Mô tả ngắn cho ảnh",
+        "altMissing": "Ảnh thiếu chữ thay thế.",
+        "close": "Đóng ảnh"
+      },
+      "outline": {
+        "title": "Dàn ý",
+        "empty": "Chưa có tiêu đề nào.",
+        "resize": "Đổi kích thước dàn ý",
+        "jump": "Tới tiêu đề {{title}}"
+      },
+      "frontmatter": {
+        "title": "Front-matter",
+        "empty": "Tài liệu không có front-matter.",
+        "preserved": "Giữ nguyên front-matter khi bạn không sửa."
+      },
+      "find": {
+        "title": "Tìm và thay thế",
+        "findPlaceholder": "Tìm trong tài liệu",
+        "replacePlaceholder": "Thay bằng",
+        "caseSensitive": "Phân biệt chữ hoa chữ thường",
+        "wholeWord": "Toàn bộ từ",
+        "regex": "Biểu thức chính quy",
+        "replace": "Thay",
+        "replaceAll": "Thay tất cả",
+        "next": "Kết quả tiếp theo",
+        "previous": "Kết quả trước",
+        "matchCount_one": "{{count}} kết quả",
+        "matchCount_other": "{{count}} kết quả",
+        "noMatches": "Không có kết quả",
+        "close": "Đóng thanh tìm"
+      },
+      "print": {
+        "title": "In",
+        "browser": "In bằng trình duyệt",
+        "host": "In bằng UniWork Office",
+        "notAvailable": "Chưa hỗ trợ in tại đây.",
+        "exportPdf": "Xuất PDF",
+        "exportDocx": "Xuất DOCX",
+        "exportNotAvailable": "Chưa hỗ trợ xuất định dạng này."
+      },
+      "view": {
+        "label": "Chế độ xem",
+        "source": "Mã nguồn",
+        "wysiwyg": "Trực quan",
+        "outline": "Dàn ý",
+        "frontmatter": "Front-matter"
+      }
     },
     "html": {
       "title": "Tài liệu HTML",
@@ -7297,7 +7436,72 @@
       "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
       "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
       "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa HTML.",
-      "errors": { "title": "Không mở được tài liệu HTML này", "unknown": "Adapter HTML trả về lỗi mở không xác định." }
+      "errors": { "title": "Không mở được tài liệu HTML này", "unknown": "Adapter HTML trả về lỗi mở không xác định." },
+      "view": {
+        "label": "Chế độ xem",
+        "preview": "Xem trước",
+        "split": "Chia đôi",
+        "source": "Mã nguồn"
+      },
+      "present": {
+        "enter": "Trình bày",
+        "exit": "Thoát trình bày",
+        "label": "Chế độ trình bày"
+      },
+      "zoom": {
+        "in": "Phóng to",
+        "out": "Thu nhỏ",
+        "reset": "Cỡ mặc định",
+        "level": "Mức thu phóng {{percent}}%"
+      },
+      "ribbon": {
+        "label": "Chèn nội dung",
+        "heading": "Tiêu đề",
+        "paragraph": "Đoạn văn",
+        "imageFile": "Ảnh từ máy",
+        "imageUrl": "Ảnh từ URL",
+        "imageUrlPlaceholder": "Dán URL ảnh",
+        "table": "Bảng",
+        "tableSize": "Bảng {{rows}} x {{cols}}",
+        "tableSizeLabel": "Chọn kích thước bảng",
+        "list": "Danh sách",
+        "button": "Nút",
+        "section": "Khối nội dung"
+      },
+      "float": {
+        "label": "Sửa nhanh",
+        "bold": "In đậm",
+        "italic": "In nghiêng",
+        "fontSizeIncrease": "Tăng cỡ chữ",
+        "fontSizeDecrease": "Giảm cỡ chữ",
+        "colour": "Màu chữ",
+        "editText": "Sửa chữ",
+        "moveUp": "Đưa lên",
+        "moveDown": "Đưa xuống",
+        "duplicate": "Nhân bản",
+        "delete": "Xóa",
+        "openStylePanel": "Mở bảng kiểu"
+      },
+      "style": {
+        "title": "Kiểu",
+        "typography": "Kiểu chữ",
+        "fontFamily": "Phông chữ",
+        "fontSize": "Cỡ chữ",
+        "lockAspect": "Giữ tỉ lệ",
+        "background": "Nền",
+        "opacity": "Độ mờ",
+        "imageAlt": "Chữ thay thế",
+        "imageFit": "Cách hiển thị ảnh",
+        "customCss": "CSS riêng",
+        "customCssPlaceholder": "Nhập CSS cho phần tử này",
+        "revert": "Khôi phục"
+      },
+      "inline": {
+        "editHint": "Nhấp đúp để sửa chữ",
+        "editing": "Đang sửa chữ…",
+        "move": "Di chuyển",
+        "resize": "Đổi kích thước"
+      }
     },
     "pptx": {
       "toolbar_label": "Lệnh PowerPoint",
@@ -7382,6 +7586,10 @@
       "newTab": "Mở tab mới",
       "allTabs": "Tất cả tab",
       "createDocx": "Tạo tài liệu DOCX",
+      "createMarkdown": "Tạo tài liệu Markdown",
+      "createHtml": "Tạo tài liệu HTML",
+      "openMarkdown": "Mở tệp Markdown",
+      "openHtml": "Mở tệp HTML",
       "openLocal": "Mở tệp trên máy",
       "account": "Tài khoản: {{name}}",
       "accountUnknown": "Tài khoản UniWork",
@@ -7445,13 +7653,29 @@
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",
+      "saveLocalFormat": "Lưu tệp {{format}}",
       "saveAs": "Lưu thành…",
       "unsupported": "Định dạng này chưa được hỗ trợ trên desktop.",
       "local": "Tệp trên máy",
       "ownerUnknown": "Thành viên workspace",
       "updated": "Cập nhật {{time}}",
       "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
-      "draftRecovered": "Đã khôi phục bản nháp đã chọn."
+      "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
+      "format": {
+        "label": "Định dạng",
+        "all": "Tất cả định dạng",
+        "markdown": "Markdown",
+        "html": "HTML"
+      },
+      "saveFilters": {
+        "markdown": "Tài liệu Markdown",
+        "html": "Tài liệu HTML",
+        "allFiles": "Tất cả tệp"
+      },
+      "notice": {
+        "unsupportedFormat": "Định dạng tệp này chưa mở được trên desktop.",
+        "readonlyFormat": "Tệp này mở ở chế độ chỉ đọc trên desktop."
+      }
     },
     "local": {
       "title": "Tệp trên máy",
