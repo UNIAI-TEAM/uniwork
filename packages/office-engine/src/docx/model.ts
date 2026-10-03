@@ -25,7 +25,9 @@ import {
   type DocxSaveBlock,
   type DocxSaveOptions,
 } from "./engine";
+import { DocxFieldEdits, isDocxFieldEdit, type DocxFieldEdit } from "./fields";
 import { DocxNumberingEdits } from "./numbering";
+import { visibleIndexes } from "./plan-view";
 import { DocxPageDecorState, isPageDecorEdit, type DocxPageBorders, type DocxPageDecorEdit, type DocxThemeColors, type DocxThemeFonts, type DocxWatermark } from "./page-decor";
 import { cloneNote, requireCommentEntry, requireImageBytes, requireNote } from "./payloads";
 import { DocxProtectionEdits, isProtectionOp, type DocxProtectionOp } from "./protection";
@@ -53,6 +55,8 @@ export {
 // B6 page-decoration surface: readPageDecor/readPageBorders/applyPageBorders,
 // the border style list and the op/options types.
 export * from "./page-decor";
+// The session-plan view helpers moved to ./plan-view (B7, 500-line budget).
+export { editableIndexes, plainText, visibleIndexes } from "./plan-view";
 
 /** One plan row: an original block ref, or the replacement the model carries. */
 type PlanEntry =
@@ -79,32 +83,10 @@ export type DocxEdit =
   | { op: "insert_numbering_def"; def: DocxNewNumberingDef }
   | { op: "restart_numbering"; restart: DocxRestartNumbering }
   | DocxProtectionOp
-  | DocxPageDecorEdit;
+  | DocxPageDecorEdit
+  | DocxFieldEdit;
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
-
-/** Every legal original top-level block in document order — the only set a
- * save plan may draw originals from. Hidden blocks are not listed; saveDocx
- * appends them automatically. */
-export function visibleIndexes(parsed: DocxParsed): number[] {
-  return parsed.blocks
-    .filter((b) => !b.hidden && b.docxIndex !== null)
-    .map((b) => b.docxIndex as number);
-}
-
-/** Visible paragraphs — the text-editable subset. Headings/lists/tables/
- * images/passthrough stay inventoried but are never silently retyped. */
-export function editableIndexes(parsed: DocxParsed): number[] {
-  return parsed.blocks
-    .filter((b) => !b.hidden && b.docxIndex !== null && b.type === "paragraph")
-    .map((b) => b.docxIndex as number);
-}
-
-export function plainText(parsed: DocxParsed): string {
-  return parsed.blocks
-    .map((b) => (b.runs ?? []).map((r) => r.text ?? "").join(""))
-    .join("\n");
-}
 
 export class DocxSessionModel {
   /** The engine's parse handle — passed back to saveDocx untouched. */
@@ -126,6 +108,18 @@ export class DocxSessionModel {
   private readonly pageDecor = new DocxPageDecorState(() => { this.touched = true; this.revision += 1; });
   /** Pending protection edits (C3); see ./protection. */
   private readonly protection = new DocxProtectionEdits(() => { this.touched = true; this.revision += 1; });
+  /** TOC/caption edits (B7); see ./fields. The plan surface below is the only
+   * way the field module reaches this session. */
+  private readonly fieldEdits = new DocxFieldEdits({
+    insertXml: (index, xml) => {
+      const row: PlanEntry = { source: "xml", xml };
+      this.insertAt(index, row);
+      return row;
+    },
+    insertParagraph: (index, runs) => this.insertAt(index, { source: "generated", block: { type: "paragraph", runs } }),
+    rows: () => this.plan,
+    edited: () => { this.touched = true; this.revision += 1; },
+  });
 
   constructor(parsed: DocxParsed) {
     this.parsed = parsed;
@@ -553,6 +547,7 @@ export class DocxSessionModel {
   applyEdit(edit: DocxEdit): void {
     if (isPageDecorEdit(edit)) return this.pageDecor.applyEdit(this.parsed, edit);
     if (isProtectionOp(edit)) return this.protection.applyEdit(edit);
+    if (isDocxFieldEdit(edit)) return this.fieldEdits.applyEdit(this.parsed, edit);
     switch (edit.op) {
       case "set_paragraph_text":
         return this.setParagraphText(edit.docxIndex, edit.runs);
