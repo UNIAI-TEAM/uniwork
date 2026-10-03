@@ -45,6 +45,33 @@ export type {
   PdfInkOperationSubmitter,
   PdfInkProviderOptions,
 } from "./ink";
+export { createBrowserPdfPrintPort, markPdfPrintSurface, PdfPrintButton, PdfPrintError } from "./print";
+export type { BrowserPdfPrintEnvironment, PdfPrintButtonProps, PdfPrintFailureCode, PdfPrintPort } from "./print";
+export {
+  DEFAULT_PDF_EXPORT_SCALE,
+  downloadPdfBytes,
+  downloadPdfPageFile,
+  exportPdfPages,
+  pdfCopyFileName,
+  pdfPageFileName,
+  PdfExportButton,
+  PdfExportError,
+  PdfSaveCopyButton,
+  safePdfFileStem,
+  savePdfCopy,
+} from "./export";
+export type {
+  PdfBytesSaver,
+  PdfExportButtonProps,
+  PdfExportFailureCode,
+  PdfOutputPort,
+  PdfPageExportFile,
+  PdfPageExportProgress,
+  PdfPageExportRequest,
+  PdfPageSaver,
+  PdfSaveCopyButtonProps,
+  PdfSaveCopyRequest,
+} from "./export";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,
