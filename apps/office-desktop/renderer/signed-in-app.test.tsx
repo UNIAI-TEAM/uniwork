@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
@@ -21,6 +21,8 @@ vi.mock("./office/session", async (importOriginal) => {
 });
 beforeEach(() => sessions.clear());
 afterEach(async () => {
+  // Unmount first so no view callback outlives its editor.
+  cleanup();
   for (const session of sessions.values()) session.dispose();
   sessions.clear();
   // The vendored docx reader parses on setImmediate ticks that dispose() does

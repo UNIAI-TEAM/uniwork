@@ -15,7 +15,8 @@ export function DocxNoteAreas({ editor, parsed }: { editor: Editor; parsed: Rend
     let frame = 0;
     let disposed = false;
     const measure = () => {
-      if (disposed) return;
+      // The session can destroy the editor before React unmounts this area.
+      if (disposed || editor.isDestroyed) return;
       const pm = editor.view.dom;
       setGapNoteIds(new Set(Array.from(pm.querySelectorAll<HTMLElement>(".page-gap-note[data-note-id]")).map((row) => row.dataset.noteId as string)));
       const wrap = pm.closest(".page-wrap");
