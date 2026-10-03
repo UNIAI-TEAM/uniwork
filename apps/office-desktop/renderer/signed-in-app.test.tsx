@@ -25,6 +25,7 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
+  let savedChecksum = checksum;
   let sessionListener: ((value: DesktopSessionMetadata) => void) | undefined;
   let nativeSave: ((value: { documentId: string }) => void) | undefined;
   let hostLeave: ((value: { requestId: string; reason: "close" }) => void) | undefined;
@@ -35,7 +36,7 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
     if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
     if (channel === "desktop:draft-checkpoint") {
@@ -50,7 +51,8 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:office-save") {
       await options.beforeSave?.();
       if (options.failSave) throw new Error("save refused");
-      return { documentId: request.documentId, intentId: request.intentId, idempotencyKey: request.idempotencyKey, versionId: "2", revision: "2", checksum };
+      savedChecksum = (payload as { checksum: string }).checksum;
+      return { documentId: request.documentId, intentId: request.intentId, idempotencyKey: request.idempotencyKey, versionId: "2", revision: "2", checksum: savedChecksum };
     }
     if (channel === "desktop:auth-logout") {
       if (options.failLogout) throw new Error("logout unavailable");

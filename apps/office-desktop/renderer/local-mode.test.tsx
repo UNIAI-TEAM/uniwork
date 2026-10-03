@@ -79,6 +79,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     channels: () => calls.map((entry) => entry.channel),
     emitSession: (metadata: DesktopSessionMetadata) => act(() => sessionListener?.(metadata)),
     emitFile: (handle: string) => act(() => fileListener?.({ handle })),
+    hasFileListener: () => Boolean(fileListener),
     emitLoginRequest: () => act(() => loginListener?.({ reason: "signed_out" })),
     emitLeave: (reason: "close" | "logout" | "update" = "close") => act(() => leaveListener?.({ requestId: "leave-r5", reason })),
   };
@@ -151,6 +152,7 @@ it("lists recent files, opens one, and removes a missing file from the list", as
 it("opens a .docx from the OS while signed out straight into the local mode", async () => {
   const h = harness();
   await screen.findByText(i18n.t("officeDesktop.login.localNote"));
+  await waitFor(() => expect(h.hasFileListener()).toBe(true));
   h.emitFile(`file_${"a".repeat(32)}`);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
@@ -252,6 +254,7 @@ it("creates a new local document and writes it through Save As", async () => {
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.anything()));
   await screen.findByRole("tab", { name: /Tài liệu mới\.docx/ });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
+  await edit(`file_${"1".repeat(32)}`);
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle: `file_${"1".repeat(32)}` })));
   expect(h.channels()).not.toContain("desktop:file-save");
