@@ -1,7 +1,7 @@
 "use client";
 
 import { Paintbrush } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { XlsxToolbarGroupProps } from "../types";
@@ -31,19 +31,27 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
   const { t } = useTranslation();
   const blocked = readOnly || !canFormat || !commands;
   const [armed, setArmed] = useState(false);
+  const armedRef = useRef(false);
 
   // One-shot mode: the render controller applies on the next selection change
   // and turns the mode off itself; the editor passes that selection here, so
-  // the mirror clears with the same change.
+  // the mirror clears with the same change. A change the renderer never
+  // applied (sheet switch, selection update without a render apply) leaves it
+  // armed behind the cleared mirror, so send the explicit off reset too.
   useEffect(() => {
+    if (armedRef.current) {
+      commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF });
+    }
+    armedRef.current = false;
     setArmed(false);
-  }, [selection]);
+  }, [selection, commands]);
 
   useEffect(() => {
     if (!armed) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF });
+      armedRef.current = false;
       setArmed(false);
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -56,7 +64,10 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
     const executed = commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, {
       status: next ? XLSX_FORMAT_PAINTER_ONCE : XLSX_FORMAT_PAINTER_OFF,
     });
-    if (executed) setArmed(next);
+    if (executed) {
+      armedRef.current = next;
+      setArmed(next);
+    }
   };
 
   return (

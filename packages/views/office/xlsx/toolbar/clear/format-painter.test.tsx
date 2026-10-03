@@ -70,18 +70,36 @@ describe("XlsxFormatPainterGroup", () => {
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
-  it("disarms when the editor passes the next selection and stays single-use", () => {
+  it("disarms with the off reset when the editor passes the next selection and stays single-use", () => {
     const { execute, props, view } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
     fireEvent.click(button);
     expect(button).toHaveAttribute("aria-pressed", "true");
 
     view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Data", address: "B2" }} />);
+    expect(execute).toHaveBeenLastCalledWith(...CANCEL);
     expect(button).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(button);
     expect(execute).toHaveBeenLastCalledWith(...ARM);
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("sends the off reset on a sheet switch that never reached a render apply", () => {
+    const { execute, props, view } = renderPainter();
+    const button = screen.getByTestId("xlsx-format-painter");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+
+    view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Archive", address: "A1" }} />);
+    expect(execute).toHaveBeenLastCalledWith(...CANCEL);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("sends nothing for selection changes while unarmed", () => {
+    const { execute, props, view } = renderPainter();
+    view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Data", address: "C3" }} />);
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("cancels on Escape only while armed", () => {
