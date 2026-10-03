@@ -67,22 +67,21 @@ function requireImageBytes(image: { base64: string; mime: string } | undefined, 
   }
 }
 
-/** Comment payload oracle: the save regenerates word/comments.xml from
- * id/author/text alone, so a malformed entry is refused before it can reach
- * the part (an id-less or blank comment would corrupt the rebuild). */
-function requireComment(comment: DocxCommentInfo, what: string): void {
-  if (!comment || typeof comment !== "object") {
-    throw new DocxEngineError("bad_comment", what + " needs a comment object");
+/** Comment payload oracle. `set_comments` only checks the structure (id,
+ * string author/text, unique ids, resolvable parents): real files carry
+ * author-less and empty-text entries — `parse-package.ts` maps
+ * `attrs['w:author'] ?? ''` and joins possibly-empty paragraphs — and a seeded
+ * entry has to round-trip untouched. `authored` (add/reply) additionally
+ * refuses blank user text. */
+function requireCommentEntry(comment: DocxCommentInfo, what: string, authored: boolean): void {
+  if (!comment || typeof comment !== "object" || typeof comment.id !== "string" || comment.id.length === 0) {
+    throw new DocxEngineError("bad_comment", what + " needs a comment object with a non-empty id");
   }
-  if (typeof comment.id !== "string" || comment.id.length === 0) {
-    throw new DocxEngineError("bad_comment", what + " comment needs a non-empty id");
+  if (typeof comment.author !== "string" || typeof comment.text !== "string") {
+    throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs a string author and text");
   }
-  if (typeof comment.author !== "string" || comment.author.length === 0) {
-    throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs an author");
-  }
-  if (typeof comment.text !== "string" || comment.text.length === 0) {
-    throw new DocxEngineError("empty_comment_text", what + " comment " + comment.id + " needs non-empty text");
-  }
+  if (authored && comment.author.length === 0) throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs an author");
+  if (authored && comment.text.length === 0) throw new DocxEngineError("empty_comment_text", what + " comment " + comment.id + " needs non-empty text");
 }
 
 /** Note payload oracle: the save regenerates the notes part from id/text
@@ -397,17 +396,18 @@ export class DocxSessionModel {
   /** Replace the authoritative list — upstream SaveOptions.comments: the save
    * regenerates word/comments.xml from it and removes body markers for ids no
    * longer present. Ids must be unique and every reply must point at a listed
-   * parent; the caller's array is copied, never aliased into the plan. */
+   * parent; the caller's array is copied, never aliased into the plan. Entries
+   * are only structurally checked (see requireCommentEntry): a list seeded from
+   * the parse carries its own author-less/empty-text entries and must reach the
+   * save unchanged. */
   setComments(comments: DocxCommentInfo[]): void {
     if (!Array.isArray(comments)) {
       throw new DocxEngineError("bad_comment", "set_comments needs a comment list");
     }
     const ids = new Set<string>();
     for (const comment of comments) {
-      requireComment(comment, "set_comments");
-      if (ids.has(comment.id)) {
-        throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " appears twice");
-      }
+      requireCommentEntry(comment, "set_comments", false);
+      if (ids.has(comment.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " appears twice");
       ids.add(comment.id);
     }
     for (const comment of comments) {
@@ -420,52 +420,57 @@ export class DocxSessionModel {
     this.revision += 1;
   }
 
+  /** Every id in a comment's thread below it (the id plus its whole reply
+   * subtree, transitively — files can carry replies to replies). */
+  private threadSubtree(comments: readonly DocxCommentInfo[], id: string): Set<string> {
+    const ids = new Set([id]);
+    let size = 0;
+    while (size !== ids.size) {
+      size = ids.size;
+      for (const comment of comments) {
+        if (comment.parentId !== undefined && ids.has(comment.parentId)) ids.add(comment.id);
+      }
+    }
+    return ids;
+  }
+
   /** Append one comment (the caller allocates the id; the save assigns the
    * commentsExtended paraId for new entries). */
   addComment(comment: DocxCommentInfo): void {
-    requireComment(comment, "add_comment");
-    if (this.comments.some((c) => c.id === comment.id)) {
-      throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " already exists");
-    }
+    requireCommentEntry(comment, "add_comment", true);
+    if (this.comments.some((c) => c.id === comment.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " already exists");
     this.setComments([...this.comments, { ...comment }]);
   }
 
   /** Append a reply anchored to `parentId` (Word: a reply shares the parent
    * comment's document range, so the anchor is the parent's). */
   replyToComment(parentId: string, reply: DocxCommentInfo): void {
-    requireComment(reply, "reply_to_comment");
+    requireCommentEntry(reply, "reply_to_comment", true);
     const list = this.comments;
-    if (!list.some((c) => c.id === parentId)) {
-      throw new DocxEngineError("unknown_comment", "no comment " + parentId + " to reply to");
-    }
+    if (!list.some((c) => c.id === parentId)) throw new DocxEngineError("unknown_comment", "no comment " + parentId + " to reply to");
     if (reply.parentId !== undefined && reply.parentId !== parentId) {
       throw new DocxEngineError("bad_comment", "reply " + reply.id + " carries parentId " + reply.parentId + ", not " + parentId);
     }
-    if (list.some((c) => c.id === reply.id)) {
-      throw new DocxEngineError("duplicate_comment_id", "comment id " + reply.id + " already exists");
-    }
+    if (list.some((c) => c.id === reply.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + reply.id + " already exists");
     this.setComments([...list, { ...reply, parentId }]);
   }
 
-  /** Resolve/reopen a thread: the comment and its replies share the flag
-   * (Word resolves a thread as a unit). */
+  /** Resolve/reopen a thread: the comment and every reply below it share the
+   * flag (Word resolves a thread as a unit). */
   setCommentResolved(id: string, done: boolean): void {
     const list = this.comments;
-    if (!list.some((c) => c.id === id)) {
-      throw new DocxEngineError("unknown_comment", "no comment " + id + " to resolve");
-    }
-    this.setComments(list.map((c) => (c.id === id || c.parentId === id ? { ...c, done } : c)));
+    if (!list.some((c) => c.id === id)) throw new DocxEngineError("unknown_comment", "no comment " + id + " to resolve");
+    const ids = this.threadSubtree(list, id);
+    this.setComments(list.map((c) => (ids.has(c.id) ? { ...c, done } : c)));
   }
 
-  /** Delete a comment; its replies go with it (Word deletes the thread). The
-   * body markers disappear because the save strips markers for ids no longer
-   * in the list (upstream removeDeletedCommentMarkers). */
+  /** Delete a comment; its whole reply subtree goes with it (Word deletes the
+   * thread). The body markers disappear because the save strips markers for ids
+   * no longer in the list (upstream removeDeletedCommentMarkers). */
   deleteComment(id: string): void {
     const list = this.comments;
-    if (!list.some((c) => c.id === id)) {
-      throw new DocxEngineError("unknown_comment", "no comment " + id + " to delete");
-    }
-    const gone = new Set([id, ...list.filter((c) => c.parentId === id).map((c) => c.id)]);
+    if (!list.some((c) => c.id === id)) throw new DocxEngineError("unknown_comment", "no comment " + id + " to delete");
+    const gone = this.threadSubtree(list, id);
     this.setComments(list.filter((c) => !gone.has(c.id)));
   }
 

@@ -145,6 +145,22 @@ describe("docx comments model", () => {
     expect(model.revision).toBe(4);
   });
 
+  it("set_comments accepts parsed author-less and empty-text entries (F2)", async () => {
+    const { engine } = createCommentEngine();
+    const parsed = await engine.parseDocx(commentedDocx());
+    const model = new DocxSessionModel(parsed);
+    // Real files carry these shapes (w:author is optional; empty bodies exist),
+    // so a full-list set_comments must pass them through instead of refusing.
+    const bare: DocxCommentInfo = { id: "7", author: "", text: "" };
+    model.setComments([...model.comments, bare]);
+    expect(model.comments.map((c) => c.id)).toEqual(["1", "2", "7"]);
+    expect(model.savePlan().options.comments?.find((c) => c.id === "7")).toMatchObject({ author: "", text: "" });
+    // the authoring path still refuses blank user text
+    expect(errCode(() => model.addComment({ id: "8", author: "", text: "x" }))).toBe("bad_comment");
+    expect(errCode(() => model.addComment({ id: "8", author: "A", text: "" }))).toBe("empty_comment_text");
+    expect(errCode(() => model.addComment({ id: "8", author: "A", text: 7 as unknown as string }))).toBe("bad_comment");
+  });
+
   it("delete removes a thread's replies with it", async () => {
     const { engine } = createCommentEngine();
     const parsed = await engine.parseDocx(commentedDocx());
@@ -152,6 +168,19 @@ describe("docx comments model", () => {
     model.deleteComment("1");
     expect(model.comments).toEqual([]);
     expect(model.savePlan().options.comments).toEqual([]);
+  });
+
+  it("resolve and delete cascade through replies to replies", async () => {
+    const { engine } = createCommentEngine();
+    const parsed = await engine.parseDocx(commentedDocx());
+    const model = new DocxSessionModel(parsed);
+    model.addComment({ id: "3", author: "Ana", text: "root" });
+    model.replyToComment("3", { id: "4", author: "Ben", text: "reply" });
+    model.replyToComment("4", { id: "5", author: "Cara", text: "deep" });
+    model.setCommentResolved("3", true);
+    expect(model.comments.filter((c) => ["3", "4", "5"].includes(c.id)).map((c) => c.done)).toEqual([true, true, true]);
+    model.deleteComment("3");
+    expect(model.comments.map((c) => c.id)).toEqual(["1", "2"]);
   });
 
   it("refuses malformed entries, duplicates, unknown parents and unknown ids", async () => {
@@ -167,6 +196,7 @@ describe("docx comments model", () => {
     expect(errCode(() => model.setCommentResolved("nope", true))).toBe("unknown_comment");
     expect(errCode(() => model.deleteComment("nope"))).toBe("unknown_comment");
     expect(errCode(() => model.setComments("nope" as unknown as DocxCommentInfo[]))).toBe("bad_comment");
+    expect(errCode(() => model.setComments([{ id: "", author: "A", text: "x" }]))).toBe("bad_comment");
     expect(errCode(() => model.setComments([MAIN, { ...MAIN }]))).toBe("duplicate_comment_id");
     expect(errCode(() => model.setComments([{ id: "5", author: "A", text: "orphan", parentId: "404" }]))).toBe("unknown_comment");
     // every refusal leaves the list untouched
