@@ -6546,6 +6546,9 @@
     "actions": {
       "menu_label": "Hành động khác",
       "versions": "Lịch sử phiên bản",
+      "download_original": "Tải tệp gốc",
+      "upload_version": "Tải lên phiên bản mới",
+      "comments": "Bình luận",
       "share": "Chia sẻ",
       "access_log": "Nhật ký truy cập",
       "copy": "Tạo bản sao",
@@ -7005,8 +7008,15 @@
       }
     },
     "title": "Office",
+    "shell": {
+      "save": "Lưu",
+      "save_to_cloud": "Lưu vào UniWork",
+      "save_to_device": "Lưu vào máy"
+    },
     "desktop": {
-      "action": "Chỉnh sửa trên UniWork Office",
+      "action": "Mở bằng UniWork Office",
+      "menu": "Tùy chọn UniWork Office",
+      "download_for": "Tải UniWork Office cho {{os}}",
       "working": "Đang chuẩn bị UniWork Office…",
       "dirty_title": "Có thay đổi chưa lưu",
       "dirty_description": "Chọn phiên bản đã lưu để mở trên UniWork Office.",
@@ -7103,7 +7113,7 @@
         "permission": "Không có quyền sửa",
         "conflict": "Xung đột khi lưu",
         "saving": "Đang lưu…",
-        "ready": "Sẵn sàng lưu",
+        "ready": "Chưa có thay đổi",
         "error": "Chưa xác nhận được việc lưu"
       },
       "description": {
@@ -7126,7 +7136,18 @@
         "retry": "Thử lại",
         "done": "Xong"
       },
-      "correlation": "Mã tương quan: {{id}}"
+      "correlation": "Mã tương quan: {{id}}",
+      "short": {
+        "checkpoint": "Nháp trên máy",
+        "saved-local": "Đã lưu trên máy",
+        "saved-cloud": "Đã lưu",
+        "not-sent": "Chưa lưu",
+        "permission": "Không có quyền sửa",
+        "conflict": "Xung đột khi lưu",
+        "saving": "Đang lưu…",
+        "ready": "Chưa có thay đổi",
+        "error": "Chưa lưu được"
+      }
     },
     "saving": "Đang lưu…",
     "fullscreen": "Mở toàn màn hình",
@@ -7549,8 +7570,7 @@
     },
     "login": {
       "title": "UniWork Office",
-      "subtitle": "Đăng nhập để mở thư viện tài liệu của bạn.",
-      "signedOut": "Đăng nhập an toàn trong trình duyệt hệ thống.",
+      "subtitle": "Đăng nhập để mở và lưu tài liệu trong thư viện UniWork.",
       "pending": "Tiếp tục đăng nhập trong trình duyệt để hoàn tất.",
       "error": "Không thể đăng nhập. Thử lại.",
       "cancelled": "Đã hủy đăng nhập.",
@@ -7558,11 +7578,12 @@
       "locked": "Kho lưu trữ thông tin đăng nhập đang bị khóa. Mở khóa và thử lại.",
       "lockedKeyring": "UniWork Office cần gnome-keyring (libsecret) để lưu đăng nhập. Hãy cài đặt và mở khóa rồi thử lại.",
       "required": "Đăng nhập lại để tiếp tục.",
-      "start": "Đăng nhập bằng trình duyệt",
+      "start": "Đăng nhập",
+      "startHint": "Trang đăng nhập sẽ mở trong trình duyệt.",
+      "or": "hoặc",
       "cancel": "Hủy đăng nhập",
-      "openLocal": "Mở tệp trên máy",
-      "useLocal": "Dùng không đăng nhập",
-      "localNote": "Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
+      "useLocal": "Làm việc với tệp trên máy",
+      "localNote": "Không cần đăng nhập. Tệp chỉ lưu trên máy này, bạn có thể đăng nhập bất cứ lúc nào.",
       "signOut": "Đăng xuất",
       "libraryWorkspace": "Thư viện tài liệu",
       "accountUnknown": "Tài khoản UniWork",
@@ -7598,7 +7619,6 @@
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
-      "saveLocal": "Lưu tệp",
       "saveAs": "Lưu thành…",
       "unsupported": "Định dạng này chưa được hỗ trợ trên desktop.",
       "local": "Tệp trên máy",

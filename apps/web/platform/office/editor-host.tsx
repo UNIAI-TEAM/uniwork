@@ -213,6 +213,9 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}
+        // The document page owns the one header; the shell's save + desktop
+        // cluster renders there through the page's header-actions slot.
+        embedded
         editor={activeEditorView && (effectiveCapability.status === "available" || (readonly && effectiveCapability.status === "readonly")) ? activeEditorView : (
           <Alert data-testid="office-host-unbound">
             <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.capability_unavailable") : t("office.editor.capability_unknown")}</AlertTitle>

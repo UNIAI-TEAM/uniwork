@@ -77,7 +77,6 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
     onKeep={async () => { setOffer(null); return true; }}
     onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
     <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && ready && session.canSave}
-      saveLabel={session.localHandle ? t("saveLocal") : undefined}
       saveDestination={session.localHandle ? "local" : "cloud"}
       actions={<>{kind === "local" ? <LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /> : null}{ready && session.canSave && session.localHandle ? <Button type="button" variant="outline" disabled={saveState === "saving"} onClick={() => { void saveAs(); }}>{t("saveAs")}</Button> : null}<Button type="button" variant="outline" onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
       editor={<>

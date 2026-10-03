@@ -37,7 +37,7 @@ it("moves signed-out -> pending -> error when the browser cannot open", async ()
   }) as RendererBridge["call"]);
   const { container } = render(<App bridge={bridge} />);
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
-  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" }));
+  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='error']")).not.toBeNull());
 });
 
@@ -50,7 +50,7 @@ it("moves pending -> cancelled through the cancel action", async () => {
   }) as RendererBridge["call"]);
   const { container } = render(<App bridge={bridge} />);
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
-  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" }));
+  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='pending']")).not.toBeNull());
   fireEvent.click(screen.getByRole("button", { name: "Hủy đăng nhập" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='cancelled']")).not.toBeNull());
@@ -64,12 +64,12 @@ it("moves pending -> expired when the attempt passes its TTL and offers a retry"
   }) as RendererBridge["call"]);
   const { container } = render(<App bridge={bridge} />);
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
-  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" }));
+  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='pending']")).not.toBeNull());
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
   await waitFor(() => expect(container.querySelector("[data-login-state='expired']")).not.toBeNull());
   expect(screen.getByText("Yêu cầu đăng nhập đã hết hạn. Thử lại.")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeInTheDocument();
 });
 
 it("reflects a login-required push from the host without a user action", async () => {

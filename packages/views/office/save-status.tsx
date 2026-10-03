@@ -139,9 +139,11 @@ export function SaveStatus({
       className={cn("flex min-h-8 items-center gap-2 text-caption text-muted-foreground", className)}
       role="status"
       aria-live="polite"
+      title={compact ? title : undefined}
       data-testid={`office-save-${normalized}`}
     >
-      <span>{title}</span>
+      {/* Header chrome reads the short form; the full one stays the tooltip. */}
+      <span>{compact ? t(`short.${normalized}`) : title}</span>
       {resolvedCorrelation ? <span className="text-faint-foreground">{t("correlation", { id: resolvedCorrelation })}</span> : null}
       {action && onAction ? (
         <Button size="xs" variant="ghost" onClick={onAction}>
