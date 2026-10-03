@@ -111,6 +111,7 @@ export type {
   PdfPageSize,
   PdfSplitPdfInput,
 } from "./page-ops";
+export type { PdfPageOpsOutcome } from "./page-ops";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,
@@ -137,3 +138,29 @@ export type {
   PdfStampRect,
   PdfStampSignatureSource,
 } from "./stamps";
+export { PdfFormsPanel, createPdfFormOperationProvider, PdfFormProviderError } from "./forms";
+export type {
+  PdfFormEngineOperation,
+  PdfFormField,
+  PdfFormFieldKind,
+  PdfFormFieldOption,
+  PdfFormFieldValueInput,
+  PdfFormFlattenOperation,
+  PdfFormOperationProvider,
+  PdfFormOperationSubmitter,
+  PdfFormsPanelProps,
+  PdfFormSetValueOperation,
+} from "./forms";
+export {
+  PdfNUpDialog,
+  PdfPageScopeField,
+  PdfPageSizeDialog,
+  resolvePageSelection,
+  createPdfPageBoxOperationProvider,
+  MAX_NUP_PAGES_PER_SHEET,
+  MIN_NUP_PAGES_PER_SHEET,
+  PdfPageBoxProviderError,
+  pdfPageBoxErrorMessage,
+} from "./page-box";
+export type {
+  PdfNUpDialogProps,
