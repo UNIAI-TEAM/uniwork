@@ -13,6 +13,8 @@ import {
 
 const CHIP_GAP = 6;
 const CHIP_EDGE = 8;
+/** A paste that never becomes a transaction (blocked by a protected region) must expire. */
+const PASTE_ARM_WINDOW_MS = 1_000;
 
 export interface DocxPasteChipState {
   /** The range the paste inserted, in the current document. */
@@ -34,13 +36,16 @@ export interface DocxPasteOptionsController {
 }
 
 /**
- * Drives the post-paste chip from the editor alone: a paste arms the controller
- * (the surface reads the clipboard event before ProseMirror dispatches), the
- * next document change is the paste, and the changed range is where the chip
- * anchors. Any later document change dismisses it, so the range is never stale.
+ * Drives the post-paste chip from the editor alone: an editable paste arms the
+ * controller (the surface reads the clipboard event before ProseMirror
+ * dispatches), the next document change inside the arm window is the paste, and
+ * the changed range is where the chip anchors. A paste that never turns into a
+ * transaction expires instead of adopting an unrelated change; any later
+ * document change dismisses the chip, so the range is never stale.
  */
 export function createDocxPasteOptionsController(editor: Editor): DocxPasteOptionsController {
   let pending = false;
+  let pendingAt = 0;
   let state: DocxPasteChipState | null = null;
   const listeners = new Set<(state: DocxPasteChipState | null) => void>();
 
@@ -63,8 +68,9 @@ export function createDocxPasteOptionsController(editor: Editor): DocxPasteOptio
 
   const onTransaction = ({ transaction }: { transaction: Transaction }) => {
     if (!transaction.docChanged) return;
-    if (pending) {
-      pending = false;
+    const armed = pending && Date.now() - pendingAt <= PASTE_ARM_WINDOW_MS;
+    pending = false;
+    if (armed) {
       const range = changedRangeOf(transaction);
       state = range ? { range, mode: "source", position: place(range.to) } : null;
       notify();
@@ -87,7 +93,8 @@ export function createDocxPasteOptionsController(editor: Editor): DocxPasteOptio
       };
     },
     notePaste(payload) {
-      pending = payload !== null;
+      pending = payload !== null && editor.isEditable;
+      pendingAt = Date.now();
     },
     apply(mode) {
       const current = state;
@@ -99,6 +106,7 @@ export function createDocxPasteOptionsController(editor: Editor): DocxPasteOptio
     dismiss() {
       if (!state) return;
       state = null;
+      editor.commands.focus();
       notify();
     },
     refreshPosition() {

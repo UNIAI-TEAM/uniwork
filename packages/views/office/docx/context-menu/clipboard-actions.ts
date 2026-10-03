@@ -27,8 +27,10 @@ export async function copySelection(editor: Editor): Promise<boolean> {
       // Denied or unsupported payload; the fallbacks below still copy text.
     }
   }
-  if (typeof document !== "undefined" && typeof document.execCommand === "function" && document.execCommand("copy")) {
-    return true;
+  if (typeof document !== "undefined" && typeof document.execCommand === "function") {
+    // The open popup may hold the DOM selection; refocus so the legacy copy grabs the editor's.
+    editor.commands.focus();
+    if (document.execCommand("copy")) return true;
   }
   if (clipboard?.writeText) {
     try {

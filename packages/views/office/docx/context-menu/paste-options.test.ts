@@ -115,6 +115,45 @@ describe("stripRunFormatting", () => {
     });
     expect(names).toEqual([["bold"]]);
   });
+
+  it("leaves table subtrees untouched", () => {
+    const editor = createEditor({
+      type: "doc",
+      content: [
+        {
+          type: "docTable",
+          content: [
+            {
+              type: "docTableRow",
+              content: [
+                {
+                  type: "docTableCell",
+                  content: [
+                    {
+                      type: "docParagraph",
+                      content: [
+                        { type: "text", text: "cell", marks: [{ type: "docTextStyle", attrs: { color: "FF0000" } }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const slice = editor.state.doc.slice(0, editor.state.doc.content.size);
+    const mapped = stripRunFormatting(slice.content, editor.state.schema);
+    const marks: string[] = [];
+    mapped.forEach((node) => {
+      node.descendants((child) => {
+        if (child.isText) marks.push(...child.marks.map((mark) => mark.type.name));
+        return true;
+      });
+    });
+    expect(marks).toContain("docTextStyle");
+  });
 });
 
 describe("applyDocxPasteMode", () => {

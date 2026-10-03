@@ -86,6 +86,21 @@ describe("copy and cut", () => {
     expect(exec).toHaveBeenCalledWith("copy");
   });
 
+  it("refocuses the editor before the legacy copy command", async () => {
+    const editor = createEditor(["alpha", "keep"]);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    const focus = vi.spyOn(editor.view, "focus");
+    setExecCommand(() => true);
+    await expect(copySelection(editor)).resolves.toBe(true);
+    expect(focus).toHaveBeenCalled();
+    focus.mockRestore();
+    requestFrame.mockRestore();
+  });
+
   it("falls back to writing the selection as plain text", async () => {
     const editor = createEditor(["alpha", "keep"]);
     editor.commands.setTextSelection({ from: 1, to: 6 });

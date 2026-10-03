@@ -52,9 +52,9 @@ function htmlHasText(html: string): boolean {
 
 /**
  * The range a transaction's steps touched, in final-document coordinates —
- * ported from genoffice `editor/paste-options.ts` (changedRangeOf). This is how
- * the chip learns which range the paste inserted without guessing from the
- * selection.
+ * ported from genoffice `components/PasteOptionsChip.tsx` (`changedRangeOf`).
+ * This is how the chip learns which range the paste inserted without guessing
+ * from the selection.
  */
 export function changedRangeOf(transaction: Transaction): DocxPasteRange | null {
   let from = Infinity;
@@ -95,14 +95,19 @@ export function insertPlainText(editor: Editor, text: string): boolean {
 /**
  * Match destination: keep the block structure and the emphasis marks (bold,
  * italic, underline, links), drop the source run style so the text follows the
- * destination paragraph. The vendored renderer also rebinds the caret's own
- * run style; UniWork drops it instead, which renders as the document default —
- * noted as the honest subset in the worker report.
+ * destination paragraph, and leave table subtrees untouched — the vendored
+ * `mergeFormattingFragment` preserves them the same way. Pasted paragraphs keep
+ * their own format attrs (alignment, spacing); UniWork does not rebind them to
+ * the caret paragraph, which is the honest subset noted in the worker report.
  */
 export function stripRunFormatting(fragment: Fragment, schema: Schema): Fragment {
   const styleType = schema.marks.docTextStyle;
   const mapped: PmNode[] = [];
   fragment.forEach((node) => {
+    if (node.type.spec.tableRole === "table") {
+      mapped.push(node);
+      return;
+    }
     if (node.isText) {
       mapped.push(styleType ? node.mark(node.marks.filter((mark) => mark.type !== styleType)) : node);
       return;

@@ -203,6 +203,32 @@ describe("DocxContextMenuSurface", () => {
     expect(screen.getByTestId("docx-menu-removeLink")).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("arms the chip for a paste inside the editable document only", () => {
+    const editor = createEditor();
+    const notePaste = vi.fn();
+    const controller: DocxPasteOptionsController = {
+      getState: () => null,
+      subscribe: () => () => {},
+      notePaste,
+      apply: vi.fn(),
+      dismiss: vi.fn(),
+      refreshPosition: vi.fn(),
+      dispose: vi.fn(),
+    };
+    renderSurface(editor, { pasteOptions: controller });
+    screen.getByTestId("docx-context-menu-surface").appendChild(editor.view.dom);
+    const clipboardData = {
+      types: ["text/html", "text/plain"],
+      getData: (type: string) => (type === "text/plain" ? "pasted" : "<p>pasted</p>"),
+    };
+
+    fireEvent.paste(screen.getByTestId("surface-child"), { clipboardData });
+    expect(notePaste).not.toHaveBeenCalled();
+
+    fireEvent.paste(editor.view.dom, { clipboardData });
+    expect(notePaste).toHaveBeenCalledTimes(1);
+  });
+
   it("pastes from the clipboard and shows the paste chip", async () => {
     const editor = createEditor();
     const controller = createDocxPasteOptionsController(editor);

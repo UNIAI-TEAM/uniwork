@@ -172,7 +172,12 @@ export function DocxContextMenuSurface({
         <ContextMenuTrigger
           className={className}
           data-testid="docx-context-menu-surface"
-          onPasteCapture={(event) => paste.notePaste(pastePayloadFromDataTransfer(event.clipboardData))}
+          onPasteCapture={(event) => {
+            const target = event.target;
+            // A paste outside the editable document (a nested control) must not arm the chip.
+            if (!(target instanceof Node) || !editor.view.dom.contains(target)) return;
+            paste.notePaste(pastePayloadFromDataTransfer(event.clipboardData));
+          }}
         >
           {children}
           <ContextMenuContent

@@ -6,8 +6,8 @@ import { createDocxPasteOptionsController, useDocxPasteOptions, type DocxPasteCh
 
 const editors: Editor[] = [];
 
-function createEditor(content: JSONContent): Editor {
-  const editor = new Editor({ extensions: docxExtensions(), content });
+function createEditor(content: JSONContent, editable = true): Editor {
+  const editor = new Editor({ extensions: docxExtensions(), content, editable });
   editors.push(editor);
   return editor;
 }
@@ -84,6 +84,32 @@ describe("createDocxPasteOptionsController", () => {
     controller.dispose();
   });
 
+  it("expires a paste arm that never turns into a transaction", () => {
+    const editor = createEditor(paragraphDoc("Body"));
+    const controller = createDocxPasteOptionsController(editor);
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000);
+    controller.notePaste({ html: "", text: "blocked" });
+    now.mockReturnValue(9_000);
+
+    caretAtEnd(editor);
+    editor.chain().insertContent("typed").run();
+    expect(controller.getState()).toBeNull();
+
+    now.mockRestore();
+    controller.dispose();
+  });
+
+  it("never arms on a read-only editor", () => {
+    const editor = createEditor(paragraphDoc("Body"), false);
+    const controller = createDocxPasteOptionsController(editor);
+    const position = editor.state.doc.content.size - 1;
+    controller.notePaste({ html: "", text: "x" });
+    editor.view.dispatch(editor.state.tr.insertText("x", position));
+    expect(controller.getState()).toBeNull();
+    controller.dispose();
+  });
+
   it("applies the chosen mode to the pasted range and dismisses", () => {
     const editor = createEditor(paragraphDoc("Body"));
     const controller = createDocxPasteOptionsController(editor);
@@ -115,6 +141,27 @@ describe("createDocxPasteOptionsController", () => {
     controller.dismiss();
     expect(controller.getState()).toBeNull();
     expect(editor.state.doc.textBetween(0, editor.state.doc.content.size)).toBe(before);
+    controller.dispose();
+  });
+
+  it("refocuses the editor when the chip is dismissed", () => {
+    const editor = createEditor(paragraphDoc("Body"));
+    const controller = createDocxPasteOptionsController(editor);
+    caretAtEnd(editor);
+    controller.notePaste({ html: "", text: "x" });
+    editor.chain().insertContent("x").run();
+    expect(controller.getState()).not.toBeNull();
+
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    const focus = vi.spyOn(editor.view, "focus");
+    controller.dismiss();
+    expect(focus).toHaveBeenCalled();
+
+    focus.mockRestore();
+    requestFrame.mockRestore();
     controller.dispose();
   });
 
