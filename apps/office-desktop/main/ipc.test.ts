@@ -10,7 +10,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -34,7 +34,7 @@ describe("desktop IPC allowlist", () => {
 
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
-    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.txt" });
+    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.docx" });
     await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).rejects.toMatchObject({ code: "symlink_refused", message: "local file operation refused" });
     await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
     const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);

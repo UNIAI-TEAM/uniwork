@@ -19,24 +19,33 @@ interface DesktopTabStripProps {
   createDisabled?: boolean;
   busy?: boolean;
   signedOut?: boolean;
+  /** Local mode pins a "Trên máy" home tab instead of the cloud library and
+   * swaps the account menu for a sign-in button. */
+  mode?: "cloud" | "local";
+  onSignIn?: () => void;
   accountName?: string;
   accountEmail?: string;
   onSwitchWorkspace?: () => void;
   onSignOut: () => void;
 }
 
-function ChromeIcon({ kind }: { kind: "library" | "plus" | "down" | "close" }) {
-  const paths = { library: "M4 4h4v16H4zM11 4h3v16h-3zM17 4l3-1 4 16-3 1z", plus: "M12 5v14M5 12h14", down: "m6 9 6 6 6-6", close: "m6 6 12 12M18 6 6 18" };
+function ChromeIcon({ kind }: { kind: "library" | "home" | "plus" | "down" | "close" }) {
+  const paths = { library: "M4 4h4v16H4zM11 4h3v16h-3zM17 4l3-1 4 16-3 1z", home: "M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z", plus: "M12 5v14M5 12h14", down: "m6 9 6 6 6-6", close: "m6 6 12 12M18 6 6 18" };
   return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>;
 }
 
-export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate, onOpenLocal, createDisabled = false, busy = false, signedOut = false, accountName, accountEmail, onSwitchWorkspace, onSignOut }: DesktopTabStripProps) {
+export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate, onOpenLocal, createDisabled = false, busy = false, signedOut = false, mode = "cloud", onSignIn, accountName, accountEmail, onSwitchWorkspace, onSignOut }: DesktopTabStripProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.tabs" });
   const [createOpen, setCreateOpen] = useState(false);
   const [allOpen, setAllOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
+  const homeKind = mode === "local" ? "local" : "library";
+  const homeTabId = `desktop-tab-${homeKind}`;
+  const homePanelId = `desktop-panel-${homeKind}`;
+  const homeLabel = t(homeKind);
+  const homeIcon = mode === "local" ? "home" as const : "library" as const;
   const displayName = accountName?.trim() || t("accountUnknown");
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
@@ -81,7 +90,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
     event.preventDefault();
     const target = ids[next] ?? null;
     onSelect(target);
-    document.getElementById(`desktop-tab-${target ?? "library"}`)?.focus();
+    document.getElementById(target === null ? homeTabId : `desktop-tab-${target}`)?.focus();
   };
   const state = (tab: DesktopTabSummary) => tab.saving ? t("saving") : tab.dirty ? t("dirty") : undefined;
 
@@ -91,8 +100,8 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
     <header ref={barRef} className="desktop-titlebar desktop-tabbar bg-muted text-foreground" data-desktop-tabbar>
       <div className="desktop-logo-cell"><Logo variant="mark" size={20} /></div>
       <div role="tablist" aria-label={t("label")} className="desktop-tablist">
-        <button type="button" role="tab" id="desktop-tab-library" aria-controls="desktop-panel-library" aria-selected={activeTabId === null} tabIndex={activeTabId === null ? 0 : -1} className="desktop-library-tab desktop-tab-select text-caption" onClick={() => onSelect(null)} onKeyDown={(event) => onTabKey(event, null)}>
-          <ChromeIcon kind="library" /><span>{t("library")}</span>
+        <button type="button" role="tab" id={homeTabId} aria-controls={homePanelId} aria-selected={activeTabId === null} tabIndex={activeTabId === null ? 0 : -1} className="desktop-library-tab desktop-tab-select text-caption" onClick={() => onSelect(null)} onKeyDown={(event) => onTabKey(event, null)}>
+          <ChromeIcon kind={homeIcon} /><span>{homeLabel}</span>
         </button>
         <div ref={scrollRef} className="desktop-tab-scroll" data-desktop-tab-scroll>
           {tabs.map((tab) => (
@@ -118,12 +127,15 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
           <PopoverTrigger className="desktop-chrome-button" aria-label={t("allTabs")} title={t("allTabs")}><ChromeIcon kind="down" /></PopoverTrigger>
           <PopoverContent align="end" className="desktop-chrome-popup max-h-96 overflow-y-auto">
             <PopoverTitle>{t("allTabs")}</PopoverTitle>
-            <Button variant="ghost" className="justify-start" aria-pressed={activeTabId === null} onClick={() => { onSelect(null); setAllOpen(false); }}><ChromeIcon kind="library" />{t("library")}</Button>
+            <Button variant="ghost" className="justify-start" aria-pressed={activeTabId === null} onClick={() => { onSelect(null); setAllOpen(false); }}><ChromeIcon kind={homeIcon} />{homeLabel}</Button>
             {tabs.map((tab) => <Button key={tab.id} variant="ghost" className="justify-start" title={tab.title} aria-pressed={activeTabId === tab.id} onClick={() => { onSelect(tab.id); setAllOpen(false); }}><DocumentTypeIcon format={tab.format} className="size-4 shrink-0" /><span className="truncate">{tab.title}</span>{state(tab) ? <span className="sr-only">{state(tab)}</span> : null}</Button>)}
           </PopoverContent>
         </Popover>
       </div>
       <div className="desktop-tab-drag-space" />
+      {mode === "local" ? (
+        onSignIn ? <Button type="button" size="sm" variant="outline" className="desktop-sign-in-button mr-2 self-center" onClick={onSignIn}>{t("signIn")}</Button> : null
+      ) : (
       <DropdownMenu>
         <DropdownMenuTrigger className="desktop-chrome-button desktop-account-button" aria-label={t("account", { name: displayName })} title={displayName}><Avatar size="sm" aria-hidden="true"><AvatarFallback>{initials}</AvatarFallback></Avatar></DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="desktop-chrome-popup w-64">
@@ -133,6 +145,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
           <DropdownMenuItem disabled={busy} onClick={onSignOut}>{t("signOut")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </header>
   );
 }

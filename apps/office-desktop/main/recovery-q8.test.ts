@@ -151,7 +151,7 @@ it("Q8 a corrupt envelope is a typed locked state and is never replaced", async 
   await q8.checkpoint(bytes(1), "draft-a");
   const [rowFile] = await q8.draftFiles();
   await fs.writeFile(rowFile!, "{ not-json");
-  await expect(q8.list()).rejects.toMatchObject({ code: "draft_recovery_locked" });
+  await expect(q8.list()).resolves.toEqual({ drafts: [], locked: true });
   await expect(q8.recover("draft-a")).rejects.toMatchObject({ code: "draft_recovery_locked" });
   await expect(q8.checkpoint(bytes(2), "draft-a", 2)).rejects.toMatchObject({ code: "draft_recovery_locked" });
   expect(await fs.readFile(rowFile!, "utf8")).toBe("{ not-json");

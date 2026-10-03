@@ -12,6 +12,10 @@ import { getDesktopDiagnostics } from "../shared/identity";
 import type { DeploymentProfile } from "../shared/deployment";
 import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import { sameDocumentSession } from "./opened-documents";
+import { blankDocxBytes } from "./files/blank-docx";
+import type { LocalModeStore } from "./local/mode";
+import type { RecentFilesStore } from "./local/recent-files";
+import { LocalDeviceError } from "./local/device";
 
 /** Main-process transport for cloud Documents and Office operations. The
  * implementation owns the bearer token and is injected by the Electron
@@ -153,6 +157,8 @@ export interface FileIpcOptions {
   readonly onSaveConfirmed?: (metadata: import("./files/registry").OpenFileMetadata) => void;
   readonly onSaveAsConfirmed?: (previousHandle: string, metadata: import("./files/registry").OpenFileMetadata) => void;
   readonly beginSave?: (documentId: string) => (confirmed?: boolean) => void;
+  /** Main-owned recent list; recent opens resolve an opaque id to a path here. */
+  readonly recents?: RecentFilesStore;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -170,8 +176,39 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       const path = await options.pickOpen();
       if (!path) return { opened: false };
+      // The desktop host is DOCX-only: a non-docx pick is refused here, before
+      // any handle, document context or recent row exists.
+      if (!/\.docx$/i.test(path)) return { opened: false, unsupported: true };
       assertSession(session);
       const metadata = await safeFile(() => options.registry.openPath(path));
+      const bytes = await safeFile(() => options.registry.read(metadata.handle));
+      assertSession(session);
+      options.onOpened?.(metadata);
+      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+    },
+    "desktop:file-create": async () => {
+      const session = options.session?.();
+      const bytes = blankDocxBytes();
+      const metadata = await safeFile(async () => options.registry.createUntitled(bytes, "Untitled.docx"));
+      assertSession(session);
+      options.onOpened?.(metadata);
+      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+    },
+    "desktop:recent-open": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-open">) => {
+      if (!options.recents) throw new FileIpcError("invalid_path");
+      const entry = await options.recents.resolve(request.id);
+      if (!entry) return { opened: false, missing: true };
+      if (!/\.docx$/i.test(entry.path)) return { opened: false, unsupported: true };
+      const session = options.session?.();
+      let metadata: import("./files/registry").OpenFileMetadata;
+      try {
+        metadata = await safeFile(() => options.registry.openPath(entry.path));
+      } catch (error) {
+        // A file removed after the list rendered stays a typed, non-throwing
+        // answer so the renderer can show the missing copy.
+        if ((error as { code?: string }).code === "not_found") return { opened: false, missing: true };
+        throw error;
+      }
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
@@ -248,6 +285,8 @@ export interface DraftIpcOptions {
   /** Session-only scope used to list an account's drafts before a document is
    * open (app start / restart recovery offer). Rows are filtered by the session. */
   readonly accountSession?: () => DraftSession | undefined;
+  /** The local-device scope that replaces an account session when signed out. */
+  readonly localSession?: () => DraftSession | undefined;
   readonly beginCheckpoint?: (documentId: string) => (stored: boolean) => void;
   /** The ACL is queried live for every recovery attempt; cached access is not
    * sufficient to unlock an account after logout or revocation. */
@@ -297,13 +336,13 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
       try {
         const current = request.documentId === undefined ? undefined : context(request.documentId);
         if (!current) {
-          // No document is open yet: offer this account's drafts (metadata
-          // only) so a restart can surface recovery. The session, not the
-          // renderer, decides which rows are visible.
-          const session = options.accountSession?.();
+          // No document is open yet: offer this scope's drafts (metadata only)
+          // so a restart can surface recovery. The session, not the renderer,
+          // decides which rows are visible; signed out this is the device scope.
+          const session = options.accountSession?.() ?? options.localSession?.();
           if (!session) throw new DraftIpcError("token_expired");
           const drafts = (await options.store.list({ session })).filter((draft) => draft.identity.accountId === session.accountId && draft.identity.deploymentId === session.deploymentId);
-          const live = options.accountSession?.();
+          const live = options.accountSession?.() ?? options.localSession?.();
           if (!live || !sameDocumentSession(live, session)) throw new DraftIpcError("token_expired");
           return { drafts };
         }
@@ -316,7 +355,12 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
         } });
         assertCurrent(request.documentId!, current);
         return { drafts };
-      } catch (error) { translateDraftError(error); }
+      } catch (error) {
+        // The locked state is a reasoned answer, not a transport failure: the
+        // renderer shows the locked notice from this typed result.
+        if (error instanceof DraftRecoveryError && error.code === "draft_recovery_locked") return { drafts: [], locked: true };
+        translateDraftError(error);
+      }
     },
     "desktop:draft-recover": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; currentBase: { revision: string; version: string } }>) => {
       try {
@@ -339,16 +383,16 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     "desktop:draft-discard": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:draft-discard">) => {
       try {
         const current = request.documentId === undefined ? undefined : context(request.documentId);
-        // A discard may also come from the account-level offer, where no
-        // document is open: the live account session is then the only scope.
-        const session = current?.session ?? options.accountSession?.();
+        // A discard may also come from the scope-level offer, where no document
+        // is open: the live account (or local device) session is then the only scope.
+        const session = current?.session ?? options.accountSession?.() ?? options.localSession?.();
         if (!session) throw new DraftIpcError("token_expired");
         // Bind the row to the live scope before deleting: a draft id alone must
         // never let one document (or account) consume another's row.
         const row = (await options.store.list({ session })).find((candidate) => candidate.draftId === request.draftId);
         if (current) assertCurrent(request.documentId!, current);
         else {
-          const live = options.accountSession?.();
+          const live = options.accountSession?.() ?? options.localSession?.();
           if (!live || !sameDocumentSession(live, session)) throw new DraftIpcError("token_expired");
         }
         if (!row) return { discarded: true };
@@ -364,6 +408,27 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
 class FileIpcError extends Error {
   readonly code: string;
   constructor(code: string) { super("local file operation refused"); this.name = "FileIpcError"; this.code = code; }
+}
+
+export interface LocalIpcOptions {
+  readonly mode: LocalModeStore;
+  /** Absent while the device record is unusable: local mode is unavailable. */
+  readonly recents?: RecentFilesStore;
+}
+
+/** Local-mode state and the encrypted recent-file list. Both are device-owned
+ * and expose no path: recent rows carry an opaque id and a display directory. */
+export function createLocalIpcHandlers(options: LocalIpcOptions) {
+  const requireRecents = (): RecentFilesStore => {
+    if (!options.recents) throw new LocalDeviceError("unavailable", "local mode is unavailable");
+    return options.recents;
+  };
+  return {
+    "desktop:local-state": () => ({ localMode: options.mode.get() }),
+    "desktop:local-mode": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:local-mode">) => ({ localMode: await options.mode.set(request.local) }),
+    "desktop:recent-list": async () => ({ files: await requireRecents().list() }),
+    "desktop:recent-remove": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-remove">) => ({ removed: await requireRecents().remove(request.id) }),
+  };
 }
 
 class DraftIpcError extends Error {

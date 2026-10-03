@@ -12,6 +12,10 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     include: ["{main,preload,renderer,shared,test}/**/*.test.{ts,tsx}"],
+    // A loaded Windows host can starve a heavy main/renderer file past the
+    // default 5 s budget; the WSL branch below keeps its longer values.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",

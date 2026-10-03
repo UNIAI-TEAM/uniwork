@@ -16,6 +16,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:window-theme",
   "desktop:tabs-update",
   "desktop:file-pick-open",
+  "desktop:file-create",
   "desktop:file-open",
   "desktop:file-save",
   "desktop:file-save-as",
@@ -23,6 +24,11 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:draft-list",
   "desktop:draft-recover",
   "desktop:draft-discard",
+  "desktop:local-state",
+  "desktop:local-mode",
+  "desktop:recent-list",
+  "desktop:recent-open",
+  "desktop:recent-remove",
   "desktop:library-list",
   "desktop:library-context",
   "desktop:library-recent",
@@ -36,7 +42,7 @@ export const DESKTOP_IPC_CHANNELS = [
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:login-requested"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -79,8 +85,25 @@ export const desktopFileMetadataSchema = z.object({
   byteLength: z.number().int().nonnegative(),
   modifiedAtMs: z.number().finite().nonnegative(),
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  /** A new local document has no backing path until its first Save As. */
+  untitled: z.boolean().optional(),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional() }).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional() }).strict();
+const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
+export const recentFileSchema = z.object({
+  id: recentFileIdSchema,
+  name: z.string().min(1).max(255),
+  directory: z.string().max(1024),
+  modifiedAtMs: z.number().finite().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+  missing: z.boolean(),
+}).strict();
+export type RecentFile = z.infer<typeof recentFileSchema>;
+export const recentFilesResponseSchema = z.object({ files: z.array(recentFileSchema) }).strict();
+export const recentRemoveResponseSchema = z.object({ removed: z.boolean() }).strict();
+export const localStateResponseSchema = z.object({ localMode: z.boolean() }).strict();
+export const loginRequestedEventSchema = z.object({ reason: z.enum(["signed_out", "deployment_mismatch", "account_mismatch"]) }).strict();
+export type LoginRequestedEvent = z.infer<typeof loginRequestedEventSchema>;
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
 const draftBaseSchema = z.object({ revision: z.string().min(1), version: z.string().min(1) }).strict();
 const draftIdentitySchema = z.object({
@@ -99,7 +122,7 @@ const draftMetadataSchema = z.object({
   byteLength: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 }).strict();
-export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema) }).strict();
+export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema), locked: z.boolean().optional() }).strict();
 export type DesktopDraftMetadata = z.infer<typeof draftMetadataSchema>;
 export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),
@@ -188,6 +211,7 @@ export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSche
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
+  "desktop:file-create": desktopFileResponseSchema,
   "desktop:file-open": desktopFileResponseSchema,
   "desktop:file-save": desktopFileResponseSchema,
   "desktop:file-save-as": desktopFileResponseSchema,
@@ -195,6 +219,11 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:draft-list": desktopDraftListResponseSchema,
   "desktop:draft-recover": desktopDraftRecoveryResponseSchema,
   "desktop:draft-discard": desktopDraftDiscardResponseSchema,
+  "desktop:local-state": localStateResponseSchema,
+  "desktop:local-mode": localStateResponseSchema,
+  "desktop:recent-list": recentFilesResponseSchema,
+  "desktop:recent-open": desktopFileResponseSchema,
+  "desktop:recent-remove": recentRemoveResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
   "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
@@ -240,9 +269,15 @@ const requestSchemas = {
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
   "desktop:tabs-update": z.object({ sessionGeneration: sessionGenerationSchema, documentIds: z.array(opaqueHandleSchema).max(8), activeDocumentId: opaqueHandleSchema.nullable() }).strict().refine((value) => new Set(value.documentIds).size === value.documentIds.length && (value.activeDocumentId === null || value.documentIds.includes(value.activeDocumentId)), "invalid tab membership"),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
   "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
+  "desktop:local-state": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:local-mode": z.object({ sessionGeneration: sessionGenerationSchema, local: z.boolean() }).strict(),
+  "desktop:recent-list": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:recent-open": z.object({ sessionGeneration: sessionGenerationSchema, id: recentFileIdSchema }).strict(),
+  "desktop:recent-remove": z.object({ sessionGeneration: sessionGenerationSchema, id: recentFileIdSchema }).strict(),
   "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
   "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional() }).strict(),
   "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),

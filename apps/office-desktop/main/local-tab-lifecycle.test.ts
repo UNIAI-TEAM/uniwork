@@ -18,7 +18,7 @@ async function fixture(port = nativeFs) {
   await fs.writeFile(path, "old");
   const registry = new FileHandleRegistry({ sessionId: sessionGeneration, fs: port });
   const metadata = await registry.openPath(path);
-  const documents = createOpenedDocuments({ session: () => session, onClosed: (id) => registry.revoke(id) });
+  const documents = createOpenedDocuments({ sessionFor: () => session, onClosed: (id) => registry.revoke(id) });
   documents.open(metadata.handle, "local", localDraftIdentity(session, registry.identityFor(metadata.handle), metadata));
   documents.update({ documentIds: [metadata.handle], activeDocumentId: metadata.handle });
   return { root, path, registry, metadata, documents };

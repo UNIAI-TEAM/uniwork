@@ -9,6 +9,10 @@ export interface LoginScreenProps {
   lockedReason?: "keyring";
   onStart: () => void;
   onCancel: () => void;
+  /** Open a .docx from disk without signing in. */
+  onOpenLocal?: () => void;
+  /** Enter the local home without signing in. */
+  onUseLocal?: () => void;
 }
 
 const MESSAGE_KEY: Record<LoginScreenState, string> = {
@@ -24,8 +28,9 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
 
 /** The centred sign-in card shown before a workspace is reached. The desktop
  * host never asks for a password here: the only action opens the system
- * browser, where the real credential form lives. */
-export function LoginScreen({ state, lockedReason, onStart, onCancel }: LoginScreenProps) {
+ * browser, where the real credential form lives. Two secondary actions enter
+ * the local device mode without any account. */
+export function LoginScreen({ state, lockedReason, onStart, onCancel, onOpenLocal, onUseLocal }: LoginScreenProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.login" });
   const pending = state === "pending";
   const messageKey = state === "locked" && lockedReason === "keyring" ? "lockedKeyring" : MESSAGE_KEY[state];
@@ -46,6 +51,13 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel }: LoginScr
             {t("start")}
           </Button>
         )}
+        {!pending && (onOpenLocal || onUseLocal) ? (
+          <div className="flex w-full flex-col gap-2">
+            {onOpenLocal ? <Button variant="outline" className="w-full" onClick={onOpenLocal}>{t("openLocal")}</Button> : null}
+            {onUseLocal ? <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button> : null}
+            <p className="text-caption text-muted-foreground">{t("localNote")}</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

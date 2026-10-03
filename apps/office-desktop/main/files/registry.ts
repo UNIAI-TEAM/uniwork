@@ -52,11 +52,14 @@ export interface OpenFileMetadata {
   readonly byteLength: number;
   readonly modifiedAtMs: number;
   readonly checksum: string;
+  /** A new local document has no backing path until its first Save As. */
+  readonly untitled?: boolean;
 }
 
 interface FileRecord {
-  readonly path: string;
-  readonly canonicalPath: string;
+  /** Absent until a new local document is written by Save As. */
+  readonly path?: string;
+  readonly canonicalPath?: string;
   readonly signature: FileSignature;
   readonly metadata: OpenFileMetadata;
 }
@@ -122,8 +125,24 @@ export class FileHandleRegistry {
   /** Alias used by the open-event adapter. */
   openEvent(path: string): Promise<OpenFileMetadata> { return this.openPath(path); }
 
+  /** A new DOCX with no backing path. The renderer cannot choose a path: the
+   * document becomes writable only through the Save As picker. */
+  createUntitled(bytes: Uint8Array, name: string, now = Date.now()): OpenFileMetadata {
+    this.assertActive();
+    this.assertSize(bytes.byteLength);
+    const handle = this.newHandle();
+    const metadata = Object.freeze({ handle, name, byteLength: bytes.byteLength, modifiedAtMs: now, checksum: checksum(bytes), untitled: true });
+    this.records.set(handle, { signature: { size: bytes.byteLength, modifiedNs: String(now * 1_000_000), ino: 0, dev: 0 }, metadata });
+    return metadata;
+  }
+
+  /** Main-only lookup for host bookkeeping (recent files, protected drafts).
+   * The renderer never receives a path from this registry. */
+  pathOf(handle: string): string | undefined { return this.getRecord(handle).path; }
+
   async read(handle: string): Promise<Uint8Array> {
     const record = this.getRecord(handle);
+    if (!record.path) throw new LocalFileError("invalid_path");
     await this.validateCurrent(record, false);
     try {
       this.assertSize((await this.fs.stat(record.path)).size);
@@ -138,6 +157,7 @@ export class FileHandleRegistry {
    * the backing path; the renderer obtains bytes through the engine seam. */
   async openPathFromHandle(handle: string): Promise<OpenFileMetadata> {
     const record = this.getRecord(handle);
+    if (!record.path) return record.metadata;
     await this.validateCurrent(record, false);
     return record.metadata;
   }
@@ -145,6 +165,7 @@ export class FileHandleRegistry {
   /** Save into the originally opened file after a fresh external-change check. */
   async save(handle: string, bytes: Uint8Array): Promise<OpenFileMetadata> {
     const record = this.getRecord(handle);
+    if (!record.path) throw new LocalFileError("invalid_path");
     this.assertSize(bytes.byteLength);
     await this.validateCurrent(record, true);
     await atomicReplace(record.path, bytes, this.fs, this.maxBytes);
@@ -176,7 +197,7 @@ export class FileHandleRegistry {
    * only its hash reaches the encrypted draft identity. */
   identityFor(handle: string): string {
     const record = this.getRecord(handle);
-    return `local:${createHash("sha256").update(record.canonicalPath).digest("hex")}`;
+    return `local:${createHash("sha256").update(record.canonicalPath ?? record.path ?? handle).digest("hex")}`;
   }
 
   revokeSession(): void { this.revoked = true; this.records.clear(); }
@@ -245,6 +266,7 @@ export class FileHandleRegistry {
   }
 
   private async validateCurrent(record: FileRecord, forWrite: boolean): Promise<void> {
+    if (!record.path) return;
     const current = await this.validateTarget(record.path, false, forWrite);
     if (forWrite && !sameSignature(record.signature, current.signature)) throw new LocalFileError("external_modification");
     if (forWrite) {

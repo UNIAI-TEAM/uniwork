@@ -7331,6 +7331,8 @@
       "appTitle": "UniWork Office",
       "label": "Document tabs",
       "library": "Library",
+      "local": "On this device",
+      "signIn": "Sign in",
       "close": "Close {{name}}",
       "dirty": "Unsaved changes",
       "saving": "Saving…",
@@ -7361,6 +7363,9 @@
       "required": "Please sign in again.",
       "start": "Sign in with browser",
       "cancel": "Cancel login",
+      "openLocal": "Open file on this device",
+      "useLocal": "Continue without signing in",
+      "localNote": "You can sign in later to use your UniWork library.",
       "signOut": "Sign out",
       "libraryWorkspace": "Document library",
       "accountUnknown": "UniWork account",
@@ -7403,6 +7408,35 @@
       "updated": "Updated {{time}}",
       "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
       "draftRecovered": "The selected draft was restored."
+    },
+    "local": {
+      "title": "Files on this device",
+      "count_one": "{{count}} file",
+      "count_other": "{{count}} files",
+      "open": "Open file",
+      "create": "New document",
+      "untitled": "Untitled.docx",
+      "empty": "No files on this device yet",
+      "emptyDescription": "Open a DOCX file from this device or create a new document. You can sign in later to use your UniWork library.",
+      "error": "Recent files could not be loaded.",
+      "retry": "Retry",
+      "missing": "File not found",
+      "remove": "Remove",
+      "removeNamed": "Remove {{name}} from the list",
+      "openNamed": "Open {{name}}",
+      "updated": "Last opened {{time}}",
+      "unsupported": "Only DOCX files on this device are supported.",
+      "saveAs": "Save as…",
+      "leaveSave": "Save on this device",
+      "home": "Back to on-device home"
+    },
+    "ai": {
+      "entry": "AI assistant",
+      "title": "AI assistant is not available",
+      "signedOutDescription": "Sign in and open a document from your UniWork library to use the AI assistant. File content on this device is never sent.",
+      "localDescription": "The AI assistant works with documents in your UniWork library only. File content on this device is never sent.",
+      "signIn": "Sign in",
+      "close": "Close"
     }
   }
 }
