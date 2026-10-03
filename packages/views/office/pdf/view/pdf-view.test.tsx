@@ -17,7 +17,7 @@ function renderer(): PdfPageRenderService {
 }
 
 describe("PdfView", () => {
-  it("changes manual zoom and clamps at supported bounds", async () => {
+  it("changes manual zoom and applies fit-width", async () => {
     const onZoomChange = vi.fn();
     render(<PdfView pages={pages} renderer={renderer()} initialZoom={1} onZoomChange={onZoomChange} viewportWidth={1000} viewportHeight={800} />);
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
@@ -30,7 +30,7 @@ describe("PdfView", () => {
     const service = renderer();
     const onPageChange = vi.fn();
     render(<PdfView pages={pages} renderer={service} onPageChange={onPageChange} />);
-    await waitFor(() => expect(service.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 1, scale: expect.any(Number) })));
+    await waitFor(() => expect(service.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 1, width: 600, height: 800, scale: 112 / 600 })));
     expect(screen.getByTestId("pdf-thumbnail-rail")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Page 2" }));
     expect(onPageChange).toHaveBeenCalledWith(2);
@@ -45,5 +45,15 @@ describe("PdfView", () => {
     fireEvent.change(screen.getByLabelText("Current page"), { target: { value: "2" } });
     fireEvent.keyDown(screen.getByLabelText("Current page"), { key: "Enter" });
     expect(onPageChange).toHaveBeenLastCalledWith(2);
+  });
+
+  it("resets an empty go-to-page input without navigating", () => {
+    const onPageChange = vi.fn();
+    render(<PdfView pages={pages} renderer={renderer()} currentPage={2} onPageChange={onPageChange} />);
+    const input = screen.getByLabelText("Current page");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    expect(input).toHaveValue(2);
+    expect(onPageChange).not.toHaveBeenCalled();
   });
 });

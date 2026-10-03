@@ -31,10 +31,6 @@ function fitZoom(pages: readonly PdfCanvasPage[], width: number | undefined, hei
   return clampZoom(Math.min(widthZoom, (height - 32) / firstPage.height));
 }
 
-function localLabel(t: ReturnType<typeof useTranslation>["t"], key: string, fallback: string): string {
-  return t(key, { defaultValue: fallback });
-}
-
 interface ThumbnailProps {
   page: PdfCanvasPage;
   renderer: PdfPageRenderService;
@@ -112,6 +108,10 @@ export function PdfView({ pages, renderer, outline = [], initialZoom = 1, zoom: 
     onPageChange?.(value);
   }, [onPageChange, pages.length]);
   const applyPageInput = useCallback(() => {
+    if (pageInput.trim() === "") {
+      setPageInput(String(currentPage));
+      return;
+    }
     const value = Number(pageInput);
     if (Number.isFinite(value)) changePage(value);
     else setPageInput(String(currentPage));
@@ -128,19 +128,19 @@ export function PdfView({ pages, renderer, outline = [], initialZoom = 1, zoom: 
         <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.statusBar.zoomOut")} disabled={zoom <= MIN_ZOOM} onClick={() => updateZoom(zoom - ZOOM_STEP)}><Minus aria-hidden="true" /></Button>
         <span className="min-w-12 text-center text-caption tabular-nums" aria-live="polite">{t("office.pdf.statusBar.zoom", { percent: zoomPercent })}</span>
         <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.statusBar.zoomIn")} disabled={zoom >= MAX_ZOOM} onClick={() => updateZoom(zoom + ZOOM_STEP)}><Plus aria-hidden="true" /></Button>
-        <Button type="button" variant="toolbar" size="sm" aria-label={localLabel(t, "office.pdf.view.fitWidth", "Fit width")} disabled={fitWidth === null} onClick={() => { if (fitWidth !== null) updateZoom(fitWidth, "fit-width"); }}><RectangleHorizontal aria-hidden="true" />{localLabel(t, "office.pdf.view.fitWidth", "Fit width")}</Button>
-        <Button type="button" variant="toolbar" size="sm" aria-label={localLabel(t, "office.pdf.view.fitPage", "Fit page")} disabled={fitPage === null} onClick={() => { if (fitPage !== null) updateZoom(fitPage, "fit-page"); }}><Maximize2 aria-hidden="true" />{localLabel(t, "office.pdf.view.fitPage", "Fit page")}</Button>
+        <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.view.fitWidth")} disabled={fitWidth === null} onClick={() => { if (fitWidth !== null) updateZoom(fitWidth, "fit-width"); }}><RectangleHorizontal aria-hidden="true" />{t("office.pdf.view.fitWidth")}</Button>
+        <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.view.fitPage")} disabled={fitPage === null} onClick={() => { if (fitPage !== null) updateZoom(fitPage, "fit-page"); }}><Maximize2 aria-hidden="true" />{t("office.pdf.view.fitPage")}</Button>
         <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
         <label htmlFor="pdf-view-page-input" className="sr-only">{t("office.pdf.statusBar.pageInput")}</label>
         <input id="pdf-view-page-input" className="h-8 w-14 rounded-control border border-input bg-background px-1 text-center text-caption" type="number" min={pages.length ? 1 : 0} max={pages.length || undefined} value={pageInput} onChange={(event) => setPageInput(event.target.value)} onBlur={applyPageInput} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyPageInput(); } }} aria-label={t("office.pdf.statusBar.pageInput")} />
         <span className="text-caption text-muted-foreground">/ {pages.length}</span>
       </div>
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-36 shrink-0 flex-col gap-2 overflow-hidden border-r border-border bg-muted/10 p-2" aria-label={localLabel(t, "office.pdf.view.thumbnails", "Page thumbnails")} data-testid="pdf-thumbnail-rail">
-          <h2 className="px-1 text-label font-medium">{localLabel(t, "office.pdf.view.thumbnails", "Page thumbnails")}</h2>
+        <aside className="flex w-36 shrink-0 flex-col gap-2 overflow-hidden border-r border-border bg-muted/10 p-2" aria-label={t("office.pdf.view.thumbnails")} data-testid="pdf-thumbnail-rail">
+          <h2 className="px-1 text-label font-medium">{t("office.pdf.view.thumbnails")}</h2>
           <div className="min-h-0 flex-1 space-y-1 overflow-auto">{pages.map((page) => <Thumbnail key={page.pageNumber} page={page} renderer={renderer} selected={currentPage === page.pageNumber} onSelect={() => changePage(page.pageNumber)} />)}</div>
         </aside>
-        {outline.length ? <aside className="hidden w-52 shrink-0 flex-col gap-2 overflow-auto border-r border-border bg-muted/10 p-2 lg:flex" aria-label={localLabel(t, "office.pdf.view.outline", "Document outline")} data-testid="pdf-outline"><h2 className="px-1 text-label font-medium">{localLabel(t, "office.pdf.view.outline", "Document outline")}</h2><Outline items={outline} onSelect={selectOutline} /></aside> : null}
+        {outline.length ? <aside className="hidden w-52 shrink-0 flex-col gap-2 overflow-auto border-r border-border bg-muted/10 p-2 lg:flex" aria-label={t("office.pdf.view.outline")} data-testid="pdf-outline"><h2 className="px-1 text-label font-medium">{t("office.pdf.view.outline")}</h2><Outline items={outline} onSelect={selectOutline} /></aside> : null}
         <PdfCanvas pages={pages} renderer={renderer} zoom={zoom} className="min-w-0" onSelectionChange={(selection) => { if (selection.page !== currentPage) changePage(selection.page); }} />
       </div>
       <div className="sr-only" role="status" aria-live="polite">{t("office.pdf.surface.page", { page: currentPage, count: pages.length })}</div>
