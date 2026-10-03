@@ -109,4 +109,11 @@ describe("createPptxDeckRenderer", () => {
     const markup = decodeURIComponent(createPptxDeckRenderer(module, input, { idPrefix: "t", palette }).buildThumbnail(0, 120)!.split(",")[1]!);
     expect(markup).toContain('<polygon points="0 0 10 0 5 5"');
   });
+
+  it("degrades a slide the artifact cannot build instead of throwing through the editor", () => {
+    const module: PptxRendererModule = { ...fakeModule(), buildRenderSlide: () => { throw new Error("bad slide"); } };
+    const renderer = createPptxDeckRenderer(module, input, { idPrefix: "t", palette });
+    expect(renderer.buildSlide(0, 320)).toBeNull();
+    expect(renderer.buildThumbnail(0, 320)).toBeNull();
+  });
 });

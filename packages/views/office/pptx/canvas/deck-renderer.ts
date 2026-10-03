@@ -31,7 +31,7 @@ export interface PptxRenderInput {
   revision?: string | number;
 }
 
-export interface PptxDeckRendererOptions {
+interface PptxDeckRendererOptions {
   idPrefix: string;
   palette: PptxCanvasPalette;
 }
@@ -66,11 +66,19 @@ export function createPptxDeckRenderer(
     const key = `${slideIndex}:${Math.round(fitWidthPx)}`;
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
-    const built = module.buildRenderSlide(slide, size, {
-      fitWidthPx,
-      slideNo: slideIndex + 1,
-      ...(input.resolveMedia ? { media: input.resolveMedia } : {}),
-    });
+    // A slide the artifact cannot build (corrupt geometry, an unsupported node) degrades to a
+    // null rendition — the canvas shows its per-slide pending state and the rail skips that
+    // thumbnail — instead of throwing through React and taking the whole editor down.
+    let built: PptxRenderSlide | null = null;
+    try {
+      built = module.buildRenderSlide(slide, size, {
+        fitWidthPx,
+        slideNo: slideIndex + 1,
+        ...(input.resolveMedia ? { media: input.resolveMedia } : {}),
+      });
+    } catch {
+      built = null;
+    }
     if (cache.size >= RENDITION_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     cache.set(key, built);
     return built;
@@ -90,8 +98,12 @@ export function createPptxDeckRenderer(
     buildThumbnail: (slideIndex, fitWidthPx, title) => {
       const slide = buildSlide(slideIndex, fitWidthPx);
       if (!slide) return null;
-      const doc = buildSlideSvg(slide, { ...svgOptions, idPrefix: `${options.idPrefix}-t${slideIndex}` });
-      return svgDataUrl(slideSvgMarkup(doc.root, doc, title ? { title } : {}));
+      try {
+        const doc = buildSlideSvg(slide, { ...svgOptions, idPrefix: `${options.idPrefix}-t${slideIndex}` });
+        return svgDataUrl(slideSvgMarkup(doc.root, doc, title ? { title } : {}));
+      } catch {
+        return null;
+      }
     },
   };
 }

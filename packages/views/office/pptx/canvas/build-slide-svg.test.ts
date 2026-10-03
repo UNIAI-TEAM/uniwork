@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSlideSvg, collectRenderNodeBoxes } from "./build-slide-svg";
 import type { PptxCanvasPalette } from "./paint";
-import { serializeSvgNode, slideSvgMarkup, svgDataUrl } from "./svg-node";
+import { reactSvgProps, serializeSvgNode, slideSvgMarkup, svgDataUrl } from "./svg-node";
 import { box, byTag, chartNode, elementGroup, run, shapeNode, slide, tableNode, textContent, textLayout } from "./pptx-render-fixtures";
 
 const palette: PptxCanvasPalette = { pageFill: "#ffffff", chipFill: "#f4f4f5", chipStroke: "#e4e4e7", chipText: "#646464" };
@@ -112,7 +112,9 @@ describe("buildSlideSvg: shapes", () => {
     expect(byTag(degraded.root, "rect")[1]?.attrs?.fill).toBe("#FFFFFF");
     const grid: boolean[][] = Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => (x + y) % 2 === 0));
     const tiled = build([shapeNode({ fill })], {}, { patternGrid: () => grid });
-    expect(byTag(tiled.root, "pattern")[0]?.attrs).toMatchObject({ width: 8, height: 8 });
+    // The cell grid is page-locked, not node-anchored: the shape sits at page (40, 30), so the
+    // first cell boundary snaps back to the page multiple (40 % 8 = 0, 30 % 8 = 6 -> -6).
+    expect(byTag(tiled.root, "pattern")[0]?.attrs).toMatchObject({ width: 8, height: 8, x: 0, y: -6 });
     expect(byTag(tiled.root, "path").some((node) => typeof node.attrs?.d === "string" && String(node.attrs.d).includes("M0 0h1v1h-1z"))).toBe(true);
   });
 
@@ -234,7 +236,10 @@ describe("buildSlideSvg: groups", () => {
     const doc = build([{ id: "r_g", type: "group", sourceId: "group-1", box: box({ x: 100, y: 50, w: 200, h: 150 }), children: [child] }]);
     const group = elementGroup(doc.root, "group-1");
     expect(group?.attrs?.transform).toBe("translate(200 125) translate(-100 -75)");
-    expect(elementGroup(doc.root, "child-1")).toBeDefined();
+    const childGroup = elementGroup(doc.root, "child-1");
+    expect(childGroup).toBeDefined();
+    // The child's selection attributes carry its absolute page offset (parent 100/50 + child 10/5).
+    expect(childGroup?.attrs).toMatchObject({ "data-pptx-page-x": 110, "data-pptx-page-y": 55 });
     const boxes = collectRenderNodeBoxes(slide([{ id: "r_g", type: "group", sourceId: "group-1", box: box({ x: 100, y: 50, w: 200, h: 150 }), children: [child] }]));
     expect(boxes.map((entry) => [entry.sourceId, entry.box.x, entry.box.y])).toEqual([
       ["group-1", 100, 50],
@@ -292,6 +297,35 @@ describe("buildSlideSvg: placeholder chips and element hooks", () => {
   });
 });
 
+describe("reactSvgProps", () => {
+  it("keeps data-*/aria-* names verbatim, camel-cases known SVG attributes and passes unknown kebab ones through", () => {
+    expect(
+      reactSvgProps({
+        "data-pptx-element-id": "shape-1",
+        "data-pptx-page-x": 40,
+        "aria-hidden": "true",
+        "stroke-width": 2,
+        "stroke-dasharray": "4 2",
+        "font-family": "Calibri",
+        "font-kerning": "none",
+        "xml:space": "preserve",
+        class: "fill-muted",
+        viewBox: "0 0 960 540",
+      }),
+    ).toEqual({
+      "data-pptx-element-id": "shape-1",
+      "data-pptx-page-x": 40,
+      "aria-hidden": "true",
+      strokeWidth: 2,
+      strokeDasharray: "4 2",
+      fontFamily: "Calibri",
+      "font-kerning": "none",
+      xmlSpace: "preserve",
+      className: "fill-muted",
+      viewBox: "0 0 960 540",
+    });
+  });
+});
 describe("slide serialization", () => {
   it("emits a standalone SVG document with a title and escaped text", () => {
     const doc = build([shapeNode({ text: textLayout({ lines: [{ runs: [run({ text: "a < b & c" })], top: 0, height: 24 }] }) })]);

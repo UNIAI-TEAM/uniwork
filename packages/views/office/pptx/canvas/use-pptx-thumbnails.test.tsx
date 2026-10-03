@@ -28,7 +28,7 @@ describe("usePptxThumbnails", () => {
     expect(result.current.get("s1")).toBe(url(0, 160));
     expect(result.current.get("s2")).toBe(url(1, 160));
     expect(buildThumbnail).toHaveBeenCalledTimes(2);
-    expect(pptxThumbnailKey("s1", 4, 160)).toBe("s1@4@160");
+    expect(pptxThumbnailKey("s1", 4, 160)).toBe("s1@4@160@light");
   });
 
   it("serves a cached thumbnail without rebuilding, and rebuilds when the revision changes", async () => {
@@ -43,6 +43,17 @@ describe("usePptxThumbnails", () => {
     second.unmount();
     const third = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 2 }));
     await waitFor(() => expect(third.result.current.size).toBe(1));
+    expect(buildThumbnail).toHaveBeenCalledTimes(2);
+  });
+
+  it("keys the cache by theme so a light/dark switch rebuilds the chips", async () => {
+    const buildThumbnail = vi.fn((index: number) => `data:image/svg+xml;charset=utf-8,t${index}`);
+    const renderer = fakeRenderer(buildThumbnail);
+    const first = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1, theme: "light" }));
+    await waitFor(() => expect(first.result.current.size).toBe(1));
+    first.unmount();
+    const second = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1, theme: "dark" }));
+    await waitFor(() => expect(second.result.current.size).toBe(1));
     expect(buildThumbnail).toHaveBeenCalledTimes(2);
   });
 

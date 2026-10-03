@@ -4,7 +4,12 @@
  * Rail thumbnails: every slide is built at a small fit width and serialized to the same SVG
  * the canvas mounts, then handed to `PptxSlideRail` as a `data:` URL. Generation is
  * incremental (one slide per idle slice, cancellable) so mounting the editor never waits for
- * a whole deck, and results are cached per (slide id, deck revision, width).
+ * a whole deck, and results are cached per (slide id, deck revision, width, theme).
+ *
+ * The small build width is what separates a thumbnail from the on-screen rendition in the
+ * shared artifact spy: the canvas builds the selected slide at the measured fit width
+ * (960 px before a container measures one, see `PPTX_FALLBACK_FIT_WIDTH`), every rail
+ * thumbnail at `PPTX_THUMBNAIL_WIDTH` (160 px).
  */
 import { useEffect, useRef, useState } from "react";
 import type { PptxDeckRenderer } from "./deck-renderer";
@@ -20,8 +25,10 @@ export function clearPptxThumbnailCache(): void {
   cache.clear();
 }
 
-export function pptxThumbnailKey(slideId: string, revision: string | number | undefined, widthPx: number): string {
-  return `${slideId}@${revision ?? 0}@${widthPx}`;
+/** Cache key of one thumbnail: the slide, its deck revision, the build width and the theme the
+ *  chip palette was resolved for (a light/dark switch must not serve the previous colours). */
+export function pptxThumbnailKey(slideId: string, revision: string | number | undefined, widthPx: number, theme = "light"): string {
+  return `${slideId}@${revision ?? 0}@${widthPx}@${theme}`;
 }
 
 export interface PptxThumbnailSlide {
@@ -29,12 +36,20 @@ export interface PptxThumbnailSlide {
   label?: string;
 }
 
-export interface PptxThumbnailOptions {
+interface PptxThumbnailOptions {
   /** Deck renderer from `usePptxDeckRenderer`; null until the artifact + deck are ready. */
   renderer: PptxDeckRenderer | null;
+  /**
+   * Rail order. `renderer.buildThumbnail` is positional while results are keyed by `slide.id`,
+   * so `slides[i]` must be the deck's slide `i` — a host that reorders or filters this view
+   * attaches the wrong image to an id with no error. Pass the deck order, or extend the
+   * renderer seam to resolve by id before feeding a reordered view.
+   */
   slides: readonly PptxThumbnailSlide[];
   revision?: string | number;
   widthPx?: number;
+  /** Theme the chip palette was resolved for; defaults to the document's light/dark class. */
+  theme?: string;
 }
 
 type ScheduleHandle = number;
@@ -53,10 +68,13 @@ function unschedule(handle: ScheduleHandle): void {
 }
 
 /** `slideId -> data URL`, filled in as slides are rendered. */
-export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_THUMBNAIL_WIDTH }: PptxThumbnailOptions): Map<string, string> {
+export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_THUMBNAIL_WIDTH, theme }: PptxThumbnailOptions): Map<string, string> {
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(() => new Map());
   const slidesRef = useRef(slides);
   slidesRef.current = slides;
+  // Without an explicit theme, key on the document's light/dark class so a theme switch
+  // invalidates the cache even though the renderer instance and deck revision do not change.
+  const resolvedTheme = theme ?? (typeof document === "undefined" ? "light" : document.documentElement.classList.contains("dark") ? "dark" : "light");
   const signature = slides.map((slide) => slide.id).join("\u0000");
   useEffect(() => {
     if (!renderer || !signature) {
@@ -69,7 +87,7 @@ export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_T
     const ready = new Map<string, string>();
     const pending: number[] = [];
     list.forEach((slide, index) => {
-      const hit = cache.get(pptxThumbnailKey(slide.id, revision, widthPx));
+      const hit = cache.get(pptxThumbnailKey(slide.id, revision, widthPx, resolvedTheme));
       if (hit) ready.set(slide.id, hit);
       else pending.push(index);
     });
@@ -84,7 +102,7 @@ export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_T
           const url = renderer.buildThumbnail(index, widthPx, slide.label);
           if (url) {
             if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-            cache.set(pptxThumbnailKey(slide.id, revision, widthPx), url);
+            cache.set(pptxThumbnailKey(slide.id, revision, widthPx, resolvedTheme), url);
             ready.set(slide.id, url);
             setThumbnails(new Map(ready));
           }
@@ -99,6 +117,6 @@ export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_T
       cancelled = true;
       if (handle != null) unschedule(handle);
     };
-  }, [renderer, revision, signature, widthPx]);
+  }, [renderer, revision, resolvedTheme, signature, widthPx]);
   return thumbnails;
 }

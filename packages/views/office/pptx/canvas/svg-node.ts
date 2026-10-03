@@ -43,6 +43,13 @@ export function svgText(tag: string, attrs: Record<string, SvgAttrValue> | undef
   return { tag, ...(attrs ? { attrs } : {}), text };
 }
 
+/** Counter-flip that keeps content upright inside a mirrored box (`translate(w h) scale(sx sy)`).
+ *  Shared by the shape/table painters and the text painter so the two seams cannot drift. */
+export function mirrorTransform(mirror: { w: number; h: number; flipX: boolean; flipY: boolean }): string | undefined {
+  if (!mirror.flipX && !mirror.flipY) return undefined;
+  return `translate(${px(mirror.flipX ? mirror.w : 0)} ${px(mirror.flipY ? mirror.h : 0)}) scale(${mirror.flipX ? -1 : 1} ${mirror.flipY ? -1 : 1})`;
+}
+
 /** Compact number formatting: 3 decimals, no exponent, `-0` folded to `0`. */
 export function px(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -117,10 +124,27 @@ export function svgDataUrl(markup: string): string {
 }
 
 const ALREADY_CAMEL = new Set(["viewBox", "preserveAspectRatio", "patternUnits", "patternContentUnits", "gradientUnits", "gradientTransform", "clipPathUnits", "maskUnits", "refX", "refY", "markerWidth", "markerHeight"]);
+/** Namespaced attributes React wants in its own camelCase prop form (`xml:space` -> `xmlSpace`). */
+const NAMESPACED = new Set(["xml:space", "xml:lang", "xml:base", "xlink:href", "xlink:title"]);
+/** Kebab attributes React does not alias: camel-casing them makes React drop the prop, so they
+ *  must reach the DOM unchanged (`font-kerning` has no React prop name at all). */
+const PASSTHROUGH = new Set(["font-kerning"]);
 
-/** SVG attribute name -> React prop name (`stroke-width` -> `strokeWidth`). */
-export function reactSvgAttrName(name: string): string {
+/**
+ * SVG attribute name -> React prop name. React renders `data-*` / `aria-*` verbatim and camelCases
+ * the SVG presentation attributes it knows (`stroke-width` -> `strokeWidth`), but drops any other
+ * camelCase prop with a dev warning. So a name React does not know keeps its kebab form, and the
+ * whole per-node selection seam (`data-pptx-*`) survives into the live DOM instead of only the
+ * serialized thumbnails.
+ */
+function reactSvgAttrName(name: string): string {
   if (name === "class") return "className";
+  if (name.startsWith("data-") || name.startsWith("aria-")) return name;
+  if (PASSTHROUGH.has(name)) return name;
+  if (NAMESPACED.has(name)) {
+    const [prefix, ...rest] = name.split(":");
+    return `${prefix}${rest.map((part) => part[0]!.toUpperCase() + part.slice(1)).join("")}`;
+  }
   if (ALREADY_CAMEL.has(name) || !name.includes("-")) return name;
   const [head, ...rest] = name.split("-");
   return `${head}${rest.map((part) => (part ? part[0]!.toUpperCase() + part.slice(1) : "")).join("")}`;

@@ -16,7 +16,7 @@
  */
 import type { PptxRenderSlide, PptxSlideSize, PptxViewport } from "./render-tree";
 
-export type PptxMediaResolver = (mediaRef: string) => string | undefined;
+type PptxMediaResolver = (mediaRef: string) => string | undefined;
 
 export interface PptxBuildSlideOptions {
   fitWidthPx: number;

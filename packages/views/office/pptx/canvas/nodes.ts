@@ -11,10 +11,10 @@
 import { chartContent, chipContent, tableContent } from "./data-nodes";
 import { blipFilter, fillPaint, normalizeColor, shadowFilter, strokePaint, type PptxPaintContext } from "./paint";
 import type { PptxArrowEndRender, PptxPictureRenderNode, PptxRenderNode, PptxShapeRenderNode } from "./render-tree";
-import { boxTransform, pointsAttr, px, svgEl, type SvgAttrValue, type SvgNode } from "./svg-node";
+import { boxTransform, mirrorTransform, pointsAttr, px, svgEl, type SvgAttrValue, type SvgNode } from "./svg-node";
 import { textBlockPaint } from "./text";
 
-export interface RenderNodeOptions {
+interface RenderNodeOptions {
   /** Absolute page-space offset of the box being painted (fill/pattern phase anchoring). */
   origin: { x: number; y: number };
   /** Mirror parity accumulated from flipped ancestor boxes. */
@@ -22,7 +22,7 @@ export interface RenderNodeOptions {
   inheritedFlipV: boolean;
 }
 
-export interface NodeMirror {
+interface NodeMirror {
   w: number;
   h: number;
   flipX: boolean;
@@ -39,11 +39,6 @@ function elementAttrs(node: PptxRenderNode, origin: { x: number; y: number }): R
     ...(node.decoration ? { "data-pptx-decoration": "true" } : {}),
     ...(node.background ? { "data-pptx-background": "true" } : {}),
   };
-}
-
-function counterFlipTransform(mirror: NodeMirror): string | undefined {
-  if (!mirror.flipX && !mirror.flipY) return undefined;
-  return `translate(${px(mirror.flipX ? mirror.w : 0)} ${px(mirror.flipY ? mirror.h : 0)}) scale(${mirror.flipX ? -1 : 1} ${mirror.flipY ? -1 : 1})`;
 }
 
 // ── Connector arrowheads ─────────────────────────────────────────────────────
@@ -238,28 +233,28 @@ export function renderNodePaint(node: PptxRenderNode, ctx: PptxPaintContext, opt
   };
   if (node.type === "group") {
     const children = node.children.map((child) => renderNodePaint(child, ctx, childOptions)).filter((child): child is SvgNode => child != null);
-    return svgEl("g", { transform: boxTransform(box), ...elementAttrs(node, options.origin) }, children);
+    return svgEl("g", { transform: boxTransform(box), ...elementAttrs(node, childOptions.origin) }, children);
   }
   const mirror: NodeMirror = { w: box.w, h: box.h, flipX: childOptions.inheritedFlipH, flipY: childOptions.inheritedFlipV };
-  const counterFlip = counterFlipTransform(mirror);
+  const counterFlip = mirrorTransform(mirror);
   let content: SvgNode[];
   switch (node.type) {
     case "picture":
-      content = pictureContent(node, ctx, options.origin);
+      content = pictureContent(node, ctx, childOptions.origin);
       break;
     case "table":
-      content = tableContent(node, { ctx, origin: options.origin, mirror });
+      content = tableContent(node, { ctx, origin: childOptions.origin, mirror });
       break;
     case "chart":
-      content = chartContent(node, { ctx, origin: options.origin });
+      content = chartContent(node, { ctx, origin: childOptions.origin });
       break;
     case "placeholder-chip":
       content = chipContent(node, ctx);
       break;
     default:
-      content = shapeContent(node, ctx, options.origin, mirror);
+      content = shapeContent(node, ctx, childOptions.origin, mirror);
       break;
   }
   const painted = counterFlip && (node.type === "chart" || node.type === "placeholder-chip") ? [svgEl("g", { transform: counterFlip }, content)] : content;
-  return svgEl("g", { transform: boxTransform(box), ...elementAttrs(node, options.origin) }, painted);
+  return svgEl("g", { transform: boxTransform(box), ...elementAttrs(node, childOptions.origin) }, painted);
 }

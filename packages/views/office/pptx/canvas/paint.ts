@@ -51,7 +51,7 @@ export interface PptxPaintContext {
   presetPolygon?(preset: string | undefined, w: number, h: number, adjust?: Record<string, number>): number[] | null;
 }
 
-export interface PptxPaintContextOptions {
+interface PptxPaintContextOptions {
   idPrefix: string;
   palette: PptxCanvasPalette;
   imageSize?(dataUrl: string): PptxImageSize | undefined;
@@ -135,7 +135,7 @@ function stopNodes(stops: Array<{ pos: number; color: string }>): SvgNode[] {
 }
 
 /** Unit direction of an `a:lin` gradient, unsquashed by the box aspect for `scaled="1"`. */
-export function linearGradientDirection(angleDeg: number, scaled: boolean | undefined, w: number, h: number): [number, number] {
+function linearGradientDirection(angleDeg: number, scaled: boolean | undefined, w: number, h: number): [number, number] {
   const rad = (angleDeg * Math.PI) / 180;
   if (!scaled) return [Math.cos(rad), Math.sin(rad)];
   const vx = h * Math.cos(rad);
@@ -154,7 +154,7 @@ export function linearGradientLine(angleDeg: number, scaled: boolean | undefined
 }
 
 /** Radial centre + radius: 100% sits on the farthest corner of the tile rect. */
-export function radialCircleGeometry(
+function radialCircleGeometry(
   w: number,
   h: number,
   center?: { x: number; y: number },
@@ -179,7 +179,7 @@ export interface PptxBlipEffects {
   lum?: { bright: number; contrast: number };
 }
 
-export function hasBlipEffects(fx: PptxBlipEffects): boolean {
+function hasBlipEffects(fx: PptxBlipEffects): boolean {
   return Boolean(fx.clrChange || fx.biLevel != null || fx.duotone || fx.lum);
 }
 
@@ -313,14 +313,19 @@ function patternFill(fill: Extract<PptxRenderFill, { kind: "pattern" }>, ctx: Pp
     .filter(Boolean)
     .join("");
   const phase = origin ?? { x: 0, y: 0 };
+  // Page-lock the cell grid like GDI/PDF hatches and the genoffice renderer's `patternCanvas`:
+  // the first cell boundary must sit on a page multiple of `size`, so the tile grid does not
+  // restart at every shape. A bare `phase % size` anchors at the node instead (F11).
+  const anchorX = -(((phase.x % size) + size) % size);
+  const anchorY = -(((phase.y % size) + size) % size);
   ctx.defs.push(
     svgEl(
       "pattern",
       {
         id,
         patternUnits: "userSpaceOnUse",
-        x: px(phase.x % size),
-        y: px(phase.y % size),
+        x: px(anchorX),
+        y: px(anchorY),
         width: size,
         height: size,
       },

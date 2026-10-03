@@ -105,7 +105,7 @@ export function PptxCanvasSurface({
             ) : null}
           </div>
         ) : null}
-        {slideCount > 0 && !content ? <p className="self-center text-sm text-muted-foreground" data-pptx-render-pending>{t("render_pending")}</p> : null}
+        {slideCount > 0 && !content ? <p className="self-center text-sm text-muted-foreground" data-testid="pptx-render-pending" data-pptx-render-pending>{t("render_pending")}</p> : null}
       </div>
     </div>
   );

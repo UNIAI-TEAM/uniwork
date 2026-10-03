@@ -8,7 +8,7 @@ import type { PptxChartRenderNode, PptxChipRenderNode, PptxTableRenderNode } fro
 import { px, svgEl, svgText, type SvgAttrValue, type SvgNode } from "./svg-node";
 import { textBlockPaint } from "./text";
 
-export interface DataNodeContext {
+interface DataNodeContext {
   ctx: PptxPaintContext;
   /** Page-space offset of the node (pattern/fill phase anchoring). */
   origin: { x: number; y: number };
@@ -47,7 +47,7 @@ export function tableContent(node: PptxTableRenderNode, options: DataNodeContext
 }
 
 /** Catmull-Rom (tension 0.4) approximation of Konva's smoothed polyline. */
-export function smoothPolylinePath(points: readonly number[], closed: boolean): string {
+function smoothPolylinePath(points: readonly number[], closed: boolean): string {
   const n = points.length / 2;
   if (n < 3) return polylinePath(points, closed);
   const at = (i: number): [number, number] => {
@@ -72,7 +72,7 @@ export function smoothPolylinePath(points: readonly number[], closed: boolean): 
 }
 
 /** Plain polyline path (closed = ring). */
-export function polylinePath(points: readonly number[], closed: boolean): string {
+function polylinePath(points: readonly number[], closed: boolean): string {
   const parts: string[] = [];
   for (let i = 0; i + 1 < points.length; i += 2) parts.push(`${i === 0 ? "M" : "L"} ${px(points[i]!)} ${px(points[i + 1]!)}`);
   return closed ? `${parts.join(" ")} Z` : parts.join(" ");
@@ -87,7 +87,10 @@ function arcPoint(cx: number, cy: number, r: number, deg: number): [number, numb
  * Pie/doughnut wedge path. Angles: 12 o'clock = -90 deg, clockwise positive, which is
  * exactly SVG's angle system with y pointing down (sweep-flag 1).
  */
-export function wedgePath(wedge: { cx: number; cy: number; outerR: number; innerR: number; startDeg: number; sweepDeg: number }): string {
+function wedgePath(wedge: { cx: number; cy: number; outerR: number; innerR: number; startDeg: number; sweepDeg: number }): string {
+  // `sweepDeg` is taken in absolute value and the arc always uses sweep-flag 1 (clockwise, the
+  // OOXML `a:pie`/`a:doughnut` direction), so a negative `sweepDeg` would draw the complement of
+  // the wedge. pptx-render only emits non-negative sweeps; clamp defensively instead of guessing.
   const sweep = Math.min(Math.abs(wedge.sweepDeg), 359.99);
   const start = wedge.startDeg;
   const end = start + Math.sign(wedge.sweepDeg || 1) * sweep;

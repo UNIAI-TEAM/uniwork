@@ -10,7 +10,7 @@
  */
 import { linearGradientLine, normalizeColor, rampStops, shadowFilter, type PptxPaintContext } from "./paint";
 import type { PptxGlyphRun, PptxTextLayout } from "./render-tree";
-import { px, svgEl, svgText, type SvgNode } from "./svg-node";
+import { mirrorTransform, px, svgEl, svgText, type SvgNode } from "./svg-node";
 
 const SERIF_HINT = /serif|mincho|song|sung|batang|myeongjo|cambria|georgia|garamond|times/i;
 const MONO_HINT = /mono|courier|consolas|menlo/i;
@@ -20,17 +20,11 @@ const MONO_HINT = /mono|courier|consolas|menlo/i;
  * macOS, PingFang on Windows), so append the script-appropriate generic. Exact CJK
  * substitution chains are the host's font manager concern, not the canvas's.
  */
-export function displayFontFamily(name: string): string {
+function displayFontFamily(name: string): string {
   const family = name.trim();
   if (!family) return "sans-serif";
   const generic = MONO_HINT.test(family) ? "monospace" : SERIF_HINT.test(family) ? "serif" : "sans-serif";
   return `'${family.replace(/'/g, "\\'")}', ${generic}`;
-}
-
-/** Counter-flip that keeps glyphs readable inside a mirrored box (`translate(w h) scale(sx sy)`). */
-function mirrorTransform(mirror: { w: number; h: number; flipX: boolean; flipY: boolean }): string | undefined {
-  if (!mirror.flipX && !mirror.flipY) return undefined;
-  return `translate(${px(mirror.flipX ? mirror.w : 0)} ${px(mirror.flipY ? mirror.h : 0)}) scale(${mirror.flipX ? -1 : 1} ${mirror.flipY ? -1 : 1})`;
 }
 
 function decoration(run: PptxGlyphRun): string | undefined {
@@ -99,7 +93,7 @@ function runHighlight(run: PptxGlyphRun, lineTop: number, lineHeight: number): S
   return svgEl("rect", { x: px(run.x), y: px(lineTop), width: px(run.widthPx), height: px(lineHeight), fill: normalizeColor(run.highlight) });
 }
 
-export interface TextBlockOptions {
+interface TextBlockOptions {
   ctx: PptxPaintContext;
   /** Set when the node box (or an ancestor) mirrors: glyphs stay unmirrored. */
   mirror?: { w: number; h: number; flipX: boolean; flipY: boolean };
