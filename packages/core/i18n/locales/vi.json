@@ -6976,7 +6976,7 @@
         "page": "Trang {{current}} / {{total}}",
         "words": "Từ: {{value}}",
         "characters": "Ký tự: {{value}}",
-        "charactersNoSpaces": "Không dấu cách: {{value}}",
+        "charactersNoSpaces": "Ký tự (không dấu cách): {{value}}",
         "language": "Ngôn ngữ: {{language}}",
         "zoom": "Thu phóng: {{percent}}%"
       },

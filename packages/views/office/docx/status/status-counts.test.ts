@@ -23,6 +23,12 @@ describe("DOCX status counts", () => {
     expect(countDocxText("a  b\n\nc")).toEqual({ words: 3, characters: 5, charactersWithoutSpaces: 3 });
   });
 
+  it("treats CRLF, U+2028 and U+2029 as line breaks, never characters", () => {
+    expect(countDocxText("a\r\nb")).toEqual({ words: 2, characters: 2, charactersWithoutSpaces: 2 });
+    expect(countDocxText("a\u2028b")).toEqual({ words: 2, characters: 2, charactersWithoutSpaces: 2 });
+    expect(countDocxText("a\u2029b")).toEqual({ words: 2, characters: 2, charactersWithoutSpaces: 2 });
+  });
+
   it("reads the text of a TipTap editor document block by block", () => {
     const editor = new Editor({
       extensions: docxExtensions(),

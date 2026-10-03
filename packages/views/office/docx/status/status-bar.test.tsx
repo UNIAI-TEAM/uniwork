@@ -30,7 +30,7 @@ describe("DocxStatusBar", () => {
     expect(screen.getByTestId("docx-status-page")).toHaveTextContent("Page 2 / 5");
     expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: 12");
     expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: 64");
-    expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("No spaces: 55");
+    expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): 55");
     expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: vi");
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 125%");
   });
@@ -48,6 +48,7 @@ describe("DocxStatusBar", () => {
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });
 
   it("derives the counts from a live editor when no counts are supplied", () => {
@@ -59,13 +60,37 @@ describe("DocxStatusBar", () => {
       renderBar({ editor, page: { current: 1, total: 1 }, zoom: 100 });
       expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: 3");
       expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: 16");
-      expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("No spaces: 14");
+      expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): 14");
       expect(screen.getByTestId("docx-status-page")).toHaveTextContent("Page 1 / 1");
       expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
     } finally {
       editor.destroy();
     }
   });
+
+  it("keeps zero counts as known values", () => {
+    renderBar({ counts: { words: 0, characters: 0, charactersWithoutSpaces: 0 } });
+    expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: 0");
+    expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: 0");
+    expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): 0");
+  });
+
+  it("renders the unknown mark for negative, fractional and non-finite counts", () => {
+    renderBar({ counts: { words: -3, characters: 12.7, charactersWithoutSpaces: Number.NaN } });
+    expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: —");
+    expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: —");
+    expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): —");
+  });
+
+  it.each([0, -50, 100.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "renders the unknown mark without a percent for zoom %s",
+    (zoom) => {
+      renderBar({ zoom });
+      const zoomCell = screen.getByTestId("docx-status-zoom");
+      expect(zoomCell).toHaveTextContent(/^—$/);
+      expect(zoomCell).not.toHaveTextContent("%");
+    },
+  );
 
   it("renders a partial page position without inventing the missing side", () => {
     renderBar({ page: { current: 3 } });
@@ -79,12 +104,27 @@ describe("DocxStatusBar", () => {
     expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: —");
   });
 
-  it("uses the primary subtag of a language tag and rejects blank ones", () => {
+  it("uses a well-formed primary subtag of a language tag and rejects malformed ones", () => {
     expect(documentLanguageLabel("vi-VN")).toBe("vi");
     expect(documentLanguageLabel("EN_us")).toBe("en");
+    expect(documentLanguageLabel("zh-Hant")).toBe("zh");
+    expect(documentLanguageLabel("a-b")).toBeNull();
+    expect(documentLanguageLabel("toolongsubtag-x")).toBeNull();
+    expect(documentLanguageLabel("123-x")).toBeNull();
+    expect(documentLanguageLabel("!!!")).toBeNull();
     expect(documentLanguageLabel("")).toBeNull();
     expect(documentLanguageLabel(null)).toBeNull();
     renderBar({ language: "fr-CA" });
     expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: fr");
+  });
+
+  it("renders Vietnamese copy under the vi locale", async () => {
+    await setLocale("vi");
+    renderBar({ page: { current: 2, total: 5 }, counts: { words: 12, charactersWithoutSpaces: 55 }, language: "vi-VN", zoom: 100 });
+    expect(screen.getByTestId("docx-status-page")).toHaveTextContent("Trang 2 / 5");
+    expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Từ: 12");
+    expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Ký tự (không dấu cách): 55");
+    expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Ngôn ngữ: vi");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Thu phóng: 100%");
   });
 });

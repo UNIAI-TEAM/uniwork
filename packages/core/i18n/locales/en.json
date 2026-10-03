@@ -6982,7 +6982,7 @@
         "page": "Page {{current}} / {{total}}",
         "words": "Words: {{value}}",
         "characters": "Characters: {{value}}",
-        "charactersNoSpaces": "No spaces: {{value}}",
+        "charactersNoSpaces": "Characters (no spaces): {{value}}",
         "language": "Language: {{language}}",
         "zoom": "Zoom: {{percent}}%"
       },
