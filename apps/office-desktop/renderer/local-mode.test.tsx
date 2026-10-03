@@ -319,9 +319,13 @@ it("keeps local tabs on a workspace switch", async () => {
   await screen.findByRole("tab", { name: /Opened\.docx/ });
   h.emitSession({ status: "signed-in", accountId: "account-1", deploymentId: "lane" });
   await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
+  await waitFor(() => expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull());
   fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("officeDesktop.tabs.account", { name: "Me" })) }));
   fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.switchWorkspace") }));
-  await waitFor(() => expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument());
+  await waitFor(() => {
+    expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull();
+    expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
+  });
 });
 
 it("serves every local-mode flow with a bridge that refuses any cloud channel", async () => {
