@@ -98,11 +98,10 @@ export function SaveStatus({
     <div
       ref={alertRef}
       tabIndex={-1}
-      role="alert"
       aria-describedby={descriptionId}
       title={body}
       className={cn("flex min-w-0 max-w-full items-center gap-1 text-caption text-destructive", className)}
-      data-testid={`office-save-${normalized}`}
+      data-testid={`office-save-${normalized}-compact`}
     >
       <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{title}</span>

@@ -75,8 +75,8 @@ describe("SaveStatus", () => {
 
   it("keeps a destructive header status compact while exposing its full message", () => {
     render(<SaveStatus status="error" compact />);
-    const status = screen.getByTestId("office-save-error");
-    expect(status).toHaveAttribute("role", "alert");
+    const status = screen.getByTestId("office-save-error-compact");
+    expect(status).not.toHaveAttribute("role");
     expect(status).toHaveAttribute("title", "The document was kept. Try again.");
     expect(status).toHaveTextContent("Save could not be confirmed");
     expect(status).toHaveAttribute("aria-describedby");
