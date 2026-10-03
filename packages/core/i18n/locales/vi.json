@@ -7064,60 +7064,6 @@
           "spaceAfter": "Khoảng cách sau (pt)"
         }
       },
-      "pageSetup": {
-        "title": "Thiết lập trang",
-        "section": "Phần {{current}}/{{total}}",
-        "unitCm": "cm",
-        "hint": "Thay đổi được ghi vào tệp ở lần lưu kế tiếp.",
-        "apply": "Áp dụng",
-        "invalidMargin": "Lề phải là số không âm.",
-        "invalidSize": "Chiều rộng và chiều cao phải là số dương.",
-        "invalidSpacing": "Khoảng cách cột phải là số không âm.",
-        "marginsTooLarge": "Lề phải nằm trong kích thước trang.",
-        "margins": {
-          "label": "Lề",
-          "preset": "Mẫu",
-          "normal": "Chuẩn",
-          "narrow": "Hẹp",
-          "moderate": "Vừa",
-          "wide": "Rộng",
-          "custom": "Tùy chỉnh",
-          "top": "Trên",
-          "right": "Phải",
-          "bottom": "Dưới",
-          "left": "Trái"
-        },
-        "orientation": {
-          "label": "Hướng giấy",
-          "portrait": "Dọc",
-          "landscape": "Ngang"
-        },
-        "paper": {
-          "label": "Khổ giấy",
-          "preset": "Khổ",
-          "a4": "A4",
-          "letter": "Letter",
-          "legal": "Legal",
-          "b5": "B5 (JIS)",
-          "custom": "Tùy chỉnh",
-          "width": "Chiều rộng",
-          "height": "Chiều cao"
-        },
-        "columns": {
-          "label": "Cột",
-          "one": "Một",
-          "two": "Hai",
-          "three": "Ba",
-          "spacing": "Khoảng cách"
-        },
-        "startType": {
-          "label": "Bắt đầu phần",
-          "nextPage": "Trang mới",
-          "continuous": "Liên tục",
-          "evenPage": "Trang chẵn",
-          "oddPage": "Trang lẻ"
-        }
-      },
       "character": {
         "strike": "Gạch ngang",
         "superscript": "Chỉ số trên",
@@ -7516,26 +7462,23 @@
       },
       "review": {
         "title": "Thay đổi được theo dõi",
-        "changeCount_one": "{{count}} thay đổi",
-        "changeCount_other": "{{count}} thay đổi",
+        "changeCount": "{{count}} thay đổi",
         "loading": "Đang tải thay đổi…",
         "empty": "Không có thay đổi được theo dõi",
         "emptyHint": "Tài liệu này không có thay đổi nào cần duyệt.",
         "readOnlyNote": "Tài liệu đang ở chế độ chỉ đọc; không thể chấp nhận hoặc từ chối thay đổi.",
         "acceptAll": "Chấp nhận tất cả",
         "rejectAll": "Từ chối tất cả",
-        "acceptChange": "Chấp nhận thay đổi: {{kind}}",
-        "rejectChange": "Từ chối thay đổi: {{kind}}",
+        "acceptChange": "Chấp nhận thay đổi",
+        "rejectChange": "Từ chối thay đổi",
         "accept": "Chấp nhận",
         "reject": "Từ chối",
         "jump": "Đến thay đổi",
         "close": "Đóng danh sách thay đổi",
         "acceptAllTitle": "Chấp nhận tất cả thay đổi?",
-        "acceptAllDescription_one": "Cả {{count}} thay đổi sẽ trở thành nội dung bình thường của tài liệu.",
-        "acceptAllDescription_other": "Cả {{count}} thay đổi sẽ trở thành nội dung bình thường của tài liệu.",
+        "acceptAllDescription": "Cả {{count}} thay đổi sẽ trở thành nội dung bình thường của tài liệu.",
         "rejectAllTitle": "Từ chối tất cả thay đổi?",
-        "rejectAllDescription_one": "Cả {{count}} thay đổi sẽ bị xóa khỏi tài liệu.",
-        "rejectAllDescription_other": "Cả {{count}} thay đổi sẽ bị xóa khỏi tài liệu.",
+        "rejectAllDescription": "Cả {{count}} thay đổi sẽ bị xóa khỏi tài liệu.",
         "confirmAcceptAll": "Chấp nhận tất cả thay đổi",
         "confirmRejectAll": "Từ chối tất cả thay đổi",
         "cancel": "Hủy",

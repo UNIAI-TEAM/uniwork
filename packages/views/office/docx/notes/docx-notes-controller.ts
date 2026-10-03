@@ -81,15 +81,16 @@ export function createDocxNotesController(getEditor: () => Editor | null): DocxN
       return { ...note };
     },
     setText: (kind, id, text) => {
+      const editor = editable();
       const trimmed = text.trim();
-      if (!editable() || trimmed.length === 0) return false;
+      if (!editor || trimmed.length === 0) return false;
       const at = lists[kind].findIndex((note) => note.id === id);
       if (at < 0) return false;
       const next = [...lists[kind]];
       next[at] = editedNote(next[at]!, trimmed);
       lists[kind] = next;
       edited[kind] = true;
-      touch(getEditor()!);
+      touch(editor);
       return true;
     },
     remove: (kind, id) => {

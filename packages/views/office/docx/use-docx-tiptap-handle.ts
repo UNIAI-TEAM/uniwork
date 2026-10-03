@@ -16,7 +16,6 @@ import type { DocxAdapter, DocxCommentInfo } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import type { DocxNotesSnapshot } from "./commands/notes";
-import type { DocxPageSetupEdit } from "./commands/page-setup";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
 import { prepareDocxHeadingStyles } from "./docx-heading-styles";
@@ -109,11 +108,6 @@ export interface DocxTiptapSnapshot {
    * edits, so serializeSnapshot applies a set_notes op per edited kind before
    * the block plan, and restoreSnapshot re-seeds the lists + flags. */
   notes?: DocxNotesSnapshot;
-  /** The pending page-setup edits at capture (B4): section properties live
-   * outside the document, so serializeSnapshot replays them as
-   * set_section_properties ops after the block plan, and restoreSnapshot
-   * re-seeds them. */
-  pageSetup?: DocxPageSetupEdit[];
 }
 
 export interface DocxOpenError extends Error {
@@ -238,8 +232,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.seedDocxComments(parsed.comments ?? []);
       // B3: same for the footnote/endnote parts (numbers follow part order).
       commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
-      // B4: the page-setup dialog's section list, from the same parse.
-      commandRuntime.seedDocxPageSetup(parsed);
       commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
@@ -254,7 +246,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         sourceBase64,
         comments: commandRuntime.listDocxComments(),
         notes: commandRuntime.snapshotDocxNotes(),
-        pageSetup: commandRuntime.listDocxPageSetupEdits(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -297,9 +288,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
           saveRef = prepared.document_model_ref;
         }
         applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef), snapshot.value.comments, snapshot.value.notes);
-        // B4: page setup is not part of the doc plan; replay the pending
-        // per-section edits onto the same save session after the block plan.
-        commandRuntime.applyDocxPageSetupEdits(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -318,7 +306,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         const parsed = options.adapter.parsedOf(ref);
         commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
       }
-      commandRuntime.restoreDocxPageSetupEdits(snapshot.value.pageSetup);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },

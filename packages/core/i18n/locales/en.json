@@ -7070,60 +7070,6 @@
           "spaceAfter": "Space after (pt)"
         }
       },
-      "pageSetup": {
-        "title": "Page setup",
-        "section": "Section {{current}} of {{total}}",
-        "unitCm": "cm",
-        "hint": "Changes are written to the file on the next save.",
-        "apply": "Apply",
-        "invalidMargin": "Margins must be non-negative numbers.",
-        "invalidSize": "Width and height must be positive numbers.",
-        "invalidSpacing": "Column spacing must be a non-negative number.",
-        "marginsTooLarge": "Margins must fit inside the page.",
-        "margins": {
-          "label": "Margins",
-          "preset": "Preset",
-          "normal": "Normal",
-          "narrow": "Narrow",
-          "moderate": "Moderate",
-          "wide": "Wide",
-          "custom": "Custom",
-          "top": "Top",
-          "right": "Right",
-          "bottom": "Bottom",
-          "left": "Left"
-        },
-        "orientation": {
-          "label": "Orientation",
-          "portrait": "Portrait",
-          "landscape": "Landscape"
-        },
-        "paper": {
-          "label": "Paper size",
-          "preset": "Size",
-          "a4": "A4",
-          "letter": "Letter",
-          "legal": "Legal",
-          "b5": "B5 (JIS)",
-          "custom": "Custom",
-          "width": "Width",
-          "height": "Height"
-        },
-        "columns": {
-          "label": "Columns",
-          "one": "One",
-          "two": "Two",
-          "three": "Three",
-          "spacing": "Spacing"
-        },
-        "startType": {
-          "label": "Section start",
-          "nextPage": "New page",
-          "continuous": "Continuous",
-          "evenPage": "Even page",
-          "oddPage": "Odd page"
-        }
-      },
       "character": {
         "strike": "Strike-through",
         "superscript": "Superscript",
@@ -7522,26 +7468,23 @@
       },
       "review": {
         "title": "Tracked changes",
-        "changeCount_one": "{{count}} change",
-        "changeCount_other": "{{count}} changes",
+        "changeCount": "{{count}} changes",
         "loading": "Loading changes…",
         "empty": "No tracked changes",
         "emptyHint": "This document has no revisions waiting for review.",
         "readOnlyNote": "The document is read-only; changes cannot be accepted or rejected.",
         "acceptAll": "Accept all",
         "rejectAll": "Reject all",
-        "acceptChange": "Accept change: {{kind}}",
-        "rejectChange": "Reject change: {{kind}}",
+        "acceptChange": "Accept change",
+        "rejectChange": "Reject change",
         "accept": "Accept",
         "reject": "Reject",
         "jump": "Go to change",
         "close": "Close tracked changes",
         "acceptAllTitle": "Accept all tracked changes?",
-        "acceptAllDescription_one": "The {{count}} tracked change becomes normal document content.",
-        "acceptAllDescription_other": "All {{count}} tracked changes become normal document content.",
+        "acceptAllDescription": "All {{count}} tracked changes become normal document content.",
         "rejectAllTitle": "Reject all tracked changes?",
-        "rejectAllDescription_one": "The {{count}} tracked change will be removed from the document.",
-        "rejectAllDescription_other": "All {{count}} tracked changes will be removed from the document.",
+        "rejectAllDescription": "All {{count}} tracked changes will be removed from the document.",
         "confirmAcceptAll": "Accept all changes",
         "confirmRejectAll": "Reject all changes",
         "cancel": "Cancel",
