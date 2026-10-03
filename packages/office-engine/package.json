@@ -21,6 +21,7 @@
     "./xlsx": "./src/xlsx/index.ts",
     "./xlsx/native": "./src/node/xlsx.ts",
     "./docx": "./src/docx/index.ts",
+    "./pptx": "./src/pptx/index.ts",
     "./convert/native": "./src/node/convert/index.ts"
   },
   "dependencies": {

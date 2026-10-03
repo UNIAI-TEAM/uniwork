@@ -345,44 +345,15 @@ export class PptxSessionModel {
     this.txn([{ op: "deleteElement", target: { slide: slideIndex, el: elementId } }]);
   }
 
-  /** Typed dispatch so the adapter's edit channel stays a single entry. */
-  applyEdit(edit: PptxEdit): { applied: true; createdId?: string; targetId?: string } {
-    switch (edit.op) {
-      case "edit_text":
-        return this.editText(edit);
-      case "edit_transform":
-        return this.editTransform(edit);
-      case "add_element":
-        return this.addElement(edit);
-      case "add_image":
-        return this.addImage(edit);
-      case "replace_picture":
-        return this.replacePicture(edit);
-      case "move_slide":
-        this.moveSlide(edit.slideIndex, edit.toIndex);
-        return { applied: true };
-      case "reorder_element":
-        this.reorderElement(edit.slideIndex, edit.elementId, edit.dir);
-        return { applied: true };
-      case "set_slide_hidden":
-        this.setSlideHidden(edit.slideIndex, edit.hidden);
-        return { applied: true };
-      case "duplicate_slide":
-        this.duplicateSlide(edit.slideIndex, edit.clearText);
-        return { applied: true };
-      case "delete_slide":
-        this.deleteSlide(edit.slideIndex);
-        return { applied: true };
-      case "add_blank_slide":
-        this.addBlankSlide(edit.slideIndex);
-        return { applied: true };
-      case "add_slide_with_layout":
-        this.addSlideWithLayout(edit.layout, edit.slideIndex);
-        return { applied: true };
-      case "delete_element":
-        this.deleteElement(edit.slideIndex, edit.elementId);
-        return { applied: true };
+  /** Typed dispatch so the adapter's edit channel stays a single entry.
+   * The kind → handler table is PPTX_EDIT_REGISTRY below (the B1..B8
+   * extension point); an unregistered kind is refused, never ignored. */
+  applyEdit(edit: PptxEdit): PptxEditResult {
+    const handler = PPTX_EDIT_REGISTRY[edit.op] as PptxEditHandler | undefined;
+    if (typeof handler !== "function") {
+      throw new PptxEngineError("unsupported_edit", "no handler is registered for edit kind " + String(edit.op));
     }
+    return handler(this, edit);
   }
 
   /** Called by the adapter after a successful save — upstream commitSaved
@@ -391,4 +362,84 @@ export class PptxSessionModel {
   markSaved(): void {
     this.dirty = false;
   }
+}
+
+/** Result of one applied edit; createdId/targetId let the host track selection. */
+interface PptxEditResult {
+  applied: true;
+  createdId?: string;
+  targetId?: string;
+}
+
+/** One edit kind → one handler. `Extract` keeps every entry tied to its own
+ * union member, so a handler cannot read another kind's fields. */
+type PptxEditHandlerFor<K extends PptxEdit["op"]> = (
+  model: PptxSessionModel,
+  edit: Extract<PptxEdit, { op: K }>,
+) => PptxEditResult;
+
+/** Handler as called from the registry lookup (kind already matched by the
+ * record index; TypeScript cannot correlate a union-valued index, so callers
+ * cast the single selected entry). */
+type PptxEditHandler = (model: PptxSessionModel, edit: PptxEdit) => PptxEditResult;
+
+/**
+ * EDIT-KIND REGISTRY — the extension point for the B1..B8 richer-edit tasks.
+ *
+ * The mapped type makes the union and the table agree: adding a kind to the
+ * `PptxEdit` union without registering it here is a compile error, so the
+ * model can never advertise an edit it does not apply.
+ *
+ * To add a kind:
+ *   1. add its shape to the `PptxEdit` union above;
+ *   2. register one entry here whose handler calls a gesture method that
+ *      builds the vendored pptx-ops op and runs through `txn()` (dry-run plan
+ *      + atomic apply) — validation and px→EMU conversion stay in the gesture,
+ *      never in the table;
+ *   3. map the op onto its inverse for undo (the B track owns undo/redo) and
+ *      cover it with the edit → save → reopen round-trip test.
+ */
+const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
+  edit_text: (model, edit) => model.editText(edit),
+  edit_transform: (model, edit) => model.editTransform(edit),
+  add_element: (model, edit) => model.addElement(edit),
+  add_image: (model, edit) => model.addImage(edit),
+  replace_picture: (model, edit) => model.replacePicture(edit),
+  move_slide: (model, edit) => {
+    model.moveSlide(edit.slideIndex, edit.toIndex);
+    return { applied: true };
+  },
+  reorder_element: (model, edit) => {
+    model.reorderElement(edit.slideIndex, edit.elementId, edit.dir);
+    return { applied: true };
+  },
+  set_slide_hidden: (model, edit) => {
+    model.setSlideHidden(edit.slideIndex, edit.hidden);
+    return { applied: true };
+  },
+  duplicate_slide: (model, edit) => {
+    model.duplicateSlide(edit.slideIndex, edit.clearText);
+    return { applied: true };
+  },
+  delete_slide: (model, edit) => {
+    model.deleteSlide(edit.slideIndex);
+    return { applied: true };
+  },
+  add_blank_slide: (model, edit) => {
+    model.addBlankSlide(edit.slideIndex);
+    return { applied: true };
+  },
+  add_slide_with_layout: (model, edit) => {
+    model.addSlideWithLayout(edit.layout, edit.slideIndex);
+    return { applied: true };
+  },
+  delete_element: (model, edit) => {
+    model.deleteElement(edit.slideIndex, edit.elementId);
+    return { applied: true };
+  },
+};
+
+/** Registered edit kinds, in registry order — the surface the B track extends. */
+export function pptxEditKinds(): PptxEdit["op"][] {
+  return Object.keys(PPTX_EDIT_REGISTRY) as PptxEdit["op"][];
 }
