@@ -134,7 +134,7 @@ describe("table commands", () => {
     const [a1, b1] = firstTwoCells(editor);
     editor.view.dispatch(
       editor.state.tr.setSelection(
-        new CellSelection(editor.state.doc.resolve(a1 + 1), editor.state.doc.resolve(b1 + 1)),
+        new CellSelection(editor.state.doc.resolve(a1), editor.state.doc.resolve(b1)),
       ),
     );
 

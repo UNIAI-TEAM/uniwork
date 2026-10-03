@@ -1,6 +1,5 @@
 import type { Editor } from "@tiptap/core";
-import type { Node as PmNode } from "@tiptap/pm/model";
-import type { Command, EditorState, Transaction } from "@tiptap/pm/state";
+import type { Command } from "@tiptap/pm/state";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import {
   addColumnAfter,
@@ -11,16 +10,15 @@ import {
   deleteRow,
   isInTable,
   mergeCells,
-  selectedRect,
   splitCell,
 } from "@tiptap/pm/tables";
+import { toggleFirstRowHeader } from "../table/table-header";
 
 /**
  * Minimal table handler set for the context menu. Task A10 owns the full table
  * UI (grid picker, borders/shading) in `docx/table/**` + `commands/table.ts`;
- * that module was still a placeholder when this task committed, so the menu
- * carries its own handlers over the same `@tiptap/pm/tables` commands and notes
- * the overlap in the worker report.
+ * this module reuses the same `@tiptap/pm/tables` commands for the right-click
+ * menu and delegates the header-row toggle to A10's caret-safe command.
  */
 
 /** True when the caret sits inside a table, including a whole-table node selection. */
@@ -85,34 +83,11 @@ export function splitSelectedCell(editor: Editor): boolean {
   return runTableCommand(editor, splitCell);
 }
 
-/** Word's Header Row toggle: the cells of the row at the selection become header cells, or stop being. */
+/**
+ * Word's Header Row toggle: the first row's cells become header cells, or stop
+ * being. Delegated to A10's `toggleFirstRowHeader` so the caret keeps its cell
+ * across the toggle (a row rewrite would relocate the selection into row 1).
+ */
 export function toggleHeaderRow(editor: Editor): boolean {
-  return runTableCommand(editor, toggleHeaderRowCommand);
-}
-
-export function toggleHeaderRowCommand(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
-  const headerType = state.schema.nodes.docTableHeader;
-  const cellType = state.schema.nodes.docTableCell;
-  if (!headerType || !cellType) return false;
-  const rect = selectedRect(state);
-  const row = rect.table.child(rect.top);
-  const firstCell = row.firstChild;
-  if (!firstCell) return false;
-  const wantHeader = firstCell.type !== headerType;
-  const cells: PmNode[] = [];
-  let changed = false;
-  row.forEach((cell) => {
-    const target = wantHeader ? headerType : cellType;
-    if (cell.type === target) {
-      cells.push(cell);
-      return;
-    }
-    changed = true;
-    cells.push(target.create(cell.attrs, cell.content, cell.marks));
-  });
-  if (!changed) return false;
-  let rowPos = rect.tableStart;
-  for (let index = 0; index < rect.top; index += 1) rowPos += rect.table.child(index).nodeSize;
-  dispatch?.(state.tr.replaceWith(rowPos, rowPos + row.nodeSize, row.type.create(row.attrs, cells, row.marks)));
-  return true;
+  return runTableCommand(editor, toggleFirstRowHeader());
 }

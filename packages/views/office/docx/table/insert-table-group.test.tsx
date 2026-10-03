@@ -94,7 +94,7 @@ function selectCells(editor: Editor, anchor: number, head: number): void {
   const to = cellPositions(editor)[head];
   if (from === undefined || to === undefined) throw new Error("table cells missing");
   editor.view.dispatch(
-    editor.state.tr.setSelection(new CellSelection(editor.state.doc.resolve(from + 1), editor.state.doc.resolve(to + 1))),
+    editor.state.tr.setSelection(new CellSelection(editor.state.doc.resolve(from), editor.state.doc.resolve(to))),
   );
 }
 

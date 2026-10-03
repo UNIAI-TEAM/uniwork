@@ -57,7 +57,7 @@ function selectCells(editor: Editor): void {
   if (first === undefined || last === undefined) throw new Error("table cells missing");
   editor.view.dispatch(
     editor.state.tr.setSelection(
-      new CellSelection(editor.state.doc.resolve(first + 1), editor.state.doc.resolve(last + 1)),
+      new CellSelection(editor.state.doc.resolve(first), editor.state.doc.resolve(last)),
     ),
   );
 }
