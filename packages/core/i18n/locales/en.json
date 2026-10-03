@@ -7743,6 +7743,7 @@
         "jump": "Go to reference",
         "missingRef": "No reference found in the text",
         "noSelection": "Place the cursor in the text first.",
+        "insertRefused": "Could not insert the reference at the cursor. Place the cursor in the text and try again.",
         "readOnlyNote": "The document is read-only; notes cannot be changed.",
         "empty": "No notes yet.",
         "emptyHint": "Place the cursor in the text and insert a footnote or endnote.",

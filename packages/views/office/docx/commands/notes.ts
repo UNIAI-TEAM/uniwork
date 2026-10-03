@@ -17,6 +17,9 @@ export interface DocxNotesCommands {
   /** Open/restore hook: seed the parse's own note parts. */
   seedDocxNotes(footnotes: DocxNoteInfo[], endnotes: DocxNoteInfo[]): void;
   listDocxNotes(): { footnotes: DocxNoteInfo[]; endnotes: DocxNoteInfo[] };
+  /** Monotonic note-mutation counter (F1): the handle compares it across
+   * transactions to turn list-only edits into dirty-generation bumps. */
+  docxNotesRevision(): number;
   canInsertDocxNote(): boolean;
   insertDocxNote(kind: DocxNoteKind, text: string): DocxNoteInfo | null;
   setDocxNoteText(kind: DocxNoteKind, id: string, text: string): boolean;
@@ -39,6 +42,7 @@ export function createNotesCommands(
     commands: {
       seedDocxNotes: (footnotes, endnotes) => controller.seed(footnotes, endnotes),
       listDocxNotes: listAll,
+      docxNotesRevision: () => controller.revision(),
       canInsertDocxNote: () => controller.canInsert(),
       insertDocxNote: (kind, text) => controller.insert(kind, text),
       setDocxNoteText: (kind, id, text) => controller.setText(kind, id, text),

@@ -37,6 +37,7 @@ const NOTES = { footnotes: [{ id: "1", text: "ghi chú một" }], endnotes: [] }
 function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntime {
   return {
     listDocxNotes: vi.fn(() => NOTES),
+    docxNotesRevision: vi.fn(() => 0),
     canInsertDocxNote: vi.fn(() => true),
     insertDocxNote: vi.fn(() => ({ id: "2", text: "mới" })),
     setDocxNoteText: vi.fn(() => true),
@@ -85,6 +86,16 @@ describe("InsertNotesGroup", () => {
     fireEvent.change(await screen.findByLabelText("Nội dung chú thích"), { target: { value: "kết luận" } });
     fireEvent.click(screen.getByRole("button", { name: "Chèn" }));
     expect(commands?.insertDocxNote).toHaveBeenCalledWith("endnote", "kết luận");
+  });
+
+  it("keeps the dialog open and reports an insert the editor refused", async () => {
+    const commands = runtime({ insertDocxNote: vi.fn(() => null) });
+    renderGroup({ commands });
+    fireEvent.click(screen.getByRole("button", { name: "Chèn chú thích chân trang" }));
+    fireEvent.change(await screen.findByLabelText("Nội dung chú thích"), { target: { value: "mới" } });
+    fireEvent.click(screen.getByRole("button", { name: "Chèn" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nội dung chú thích")).toBeInTheDocument();
   });
 
   it("shows the note count and opens the notes pane from the toolbar entry", () => {

@@ -22,17 +22,22 @@ export interface DocxNoteDialogProps {
   open: boolean;
   kind: DocxNoteKind;
   onOpenChange: (open: boolean) => void;
-  /** The caller inserts the note (marker + list entry); the text is trimmed. */
-  onSubmit: (text: string) => void;
+  /** Insert the note (marker + list entry); false when the editor refused the
+   * reference, so the dialog stays open and reports it. The text is trimmed. */
+  onSubmit: (text: string) => boolean;
 }
 
 export function DocxNoteDialog({ open, kind, onOpenChange, onSubmit }: DocxNoteDialogProps) {
   const { t } = useTranslation();
   const textId = useId();
   const [draft, setDraft] = useState("");
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
-    if (open) setDraft("");
+    if (open) {
+      setDraft("");
+      setRefused(false);
+    }
   }, [open]);
 
   const title =
@@ -40,7 +45,7 @@ export function DocxNoteDialog({ open, kind, onOpenChange, onSubmit }: DocxNoteD
   const submit = (): void => {
     const text = draft.trim();
     if (text.length === 0) return;
-    onSubmit(text);
+    if (!onSubmit(text)) setRefused(true);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === "Escape") {
@@ -72,6 +77,11 @@ export function DocxNoteDialog({ open, kind, onOpenChange, onSubmit }: DocxNoteD
             aria-label={t("office.docx.notes.textLabel")}
             onChange={(event) => setDraft(event.target.value)}
           />
+          {refused ? (
+            <p role="alert" className="text-caption text-destructive" data-testid="docx-note-insert-refused">
+              {t("office.docx.notes.insertRefused")}
+            </p>
+          ) : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

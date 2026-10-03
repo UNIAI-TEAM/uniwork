@@ -89,8 +89,12 @@ export function InsertNotesGroup({ format, commands, readOnly, saving }: DocxToo
           if (!next) setDialogKind(null);
         }}
         onSubmit={(text) => {
-          if (dialogKind) commands?.insertDocxNote(dialogKind, text);
+          // Only an accepted insert may close the dialog: insertDocxNote
+          // returns null when the editor refused the marker, and the dialog
+          // reports that instead of closing silently.
+          if (!dialogKind || !commands?.insertDocxNote(dialogKind, text)) return false;
           setDialogKind(null);
+          return true;
         }}
       />
     </>

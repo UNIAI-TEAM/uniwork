@@ -7737,6 +7737,7 @@
         "jump": "Đến dấu tham chiếu",
         "missingRef": "Không tìm thấy dấu tham chiếu trong văn bản",
         "noSelection": "Hãy đặt con trỏ trong văn bản trước.",
+        "insertRefused": "Không thể chèn dấu tham chiếu tại vị trí con trỏ. Hãy đặt con trỏ trong văn bản và thử lại.",
         "readOnlyNote": "Tài liệu đang ở chế độ chỉ đọc; không thể thay đổi chú thích.",
         "empty": "Chưa có chú thích nào.",
         "emptyHint": "Đặt con trỏ trong văn bản rồi chèn chú thích chân trang hoặc cuối văn bản.",

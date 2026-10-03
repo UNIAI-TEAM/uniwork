@@ -181,6 +181,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   let paginationSpec: DocxPaginationSpec | null = null;
   let generation = 0;
   let lastCommentsRevision = 0;
+  let lastNotesRevision = 0;
   let disposed = false;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
   const dirtyListeners = new Set<(generation: number) => void>();
@@ -261,7 +262,12 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
           const commentsRevision = commandRuntime.docxCommentsRevision();
           const commentsChanged = commentsRevision !== lastCommentsRevision;
           lastCommentsRevision = commentsRevision;
-          if (transaction.docChanged || commentsChanged) {
+          // B3 fix (F1): the same fold for the notes lists — a note-text-only
+          // edit or a delete whose markers are already gone is a list edit.
+          const notesRevision = commandRuntime.docxNotesRevision();
+          const notesChanged = notesRevision !== lastNotesRevision;
+          lastNotesRevision = notesRevision;
+          if (transaction.docChanged || commentsChanged || notesChanged) {
             generation += 1;
             for (const listener of dirtyListeners) listener(generation);
           }
@@ -273,7 +279,8 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       // B2: the open parse's comment list seeds the runtime; the comments
       // panel and the snapshot read it from there, never from the adapter.
       commandRuntime.seedDocxComments(parsed.comments ?? []);
-      // B3: same for the footnote/endnote parts (numbers follow part order).
+      // B3: same for the footnote/endnote parts (marker numbers follow body
+      // reference order, the vendored noteNumbersOf rule).
       commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
       // B4: the page-setup dialog's section list, from the same parse.
       commandRuntime.seedDocxPageSetup(parsed);

@@ -92,6 +92,16 @@ describe("docx notes controller", () => {
     expect(controller.canInsert()).toBe(false);
   });
 
+  it("refuses to insert with a live range selection (the marker would replace it)", () => {
+    editor = createEditor();
+    const controller = createDocxNotesController(() => editor);
+    editor.commands.selectAll();
+    expect(controller.canInsert()).toBe(false);
+    expect(controller.insert("footnote", "nope")).toBeNull();
+    expect(controller.list("footnote")).toEqual([]);
+    expect(refsOf(editor, "footnote")).toEqual([]);
+  });
+
   it("edits a note's text and drops stale rich runs", () => {
     editor = createEditor();
     const controller = createDocxNotesController(() => editor);
@@ -146,5 +156,67 @@ describe("docx notes controller", () => {
     });
     expect(controller.list("footnote")).toEqual([{ id: "7", text: "restored" }]);
     expect(controller.snapshot().edited).toEqual({ footnote: true, endnote: false });
+  });
+
+  it("bumps the revision only on an accepted list mutation", () => {
+    editor = createEditor();
+    const controller = createDocxNotesController(() => editor);
+    controller.seed([], []);
+    const seeded = controller.revision();
+    expect(controller.setText("footnote", "404", "unknown")).toBe(false);
+    expect(controller.setText("footnote", "1", "   ")).toBe(false);
+    expect(controller.insert("footnote", "   ")).toBeNull();
+    expect(controller.revision()).toBe(seeded);
+
+    editor.commands.setTextSelection(6);
+    expect(controller.insert("footnote", "one")).toMatchObject({ id: "1" });
+    const afterInsert = controller.revision();
+    expect(afterInsert).toBeGreaterThan(seeded);
+
+    expect(controller.setText("footnote", "1", "edited")).toBe(true);
+    const afterSetText = controller.revision();
+    expect(afterSetText).toBeGreaterThan(afterInsert);
+
+    expect(controller.remove("footnote", "1")).toBe(true);
+    expect(controller.revision()).toBeGreaterThan(afterSetText);
+    expect(controller.remove("footnote", "404")).toBe(false);
+    expect(controller.revision()).toBe(afterSetText + 1);
+  });
+
+  it("numbers markers in body-reference order from the observed numStart", () => {
+    editor = new Editor({
+      extensions: docxExtensions(),
+      content: blocksToPmDoc([
+        { type: "paragraph", docxIndex: 0, runs: [{ text: "one" }, { text: "5", noteRef: { kind: "footnote", id: "2" } }] },
+        { type: "paragraph", docxIndex: 1, runs: [{ text: "two" }, { text: "6", noteRef: { kind: "footnote", id: "1" } }] },
+      ]),
+      editable: true,
+    });
+    const controller = createDocxNotesController(() => editor);
+    controller.seed([{ id: "1", text: "first" }, { id: "2", text: "second" }], []);
+    // deleting the part-first note must renumber the survivor at the document's
+    // own base (5), not to its part index (1)
+    expect(controller.remove("footnote", "2")).toBe(true);
+    expect(refsOf(editor, "footnote")).toEqual([{ id: "1", num: 5 }]);
+  });
+
+  it("renumbers the later markers when a new reference lands before them", () => {
+    editor = new Editor({
+      extensions: docxExtensions(),
+      content: blocksToPmDoc([
+        { type: "paragraph", docxIndex: 0, runs: [{ text: "one" }, { text: "5", noteRef: { kind: "footnote", id: "2" } }] },
+        { type: "paragraph", docxIndex: 1, runs: [{ text: "two" }, { text: "6", noteRef: { kind: "footnote", id: "1" } }] },
+      ]),
+      editable: true,
+    });
+    const controller = createDocxNotesController(() => editor);
+    controller.seed([{ id: "1", text: "first" }, { id: "2", text: "second" }], []);
+    editor.commands.setTextSelection(1);
+    expect(controller.insert("footnote", "new")).toMatchObject({ id: "3" });
+    expect(refsOf(editor, "footnote")).toEqual([
+      { id: "3", num: 5 },
+      { id: "2", num: 6 },
+      { id: "1", num: 7 },
+    ]);
   });
 });
