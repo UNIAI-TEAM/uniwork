@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { mountController } from './xlsx-renderer-controller-harness.mjs';
 
 const file = { sessionId: 'session', sha256: 'sha', styles: [], sheets: [
-  { id: 's1', name: 'First', rowCount: 20, columnCount: 10 },
-  { id: 's2', name: 'Second', rowCount: 20, columnCount: 10 },
+  { id: 's1', name: 'First', rowCount: 20, columnCount: 10, columnWidths: [] },
+  { id: 's2', name: 'Second', rowCount: 20, columnCount: 10, columnWidths: [] },
 ] };
 
 test('sheet-dependent render patches wait for a workbook unit and survive reload', async () => {
@@ -403,6 +403,32 @@ test('outline commands run through the registered command service and journal le
     assert.equal(readonly.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'group' }), false);
     assert.equal(readonly.handle.getJournal().structuralOps.size, 0);
   } finally { readonly.close(); }
+});
+
+test('column default-width command journals a null size and file outline levels seed the axis', async () => {
+  const edits = [];
+  let dirty = 0;
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
+  try {
+    const seeded = { ...file, sheets: [
+      { ...file.sheets[0], columnWidths: [{ startColumn: 1, endColumn: 2, hidden: false, outlineLevel: 2, collapsed: true }] },
+      file.sheets[1],
+    ] };
+    await mounted.handle.loadWorkbook(seeded);
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 1, end: 2 }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'set-col-size', start: 1, end: 2, size: null } });
+    // The file's <col outlineLevel> is the base the first session group raises from.
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 1, end: 2, action: 'group' }), true);
+    assert.deepEqual(edits.at(-1).structural, { kind: 'set-cols-outline', start: 1, end: 2, level: 3 });
+    // Malformed spans never reach the journal.
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 3, end: 2 }), false);
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 0, end: 20000 }), false);
+    assert.deepEqual(mounted.handle.getJournal().structuralOps.get('s1'), [
+      { kind: 'set-col-size', start: 1, end: 2, size: null },
+      { kind: 'set-cols-outline', start: 1, end: 2, level: 3 },
+    ]);
+    assert.equal(dirty, 2);
+  } finally { mounted.close(); }
 });
 
 test('disposing during font preparation prevents a late workbook installation', async () => {

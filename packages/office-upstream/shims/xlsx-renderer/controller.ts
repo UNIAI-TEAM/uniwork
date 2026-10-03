@@ -36,7 +36,14 @@ import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { applyOutlineAction, ingestCellMutation, ingestStructuralMutation, type XlsxRendererEdit } from "./edits";
+import {
+  applyColumnDefaultWidth,
+  applyOutlineAction,
+  ingestCellMutation,
+  ingestStructuralMutation,
+  seedColumnOutline,
+  type XlsxRendererEdit,
+} from "./edits";
 import { t } from "./locale";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
@@ -393,20 +400,32 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   // journals no levels, so these two commands record the level change
   // straight into the renderer's structural journal (one op per contiguous
   // run) and emit it on the same edit channel as cell edits. They carry no
-  // undo entry — there is no Univer state to undo (genoffice parity).
+  // undo entry — there is no Univer state to undo (genoffice parity). The
+  // column default-width reset rides the same route: the pinned build's
+  // `set-col-is-auto-width` command emits no mutation, so the reset journals
+  // a null set-col-size op itself.
   const commandService = runtime.univer.__getInjector().get(ICommandService);
+  const emitStructuralEdits = (edits: XlsxRendererEdit[]): boolean => {
+    if (edits.length === 0) return false;
+    dirtyGeneration += 1;
+    options.onEdits?.(edits);
+    options.onDirty?.();
+    return true;
+  };
   const runOutline = (axis: "rows" | "cols", params: unknown): boolean => {
     const p = params as { subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear" } | undefined;
     if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.end !== "number") return false;
     if (p.action !== "group" && p.action !== "ungroup" && p.action !== "clear") return false;
     const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
     if (!sheetId) return false;
-    const edits = applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action);
-    if (edits.length === 0) return false;
-    dirtyGeneration += 1;
-    options.onEdits?.(edits);
-    options.onDirty?.();
-    return true;
+    return emitStructuralEdits(applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action));
+  };
+  const runColumnDefaultWidth = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; start?: number; end?: number } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.end !== "number") return false;
+    const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    if (!sheetId) return false;
+    return emitStructuralEdits(applyColumnDefaultWidth(lazyWorkbookRef.current, sheetId, p.start, p.end));
   };
   for (const [id, axis] of [
     ["uniwork.command.set-rows-outline", "rows"],
@@ -418,6 +437,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       handler: (_accessor, params) => runOutline(axis, params),
     }));
   }
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-cols-default-width",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runColumnDefaultWidth(params),
+  }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
@@ -499,6 +523,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       }
       const state = createLazyState(file);
       lazyWorkbookRef.current = state;
+      // Column outline metadata rides the sheet metadata (not a streamed
+      // chunk), so seed it now, before any session group edit can own an entry.
+      seedColumnOutline(state);
       dirtyGeneration = 0;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       // Native workbook permissions also block the vendored viewport loader's

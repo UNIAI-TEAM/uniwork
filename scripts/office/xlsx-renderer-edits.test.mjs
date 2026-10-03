@@ -31,7 +31,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestCellMutation, ingestStructuralMutation, applyOutlineAction, canExecuteCommand, canEditRange, parseCellText } = module.exports;
+const { createEditJournal, ingestCellMutation, ingestStructuralMutation, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, canExecuteCommand, canEditRange, parseCellText } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -182,7 +182,9 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-worksheet-col-width', params: { value: 84 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-worksheet-col-width', params: { value: 5000 } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-row-is-auto-height' }, model, false), true);
-  assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-is-auto-width', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), true);
+  // The pinned set-col-is-auto-width emits no mutation in this build: the
+  // allowlist entry is gone and the UniWork reset command carries the route.
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-is-auto-width', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-rows-hidden', params: { ranges: [range(1, 3)] } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-rows-hidden', params: { ranges: [] } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-hidden', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), true);
@@ -197,6 +199,12 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 3, end: 2, action: 'group' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group', subUnitId: 'ghost' } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2 } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 's1' } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 2, end: 1 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 0, end: 99999 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width' }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 'ghost' } }, model, false), false);
 
   // The mutations the commands dispatch (undo replays them too).
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(2, 4) }), model, false), true);
@@ -219,7 +227,8 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-col-hidden', { ranges: [range(0, 0, 1, 2)] }), model, false), true);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-col-visible', { ranges: [range(0, 0, 1, 2)] }), model, false), true);
 
-  for (const id of ['sheet.command.insert-row-before', 'sheet.command.remove-row', 'sheet.command.set-rows-hidden', 'uniwork.command.set-rows-outline']) {
+  for (const id of ['sheet.command.insert-row-before', 'sheet.command.remove-row', 'sheet.command.set-rows-hidden',
+    'uniwork.command.set-rows-outline', 'uniwork.command.set-cols-default-width']) {
     assert.equal(canExecuteCommand({ id, type: id.startsWith('uniwork') ? 0 : 1, params: { value: 1, start: 0, end: 0, action: 'group' } }, model, true), false, `${id} readOnly`);
   }
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0) }), model, true), false);
@@ -476,4 +485,41 @@ test('outline actions shift runs of levels, clamp at the bounds and clear', () =
   assert.deepEqual(applyOutlineAction(model, 's1', 'rows', 3, 2, 'group'), []);
   assert.deepEqual(applyOutlineAction(model, 'ghost', 'rows', 0, 1, 'group'), []);
   assert.deepEqual(applyOutlineAction(null, 's1', 'rows', 0, 1, 'group'), []);
+});
+
+test('default column width journals one null set-col-size op for the span', () => {
+  const model = state();
+  assert.deepEqual(applyColumnDefaultWidth(model, 's1', 1, 2), [
+    { sheetId: 's1', structural: { kind: 'set-col-size', start: 1, end: 2, size: null } },
+  ]);
+  assert.deepEqual(model.editJournal.structuralOps.get('s1'), [
+    { kind: 'set-col-size', start: 1, end: 2, size: null },
+  ]);
+  assert.deepEqual(applyColumnDefaultWidth(model, 's1', 2, 1), []);
+  assert.deepEqual(applyColumnDefaultWidth(model, 'ghost', 0, 1), []);
+  assert.deepEqual(applyColumnDefaultWidth(null, 's1', 0, 1), []);
+  assert.equal(model.editJournal.structuralOps.get('s1').length, 1);
+});
+
+test('file column outline levels seed the outline map and stay below session edits', () => {
+  const model = state();
+  model.file.sheets[0].columnWidths = [
+    { startColumn: 1, endColumn: 2, hidden: false, outlineLevel: 2, collapsed: true },
+    { startColumn: 4, endColumn: 4, hidden: false },
+  ];
+  seedColumnOutline(model);
+  const cols = model.outline.get('s1').cols;
+  assert.deepEqual(cols.get(1), { level: 2, collapsed: true });
+  assert.deepEqual(cols.get(2), { level: 2, collapsed: true });
+  assert.equal(cols.has(4), false);
+  // The seeded level is the base a session group raises from (2 -> 3).
+  assert.deepEqual(applyOutlineAction(model, 's1', 'cols', 1, 2, 'group'), [
+    { sheetId: 's1', structural: { kind: 'set-cols-outline', start: 1, end: 2, level: 3 } },
+  ]);
+  // A session edit owns the entry afterwards; another file read never resets it.
+  seedColumnOutline(model);
+  assert.deepEqual(cols.get(1), { level: 3, collapsed: true });
+  assert.deepEqual(applyOutlineAction(model, 's1', 'cols', 1, 2, 'group'), [
+    { sheetId: 's1', structural: { kind: 'set-cols-outline', start: 1, end: 2, level: 4 } },
+  ]);
 });

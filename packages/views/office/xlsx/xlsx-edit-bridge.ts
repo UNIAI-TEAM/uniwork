@@ -14,13 +14,23 @@ export interface XlsxGridCellEdit {
 
 /** One row/column journal op the renderer's structural journal emits (the
  *  vendored StructuralJournalOp subset this lane binds — no move-rows, no
- *  merges, no set-col-style). Positions are 0-based; row sizes are points,
- *  column sizes character width; null size = the sheet default. */
+ *  set-col-style). Positions are 0-based; row sizes are points, column sizes
+ *  character width; null size = the sheet default. Merge ops carry their
+ *  0-based rectangle; they never shift coordinates. */
 export type XlsxStructuralJournalOp =
   | { kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols"; index: number; count: number }
   | { kind: "set-row-size" | "set-col-size"; start: number; end: number; size: number | null }
   | { kind: "set-rows-hidden" | "set-cols-hidden"; start: number; end: number; hidden: boolean }
-  | { kind: "set-rows-outline" | "set-cols-outline"; start: number; end: number; level: number; collapsed?: boolean };
+  | { kind: "set-rows-outline" | "set-cols-outline"; start: number; end: number; level: number; collapsed?: boolean }
+  | { kind: "merge-cells" | "unmerge-cells"; range: XlsxStructuralJournalRange };
+
+/** A 0-based inclusive rectangle — the merge range the journal records. */
+export interface XlsxStructuralJournalRange {
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+}
 
 /** The structural member of the renderer edit channel: a journal op plus the
  *  grid sheet id the envelope target resolves through. */
@@ -81,6 +91,13 @@ export type StructuralOperation =
       op: "set_rows_outline" | "set_cols_outline";
       target: XlsxStructuralOperationTarget;
       attributes: { start: number; end: number; level: number; collapsed?: boolean };
+    }
+  | {
+      /** The merge rectangle rides the envelope's own `range` field, matching
+       *  the engine parser and the upstream StructuralOp merge branch. */
+      op: "merge_cells" | "unmerge_cells";
+      target: XlsxStructuralOperationTarget;
+      range: XlsxStructuralJournalRange;
     };
 
 /** Every envelope operation a journal edit maps to. A later op kind adds its
@@ -89,8 +106,9 @@ export type StructuralOperation =
 export type XlsxJournalOperation = CellOperation | StructuralOperation;
 
 /** One named journal-edit → op-kind mapping. Entries are tested in table
- *  order and the first match wins, so the structural entries sit before the
- *  terminal set_cell fallback and every mapping stays kind-explicit. */
+ *  order and the first match wins; the structural entries are appended after
+ *  the terminal set_cell fallback, which excludes structural edits, so every
+ *  mapping stays kind-explicit. */
 export interface XlsxJournalOpMapping {
   readonly op: XlsxJournalOperation["op"];
   matches(edit: XlsxGridEdit): boolean;
@@ -114,6 +132,8 @@ const STRUCTURAL_WIRE_OP = {
   "set-cols-hidden": "set_cols_hidden",
   "set-rows-outline": "set_rows_outline",
   "set-cols-outline": "set_cols_outline",
+  "merge-cells": "merge_cells",
+  "unmerge-cells": "unmerge_cells",
 } as const satisfies Record<XlsxStructuralJournalOp["kind"], StructuralOperation["op"]>;
 
 function structuralOperation(
@@ -145,6 +165,9 @@ function structuralOperation(
           ...(structural.collapsed === undefined ? {} : { collapsed: structural.collapsed }),
         },
       };
+    case "merge-cells":
+    case "unmerge-cells":
+      return { op: STRUCTURAL_WIRE_OP[structural.kind], target, range: { ...structural.range } };
   }
 }
 
@@ -196,6 +219,8 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   structuralMapping("set_cols_hidden", "set-cols-hidden"),
   structuralMapping("set_rows_outline", "set-rows-outline"),
   structuralMapping("set_cols_outline", "set-cols-outline"),
+  structuralMapping("merge_cells", "merge-cells"),
+  structuralMapping("unmerge_cells", "unmerge-cells"),
 ];
 
 /** Keep the G2 vocabulary: a style-only edit must never overwrite a value. */

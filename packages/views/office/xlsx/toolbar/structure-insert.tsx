@@ -52,13 +52,19 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
   const rowSpan = span?.rows ?? 0;
-  const [countDraft, setCountDraft] = useState("1");
+  const colSpan = span?.columns ?? 0;
+  const [rowCountDraft, setRowCountDraft] = useState("1");
+  const [colCountDraft, setColCountDraft] = useState("1");
 
   useEffect(() => {
-    if (rowSpan > 0) setCountDraft(String(rowSpan));
+    if (rowSpan > 0) setRowCountDraft(String(rowSpan));
   }, [rowSpan]);
+  useEffect(() => {
+    if (colSpan > 0) setColCountDraft(String(colSpan));
+  }, [colSpan]);
 
-  const count = normalizeRowColCount(countDraft) ?? span?.rows ?? 1;
+  const rowCount = normalizeRowColCount(rowCountDraft) ?? span?.rows ?? 1;
+  const colCount = normalizeRowColCount(colCountDraft) ?? span?.columns ?? 1;
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
     commands?.execute(id, params);
@@ -75,17 +81,17 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         inputMode="numeric"
         aria-label={t("office.xlsx.structure.rowCount")}
         disabled={blocked}
-        value={countDraft}
-        onChange={(event) => setCountDraft(event.target.value)}
-        onBlur={() => setCountDraft(String(count))}
+        value={rowCountDraft}
+        onChange={(event) => setRowCountDraft(event.target.value)}
+        onBlur={() => setRowCountDraft(String(rowCount))}
       />
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
-        aria-label={t("office.xlsx.structure.insertRowsAbove", { count })}
+        aria-label={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
         aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-row-before", { value: count })}
+        onClick={() => run("sheet.command.insert-row-before", { value: rowCount })}
       >
         <ArrowUpToLine aria-hidden />
       </Button>
@@ -115,17 +121,17 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         inputMode="numeric"
         aria-label={t("office.xlsx.structure.colCount")}
         disabled={blocked}
-        value={countDraft}
-        onChange={(event) => setCountDraft(event.target.value)}
-        onBlur={() => setCountDraft(String(count))}
+        value={colCountDraft}
+        onChange={(event) => setColCountDraft(event.target.value)}
+        onBlur={() => setColCountDraft(String(colCount))}
       />
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
-        aria-label={t("office.xlsx.structure.insertColsLeft", { count })}
+        aria-label={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
         aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-col-before", { value: count })}
+        onClick={() => run("sheet.command.insert-col-before", { value: colCount })}
       >
         <ArrowUpToLine aria-hidden className="-rotate-90" />
       </Button>

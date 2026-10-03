@@ -34,6 +34,7 @@ const EDIT_COMMANDS = new Set([
   // `set-once-format-painter`. The style writes ride the allowlisted
   // `sheet.mutation.set-range-values` path; the merge mutations the painter
   // would also emit stay refused (no merge op exists to save them).
+  // Retained: A3's clear + format painter (shipped at ec8ac4bc) drives these ids.
   "sheet.operation.set-format-painter", "sheet.command.apply-format-painter",
   "sheet.command.set-once-format-painter",
   "sheet.command.set-range-bold", "sheet.command.set-range-italic", "sheet.command.set-range-underline",
@@ -76,7 +77,6 @@ const STRUCTURAL_COMMANDS = new Set([
   "sheet.command.set-row-height",
   "sheet.command.set-worksheet-col-width",
   "sheet.command.set-row-is-auto-height",
-  "sheet.command.set-col-is-auto-width",
   "sheet.command.set-rows-hidden",
   "sheet.command.set-col-hidden",
   "sheet.command.set-selected-rows-visible",
@@ -84,9 +84,13 @@ const STRUCTURAL_COMMANDS = new Set([
   "sheet.command.set-specific-rows-visible",
   "sheet.command.set-col-visible-on-cols",
   // UniWork outline commands: the pinned Univer has no outline model, so the
-  // controller registers these and journals their level edits directly.
+  // controller registers these and journals their level edits directly. The
+  // dead pinned `set-col-is-auto-width` (no mutation in this build) is not
+  // allowlisted; the default-width reset journals through the UniWork
+  // command instead.
   "uniwork.command.set-rows-outline",
   "uniwork.command.set-cols-outline",
+  "uniwork.command.set-cols-default-width",
 ]);
 
 interface StructuralMutationShape {
@@ -160,6 +164,18 @@ function structuralMutationAllowed(
   return sizeValueOK(shape.axis === "row" ? params.rowHeight : params.colWidth);
 }
 
+/** A UniWork axis-span command: an in-grid span on its axis and an optional
+ *  known subUnitId. */
+function structuralAxisCommandOK(
+  params: { start?: unknown; end?: unknown; subUnitId?: unknown } | undefined,
+  axis: "row" | "column",
+  state: LazyWorkbookState,
+): boolean {
+  if (!params) return false;
+  return structuralSpanOK({ startRow: params.start, endRow: params.end, startColumn: params.start, endColumn: params.end }, axis) &&
+    (params.subUnitId === undefined || (typeof params.subUnitId === "string" && state.file.sheets.some((sheet) => sheet.id === params.subUnitId)));
+}
+
 function structuralCommandAllowed(
   event: RendererCommand,
   state: LazyWorkbookState,
@@ -168,10 +184,11 @@ function structuralCommandAllowed(
     value?: unknown; range?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
   } | undefined;
   if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
-    const axis = event.id.includes("rows") ? "row" : "column";
-    return !!params && (params.action === "group" || params.action === "ungroup" || params.action === "clear") &&
-      structuralSpanOK({ startRow: params.start, endRow: params.end, startColumn: params.start, endColumn: params.end }, axis) &&
-      (params.subUnitId === undefined || (typeof params.subUnitId === "string" && state.file.sheets.some((sheet) => sheet.id === params.subUnitId)));
+    return (params?.action === "group" || params?.action === "ungroup" || params?.action === "clear") &&
+      structuralAxisCommandOK(params, event.id.includes("rows") ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-cols-default-width") {
+    return structuralAxisCommandOK(params, "column", state);
   }
   if (event.id === "sheet.command.insert-row-before" || event.id === "sheet.command.insert-col-before") {
     const value = params?.value;
@@ -180,9 +197,9 @@ function structuralCommandAllowed(
   if (event.id === "sheet.command.set-row-height" || event.id === "sheet.command.set-worksheet-col-width") {
     return typeof params?.value === "number" && Number.isFinite(params.value) && params.value > 0 && params.value <= 4096;
   }
-  if (event.id === "sheet.command.set-row-is-auto-height" || event.id === "sheet.command.set-col-is-auto-width") {
+  if (event.id === "sheet.command.set-row-is-auto-height") {
     if (params?.ranges === undefined) return true;
-    return Array.isArray(params.ranges) && params.ranges.every((range) => structuralSpanOK(range, event.id.includes("row") ? "row" : "column"));
+    return Array.isArray(params.ranges) && params.ranges.every((range) => structuralSpanOK(range, "row"));
   }
   if (event.id === "sheet.command.set-rows-hidden" || event.id === "sheet.command.set-col-hidden") {
     const axis = event.id.includes("rows") ? "row" : "column";

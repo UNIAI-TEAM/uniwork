@@ -15,7 +15,11 @@ export const XLSX_ROW_HEIGHT_MAX_POINTS = 409;
 export const XLSX_COLUMN_WIDTH_MIN = 1;
 export const XLSX_COLUMN_WIDTH_MAX = 255;
 /** Calibri 11's max digit width in px — the vendored renderer's default
- *  workbook mdw, so a width typed in character units round-trips. */
+ *  workbook mdw, so a width typed in character units round-trips at the
+ *  default Normal font. Known limitation: the renderer journals px→charWidth
+ *  with the workbook's measured mdw, which the commands port exposes no read
+ *  for, so another Normal font persists at w*7/mdw. Follow-up: pass character
+ *  units to a UniWork command and convert with the real mdw shim-side. */
 export const XLSX_COLUMN_WIDTH_MDW = 7;
 
 /** Character width → Univer pixels at the renderer's default mdw. */
@@ -134,7 +138,10 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         size="icon-sm"
         aria-label={t("office.xlsx.structure.resetColWidth")}
         aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.set-col-is-auto-width")}
+        onClick={() => {
+          if (span === null) return;
+          run("uniwork.command.set-cols-default-width", { start: span.startColumn, end: span.endColumn });
+        }}
       >
         <RotateCcw aria-hidden />
       </Button>

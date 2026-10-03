@@ -94,8 +94,11 @@ describe("XlsxStructureInsertGroup", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.remove-row", {
       range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Insert 4 columns to the left" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 4 });
+    // Each input keeps its own draft: the row edit above must not leak.
+    expect(counts[1]).toHaveValue("2");
+    fireEvent.change(counts[1]!, { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Insert 5 columns to the left" }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 5 });
     fireEvent.click(screen.getByRole("button", { name: "Insert columns to the right" }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-after");
     fireEvent.click(screen.getByRole("button", { name: "Delete columns" }));
@@ -114,6 +117,11 @@ describe("XlsxStructureInsertGroup", () => {
     expect(rowCount).toHaveValue("3");
     fireEvent.click(screen.getByRole("button", { name: "Insert 3 rows above" }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 3 });
+    // The column input falls back to its own span (2), not the row span.
+    const colCount = screen.getAllByLabelText(/count/i)[1]!;
+    fireEvent.change(colCount, { target: { value: "0" } });
+    fireEvent.blur(colCount);
+    expect(colCount).toHaveValue("2");
   });
 
   it("refuses clicks in a read-only mount", () => {
@@ -159,7 +167,7 @@ describe("XlsxStructureSizeGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use automatic row height" }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-row-is-auto-height");
     fireEvent.click(screen.getByRole("button", { name: "Use default column width" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-col-is-auto-width");
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-default-width", { start: 1, end: 2 });
     const ranges = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
     fireEvent.click(screen.getByRole("button", { name: "Hide rows" }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-rows-hidden", { ranges });

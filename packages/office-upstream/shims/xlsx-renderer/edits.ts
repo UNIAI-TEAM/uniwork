@@ -122,7 +122,7 @@ export function ingestCellMutation(
 // cell edit that reached the save queue before a shift is later moved by the
 // engine model with the same rule and both sides agree on final coordinates.
 
-interface AxisRange {
+export interface AxisRange {
   startRow: number;
   endRow: number;
   startColumn: number;
@@ -233,7 +233,117 @@ export function ingestStructuralMutation(
   return edits;
 }
 
+// ── merge capture (B2) ─────────────────────────────────────────────────────
+//
+// `sheet.mutation.add-worksheet-merge` carries the exact post-expansion merge
+// rectangles (one per row for a "merge across"), so the journal records one
+// merge-cells op per range in emission order. `sheet.mutation.remove-worksheet-merge`
+// carries the user's SELECTION ranges — the mutation removes every merge
+// intersecting them — so the removed rectangles are computed from the
+// pre-mutation merge list and passed in here; recording the selection instead
+// would unmerge nothing at save (the gateway removes by exact ref). Merges
+// never shift cells, so recordStructuralOp leaves the cell journal untouched.
+
+const MERGE_MUTATIONS: Readonly<Record<string, "merge-cells" | "unmerge-cells">> = {
+  "sheet.mutation.add-worksheet-merge": "merge-cells",
+  "sheet.mutation.remove-worksheet-merge": "unmerge-cells",
+};
+
+/** The file merges an unmerge selection removes: every merge rectangle the
+ *  selection intersects, the same rule the mutation applies. */
+export function intersectMergeRanges(
+  merges: readonly AxisRange[],
+  selections: readonly AxisRange[],
+): AxisRange[] {
+  return merges.filter((merge) =>
+    selections.some(
+      (selection) =>
+        merge.startRow <= selection.endRow && selection.startRow <= merge.endRow &&
+        merge.startColumn <= selection.endColumn && selection.startColumn <= merge.endColumn,
+    ),
+  );
+}
+
+/** A merge rectangle inside the wire bounds: integers, ordered, in-grid, under
+ *  the span ceiling and at least two cells (the ops.ts parseMergeArea bounds). */
+function mergeRangeOK(range: unknown): range is AxisRange {
+  if (!range || typeof range !== "object") return false;
+  const { startRow, endRow, startColumn, endColumn } = range as AxisRange;
+  if (![startRow, endRow, startColumn, endColumn].every((value) => Number.isInteger(value) && value >= 0)) return false;
+  if (startRow > endRow || startColumn > endColumn || endRow >= 1_048_576 || endColumn >= 16_384) return false;
+  if (endRow - startRow >= 100_000 || endColumn - startColumn >= 100_000) return false;
+  return startRow !== endRow || startColumn !== endColumn;
+}
+
+/** Ingest the merge rectangles a merge mutation carries. `removedMerges` is
+ *  the pre-mutation intersect for a remove mutation (see the controller); the
+ *  add mutation's own ranges are already the exact rectangles. */
+export function ingestMergeMutation(
+  state: LazyWorkbookState | null,
+  event: RendererCommand,
+  suppressed = false,
+  removedMerges?: readonly AxisRange[] | undefined,
+): XlsxRendererStructuralEdit[] {
+  if (!state || suppressed || event.options?.fromFormula || !MERGE_MUTATIONS[event.id as keyof typeof MERGE_MUTATIONS]) return [];
+  const params = event.params as StructuralMutationParams | undefined;
+  const sheetId = params?.subUnitId;
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+      !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
+  const kind = MERGE_MUTATIONS[event.id as keyof typeof MERGE_MUTATIONS];
+  const ranges = kind === "unmerge-cells" ? removedMerges ?? [] : params.ranges;
+  if (!Array.isArray(ranges)) return [];
+  const sheetName = state.file.sheets.find((sheet) => sheet.id === sheetId)?.name;
+  const edits: XlsxRendererStructuralEdit[] = [];
+  for (const range of ranges) {
+    if (!mergeRangeOK(range)) continue;
+    const structural = {
+      kind,
+      range: { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn },
+    };
+    recordStructuralOp(state.editJournal, sheetId, structural, sheetName);
+    edits.push({ sheetId, structural });
+  }
+  return edits;
+}
+
 export type XlsxOutlineAction = "group" | "ungroup" | "clear";
+
+/** Seed the column outline map from the file's `<col>` metadata once, at
+ *  load (the streamed row chunks seed rows the same way). Session group edits
+ *  own an entry once it exists, so a later read only fills gaps. */
+export function seedColumnOutline(state: LazyWorkbookState | null): void {
+  if (!state) return;
+  for (const sheet of state.file.sheets) {
+    for (const span of sheet.columnWidths) {
+      if (span.outlineLevel === undefined && !span.collapsed) continue;
+      const outline = state.outline.get(sheet.id) ?? { rows: new Map(), cols: new Map() };
+      state.outline.set(sheet.id, outline);
+      for (let column = span.startColumn; column <= span.endColumn; column += 1) {
+        if (outline.cols.has(column)) continue;
+        outline.cols.set(column, { level: span.outlineLevel ?? 0, collapsed: span.collapsed ?? false });
+      }
+    }
+  }
+}
+
+/** The pinned build's `sheet.command.set-col-is-auto-width` handler emits no
+ *  mutation (no interceptor in any bundled package serves its id), so the
+ *  toolbar's "use default column width" reset journals the sheet-default
+ *  size itself — a set-col-size op with a null size, the shape the row
+ *  auto-height mutation produces. Records one op for the whole span. */
+export function applyColumnDefaultWidth(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  start: number,
+  end: number,
+): XlsxRendererStructuralEdit[] {
+  const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
+  if (!state || !sheet) return [];
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return [];
+  const structural: StructuralJournalOp = { kind: "set-col-size", start, end, size: null };
+  recordStructuralOp(state.editJournal, sheetId, structural, sheet.name);
+  return [{ sheetId, structural }];
+}
 
 /** Group/ungroup/clear for a selection span. Outline levels have no Univer
  *  model (and no command to undo — genoffice parity), so the controller's
