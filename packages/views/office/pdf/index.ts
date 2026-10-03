@@ -1,5 +1,7 @@
 export { PdfEditor } from "./pdf-editor";
 export { PdfErrorState } from "./pdf-error-state";
+export { PdfPasswordPrompt } from "./password";
+export type { PdfPasswordMode, PdfPasswordPromptProps } from "./password";
 export { PdfPagePanel } from "./pdf-page-panel";
 export { PdfToolbar } from "./pdf-toolbar";
 export { createPdfEditorLoader, type PdfEditorSlotConfig } from "./pdf-editor-slot";

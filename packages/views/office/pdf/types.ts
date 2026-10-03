@@ -90,7 +90,14 @@ export type PdfOpenFailure = Extract<OpenOutcome, { outcome: "failed" }> & {
 export type PdfOpenOutcome = PdfOpenSuccess | PdfOpenFailure;
 
 export interface PdfOpenPort {
-  open(signal?: AbortSignal): Promise<PdfOpenOutcome>;
+  /**
+   * Open the document. `password` is supplied only on a retry after an
+   * outcome failed with failure_class "password_required" or "wrong_password";
+   * the port verifies it in the engine and the caller never stores it. A port
+   * that cannot carry a password leaves those failures to the error state
+   * instead of retrying.
+   */
+  open(signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome>;
 }
 
 export interface PdfSaveCoordinator {

@@ -24,8 +24,8 @@ export {
   type LeaveDialogProps,
 } from "./leave-dialog";
 export * from "./pptx";
-export { PdfEditor, PdfErrorState, PdfPagePanel, PdfToolbar, createPdfEditorLoader } from "./pdf";
-export type { PdfEditorProps, PdfEditorHandle, PdfOpenOutcome, PdfOpenFailure, PdfSaveCoordinator, PdfCapability } from "./pdf";
+export { PdfEditor, PdfErrorState, PdfPagePanel, PdfPasswordPrompt, PdfToolbar, createPdfEditorLoader } from "./pdf";
+export type { PdfEditorProps, PdfEditorHandle, PdfOpenOutcome, PdfOpenFailure, PdfPasswordMode, PdfPasswordPromptProps, PdfSaveCoordinator, PdfCapability } from "./pdf";
 export { PDF_COMMANDS, PDF_COMMAND_CAPABILITIES, type PdfCommandId } from "./pdf";
 export * from "./markdown";
 export * from "./html";
