@@ -67,6 +67,10 @@ const KNOWN_LICENSE_OVERRIDES = {
   // simply absent from package.json. Pulled in transitively through
   // @uniwork/ui's markdown/diagram rendering.
   khroma: "MIT",
+  // @univerjs/telemetry@0.25.1: Apache-2.0 per the LICENSE file in its
+  // tarball and the registry metadata; package.json has no field. Pulled in
+  // through the vendored Univer XLSX renderer (G3-05c).
+  "@univerjs/telemetry": "Apache-2.0",
 };
 
 function licenseTextFor(packageDirectory, privateWorkspace) {
