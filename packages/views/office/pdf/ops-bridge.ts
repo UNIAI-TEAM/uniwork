@@ -20,7 +20,7 @@ export interface PdfAssetProvider {
 export interface PdfOpsBridgeOptions {
   resolveObject?(target: { page: number; objectId: string }): Promise<PdfObjectMetadata | null> | PdfObjectMetadata | null;
   assets?: PdfAssetProvider;
-  /** Current order in original, zero-based page indices. Required for move. */
+  /** Current displayed order, expressed as original zero-based page indices. Required for move. */
   pageOrder?: readonly number[];
 }
 
@@ -45,11 +45,16 @@ export class PdfOpsBridgeError extends Error {
   }
 }
 
-function pageIndex(page: number, operation: string): number {
+function pageIndex(page: number, operation: string, order?: readonly number[]): number {
   if (!Number.isSafeInteger(page) || page < 1) {
     throw new PdfOpsBridgeError("invalid_target", operation, "page must be a positive integer");
   }
-  return page - 1;
+  if (!order) return page - 1;
+  const original = order[page - 1];
+  if (original === undefined) {
+    throw new PdfOpsBridgeError("invalid_target", operation, "page is outside the current page order");
+  }
+  return original;
 }
 
 function objectMetadata(
@@ -60,12 +65,18 @@ function objectMetadata(
   if (!options.resolveObject) {
     throw new PdfOpsBridgeError("object_unavailable", operation, "object resolver is required");
   }
-  return Promise.resolve(options.resolveObject(target)).then((value) => {
-    if (!value || value.page !== target.page || value.objectId !== target.objectId) {
-      throw new PdfOpsBridgeError("object_unavailable", operation, "selected PDF object is unavailable");
-    }
-    return value;
-  });
+  return Promise.resolve()
+    .then(() => options.resolveObject!(target))
+    .catch((error: unknown) => {
+      if (error instanceof PdfOpsBridgeError) throw error;
+      throw new PdfOpsBridgeError("object_unavailable", operation, "selected PDF object could not be resolved");
+    })
+    .then((value) => {
+      if (!value || value.page !== target.page || value.objectId !== target.objectId) {
+        throw new PdfOpsBridgeError("object_unavailable", operation, "selected PDF object is unavailable");
+      }
+      return value;
+    });
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -81,6 +92,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 async function imageOperation(
   operation: Extract<PdfEditOperation, { op: "replace_image" }>,
   options: PdfOpsBridgeOptions,
+  order?: readonly number[],
 ): Promise<PdfEngineOperation> {
   if (!options.assets) throw new PdfOpsBridgeError("asset_provider_missing", operation.op, "asset provider is required");
   const object = await objectMetadata(options, operation.target, operation.op);
@@ -97,7 +109,7 @@ async function imageOperation(
     op: "addImageEdit",
     attributes: {
       kind: "replaceImage",
-      pageIndex: pageIndex(operation.target.page, operation.op),
+      pageIndex: pageIndex(operation.target.page, operation.op, order),
       oldRect: object.rect,
       rect: object.rect,
       image: bytesToBase64(bytes),
@@ -109,6 +121,7 @@ async function imageOperation(
 async function textOperation(
   operation: Extract<PdfEditOperation, { op: "replace_text" }>,
   options: PdfOpsBridgeOptions,
+  order?: readonly number[],
 ): Promise<PdfEngineOperation> {
   const object = await objectMetadata(options, operation.target, operation.op);
   if (typeof object.text !== "string" || typeof object.fontSize !== "number") {
@@ -117,7 +130,7 @@ async function textOperation(
   return {
     op: "putTextEdit",
     attributes: {
-      pageIndex: pageIndex(operation.target.page, operation.op),
+      pageIndex: pageIndex(operation.target.page, operation.op, order),
       rect: object.rect,
       oldText: object.text,
       newText: operation.text,
@@ -126,21 +139,19 @@ async function textOperation(
   };
 }
 
-function reorderOperation(
+function reorderPage(
   operation: Extract<PdfEditOperation, { op: "reorder_page" }>,
-  options: PdfOpsBridgeOptions,
-): PdfEngineOperation {
-  if (!options.pageOrder) throw new PdfOpsBridgeError("invalid_target", operation.op, "page order is required");
-  const from = pageIndex(operation.target.page, operation.op);
-  if (!Number.isSafeInteger(operation.index) || operation.index < 0 || operation.index >= options.pageOrder.length) {
+  order: readonly number[],
+): number[] {
+  if (!Number.isSafeInteger(operation.index) || operation.index < 0 || operation.index > order.length - 1) {
     throw new PdfOpsBridgeError("invalid_target", operation.op, "target index is outside the page order");
   }
-  const order = [...options.pageOrder];
-  const position = order.indexOf(from);
-  if (position < 0) throw new PdfOpsBridgeError("invalid_target", operation.op, "page is not in the page order");
-  order.splice(position, 1);
-  order.splice(operation.index, 0, from);
-  return { op: "setPageOrder", attributes: { order } };
+  const from = order[operation.target.page - 1];
+  if (from === undefined) throw new PdfOpsBridgeError("invalid_target", operation.op, "page is outside the current page order");
+  const next = [...order];
+  next.splice(operation.target.page - 1, 1);
+  next.splice(operation.index, 0, from);
+  return next;
 }
 
 /** Convert browser-facing snake_case actions to the typed engine envelope.
@@ -150,24 +161,31 @@ export async function bridgePdfOperations(
   options: PdfOpsBridgeOptions = {},
 ): Promise<readonly PdfEngineOperation[]> {
   const bridged: PdfEngineOperation[] = [];
+  let order = options.pageOrder ? [...options.pageOrder] : undefined;
+  let reordered = false;
   for (const operation of operations) {
     switch (operation.op) {
       case "replace_text":
-        bridged.push(await textOperation(operation, options));
+        bridged.push(await textOperation(operation, options, order));
         break;
       case "replace_image":
-        bridged.push(await imageOperation(operation, options));
+        bridged.push(await imageOperation(operation, options, order));
         break;
-      case "delete_page":
-        bridged.push({ op: "deletePage", attributes: { pageIndex: pageIndex(operation.target.page, operation.op) } });
+      case "delete_page": {
+        const original = pageIndex(operation.target.page, operation.op, order);
+        bridged.push({ op: "deletePage", attributes: { pageIndex: original } });
+        if (order) order = order.filter((page) => page !== original);
         break;
+      }
       case "rotate_page": {
         const degrees = operation.degrees === 270 ? -90 : operation.degrees;
-        bridged.push({ op: "rotatePages", attributes: { pages: [pageIndex(operation.target.page, operation.op)], dir: degrees } });
+        bridged.push({ op: "rotatePages", attributes: { pages: [pageIndex(operation.target.page, operation.op, order)], dir: degrees } });
         break;
       }
       case "reorder_page":
-        bridged.push(reorderOperation(operation, options));
+        if (!order) throw new PdfOpsBridgeError("invalid_target", operation.op, "page order is required");
+        order = reorderPage(operation, order);
+        reordered = true;
         break;
       case "insert_page":
       case "extract_page":
@@ -177,5 +195,6 @@ export async function bridgePdfOperations(
         throw new PdfOpsBridgeError("unsupported_operation", (operation as { op: string }).op, "unknown PDF operation");
     }
   }
+  if (reordered && order) bridged.push({ op: "setPageOrder", attributes: { order } });
   return bridged;
 }
