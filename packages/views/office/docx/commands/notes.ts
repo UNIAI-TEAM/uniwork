@@ -25,6 +25,9 @@ export interface DocxNotesCommands {
   setDocxNoteText(kind: DocxNoteKind, id: string, text: string): boolean;
   deleteDocxNote(kind: DocxNoteKind, id: string): boolean;
   hasDocxNoteRef(kind: DocxNoteKind, id: string): boolean;
+  /** Pane badge numbers per note id, by body-reference order (M-5): the same
+   * rule the in-text markers use, so the two never disagree. */
+  docxNoteNumbers(kind: DocxNoteKind): Map<string, number>;
   jumpToDocxNote(kind: DocxNoteKind, id: string): boolean;
   /** Save payload: full lists + the kinds the user edited (only an edited kind
    * reaches the save options, so an untouched part stays byte-identical). */
@@ -48,6 +51,7 @@ export function createNotesCommands(
       setDocxNoteText: (kind, id, text) => controller.setText(kind, id, text),
       deleteDocxNote: (kind, id) => controller.remove(kind, id),
       hasDocxNoteRef: (kind, id) => controller.hasRef(kind, id),
+      docxNoteNumbers: (kind) => controller.numbers(kind),
       jumpToDocxNote: (kind, id) => controller.jump(kind, id),
       snapshotDocxNotes: () => controller.snapshot(),
       restoreDocxNotes: (snapshot) => controller.restore(snapshot),

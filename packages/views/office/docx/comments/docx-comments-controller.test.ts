@@ -99,9 +99,11 @@ describe("docx comments controller", () => {
     expect(controller.add("no selection", "Tester")).toBeNull();
     expect(controller.revision()).toBe(0);
     editor.commands.setTextSelection({ from: 1, to: 6 });
+    // The seeded comment 1 has no anchor (a parsed entry with none), so the
+    // reply must target the anchored comment 2 the add just created.
     controller.add("parent", "Tester");
     expect(controller.revision()).toBe(1);
-    controller.reply("1", "reply", "Tester");
+    controller.reply("2", "reply", "Tester");
     expect(controller.revision()).toBe(2);
     controller.resolve("1", true);
     expect(controller.revision()).toBe(3);

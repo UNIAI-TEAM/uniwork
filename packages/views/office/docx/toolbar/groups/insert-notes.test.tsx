@@ -43,6 +43,9 @@ function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntim
     setDocxNoteText: vi.fn(() => true),
     deleteDocxNote: vi.fn(() => true),
     hasDocxNoteRef: vi.fn(() => true),
+    docxNoteNumbers: vi.fn((kind: "footnote" | "endnote") =>
+      new Map((kind === "footnote" ? NOTES.footnotes : NOTES.endnotes).map((note, index) => [note.id, index + 1])),
+    ),
     jumpToDocxNote: vi.fn(() => true),
     snapshotDocxNotes: vi.fn(() => ({ ...NOTES, edited: { footnote: true, endnote: false } })),
     restoreDocxNotes: vi.fn(),

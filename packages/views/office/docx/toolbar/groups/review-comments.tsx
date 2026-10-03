@@ -52,12 +52,12 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
       <PopoverTrigger
         disabled={!commands}
         render={
-          <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.toolbar.groups.comments")} aria-pressed={open}>
-            <MessageSquare aria-hidden />
-            {threadCount > 0 ? <span className="text-caption text-muted-foreground">{threadCount}</span> : null}
-          </Button>
+          <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.toolbar.groups.comments")} aria-pressed={open} />
         }
-      />
+      >
+        <MessageSquare aria-hidden />
+        {threadCount > 0 ? <span className="text-caption text-muted-foreground">{threadCount}</span> : null}
+      </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
         <DocxCommentsPanel
           comments={comments}

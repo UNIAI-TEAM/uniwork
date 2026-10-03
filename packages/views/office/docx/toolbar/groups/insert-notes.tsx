@@ -23,6 +23,9 @@ export function InsertNotesGroup({ format, commands, readOnly, saving }: DocxToo
   const [dialogKind, setDialogKind] = useState<DocxNoteKind | null>(null);
   const notes = format?.docxNotes ?? EMPTY_NOTES;
   const total = notes.footnotes.length + notes.endnotes.length;
+  // Badge numbers follow the in-text markers' body-reference order (M-5).
+  const footnoteNumbers = commands?.docxNoteNumbers("footnote") ?? new Map(notes.footnotes.map((note, index) => [note.id, index + 1]));
+  const endnoteNumbers = commands?.docxNoteNumbers("endnote") ?? new Map(notes.endnotes.map((note, index) => [note.id, index + 1]));
   const editable = !readOnly && !saving && !!commands;
   const canInsert = editable && (commands?.canInsertDocxNote() ?? false);
   const noSelection = editable && !canInsert;
@@ -57,18 +60,19 @@ export function InsertNotesGroup({ format, commands, readOnly, saving }: DocxToo
         <PopoverTrigger
           disabled={!commands}
           render={
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.notes.open")} aria-pressed={open} data-testid="docx-notes-open">
-              <NotebookText aria-hidden />
-              {total > 0 ? <span className="text-caption text-muted-foreground">{total}</span> : null}
-            </Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.notes.open")} aria-pressed={open} data-testid="docx-notes-open" />
           }
-        />
+        >
+          <NotebookText aria-hidden />
+          {total > 0 ? <span className="text-caption text-muted-foreground">{total}</span> : null}
+        </PopoverTrigger>
         <PopoverContent align="end" className="w-80">
           <DocxNotesPanel
             footnotes={notes.footnotes}
             endnotes={notes.endnotes}
             readOnly={!editable}
             hasRef={(kind, id) => commands?.hasDocxNoteRef(kind, id) ?? false}
+            numberOf={(kind, id) => (kind === "footnote" ? footnoteNumbers : endnoteNumbers).get(id) ?? 0}
             onEdit={(kind, id, text) => {
               commands?.setDocxNoteText(kind, id, text);
             }}

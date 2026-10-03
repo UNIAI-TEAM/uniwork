@@ -200,6 +200,24 @@ describe("docx notes controller", () => {
     expect(refsOf(editor, "footnote")).toEqual([{ id: "1", num: 5 }]);
   });
 
+  it("exposes the marker numbers for the pane badge (M-5)", () => {
+    editor = new Editor({
+      extensions: docxExtensions(),
+      content: blocksToPmDoc([
+        { type: "paragraph", docxIndex: 0, runs: [{ text: "one" }, { text: "1", noteRef: { kind: "footnote", id: "2" } }] },
+        { type: "paragraph", docxIndex: 1, runs: [{ text: "two" }, { text: "2", noteRef: { kind: "footnote", id: "1" } }] },
+      ]),
+      editable: true,
+    });
+    const controller = createDocxNotesController(() => editor);
+    controller.seed([{ id: "1", text: "first" }, { id: "2", text: "second" }], []);
+    // reference order (2 then 1) wins over part order, exactly like the markers
+    expect([...controller.numbers("footnote").entries()]).toEqual([
+      ["1", 2],
+      ["2", 1],
+    ]);
+  });
+
   it("renumbers the later markers when a new reference lands before them", () => {
     editor = new Editor({
       extensions: docxExtensions(),

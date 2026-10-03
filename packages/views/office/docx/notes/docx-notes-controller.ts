@@ -35,6 +35,10 @@ export interface DocxNotesController {
   /** Delete a note and its markers; the survivors renumber in the document. */
   remove(kind: DocxNoteKind, id: string): boolean;
   hasRef(kind: DocxNoteKind, id: string): boolean;
+  /** Display numbers per note id, by body-reference order (the same
+   * `noteNumbersOf` rule the in-text markers use), so the pane badge and the
+   * marker never disagree (visual M-5). Part order for unreferenced notes. */
+  numbers(kind: DocxNoteKind): Map<string, number>;
   /** Scroll to the marker and select it; false when it is gone. */
   jump(kind: DocxNoteKind, id: string): boolean;
   /** The save payload: full lists + the kinds the user actually edited. */
@@ -149,6 +153,12 @@ export function createDocxNotesController(getEditor: () => Editor | null): DocxN
     hasRef: (kind, id) => {
       const editor = getEditor();
       return editor !== null && hasNoteRef(editor, kind, id);
+    },
+    numbers: (kind) => {
+      const editor = getEditor();
+      if (editor === null) return new Map();
+      const refIds = noteRefsOf(editor, kind).map((ref) => ref.id);
+      return noteNumbersOf(refIds, lists[kind], numStart[kind]);
     },
     jump: (kind, id) => {
       const editor = getEditor();

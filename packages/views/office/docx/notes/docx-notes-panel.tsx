@@ -14,7 +14,6 @@ import { Separator } from "@uniwork/ui/components/ui/separator";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxNoteInfo, DocxNoteKind } from "@uniwork/office-engine/docx";
-import { noteNumberOf } from "./docx-note-model";
 
 export interface DocxNotesPanelProps {
   footnotes: DocxNoteInfo[];
@@ -22,6 +21,10 @@ export interface DocxNotesPanelProps {
   readOnly: boolean;
   /** The open document still carries a reference marker for the note. */
   hasRef(kind: DocxNoteKind, id: string): boolean;
+  /** The row's badge number. The caller supplies the body-reference order the
+   * in-text markers use (`noteNumbersOf`), so the pane and the markers agree
+   * (visual M-5); a part-order number would contradict the marker. */
+  numberOf(kind: DocxNoteKind, id: string): number;
   onEdit(kind: DocxNoteKind, id: string, text: string): void;
   onDelete(kind: DocxNoteKind, id: string): void;
   onJump(kind: DocxNoteKind, id: string): void;
@@ -38,6 +41,7 @@ export function DocxNotesPanel({
   endnotes,
   readOnly,
   hasRef,
+  numberOf,
   onEdit,
   onDelete,
   onJump,
@@ -75,8 +79,9 @@ export function DocxNotesPanel({
                 <span
                   className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground"
                   aria-hidden
+                  data-testid={`docx-note-number-${kind}-${note.id}`}
                 >
-                  {noteNumberOf(notes, note.id)}
+                  {numberOf(kind, note.id)}
                 </span>
                 {isEditing ? (
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">

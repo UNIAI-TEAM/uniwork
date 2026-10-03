@@ -225,8 +225,11 @@ describe("DOCX comment dirty generation and save gating", () => {
       expect(handle.commands?.resolveDocxComment("1", true)).toBe(true);
       const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
       const comments = await partOf(saved.bytes, "word/comments.xml");
+      // F3 byte-preservation: the entry's text is unchanged, so the save
+      // reuses the original w:comment XML verbatim. It never had an author,
+      // and re-emitting it must not invent an empty w:author attribute.
       expect(comments).toContain('w:id="1"');
-      expect(comments).toContain('w:author=""');
+      expect(comments).not.toContain("w:author=");
       // the resolved flag lands in the regenerated commentsExtended part
       expect(await partOf(saved.bytes, "word/commentsExtended.xml")).toContain('w15:done="1"');
     } finally {

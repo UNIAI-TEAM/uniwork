@@ -38,12 +38,12 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: 
             aria-label={t("office.docx.toolbar.groups.trackChanges")}
             aria-pressed={open}
             data-testid="docx-review-toggle"
-          >
-            <History aria-hidden />
-            {count > 0 ? <span className="text-caption text-muted-foreground">{count}</span> : null}
-          </Button>
+          />
         }
-      />
+      >
+        <History aria-hidden />
+        {count > 0 ? <span className="text-caption text-muted-foreground">{count}</span> : null}
+      </PopoverTrigger>
       {/* keepMounted: the panel hosts the bulk confirmation dialog, and the
           popup would otherwise tear down with its child when focus leaves. */}
       <PopoverContent align="end" className="w-[26rem] max-w-[calc(100vw-2rem)]" keepMounted>

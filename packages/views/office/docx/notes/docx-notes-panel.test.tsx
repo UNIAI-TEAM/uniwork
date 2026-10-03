@@ -17,6 +17,10 @@ function renderPanel(overrides: Partial<DocxNotesPanelProps> = {}) {
     endnotes: ENDNOTES,
     readOnly: false,
     hasRef: () => true,
+    numberOf: (kind, id) => {
+      const notes = kind === "footnote" ? FOOTNOTES : ENDNOTES;
+      return notes.findIndex((note) => note.id === id) + 1;
+    },
     onEdit: vi.fn(),
     onDelete: vi.fn(),
     onJump: vi.fn(),
@@ -36,6 +40,14 @@ describe("DocxNotesPanel", () => {
     expect(screen.getByText("ghi chú một")).toBeInTheDocument();
     expect(screen.getByText("ghi chú hai")).toBeInTheDocument();
     expect(screen.getByText("kết luận")).toBeInTheDocument();
+  });
+
+  it("numbers the badge from the caller's reference order, not part order (M-5)", () => {
+    // The markers number by body-reference order; the pane must match. Here
+    // the caller says note 2 comes first, so its badge is 1 and note 1 is 2.
+    renderPanel({ numberOf: (_kind, id) => (id === "2" ? 1 : 2) });
+    expect(screen.getByTestId("docx-note-number-footnote-1")).toHaveTextContent("2");
+    expect(screen.getByTestId("docx-note-number-footnote-2")).toHaveTextContent("1");
   });
 
   it("edits a note's text inline", () => {
