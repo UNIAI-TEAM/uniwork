@@ -11,6 +11,8 @@ interface XlsxStatusBarProps {
   documentKey: string;
   selection: XlsxSelection | null;
   host?: XlsxGridHostPort;
+  /** The editor's dirty generation: an in-place edit re-reads the same selection. */
+  dirtyGeneration?: number;
   className?: string;
 }
 
@@ -31,16 +33,19 @@ function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, loc
   if (summary.kind === "count") {
     return <span className="tabular-nums" data-testid="xlsx-status-bar-count">{t("office.xlsx.statusBar.count", { value: number(summary.nonEmptyCount) })}</span>;
   }
-  return state.partial ? null : <span data-testid="xlsx-status-bar-no-values">{t("office.xlsx.statusBar.noValues")}</span>;
+  if (state.partial) {
+    return <span data-testid="xlsx-status-bar-partial-empty">{t("office.xlsx.statusBar.partialEmpty")}</span>;
+  }
+  return <span data-testid="xlsx-status-bar-no-values">{t("office.xlsx.statusBar.noValues")}</span>;
 }
 
 /** Read-only selection statistics for the workbook, mounted below the grid in
  *  every mode: nothing selected, no renderer host, a read in flight and a
  *  failed read each get their own honest state, and a host that confirms only
  *  part of the range is called out instead of being read as a total. */
-export function XlsxStatusBar({ documentKey, selection, host, className }: XlsxStatusBarProps) {
+export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, className }: XlsxStatusBarProps) {
   const { t, i18n } = useTranslation();
-  const { state, pending } = useXlsxSelectionSummary({ documentKey, host, selection });
+  const { state, pending } = useXlsxSelectionSummary({ documentKey, host, selection, dirtyGeneration });
 
   let content: ReactNode;
   switch (state.kind) {
@@ -71,7 +76,8 @@ export function XlsxStatusBar({ documentKey, selection, host, className }: XlsxS
       {content}
       {state.kind === "ready" && state.partial ? (
         <span className="rounded-sm bg-muted px-1.5 py-0.5" title={t("office.xlsx.statusBar.partialHint")} data-testid="xlsx-status-bar-partial">
-          {t("office.xlsx.statusBar.partial")}
+          {t("office.xlsx.statusBar.partial")}{" "}
+          <span className="sr-only">{t("office.xlsx.statusBar.partialHint")}</span>
         </span>
       ) : null}
       {state.kind === "ready" && pending ? (

@@ -7385,6 +7385,7 @@
         "label": "Selection summary",
         "empty": "Select cells to see a summary.",
         "noValues": "The selection has no values.",
+        "partialEmpty": "No values in the part of the selection that was read.",
         "unavailable": "Summary is not available here.",
         "error": "The selection could not be read.",
         "calculating": "Calculating…",

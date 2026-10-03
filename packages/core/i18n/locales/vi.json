@@ -7379,6 +7379,7 @@
         "label": "Tóm tắt vùng chọn",
         "empty": "Chọn ô để xem tóm tắt.",
         "noValues": "Vùng chọn không có giá trị.",
+        "partialEmpty": "Phần vùng chọn đã đọc không có giá trị.",
         "unavailable": "Không có tóm tắt ở đây.",
         "error": "Không đọc được vùng chọn.",
         "calculating": "Đang tính…",

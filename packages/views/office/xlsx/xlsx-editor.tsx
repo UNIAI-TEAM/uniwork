@@ -529,7 +529,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
             </div>
             )}
-            <XlsxStatusBar documentKey={documentKey} host={rendererHost} selection={selection} />
+            <XlsxStatusBar documentKey={documentKey} host={rendererHost} selection={selection} dirtyGeneration={coordinatorState.dirtyGeneration} />
           </div>
         </>
       ) : viewState === "error" && failure ? (

@@ -25,18 +25,23 @@ function initialState(selection: XlsxSelection | null, host: XlsxGridHostPort | 
 
 /**
  * Reads the current selection through the renderer host. Reads are keyed by
- * document + selection: a reply that belongs to a selection that has since
- * changed is dropped, and the host's own partial-indexing signals ride along
- * as `partial` so totals are never presented as covering the whole selection.
+ * document + selection + the editor's dirty generation: a reply that belongs
+ * to a selection that has since changed is dropped, an in-place edit under an
+ * unchanged selection re-reads, and the host's own partial-indexing signals
+ * ride along as `partial` so totals are never presented as covering the whole
+ * selection.
  */
 export function useXlsxSelectionSummary({
   documentKey,
   host,
   selection,
+  dirtyGeneration = 0,
 }: {
   documentKey: string;
   host?: XlsxGridHostPort;
   selection: XlsxSelection | null;
+  /** The editor's dirty generation; a new value re-reads the current selection. */
+  dirtyGeneration?: number;
 }): XlsxSummaryController {
   const [state, setState] = useState<XlsxSummaryState>(() => initialState(selection, host));
   const [pending, setPending] = useState(false);
@@ -85,7 +90,7 @@ export function useXlsxSelectionSummary({
     return () => {
       if (tokenRef.current === token) tokenRef.current += 1;
     };
-  }, [documentKey, host, selectionKey]);
+  }, [documentKey, host, selectionKey, dirtyGeneration]);
 
   return { state, pending };
 }

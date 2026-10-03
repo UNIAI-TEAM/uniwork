@@ -102,6 +102,25 @@ describe("XlsxStatusBar", () => {
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(7)}`);
   });
 
+  it("re-reads the unchanged selection when the dirty generation changes", async () => {
+    const gate = deferred<RendererRangeResult>();
+    const readRange = vi.fn().mockResolvedValueOnce(result([cell(1)])).mockReturnValueOnce(gate.promise);
+    const stableHost = host(readRange);
+    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} dirtyGeneration={0} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
+    rerender(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} dirtyGeneration={1} />);
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
+    expect(screen.getByTestId("xlsx-status-bar-pending")).toBeInTheDocument();
+    await act(async () => { gate.resolve(result([cell(6)])); await gate.promise; });
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(6)}`);
+    expect(readRange).toHaveBeenNthCalledWith(2, {
+      sessionId: "s-1",
+      sheetId: "sheet-1",
+      range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+    });
+  });
+
   it("reports a failed read without inventing values", async () => {
     const readRange = vi.fn().mockRejectedValueOnce(new Error("sidecar down"));
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
@@ -122,6 +141,23 @@ describe("XlsxStatusBar", () => {
     await screen.findByTestId("xlsx-status-bar-partial");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
     expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 1");
+  });
+
+  it("explains a partial read that confirms no values instead of a bare badge", async () => {
+    const readRange = vi.fn(async () => result([], { indexingComplete: false, indexedThroughRow: null }));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A3")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-partial");
+    expect(screen.getByTestId("xlsx-status-bar-partial-empty")).toHaveTextContent("Phần vùng chọn đã đọc không có giá trị.");
+    expect(screen.queryByTestId("xlsx-status-bar-no-values")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+  });
+
+  it("carries the partial hint in the badge for assistive tech", async () => {
+    const readRange = vi.fn(async () => result([cell(1, 0)], { indexingComplete: false, indexedThroughRow: 0 }));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A3")} host={host(readRange)} />);
+    const badge = await screen.findByTestId("xlsx-status-bar-partial");
+    expect(badge).toHaveTextContent("Tóm tắt một phần");
+    expect(badge).toHaveTextContent("Một phần vùng chọn nằm ngoài cửa sổ đọc, nên tổng chỉ tính trên các ô đã đọc.");
   });
 
   it("shows an empty state without reading when the selection is outside the used range", () => {
