@@ -178,14 +178,17 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
   });
 
-  it("keeps a readonly capability from writing to the cloud", async () => {
+  it("keeps a readonly document from editing and from writing to the cloud", async () => {
     const engine = runtime();
     const files = documents();
     const readonly = { ...capability, status: "readonly" as const, reason: "read only" };
     const adapter = createPptxFormatAdapter({ ...options(engine, files), capability: readonly, readonly: true });
     await adapter.open.open();
-    await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]);
-    adapter.session.coordinator.markDirty(adapter.editor.getDirtyGeneration());
+    // F4: the host passes readonly, so the edit is refused before the model
+    // can carry dirty state the capability gate would never let save.
+    await expect(adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }])).rejects.toThrow("pptx_editor_readonly");
+    expect(engine.edits).toHaveLength(0);
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
     expect(await adapter.session.coordinator.save("button")).toEqual({ accepted: false, reason: "readonly" });
     expect(files.uploaded).toHaveLength(0);
     await adapter.session.dispose();

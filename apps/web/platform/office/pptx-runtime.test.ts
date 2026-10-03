@@ -1,0 +1,201 @@
+/** @vitest-environment node */
+// UNI-927 (P0-1, F2) - drives the REAL createWebPptxSessionRuntime against the
+// REAL PptxAdapter/PptxSessionModel. Only the generated-artifact seam
+// (@uniwork/office-upstream/pptx-renderer) is mocked, so the serialize lane,
+// journal base64 encode/decode, both prefix guards and the restore replay all
+// execute for real - the coverage the P0-1 review found missing (F1 shipped
+// because nothing exercised this file).
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
+import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
+import {
+  createWebPptxSessionRuntime,
+  decodePptxEdit,
+  encodePptxEdit,
+  fingerprintPptxSnapshot,
+  sha256Hex,
+  stableJson,
+  type PptxDeckSnapshot,
+  type PptxSessionRuntime,
+} from "./pptx-runtime";
+
+// Instrumented artifact seam: `events` records the order the engine functions
+// run so the single-lane test can prove an edit never lands inside a save.
+const seam = vi.hoisted(() => ({
+  events: [] as string[],
+  gate: null as null | { promise: Promise<void>; resolve: () => void },
+}));
+
+vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
+  const fakes = await import("../../../../packages/office-engine/test/fake-pptx-engine");
+  const engine = fakes.createFakePptxEngine();
+  const ops = fakes.createFakePptxOps();
+  return {
+    openPptx: async (bytes: Uint8Array) => {
+      seam.events.push("open");
+      return engine.openPptx(bytes);
+    },
+    savePptx: async (opened: OpenedPptxLike) => {
+      seam.events.push("save:start");
+      if (seam.gate) await seam.gate.promise;
+      seam.events.push("save:end");
+      return engine.savePptx(opened);
+    },
+    commitSaved: (opened: OpenedPptxLike) => engine.commitSaved?.(opened),
+    reparseDeck: (opened: OpenedPptxLike) => engine.reparseDeck?.(opened) ?? opened,
+    listSlideLayouts: (archive: unknown) => engine.listSlideLayouts?.(archive) ?? [],
+    runTxn: (opened: OpenedPptxLike, request: PptxTxnRequest) => {
+      if (request.dryRun !== true) seam.events.push("edit");
+      return ops.runTxn(opened, request);
+    },
+    buildRenderSlide: () => ({ nodes: [] }),
+    HeuristicMetrics: class HeuristicMetrics {},
+  };
+});
+
+const bytes = () => makeFakePptxBytes();
+const hidden = (slideIndex: number, value: boolean): PptxEdit => ({ op: "set_slide_hidden", slideIndex, hidden: value });
+const image = (): PptxEdit => ({ op: "add_image", slideIndex: 0, bytes: new Uint8Array([1, 2, 3]), ext: "png", xPx: 0, yPx: 0, wPx: 10, hPx: 10 });
+/** A deck snapshot whose revision defaults to its journal length; pass a
+ * different revision to build the internally inconsistent case (F6). */
+const deck = (edits: PptxEdit[], revision = edits.length): PptxDeckSnapshot => ({ revision, edits: edits.map(encodePptxEdit) });
+const snapshot = (value: PptxDeckSnapshot, generation = value.revision) => ({ generation, fingerprint: "fp", value });
+
+async function opened(): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
+  const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+  const result = await runtime.open({ bytes: bytes(), documentId: "doc" });
+  if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("open failed");
+  return { runtime, ref: result.document_model_ref };
+}
+
+beforeEach(() => {
+  seam.events = [];
+  seam.gate = null;
+});
+
+describe("web PPTX session runtime", () => {
+  it("opens, edits and serializes in order, never interleaving a save with an edit", async () => {
+    const { runtime, ref } = await opened();
+    expect(seam.events).toEqual(["open"]);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+
+    // Straight path: open -> edit -> serialize on the one lane.
+    expect(await runtime.edit(ref, [hidden(0, true)])).toEqual({ revision: 1 });
+    expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
+    expect(runtime.slides(ref)[0]?.hidden).toBe(true);
+
+    // Hold a save open and queue an edit behind it: the edit must not run
+    // until the save's engine call has finished.
+    seam.events = [];
+    let release!: () => void;
+    seam.gate = { promise: new Promise<void>((resolve) => { release = resolve; }), resolve: () => release() };
+    const saving = runtime.serialize(ref, { snapshot: snapshot(runtime.snapshot(ref)) });
+    const editing = runtime.edit(ref, [hidden(1, true)]);
+    await vi.waitFor(() => expect(seam.events).toContain("save:start"));
+    expect(seam.events).not.toContain("edit");
+    seam.gate.resolve();
+    const [out] = await Promise.all([saving, editing]);
+    seam.gate = null;
+    expect(out.bytes.length).toBeGreaterThan(0);
+    expect(out.checksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(seam.events.indexOf("save:end")).toBeLessThan(seam.events.indexOf("edit"));
+    expect(runtime.snapshot(ref).revision).toBe(2);
+  });
+
+  it("refuses a snapshot that is not the live journal's prefix", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+
+    // A different first edit than the live journal.
+    await expect(runtime.serialize(ref, { snapshot: snapshot(deck([hidden(1, true)])) }))
+      .rejects.toThrow("pptx_save_snapshot_invalid");
+    // A snapshot carrying an edit the model never applied.
+    await expect(runtime.serialize(ref, { snapshot: snapshot(deck([hidden(0, true), hidden(1, true)])) }))
+      .rejects.toThrow("pptx_save_snapshot_invalid");
+    // F6: a revision that disagrees with the journal length is inconsistent.
+    await expect(runtime.serialize(ref, { snapshot: snapshot(deck([hidden(0, true)], 3)) }))
+      .rejects.toThrow("pptx_save_snapshot_invalid");
+
+    // The genuine prefix still saves.
+    const out = await runtime.serialize(ref, { snapshot: snapshot(runtime.snapshot(ref)) });
+    expect(out.bytes.length).toBeGreaterThan(0);
+  });
+
+  it("replays a recovered draft onto a fresh session (the F1 case)", async () => {
+    const first = await opened();
+    await first.runtime.edit(first.ref, [hidden(0, true)]);
+    await first.runtime.edit(first.ref, [hidden(1, true)]);
+    const draft = first.runtime.snapshot(first.ref);
+    expect(draft).toEqual({ revision: 2, edits: [hidden(0, true), hidden(1, true)] });
+
+    // A fresh open has an empty journal. Before the F1 fix this restore threw
+    // pptx_restore_diverged for every draft with at least one edit.
+    const second = await opened();
+    expect(second.runtime.snapshot(second.ref).edits).toEqual([]);
+    await second.runtime.restore!(second.ref, draft);
+    expect(second.runtime.snapshot(second.ref)).toEqual(draft);
+    expect(second.runtime.slides(second.ref)[0]?.hidden).toBe(true);
+    expect(second.runtime.slides(second.ref)[1]?.hidden).toBe(true);
+
+    // Replaying onto a session that already holds the prefix applies the tail only.
+    const partial = await opened();
+    await partial.runtime.edit(partial.ref, [hidden(0, true)]);
+    await partial.runtime.restore!(partial.ref, draft);
+    expect(partial.runtime.snapshot(partial.ref)).toEqual(draft);
+
+    // A journal that diverges from the snapshot is refused.
+    const diverged = await opened();
+    await diverged.runtime.edit(diverged.ref, [hidden(1, true)]);
+    await expect(diverged.runtime.restore!(diverged.ref, draft)).rejects.toThrow("pptx_restore_diverged");
+
+    // The restored session serializes the deck the draft came from.
+    const out = await second.runtime.serialize(second.ref, { snapshot: snapshot(second.runtime.snapshot(second.ref)) });
+    expect(out.bytes.length).toBeGreaterThan(0);
+  });
+
+  it("round-trips Uint8Array edit payloads through base64 in the journal", async () => {
+    const encoded = encodePptxEdit(image());
+    expect(encoded.bytes).toEqual({ __bytes: "AQID" });
+    expect(JSON.parse(JSON.stringify(encoded)).bytes).toEqual({ __bytes: "AQID" });
+    const decoded = decodePptxEdit(encoded) as { bytes: Uint8Array };
+    expect(decoded.bytes).toBeInstanceOf(Uint8Array);
+    expect(Array.from(decoded.bytes)).toEqual([1, 2, 3]);
+
+    // Through the runtime: the snapshot is JSON-safe, and restoring it decodes
+    // the bytes back into a real engine edit that creates the picture.
+    const first = await opened();
+    await first.runtime.edit(first.ref, [image()]);
+    const draft = first.runtime.snapshot(first.ref);
+    expect(draft.edits[0]?.bytes).toEqual({ __bytes: "AQID" });
+    expect(JSON.stringify(draft)).not.toContain("Uint8Array");
+
+    const second = await opened();
+    await second.runtime.restore!(second.ref, JSON.parse(JSON.stringify(draft)) as PptxDeckSnapshot);
+    expect(second.runtime.slides(second.ref)[0]?.elements.some((element) => element.type === "picture")).toBe(true);
+  });
+
+  it("hashes and fingerprints deterministically", async () => {
+    // FIPS 180-4 vectors.
+    expect(await sha256Hex(new Uint8Array())).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    expect(await sha256Hex(new TextEncoder().encode("abc"))).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    const once = await sha256Hex(new Uint8Array([80, 75, 3, 4]));
+    expect(once).toBe(await sha256Hex(new Uint8Array([80, 75, 3, 4])));
+    expect(once).toMatch(/^[0-9a-f]{64}$/);
+
+    // stableJson is key-order independent, so equal decks fingerprint equally.
+    expect(stableJson({ b: 1, a: [{ d: 2, c: 3 }] })).toBe(stableJson({ a: [{ c: 3, d: 2 }], b: 1 }));
+    const left = deck([hidden(0, true)]);
+    const reordered = deck([{ hidden: true, slideIndex: 0, op: "set_slide_hidden" }]);
+    expect(await fingerprintPptxSnapshot(left)).toBe(await fingerprintPptxSnapshot(reordered));
+    expect(await fingerprintPptxSnapshot(left)).not.toBe(await fingerprintPptxSnapshot(deck([hidden(0, true), hidden(1, true)])));
+  });
+
+  it("honors an aborted serialize signal instead of minting save bytes", async () => {
+    const { runtime, ref } = await opened();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(runtime.serialize(ref, { snapshot: snapshot(runtime.snapshot(ref)), signal: controller.signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+    expect(seam.events).toEqual(["open"]);
+  });
+});

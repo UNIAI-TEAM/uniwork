@@ -154,8 +154,6 @@ interface LivePptxSession {
 
 interface RuntimeSession {
   ref: string;
-  documentId: string;
-  baseBytes: Uint8Array;
   journal: PptxEdit[];
   revision: number;
 }
@@ -197,14 +195,37 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return { revision: session.revision, edits: session.journal.map(encodePptxEdit) };
   }
 
-  /** The snapshot's journal must be the applied journal's own prefix. */
-  function prefixMatches(session: RuntimeSession, snapshot: PptxDeckSnapshot): boolean {
+  /** Structural checks every snapshot must pass. The runtime advances the
+   * revision once per applied edit, so a revision that disagrees with the
+   * journal length is internally inconsistent (F6) - refused, never replayed. */
+  function validSnapshot(snapshot: PptxDeckSnapshot): boolean {
     if (!Number.isSafeInteger(snapshot.revision) || snapshot.revision < 0) return false;
-    if (!Array.isArray(snapshot.edits) || snapshot.edits.length > session.journal.length) return false;
-    for (let i = 0; i < snapshot.edits.length; i += 1) {
-      if (stableJson(snapshot.edits[i]) !== stableJson(encodePptxEdit(session.journal[i] as PptxEdit))) return false;
+    if (!Array.isArray(snapshot.edits)) return false;
+    return snapshot.revision === snapshot.edits.length;
+  }
+
+  /** Compare the first `count` live-journal entries against the snapshot's
+   * entries, canonically (base64 byte fields included). */
+  function prefixEqual(session: RuntimeSession, edits: readonly PptxJournalEntry[], count: number): boolean {
+    for (let i = 0; i < count; i += 1) {
+      if (stableJson(encodePptxEdit(session.journal[i] as PptxEdit)) !== stableJson(edits[i])) return false;
     }
     return true;
+  }
+
+  /** Serialize direction: the snapshot must be the live journal's own prefix
+   * (a save may not carry edits the model never applied). */
+  function snapshotIsJournalPrefix(session: RuntimeSession, snapshot: PptxDeckSnapshot): boolean {
+    if (!validSnapshot(snapshot) || snapshot.edits.length > session.journal.length) return false;
+    return prefixEqual(session, snapshot.edits, snapshot.edits.length);
+  }
+
+  /** Restore direction (F1): the live journal must be the snapshot's own
+   * prefix, so a recovered draft replays only the tail. On a fresh open the
+   * journal is empty and every snapshot with edits passes here. */
+  function journalIsSnapshotPrefix(session: RuntimeSession, snapshot: PptxDeckSnapshot): boolean {
+    if (!validSnapshot(snapshot) || session.journal.length > snapshot.edits.length) return false;
+    return prefixEqual(session, snapshot.edits, session.journal.length);
   }
 
   return {
@@ -220,7 +241,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
             ...(outcome.engine_error ? { engine_error: outcome.engine_error } : {}),
           };
         }
-        const session: RuntimeSession = { ref: outcome.document_model_ref, documentId, baseBytes: bytes, journal: [], revision: 0 };
+        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0 };
         sessions.set(session.ref, session);
         return {
           outcome: "opened" as const,
@@ -252,7 +273,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     async restore(documentModelRef, snapshot) {
       return serializeOperation(() => {
         const session = requireSession(documentModelRef);
-        if (!prefixMatches(session, snapshot)) throw new Error("pptx_restore_diverged");
+        if (!journalIsSnapshotPrefix(session, snapshot)) throw new Error("pptx_restore_diverged");
         for (let i = session.journal.length; i < snapshot.edits.length; i += 1) {
           const edit = decodePptxEdit(snapshot.edits[i] as PptxJournalEntry);
           session.revision = engineAdapter().edit(documentModelRef, edit).revision;
@@ -261,11 +282,15 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       });
     },
 
-    async serialize(documentModelRef, { snapshot }) {
+    async serialize(documentModelRef, { snapshot, signal }) {
       return serializeOperation(async () => {
+        // The save never starts (and never reports success) once the caller
+        // has aborted: a queued save that was cancelled must not mint bytes.
+        signal?.throwIfAborted();
         const session = requireSession(documentModelRef);
-        if (!prefixMatches(session, snapshot.value)) throw new Error("pptx_save_snapshot_invalid");
+        if (!snapshotIsJournalPrefix(session, snapshot.value)) throw new Error("pptx_save_snapshot_invalid");
         const out = await engineAdapter().serialize({ document_model_ref: documentModelRef, format: "pptx" });
+        signal?.throwIfAborted();
         return { bytes: out.bytes, checksum: out.checksum, warnings: out.warnings };
       });
     },

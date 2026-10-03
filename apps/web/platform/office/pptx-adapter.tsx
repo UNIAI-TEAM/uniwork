@@ -101,8 +101,7 @@ function PptxSessionSurface(props: { view: () => PptxSurfaceView | null; subscri
             </li>
           ))}
         </ol>
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- role=application is the keyboard deck surface, same as the shared PptxEditor */}
-        <div role="application" aria-label={t("canvas_label")} tabIndex={0} className="flex min-h-48 flex-1 items-center justify-center overflow-auto rounded-md border border-border bg-muted/10 p-4" data-pptx-canvas>
+        <div role="group" aria-label={t("canvas_label")} className="flex min-h-48 flex-1 items-center justify-center overflow-auto rounded-md border border-border bg-muted/10 p-4" data-pptx-canvas>
           {current.slides.length === 0 ? (
             <p className="text-body text-muted-foreground">{t("no_slides")}</p>
           ) : (
@@ -181,6 +180,9 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     },
     async edit(edits) {
       if (disposed) throw new Error("pptx_editor_disposed");
+      // A readonly document has no edit surface; refuse before the model is
+      // touched so the deck can never carry unsavable dirty state.
+      if (options.readonly) throw new Error("pptx_editor_readonly");
       if (!modelRef) throw new Error("pptx_editor_not_open");
       const result = await options.runtime.edit(modelRef, edits);
       generation += 1;
