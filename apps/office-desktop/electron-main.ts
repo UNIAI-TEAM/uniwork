@@ -302,7 +302,9 @@ async function startElectronHost(): Promise<void> {
   };
   const leave = createDesktopLeaveCoordinator({
     send: (request) => { window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
-    confirmKeep: async () => { const rows = await activeDrafts(); return rows !== null && rows.length > 0; },
+    // Keep is also valid after a confirmed Save: the store may have no row
+    // left, but a failed store read must still fail closed.
+    confirmKeep: async () => { const rows = await activeDrafts(); return rows !== null; },
     // A save choice needs a fresh main-observed receipt whenever the store holds
     // unsaved evidence for the live document. Empty rows permit a clean no-op
     // only while the main Save guard is idle; the first checkpoint may still

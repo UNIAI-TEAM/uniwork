@@ -128,6 +128,15 @@ describe("desktop leave coordinator", () => {
     expect(confirmKeep).toHaveBeenCalledOnce();
   });
 
+  it("allows Keep when main confirms the draft store has no pending row", async () => {
+    const confirmKeep = vi.fn(async () => true);
+    const { coordinator, requests } = harness({ confirmKeep });
+    const pending = coordinator.request("logout");
+    coordinator.resolve(answer(requests[0]!.requestId, "keep", true));
+    await expect(pending).resolves.toMatchObject({ choice: "keep", proceeded: true });
+    expect(confirmKeep).toHaveBeenCalledOnce();
+  });
+
   it("requires a save receipt observed after the request", async () => {
     const seen: number[] = [];
     const { coordinator, requests } = harness({ confirmSave: async (issuedAt) => { seen.push(issuedAt); return seen.length > 1; } });

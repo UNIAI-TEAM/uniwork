@@ -33,9 +33,9 @@ export interface DesktopLeaveCoordinatorOptions {
   /** Delivers the request to the renderer, which shows the ONE leave dialog. */
   readonly send: (request: LeaveRequest) => void;
   /** Main-side evidence checks for each choice. The renderer's `proceeded` is
-   * never trusted alone: a keep must be a durable row main can see, a save must
-   * be a receipt main observed after the request, and a discard must leave no
-   * row for the live document. */
+   * never trusted alone: Keep requires a successful main read of the live
+   * draft state, Save requires a receipt main observed after the request, and
+   * Discard must leave no row for the live document. */
   readonly confirmKeep?: () => Promise<boolean>;
   readonly confirmSave?: (issuedAt: number) => Promise<boolean>;
   readonly confirmDiscard?: () => Promise<boolean>;
