@@ -178,6 +178,7 @@ it("keeps an edited local tab mounted through login cancel and success", async (
   const h = harness({ localMode: true });
   await enterLocal(h);
   const handle = `file_${"a".repeat(32)}`;
+  await waitFor(() => expect(h.hasFileListener()).toBe(true));
   h.emitFile(handle);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
