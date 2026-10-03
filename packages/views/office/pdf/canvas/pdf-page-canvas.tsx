@@ -26,7 +26,9 @@ function RenderedTile({ request, renderer, style }: TileProps) {
   const [result, setResult] = useState<PdfRenderResult | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void renderer.renderTile?.({ ...request, signal: controller.signal }).then((next) => {
+    const renderTile = renderer.renderTile;
+    if (!renderTile) return;
+    void renderTile({ ...request, signal: controller.signal }).then((next) => {
       if (!controller.signal.aborted && next) setResult(next);
     });
     return () => controller.abort();
