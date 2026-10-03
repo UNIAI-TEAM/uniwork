@@ -670,6 +670,19 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	"set_cell":   officeSetCellValid,
 	"clear_cell": officeClearCellValid,
 	"set_cells":  officeSetCellsValid,
+	// Row/column structure (B1). Each validator mirrors its ops.ts parser; the
+	// op's fields ride the existing raw attributes object, so the shared edit
+	// envelope needs no format-specific schema change.
+	"insert_rows":      officeShiftValid(false),
+	"remove_rows":      officeShiftValid(false),
+	"insert_cols":      officeShiftValid(true),
+	"remove_cols":      officeShiftValid(true),
+	"set_row_size":     officeSizeValid(false),
+	"set_col_size":     officeSizeValid(true),
+	"set_rows_hidden":  officeHiddenValid(false),
+	"set_cols_hidden":  officeHiddenValid(true),
+	"set_rows_outline": officeOutlineValid(false),
+	"set_cols_outline": officeOutlineValid(true),
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -959,6 +972,161 @@ func officeSetCellsValid(edit office.EditOp) bool {
 	}
 	_, _, ok = officeStyleOf(edit, attributes)
 	return ok
+}
+
+// Structural (rows/columns) validation. Field vocabulary mirrors
+// packages/office-engine/src/xlsx/ops.ts: positions are 0-based, sizes are
+// points for rows / character width for columns, null = the sheet default.
+
+const (
+	// Row height (points) / column width (character units) ceiling, mirroring
+	// the upstream structural wire schema (desktop-api.ts structuralOps).
+	maxOfficeStructuralSize = 500
+	// Span ceiling a size/hidden/outline op may address.
+	maxOfficeStructuralSpan = 100_000
+)
+
+// officeStructuralAttributes decodes a structural op's attributes object;
+// unlike the cell ops, a structural op requires the object (its fields live
+// there), so an absent or null attributes is malformed.
+func officeStructuralAttributes(raw json.RawMessage) (map[string]json.RawMessage, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, false
+	}
+	var attributes map[string]json.RawMessage
+	if json.Unmarshal(raw, &attributes) != nil {
+		return nil, false
+	}
+	return attributes, true
+}
+
+// officeStructuralInt decodes a bounded integer attribute (inclusive bounds),
+// refusing fractional, non-numeric and out-of-range values.
+func officeStructuralInt(attributes map[string]json.RawMessage, name string, min, max int) (int, bool) {
+	raw := attributes[name]
+	if len(raw) == 0 || (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) ||
+		value < float64(min) || value > float64(max) {
+		return 0, false
+	}
+	return int(value), true
+}
+
+// officeStructuralBool requires a present boolean attribute.
+func officeStructuralBool(attributes map[string]json.RawMessage, name string) (bool, bool) {
+	switch string(attributes[name]) {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	}
+	return false, false
+}
+
+// officeAxisLimit is the grid bound of the op's axis.
+func officeAxisLimit(columns bool) int {
+	if columns {
+		return maxOfficeEditColumns
+	}
+	return maxOfficeEditRows
+}
+
+// officeAxisSpan decodes start/end and enforces start <= end, inside the grid
+// and under the span ceiling.
+func officeAxisSpan(attributes map[string]json.RawMessage, columns bool) bool {
+	limit := officeAxisLimit(columns)
+	start, ok := officeStructuralInt(attributes, "start", 0, limit-1)
+	if !ok {
+		return false
+	}
+	end, ok := officeStructuralInt(attributes, "end", 0, limit-1)
+	return ok && end >= start && end-start < maxOfficeStructuralSpan
+}
+
+// officeShiftValid: insert_rows/remove_rows/insert_cols/remove_cols —
+// {index, count}, count >= 1, index+count inside the axis grid.
+func officeShiftValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok {
+			return false
+		}
+		limit := officeAxisLimit(columns)
+		index, ok := officeStructuralInt(attributes, "index", 0, limit-1)
+		if !ok {
+			return false
+		}
+		count, ok := officeStructuralInt(attributes, "count", 1, limit)
+		if !ok || index+count > limit {
+			return false
+		}
+		return true
+	}
+}
+
+// officeSizeValid: set_row_size/set_col_size — {start, end, size}; size is
+// null (sheet default) or a number in (0, maxOfficeStructuralSize].
+func officeSizeValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		raw := attributes["size"]
+		if string(raw) == "null" {
+			return true
+		}
+		value, err := strconv.ParseFloat(string(raw), 64)
+		return err == nil && !math.IsNaN(value) && !math.IsInf(value, 0) &&
+			value > 0 && value <= maxOfficeStructuralSize
+	}
+}
+
+// officeHiddenValid: set_rows_hidden/set_cols_hidden — {start, end, hidden}.
+func officeHiddenValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		_, ok = officeStructuralBool(attributes, "hidden")
+		return ok
+	}
+}
+
+// officeOutlineValid: set_rows_outline/set_cols_outline — {start, end, level,
+// collapsed?}; level is absolute 0-7 (0 removes the attribute).
+func officeOutlineValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		if _, ok := officeStructuralInt(attributes, "level", 0, 7); !ok {
+			return false
+		}
+		if _, present := attributes["collapsed"]; present {
+			if _, ok := officeStructuralBool(attributes, "collapsed"); !ok {
+				return false
+			}
+		}
+		return true
+	}
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another

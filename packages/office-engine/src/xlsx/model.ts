@@ -6,7 +6,16 @@
 // input bytes with a success claim, and never a formula replaced by its
 // displayed value.
 import { XlsxEngineError, type XlsxCellEdit, type XlsxCellState, type XlsxRecalcEdit, type XlsxWorkbookSnapshot } from "./engine.ts";
-import { a1ToRowColumn, toA1, type XlsxEditOp, type XlsxSheetResolver } from "./ops.ts";
+import {
+  a1ToRowColumn,
+  groupXlsxStructuralOps,
+  isXlsxStructuralOp,
+  toA1,
+  type XlsxEditOp,
+  type XlsxSheetResolver,
+  type XlsxSheetStructuralOps,
+  type XlsxStructuralOp,
+} from "./ops.ts";
 
 /** One pending cell: content and independent style fields fold separately. */
 interface PendingCell {
@@ -45,6 +54,11 @@ export class XlsxSessionModel {
   /** Bumped on every successful rebase — one term of the session binding. */
   modelRevision = 0;
   private pending = new Map<string, PendingCell>();
+  /** Structural journal: row/column ops per sheet, in replay order. Cell
+   *  entries above are kept in post-operation coordinates (the renderer's
+   *  journal applies every shift to its own entries the same way), so the
+   *  gateway replays this list first and then writes the cell edits. */
+  private structural = new Map<string, XlsxStructuralOp[]>();
   private touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
@@ -83,6 +97,10 @@ export class XlsxSessionModel {
   }
 
   applyEdit(op: XlsxEditOp): void {
+    if (isXlsxStructuralOp(op)) {
+      this.applyStructuralOp(op);
+      return;
+    }
     const key = JSON.stringify([op.target.sheetName, op.target.address]);
     const previous = this.pending.get(key);
     const writesContent = op.kind === "clear_cell" || op.writeValue;
@@ -113,6 +131,52 @@ export class XlsxSessionModel {
     });
     this.touched = true;
     this.revision += 1;
+  }
+
+  /** Records one structural op and moves already-pending cells into the
+   *  op's post-operation space — exactly the shift the renderer journal
+   *  applies when it records the same op, so both sides of the save agree on
+   *  final coordinates. Ops that don't shift anything (sizes, hidden flags,
+   *  outline levels) only append to the journal. */
+  private applyStructuralOp(op: XlsxStructuralOp): void {
+    const ops = this.structural.get(op.sheetName) ?? [];
+    ops.push(op);
+    this.structural.set(op.sheetName, ops);
+    if ("index" in op) this.shiftPendingCells(op);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  private shiftPendingCells(op: Extract<XlsxStructuralOp, { index: number }>): void {
+    const axis = op.kind === "insert_cols" || op.kind === "remove_cols" ? "column" : "row";
+    const removing = op.kind === "remove_rows" || op.kind === "remove_cols";
+    const move = (position: number): number | null => {
+      if (removing) {
+        if (position >= op.index && position < op.index + op.count) return null;
+        return position >= op.index + op.count ? position - op.count : position;
+      }
+      return position >= op.index ? position + op.count : position;
+    };
+    const shifted = new Map<string, PendingCell>();
+    for (const entry of this.pending.values()) {
+      if (entry.sheetName !== op.sheetName) {
+        shifted.set(JSON.stringify([entry.sheetName, toA1(entry.row, entry.column)]), entry);
+        continue;
+      }
+      const moved = move(axis === "row" ? entry.row : entry.column);
+      if (moved === null) continue;
+      const row = axis === "row" ? moved : entry.row;
+      const column = axis === "column" ? moved : entry.column;
+      shifted.set(JSON.stringify([entry.sheetName, toA1(row, column)]), { ...entry, row, column, edit: { ...entry.edit, row, column } });
+    }
+    this.pending = shifted;
+  }
+
+  /** The structural journal for the gateway's structuralOps argument: ops
+   *  grouped per sheet, first-touch sheet order, journal order inside a
+   *  sheet. Empty when the session has no structural edits. */
+  pendingStructuralOps(): XlsxSheetStructuralOps[] {
+    return groupXlsxStructuralOps([...this.structural.values()].flat());
   }
 
   /** Edits in insertion order (last write wins per cell already applied). */
@@ -161,6 +225,7 @@ export class XlsxSessionModel {
     this.snapshot = newSnapshot;
     this.inputSha256 = newInputSha256;
     this.pending.clear();
+    this.structural.clear();
     this.touched = false;
     this.modelRevision += 1;
   }

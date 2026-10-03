@@ -2,7 +2,7 @@
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
 import { dispatchOfficeError } from "@uniwork/core/office";
-import { isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
+import { isXlsxStructuralOp, isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
 
@@ -73,6 +73,11 @@ function applyEdits(base: XlsxWorkbookSnapshot, operations: readonly unknown[]):
   const ops = parsedEdits(base, operations);
   const next = cloneSnapshot(base);
   for (const op of ops) {
+    // Structural ops reshape rows/columns, which this cell-content snapshot
+    // does not model: they ride the envelope to the server's structuralOps
+    // pass unapplied here (the renderer grid has already shifted what the
+    // user sees, and the server replays the shift before any cell edit).
+    if (isXlsxStructuralOp(op)) continue;
     const cells = next.sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, DraftCell>;
     const previous = cells[op.target.address];
     const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };

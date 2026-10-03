@@ -106,6 +106,94 @@ describe("XLSX cell edit folding", () => {
   });
 });
 
+describe("XLSX structural journal", () => {
+  it("moves pending cell edits into the op's post-operation coordinates", () => {
+    const model = modelWith([
+      value, // A1 (row 0)
+      { op: "set_cell", target: { sheet: "Data", cell: "A3" }, attributes: { value: 9 } }, // row 2
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 2 } },
+    ]);
+    expect(model.pendingEdits()).toEqual([
+      expect.objectContaining({ row: 2, column: 0, cell: { value: 7 } }),
+      expect.objectContaining({ row: 4, column: 0, cell: { value: 9 } }),
+    ]);
+    expect(model.pendingRecalcEdits()).toEqual([
+      { sheet: "Data", row: 2, column: 0, input: "7" },
+      { sheet: "Data", row: 4, column: 0, input: "9" },
+    ]);
+    // The snapshot itself stays the parse of the original bytes.
+    expect(model.cells("Data").A1).toEqual({ value: 2 });
+  });
+
+  it("drops pending edits a removal deletes and shifts the survivors", () => {
+    const model = modelWith([
+      { op: "set_cell", target: { sheet: "Data", cell: "A2" }, attributes: { value: 1 } }, // row 1, deleted
+      { op: "set_cell", target: { sheet: "Data", cell: "A4" }, attributes: { value: 2 } }, // row 3
+      { op: "remove_rows", target: { sheet: "Data" }, attributes: { index: 1, count: 2 } },
+    ]);
+    expect(model.pendingEdits()).toEqual([expect.objectContaining({ row: 1, column: 0, cell: { value: 2 } })]);
+  });
+
+  it("shifts columns on column ops and leaves cells alone on attribute ops", () => {
+    const model = modelWith([
+      { op: "set_cell", target: { sheet: "Data", cell: "B1" }, attributes: { value: 5 } },
+      { op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      { op: "set_row_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: 30 } },
+      { op: "set_cols_hidden", target: { sheet: "Data" }, attributes: { start: 0, end: 0, hidden: true } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 2, end: 2, level: 1 } },
+    ]);
+    expect(model.pendingEdits()).toEqual([expect.objectContaining({ row: 0, column: 2, cell: { value: 5 } })]);
+    expect(model.pendingStructuralOps()).toEqual([
+      {
+        sheetName: "Data",
+        ops: [
+          { kind: "insert-cols", index: 0, count: 1 },
+          { kind: "set-row-size", start: 0, end: 0, size: 30 },
+          { kind: "set-cols-hidden", start: 0, end: 0, hidden: true },
+          { kind: "set-rows-outline", start: 2, end: 2, level: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it("groups per sheet in journal order and drains the journal on rebase", () => {
+    const base: XlsxWorkbookSnapshot = { revision: 0, sheets: [{ id: "one", name: "Data", cells: {} }, { id: "two", name: "Report", cells: {} }] };
+    const model = modelWith([
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      { op: "set_col_size", target: { sheet: "Report" }, attributes: { start: 0, end: 2, size: null } },
+      { op: "remove_cols", target: { sheet: "Data" }, attributes: { index: 1, count: 1 } },
+    ], base);
+    expect(model.pendingStructuralOps()).toEqual([
+      { sheetName: "Data", ops: [{ kind: "insert-rows", index: 0, count: 1 }, { kind: "remove-cols", index: 1, count: 1 }] },
+      { sheetName: "Report", ops: [{ kind: "set-col-size", start: 0, end: 2, size: null }] },
+    ]);
+    expect(model.isDirty).toBe(true);
+    model.rebase(base, "sha-next");
+    expect(model.pendingStructuralOps()).toEqual([]);
+    expect(model.isDirty).toBe(false);
+  });
+
+  it("drives the gateway structuralOps slot and skips recalc reads on shifted sheets", async () => {
+    const engine = createFakeXlsxEngine();
+    const recalc = createFakeRecalc();
+    let gatewayArguments: unknown;
+    const nativeApply = engine.applyCellEdits.bind(engine);
+    engine.applyCellEdits = async (bytes, edits, values, args) => {
+      gatewayArguments = args;
+      return nativeApply(bytes, edits, values);
+    };
+    const adapter = createXlsxAdapter({ engine, recalc });
+    const opened = await adapter.open({ bytes: makeFakeXlsxBytes({ sheets: snapshot().sheets.map((sheet) => ({ name: sheet.name, cells: { ...sheet.cells } })) }), format: "xlsx", document_id: "structural" });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    adapter.edit(opened.document_model_ref, [{ op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } }]);
+    await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    expect(gatewayArguments).toEqual({ structuralOps: [{ sheetName: "Data", ops: [{ kind: "insert-rows", index: 0, count: 1 }] }] });
+    // B1's formula lives on the shifted sheet: no recalc read may run against
+    // the original bytes' coordinates.
+    expect(recalc.calls).toEqual([]);
+  });
+});
+
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const artifact = join(repo, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 describe.skipIf(!existsSync(artifact))("XLSX real gateway cell folding", () => {

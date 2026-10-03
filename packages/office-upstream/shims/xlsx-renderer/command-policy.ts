@@ -51,6 +51,144 @@ function validRange(range: IRange): boolean {
     (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1) <= 100_000;
 }
 
+// ── row/column structure (B1) ──────────────────────────────────────────────
+//
+// Exactly the commands the structure toolbar (and the mutations those
+// commands dispatch) rides. Nothing else structural passes: the journal only
+// knows the ten op kinds the save can replay.
+
+const STRUCTURAL_COMMANDS = new Set([
+  "sheet.command.insert-row-before",
+  "sheet.command.insert-row-after",
+  "sheet.command.insert-col-before",
+  "sheet.command.insert-col-after",
+  "sheet.command.remove-row",
+  "sheet.command.remove-col",
+  "sheet.command.set-row-height",
+  "sheet.command.set-worksheet-col-width",
+  "sheet.command.set-row-is-auto-height",
+  "sheet.command.set-col-is-auto-width",
+  "sheet.command.set-rows-hidden",
+  "sheet.command.set-col-hidden",
+  "sheet.command.set-selected-rows-visible",
+  "sheet.command.set-selected-cols-visible",
+  "sheet.command.set-specific-rows-visible",
+  "sheet.command.set-col-visible-on-cols",
+  // UniWork outline commands: the pinned Univer has no outline model, so the
+  // controller registers these and journals their level edits directly.
+  "uniwork.command.set-rows-outline",
+  "uniwork.command.set-cols-outline",
+]);
+
+interface StructuralMutationShape {
+  readonly axis: "row" | "column";
+  readonly kind: "shift" | "size" | "hidden" | "auto-size";
+}
+
+const STRUCTURAL_MUTATIONS: Record<string, StructuralMutationShape> = {
+  "sheet.mutation.insert-row": { axis: "row", kind: "shift" },
+  "sheet.mutation.remove-rows": { axis: "row", kind: "shift" },
+  "sheet.mutation.insert-col": { axis: "column", kind: "shift" },
+  "sheet.mutation.remove-col": { axis: "column", kind: "shift" },
+  "sheet.mutation.set-worksheet-row-height": { axis: "row", kind: "size" },
+  "sheet.mutation.set-worksheet-col-width": { axis: "column", kind: "size" },
+  "sheet.mutation.set-worksheet-row-is-auto-height": { axis: "row", kind: "auto-size" },
+  "sheet.mutation.set-row-hidden": { axis: "row", kind: "hidden" },
+  "sheet.mutation.set-row-visible": { axis: "row", kind: "hidden" },
+  "sheet.mutation.set-col-hidden": { axis: "column", kind: "hidden" },
+  "sheet.mutation.set-col-visible": { axis: "column", kind: "hidden" },
+};
+
+/** One axis span inside the grid and under the wire's span ceiling. */
+function structuralSpanOK(range: unknown, axis: "row" | "column"): boolean {
+  if (!range || typeof range !== "object") return false;
+  const span = range as Record<string, unknown>;
+  const start = axis === "row" ? span.startRow : span.startColumn;
+  const end = axis === "row" ? span.endRow : span.endColumn;
+  const limit = axis === "row" ? 1_048_576 : 16_384;
+  return typeof start === "number" && typeof end === "number" && Number.isInteger(start) && Number.isInteger(end) &&
+    start >= 0 && end >= start && end < limit && end - start < 100_000;
+}
+
+/** Univer's size mutations measure pixels; the wire bound keeps pathological
+ *  values out (Excel's own maxima are far below 4096px). */
+function sizeValueOK(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 && value <= 4096;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.values(value);
+    return entries.length > 0 && entries.every((entry) => typeof entry === "number" && Number.isFinite(entry) && entry > 0 && entry <= 4096);
+  }
+  return false;
+}
+
+function autoSizeInfoOK(value: unknown): boolean {
+  if (typeof value === "number") return value === 0 || value === 1;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.values(value);
+    return entries.length > 0 && entries.every((entry) => entry === 0 || entry === 1);
+  }
+  return false;
+}
+
+function structuralMutationAllowed(
+  event: RendererCommand,
+  state: LazyWorkbookState,
+): boolean {
+  const shape = STRUCTURAL_MUTATIONS[event.id];
+  if (!shape) return false;
+  const params = event.params as {
+    unitId?: string; subUnitId?: string; range?: unknown; ranges?: unknown;
+    rowHeight?: unknown; colWidth?: unknown; autoHeightInfo?: unknown;
+  } | undefined;
+  const sheetId = params?.subUnitId;
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+    !state.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
+  if (shape.kind === "shift") return structuralSpanOK(params.range, shape.axis);
+  if (!Array.isArray(params.ranges) || params.ranges.length === 0 ||
+    !params.ranges.every((range) => structuralSpanOK(range, shape.axis))) return false;
+  if (shape.kind === "hidden") return true;
+  if (shape.kind === "auto-size") return autoSizeInfoOK(params.autoHeightInfo);
+  return sizeValueOK(shape.axis === "row" ? params.rowHeight : params.colWidth);
+}
+
+function structuralCommandAllowed(
+  event: RendererCommand,
+  state: LazyWorkbookState,
+): boolean {
+  const params = event.params as {
+    value?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
+  } | undefined;
+  if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
+    const axis = event.id.includes("rows") ? "row" : "column";
+    return !!params && (params.action === "group" || params.action === "ungroup" || params.action === "clear") &&
+      structuralSpanOK({ startRow: params.start, endRow: params.end, startColumn: params.start, endColumn: params.end }, axis) &&
+      (params.subUnitId === undefined || (typeof params.subUnitId === "string" && state.file.sheets.some((sheet) => sheet.id === params.subUnitId)));
+  }
+  if (event.id === "sheet.command.insert-row-before" || event.id === "sheet.command.insert-col-before") {
+    const value = params?.value;
+    return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000);
+  }
+  if (event.id === "sheet.command.set-row-height" || event.id === "sheet.command.set-worksheet-col-width") {
+    return typeof params?.value === "number" && Number.isFinite(params.value) && params.value > 0 && params.value <= 4096;
+  }
+  if (event.id === "sheet.command.set-row-is-auto-height" || event.id === "sheet.command.set-col-is-auto-width") {
+    if (params?.ranges === undefined) return true;
+    return Array.isArray(params.ranges) && params.ranges.every((range) => structuralSpanOK(range, event.id.includes("row") ? "row" : "column"));
+  }
+  if (event.id === "sheet.command.set-rows-hidden" || event.id === "sheet.command.set-col-hidden") {
+    const axis = event.id.includes("rows") ? "row" : "column";
+    if (params?.ranges === undefined) return true;
+    return Array.isArray(params.ranges) && params.ranges.length > 0 && params.ranges.every((range) => structuralSpanOK(range, axis));
+  }
+  // Remove row/col and the reveal commands: selection-driven, an explicit
+  // range is optional and bounded when present.
+  if (params?.ranges !== undefined) {
+    const axis = event.id.includes("col") ? "column" : "row";
+    if (!Array.isArray(params.ranges) || params.ranges.length === 0 || !params.ranges.every((range) => structuralSpanOK(range, axis))) return false;
+  }
+  return true;
+}
+
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
@@ -151,7 +289,11 @@ export function canExecuteCommand(
     return !!params && params.unitId === `file-${state.file.sha256}` &&
       state.file.sheets.some((sheet) => sheet.id === params.subUnitId) && AUTO_HEIGHT_TRIGGERS.has(params.trigger ?? "");
   }
-  if (!CELL_MUTATIONS.has(event.id)) return EDIT_COMMANDS.has(event.id);
+  if (!CELL_MUTATIONS.has(event.id)) {
+    if (STRUCTURAL_COMMANDS.has(event.id)) return structuralCommandAllowed(event, state);
+    if (STRUCTURAL_MUTATIONS[event.id]) return structuralMutationAllowed(event, state);
+    return EDIT_COMMANDS.has(event.id);
+  }
   const params = event.params as {
     unitId?: string; subUnitId?: string; cellValue?: unknown;
     ranges?: IRange[]; values?: Record<string, { ranges?: IRange[] }>; trigger?: string;

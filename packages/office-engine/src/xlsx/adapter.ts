@@ -302,7 +302,22 @@ export class XlsxAdapter {
     }
     const warnings: { code: string; detail: string }[] = [];
     const edits = session.model.pendingEdits();
-    const formulaCells = session.model.formulaCellsAfterEdits();
+    const structuralOps = session.model.pendingStructuralOps();
+    // A structural save cannot refresh formula caches: the sidecar recalc runs
+    // against the ORIGINAL bytes, where a shifted sheet's coordinates are the
+    // pre-op ones, and a cross-sheet formula may read cells this envelope also
+    // moved (or edited). Genoffice clears its recalc overlay on a structural
+    // edit and lets the file's cached values — which shift with their cells —
+    // stand; this lane does the same and says so in a warning rather than
+    // shipping a wrong-coordinate refresh.
+    const formulaCellsAfterEdits = session.model.formulaCellsAfterEdits();
+    const formulaCells = structuralOps.length > 0 ? [] : formulaCellsAfterEdits;
+    if (structuralOps.length > 0 && formulaCellsAfterEdits.length > 0) {
+      warnings.push({
+        code: "structure_formula_cache_kept",
+        detail: `${formulaCellsAfterEdits.length} formula cell(s) keep their file-cached values while row/column changes replay`,
+      });
+    }
     let formulaValues: XlsxSheetFormulaValues[] | undefined;
     if (formulaCells.length > 0) {
       if (!this.deps.recalc) {
@@ -333,7 +348,12 @@ export class XlsxAdapter {
     }
     let mutation;
     try {
-      mutation = await this.deps.engine.applyCellEdits(session.inputBytes, edits, formulaValues);
+      mutation = await this.deps.engine.applyCellEdits(
+        session.inputBytes,
+        edits,
+        formulaValues,
+        structuralOps.length > 0 ? { structuralOps } : undefined,
+      );
       this.deps.engine.assertPreserved(mutation);
     } catch (error) {
       if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;

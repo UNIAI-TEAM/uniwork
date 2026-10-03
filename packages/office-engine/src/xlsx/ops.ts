@@ -30,6 +30,11 @@ const MAX_TEXT_LEN = 1 << 20;
 /** OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD. */
 const MAX_ROWS = 1_048_576;
 const MAX_COLS = 16_384;
+/** Row height (points) / column width (character units) ceiling, mirroring
+ *  the upstream structural wire schema (desktop-api.ts structuralOps). */
+const MAX_AXIS_SIZE = 500;
+/** Span ceiling a size/hidden/outline op may address (same wire schema). */
+const MAX_AXIS_SPAN = 100_000;
 const A1 = /^\$?([A-Za-z]{1,3})\$?([1-9][0-9]*)$/;
 
 export interface XlsxCellTarget {
@@ -39,6 +44,120 @@ export interface XlsxCellTarget {
   readonly column: number;
   /** A1 spelling, for messages and the model's cell map. */
   readonly address: string;
+}
+
+/** One row/column structural op (envelope `structuralOps` slot). Positions
+ *  are 0-based; sizes are points for rows and character width for columns,
+ *  null = the sheet default. Every op maps 1:1 to the upstream StructuralOp
+ *  (xlsx-gateway/src/gateway/xlsx-structure.ts) via toUpstreamStructuralOps. */
+export type XlsxStructuralOp =
+  | {
+      readonly kind: "insert_rows" | "remove_rows" | "insert_cols" | "remove_cols";
+      readonly sheetName: string;
+      readonly index: number;
+      readonly count: number;
+    }
+  | {
+      readonly kind: "set_row_size" | "set_col_size";
+      readonly sheetName: string;
+      readonly start: number;
+      readonly end: number;
+      readonly size: number | null;
+    }
+  | {
+      readonly kind: "set_rows_hidden" | "set_cols_hidden";
+      readonly sheetName: string;
+      readonly start: number;
+      readonly end: number;
+      readonly hidden: boolean;
+    }
+  | {
+      readonly kind: "set_rows_outline" | "set_cols_outline";
+      readonly sheetName: string;
+      readonly start: number;
+      readonly end: number;
+      readonly level: number;
+      /** Omitted leaves the file's collapsed flag untouched (upstream). */
+      readonly collapsed?: boolean | undefined;
+    };
+
+/** The bound structural wire vocabulary; the model's shift rule keys on it. */
+const STRUCTURAL_OP_KIND_LIST = [
+  "insert_rows",
+  "remove_rows",
+  "insert_cols",
+  "remove_cols",
+  "set_row_size",
+  "set_col_size",
+  "set_rows_hidden",
+  "set_cols_hidden",
+  "set_rows_outline",
+  "set_cols_outline",
+] as const;
+
+const STRUCTURAL_KIND_SET: ReadonlySet<string> = new Set(STRUCTURAL_OP_KIND_LIST);
+
+export function isXlsxStructuralOp(op: XlsxEditOp): op is XlsxStructuralOp {
+  return STRUCTURAL_KIND_SET.has(op.kind);
+}
+
+/** The upstream StructuralOp payload the vendored gateway consumes
+ *  (kebab-case kinds; xlsx-structure.ts). */
+export type XlsxUpstreamStructuralOp =
+  | { readonly kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols"; readonly index: number; readonly count: number }
+  | { readonly kind: "set-row-size" | "set-col-size"; readonly start: number; readonly end: number; readonly size: number | null }
+  | { readonly kind: "set-rows-hidden" | "set-cols-hidden"; readonly start: number; readonly end: number; readonly hidden: boolean }
+  | {
+      readonly kind: "set-rows-outline" | "set-cols-outline";
+      readonly start: number;
+      readonly end: number;
+      readonly level: number;
+      readonly collapsed?: boolean | undefined;
+    };
+
+/** The gateway's SheetStructuralOps: one sheet's ops in replay order. */
+export interface XlsxSheetStructuralOps {
+  readonly sheetName: string;
+  readonly ops: readonly XlsxUpstreamStructuralOp[];
+}
+
+function toUpstreamStructuralOp(op: XlsxStructuralOp): XlsxUpstreamStructuralOp {
+  const kind = op.kind.replaceAll("_", "-") as XlsxUpstreamStructuralOp["kind"];
+  switch (op.kind) {
+    case "insert_rows":
+    case "remove_rows":
+    case "insert_cols":
+    case "remove_cols":
+      return { kind, index: op.index, count: op.count } as XlsxUpstreamStructuralOp;
+    case "set_row_size":
+    case "set_col_size":
+      return { kind, start: op.start, end: op.end, size: op.size } as XlsxUpstreamStructuralOp;
+    case "set_rows_hidden":
+    case "set_cols_hidden":
+      return { kind, start: op.start, end: op.end, hidden: op.hidden } as XlsxUpstreamStructuralOp;
+    case "set_rows_outline":
+    case "set_cols_outline":
+      return {
+        kind,
+        start: op.start,
+        end: op.end,
+        level: op.level,
+        ...(op.collapsed === undefined ? {} : { collapsed: op.collapsed }),
+      } as XlsxUpstreamStructuralOp;
+  }
+}
+
+/** Group parsed ops per sheet (first-touch sheet order, per-sheet journal
+ *  order) for the gateway's structuralOps argument. Cell ops are ignored. */
+export function groupXlsxStructuralOps(ops: readonly XlsxEditOp[]): XlsxSheetStructuralOps[] {
+  const bySheet = new Map<string, XlsxUpstreamStructuralOp[]>();
+  for (const op of ops) {
+    if (!isXlsxStructuralOp(op)) continue;
+    const list = bySheet.get(op.sheetName) ?? [];
+    list.push(toUpstreamStructuralOp(op));
+    bySheet.set(op.sheetName, list);
+  }
+  return [...bySheet].map(([sheetName, sheetOps]) => ({ sheetName, ops: sheetOps }));
 }
 
 export type XlsxEditOp =
@@ -54,7 +173,8 @@ export type XlsxEditOp =
       /** Sidecar wire input text for the same edit (recalc.rs `input`). */
       readonly recalcInput: string;
     }
-  | { readonly kind: "clear_cell"; readonly target: XlsxCellTarget; readonly recalcInput: "" };
+  | { readonly kind: "clear_cell"; readonly target: XlsxCellTarget; readonly recalcInput: "" }
+  | XlsxStructuralOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is
  *  applyCellEditsToXlsx's `edits` argument (the cell path the session model
@@ -287,6 +407,96 @@ function parseSetCells(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxE
   return ops;
 }
 
+// ── structural ops (rows/columns) ──────────────────────────────────────────
+//
+// Wire shape: { op, target: { sheet }, attributes: { ...fields } }. The fields
+// ride the existing raw `attributes` object so the shared Go edit envelope
+// (office.EditOp) needs no format-specific schema change; each parser below
+// is the strict mirror of its Go validator row.
+
+function parseStructuralTarget(item: Dict, op: string, sheets: XlsxSheetResolver): string {
+  if (!isDict(item.target)) throw new XlsxOpError(op, "target", "object required");
+  return parseSheet(item.target, op, sheets);
+}
+
+function parseStructuralAttributes(item: Dict, op: string): Dict {
+  if (!isDict(item.attributes)) throw new XlsxOpError(op, "attributes", "object required");
+  return item.attributes;
+}
+
+/** Rows kinds bound to MAX_ROWS; every other structural kind is a column
+ *  kind bound to MAX_COLS. */
+function axisLimitOf(op: string): number {
+  return op.includes("row") ? MAX_ROWS : MAX_COLS;
+}
+
+function axisSpan(start: number, end: number, op: string, axisMax: number): void {
+  if (start < 0 || end < 0 || end < start) throw new XlsxOpError(op, "attributes", "reversed or negative span");
+  if (end >= axisMax) throw new XlsxOpError(op, "attributes", "span is outside the OOXML grid");
+  if (end - start >= MAX_AXIS_SPAN) {
+    throw new XlsxOpError(op, "attributes", `span over ${MAX_AXIS_SPAN} lines`);
+  }
+}
+
+function shiftParser(kind: "insert_rows" | "remove_rows" | "insert_cols" | "remove_cols") {
+  return (item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] => {
+    const sheetName = parseStructuralTarget(item, op, sheets);
+    const a = parseStructuralAttributes(item, op);
+    const index = int(a.index, op, "attributes.index");
+    const count = int(a.count, op, "attributes.count");
+    const axisMax = axisLimitOf(kind);
+    if (index < 0 || count < 1 || index + count > axisMax) {
+      throw new XlsxOpError(op, "attributes", `index/count outside the OOXML grid (${axisMax} lines)`);
+    }
+    return [{ kind, sheetName, index, count }];
+  };
+}
+
+function sizeParser(kind: "set_row_size" | "set_col_size") {
+  return (item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] => {
+    const sheetName = parseStructuralTarget(item, op, sheets);
+    const a = parseStructuralAttributes(item, op);
+    const start = int(a.start, op, "attributes.start");
+    const end = int(a.end, op, "attributes.end");
+    axisSpan(start, end, op, axisLimitOf(kind));
+    const size = a.size;
+    if (size !== null) {
+      if (typeof size !== "number" || !Number.isFinite(size) || size <= 0 || size > MAX_AXIS_SIZE) {
+        throw new XlsxOpError(op, "attributes.size", `null or a number in (0, ${MAX_AXIS_SIZE}] required`);
+      }
+    }
+    return [{ kind, sheetName, start, end, size }];
+  };
+}
+
+function hiddenParser(kind: "set_rows_hidden" | "set_cols_hidden") {
+  return (item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] => {
+    const sheetName = parseStructuralTarget(item, op, sheets);
+    const a = parseStructuralAttributes(item, op);
+    const start = int(a.start, op, "attributes.start");
+    const end = int(a.end, op, "attributes.end");
+    axisSpan(start, end, op, axisLimitOf(kind));
+    if (typeof a.hidden !== "boolean") throw new XlsxOpError(op, "attributes.hidden", "boolean required");
+    return [{ kind, sheetName, start, end, hidden: a.hidden }];
+  };
+}
+
+function outlineParser(kind: "set_rows_outline" | "set_cols_outline") {
+  return (item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] => {
+    const sheetName = parseStructuralTarget(item, op, sheets);
+    const a = parseStructuralAttributes(item, op);
+    const start = int(a.start, op, "attributes.start");
+    const end = int(a.end, op, "attributes.end");
+    axisSpan(start, end, op, axisLimitOf(kind));
+    const level = int(a.level, op, "attributes.level");
+    if (level < 0 || level > 7) throw new XlsxOpError(op, "attributes.level", "level must be 0-7");
+    if (a.collapsed !== undefined && typeof a.collapsed !== "boolean") {
+      throw new XlsxOpError(op, "attributes.collapsed", "boolean required");
+    }
+    return [{ kind, sheetName, start, end, level, ...(a.collapsed === undefined ? {} : { collapsed: a.collapsed }) }];
+  };
+}
+
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp
  *  and its slot named) — parseXlsxOps itself does not change. */
@@ -294,6 +504,16 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_cell", slot: "cellEdits", parse: parseSetCell },
   { wireName: "clear_cell", slot: "cellEdits", parse: parseClearCell },
   { wireName: "set_cells", slot: "cellEdits", parse: parseSetCells },
+  { wireName: "insert_rows", slot: "structuralOps", parse: shiftParser("insert_rows") },
+  { wireName: "remove_rows", slot: "structuralOps", parse: shiftParser("remove_rows") },
+  { wireName: "insert_cols", slot: "structuralOps", parse: shiftParser("insert_cols") },
+  { wireName: "remove_cols", slot: "structuralOps", parse: shiftParser("remove_cols") },
+  { wireName: "set_row_size", slot: "structuralOps", parse: sizeParser("set_row_size") },
+  { wireName: "set_col_size", slot: "structuralOps", parse: sizeParser("set_col_size") },
+  { wireName: "set_rows_hidden", slot: "structuralOps", parse: hiddenParser("set_rows_hidden") },
+  { wireName: "set_cols_hidden", slot: "structuralOps", parse: hiddenParser("set_cols_hidden") },
+  { wireName: "set_rows_outline", slot: "structuralOps", parse: outlineParser("set_rows_outline") },
+  { wireName: "set_cols_outline", slot: "structuralOps", parse: outlineParser("set_cols_outline") },
 ];
 
 const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));

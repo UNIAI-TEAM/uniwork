@@ -1,7 +1,7 @@
 // XLSX ops parser tests — the wire vocabulary is a closed set; malformed
 // items are typed failures before any byte is touched.
 import { describe, expect, it } from "vitest";
-import { parseXlsxOps, XlsxOpError, XLSX_OP_KINDS, a1ToRowColumn, toA1, type XlsxSheetResolver } from "../src/xlsx/ops";
+import { parseXlsxOps, XlsxOpError, XLSX_OP_KINDS, a1ToRowColumn, toA1, groupXlsxStructuralOps, type XlsxSheetResolver } from "../src/xlsx/ops";
 
 const sheets: XlsxSheetResolver = {
   sheetNames: () => ["Data", "Report"],
@@ -64,7 +64,7 @@ describe("parseXlsxOps", () => {
       sheets,
     );
     expect(ops).toHaveLength(4);
-    expect(ops.map((o) => o.target.address)).toEqual(["A1", "B1", "A2", "B2"]);
+    expect(ops.flatMap((op) => (op.kind === "set_cell" ? [op.target.address] : []))).toEqual(["A1", "B1", "A2", "B2"]);
   });
 
   it("style-only set_cell carries no recalc input", () => {
@@ -99,9 +99,17 @@ describe("parseXlsxOps", () => {
 });
 
 describe("op-kind registry", () => {
-  it("binds the cell vocabulary in wire order on the cell-edit slot", () => {
-    expect(XLSX_OP_KINDS.map((kind) => kind.wireName)).toEqual(["set_cell", "clear_cell", "set_cells"]);
-    expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual(["cellEdits", "cellEdits", "cellEdits"]);
+  it("binds the vocabulary in wire order with each kind's gateway slot", () => {
+    expect(XLSX_OP_KINDS.map((kind) => kind.wireName)).toEqual([
+      "set_cell", "clear_cell", "set_cells",
+      "insert_rows", "remove_rows", "insert_cols", "remove_cols",
+      "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
+    ]);
+    expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
+      "cellEdits", "cellEdits", "cellEdits",
+      "structuralOps", "structuralOps", "structuralOps", "structuralOps",
+      "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps",
+    ]);
   });
 
   it("parses each bound kind through its own registry entry", () => {
@@ -109,6 +117,16 @@ describe("op-kind registry", () => {
       set_cell: { op: "set_cell", target: { sheet: "Data", cell: "A1" }, text: "x" },
       clear_cell: { op: "clear_cell", target: { sheet: "Data", cell: "A1" } },
       set_cells: { op: "set_cells", target: { sheet: "Data" }, range: "A1:B1", text: "x" },
+      insert_rows: { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      remove_rows: { op: "remove_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      insert_cols: { op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      remove_cols: { op: "remove_cols", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+      set_row_size: { op: "set_row_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: 20 } },
+      set_col_size: { op: "set_col_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: null } },
+      set_rows_hidden: { op: "set_rows_hidden", target: { sheet: "Data" }, attributes: { start: 0, end: 0, hidden: true } },
+      set_cols_hidden: { op: "set_cols_hidden", target: { sheet: "Data" }, attributes: { start: 0, end: 0, hidden: false } },
+      set_rows_outline: { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 2 } },
+      set_cols_outline: { op: "set_cols_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 0 } },
     };
     for (const kind of XLSX_OP_KINDS) {
       const item = items[kind.wireName]!;
@@ -125,7 +143,96 @@ describe("op-kind registry", () => {
     } catch (error) {
       caught = error as XlsxOpError;
     }
+    const bound = XLSX_OP_KINDS.map((kind) => kind.wireName).join(", ");
     expect(caught?.unsupported).toBe(true);
-    expect(caught?.message).toBe("drop_sheet.: unknown op for xlsx (bound: set_cell, clear_cell, set_cells)");
+    expect(caught?.message).toBe(`drop_sheet.: unknown op for xlsx (bound: ${bound})`);
+  });
+});
+
+describe("structural ops", () => {
+  const parse = (item: Record<string, unknown>) => parseXlsxOps([item], sheets);
+
+  it("parses the four shift kinds with 0-based index and count", () => {
+    expect(parse({ op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 5, count: 3 } })).toEqual([
+      { kind: "insert_rows", sheetName: "Data", index: 5, count: 3 },
+    ]);
+    expect(parse({ op: "remove_rows", target: { sheetId: "sheet-2" }, attributes: { index: 0, count: 1 } })).toEqual([
+      { kind: "remove_rows", sheetName: "Report", index: 0, count: 1 },
+    ]);
+    expect(parse({ op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 16383, count: 1 } })).toEqual([
+      { kind: "insert_cols", sheetName: "Data", index: 16383, count: 1 },
+    ]);
+    expect(parse({ op: "remove_cols", target: { sheet: "Data" }, attributes: { index: 26, count: 2 } })).toEqual([
+      { kind: "remove_cols", sheetName: "Data", index: 26, count: 2 },
+    ]);
+  });
+
+  it("parses sizes (null = sheet default), hidden flags and outline levels", () => {
+    expect(parse({ op: "set_row_size", target: { sheet: "Data" }, attributes: { start: 1, end: 4, size: 22.5 } })).toEqual([
+      { kind: "set_row_size", sheetName: "Data", start: 1, end: 4, size: 22.5 },
+    ]);
+    expect(parse({ op: "set_col_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: null } })).toEqual([
+      { kind: "set_col_size", sheetName: "Data", start: 0, end: 0, size: null },
+    ]);
+    expect(parse({ op: "set_rows_hidden", target: { sheet: "Data" }, attributes: { start: 2, end: 2, hidden: true } })).toEqual([
+      { kind: "set_rows_hidden", sheetName: "Data", start: 2, end: 2, hidden: true },
+    ]);
+    expect(parse({ op: "set_cols_hidden", target: { sheet: "Data" }, attributes: { start: 2, end: 5, hidden: false } })).toEqual([
+      { kind: "set_cols_hidden", sheetName: "Data", start: 2, end: 5, hidden: false },
+    ]);
+    expect(parse({ op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 3, end: 6, level: 7, collapsed: true } })).toEqual([
+      { kind: "set_rows_outline", sheetName: "Data", start: 3, end: 6, level: 7, collapsed: true },
+    ]);
+    // An omitted collapsed leaves the file's flag untouched: the parsed op
+    // must not carry the key at all.
+    const [op] = parse({ op: "set_cols_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 1, level: 0 } });
+    expect(op).toEqual({ kind: "set_cols_outline", sheetName: "Data", start: 0, end: 1, level: 0 });
+    expect(Object.keys(op!)).toEqual(["kind", "sheetName", "start", "end", "level"]);
+  });
+
+  it("refuses malformed shapes, out-of-grid spans and reversed ranges", () => {
+    const invalid: Record<string, unknown>[] = [
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: -1, count: 1 } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 0 } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 1_048_575, count: 2 } },
+      { op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 16_383, count: 2 } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0.5, count: 1 } },
+      { op: "insert_rows", target: { sheet: "Data" } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: "nope" },
+      { op: "set_row_size", target: { sheet: "Data" }, attributes: { start: 5, end: 2, size: 10 } },
+      { op: "set_row_size", target: { sheet: "Data" }, attributes: { start: 0, end: 1_048_576, size: 10 } },
+      { op: "set_col_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: 0 } },
+      { op: "set_col_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: 501 } },
+      { op: "set_col_size", target: { sheet: "Data" }, attributes: { start: 0, end: 0, size: "10" } },
+      { op: "set_rows_hidden", target: { sheet: "Data" }, attributes: { start: 0, end: 0, hidden: 1 } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 8 } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: -1 } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 1, collapsed: "yes" } },
+      { op: "set_rows_hidden", target: { sheet: "Ghost" }, attributes: { start: 0, end: 0, hidden: true } },
+    ];
+    for (const item of invalid) {
+      expect(() => parse(item), JSON.stringify(item)).toThrow(XlsxOpError);
+    }
+  });
+
+  it("groups per sheet in journal order for the gateway's structuralOps slot", () => {
+    const groups = groupXlsxStructuralOps(parseXlsxOps([
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 1, count: 2 } },
+      { op: "set_cell", target: { sheet: "Data", cell: "A1" }, text: "x" },
+      { op: "set_rows_hidden", target: { sheet: "Data" }, attributes: { start: 4, end: 4, hidden: true } },
+      { op: "set_cols_outline", target: { sheet: "Report" }, attributes: { start: 0, end: 2, level: 3, collapsed: false } },
+      { op: "remove_rows", target: { sheet: "Data" }, attributes: { index: 9, count: 1 } },
+    ], sheets));
+    expect(groups).toEqual([
+      {
+        sheetName: "Data",
+        ops: [
+          { kind: "insert-rows", index: 1, count: 2 },
+          { kind: "set-rows-hidden", start: 4, end: 4, hidden: true },
+          { kind: "remove-rows", index: 9, count: 1 },
+        ],
+      },
+      { sheetName: "Report", ops: [{ kind: "set-cols-outline", start: 0, end: 2, level: 3, collapsed: false }] },
+    ]);
   });
 });
