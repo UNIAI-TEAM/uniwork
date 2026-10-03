@@ -7401,6 +7401,20 @@
         "error": "Không thể áp dụng thao tác ghi chú. Thử lại.",
         "contentNotice": "Ghi chú là chú thích PDF; nội dung trang không bị viết lại."
       },
+      "forms": {
+        "title": "Trường biểu mẫu", "loading": "Đang tải các trường biểu mẫu…",
+        "empty": "Tài liệu này không có trường biểu mẫu.", "error": "Không tải được các trường biểu mẫu.",
+        "applyError": "Không thể ghi giá trị trường. Thử lại.",
+        "flatten": "Làm phẳng biểu mẫu",
+        "flattenHint": "Làm phẳng sẽ gộp các trường đã điền vào nội dung trang. Không thể hoàn tác.",
+        "flattenPending": "Đang làm phẳng…", "flattenApplied": "Đã làm phẳng biểu mẫu.",
+        "flattenError": "Không thể làm phẳng biểu mẫu. Thử lại.",
+        "readOnly": "Chỉ đọc", "fieldReadOnly": "Trường này không chỉnh sửa được.",
+        "checked": "Đã chọn", "unchecked": "Chưa chọn",
+        "selected": "Đã bật", "notSelected": "Chưa bật",
+        "noOptions": "Trường này không có lựa chọn nào.",
+        "kind": { "text": "Văn bản", "checkbox": "Hộp kiểm", "radio": "Nút chọn", "choice": "Danh sách chọn" }
+      },
       "print": {
         "action": "In", "preparing": "Đang in…",
         "failed": "Không thể in tài liệu."

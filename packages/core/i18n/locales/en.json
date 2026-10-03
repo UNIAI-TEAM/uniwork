@@ -7421,6 +7421,20 @@
         "error": "The note action could not be applied. Try again.",
         "contentNotice": "Notes are PDF annotations; page content is never rewritten."
       },
+      "forms": {
+        "title": "Form fields", "loading": "Loading form fields…",
+        "empty": "This document has no form fields.", "error": "The form fields could not be loaded.",
+        "applyError": "The field value could not be written. Try again.",
+        "flatten": "Flatten form",
+        "flattenHint": "Flattening merges the filled fields into the page content. It cannot be undone.",
+        "flattenPending": "Flattening…", "flattenApplied": "The form was flattened.",
+        "flattenError": "The form could not be flattened. Try again.",
+        "readOnly": "Read-only", "fieldReadOnly": "This field is not editable.",
+        "checked": "Checked", "unchecked": "Not checked",
+        "selected": "Selected", "notSelected": "Not selected",
+        "noOptions": "This field has no options.",
+        "kind": { "text": "Text", "checkbox": "Checkbox", "radio": "Radio", "choice": "Choice" }
+      },
       "print": {
         "action": "Print", "preparing": "Printing…",
         "failed": "The document could not be printed."
