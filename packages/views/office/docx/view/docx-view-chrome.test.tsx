@@ -4,8 +4,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DocxViewChrome } from "./docx-view-chrome";
+import { DOCX_ZOOM_CSS_VAR } from "./zoom-factor";
 import {
-  DOCX_ZOOM_CSS_VAR,
   DOCX_ZOOM_DATA_ATTRIBUTE,
   createDocxZoomController,
   type DocxZoomController,

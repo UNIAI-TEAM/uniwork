@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { endnotesAnchorY, PageEndnotes, PageFootnotes, type RendererNote, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
+import { docxZoomFactorOf } from "./view/zoom-factor";
 
 const noEdit = () => {};
 
@@ -19,7 +20,9 @@ export function DocxNoteAreas({ editor, parsed }: { editor: Editor; parsed: Rend
       const pm = editor.view.dom;
       setGapNoteIds(new Set(Array.from(pm.querySelectorAll<HTMLElement>(".page-gap-note[data-note-id]")).map((row) => row.dataset.noteId as string)));
       const wrap = pm.closest(".page-wrap");
-      if (wrap) setTop(endnotesAnchorY(pm, wrap.getBoundingClientRect().top, 1));
+      // The anchor is layout px: divide the CSS `zoom` scale out of the rects
+      // (same factor the pagination driver measures with).
+      if (wrap) setTop(endnotesAnchorY(pm, wrap.getBoundingClientRect().top, docxZoomFactorOf(pm.closest<HTMLElement>(".doc-zoom"))));
     };
     // Run after the host pagination frame, including font and editing reflow.
     const schedule = () => {

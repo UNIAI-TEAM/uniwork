@@ -21,13 +21,13 @@ export { DocxRuler, type DocxRulerProps } from "./ruler";
 export { DocxZoomControl, type DocxZoomControlProps } from "./zoom-control";
 export {
   createDocxZoomController,
-  docxZoomFactorOf,
   getDocxZoomController,
   installDocxZoomStyles,
   type DocxZoomController,
   type DocxZoomPageSize,
   type DocxZoomTarget,
 } from "./zoom-controller";
+export { docxZoomFactorOf } from "./zoom-factor";
 export type { DocxZoomMode, DocxZoomState } from "./zoom-model";
 export type { DocxRulerIndent } from "./ruler-model";
 export { docxOutlineFromDoc, type DocxOutlineDocNode, type DocxOutlineItem } from "./headings-outline";

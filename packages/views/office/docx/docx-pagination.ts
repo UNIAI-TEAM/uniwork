@@ -48,7 +48,7 @@ import { docxBlockMeta } from "./docx-block-meta";
 import { createDocxFootnotes } from "./docx-footnotes";
 // The wired zoom (view/**) scales the measured rects through the CSS `zoom`
 // property; the driver must divide that scale back out of its own math.
-import { docxZoomFactorOf } from "./view/zoom-controller";
+import { docxZoomFactorOf } from "./view/zoom-factor";
 
 // The driver's public surface, so call sites and tests keep one import path:
 // the frame layer (./docx-frame), the canvas column layout (./docx-columns) and

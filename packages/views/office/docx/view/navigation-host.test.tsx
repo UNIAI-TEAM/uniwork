@@ -55,11 +55,34 @@ describe("DocxNavigationHost", () => {
     await waitFor(() => expect(screen.getByRole("treeitem", { name: "Three" })).toBeInTheDocument());
   });
 
+  it("refreshes the label when heading text changes", async () => {
+    render(<Fixture />);
+    const page = screen.getByTestId("doc-page");
+    act(() => {
+      (page.querySelector("h1")?.firstChild as Text).textContent = "Uno";
+    });
+    await waitFor(() => expect(screen.getByRole("treeitem", { name: "Uno" })).toBeInTheDocument());
+  });
+
   it("shows the empty state when the rendered document has no headings", () => {
     render(
       <div>
-        <div className="doc-page" data-testid="plain-doc-page">
-          <p>body</p>
+        <div data-testid="docx-document-surface">
+          <div className="doc-page" data-testid="plain-doc-page">
+            <p>body</p>
+          </div>
+        </div>
+        <DocxNavigationHost />
+      </div>,
+    );
+    expect(screen.getByTestId("docx-navigation-empty")).toBeInTheDocument();
+  });
+
+  it("ignores a .doc-page outside the mounted surface", () => {
+    render(
+      <div>
+        <div className="doc-page">
+          <h1>Other editor</h1>
         </div>
         <DocxNavigationHost />
       </div>,

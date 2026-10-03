@@ -16,9 +16,9 @@
 // (docx-pagination.ts `factor`; pagination-measure.ts divides by it), and a
 // transform would also break caret/hit-testing geometry.
 //
-// Zoom-aware measurement: `docxZoomFactorOf` reads the property back. The
-// follow-up wiring must feed that factor to the pagination driver — until then
-// the driver measures with factor 1 and must not run at zoom != 100.
+// Zoom-aware measurement: `docxZoomFactorOf` (./zoom-factor) reads the property
+// back; the wiring feeds that factor to the pagination driver and the note
+// areas on every pass.
 
 import {
   DOCX_ZOOM_DEFAULT_PERCENT,
@@ -28,10 +28,10 @@ import {
   stepDocxZoomPercent,
   type DocxZoomState,
 } from "./zoom-model";
+import { DOCX_ZOOM_CSS_VAR } from "./zoom-factor";
 
 export const DOCX_ZOOM_STYLE_ELEMENT_ID = "uniwork-docx-zoom";
 export const DOCX_ZOOM_DATA_ATTRIBUTE = "data-docx-zoom";
-export const DOCX_ZOOM_CSS_VAR = "--docx-zoom";
 
 /** Mount the property -> zoom rule once per document. Idempotent. */
 export function installDocxZoomStyles(doc: Document | null | undefined): void {
@@ -40,14 +40,6 @@ export function installDocxZoomStyles(doc: Document | null | undefined): void {
   style.id = DOCX_ZOOM_STYLE_ELEMENT_ID;
   style.textContent = `[${DOCX_ZOOM_DATA_ATTRIBUTE}]{zoom:var(${DOCX_ZOOM_CSS_VAR},1);}`;
   (doc.head ?? doc.documentElement)?.appendChild(style);
-}
-
-/** The zoom ratio (`1` = 100%) written by the controller, for zoom-aware
- *  measurement. A missing element or property reads as 1. */
-export function docxZoomFactorOf(element: HTMLElement | null | undefined): number {
-  const raw = element?.style.getPropertyValue(DOCX_ZOOM_CSS_VAR) ?? "";
-  const value = Number.parseFloat(raw);
-  return Number.isFinite(value) && value > 0 ? value : 1;
 }
 
 export interface DocxZoomPageSize {
@@ -226,7 +218,14 @@ let sharedController: DocxZoomController | null = null;
 
 /** The one controller the DOCX view shares: the View tab's zoom group and the
  *  chrome mount must drive the same surface, and a toolbar group only receives
- *  DocxToolbarGroupContext — no controller prop. */
+ *  DocxToolbarGroupContext — no controller prop.
+ *
+ *  Scope: a module-level singleton bound to the FIRST canvas in the document
+ *  (the chrome resolves `[data-testid="docx-canvas"]`, see ./surface-targets).
+ *  That is sound while one DOCX editor is mounted per page; a host that renders
+ *  two at once (split view, tests) must build one controller per editor with
+ *  `createDocxZoomController` and hand it to `DocxViewChrome`/`DocxZoomControl`
+ *  instead of sharing this one. */
 export function getDocxZoomController(): DocxZoomController {
   sharedController ??= createDocxZoomController();
   return sharedController;

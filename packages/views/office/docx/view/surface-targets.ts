@@ -87,11 +87,20 @@ function sameDocxViewSurface(a: DocxViewSurface | null, b: DocxViewSurface | nul
 }
 
 /**
- * Track the live surface. The canvas observes direct child changes (the
- * surface mounts/unmounts with the document); `.doc-zoom` observes its own
- * style attribute so the page geometry the pagination driver paints later is
- * picked up. The returned object is identity-stable while nothing changed, so
- * consumers can put it in effect dependencies.
+ * Track the live surface. The canvas observes the whole subtree below it —
+ * the surface chain (docx-surface > workspace > editor-scroll > `.doc-zoom`)
+ * is several levels deep, so an inner re-render may swap `workspace`,
+ * `editor-scroll` or `.doc-zoom` without touching the canvas' direct children.
+ * While both tracked elements are still connected there is nothing to
+ * re-resolve, which keeps typing and decoration churn cheap. `.doc-zoom` also
+ * observes its own style attribute so the page geometry the pagination driver
+ * paints later is picked up. The returned object is identity-stable while
+ * nothing changed, so consumers can put it in effect dependencies.
+ *
+ * Scope: the FIRST `[data-testid="docx-canvas"]` in the document (body while
+ * the shell has not mounted it). Sound while one DOCX editor is on the page;
+ * two editors at once (split view, tests) would share this resolution — see
+ * `getDocxZoomController` for the matching controller caveat.
  */
 export function useDocxViewSurface(): DocxViewSurface | null {
   const [surface, setSurface] = useState<DocxViewSurface | null>(null);
@@ -100,10 +109,12 @@ export function useDocxViewSurface(): DocxViewSurface | null {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") return undefined;
     const scope: ParentNode = document.querySelector(DOCX_CANVAS_SELECTOR) ?? document.body;
     let observedZoom: HTMLElement | null = null;
+    let observedScroll: HTMLElement | null = null;
     let styleObserver: MutationObserver | null = null;
 
     const publish = () => {
       const next = readDocxViewSurface(scope);
+      observedScroll = next?.scrollElement ?? null;
       if ((next?.zoomElement ?? null) !== observedZoom) {
         styleObserver?.disconnect();
         observedZoom = next?.zoomElement ?? null;
@@ -115,8 +126,11 @@ export function useDocxViewSurface(): DocxViewSurface | null {
       setSurface((current) => (sameDocxViewSurface(current, next) ? current : next));
     };
 
-    const canvasObserver = new MutationObserver(publish);
-    canvasObserver.observe(scope, { childList: true });
+    const canvasObserver = new MutationObserver(() => {
+      if (observedZoom?.isConnected && observedScroll?.isConnected) return;
+      publish();
+    });
+    canvasObserver.observe(scope, { childList: true, subtree: true });
     publish();
     return () => {
       canvasObserver.disconnect();

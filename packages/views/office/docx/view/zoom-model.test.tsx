@@ -12,13 +12,12 @@ import {
   stepDocxZoomPercent,
 } from "./zoom-model";
 import {
-  DOCX_ZOOM_CSS_VAR,
   DOCX_ZOOM_DATA_ATTRIBUTE,
   DOCX_ZOOM_STYLE_ELEMENT_ID,
   createDocxZoomController,
-  docxZoomFactorOf,
   installDocxZoomStyles,
 } from "./zoom-controller";
+import { DOCX_ZOOM_CSS_VAR, docxZoomFactorOf } from "./zoom-factor";
 
 /** jsdom has no layout: hand the controller a measurable fake element. */
 function sizedElement(width: number, height: number): HTMLElement {
