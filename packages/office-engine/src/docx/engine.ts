@@ -75,6 +75,51 @@ export interface DocxNumberingDef {
   [key: string]: unknown;
 }
 
+/** CustomNumberingLevel — upstream blank.ts:89 verbatim. One authored level of
+ * a multilevel/bullet/numbering definition; the save writes them with
+ * w:ilvl = array index (`customLevels`, blank.ts:105). */
+export interface DocxNumberingLevelSpec {
+  /** w:numFmt: decimal/bullet/lowerLetter/upperRoman/chineseCountingThousand… */
+  numFmt: string;
+  /** w:lvlText: a pattern like "%1." or a literal bullet symbol */
+  lvlText: string;
+  /** w:ind w:left (twips) */
+  indentLeft: number;
+  /** w:ind w:hanging (twips; the writer defaults 360) */
+  hanging?: number;
+  /** w:start (the writer defaults 1) */
+  start?: number;
+  [key: string]: unknown;
+}
+
+/** A brand-new numbering definition: upstream SaveOptions.numbering.newDefs
+ * (patch.ts:167). The save assigns the abstractNum id and writes
+ * abstractNum + w:num; the doc's own bytes for the part stay untouched. */
+export interface DocxNewNumberingDef {
+  numId: string;
+  kind: "bullet" | "ordered";
+  /** Custom levels, array index = w:ilvl (max 9); absent = blank-template style */
+  levels?: DocxNumberingLevelSpec[];
+}
+
+/** A restart: upstream SaveOptions.numbering.restartNums (patch.ts:168). A new
+ * w:num pointing at an EXISTING abstractNum with w:lvlOverride/w:startOverride;
+ * body items must carry the new numId for the restart to show. */
+export interface DocxRestartNumbering {
+  numId: string;
+  abstractNumId: string;
+  /** ilvl -> startOverride value */
+  startOverrides: Record<number, number>;
+}
+
+/** Append-only numbering-part edits (B5): newDefs/restartNums reach the
+ * vendored writer's SaveOptions.numbering. undefined keeps the part
+ * byte-identical. */
+export interface DocxNumberingOptions {
+  newDefs?: DocxNewNumberingDef[];
+  restartNums?: DocxRestartNumbering[];
+}
+
 /** CommentInfo — upstream types.ts:253. One comment from word/comments.xml;
  * the authoritative list a save regenerates the part from. `parentId` marks a
  * reply (resolved through commentsExtended), `done` the resolved state, and
@@ -270,6 +315,11 @@ export interface DocxSaveOptions {
    * the final section's page-setup fields through this seam; undefined keeps
    * the block byte-identical. */
   trailingSectPr?: string;
+  /** Append-only numbering-part edits (upstream patch.ts:165): newDefs and
+   * restartNums are appended to word/numbering.xml — the part is created from
+   * the blank template when missing — while every existing entry keeps its
+   * bytes. undefined keeps the part byte-identical (B5). */
+  numbering?: DocxNumberingOptions;
   header?: DocxHeaderFooter;
   footer?: DocxHeaderFooter;
   headerFirst?: DocxHeaderFooter;

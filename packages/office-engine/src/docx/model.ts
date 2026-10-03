@@ -16,13 +16,17 @@ import {
   type DocxHeaderFooter,
   type DocxNewChart,
   type DocxNewImage,
+  type DocxNewNumberingDef,
   type DocxNoteInfo,
   type DocxNoteKind,
   type DocxParsed,
+  type DocxRestartNumbering,
   type DocxRun,
   type DocxSaveBlock,
   type DocxSaveOptions,
 } from "./engine";
+import { DocxNumberingEdits } from "./numbering";
+import { cloneNote, requireCommentEntry, requireImageBytes, requireNote } from "./payloads";
 import {
   applySectionProperties,
   docxSections,
@@ -53,62 +57,6 @@ type PlanEntry =
   | { source: "image"; image: DocxNewImage }
   | { source: "chart"; chart: DocxNewChart; extentPx?: { w: number; h: number } };
 
-/** Formats the vendored writer can embed (patch.ts embedImage). */
-const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/gif"]);
-
-/** Shared bytes oracle for image payloads: a mime the writer cannot embed would
- * otherwise produce a dangling relationship (or a silently dropped picture). */
-function requireImageBytes(image: { base64: string; mime: string } | undefined, what: string): void {
-  if (!image || typeof image.base64 !== "string" || image.base64.length === 0) {
-    throw new DocxEngineError("bad_image", what + " needs image bytes");
-  }
-  if (!IMAGE_MIMES.has(image.mime)) {
-    throw new DocxEngineError("bad_image_mime", what + " mime " + String(image.mime) + " is not png/jpeg/gif");
-  }
-}
-
-/** Comment payload oracle. `set_comments` only checks the structure (id,
- * string author/text, unique ids, resolvable parents): real files carry
- * author-less and empty-text entries — `parse-package.ts` maps
- * `attrs['w:author'] ?? ''` and joins possibly-empty paragraphs — and a seeded
- * entry has to round-trip untouched. `authored` (add/reply) additionally
- * refuses blank user text. */
-function requireCommentEntry(comment: DocxCommentInfo, what: string, authored: boolean): void {
-  if (!comment || typeof comment !== "object" || typeof comment.id !== "string" || comment.id.length === 0) {
-    throw new DocxEngineError("bad_comment", what + " needs a comment object with a non-empty id");
-  }
-  if (typeof comment.author !== "string" || typeof comment.text !== "string") {
-    throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs a string author and text");
-  }
-  if (authored && comment.author.length === 0) throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs an author");
-  if (authored && comment.text.length === 0) throw new DocxEngineError("empty_comment_text", what + " comment " + comment.id + " needs non-empty text");
-}
-
-/** Note payload oracle: the save regenerates the notes part from id/text
- * alone, so an id-less entry or a non-string body is refused before it can
- * reach the part. An empty body is legal (a note with no text is a real Word
- * state); the mutators that author user text refuse blank input instead. */
-function requireNote(note: DocxNoteInfo, what: string): void {
-  if (!note || typeof note !== "object") {
-    throw new DocxEngineError("bad_note", what + " needs a note object");
-  }
-  if (typeof note.id !== "string" || note.id.length === 0) {
-    throw new DocxEngineError("bad_note", what + " note needs a non-empty id");
-  }
-  if (typeof note.text !== "string") {
-    throw new DocxEngineError("bad_note", what + " note " + note.id + " needs text");
-  }
-}
-
-/** Copy a note (and its nested rich rows) so the caller's objects never alias
- * into the save options. */
-function cloneNote(note: DocxNoteInfo): DocxNoteInfo {
-  const copy = { ...note };
-  if (note.richParas) copy.richParas = note.richParas.map((runs) => runs.map((run) => ({ ...run })));
-  if (note.spacing) copy.spacing = { ...note.spacing };
-  return copy;
-}
-
 export type DocxEdit =
   | { op: "set_paragraph_text"; docxIndex: number; runs: DocxRun[] }
   | { op: "insert_generated"; index: number; block: DocxGeneratedBlock }
@@ -122,7 +70,9 @@ export type DocxEdit =
   | { op: "set_even_odd_headers"; value: boolean }
   | { op: "set_comments"; comments: DocxCommentInfo[] }
   | { op: "set_notes"; kind: DocxNoteKind; notes: DocxNoteInfo[] }
-  | { op: "set_section_properties"; sectionIndex: number; properties: DocxSectionProperties };
+  | { op: "set_section_properties"; sectionIndex: number; properties: DocxSectionProperties }
+  | { op: "insert_numbering_def"; def: DocxNewNumberingDef }
+  | { op: "restart_numbering"; restart: DocxRestartNumbering };
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
 
@@ -159,6 +109,9 @@ export class DocxSessionModel {
    * plan may still move after the edit, and the final section's slice has no
    * plan entry at all (it rides SaveOptions.trailingSectPr). */
   private sectionEdits = new Map<number, DocxSectionProperties>();
+  /** Pending numbering-part edits (B5) — definitions and restart nums the save
+   * appends to word/numbering.xml; see ./numbering. Rebase replaces it. */
+  private numbering: DocxNumberingEdits;
   private touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
@@ -166,6 +119,7 @@ export class DocxSessionModel {
   constructor(parsed: DocxParsed) {
     this.parsed = parsed;
     this.plan = visibleIndexes(parsed).map((docxIndex) => ({ source: "original", docxIndex }));
+    this.numbering = new DocxNumberingEdits(parsed.numbering instanceof Map ? parsed.numbering : undefined);
   }
 
   get blocks(): DocxBlock[] {
@@ -334,6 +288,22 @@ export class DocxSessionModel {
     }
     requireSectionProperties(properties);
     this.sectionEdits.set(sectionIndex, { ...this.sectionEdits.get(sectionIndex), ...properties });
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Append a brand-new numbering definition (B5): the save writes a new
+   * abstractNum + w:num. The payload oracle and the numId collision rules live
+   * in ./numbering. */
+  insertNumberingDef(def: DocxNewNumberingDef): void {
+    this.numbering.insert(def);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Append a restart num over an EXISTING abstractNum (B5). */
+  restartNumbering(restart: DocxRestartNumbering): void {
+    this.numbering.restart(restart);
     this.touched = true;
     this.revision += 1;
   }
@@ -588,6 +558,10 @@ export class DocxSessionModel {
         return this.setNotes(edit.kind, edit.notes);
       case "set_section_properties":
         return this.setSectionProperties(edit.sectionIndex, edit.properties);
+      case "insert_numbering_def":
+        return this.insertNumberingDef(edit.def);
+      case "restart_numbering":
+        return this.restartNumbering(edit.restart);
     }
   }
 
@@ -596,6 +570,8 @@ export class DocxSessionModel {
    * bytes (no-op save), which is the correct result, not a shortcut. */
   savePlan(): { finalBlocks: DocxSaveBlock[]; options: DocxSaveOptions } {
     const options: DocxSaveOptions = { ...this.options };
+    const numbering = this.numbering.options();
+    if (numbering) options.numbering = numbering;
     const rewrites = this.sectionRewrites(options);
     const finalBlocks: DocxSaveBlock[] = this.plan.map((entry, at): DocxSaveBlock => {
       const rewrite = rewrites.get(at);
@@ -642,6 +618,7 @@ export class DocxSessionModel {
     this.plan = visibleIndexes(newParsed).map((docxIndex) => ({ source: "original", docxIndex }));
     this.options = {};
     this.sectionEdits.clear();
+    this.numbering = new DocxNumberingEdits(newParsed.numbering instanceof Map ? newParsed.numbering : undefined);
     this.touched = false;
   }
 }
