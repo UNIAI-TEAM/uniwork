@@ -93,7 +93,7 @@ export function SaveStatus({
       ref={alertRef}
       tabIndex={-1}
       variant="destructive"
-      className={cn("max-w-full", className)}
+      className={cn("min-w-0 max-w-full break-words", className)}
       data-testid={`office-save-${normalized}`}
     >
       <AlertTitle>{title}</AlertTitle>

@@ -1,12 +1,21 @@
 import type { LazyWorkbookState, UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import type { IRange } from "@univerjs/core";
 import { canEditRange } from "./command-policy";
+
+type LastSelection = { sheetId: string; range: IRange };
 
 /** The pinned inline editor registers only unmodified Enter/Tab. Capture
  * these two missing keys at the mounted grid, never at window/document. */
 export function installShiftedNavigation(
   container: HTMLElement,
   runtime: UniverRuntime,
-  ports: { getState(): LazyWorkbookState | null; readOnly: boolean; commitEdit(): Promise<void>; onFailure(): void },
+  ports: {
+    getState(): LazyWorkbookState | null;
+    getLastSelection(): LastSelection | null;
+    readOnly: boolean;
+    commitEdit(): Promise<void>;
+    onFailure(): void;
+  },
 ): () => void {
   let disposed = false;
   let composing = false;
@@ -31,10 +40,15 @@ export function installShiftedNavigation(
     }
     const state = ports.getState();
     const workbook = runtime.univerAPI.getActiveWorkbook();
-    const sheet = workbook?.getActiveSheet();
-    const range = workbook?.getActiveRange();
+    const activeSheet = workbook?.getActiveSheet();
+    const lastSelection = ports.getLastSelection();
+    const sheet = activeSheet && (!lastSelection || lastSelection.sheetId === activeSheet.getSheetId())
+      ? activeSheet
+      : lastSelection ? workbook?.getSheetBySheetId(lastSelection.sheetId) : undefined;
+    const activeRange = workbook?.getActiveRange();
+    const range = activeRange?.getRange() ?? lastSelection?.range;
     if (!state || !workbook || !sheet || !range ||
-      !canEditRange(state, sheet.getSheetId(), range.getRange())) return;
+      !canEditRange(state, sheet.getSheetId(), range)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (pending || event.repeat) return;
@@ -47,7 +61,7 @@ export function installShiftedNavigation(
       // A bare selection key must never close an editor or create an edit.
       if (editing) await ports.commitEdit();
       if (disposed || capturedInteraction !== interaction || ports.getState() !== state || runtime.univerAPI.getActiveWorkbook()?.getId() !== workbook.getId() ||
-        workbook.getActiveSheet()?.getSheetId() !== sheet.getSheetId() || !workbook.getActiveRange() ||
+        workbook.getActiveSheet()?.getSheetId() !== sheet.getSheetId() ||
         !container.contains(container.ownerDocument.activeElement)) return;
       // endEditingAsync(true) uses plain Enter and may move down. Restore its
       // captured selection before activating the reverse target.

@@ -289,6 +289,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   let loadingWorkbook = false;
   let lastSelectionState: LazyWorkbookState | null = null;
   let lastSelectionKey: string | undefined;
+  let lastSelection: { state: LazyWorkbookState; sheetId: string; range: IRange } | null = null;
 
   const commitEdit = async () => {
     if (options.readOnly) return;
@@ -302,7 +303,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     } finally { commitInProgress = false; }
   };
   const removeShiftedNavigation = installShiftedNavigation(container, runtime, {
-    getState: () => loadingWorkbook ? null : lazyWorkbookRef.current, readOnly: options.readOnly ?? false, commitEdit,
+    getState: () => loadingWorkbook ? null : lazyWorkbookRef.current,
+    getLastSelection: () => {
+      const state = lazyWorkbookRef.current;
+      return lastSelection && lastSelection.state === state
+        ? { sheetId: lastSelection.sheetId, range: { ...lastSelection.range } }
+        : null;
+    },
+    readOnly: options.readOnly ?? false, commitEdit,
     onFailure: () => setMessage("xlsx_cell_edit_commit_failed"),
   });
 
@@ -323,6 +331,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const key = selection ? JSON.stringify([selection.sheetId, selection.range.startRow, selection.range.endRow,
       selection.range.startColumn, selection.range.endColumn, selection.range.rangeType]) : "null";
     const state = lazyWorkbookRef.current;
+    if (selection && state) lastSelection = { state, sheetId: selection.sheetId, range: { ...selection.range } };
     if (lastSelectionState === state && lastSelectionKey === key) return;
     lastSelectionState = state;
     lastSelectionKey = key;
