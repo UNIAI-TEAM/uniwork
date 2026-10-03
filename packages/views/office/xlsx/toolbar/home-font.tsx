@@ -37,7 +37,7 @@ function ColorPicker({
             key={color}
             type="button"
             aria-label={t("office.xlsx.toolbar.groups.font.colorValue", { color })}
-            aria-pressed={color === currentColor}
+            aria-pressed={color.toLowerCase() === currentColor?.toLowerCase()}
             className="size-5 rounded-sm border border-border"
             style={{ backgroundColor: color }}
             onClick={() => onPick(color)}
@@ -57,6 +57,8 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
   const blocked = readOnly || !canFormat || !commands;
   const size = formatState?.fontSize ?? null;
   const [sizeDraft, setSizeDraft] = useState(String(size ?? XLSX_DEFAULT_FONT_SIZE));
+  const [textColorOpen, setTextColorOpen] = useState(false);
+  const [fillColorOpen, setFillColorOpen] = useState(false);
 
   useEffect(() => {
     setSizeDraft(String(formatState?.fontSize ?? XLSX_DEFAULT_FONT_SIZE));
@@ -67,12 +69,11 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
     commands?.execute(id, params);
   };
   const commitSize = () => {
-    const parsed = Number.parseInt(sizeDraft, 10);
-    if (!Number.isInteger(parsed)) {
+    if (!/^\d+$/.test(sizeDraft)) {
       setSizeDraft(String(size ?? XLSX_DEFAULT_FONT_SIZE));
       return;
     }
-    const next = clampFontSize(parsed);
+    const next = clampFontSize(Number.parseInt(sizeDraft, 10));
     setSizeDraft(String(next));
     run("sheet.command.set-font-size", { value: next });
   };
@@ -138,7 +139,7 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
       {toggle("sheet.command.set-italic", formatState?.italic === true, t("office.xlsx.toolbar.groups.font.italic"), Italic)}
       {toggle("sheet.command.set-underline", formatState?.underline === true, t("office.xlsx.toolbar.groups.font.underline"), Underline)}
       {toggle("sheet.command.set-stroke", formatState?.strike === true, t("office.xlsx.toolbar.groups.font.strike"), Strikethrough)}
-      <Popover>
+      <Popover open={textColorOpen} onOpenChange={(next) => setTextColorOpen(blocked ? false : next)}>
         <PopoverTrigger
           render={
             <Button
@@ -167,7 +168,7 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
           />
         </PopoverContent>
       </Popover>
-      <Popover>
+      <Popover open={fillColorOpen} onOpenChange={(next) => setFillColorOpen(blocked ? false : next)}>
         <PopoverTrigger
           render={
             <Button

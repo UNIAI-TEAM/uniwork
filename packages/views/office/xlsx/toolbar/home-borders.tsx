@@ -1,6 +1,7 @@
 "use client";
 
 import { Square } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -28,6 +29,7 @@ const BORDER_EDGES = [
 export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const blocked = readOnly || !canFormat || !commands;
+  const [open, setOpen] = useState(false);
   const run = (type: string) => {
     if (blocked) return;
     commands?.execute("sheet.command.set-border-basic", {
@@ -36,7 +38,7 @@ export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: Xlsx
   };
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger
         render={
           <Button

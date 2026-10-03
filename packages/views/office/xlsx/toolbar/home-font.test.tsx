@@ -80,6 +80,10 @@ describe("XlsxFontGroup", () => {
     fireEvent.blur(input);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(input).toHaveValue("14");
+    fireEvent.change(input, { target: { value: "14abc" } });
+    fireEvent.blur(input);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("14");
   });
 
   it("sets the font family from the picker", async () => {
@@ -90,7 +94,7 @@ describe("XlsxFontGroup", () => {
   });
 
   it("applies text and fill colours from the palette and resets them", async () => {
-    const { execute } = renderGroup({ formatState: formatState({ textColor: "#C00000" }) });
+    const { execute } = renderGroup({ formatState: formatState({ textColor: "#c00000" }) });
     fireEvent.click(screen.getByRole("button", { name: "Màu chữ" }));
     const textDialog = await screen.findByRole("dialog", { name: "Màu chữ" });
     expect(within(textDialog).getByRole("button", { name: "Màu #C00000" })).toHaveAttribute("aria-pressed", "true");
@@ -114,6 +118,10 @@ describe("XlsxFontGroup", () => {
     fireEvent.click(bold);
     expect(execute).not.toHaveBeenCalled();
     expect(screen.getByRole("combobox", { name: "Phông chữ" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Màu chữ" }));
+    expect(screen.queryByRole("dialog", { name: "Màu chữ" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Màu tô" }));
+    expect(screen.queryByRole("dialog", { name: "Màu tô" })).not.toBeInTheDocument();
   });
 
   it("disables the controls while the grid cannot format yet", () => {
