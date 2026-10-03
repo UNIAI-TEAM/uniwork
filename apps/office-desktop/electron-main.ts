@@ -256,18 +256,15 @@ async function startElectronHost(): Promise<void> {
   } }) : undefined;
   // The library context is the only main-side source that maps a workspace id
   // to its organization; caching it keeps a cloud draft identity resolvable
-  // without another renderer-supplied field. A library listing also means the
-  // renderer left the editor, so the live document context is cleared here
-  // instead of lingering until window close.
+  // without another renderer-supplied field. Keep the active document while
+  // its editor is in the library so leave verification can still see a
+  // durable draft after the renderer unmounts the editor. Logout/session
+  // invalidation clears cloud context, and the next document open replaces it.
   const cachedOfficeTransport = officeTransport ? { ...officeTransport, context: async () => {
     const context = await officeTransport.context();
     for (const workspace of context.workspaces) if (workspace.organizationId) organizationByWorkspace.set(workspace.id, workspace.organizationId);
     return context;
-  }, list: async (input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }) => {
-    activeDocument = undefined;
-    activeDocumentId = undefined;
-    return officeTransport.list(input);
-  } } : undefined;
+  }, list: async (input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }) => officeTransport.list(input) } : undefined;
   const cloudDraftIdentity = (document: { id: string; workspaceId: string; version: number; revision: string }): DraftIdentity | undefined => {
     if (!deploymentProfile) return undefined;
     const metadata = authManager?.getMetadata();

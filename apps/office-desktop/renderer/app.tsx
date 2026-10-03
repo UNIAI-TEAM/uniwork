@@ -265,12 +265,24 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   // Selection and pending ticket determine the lifetime; acceptCloud writes state only.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge, pendingLaunch, scope, opened]);
+  const closeEditor = async (): Promise<boolean> => {
+    // Leaving through the library is a draft checkpoint path, so make the
+    // durable row observable by the main leave verifier before disposing the
+    // session. A failed checkpoint keeps the editor open and fails closed.
+    if (session && leaveDecisionDirty(session) && !await session.keepDraft()) {
+      setActionError(t("actionError"));
+      return false;
+    }
+    setOpened(null);
+    await refreshAccountDrafts();
+    return true;
+  };
   return (
-    <SignedInShell onSignOut={onLogout} accountName={account?.name} accountEmail={account?.email} workspaceName={workspace?.name} onSwitchWorkspace={() => { ++openSequence.current; setOpened(null); setScope(null); }}>
+    <SignedInShell onSignOut={onLogout} accountName={account?.name} accountEmail={account?.email} workspaceName={workspace?.name} onSwitchWorkspace={() => { ++openSequence.current; void closeEditor().then((closed) => { if (closed) setScope(null); }); }}>
       <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file && bridge.openDroppedFile && !opened) void perform(async () => acceptLocal(await bridge.openDroppedFile!(file))); }}>
       {actionError ? <p role="alert" className="p-4 text-destructive">{actionError}</p> : null}
       {queuedFileOpen !== null ? <p role="status" className="px-4 pb-2 text-body text-muted-foreground">{t("fileOpenQueued")}</p> : null}
-      {opened && session ? <OpenByteDocument bridge={bridge} identity={opened.identity} session={session} title={opened.title} onBack={() => setOpened(null)} /> : scope ? (
+      {opened && session ? <OpenByteDocument bridge={bridge} identity={opened.identity} session={session} title={opened.title} onBack={() => { void closeEditor(); }} /> : scope ? (
         <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void perform(openCreated); }} onOpenLocal={() => { void perform(openLocal); }} onOpen={(document) => { void perform(async () => acceptCloud(await bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }), scope)); }} />
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
@@ -288,19 +300,29 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
           await refreshAccountDrafts();
           return true;
         }} /> : null}
-      <LeaveDialog open={leave !== null} dirty={Boolean(session) && leaveDecisionDirty(session)}
+      <LeaveDialog open={leave !== null} dirty={(Boolean(session) && leaveDecisionDirty(session)) || Boolean(accountDraft)}
         saving={leaveDecisionSaving(session)}
         onOpenChange={(open) => { if (!open && leave) void answerLeave("stay", false); }}
         onSave={async () => {
-          if (!session) return true;
+          // A disposed editor cannot produce a new save receipt. Keep the
+          // prompt open so the user can keep or discard the durable draft.
+          if (!session) return !accountDraft;
           const state = session.coordinator.getState();
           // A clean document has nothing to write; leaving is not blocked by it.
           if (state.state === "ready" || state.state === "saved") return true;
           const result = await session.coordinator.save("dialog");
           return result.accepted;
         }}
-        onKeepDraft={async () => (session ? session.keepDraft() : true)}
-        onDiscard={async () => (session ? session.discardDraft() : true)}
+        onKeepDraft={async () => (session ? session.keepDraft() : Boolean(accountDraft))}
+        onDiscard={async () => {
+          if (session) return session.discardDraft();
+          if (!accountDraft) return true;
+          try {
+            desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId: accountDraft.draftId, generation: accountDraft.generation }));
+          } catch { return false; }
+          await refreshAccountDrafts();
+          return true;
+        }}
         onChoice={(choice) => { void answerLeave(choice, choice !== "stay"); }} />
     </SignedInShell>
   );
