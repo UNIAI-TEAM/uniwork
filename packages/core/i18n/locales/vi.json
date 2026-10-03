@@ -7358,6 +7358,8 @@
       },
       "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này.", "missingUnknown": "Thiếu font nhúng; engine không âm thầm thay thế font." },
       "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
+      "drawings": { "label": "Công cụ vẽ", "rect": "Hình chữ nhật", "ellipse": "Hình elip", "line": "Đường thẳng", "arrow": "Mũi tên" },
+      "ink": { "draw": "Vẽ tay" },
       "annotations": {
         "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích",
         "deleteError": "Không thể xóa chú thích. Thử lại.", "kind": "Chú thích", "readOnly": "Chỉ đọc"

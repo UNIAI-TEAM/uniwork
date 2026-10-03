@@ -16,5 +16,5 @@ export interface PdfInkToolsProps {
 
 export function PdfInkTools({ page, points, disabled = false, color = [0, 0, 0], width = 2, onInk }: PdfInkToolsProps) {
   const { t } = useTranslation();
-  return <Button type="button" variant="toolbar" size="icon-sm" data-testid="pdf-ink-tools" disabled={disabled || points.length < 2} aria-label={t("office.pdf.ink.draw", { defaultValue: "Draw" })} onClick={() => { if (points.length >= 2) onInk({ op: "add_drawing", target: { page, geometry: { points: points.map((point) => ({ ...point })) } }, kind: "ink", color, width }); }}><Pencil aria-hidden /></Button>;
+  return <Button type="button" variant="toolbar" size="icon-sm" data-testid="pdf-ink-tools" disabled={disabled || points.length < 2} aria-label={t("office.pdf.ink.draw")} onClick={() => { if (points.length >= 2) onInk({ op: "add_drawing", target: { page, geometry: { points: points.map((point) => ({ ...point })) } }, kind: "ink", color, width }); }}><Pencil aria-hidden /></Button>;
 }

@@ -7378,6 +7378,8 @@
       },
       "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it.", "missingUnknown": "An embedded font face is missing; the engine did not silently substitute it." },
       "markups": { "label": "Text markup tools", "highlight": "Highlight", "underline": "Underline", "strikeout": "Strikeout" },
+      "drawings": { "label": "Drawing tools", "rect": "Rectangle", "ellipse": "Ellipse", "line": "Line", "arrow": "Arrow" },
+      "ink": { "draw": "Draw" },
       "annotations": {
         "contentNotice": "Annotations stay separate from PDF content.", "delete": "Delete annotation",
         "deleteError": "The annotation could not be deleted. Try again.", "kind": "Annotation", "readOnly": "Read-only"

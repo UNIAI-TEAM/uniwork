@@ -27,7 +27,7 @@ export function PdfDrawingTools({ page, rect, disabled = false, color = [0, 0, 0
       : { rect: { x: rect[0], y: rect[1], width: rect[2] - rect[0], height: rect[3] - rect[1] } };
     onDrawing({ op: "add_drawing", target: { page, geometry }, kind: type, color, width, ...(fill ? { fill } : {}) });
   };
-  return <div className="flex items-center gap-1" data-testid="pdf-drawing-tools" aria-label={t("office.pdf.drawings.label", { defaultValue: "Drawing tools" })} role="group">
-    {(Object.keys(ICONS) as PdfDrawingType[]).map((type) => { const Icon = ICONS[type]; return <Button key={type} type="button" variant="toolbar" size="icon-sm" disabled={blocked} aria-label={t(`office.pdf.drawings.${type}`, { defaultValue: type })} onClick={() => apply(type)}><Icon aria-hidden /></Button>; })}
+  return <div className="flex items-center gap-1" data-testid="pdf-drawing-tools" aria-label={t("office.pdf.drawings.label")} role="group">
+    {(Object.keys(ICONS) as PdfDrawingType[]).map((type) => { const Icon = ICONS[type]; return <Button key={type} type="button" variant="toolbar" size="icon-sm" disabled={blocked} aria-label={t(`office.pdf.drawings.${type}`)} onClick={() => apply(type)}><Icon aria-hidden /></Button>; })}
   </div>;
 }
