@@ -90,8 +90,11 @@ function dependencyRowsFromPnpm({ metafile } = {}) {
       encoding: "utf8",
       env: { ...process.env },
       windowsHide: true,
-      maxBuffer: 64 * 1024 * 1024,
+      // The depth-10 graph is already ~64 MiB on Linux; a smaller buffer
+      // truncates stdout and surfaces as a JSON SyntaxError instead.
+      maxBuffer: 512 * 1024 * 1024,
     });
+    if (result.error) throw new Error(`pnpm list failed: ${result.error.message}`);
     if (result.status !== 0 || !String(result.stdout ?? "").trim()) throw new Error(`pnpm list failed (status=${String(result.status)}): ${String(result.stderr ?? result.error?.message ?? "no dependency tree").trim() || "no dependency tree"}`);
     const parsed = JSON.parse(result.stdout);
     return Array.isArray(parsed) ? parsed : [parsed];
