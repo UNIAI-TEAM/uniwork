@@ -23,6 +23,9 @@ export interface XlsxFindPanelProps {
   selection: XlsxSelection | null;
   /** The active sheet's name; the scan targets it. */
   sheetName: string | null;
+  /** Live-name → live-id resolver (the editor's grid lookup); optional so a
+   *  host without a live grid keeps the file-time name lookup. */
+  resolveSheetId?: (liveName: string) => string | undefined;
   dirtyGeneration?: number;
   readOnly?: boolean;
   onClose: () => void;
@@ -88,12 +91,13 @@ export function XlsxFindPanel({
   commands,
   selection,
   sheetName,
+  resolveSheetId,
   dirtyGeneration = 0,
   readOnly = false,
   onClose,
 }: XlsxFindPanelProps) {
   const { t } = useTranslation();
-  const find = useXlsxFindReplace({ documentKey, host, commands, selection, sheetName, dirtyGeneration, readOnly });
+  const find = useXlsxFindReplace({ documentKey, host, commands, selection, sheetName, resolveSheetId, dirtyGeneration, readOnly });
   const formulaMatches = find.matchCount - find.replaceableCount;
   const message = actionMessage(t, find);
   const partial = find.scan.kind === "ready" && find.scan.partial ? find.scan : null;

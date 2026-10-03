@@ -111,6 +111,17 @@ describe("buildFindReplacement", () => {
     expect(batch.value).toEqual({ "1": { "2": { v: "new" } } });
   });
 
+  it("coerces replacements through the manual-typing value rule", () => {
+    // "5" -> "7" in a number cell must stay numeric (SUM keeps counting it).
+    expect(buildFindReplacement([match({ text: "5" })], "5", "7", false).value).toEqual({ "0": { "0": { v: 7 } } });
+    expect(buildFindReplacement([match({ text: "1.50" })], "1.50", "-2.5", false).value).toEqual({ "0": { "0": { v: -2.5 } } });
+    expect(buildFindReplacement([match({ text: "flag" })], "flag", "TRUE", false).value).toEqual({ "0": { "0": { v: true } } });
+    expect(buildFindReplacement([match({ text: "old" })], "old", "beta", false).value).toEqual({ "0": { "0": { v: "beta" } } });
+    expect(buildFindReplacement([match({ text: "old" })], "old", "", false).value).toEqual({ "0": { "0": { v: null } } });
+    // A formula-looking replacement stays literal text: replace writes values.
+    expect(buildFindReplacement([match({ text: "old" })], "old", "=A1", false).value).toEqual({ "0": { "0": { v: "=A1" } } });
+  });
+
   it("skips formula matches and no-op replacements", () => {
     const batch = buildFindReplacement(
       [match({ replaceable: false }), match({ row: 5, text: "same" })],

@@ -85,9 +85,24 @@ export function replaceInCellText(
 export interface XlsxFindReplacement {
   /** `{ [row]: { [column]: { v } } }` — the record shape the pinned
    *  range-values command passes through to its mutation and the journal. */
-  readonly value: Record<string, Record<string, { v: string }>>;
+  readonly value: Record<string, Record<string, { v: string | number | boolean | null }>>;
   /** Cells this payload writes; one `set_cell` op each at save time. */
   readonly count: number;
+}
+
+/** The manual-typing value rule (`cellEditOperation` in `xlsx-editor-model.ts`)
+ *  for a replacement: numeric-looking text is stored as a number, TRUE/FALSE
+ *  as a boolean, the empty string clears the cell — so replacing "5" with "7"
+ *  in a number cell keeps it numeric and inside SUM. A replacement that starts
+ *  with "=" stays literal text: find & replace writes values, never new
+ *  formulas. */
+function coerceReplacementText(text: string): string | number | boolean | null {
+  if (text === "") return null;
+  if (text === "TRUE") return true;
+  if (text === "FALSE") return false;
+  const number = Number(text);
+  if (text.trim() !== "" && Number.isFinite(number)) return number;
+  return text;
 }
 
 export function buildFindReplacement(
@@ -96,13 +111,13 @@ export function buildFindReplacement(
   replacement: string,
   matchCase: boolean,
 ): XlsxFindReplacement {
-  const value: Record<string, Record<string, { v: string }>> = {};
+  const value: XlsxFindReplacement["value"] = {};
   let count = 0;
   for (const match of matches) {
     if (!match.replaceable) continue;
     const next = replaceInCellText(match.text, query, replacement, matchCase);
     if (next === match.text) continue;
-    (value[String(match.row)] ??= {})[String(match.column)] = { v: next };
+    (value[String(match.row)] ??= {})[String(match.column)] = { v: coerceReplacementText(next) };
     count += 1;
   }
   return { value, count };

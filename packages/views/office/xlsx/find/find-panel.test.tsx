@@ -57,13 +57,14 @@ const selection = (address: string, endAddress?: string): XlsxSelection => ({
   ...(endAddress === undefined ? {} : { endAddress }),
 });
 
-function host(readRange: XlsxGridHostPort["readRange"]): XlsxGridHostPort {
+function host(
+  readRange: XlsxGridHostPort["readRange"],
+  sheets: { id: string; name: string; rowCount: number; columnCount: number }[] = [
+    { id: "sheet-1", name: "Data", rowCount: 100, columnCount: 26 },
+  ],
+): XlsxGridHostPort {
   return {
-    file: {
-      sessionId: "s-1",
-      sha256: SHA,
-      sheets: [{ id: "sheet-1", name: "Data", rowCount: 100, columnCount: 26 }],
-    },
+    file: { sessionId: "s-1", sha256: SHA, sheets },
     readRange,
   } as unknown as XlsxGridHostPort;
 }
@@ -109,7 +110,7 @@ describe("XlsxFindPanel", () => {
   });
 
   it("counts matches, moves the grid to one and shows the position", async () => {
-    const { execute } = renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 1, 1)]));
+    const { execute } = renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 0, 1)]));
     await panelReady();
     fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
     await waitFor(() => expect(screen.getByTestId("xlsx-find-status")).toHaveTextContent(withVars(text("office.xlsx.find.status.matches"), { count: 2 })));
@@ -167,7 +168,7 @@ describe("XlsxFindPanel", () => {
   it("refuses a replace-all above the engine op bound and never sends it", async () => {
     const rows = 10_001;
     const readRange = async () => result(Array.from({ length: rows }, (_, row) => cell("alpha", row, 0)));
-    const { execute } = renderPanel({ selection: selection("A1", `A${rows}`) }, readRange);
+    const { execute } = renderPanel({ selection: selection("A1", `A${rows}`), host: host(readRange, [{ id: "sheet-1", name: "Data", rowCount: rows, columnCount: 1 }]) });
     await panelReady();
     fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
     fireEvent.change(screen.getByTestId("xlsx-find-replacement"), { target: { value: "beta" } });
@@ -181,7 +182,7 @@ describe("XlsxFindPanel", () => {
   });
 
   it("keeps formula matches visible but out of the replacement batch", async () => {
-    renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 1, 0, "=A1")]));
+    renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 0, 1, "=A1")]));
     await panelReady();
     fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
     await waitFor(() => expect(screen.getByTestId("xlsx-find-formula-hint")).toHaveTextContent(
@@ -195,12 +196,12 @@ describe("XlsxFindPanel", () => {
 
   it("states the read bound when the host could only serve part of the sheet", async () => {
     renderPanel(
-      {},
+      { selection: selection("A1", "A3") },
       async () => result([cell("alpha", 0, 0)], { indexingComplete: false, indexedThroughRow: 0 }),
     );
     await panelReady();
     expect(screen.getByTestId("xlsx-find-partial")).toHaveTextContent(
-      withVars(text("office.xlsx.find.status.partial"), { scanned: 1, total: 1 }),
+      withVars(text("office.xlsx.find.status.partial"), { scanned: 1, total: 3 }),
     );
     expect(screen.queryByTestId("xlsx-find-limit")).not.toBeInTheDocument();
   });

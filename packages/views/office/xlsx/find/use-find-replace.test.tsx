@@ -158,6 +158,80 @@ describe("useXlsxFindReplace scan", () => {
     expect(hook.current.matchCount).toBe(1);
   });
 
+  it("keeps the selection window frozen when the panel's own reveal moves the selection prop", async () => {
+    const readRange = vi.fn(async () => result([cell("alpha", 0, 0), cell("alpha", 1, 1), cell("alpha", 2, 0)]));
+    const stableHost = host(readRange);
+    const { result: hook, rerender, execute, commands } = setup({ host: stableHost, selection: selection("A1", "B3") });
+    await ready(hook);
+    act(() => hook.current.changeQuery("alpha"));
+    expect(hook.current.matchCount).toBe(3);
+    act(() => hook.current.findNext());
+    expect(hook.current.currentIndex).toBe(0);
+    const reads = readRange.mock.calls.length;
+    // The grid reports the panel's select-range back as a single-cell selection.
+    rerender({ documentKey: "doc", host: stableHost, commands, selection: selection("A1"), sheetName: "Data", dirtyGeneration: 0 });
+    expect(hook.current.matchCount).toBe(3);
+    expect(readRange).toHaveBeenCalledTimes(reads);
+    // Replace all applies to the frozen window, not to the collapsed reveal cell.
+    act(() => hook.current.changeReplacement("beta"));
+    execute.mockClear();
+    act(() => hook.current.replaceAll());
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
+      unitId: `file-${SHA}`,
+      subUnitId: "sheet-1",
+      value: { 0: { 0: { v: "beta" } }, 1: { 1: { v: "beta" } }, 2: { 0: { v: "beta" } } },
+    });
+    expect(hook.current.action).toEqual({ kind: "replacedAll", count: 3 });
+  });
+
+  it("re-scopes when the user moves the selection themselves", async () => {
+    const readRange = vi
+      .fn()
+      .mockResolvedValueOnce(result([cell("alpha", 0, 0), cell("alpha", 1, 0), cell("alpha", 2, 0)]))
+      .mockResolvedValueOnce(result([cell("alpha", 0, 2)]));
+    const stableHost = host(readRange);
+    const { result: hook, rerender, commands } = setup({ host: stableHost, selection: selection("A1", "A3") });
+    await ready(hook);
+    act(() => hook.current.changeQuery("alpha"));
+    expect(hook.current.matchCount).toBe(3);
+    rerender({ documentKey: "doc", host: stableHost, commands, selection: selection("C1"), sheetName: "Data", dirtyGeneration: 0 });
+    await waitFor(() => expect(readRange).toHaveBeenCalledTimes(2));
+    expect(readRange).toHaveBeenLastCalledWith({
+      sessionId: "s-1",
+      sheetId: "sheet-1",
+      range: { startRow: 0, endRow: 0, startColumn: 2, endColumn: 2 },
+    });
+    await waitFor(() => expect(hook.current.matchCount).toBe(1));
+  });
+
+  it("resolves a renamed live sheet by id before looking the file bounds up", async () => {
+    const readRange = vi.fn(async () => result([cell("alpha", 0, 0)]));
+    const { result: hook } = setup({
+      host: host(readRange),
+      selection: { sheet: "Renamed", address: "A1" },
+      sheetName: "Renamed",
+      resolveSheetId: (liveName) => (liveName === "Renamed" ? "sheet-1" : undefined),
+    });
+    await ready(hook);
+    expect(readRange).toHaveBeenCalledWith({
+      sessionId: "s-1",
+      sheetId: "sheet-1",
+      range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+    });
+  });
+
+  it("keeps a session-added sheet honestly unavailable when the file does not carry its id", async () => {
+    const readRange = vi.fn(async () => result([]));
+    const { result: hook } = setup({
+      host: host(readRange),
+      selection: { sheet: "Sheet2", address: "A1" },
+      sheetName: "Sheet2",
+      resolveSheetId: () => "session-2",
+    });
+    await waitFor(() => expect(hook.current.scan.kind).toBe("unavailable"));
+    expect(readRange).not.toHaveBeenCalled();
+  });
+
   it("reports a failed read and an unknown sheet honestly", async () => {
     const failing = vi.fn().mockRejectedValue(new Error("sidecar down"));
     const { result: hook } = setup({}, failing);
@@ -181,7 +255,7 @@ describe("useXlsxFindReplace actions", () => {
   async function twoMatches() {
     const readRange = async () =>
       result([cell("alpha", 0, 0), cell("alpha", 1, 1), cell("alpha", 2, 0, "=A1")]);
-    const render = setup({ selection: selection("A1", "A3") }, readRange);
+    const render = setup({ selection: selection("A1", "B3") }, readRange);
     await ready(render.result);
     act(() => render.result.current.changeQuery("alpha"));
     return render;
@@ -219,6 +293,33 @@ describe("useXlsxFindReplace actions", () => {
       value: { 0: { 0: { v: "beta" } } },
     });
     expect(hook.current.action).toEqual({ kind: "replaced" });
+  });
+
+  it("advances to the next match after a successful single replace", async () => {
+    const readRange = async () => result([cell("a", 0, 0), cell("a", 1, 0)]);
+    const { result: hook, execute } = setup({ selection: selection("A1", "A2") }, readRange);
+    await ready(hook);
+    act(() => hook.current.changeQuery("a"));
+    expect(hook.current.matchCount).toBe(2);
+    act(() => hook.current.findNext());
+    act(() => hook.current.changeReplacement("aa"));
+    execute.mockClear();
+    act(() => hook.current.replace());
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
+      unitId: `file-${SHA}`,
+      subUnitId: "sheet-1",
+      value: { 0: { 0: { v: "aa" } } },
+    });
+    // The replacement still matches ("a" -> "aa") but the cursor moved on.
+    expect(hook.current.currentIndex).toBe(1);
+    execute.mockClear();
+    act(() => hook.current.replace());
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
+      unitId: `file-${SHA}`,
+      subUnitId: "sheet-1",
+      value: { 1: { 0: { v: "aa" } } },
+    });
+    expect(hook.current.currentIndex).toBe(0);
   });
 
   it("never replaces a formula match", async () => {

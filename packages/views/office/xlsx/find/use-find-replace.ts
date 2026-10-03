@@ -6,7 +6,7 @@
 // typing and no second save path exists.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RendererRangeCell } from "../xlsx-render-model-bridge";
+import { toA1Address, type RendererRangeCell } from "../xlsx-render-model-bridge";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxToolbarCommands } from "../toolbar/types";
 import type { XlsxSelection } from "../types";
@@ -60,6 +60,10 @@ export interface XlsxFindReplaceOptions {
   selection: XlsxSelection | null;
   /** The active sheet's name; the scan targets it. */
   sheetName: string | null;
+  /** Resolve a live sheet name to its live sheet id (a session rename changes
+   *  the name, never the id), so the scan can look the file bounds up by id.
+   *  Absent: the file-time name lookup (hosts without a live grid). */
+  resolveSheetId?: (liveName: string) => string | undefined;
   /** The editor's dirty generation: an applied edit re-reads the window. */
   dirtyGeneration?: number;
   readOnly?: boolean;
@@ -103,6 +107,7 @@ export function useXlsxFindReplace({
   commands,
   selection,
   sheetName,
+  resolveSheetId,
   dirtyGeneration = 0,
   readOnly = false,
 }: XlsxFindReplaceOptions): XlsxFindController {
@@ -114,20 +119,64 @@ export function useXlsxFindReplace({
   const [action, setAction] = useState<XlsxFindAction>({ kind: "idle" });
   const [scan, setScan] = useState<XlsxFindScanState>(EMPTY_SCAN);
   const [pending, setPending] = useState(false);
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
+  // The scan window is FROZEN when a scan issues: revealing a match runs
+  // `select-range`, the grid mirrors that move back through the `selection`
+  // prop, and re-deriving the window from the reveal would collapse "1 of N"
+  // to "1 of 1". Only a selection change that is not the panel's own reveal
+  // re-scopes and re-reads.
+  const [scanSelection, setScanSelection] = useState<XlsxSelection | null>(selection);
+  const scanSelectionRef = useRef(scanSelection);
+  scanSelectionRef.current = scanSelection;
+  // The address the grid selection carries right after the panel reveals a
+  // match; the next selection change carrying it is the panel's own.
+  const pendingRevealAddressRef = useRef<string | null>(null);
   const tokenRef = useRef(0);
 
-  const sheet = useMemo(
-    () => (sheetName === null ? undefined : host.file.sheets.find((candidate) => candidate.name === sheetName)),
-    [host, sheetName],
-  );
-  const selectionKey = selection === null
+  const sheet = useMemo(() => {
+    if (sheetName === null) return undefined;
+    if (resolveSheetId) {
+      const id = resolveSheetId(sheetName);
+      // A live sheet the file does not carry (session-added, or not open):
+      // honest "unavailable", never a name guess at the file-time list.
+      return id === undefined ? undefined : host.file.sheets.find((candidate) => candidate.id === id);
+    }
+    return host.file.sheets.find((candidate) => candidate.name === sheetName);
+  }, [host, resolveSheetId, sheetName]);
+
+  const liveSelectionKey = selection === null
     ? null
     : `${selection.sheet}\u0000${selection.address}\u0000${selection.endAddress ?? ""}`;
-  // A selection edit re-reads the window only while the selection is the
-  // scope; the whole-sheet read does not depend on where the cursor sits.
-  const scanKey = scope === "selection" ? selectionKey : "sheet";
+  const scanSelectionKey = scanSelection === null
+    ? null
+    : `${scanSelection.sheet}\u0000${scanSelection.address}\u0000${scanSelection.endAddress ?? ""}`;
+  // A selection edit re-reads the frozen window only while the selection is
+  // the scope; the whole-sheet read does not depend on where the cursor sits.
+  const scanKey = scope === "selection" ? scanSelectionKey : "sheet";
+
+  // Keep the frozen window in step with the LIVE selection, except when the
+  // change is the panel's own reveal (it must leave the window alone).
+  const lastLiveSelectionKeyRef = useRef(liveSelectionKey);
+  const lastScopeRef = useRef(scope);
+  const lastDocumentKeyRef = useRef(documentKey);
+  useEffect(() => {
+    const selectionChanged = liveSelectionKey !== lastLiveSelectionKeyRef.current;
+    const scopeChanged = scope !== lastScopeRef.current;
+    const documentChanged = documentKey !== lastDocumentKeyRef.current;
+    lastLiveSelectionKeyRef.current = liveSelectionKey;
+    lastScopeRef.current = scope;
+    lastDocumentKeyRef.current = documentKey;
+    const pendingReveal = pendingRevealAddressRef.current;
+    pendingRevealAddressRef.current = null;
+    if (scope !== "selection" || (!selectionChanged && !scopeChanged && !documentChanged)) return;
+    // The panel's own reveal: keep the frozen window.
+    if (
+      selectionChanged && !scopeChanged && !documentChanged &&
+      pendingReveal !== null && selection?.address === pendingReveal
+    ) {
+      return;
+    }
+    setScanSelection(selection);
+  }, [documentKey, liveSelectionKey, scope, selection]);
 
   useEffect(() => {
     const token = ++tokenRef.current;
@@ -136,7 +185,7 @@ export function useXlsxFindReplace({
       setPending(false);
       return undefined;
     }
-    const request = findScanRange(scope, selectionRef.current, sheet);
+    const request = findScanRange(scope, scanSelectionRef.current, sheet);
     if (!request) {
       setScan(EMPTY_SCAN);
       setPending(false);
@@ -205,17 +254,22 @@ export function useXlsxFindReplace({
   const reveal = useCallback(
     (match: XlsxFindMatch) => {
       if (!sheet) return;
+      // The grid mirrors this move back through the selection prop; arming the
+      // guard before the command lets the scan-window sync skip it instead of
+      // collapsing the window onto the revealed cell.
+      pendingRevealAddressRef.current = toA1Address(match.row, match.column);
       const range = {
         startRow: match.row,
         endRow: match.row,
         startColumn: match.column,
         endColumn: match.column,
       };
-      execute(XLSX_FIND_SELECT_COMMAND, {
+      const selected = execute(XLSX_FIND_SELECT_COMMAND, {
         unitId: `file-${host.file.sha256}`,
         subUnit: sheet.id,
         range,
       });
+      if (!selected) pendingRevealAddressRef.current = null;
       execute(XLSX_FIND_SCROLL_COMMAND, { range });
     },
     [execute, host, sheet],
@@ -253,11 +307,16 @@ export function useXlsxFindReplace({
     if (!canReplace) return;
     const match = matches[currentIndex];
     if (!match) return;
-    // The cursor keeps its index: the replaced cell usually stops matching, so
-    // the same index is the next match once the re-read settles.
     const applied = applyBatch(buildFindReplacement([match], query, replacement, matchCase));
     setAction(applied ? { kind: "replaced" } : { kind: "failed" });
-  }, [applyBatch, canReplace, currentIndex, matchCase, matches, query, replacement]);
+    if (!applied) return;
+    // Replace then advance (spreadsheet semantics): even a replacement that
+    // still matches the query ("a" -> "aa") moves to the next match, wrapping
+    // like findNext. The post-write re-read keeps the list in step.
+    const next = (currentIndex + 1) % matchCount;
+    setCursor(next);
+    reveal(matches[next]!);
+  }, [applyBatch, canReplace, currentIndex, matchCase, matchCount, matches, query, replacement, reveal]);
 
   const replaceAll = useCallback(() => {
     if (!canReplaceAll) return;
