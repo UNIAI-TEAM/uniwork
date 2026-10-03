@@ -73,6 +73,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   onSignInRef.current = onSignIn;
   const onUseLocalRef = useRef(onUseLocal);
   onUseLocalRef.current = onUseLocal;
+  const loginCardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mode === "login") loginCardRef.current?.focus();
+  }, [mode]);
 
   useEffect(() => () => { mounted.current = false; ++lifetime.current; }, []);
 
@@ -312,21 +317,10 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
     onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
 
-  if (mode === "login") {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
-        {alerts}
-        <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onOpenLocal={() => onUseLocal("open-local")} onUseLocal={() => onUseLocal("home")} />
-        {leaveDialog}
-      </div>
-    );
-  }
-
   const account = context?.accounts.find((entry) => entry.id === metadata?.accountId);
   const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
   const homeKind = mode === "local" ? "local" : "library";
-  return <DesktopShell mode={mode === "local" ? "local" : "signed-in"} onSignIn={mode === "local" ? onSignIn : undefined} onSignOut={mode === "signed-in" ? () => { void Promise.resolve().then(onLogout).catch(() => setActionError(t("officeDesktop.library.actionError"))); } : undefined}
+  const workspaceView = <DesktopShell mode={mode === "signed-in" ? "signed-in" : "local"} onSignIn={mode !== "signed-in" ? onSignIn : undefined} onSignOut={mode === "signed-in" ? () => { void Promise.resolve().then(onLogout).catch(() => setActionError(t("officeDesktop.library.actionError"))); } : undefined}
     accountName={mode === "signed-in" ? account?.name : undefined} accountEmail={mode === "signed-in" ? account?.email : undefined} workspaceName={workspace?.name} onSwitchWorkspace={mode === "signed-in" ? () => requestLeave({ ids: tabs.cloudTabIds(), switchWorkspace: true }) : undefined}
     tabs={tabs.summaries} activeTabId={tabs.activeTabId} onTabSelect={tabs.select} onTabClose={close} onCreate={create} onOpenLocal={openLocal}
     createDisabled={mode === "signed-in" && !scope} busy={busy || leave !== null}>
@@ -341,11 +335,22 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
-        <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+        <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}
     {accountDrafts.draft && tabs.tabs.length === 0 ? <DraftRecoveryPrompt open metadata={accountDrafts.draft} recoverable={false} onOpenChange={(open) => { if (!open) accountDrafts.dismiss(); }} onRecover={async () => false} onKeep={async () => { accountDrafts.dismiss(); return true; }} onDiscard={accountDrafts.discard} /> : null}
-    {leaveDialog}
+    {mode !== "login" ? leaveDialog : null}
   </DesktopShell>;
+  return <>
+    <div className={mode === "login" ? "hidden" : "h-full min-h-0"} aria-hidden={mode === "login"} inert={mode === "login"}>
+      {workspaceView}
+    </div>
+    {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
+      <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
+      {alerts}
+      <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onOpenLocal={() => onUseLocal("open-local")} onUseLocal={() => onUseLocal("home")} />
+      {leaveDialog}
+    </div> : null}
+  </>;
 }

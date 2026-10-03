@@ -174,20 +174,36 @@ it("asks for sign-in on a web deep link and keeps local tabs when the user cance
   expect(h.channels()).not.toContain("desktop:office-open");
 });
 
-it("keeps local tabs when signing in and closes only cloud tabs when signing out", async () => {
+it("keeps an edited local tab mounted through login cancel and success", async () => {
   const h = harness({ localMode: true });
   await enterLocal(h);
-  h.emitFile(`file_${"a".repeat(32)}`);
+  const handle = `file_${"a".repeat(32)}`;
+  h.emitFile(handle);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
+  await edit(handle);
+  const session = sessions.get(handle)!;
+
+  // Cancelling sign-in must reveal the same live editor, not a disposed tab.
+  h.emitLoginRequest();
+  await waitFor(() => expect(h.container.querySelector("[data-login-state='login-required']")).not.toBeNull());
+  expect(session.isDisposed).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));
+  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
+  expect(session.isDisposed).toBe(false);
+  expect(screen.getByTestId("docx-document-surface")).toBeInTheDocument();
+
+  // A successful account handoff must preserve the same editor session too.
+  h.emitLoginRequest();
+  await waitFor(() => expect(h.container.querySelector("[data-login-state='login-required']")).not.toBeNull());
   h.emitSession({ status: "signed-in", accountId: "account-1", deploymentId: "lane" });
   await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
-  expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
-  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:file-open")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: new RegExp(`${i18n.t("officeDesktop.tabs.account", { name: "Me" })}`) }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.signOut") }));
-  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:auth-logout", expect.objectContaining({ scope: "device" })));
-  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
-  expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
+  expect(session.isDisposed).toBe(false);
+  expect(screen.getByTestId("docx-document-surface")).toBeInTheDocument();
+  fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
+  const accountDraftReads = h.calls.filter(({ channel, payload }) => channel === "desktop:draft-list" && !Object.prototype.hasOwnProperty.call(payload as object, "documentId"));
+  expect(accountDraftReads.length).toBeGreaterThan(0);
 });
 
 it("keeps the AI entry locked and never calls a cloud channel from it", async () => {
