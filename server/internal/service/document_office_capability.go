@@ -542,9 +542,9 @@ type OfficeJobRequest struct {
 }
 
 // StartOfficeJobForDocument starts one job on the document's current version.
-// It authorizes edit on the document, resolves the format from the verified
-// file record, and then runs the normal job path (negotiation and the
-// operation gate happen there, before any mutation).
+// It authorizes view for open and edit for every other operation, resolves the
+// format from the verified file record, and then runs the normal job path
+// (negotiation and the operation gate happen there, before any mutation).
 func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, actor Actor, documentID string, req OfficeJobRequest) (db.OfficeJob, error) {
 	if s.engine == nil {
 		return db.OfficeJob{}, office.ErrNotConfigured
@@ -552,7 +552,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if s.documents == nil {
 		return db.OfficeJob{}, fmt.Errorf("office: documents service not wired")
 	}
-	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
+	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, officeJobRequiredLevel(office.Operation(strings.TrimSpace(req.Operation))))
 	if err != nil {
 		return db.OfficeJob{}, err
 	}

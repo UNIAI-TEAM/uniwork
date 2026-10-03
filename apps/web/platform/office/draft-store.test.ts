@@ -126,6 +126,23 @@ function createHarness(): DraftRecoveryBehaviorHarness {
 }
 
 describe("IndexedDB browser draft store", () => {
+  it("atomically moves a retained encrypted generation to the confirmed base", async () => {
+    Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: new FakeIndexedDb() });
+    const store = createDraftStore({ databaseName: "rebase" });
+    const session = sessions().accountA;
+    const identity = { deploymentId: "deployment-test", accountId: "account-a", organizationId: "o", workspaceId: "w", documentId: "doc", base: { revision: "1", version: "v1" } };
+    const original = { session, wrappedKey: new Uint8Array([2]), snapshot: { draftId: "draft", identity, generation: 2, checksum: "sha256:old", ciphertext: new Uint8Array([1]) } };
+    await store.checkpointEncrypted(original);
+    const next = { ...original, snapshot: { ...original.snapshot, identity: { ...identity, base: { revision: "2", version: "v2" } }, checksum: "sha256:rebased", ciphertext: new Uint8Array([3]) } };
+    store.failNextCheckpoint();
+    await expect(store.rebaseEncrypted(next, identity)).rejects.toMatchObject({ code: "storage_unavailable" });
+    expect(await store.list({ session })).toMatchObject([{ identity: { base: { revision: "1" } }, generation: 2 }]);
+    await store.rebaseEncrypted(next, identity);
+    expect(await store.list({ session })).toMatchObject([{ identity: { base: { revision: "2" } }, generation: 2 }]);
+    expect(await store.recoverEncrypted({ session, lookup: { ...identity, draftId: "draft", base: undefined }, currentBase: next.snapshot.identity.base, liveAccess: "edit" })).toMatchObject({ status: "recovered", ciphertext: new Uint8Array([3]) });
+    await expect(store.rebaseEncrypted({ ...next, snapshot: { ...next.snapshot, identity: { ...next.snapshot.identity, documentId: "other" } } }, identity)).rejects.toMatchObject({ code: "forbidden" });
+  });
+
   it("passes the shared recovery behavior suite", async () => {
     const report = await runDraftRecoveryAdapterBehaviorSuite(createHarness);
     expect(report.passed.length).toBeGreaterThanOrEqual(10);

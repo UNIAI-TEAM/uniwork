@@ -19,6 +19,16 @@ function coordinator(overrides: Partial<ReturnType<OfficeSaveCoordinatorLike["ge
 beforeEach(async () => { await setLocale("en"); });
 
 describe("DesktopOpenAction", () => {
+  it("keeps compact header actions fully accessible below lg", () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
+    const edit = screen.getByRole("button", { name: "Edit in UniWork Office" });
+    const download = screen.getByRole("button", { name: "Download UniWork Office" });
+    expect(edit).toHaveAttribute("title", "Edit in UniWork Office");
+    expect(edit.querySelector("span")).toHaveClass("sr-only", "lg:not-sr-only");
+    expect(download).toHaveAttribute("title", "Download UniWork Office");
+    expect(download.querySelector("span")).toHaveClass("sr-only", "lg:not-sr-only");
+  });
+
   it("reuses the install prompt for Download without saving or minting a launch ticket", async () => {
     const createSession = vi.fn();
     const downloadInstaller = vi.fn(async () => undefined);

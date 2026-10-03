@@ -8074,7 +8074,8 @@
       "discard": "Bỏ thay đổi",
       "stay": "Ở lại",
       "working": "Đang xử lý…",
-      "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở."
+      "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở.",
+      "timeout": "Y\u00eau c\u1ea7u r\u1eddi t\u00e0i li\u1ec7u \u0111\u00e3 h\u1ebft th\u1eddi gian. T\u00e0i li\u1ec7u v\u1eabn m\u1edf."
     },
     "recovery": {
       "title": "Tìm thấy bản nháp",
@@ -8128,14 +8129,15 @@
       },
       "commands": {
         "sheets": "Trang tính",
-        "numberFormat": "Định dạng số (engine thiếu)",
-        "chart": "Biểu đồ (engine thiếu)"
+        "numberFormat": "Định dạng số",
+        "chart": "Biểu đồ"
       },
       "selection": {
         "none": "Chưa chọn ô",
         "range": "{{sheet}}!{{address}}"
       },
-      "capabilityPending": "Tính năng XLSX này chưa có trong bản dựng engine hiện tại.",
+      "capabilityPending": "Tính năng này chưa được hỗ trợ.",
+      "clipboardUnavailable": "Trình duyệt này chưa cho phép truy cập bảng nhớ tạm.",
       "state": {
         "opening": "Đang mở sổ tính…",
         "error": "Không mở được sổ tính"
@@ -8152,8 +8154,9 @@
         "incompatible": "Không thể chỉnh sửa"
       },
       "surface": {
-        "ready": "Bề mặt sổ tính đã sẵn sàng cho adapter của host.",
-        "table": "Trang tính {{sheet}}"
+        "ready": "Bề mặt sổ tính đã sẵn sàng cho adapter máy chủ.",
+        "table": "Trang tính {{sheet}}",
+        "grid": "Lưới sổ tính"
       },
       "sheets": {
         "label": "Các trang tính trong sổ"
@@ -8170,14 +8173,37 @@
       "errors": {
         "title": "Không mở được sổ tính XLSX này",
         "reason": "Lý do: {{reason}}",
-        "unknown": "Adapter XLSX trả về lỗi mở không xác định.",
+        "unknown": "Không thể mở sổ tính này. Thử mở lại.",
         "corrupted": "Gói sổ tính bị hỏng hoặc chưa đầy đủ.",
         "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
         "password_required": "Cần mật khẩu để mở sổ tính này.",
-        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng XLSX này.",
+        "unsupported_feature": "Tính năng XLSX này chưa được hỗ trợ.",
         "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
-        "engine_error": "Engine XLSX không thể mở sổ tính này.",
-        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
+        "engine_error": "Không thể mở sổ tính này. Thử mở lại.",
+        "capabilityUnavailable": "Chưa thể chỉnh sửa sổ tính XLSX này.",
+        "rendererFailed": "Không thể hiển thị sổ tính. Thử mở lại.",
+        "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",
+        "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại."
+      },
+      "editor": {
+        "appClosureActive": "{{count}} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",
+        "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
+        "appColumnLabel": "Cột {{col}}",
+        "appFullyLoaded": "Sổ tính đã tải đầy đủ — công thức tính lại trực tiếp, có thể sửa hàng/cột.",
+        "appIndexing": "Đang lập chỉ mục {{name}}: {{rows}} hàng sẵn sàng.",
+        "appLinkInternal": "Liên kết trỏ trong cùng sổ tính: {{location}}",
+        "appLinkJumpFailed": "Không thể nhảy tới {{location}}.",
+        "appLinkSheetNotFound": "Không tìm thấy trang tính \"{{name}}\".",
+        "appLoadRangeFailed": "Không thể tải vùng hiển thị.",
+        "appProtectedWithPassword": "Trang tính này được bảo vệ bằng mật khẩu — không hỗ trợ gỡ bảo vệ.",
+        "appProtectionNeedsIndexed": "Cần lập chỉ mục xong trang tính trước khi bảo vệ — thử lại sau giây lát.",
+        "appRangeMustBeVector": "{{range}} phải là một hàng hoặc một cột ô.",
+        "appRangeTooManyCells": "{{range}} vượt quá {{max}} ô.",
+        "appRecalcDone": "Đã tính lại công thức từ các sửa đổi của bạn ({{count}} ô, dùng công cụ dự phòng).",
+        "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {{count}} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
+        "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
+        "appAreaStreaming": "Khu vực này của trang tính vẫn đang tải — thử lại sau giây lát.",
+        "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng."
       }
     },
     "markdown": {
@@ -8350,6 +8376,7 @@
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",
+      "saveAs": "Lưu thành…",
       "unsupported": "Định dạng này chưa được hỗ trợ trên desktop.",
       "local": "Tệp trên máy",
       "ownerUnknown": "Thành viên workspace",

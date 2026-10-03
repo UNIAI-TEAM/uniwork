@@ -25,6 +25,8 @@ export interface XlsxToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   canRecalculate: boolean;
+  canFormat: boolean;
+  onNumberFormat: () => void;
   recalculating: boolean;
   onUndo: () => void;
   onRedo: () => void;
@@ -33,6 +35,8 @@ export interface XlsxToolbarProps {
   onPaste: () => void;
   onShowSheets: () => void;
   onSave: () => void;
+  onCancelSave?: () => void;
+  showSave?: boolean;
 }
 
 function CapabilityButton({
@@ -52,7 +56,6 @@ function CapabilityButton({
       size="icon-sm"
       aria-label={label}
       aria-disabled={unavailable || undefined}
-      disabled={unavailable}
       title={capability?.reason ?? undefined}
     >
       {children}
@@ -72,6 +75,8 @@ export function XlsxToolbar({
   canUndo,
   canRedo,
   canRecalculate,
+  canFormat,
+  onNumberFormat,
   recalculating,
   onUndo,
   onRedo,
@@ -80,9 +85,11 @@ export function XlsxToolbar({
   onPaste,
   onShowSheets,
   onSave,
+  onCancelSave,
+  showSave = true,
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
-  const blocked = readOnly || saving;
+  const blocked = readOnly;
   const noSelection = selection === null;
   const state = coordinator.getState();
   const selectedAddress = selection?.endAddress ? `${selection.address}:${selection.endAddress}` : selection?.address;
@@ -96,28 +103,19 @@ export function XlsxToolbar({
       data-testid="xlsx-toolbar"
       aria-label={t("office.xlsx.toolbar.label")}
     >
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.undo")} disabled={blocked || !canUndo} onClick={onUndo}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.undo")} aria-disabled={blocked || !canUndo || undefined} onClick={onUndo}>
         <Undo2 aria-hidden />
       </Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.redo")} disabled={blocked || !canRedo} onClick={onRedo}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.redo")} aria-disabled={blocked || !canRedo || undefined} onClick={onRedo}>
         <Redo2 aria-hidden />
       </Button>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.sheets")} onClick={onShowSheets}>
         <Grid3X3 aria-hidden />
       </Button>
-      <CapabilityButton label={t("office.xlsx.commands.numberFormat")} capability={{
-        format: "xlsx",
-        operation: "number_format",
-        host: "browser",
-        engineBuild: "g2-04",
-        contractRevision: "xlsx/1",
-        status: "unavailable",
-        reason: t("office.xlsx.capabilityPending"),
-        fidelityWarnings: [],
-      }}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.numberFormat")} aria-disabled={blocked || !canFormat || undefined} onClick={onNumberFormat} title="0.00">
         <span aria-hidden className="text-caption font-semibold">123</span>
-      </CapabilityButton>
+      </Button>
       <CapabilityButton label={t("office.xlsx.commands.chart")} capability={{
         format: "xlsx",
         operation: "chart",
@@ -130,33 +128,36 @@ export function XlsxToolbar({
       }}>
         <BarChart3 aria-hidden />
       </CapabilityButton>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.copy")} disabled={blocked || noSelection || permissions.canCopy === false} onClick={onCopy}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.copy")} aria-disabled={noSelection || permissions.canCopy === false || undefined} title={permissions.canCopy === false ? t("office.xlsx.clipboardUnavailable") : noSelection ? t("office.xlsx.selection.none") : undefined} onClick={onCopy}>
         <Copy aria-hidden />
       </Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.paste")} disabled={blocked || noSelection || permissions.canPaste === false} onClick={onPaste}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.paste")} aria-disabled={blocked || noSelection || permissions.canPaste === false || undefined} title={blocked ? t("office.xlsx.saveState.readonly") : permissions.canPaste === false ? t("office.xlsx.clipboardUnavailable") : noSelection ? t("office.xlsx.selection.none") : undefined} onClick={onPaste}>
         <Clipboard aria-hidden />
       </Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.recalculate")} disabled={blocked || !canRecalculate} onClick={onRecalculate}>
+      {canRecalculate ? <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.actions.recalculate")} aria-disabled={blocked || undefined} onClick={onRecalculate}>
         <Calculator aria-hidden />
-      </Button>
+      </Button> : null}
       <span className="min-w-0 flex-1 truncate px-2 text-caption text-muted-foreground" data-testid="xlsx-selection">
         {selectionLabel}
       </span>
-      <Button
+      {showSave ? <Button
         type="button"
         variant="brand"
         size="sm"
-        aria-disabled={blocked || !dirty || undefined}
-        disabled={blocked || !dirty}
+        aria-disabled={blocked || saving || !dirty || undefined}
         data-testid="xlsx-save"
         onClick={onSave}
       >
         <Save aria-hidden />
         {saving ? t("office.xlsx.actions.saving") : t("office.xlsx.actions.save")}
-      </Button>
+      </Button> : null}
       <span className="sr-only" role="status" aria-live="polite">
         {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(`office.xlsx.saveState.${state.state}`)}
       </span>
+      {saving ? <>
+        <progress className="w-20" aria-label={t("office.xlsx.actions.saving")} data-testid="xlsx-save-progress" />
+        {onCancelSave ? <Button type="button" variant="toolbar" size="sm" onClick={onCancelSave} data-testid="xlsx-save-cancel">{t("common.cancel")}</Button> : null}
+      </> : null}
     </div>
   );
 }

@@ -4,6 +4,10 @@ import i18n from "i18next";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
+import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+
+installDocxGeometry();
+const fixtureBase64 = Buffer.from(docxSource).toString("base64");
 
 const sessions = vi.hoisted(() => new Map<string, import("./office/session").ByteDocumentSession>());
 vi.mock("./office/session", async (importOriginal) => {
@@ -20,8 +24,8 @@ beforeEach(() => sessions.clear());
  * local-mode test is a network path and fails the test. */
 const LOCAL_CHANNELS = new Set(["desktop:auth-config", "desktop:auth-session", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:draft-checkpoint", "desktop:tabs-update"]);
 
-const checksum = `sha256:${"a".repeat(64)}`;
-const fileMeta = (handle: string, name = "Local.docx", extra: Record<string, unknown> = {}) => ({ handle, name, byteLength: 5, modifiedAtMs: 1_000, checksum, ...extra });
+const checksum = bytesChecksum(docxSource);
+const fileMeta = (handle: string, name = "Local.docx", extra: Record<string, unknown> = {}) => ({ handle, name, byteLength: docxSource.length, modifiedAtMs: 1_000, checksum, ...extra });
 const recent = (id: string, name: string, missing = false, directory = "…\\Docs"): RecentFile => ({ id, name, directory, modifiedAtMs: 1, updatedAt: 2, missing });
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
@@ -43,10 +47,10 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:library-list": return { documents: [], nextCursor: null, engineAvailable: true };
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
-      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: "aGVsbG8=" };
+      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
       case "desktop:tabs-update": return { updated: true };
@@ -75,6 +79,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     channels: () => calls.map((entry) => entry.channel),
     emitSession: (metadata: DesktopSessionMetadata) => act(() => sessionListener?.(metadata)),
     emitFile: (handle: string) => act(() => fileListener?.({ handle })),
+    hasFileListener: () => Boolean(fileListener),
     emitLoginRequest: () => act(() => loginListener?.({ reason: "signed_out" })),
     emitLeave: (reason: "close" | "logout" | "update" = "close") => act(() => leaveListener?.({ requestId: "leave-r5", reason })),
   };
@@ -93,6 +98,7 @@ async function enterLocal(h: ReturnType<typeof harness>) {
  * later Save (or Save As) still sees a matching snapshot. */
 async function edit(id: string) {
   const session = sessions.get(id)!;
+  await session.openEditor();
   let generation = 1;
   const capture = session.editor.captureSnapshot.bind(session.editor);
   vi.spyOn(session.editor, "getDirtyGeneration").mockImplementation(() => generation);
@@ -146,8 +152,10 @@ it("lists recent files, opens one, and removes a missing file from the list", as
 it("opens a .docx from the OS while signed out straight into the local mode", async () => {
   const h = harness();
   await screen.findByText(i18n.t("officeDesktop.login.localNote"));
+  await waitFor(() => expect(h.hasFileListener()).toBe(true));
   h.emitFile(`file_${"a".repeat(32)}`);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
   expect(h.call).toHaveBeenCalledWith("desktop:local-mode", expect.objectContaining({ local: true }));
   expect(h.call).toHaveBeenCalledWith("desktop:file-open", expect.objectContaining({ handle: `file_${"a".repeat(32)}` }));
 });
@@ -166,20 +174,37 @@ it("asks for sign-in on a web deep link and keeps local tabs when the user cance
   expect(h.channels()).not.toContain("desktop:office-open");
 });
 
-it("keeps local tabs when signing in and closes only cloud tabs when signing out", async () => {
+it("keeps an edited local tab mounted through login cancel and success", async () => {
   const h = harness({ localMode: true });
   await enterLocal(h);
-  h.emitFile(`file_${"a".repeat(32)}`);
+  const handle = `file_${"a".repeat(32)}`;
+  await waitFor(() => expect(h.hasFileListener()).toBe(true));
+  h.emitFile(handle);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
+  await edit(handle);
+  const session = sessions.get(handle)!;
+
+  // Cancelling sign-in must reveal the same live editor, not a disposed tab.
+  h.emitLoginRequest();
+  await waitFor(() => expect(h.container.querySelector("[data-login-state='login-required']")).not.toBeNull());
+  expect(session.isDisposed).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") }));
+  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
+  expect(session.isDisposed).toBe(false);
+  expect(screen.getByTestId("docx-document-surface")).toBeInTheDocument();
+
+  // A successful account handoff must preserve the same editor session too.
+  h.emitLoginRequest();
+  await waitFor(() => expect(h.container.querySelector("[data-login-state='login-required']")).not.toBeNull());
   h.emitSession({ status: "signed-in", accountId: "account-1", deploymentId: "lane" });
   await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
-  expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
-  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:file-open")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: new RegExp(`${i18n.t("officeDesktop.tabs.account", { name: "Me" })}`) }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.signOut") }));
-  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:auth-logout", expect.objectContaining({ scope: "device" })));
-  await waitFor(() => expect(h.container.querySelector('[data-local-home="true"]')).not.toBeNull());
-  expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
+  expect(session.isDisposed).toBe(false);
+  expect(screen.getByTestId("docx-document-surface")).toBeInTheDocument();
+  fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
+  const accountDraftReads = h.calls.filter(({ channel, payload }) => channel === "desktop:draft-list" && !Object.prototype.hasOwnProperty.call(payload as object, "documentId"));
+  expect(accountDraftReads.length).toBeGreaterThan(0);
 });
 
 it("keeps the AI entry locked and never calls a cloud channel from it", async () => {
@@ -245,6 +270,8 @@ it("creates a new local document and writes it through Save As", async () => {
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.anything()));
   await screen.findByRole("tab", { name: /Tài liệu mới\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
+  await edit(`file_${"1".repeat(32)}`);
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle: `file_${"1".repeat(32)}` })));
   expect(h.channels()).not.toContain("desktop:file-save");
@@ -293,9 +320,13 @@ it("keeps local tabs on a workspace switch", async () => {
   await screen.findByRole("tab", { name: /Opened\.docx/ });
   h.emitSession({ status: "signed-in", accountId: "account-1", deploymentId: "lane" });
   await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
+  await waitFor(() => expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull());
   fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("officeDesktop.tabs.account", { name: "Me" })) }));
   fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.switchWorkspace") }));
-  await waitFor(() => expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument());
+  await waitFor(() => {
+    expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull();
+    expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();
+  });
 });
 
 it("serves every local-mode flow with a bridge that refuses any cloud channel", async () => {

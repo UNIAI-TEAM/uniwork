@@ -33,14 +33,16 @@ export interface DesktopLeaveCoordinatorOptions {
   /** Delivers the request to the renderer, which shows the ONE leave dialog. */
   readonly send: (request: LeaveRequest) => void;
   /** Main-side evidence checks for each choice. The renderer's `proceeded` is
-   * never trusted alone: a keep must be a durable row main can see, a save must
-   * be a receipt main observed after the request, and a discard must leave no
-   * row for the live document. */
+   * never trusted alone: Keep requires a successful main read of the live
+   * draft state, Save requires a receipt main observed after the request, and
+   * Discard must leave no row for the live document. */
   readonly confirmKeep?: () => Promise<boolean>;
   readonly confirmSave?: (issuedAt: number) => Promise<boolean>;
   readonly confirmDiscard?: () => Promise<boolean>;
   readonly idFactory?: () => string;
   readonly timeoutMs?: number;
+  /** Clears the renderer's matching dialog when main expires its authority. */
+  readonly onTimeout?: (requestId: string) => void;
   readonly now?: () => number;
 }
 
@@ -69,7 +71,10 @@ export function createDesktopLeaveCoordinator(options: DesktopLeaveCoordinatorOp
           resolve(outcome);
         };
         // The deadline covers both the renderer answer and main verification.
-        const timer = setTimeout(() => finish({ requestId, choice: "stay", proceeded: false, code: "timeout" }), options.timeoutMs ?? 30_000);
+        const timer = setTimeout(() => {
+          finish({ requestId, choice: "stay", proceeded: false, code: "timeout" });
+          try { options.onTimeout?.(requestId); } catch { /* Expiry stays fail-closed if the renderer is gone. */ }
+        }, options.timeoutMs ?? 30_000);
         pending = { requestId, settle: (resolution) => {
           void (async () => {
             // `stay` is never a proceed, whatever the renderer claims.

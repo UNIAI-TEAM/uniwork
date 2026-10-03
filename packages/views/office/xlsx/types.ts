@@ -6,6 +6,7 @@ import type {
   SaveCoordinatorState,
   StableSnapshot,
 } from "@uniwork/core/office";
+import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -106,12 +107,21 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   editor: XlsxEditorHandle<TSnapshot>;
   open: XlsxOpenPort;
   coordinator: XlsxSaveCoordinator;
+  /** G3-05c: when the host supplies the render model, the editor mounts the
+   *  vendored genoffice grid instead of the value snapshot table. */
+  rendererHost?: XlsxGridHostPort;
   capability?: XlsxCapability;
   permissions?: XlsxEditorPermissions;
   title?: string;
+  /** The shared host supplies the title, status and Save control. */
+  embedded?: boolean;
   className?: string;
   onOpen?: (outcome: XlsxOpenOutcome) => void;
+  /** Ready is emitted after the grid loads, and error on renderer failure. */
+  onViewStateChange?: (state: XlsxViewState) => void;
   onSelectionChange?: (selection: XlsxSelection | null) => void;
+  /** Bind all host Save entry points to the active grid's edit preparation. */
+  registerSavePreparation?: (prepare: () => Promise<void>) => () => void;
 }
 
 export type XlsxViewState = "opening" | "ready" | "error";

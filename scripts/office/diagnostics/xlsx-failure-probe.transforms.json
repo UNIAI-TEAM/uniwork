@@ -1,0 +1,158 @@
+[
+  {
+    "file": "apps/web/platform/office/xlsx-runtime.test.ts",
+    "ops": [
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticLog, diagnosticError, installDiagnosticCrypto } from \"../../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "append",
+        "text": "\n// VM-only diagnostic hooks; original test callbacks and assertions retained.\nlet restoreDiagnosticCrypto: (() => void) | undefined;\nbeforeEach(() => { (globalThis as any).__xlsxFailureCase = expect.getState().currentTestName; diagnosticLog(\"case.begin\", { name: expect.getState().currentTestName }); restoreDiagnosticCrypto = installDiagnosticCrypto(); });\nafterEach((context) => { for (const error of context.task.result?.errors ?? []) diagnosticError(\"assertion.full\", error); restoreDiagnosticCrypto?.(); diagnosticLog(\"case.end\", { name: expect.getState().currentTestName, state: context.task.result?.state }); });\n"
+      }
+    ],
+    "beforeSha256": "18c6300102d2685dab5145c8aa87cc2a0428d98c3b5fbdbfd3616f577a204bf9",
+    "afterSha256": "fbb7c65a748f0ac143cb836414d94d35e13f39387d1994f7f4c4849eda2d4fbc"
+  },
+  {
+    "file": "apps/web/platform/office/draft-key-provider.test.ts",
+    "ops": [
+      {
+        "kind": "replace",
+        "from": "import { afterEach, describe, expect, it, vi }",
+        "to": "import { afterEach, beforeEach, describe, expect, it, vi }",
+        "count": 1
+      },
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticLog, diagnosticError, installDiagnosticCrypto } from \"../../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "append",
+        "text": "\n// VM-only diagnostic hooks; original test callbacks and assertions retained.\nlet restoreDiagnosticCrypto: (() => void) | undefined;\nbeforeEach(() => { (globalThis as any).__xlsxFailureCase = expect.getState().currentTestName; diagnosticLog(\"case.begin\", { name: expect.getState().currentTestName }); restoreDiagnosticCrypto = installDiagnosticCrypto(); });\nafterEach((context) => { for (const error of context.task.result?.errors ?? []) diagnosticError(\"assertion.full\", error); restoreDiagnosticCrypto?.(); diagnosticLog(\"case.end\", { name: expect.getState().currentTestName, state: context.task.result?.state }); });\n"
+      }
+    ],
+    "beforeSha256": "29de532f1c0ffda8d600a8bde8fe3c7b8f6359a936355e0bab35dedb5f694a1b",
+    "afterSha256": "46ecd0c7f550f5d87b2341abdaa2d8a5b69f50c97ab8b0e624dba3f0a20cb345"
+  },
+  {
+    "file": "apps/web/platform/office/draft-key-provider.ts",
+    "ops": [
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticError } from \"../../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "replace",
+        "from": "      } catch (error) {\n        if (error instanceof DraftRecoveryError)",
+        "to": "      } catch (error) {\n        diagnosticError(\"draft.before-sanitization\", error);\n        if (error instanceof DraftRecoveryError)",
+        "count": 1
+      }
+    ],
+    "beforeSha256": "8d0c98800a167dae42e5c77b1f9a1648480acc58da610e462049f517477e771f",
+    "afterSha256": "26ed11457e942ed7b2f4b2d9549a81002a26d278f3032c03ac6c1a94aaf360b0"
+  },
+  {
+    "file": "packages/core/office/save-coordinator.ts",
+    "ops": [
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticLog, diagnosticError } from \"../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "replace",
+        "from": "        const dispatch = dispatchOfficeError(error);",
+        "to": "        diagnosticError(\"coordinator.before-dispatch\", error);\n        const dispatch = dispatchOfficeError(error);\n        diagnosticLog(\"coordinator.after-dispatch\", dispatch);",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "    publish({ state: dispatch.state, activeIntentId: pendingIntent?.intentId ?? null, error: dispatch });",
+        "to": "    diagnosticLog(\"coordinator.resulting-error\", dispatch);\n    publish({ state: dispatch.state, activeIntentId: pendingIntent?.intentId ?? null, error: dispatch });",
+        "count": 1
+      }
+    ],
+    "beforeSha256": "80a95c3fdf6952b46cdbf84ff6cea41f22e88fef8534ff2c53b18775cf1dbda4",
+    "afterSha256": "c35e224d0865c2a388a7030c650bdb2fdd48bb959076bb814c96f92c19b980c0"
+  },
+  {
+    "file": "apps/office-engine/src/supervisor.ts",
+    "ops": [
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticLog, diagnosticError } from \"../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "replace",
+        "from": "stdio: [\"ignore\", \"ignore\", \"ignore\", \"ipc\"]",
+        "to": "stdio: [\"ignore\", \"ignore\", \"pipe\", \"ipc\"]",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "      this.live.set(child, { tag, uid: job.uid });",
+        "to": "      const diagnosticCase = (globalThis as any).__xlsxFailureCase ?? \"suite-startup\";\n      let diagnosticStderrBytes = 0;\n      diagnosticLog(\"worker.launch\", { entry: job.entry, operation: job.operation, format: job.format, execArgv: [], uid: job.uid, gid: job.gid, environmentIsolated: true });\n      child.stderr?.on(\"data\", (chunk) => { console.error(\"XLSX_DIAGNOSTIC_WORKER_STDERR operation=\" + job.operation + \" case=\" + diagnosticCase); console.error(chunk.toString(\"utf8\")); diagnosticStderrBytes += chunk.length; });\n      child.stderr?.on(\"end\", () => diagnosticLog(\"worker.stderr.end\", { case: diagnosticCase, bytes: diagnosticStderrBytes, truncated: false }));\n      this.live.set(child, { tag, uid: job.uid });",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "        result = next;",
+        "to": "        diagnosticLog(\"worker.terminal\", { kind: next.kind, ...(next.kind === \"crashed\" || next.kind === \"fail\" ? { reason: next.reason } : {}), ...(next.kind === \"fail\" ? { code: next.code } : {}), ...(next.kind === \"limit\" ? { limit: next.limit, usage: next.usage } : {}) });\n        result = next;",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "child.on(\"error\", () => settle({ kind: \"crashed\", reason: \"spawn_failed\" }));",
+        "to": "child.on(\"error\", (error) => { diagnosticError(\"worker.spawn-error\", error); settle({ kind: \"crashed\", reason: \"spawn_failed\" }); });",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "        if (error) settle({ kind: \"crashed\", reason: \"ipc_send_failed\" });",
+        "to": "        if (error) { diagnosticError(\"worker.ipc-error\", error); settle({ kind: \"crashed\", reason: \"ipc_send_failed\" }); }",
+        "count": 1
+      }
+    ],
+    "beforeSha256": "48c366f6e61064091dce64c5df0f747a3645ec183c641560f385feb73a49ab03",
+    "afterSha256": "5d81fe2d91374206c02efd09606d4200b46057cec2b8a0316a81d58d51aaf6eb"
+  },
+  {
+    "file": "apps/office-engine/src/server.test.ts",
+    "ops": [
+      {
+        "kind": "prepend",
+        "text": "import { diagnosticLog, diagnosticError } from \"../../../.go-tmp/xlsx-failure-probe/diagnostic.ts\";\n"
+      },
+      {
+        "kind": "replace",
+        "from": "import { afterAll, beforeAll, describe, expect, it }",
+        "to": "import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it }",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "    expect(res.status).toBe(200);\n    expect(res.body).toMatchObject({ status: \"ready\"",
+        "to": "    diagnosticLog(\"server.readiness\", { status: res.status, body: res.body });\n    expect(res.status).toBe(200);\n    expect(res.body).toMatchObject({ status: \"ready\"",
+        "count": 1
+      },
+      {
+        "kind": "replace",
+        "from": "const done = await waitTerminal(h, job);",
+        "to": "const done = await waitTerminal(h, job);\n    diagnosticLog(\"server.terminal\", { status: done.status, body: { state: done.body.state, error: done.body.error, job_id: done.body.job_id, operation: done.body.operation, format: done.body.format, pin: done.body.pin, started_at: done.body.started_at, finished_at: done.body.finished_at } });",
+        "count": 4
+      },
+      {
+        "kind": "replace",
+        "from": "const done = await waitTerminal(h, { grant: job.grant, token });",
+        "to": "const done = await waitTerminal(h, { grant: job.grant, token });\n    diagnosticLog(\"server.terminal\", { status: done.status, body: { state: done.body.state, error: done.body.error, job_id: done.body.job_id, operation: done.body.operation, format: done.body.format, pin: done.body.pin, started_at: done.body.started_at, finished_at: done.body.finished_at } });",
+        "count": 1
+      },
+      {
+        "kind": "append",
+        "text": "\nbeforeEach(() => { (globalThis as any).__xlsxFailureCase = expect.getState().currentTestName; diagnosticLog(\"case.begin\", { name: expect.getState().currentTestName }); });\nafterEach((context) => { for (const error of context.task.result?.errors ?? []) diagnosticError(\"assertion.full\", error); diagnosticLog(\"case.end\", { name: expect.getState().currentTestName, state: context.task.result?.state }); });\n"
+      }
+    ],
+    "beforeSha256": "8d4c9d842c6ff34ef6ade23f9c7753a631a15b894802e2182865ddf2dc57d5f9",
+    "afterSha256": "6dc4647991bec9c702cb14010beccc22dee12c779dddd39bf671a83bdf96569b"
+  }
+]

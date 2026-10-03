@@ -57,10 +57,10 @@ type OfficeMetrics interface {
 }
 
 // DocumentOfficeOptions wires the service. Documents is the G1-02 gate every
-// office command authorizes through (edit to submit or cancel, view to read
-// a job's status). Engine nil means no engine is deployed: office jobs
-// answer office.ErrNotConfigured and nothing else in Documents depends on
-// the engine.
+// office command authorizes through (view to open or read status, edit to
+// submit other operations or cancel). Engine nil means no engine is deployed:
+// office jobs answer office.ErrNotConfigured and nothing else in Documents
+// depends on the engine.
 type DocumentOfficeOptions struct {
 	Pool              *pgxpool.Pool
 	Queries           *db.Queries
@@ -175,9 +175,9 @@ func officeErr(code, reason string) error { return office.NewEngineError(code, r
 
 // authorize maps an office command onto the document ACL (G1-02): the
 // command's document is authorized through authorizeDocument at the required
-// level - edit to submit or cancel, view to read a job's status. Only human
-// actors reach an office command: agents write through proposals (ADR 0010)
-// and anything else never gets a document.
+// level - view to open or read status, edit for other submissions or cancel.
+// Only human actors reach an office command: agents write through proposals
+// (ADR 0010) and anything else never gets a document.
 func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, documentID string, required DocumentLevel) error {
 	if actor.Kind != audit.KindHuman || actor.ID == "" {
 		return ErrForbidden
@@ -195,6 +195,15 @@ func validOfficeOperation(op office.Operation) bool {
 		return true
 	}
 	return false
+}
+
+// Opening only materializes a read-only model of the authorized base version.
+// Every other operation retains the document edit gate.
+func officeJobRequiredLevel(operation office.Operation) DocumentLevel {
+	if operation == office.OperationOpen {
+		return DocumentLevelView
+	}
+	return DocumentLevelEdit
 }
 
 // StartOfficeJob persists and dispatches one job, or answers the job the same
@@ -215,7 +224,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if err := validateOfficeJobEdits(in.Operation, in.Edits); err != nil {
 		return db.OfficeJob{}, err
 	}
-	if err := s.authorize(ctx, actor, in.DocumentID, DocumentLevelEdit); err != nil {
+	if err := s.authorize(ctx, actor, in.DocumentID, officeJobRequiredLevel(in.Operation)); err != nil {
 		return db.OfficeJob{}, err
 	}
 	// A retried key is answered from its row before anything about the
@@ -633,7 +642,7 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 }
 
 // OpenOfficeJobOutput opens the staged bytes of a completed office job for
-// the document owner/editor.  The output remains a FileService object and is
+// an authorized document viewer. The output remains a FileService object and is
 // never committed by this read; the normal Documents coordinator still owns
 // upload+commit.  Keeping this read behind the document ACL prevents a job's
 // output_file_id from becoming a bearer capability.

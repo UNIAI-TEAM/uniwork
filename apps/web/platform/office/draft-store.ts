@@ -41,6 +41,8 @@ export interface EncryptedCheckpointRequest extends DraftCheckpointRequest {
 
 export interface IndexedDbDraftStore extends DraftRecoveryAdapter {
   checkpointEncrypted(request: EncryptedCheckpointRequest): Promise<CheckpointResult>;
+  /** Replace the previous base's checkpoint only after writing the new one. */
+  rebaseEncrypted(request: EncryptedCheckpointRequest, previousIdentity: DraftIdentity): Promise<CheckpointResult>;
   recoverEncrypted(request: DraftRecoveryRequest): Promise<(Extract<RecoveryResult, { status: "recovered" }> & { readonly wrappedKey: Uint8Array }) | RecoveryResult>;
   /** Schedule a two-second checkpoint only after the caller says the snapshot is stable. */
   scheduleCheckpoint(request: EncryptedCheckpointRequest, stable: boolean): void;
@@ -83,6 +85,16 @@ export class BrowserDraftStore implements IndexedDbDraftStore {
   async checkpointEncrypted({ session, snapshot, wrappedKey }: EncryptedCheckpointRequest): Promise<CheckpointResult> {
     if (wrappedKey.byteLength === 0) throw new DraftRecoveryError("invalid_snapshot", "wrapped draft key must not be empty");
     return this.writeCheckpoint(session, snapshot, wrappedKey);
+  }
+
+  async rebaseEncrypted(request: EncryptedCheckpointRequest, previousIdentity: DraftIdentity): Promise<CheckpointResult> {
+    const { base: _previousBase, ...previousScope } = previousIdentity;
+    const { base: _nextBase, ...nextScope } = request.snapshot.identity;
+    if (Object.keys(previousScope).some((key) => previousScope[key as keyof typeof previousScope] !== nextScope[key as keyof typeof nextScope])) {
+      throw new DraftRecoveryError("forbidden", "draft rebase must keep the document scope");
+    }
+    if (request.wrappedKey.byteLength === 0) throw new DraftRecoveryError("invalid_snapshot", "wrapped draft key must not be empty");
+    return this.writeCheckpoint(request.session, request.snapshot, request.wrappedKey, previousIdentity);
   }
 
   async list({ session, lookup }: DraftListRequest): Promise<readonly DraftMetadata[]> {
@@ -195,7 +207,7 @@ export class BrowserDraftStore implements IndexedDbDraftStore {
     return () => this.cleanups.delete(cleanup);
   }
 
-  private async writeCheckpoint(session: DraftSession, snapshot: DraftSnapshot, wrappedKey?: Uint8Array): Promise<CheckpointResult> {
+  private async writeCheckpoint(session: DraftSession, snapshot: DraftSnapshot, wrappedKey?: Uint8Array, previousIdentity?: DraftIdentity): Promise<CheckpointResult> {
     this.assertSession(session);
     if (this.locked) throw new DraftRecoveryError("draft_recovery_locked", "draft store is locked");
     if (this.failCheckpoint) {
@@ -217,6 +229,11 @@ export class BrowserDraftStore implements IndexedDbDraftStore {
     const db = await this.openDatabase();
     let result: CheckpointResult | undefined;
     await requestTransaction(db, "readwrite", async (store, finish) => {
+      const previousKey = previousIdentity ? draftRecordKey(previousIdentity, snapshot.draftId) : record.storageKey;
+      if (previousKey !== record.storageKey) {
+        const old = await request<DurableDraftRecord | undefined>(store.get(previousKey));
+        if (old && old.generation > record.generation) throw new DraftRecoveryError("generation_conflict", "a newer draft cannot be rebased backwards");
+      }
       const previous = (await request<DurableDraftRecord | undefined>(store.get(record.storageKey))) ?? undefined;
       if (previous && previous.generation > record.generation) throw new DraftRecoveryError("generation_conflict", "draft generation moved backwards");
       if (previous && previous.generation === record.generation) {
@@ -226,6 +243,7 @@ export class BrowserDraftStore implements IndexedDbDraftStore {
         return;
       }
       store.put(record);
+      if (previousKey !== record.storageKey) store.delete(previousKey);
       result = { status: "stored", metadata };
       finish();
     });

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 // The concrete DocxEditorHandle: a headless TipTap Editor instance (no DOM
-// until renderSurface() mounts it — see the ordering note below) bound to
+// until renderSurface() mounts it â€” see the ordering note below) bound to
 // the G2 DocxAdapter. Host-agnostic: the only `document` use is the vendored
 // renderer stylesheet mount and the host theme class, both of which any DOM
 // host supplies (desktop's Electron renderer is a DOM host too).
@@ -27,7 +27,7 @@ import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
-// B1 (UNI-924): the image layer rides inside the editing surface — the insert
+// B1 (UNI-924): the image layer rides inside the editing surface â€” the insert
 // entry and the inspector for the selected picture.
 import { DocxImageLayer } from "./image/docx-image-layer";
 import type { DocxEditorHandle, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
@@ -71,10 +71,17 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
       { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
       createElement(
         "div",
-        { className: dark ? "workspace page-dark" : "workspace" },
+        { className: dark ? "workspace min-w-0 page-dark" : "workspace min-w-0" },
         createElement(
           "div",
-          { className: "editor-scroll min-h-0 min-w-0 flex-1", "data-testid": "docx-document-surface" },
+          {
+            className: "editor-scroll min-h-0 min-w-0 flex-1",
+            "data-testid": "docx-document-surface",
+            // Keep the scrolling contents opaque so Chromium can use LCD text
+            // antialiasing on the paper gutter. `--canvas` is supplied by the
+            // upstream light/dark renderer theme in both modes.
+            style: { backgroundColor: "var(--canvas)", backgroundAttachment: "local" },
+          },
           createElement(
             "div",
             { className: "doc-zoom view-print" },
@@ -95,7 +102,7 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
         ),
       ),
     ),
-    // B1 (UNI-924): sibling of the scope root on purpose — the vendored
+    // B1 (UNI-924): sibling of the scope root on purpose â€” the vendored
     // renderer sheet is scoped to .docx-surface and must not restyle chrome.
     createElement(DocxImageLayer, { editor, readOnly }),
   );
@@ -104,7 +111,7 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
 export interface DocxTiptapSnapshot {
   doc: JSONContent;
   sourceBase64: string;
-  /** The authoritative comment list at capture (B2) — present only when it
+  /** The authoritative comment list at capture (B2) â€” present only when it
    * differs from the open base parse's own list (F3): serializeSnapshot then
    * applies it as a set_comments op before the block plan, while an unchanged
    * list omits the option so word/comments.xml keeps its exact bytes. */
@@ -168,7 +175,7 @@ async function fingerprintOf(value: unknown): Promise<string> {
 
 /** F3: the comment list needs the part rewritten exactly when it differs from
  * the base parse's own list (the bytes every save replays onto). Compared over
- * the save-relevant fields, in list order — the regenerated part's order. */
+ * the save-relevant fields, in list order â€” the regenerated part's order. */
 function commentsEdited(current: DocxCommentInfo[], base: DocxCommentInfo[]): boolean {
   return JSON.stringify(current) !== JSON.stringify(base);
 }
@@ -252,8 +259,8 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // vendored sheet keys the paper and its document rules on that class.
         editorProps: { attributes: { class: "doc-page", ...(docLang ? { lang: docLang } : {}) } },
         onTransaction: ({ transaction }) => {
-          // B2 fix (F1): comment mutations are list edits. Resolve/reopen — and
-          // a delete whose anchors are already gone — leave the document
+          // B2 fix (F1): comment mutations are list edits. Resolve/reopen â€” and
+          // a delete whose anchors are already gone â€” leave the document
           // untouched (the controller dispatches an empty transaction), so the
           // docChanged gate alone would leave them invisible to the save
           // coordinator and the save would refuse as `clean`. The comments
@@ -262,7 +269,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
           const commentsRevision = commandRuntime.docxCommentsRevision();
           const commentsChanged = commentsRevision !== lastCommentsRevision;
           lastCommentsRevision = commentsRevision;
-          // B3 fix (F1): the same fold for the notes lists — a note-text-only
+          // B3 fix (F1): the same fold for the notes lists â€” a note-text-only
           // edit or a delete whose markers are already gone is a list edit.
           const notesRevision = commandRuntime.docxNotesRevision();
           const notesChanged = notesRevision !== lastNotesRevision;
@@ -286,7 +293,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.seedDocxPageSetup(parsed);
       // B6: the page-decoration dialog's read state, from the same parse.
       commandRuntime.seedDocxPageDecor(parsed);
-      // C3: the protect panel's state — the document's own restriction and
+      // C3: the protect panel's state â€” the document's own restriction and
       // password-to-modify tags, from the same parse.
       commandRuntime.seedDocxProtection(parsed);
       commandRuntime.emitState();
@@ -357,13 +364,13 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // B4: page setup is not part of the doc plan; replay the pending
         // per-section edits onto the same save session after the block plan.
         commandRuntime.applyDocxPageSetupEdits(options.adapter, saveRef);
-        // B5: same for the numbering part — the new definitions/restart nums
+        // B5: same for the numbering part â€” the new definitions/restart nums
         // the block plan's list items point at.
         commandRuntime.applyDocxNumberingEdits(options.adapter, saveRef);
-        // B6: page decoration — colour/watermark/theme ride SaveOptions, the
+        // B6: page decoration â€” colour/watermark/theme ride SaveOptions, the
         // border boxes rewrite their sections' sectPr slices.
         commandRuntime.applyDocxPageDecorEdits(options.adapter, saveRef);
-        // C3: the protection edit — set_protection / set_write_protection
+        // C3: the protection edit â€” set_protection / set_write_protection
         // rewrite word/settings.xml on the same save session.
         commandRuntime.applyDocxProtectionEdit(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
@@ -381,7 +388,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         snapshot.value.comments ?? options.adapter.parsedOf(ref).comments ?? [],
       );
       // A draft captured before the notes field restores the open parse's own
-      // lists (its base is the same source bytes — asserted above).
+      // lists (its base is the same source bytes â€” asserted above).
       const notes = snapshot.value.notes;
       if (notes) commandRuntime.restoreDocxNotes(notes);
       else {

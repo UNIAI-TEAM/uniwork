@@ -121,6 +121,37 @@ test("real-engine edit, reload, and recovery is deferred to 0Xb", async () => {
   test.skip(true, "0Xb owns the real-engine edit -> reload -> recovery path; 03b covers the unbound shell and browser chrome.");
 });
 
+test("keeps bound Office header actions reachable at 390px without nested scrolling", async ({ page }) => {
+  test.skip(!process.env.OFFICE_HEADER_DOCUMENT_URL, "Supply an authenticated bound Office editor to verify real header actions.");
+  if (process.env.OFFICE_HEADER_STORAGE_STATE) {
+    const state = JSON.parse(readFileSync(process.env.OFFICE_HEADER_STORAGE_STATE, "utf8")) as { cookies: Parameters<ReturnType<typeof page.context>["addCookies"]>[0]; origins: { origin: string; localStorage: { name: string; value: string }[] }[] };
+    await page.context().addCookies(state.cookies);
+    await page.addInitScript((origins) => {
+      for (const origin of origins) if (origin.origin === location.origin) {
+        for (const item of origin.localStorage) localStorage.setItem(item.name, item.value);
+      }
+    }, state.origins ?? []);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(process.env.OFFICE_HEADER_DOCUMENT_URL!);
+  const shell = page.locator("[data-office-shell]");
+  const header = shell.locator(":scope > header");
+  await expect(header.locator("button").first()).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    await page.evaluate(mode => document.documentElement.classList.toggle("dark", mode === "dark"), theme);
+    const layout = await header.evaluate(element => ({
+      actionBounds: [...element.querySelectorAll("button")].map(button => ({ left: button.getBoundingClientRect().left, right: button.getBoundingClientRect().right })),
+      scrollers: [...element.querySelectorAll("div")].filter(div => ["auto", "scroll"].includes(getComputedStyle(div).overflowX)).length,
+      followingBandEmpty: element.nextElementSibling?.textContent?.trim() === "",
+    }));
+    expect(layout.actionBounds.length).toBeGreaterThan(0);
+    for (const bounds of layout.actionBounds) { expect(bounds.left).toBeGreaterThanOrEqual(0); expect(bounds.right).toBeLessThanOrEqual(390); }
+    expect(layout.scrollers).toBe(0);
+    expect(layout.followingBandEmpty).toBe(false);
+    await shell.screenshot({ path: test.info().outputPath(`office-header-390-${theme}.png`) });
+  }
+});
+
 for (const width of viewports) {
   test(`holds the shell at ${width}px in both themes`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });

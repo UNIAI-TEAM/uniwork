@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeHost } from "@uniwork/core/office";
 import { EditorSlot } from "../editor-slot";
@@ -95,6 +96,34 @@ function renderEditor(outcome: XlsxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("XlsxEditor", () => {
+  it("opens replacement ports for the same document and releases the previous handle", async () => {
+    const previous = editor();
+    const previousCoordinator = coordinator({ cancel: vi.fn(async () => undefined) });
+    const { view } = renderEditor(opened(), { editor: previous, coordinator: previousCoordinator });
+    await screen.findByTestId("xlsx-workbook-surface");
+    const initialSnapshot = workbook();
+    const replacementSnapshot = { ...initialSnapshot, sheets: initialSnapshot.sheets.map((sheet, index) => index === 0 ? { ...sheet, cells: { ...sheet.cells, A1: { value: "replacement" } } } : sheet) };
+    const replacement = editor({ getWorkbookSnapshot: () => replacementSnapshot });
+    const replacementOpen = vi.fn(async () => ({ ...opened(), snapshot: replacementSnapshot }));
+    view.rerender(<XlsxEditor documentKey="doc-v1" editor={replacement} open={{ open: replacementOpen }} coordinator={coordinator()} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-cell-Data-A1")).toHaveTextContent("replacement"));
+    expect(replacementOpen).toHaveBeenCalledOnce();
+    expect(replacement.open).toHaveBeenCalledOnce();
+    expect(previous.dispose).toHaveBeenCalledOnce();
+    expect(previousCoordinator.cancel).toHaveBeenCalledOnce();
+  });
+  it("survives StrictMode effect replay and releases the session on real unmount", async () => {
+    let disposed = false;
+    const handle = editor({
+      dispose: vi.fn(() => { disposed = true; }),
+      open: vi.fn(async () => { if (disposed) throw new Error("xlsx_editor_disposed"); }),
+    });
+    const view = render(<StrictMode><XlsxEditor documentKey="doc" editor={handle} open={{ open: async () => opened() }} coordinator={coordinator()} /></StrictMode>);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(handle.dispose).not.toHaveBeenCalled();
+    view.unmount();
+    await waitFor(() => expect(handle.dispose).toHaveBeenCalledTimes(1));
+  });
   it("mounts the host handle, renders sheets/formula identity, and routes Save through the coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const { handle, saveCoordinator } = renderEditor(opened(), { coordinator: coordinator({ save }) });
@@ -257,10 +286,20 @@ describe("XlsxEditor", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("keeps renderer internals out of the translated accessible error", async () => {
+    renderEditor({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: "engine_error", message: "[redi]: Expect 1 dependency item(s)", engine_error: "SheetInterceptorService" });
+    await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());
+    const alert = screen.getByRole("alert");
+    expect(alert).not.toHaveTextContent("redi");
+    expect(alert).not.toHaveTextContent("engine_error");
+    expect(alert).not.toHaveTextContent("SheetInterceptorService");
+    expect(screen.getByRole("heading", { level: 2 })).toBeInTheDocument();
+  });
+
   it.each([
     ["not_office_file", "Tệp đã chọn"],
     ["corrupted", "Gói sổ tính"],
-    ["unsupported_feature", "Engine hiện tại"],
+    ["unsupported_feature", "Tính năng XLSX"],
   ])("renders a typed %s error without a blank grid or Save", async (failureClass, message) => {
     renderEditor({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: failureClass, message });
     await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());
@@ -287,7 +326,7 @@ describe("XlsxEditor", () => {
     const { view } = renderEditor(opened(), { open, editor: handle });
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     view.unmount();
-    expect(handle.cancel).toHaveBeenCalledWith("document_changed");
+    await waitFor(() => expect(handle.cancel).toHaveBeenCalledWith("document_changed"));
     expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(resolveOpen).toBeDefined();
   });

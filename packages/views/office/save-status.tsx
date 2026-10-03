@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { TriangleAlert } from "lucide-react";
 import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -26,6 +27,8 @@ export interface SaveStatusProps {
   correlationId?: string | null;
   onAction?: () => void;
   className?: string;
+  /** Keep destructive status chrome compact when it is rendered in header actions. */
+  compact?: boolean;
 }
 
 const COORDINATOR_STATUS: Record<OfficeState, OfficeSaveStatusKind> = {
@@ -75,6 +78,7 @@ export function SaveStatus({
   correlationId,
   onAction,
   className,
+  compact = false,
 }: SaveStatusProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.save" });
   const normalized = normalizeStatus(status, coordinatorState, destination);
@@ -82,18 +86,41 @@ export function SaveStatus({
   const resolvedCorrelation = correlationId ?? errorCorrelation;
   const action = actionKey(normalized);
   const alertRef = useRef<HTMLDivElement>(null);
+  const descriptionId = useId();
   useEffect(() => {
     if (normalized === "permission" || normalized === "conflict" || normalized === "error") alertRef.current?.focus();
   }, [normalized]);
 
   const title = t(`status.${normalized}`);
   const body = t(`description.${normalized}`);
-  const element = normalized === "permission" || normalized === "conflict" || normalized === "error" ? (
+  const destructive = normalized === "permission" || normalized === "conflict" || normalized === "error";
+  const element = destructive && compact ? (
+    <div
+      ref={alertRef}
+      tabIndex={-1}
+      aria-describedby={descriptionId}
+      title={body}
+      className={cn("flex min-w-0 max-w-full items-center gap-1 text-caption text-destructive", className)}
+      data-testid={`office-save-${normalized}-compact`}
+    >
+      <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{title}</span>
+      <span id={descriptionId} className="sr-only">
+        {body}
+        {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
+      </span>
+      {action && onAction ? (
+        <Button size="xs" variant="ghost" className="shrink-0 text-destructive" onClick={onAction}>
+          {t(`action.${action}`)}
+        </Button>
+      ) : null}
+    </div>
+  ) : destructive ? (
     <Alert
       ref={alertRef}
       tabIndex={-1}
       variant="destructive"
-      className={cn("max-w-full", className)}
+      className={cn("min-w-0 max-w-full break-words", className)}
       data-testid={`office-save-${normalized}`}
     >
       <AlertTitle>{title}</AlertTitle>
