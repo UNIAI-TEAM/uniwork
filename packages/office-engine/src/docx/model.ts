@@ -9,7 +9,7 @@
 // editableIndexes = visible paragraphs, hidden blocks appended automatically
 // by saveDocx.
 import {
-  DocxEngineError,
+  DocxEngineError, requireDocxNewChart,
   type DocxBlock,
   type DocxCommentInfo,
   type DocxGeneratedBlock,
@@ -239,6 +239,7 @@ export class DocxSessionModel {
   }
 
   insertChart(index: number, chart: DocxNewChart, extentPx?: { w: number; h: number }): void {
+    requireDocxNewChart(chart, extentPx);
     this.insertAt(index, { source: "chart", chart, ...(extentPx ? { extentPx } : {}) });
   }
 
