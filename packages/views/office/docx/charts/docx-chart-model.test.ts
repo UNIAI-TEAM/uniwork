@@ -15,9 +15,14 @@ import {
   normalizeDocxChartDraft,
   parseDocxChartNumber,
   type DocxChartDraft,
+  type DocxChartTableCell,
 } from "./docx-chart-model";
 
 const table = (texts: string[][]) => ({ rows: texts.map((row) => row.map((text) => ({ paras: [text] }))) });
+
+const cell = (text: string, extra: Partial<DocxChartTableCell> = {}): DocxChartTableCell => ({ paras: [text], ...extra });
+
+const grid = (rows: DocxChartTableCell[][]) => ({ rows });
 
 const DRAFT: DocxChartDraft = {
   kind: "bar",
@@ -72,6 +77,64 @@ describe("chartDataFromTable", () => {
     expect(chartDataFromTable({ rows: [] })).toBeNull();
     expect(chartDataFromTable(table([["only header"]]))).toBeNull();
     expect(chartDataFromTable(table([["", "S"]]))).toBeNull();
+  });
+
+  it("pairs names and values by grid column when a header cell spans columns", () => {
+    const rows = [
+      [cell(""), cell("Bắc", { colSpan: 2 }), cell("Nam")],
+      [cell("Q1"), cell("1"), cell("2"), cell("3")],
+      [cell("Q2"), cell("4"), cell("5"), cell("6")],
+    ];
+    expect(chartDataFromTable(grid(rows))).toEqual({
+      categories: ["Q1", "Q2"],
+      series: [
+        { name: "Bắc", values: [1, 4] },
+        { name: "Bắc", values: [2, 5] },
+        { name: "Nam", values: [3, 6] },
+      ],
+    });
+  });
+
+  it("repeats a spanning body cell across the columns it covers", () => {
+    const rows = [
+      [cell(""), cell("Q1"), cell("Q2")],
+      [cell("Tổng"), cell("30", { colSpan: 2 })],
+    ];
+    expect(chartDataFromTable(grid(rows))).toEqual({
+      categories: ["Tổng"],
+      series: [
+        { name: "Q1", values: [30] },
+        { name: "Q2", values: [30] },
+      ],
+    });
+  });
+
+  it("keeps gridBefore/gridAfter pads from shifting categories or values", () => {
+    const pad: DocxChartTableCell = { paras: [], gridGap: true };
+    const rows = [
+      [pad, cell(""), cell("S"), cell("T")],
+      [pad, cell("Q1"), cell("1"), cell("2")],
+      [pad, cell("Q2"), cell("3"), cell("4")],
+    ];
+    expect(chartDataFromTable(grid(rows))).toEqual({
+      categories: ["Q1", "Q2"],
+      series: [
+        { name: "S", values: [1, 3] },
+        { name: "T", values: [2, 4] },
+      ],
+    });
+  });
+
+  it("reads a vMerge continuation as merged away, not as its own content", () => {
+    const rows = [
+      [cell(""), cell("S")],
+      [cell("2024", { vMerge: "restart" }), cell("10")],
+      [cell("2025", { vMerge: "continue" }), cell("20")],
+    ];
+    expect(chartDataFromTable(grid(rows))).toEqual({
+      categories: ["2024", ""],
+      series: [{ name: "S", values: [10, 20] }],
+    });
   });
 });
 

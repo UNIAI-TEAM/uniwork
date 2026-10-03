@@ -43,9 +43,23 @@ export interface DocxChartDisplay {
   heightPx: number;
 }
 
+/** One parsed table cell (vendored TableCell subset): `paras` is the text,
+ * `colSpan`/`gridGap`/`vMerge` decide which grid column it occupies and
+ * whether it carries content. `hMerge` never reaches the model — the vendored
+ * parse folds its continuations into the cell to their left (parse.ts:4681). */
+export interface DocxChartTableCell {
+  paras?: string[];
+  /** w:gridSpan: one array entry covering this many grid columns. */
+  colSpan?: number;
+  /** w:gridBefore/w:gridAfter placeholder: occupies columns, has no cell. */
+  gridGap?: boolean;
+  /** 'continue' is merged away: the content belongs to the restart cell above. */
+  vMerge?: "restart" | "continue";
+}
+
 /** The parsed table shape this flow reads (vendored TableModel subset). */
 export interface DocxChartTableModel {
-  rows: Array<Array<{ paras?: string[] }>>;
+  rows: Array<Array<DocxChartTableCell>>;
 }
 
 export interface DocxChartTableData {
@@ -79,25 +93,56 @@ export function formatDocxChartValue(value: number | null): string {
   return value === null ? "" : String(value);
 }
 
-function cellText(cell: { paras?: string[] } | undefined): string {
-  return (cell?.paras ?? []).join(" ").trim();
+function cellText(cell: DocxChartTableCell | undefined): string {
+  // A merged-away cell has no content of its own even when a producer left
+  // text in it: Word renders the restart cell above.
+  if (!cell || cell.vMerge === "continue") return "";
+  return (cell.paras ?? []).join(" ").trim();
+}
+
+/** Lay a parsed row over the table grid: index = grid column, undefined = a
+ * w:gridBefore/w:gridAfter pad. A colSpan cell repeats across the columns it
+ * spans (one array entry covers several grid columns), so names and values
+ * below are read by grid column and stay paired even in merged tables. */
+function gridRow(cells: DocxChartTableCell[] | undefined): Array<DocxChartTableCell | undefined> {
+  const grid: Array<DocxChartTableCell | undefined> = [];
+  for (const cell of cells ?? []) {
+    const span = Number.isInteger(cell.colSpan) && (cell.colSpan ?? 1) > 1 ? (cell.colSpan as number) : 1;
+    for (let i = 0; i < span; i += 1) grid.push(cell.gridGap ? undefined : cell);
+  }
+  return grid;
+}
+
+/** First grid column the body actually fills: a leading gridGap pad is not
+ * the category column. */
+function firstContentColumn(body: Array<Array<DocxChartTableCell | undefined>>): number {
+  const columns = Math.max(0, ...body.map((row) => row.length));
+  for (let column = 0; column < columns; column += 1) {
+    if (body.some((row) => row[column] !== undefined)) return column;
+  }
+  return 0;
 }
 
 /** Read a parsed table as chart data (Word/Excel layout): the first row names
- * the series, the first column labels the categories, every other cell is a
- * value. Null when the table is missing or has fewer than two rows/columns —
- * nothing to plot. */
+ * the series, the first content column labels the categories, every other
+ * grid column holding a cell is a value. Null when the table is missing or
+ * has fewer than two rows/columns — nothing to plot. */
 export function chartDataFromTable(table: DocxChartTableModel | null | undefined): DocxChartTableData | null {
-  const rows = Array.isArray(table?.rows) ? table.rows : [];
-  const columns = rows[0]?.length ?? 0;
-  if (rows.length < 2 || columns < 2) return null;
+  const rows = Array.isArray(table?.rows) ? table.rows.map(gridRow) : [];
+  if (rows.length < 2) return null;
   const body = rows.slice(1);
-  const series = rows[0]!.slice(1).map((header, column) => ({
-    name: cellText(header),
-    values: body.map((row) => parseDocxChartNumber(cellText(row[column + 1]))),
+  const categoryColumn = firstContentColumn(body);
+  const columns = Math.max(0, ...rows.map((row) => row.length));
+  const seriesColumns: number[] = [];
+  for (let column = categoryColumn + 1; column < columns; column += 1) {
+    if (rows.some((row) => row[column] !== undefined)) seriesColumns.push(column);
+  }
+  const series = seriesColumns.map((column) => ({
+    name: cellText(rows[0]![column]),
+    values: body.map((row) => parseDocxChartNumber(cellText(row[column]))),
   }));
   if (series.length === 0) return null;
-  return { categories: body.map((row) => cellText(row[0])), series };
+  return { categories: body.map((row) => cellText(row[categoryColumn])), series };
 }
 
 /** Blank series names become visible defaults; everything else is kept. */
