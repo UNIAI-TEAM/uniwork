@@ -93,6 +93,24 @@ it("recovers edit B after ordinary local Save A against the newly saved file bas
   } finally { first.session.dispose(); reopened?.session.dispose(); }
 });
 
+it("consumes the recovered local draft after its confirmed Save", async () => {
+  const harness = await localHarness();
+  const first = await harness.open();
+  let reopened: Awaited<ReturnType<typeof harness.open>> | undefined;
+  try {
+    first.session.editor.commands!.setHeading(2);
+    expect(await first.session.keepDraft()).toBe(true);
+    first.session.dispose();
+    reopened = await harness.open();
+    const offered = await reopened.session.listDrafts();
+    expect(offered).toMatchObject({ status: "found", conflict: false });
+    if (offered.status !== "found") throw new Error("Recovered local draft missing");
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(await reopened.session.coordinator.save()).toMatchObject({ accepted: true });
+    expect(await reopened.session.listDrafts()).toEqual({ status: "none" });
+  } finally { first.session.dispose(); reopened?.session.dispose(); }
+});
+
 it("retains a confirmed Save when context refresh fails and retries before a later checkpoint", async () => {
   const harness = await localHarness();
   const first = await harness.open();

@@ -63,6 +63,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
    * exact row generation instead of guessing one. */
   const durableRows = new Map<string, number>();
   const checkpointRows = new Map<string, { dirtyGeneration: number; durableGeneration: number }>();
+  // Recovery itself does not create a new checkpoint row. Keep the recovered
+  // row's identity so a confirmed Save can consume it even when the normal
+  // discard callback was unable to observe it during the coordinator settle.
+  let recoveredRow: { draftId: string; generation: number } | undefined;
 
   const listRows = async (): Promise<readonly DesktopDraftMetadata[] | null> => {
     try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION })).drafts; }
@@ -92,6 +96,24 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       durableRows.delete(draftId);
       return true;
     } catch { return false; }
+  };
+  const consumeRecoveredRow = async (savedGeneration: number): Promise<void> => {
+    const recovered = recoveredRow;
+    if (!recovered) return;
+    const written = checkpointRows.get(recovered.draftId);
+    // A checkpoint newer than the confirmed snapshot belongs to N+1 and must
+    // survive this Save for a later recovery.
+    if (written && written.dirtyGeneration > savedGeneration) {
+      recoveredRow = undefined;
+      return;
+    }
+    const row = (await listRows())?.find((candidate) => candidate.draftId === recovered.draftId);
+    const generation = row?.generation ?? durableRows.get(recovered.draftId) ?? recovered.generation;
+    if (await discardRow(recovered.draftId, generation)) {
+      recoveredRow = undefined;
+      checkpointRows.delete(recovered.draftId);
+      checkpoint = null;
+    }
   };
 
   const editor: DocxEditorHandle<Uint8Array> = {
@@ -161,8 +183,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       const generation = row?.generation ?? known;
       if (generation === undefined) return;
       if (written && generation !== written.durableGeneration) return;
-      await discardRow(targetId, generation);
-      checkpoint = null;
+      const discarded = await discardRow(targetId, generation);
+      if (discarded) {
+        checkpoint = null;
+        if (recoveredRow?.draftId === targetId) recoveredRow = undefined;
+      }
     },
     persistIntent: async (intent) => { pendingIntent = intent; },
     loadIntent: async () => pendingIntent,
@@ -252,6 +277,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (contextError) await bindDraftContext();
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
+        await consumeRecoveredRow(rawCoordinator.getState().lastSavedGeneration);
         const output = outputs.get(result.intentId);
         if (output?.rebound) {
           // Re-open only the new opaque handle to update main's local draft
@@ -319,7 +345,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     async discardDraft(metadata?: DesktopDraftMetadata): Promise<boolean> {
       checkpoint = null;
       const targetId = metadata?.draftId ?? draftIdFor(currentIdentity());
-      if (metadata) return discardRow(metadata.draftId, metadata.generation);
+      if (metadata) {
+        const discarded = await discardRow(metadata.draftId, metadata.generation);
+        if (discarded && recoveredRow?.draftId === metadata.draftId) recoveredRow = undefined;
+        return discarded;
+      }
       const known = durableRows.get(targetId);
       const row = (await listRows())?.find((candidate) => candidate.draftId === targetId);
       if (!row) return known === undefined;
@@ -342,6 +372,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
         await previous?.dispose();
         generationFloor = Math.max(generationFloor, result.metadata.generation);
         durableRows.set(result.metadata.draftId, result.metadata.generation);
+        recoveredRow = { draftId: result.metadata.draftId, generation: result.metadata.generation };
         checkpoint = null;
         coordinator.markDirty(generation);
         return true;
