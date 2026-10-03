@@ -10,5 +10,6 @@ export { renderImagePng, renderPageRegionPng, verifyImageEdits } from "./render.
 export { validateTextEdits } from "./text.ts";
 export { addMarkup } from "./markups.ts";
 export { addDrawing } from "./drawings.ts";
+export { addNote } from "./notes.ts";
 export { listPageImages } from "./image.ts";
 export { decodeImageToBgra, encodeBgraToPng, type DecodedImage } from "./codec.ts";

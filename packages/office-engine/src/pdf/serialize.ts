@@ -1,22 +1,25 @@
 // The save pipeline — ported from office-upstream apps/pdf/src/main/save-pdf.ts
 // (applySaveRequest + verifyContentEdits + finalPageIndex + applyMetadata),
 // trimmed to the G2-05 scope: annot deletes, text edits/inserts, image ops,
-// page rotation/deletion/reorder, metadata. Markup, drawing and ink annotations
-// are kept separate from content streams; note/form authoring remains outside
-// this lane.
+// page rotation/deletion/reorder, metadata. Markup, drawing, ink and note
+// annotations are kept separate from content streams; form authoring remains
+// outside this lane.
 //
 // Ordering contract (upstream, kept exactly):
 //   1. annotDeletes first — their object numbers address the on-disk bytes and
 //      later pdfium rewrites may renumber objects.
 //   2. Content-stream rewrites (textEdits, textInserts, imageEdits) land before
 //      pdf-lib touches the bytes.
-//   3. pdf-lib stage: rotations, metadata, annotations (markup/drawing/ink),
-//      then deletions (descending), then
-//      reorder — earlier ops all address original page indices.
+//   3. pdf-lib stage: rotations, metadata, annotations (markup/drawing/ink,
+//      then notes, then saved-note edits/resolves — note edits run after the
+//      note stage so same-request replies still match parents by old contents),
+//      then deletions (descending), then reorder — earlier ops all address
+//      original page indices.
 //   4. Read-back verification against the final bytes BEFORE the caller sees
 //      them: a verify failure means the output is thrown away and the original
 //      bytes are never replaced.
 import { PDFDocument, PDFName, degrees } from "pdf-lib";
+import type { PDFRef } from "pdf-lib";
 
 import type {
   ImageEditFailure,
@@ -32,6 +35,7 @@ import { applyTextEdits, verifyTextEdits } from "./text.ts";
 import { applyTextInserts } from "./text-insert.ts";
 import { addMarkup } from "./markups.ts";
 import { addDrawing } from "./drawings.ts";
+import { addNote, editNote, resolveNote } from "./notes.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -41,6 +45,9 @@ export interface PdfEditSkips {
   skippedAnnotDeletes: { pageIndex: number; reason: string }[];
   skippedMarkups: { pageIndex: number; reason: string }[];
   skippedDrawings: { pageIndex: number; reason: string }[];
+  skippedNotes: { pageIndex: number; reason: string }[];
+  skippedNoteEdits: { pageIndex: number; reason: string }[];
+  skippedNoteResolves: { pageIndex: number; reason: string }[];
 }
 
 export interface AppliedPdfEdit {
@@ -153,6 +160,9 @@ export async function applyPdfEdits(
   let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
   const skippedMarkups: { pageIndex: number; reason: string }[] = [];
   const skippedDrawings: { pageIndex: number; reason: string }[] = [];
+  const skippedNotes: { pageIndex: number; reason: string }[] = [];
+  const skippedNoteEdits: { pageIndex: number; reason: string }[] = [];
+  const skippedNoteResolves: { pageIndex: number; reason: string }[] = [];
   let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
     const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
@@ -198,6 +208,34 @@ export async function applyPdfEdits(
     }
     addDrawing(pdfDoc, page, drawing);
   }
+  const noteRefs = new Map<string, PDFRef>();
+  for (const note of request.notes ?? []) {
+    const page = pages[note.pageIndex];
+    if (!page) {
+      skippedNotes.push({ pageIndex: note.pageIndex, reason: "page out of range" });
+      continue;
+    }
+    const reason = addNote(pdfDoc, page, note, noteRefs);
+    if (reason) skippedNotes.push({ pageIndex: note.pageIndex, reason });
+  }
+  for (const edit of request.noteEdits ?? []) {
+    const page = pages[edit.pageIndex];
+    if (!page) {
+      skippedNoteEdits.push({ pageIndex: edit.pageIndex, reason: "page out of range" });
+      continue;
+    }
+    const reason = editNote(pdfDoc, page, edit);
+    if (reason) skippedNoteEdits.push({ pageIndex: edit.pageIndex, reason });
+  }
+  for (const resolve of request.noteResolves ?? []) {
+    const page = pages[resolve.pageIndex];
+    if (!page) {
+      skippedNoteResolves.push({ pageIndex: resolve.pageIndex, reason: "page out of range" });
+      continue;
+    }
+    const reason = resolveNote(pdfDoc, page, resolve);
+    if (reason) skippedNoteResolves.push({ pageIndex: resolve.pageIndex, reason });
+  }
   // Deletions go last, in descending order; earlier ops all address original
   // page indices.
   for (const idx of [...(request.deletedPages ?? [])].sort((a, b) => b - a)) {
@@ -227,10 +265,13 @@ export async function applyPdfEdits(
     skippedAnnotDeletes,
     skippedMarkups,
     skippedDrawings,
+    skippedNotes,
+    skippedNoteEdits,
+    skippedNoteResolves,
   });
   return {
     bytes: out,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves },
     annotDeletesApplied,
   };
 }

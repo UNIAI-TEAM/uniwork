@@ -47,6 +47,25 @@ export type {
   PdfInkOperationSubmitter,
   PdfInkProviderOptions,
 } from "./ink";
+export { createPdfNoteOperationProvider, PdfNoteProviderError, PdfNotesPanel } from "./notes";
+export type {
+  PdfNoteAddInput,
+  PdfNoteAddOperation,
+  PdfNoteAddTarget,
+  PdfNoteEditInput,
+  PdfNoteEditOperation,
+  PdfNoteEngineOperation,
+  PdfNoteIdentity,
+  PdfNoteOperationProvider,
+  PdfNoteOperationSubmitter,
+  PdfNoteRect,
+  PdfNoteReplyInput,
+  PdfNoteResolveInput,
+  PdfNoteResolveOperation,
+  PdfNoteRow,
+  PdfNoteThread,
+  PdfNotesPanelProps,
+} from "./notes";
 export { createBrowserPdfPrintPort, markPdfPrintSurface, PdfPrintButton, PdfPrintError } from "./print";
 export type { BrowserPdfPrintEnvironment, PdfPrintButtonProps, PdfPrintFailureCode, PdfPrintPort } from "./print";
 export {

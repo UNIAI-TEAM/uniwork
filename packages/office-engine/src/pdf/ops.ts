@@ -10,6 +10,10 @@ import type {
   DrawingInput,
   DrawingGeometry,
   MarkupInput,
+  NoteEditInput,
+  NoteInput,
+  NoteReplyTarget,
+  NoteResolveInput,
   PdfEditRequest,
   TextEditInput,
   TextInsertInput,
@@ -320,6 +324,63 @@ function parseDrawing(a: Dict, op: string): DrawingInput {
   };
 }
 
+/** Non-empty comment text — an empty note is a caller bug, not a valid annot. */
+function noteContents(v: unknown, op: string, f: string): string {
+  const value = capText(str(v, op, f), op, f);
+  if (value.trim() === "") throw new PdfOpError(op, f, "non-empty text required");
+  return value;
+}
+
+function parseNoteReplyTarget(v: unknown, op: string, f: string): NoteReplyTarget {
+  if (!isDict(v)) throw new PdfOpError(op, f, "reply target object required");
+  return {
+    objNum: int(v.objNum, op, `${f}.objNum`),
+    rect: vec4(v.rect, op, `${f}.rect`),
+    contents: noteContents(v.contents, op, `${f}.contents`),
+  };
+}
+
+function parseNote(a: Dict, op: string): NoteInput {
+  if (a.replyTo !== undefined && a.replyToLocalId !== undefined) {
+    throw new PdfOpError(op, "replyTo", "replyTo and replyToLocalId are mutually exclusive");
+  }
+  const rect = vec4(a.rect, op, "rect");
+  if (rect[2] <= rect[0] || rect[3] <= rect[1]) throw new PdfOpError(op, "rect", "positive-width and positive-height rect required");
+  return {
+    pageIndex: int(a.pageIndex, op, "pageIndex"),
+    rect,
+    contents: noteContents(a.contents, op, "contents"),
+    author: opt(a.author, str, op, "author"),
+    createdMs: opt(a.createdMs, num, op, "createdMs"),
+    localId: opt(a.localId, str, op, "localId"),
+    replyTo: opt(a.replyTo, parseNoteReplyTarget, op, "replyTo"),
+    replyToLocalId: opt(a.replyToLocalId, str, op, "replyToLocalId"),
+  };
+}
+
+function parseNoteEdit(a: Dict, op: string): NoteEditInput {
+  // Upstream shape: {annot:{pageIndex,objNum,rect,contents},contents}; flat
+  // {…,oldContents,contents} is this lane's envelope.
+  const identity = isDict(a.annot) ? a.annot : a;
+  return {
+    pageIndex: int(identity.pageIndex, op, "pageIndex"),
+    objNum: int(identity.objNum, op, "objNum"),
+    rect: vec4(identity.rect, op, "rect"),
+    oldContents: noteContents(identity.oldContents ?? identity.contents, op, "oldContents"),
+    contents: noteContents(a.contents, op, "contents"),
+  };
+}
+
+function parseNoteResolve(a: Dict, op: string): NoteResolveInput {
+  return {
+    pageIndex: int(a.pageIndex, op, "pageIndex"),
+    objNum: int(a.objNum, op, "objNum"),
+    rect: vec4(a.rect, op, "rect"),
+    contents: noteContents(a.contents, op, "contents"),
+    resolved: bool(a.resolved, op, "resolved"),
+  };
+}
+
 /**
  * Fold a validated envelope edits array into the engine's PdfEditRequest.
  * Unknown op names are a typed error (the caller learns the vocabulary is
@@ -344,6 +405,15 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         break;
       case "addDrawing":
         push("drawings", parseDrawing(isDict(a.drawing) ? a.drawing : a, op));
+        break;
+      case "addNote":
+        push("notes", parseNote(isDict(a.note) ? a.note : a, op));
+        break;
+      case "editSavedNote":
+        push("noteEdits", parseNoteEdit(a, op));
+        break;
+      case "resolveNote":
+        push("noteResolves", parseNoteResolve(a, op));
         break;
       case "putTextEdit":
         push("textEdits", parseTextEdit(a, op));
@@ -385,8 +455,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         req.metadata = parseMetadata(isDict(a.metadata) ? a.metadata : a, op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
-      // annotation/form authoring (notes, form values,
-      // stamps, signatures) and OCR.
+      // form authoring (form values, stamps, signatures) and OCR.
       case "ocrPage":
       case "ocr":
         throw new PdfOpError(op, "", "ocr is not a capability of this engine build (optical engines live outside the service)", true);

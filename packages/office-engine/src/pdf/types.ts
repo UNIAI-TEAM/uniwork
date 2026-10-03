@@ -46,6 +46,58 @@ export interface MarkupInput {
   quads: number[][];
 }
 
+/** Reply target: a note (Text) annotation saved in the file. The object number
+    is only a lookup hint — pdfium stages that run before pdf-lib may renumber
+    objects — so the parent is confirmed by rect + contents at write time. */
+export interface NoteReplyTarget {
+  objNum: number;
+  rect: [number, number, number, number];
+  contents: string;
+}
+
+/** A sticky-note comment saved as a standard Text annotation (viewers draw the
+    icon; no appearance stream is written). Replies chain through /IRT + /RT. */
+export interface NoteInput {
+  pageIndex: number;
+  /** Annotation /Rect in PDF user space (icon bounds, y up) */
+  rect: [number, number, number, number];
+  contents: string;
+  /** Annotation author (/T); omitted → 'UniWork' */
+  author?: string;
+  /** Creation time (ms since epoch) → /CreationDate and /M; omitted → save time */
+  createdMs?: number;
+  /** Key for parenting replies inside the same request (parents sort before children) */
+  localId?: string;
+  /** This note replies to a note saved in the file */
+  replyTo?: NoteReplyTarget;
+  /** This note replies to another note in this request, by its localId */
+  replyToLocalId?: string;
+}
+
+/** Rewrite the /Contents of a note saved in the file, in place — the object keeps
+    its number so saved replies' /IRT chains stay intact (unlike delete + re-add).
+    Identity matches like NoteReplyTarget: rect + current contents, with the object
+    number as a tie-break hint. */
+export interface NoteEditInput {
+  pageIndex: number;
+  objNum: number;
+  rect: [number, number, number, number];
+  /** /Contents currently in the file (identity match) */
+  oldContents: string;
+  contents: string;
+}
+
+/** Review state of a saved note (PDF review state model: /StateModel /Review with
+    /State /Completed or /None). Upstream's save-pdf port has no resolve semantics;
+    this is the closest standard contract. */
+export interface NoteResolveInput {
+  pageIndex: number;
+  objNum: number;
+  rect: [number, number, number, number];
+  contents: string;
+  resolved: boolean;
+}
+
 /** Delete an annotation already saved in the file. Object number is only a lookup
     hint; subtype + rect guard against (and recover from) object renumbering by a
     rewrite. 'note' targets Text (comment) annotations. */
@@ -234,10 +286,16 @@ export interface PageRenderRequest {
 }
 
 /** The batch an edit job carries — the G2-05-scoped subset of upstream
-    SavePdfRequest. Notes/forms remain outside this lane. */
+    SavePdfRequest. Forms remain outside this lane. */
 export interface PdfEditRequest {
   markups?: MarkupInput[];
   drawings?: DrawingInput[];
+  notes?: NoteInput[];
+  /** In-place /Contents rewrites of saved notes, applied after the note stage so
+      same-request replies still match their parent by its old contents. */
+  noteEdits?: NoteEditInput[];
+  /** Review-state writes on saved notes, applied after note edits. */
+  noteResolves?: NoteResolveInput[];
   /** Saved markup annotations to remove (applied before every other stage) */
   annotDeletes?: AnnotDeleteInput[];
   textEdits?: TextEditInput[];

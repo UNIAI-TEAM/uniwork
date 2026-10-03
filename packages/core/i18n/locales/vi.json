@@ -7391,6 +7391,16 @@
         "deleteError": "Không thể xóa chú thích. Thử lại.", "empty": "Chưa có chú thích nào được lưu.",
         "kind": { "note": "Ghi chú", "ink": "Nét vẽ tay", "image": "Ảnh", "unknown": "Chú thích" }, "readOnly": "Chỉ đọc"
       },
+      "notes": {
+        "title": "Ghi chú", "empty": "Chưa có ghi chú nào trong tài liệu.",
+        "add": "Thêm ghi chú", "addPlaceholder": "Viết ghi chú",
+        "reply": "Trả lời", "replyPlaceholder": "Viết trả lời", "replySubmit": "Gửi trả lời", "replies": "Phản hồi",
+        "edit": "Sửa", "editSave": "Lưu ghi chú", "cancel": "Hủy",
+        "resolve": "Đánh dấu đã xử lý", "unresolve": "Mở lại", "resolved": "Đã xử lý",
+        "readOnly": "Chỉ đọc",
+        "error": "Không thể áp dụng thao tác ghi chú. Thử lại.",
+        "contentNotice": "Ghi chú là chú thích PDF; nội dung trang không bị viết lại."
+      },
       "print": {
         "action": "In", "preparing": "Đang in…",
         "failed": "Không thể in tài liệu."

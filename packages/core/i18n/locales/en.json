@@ -7411,6 +7411,16 @@
         "deleteError": "The annotation could not be deleted. Try again.", "empty": "No saved annotations.",
         "kind": { "note": "Note", "ink": "Ink", "image": "Image", "unknown": "Annotation" }, "readOnly": "Read-only"
       },
+      "notes": {
+        "title": "Notes", "empty": "No notes in this document.",
+        "add": "Add note", "addPlaceholder": "Write a note",
+        "reply": "Reply", "replyPlaceholder": "Write a reply", "replySubmit": "Send reply", "replies": "Replies",
+        "edit": "Edit", "editSave": "Save note", "cancel": "Cancel",
+        "resolve": "Mark resolved", "unresolve": "Reopen", "resolved": "Resolved",
+        "readOnly": "Read-only",
+        "error": "The note action could not be applied. Try again.",
+        "contentNotice": "Notes are PDF annotations; page content is never rewritten."
+      },
       "print": {
         "action": "Print", "preparing": "Printing…",
         "failed": "The document could not be printed."

@@ -140,6 +140,9 @@ export interface PdfEditOutcome {
     annotDeletes: { applied: number; skipped: number };
     markups: { applied: number; skipped: number };
     drawings: { applied: number; skipped: number };
+    notes: { applied: number; skipped: number };
+    noteEdits: { applied: number; skipped: number };
+    noteResolves: { applied: number; skipped: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
   };
 }
@@ -157,6 +160,8 @@ export interface PdfProbe {
     annotationDelete: true;
     drawing: true;
     ink: true;
+    note: true;
+    noteResolve: true;
     ocr: false;
     ocrReason: string;
   };
@@ -211,6 +216,8 @@ function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
       annotationDelete: true,
       drawing: true,
       ink: true,
+      note: true,
+      noteResolve: true,
       ocr: false,
       ocrReason: OCR_REASON,
     },
@@ -292,6 +299,9 @@ export async function applyPdfEditBytes(
     pushSkips("annot", applied.skips.skippedAnnotDeletes);
     pushSkips("markup", applied.skips.skippedMarkups);
     pushSkips("drawing", applied.skips.skippedDrawings);
+    pushSkips("note", applied.skips.skippedNotes);
+    pushSkips("note-edit", applied.skips.skippedNoteEdits);
+    pushSkips("note-resolve", applied.skips.skippedNoteResolves);
     return {
       bytes: applied.bytes,
       warnings,
@@ -311,6 +321,9 @@ export async function applyPdfEditBytes(
         annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
         markups: { applied: (request.markups?.length ?? 0) - applied.skips.skippedMarkups.length, skipped: applied.skips.skippedMarkups.length },
         drawings: { applied: (request.drawings?.length ?? 0) - applied.skips.skippedDrawings.length, skipped: applied.skips.skippedDrawings.length },
+        notes: { applied: (request.notes?.length ?? 0) - applied.skips.skippedNotes.length, skipped: applied.skips.skippedNotes.length },
+        noteEdits: { applied: (request.noteEdits?.length ?? 0) - applied.skips.skippedNoteEdits.length, skipped: applied.skips.skippedNoteEdits.length },
+        noteResolves: { applied: (request.noteResolves?.length ?? 0) - applied.skips.skippedNoteResolves.length, skipped: applied.skips.skippedNoteResolves.length },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,
