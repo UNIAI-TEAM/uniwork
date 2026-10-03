@@ -239,7 +239,7 @@ describe("XlsxToolbar overflow", () => {
     stubStripWidths(100, 44);
     const props = renderToolbar();
     const panel = screen.getByRole("tabpanel");
-    const trigger = within(panel).getByTestId("xlsx-toolbar-overflow");
+    const trigger = screen.getByTestId("xlsx-toolbar-overflow-home");
     expect(trigger).toHaveAccessibleName("Thêm lệnh");
     expect(within(panel).getByRole("button", { name: "Hoàn tác" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: "Sao chép ô đã chọn" })).not.toBeInTheDocument();
@@ -254,7 +254,8 @@ describe("XlsxToolbar overflow", () => {
     stubStripWidths(40, 44);
     const props = renderToolbar();
     expect(screen.queryByRole("button", { name: "Hoàn tác" })).not.toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole("tabpanel")).getByTestId("xlsx-toolbar-overflow"));
+    expect(screen.getByTestId("xlsx-toolbar-overflow-formulas")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("xlsx-toolbar-overflow-home"));
     const overflowPanel = await screen.findByTestId("xlsx-toolbar-overflow-panel");
     fireEvent.click(within(overflowPanel).getByRole("button", { name: "Hoàn tác" }));
     expect(props.onUndo).toHaveBeenCalledOnce();
@@ -263,7 +264,7 @@ describe("XlsxToolbar overflow", () => {
   it("keeps every group inline while the measured width fits", () => {
     stubStripWidths(600, 44);
     renderToolbar();
-    expect(screen.queryByTestId("xlsx-toolbar-overflow")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-toolbar-overflow-home")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Định dạng số" })).toBeInTheDocument();
   });
 });

@@ -71,7 +71,7 @@ export function XlsxToolbarGroupStrip({ tab, groups, context }: { tab: XlsxToolb
                 variant="toolbar"
                 size="icon-sm"
                 className="shrink-0"
-                data-testid="xlsx-toolbar-overflow"
+                data-testid={`xlsx-toolbar-overflow-${tab}`}
                 aria-label={t("office.xlsx.toolbar.overflow")}
               />
             }

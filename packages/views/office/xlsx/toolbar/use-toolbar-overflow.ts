@@ -28,6 +28,10 @@ export function useToolbarOverflow(groupIds: readonly string[]): XlsxToolbarOver
   const idKey = groupIds.join("|");
 
   useLayoutEffect(() => {
+    // A different group set invalidates every cached width: a group that was
+    // collapsed (and unmounted) by the previous set must re-measure instead of
+    // keeping a stale footprint.
+    widthsRef.current.clear();
     const container = containerRef.current;
     if (!container || typeof ResizeObserver === "undefined") return undefined;
     const ids = idKey === "" ? [] : idKey.split("|");
