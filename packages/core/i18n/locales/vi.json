@@ -7880,7 +7880,7 @@
         "width": "Chiều rộng (px)",
         "height": "Chiều cao (px)",
         "wrap": "Cách bao văn bản",
-        "wrapInline": "Cùng dòng văn bản",
+        "wrapDefault": "Mặc định của hình",
         "wrapSquareLeft": "Vuông, bên trái",
         "wrapSquareRight": "Vuông, bên phải",
         "wrapTopBottom": "Trên và dưới",

@@ -11,23 +11,27 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
-import { Select } from "@uniwork/ui/components/ui/select";
-import type { DocxImageWrap } from "@uniwork/office-engine/docx";
-import { DOCX_SHAPE_WRAP_OPTIONS, parseShapePx, type DocxShapeEdit, type DocxShapeInfo } from "./docx-shape-model";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
+import {
+  DOCX_SHAPE_WRAP_OPTIONS,
+  docxShapeWrapEdit,
+  parseOffsetPx,
+  parseShapePx,
+  type DocxShapeEdit,
+  type DocxShapeInfo,
+} from "./docx-shape-model";
 
 const EMU_PER_PX = 9525;
 /** Colour-input fallbacks when the shape has no fill/outline (document data:
  * the same Office defaults the insert helper seeds). */
 const DEFAULT_FILL = "#4472C4";
 const DEFAULT_OUTLINE = "#2F5496";
-
-/** Offset field text → whole px; empty is "no offset" (align-based position). */
-function parseOffsetPx(value: string): number | null {
-  if (value.trim() === "") return null;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < -10000 || parsed > 10000) return null;
-  return parsed;
-}
 
 export function DocxShapePanel({
   disabled,
@@ -70,10 +74,12 @@ export function DocxShapePanel({
       setWidth(String(shape.widthPx));
       return;
     }
-    const nextHeight = shape.straight ? shape.heightPx : parseShapePx(height);
-    if (nextHeight === null) {
-      setHeight(String(shape.heightPx));
-      return;
+    // a bad height snaps back to the model without discarding a good width
+    let nextHeight = shape.heightPx;
+    if (!shape.straight) {
+      const parsedHeight = parseShapePx(height);
+      if (parsedHeight === null) setHeight(String(shape.heightPx));
+      else nextHeight = parsedHeight;
     }
     if (nextWidth === shape.widthPx && nextHeight === shape.heightPx) return;
     onEdit({ kind: "size", widthPx: nextWidth, heightPx: nextHeight });
@@ -219,22 +225,25 @@ export function DocxShapePanel({
                 {t("office.docx.shapes.wrap")}
               </Label>
               <Select
-                id="docx-shape-wrap"
-                value={shape.wrap ?? "inline"}
+                value={shape.wrap}
                 disabled={disabled}
-                onValueChange={(value) =>
-                  onEdit({
-                    kind: "position",
-                    wrap: value === null || value === "inline" ? null : (value as DocxImageWrap),
-                    offsetXEmu: shape.offsetXEmu,
-                    offsetYEmu: shape.offsetYEmu,
-                  })
-                }
-                items={DOCX_SHAPE_WRAP_OPTIONS.map((option) => ({
-                  value: option.wrap ?? "inline",
-                  label: t(option.labelKey),
-                }))}
-              />
+                items={DOCX_SHAPE_WRAP_OPTIONS.map((option) => ({ value: option.wrap, label: t(option.labelKey) }))}
+                onValueChange={(value) => {
+                  const edit = docxShapeWrapEdit(value, shape);
+                  if (edit) onEdit(edit);
+                }}
+              >
+                <SelectTrigger id="docx-shape-wrap" aria-label={t("office.docx.shapes.wrap")} className="w-full">
+                  <SelectValue placeholder={t("office.docx.shapes.wrapDefault")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {DOCX_SHAPE_WRAP_OPTIONS.map((option) => (
+                    <SelectItem key={option.wrap} value={option.wrap}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

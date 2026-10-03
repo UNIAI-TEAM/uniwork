@@ -2,10 +2,13 @@
 // surface and the attrs patch every panel edit maps to (the exact fields
 // pmDocToSavePlan reads back from a genXml node).
 import { describe, expect, it } from "vitest";
+import { DOCX_IMAGE_WRAPS } from "@uniwork/office-engine/docx";
 import {
   DOCX_SHAPE_GALLERY,
   DOCX_SHAPE_WRAP_OPTIONS,
   docxShapeAttrsPatch,
+  docxShapeWrapEdit,
+  parseOffsetPx,
   parseShapePx,
   readDocxShapeInfo,
 } from "./docx-shape-model";
@@ -126,13 +129,6 @@ describe("docxShapeAttrsPatch", () => {
       imageOffsetXEmu: null,
       imageOffsetYEmu: null,
     });
-    expect(docxShapeAttrsPatch(base, { kind: "position", wrap: null, offsetXEmu: 5, offsetYEmu: 5 })).toEqual({
-      imageWrap: null,
-      imagePosH: null,
-      imagePosV: null,
-      imageOffsetXEmu: null,
-      imageOffsetYEmu: null,
-    });
   });
 
   it("refuses patches without a shape and unknown wraps", () => {
@@ -150,15 +146,15 @@ describe("gallery and numeric parsing", () => {
     expect(DOCX_SHAPE_GALLERY.every((item) => item.labelKey.startsWith("office.docx.shapes."))).toBe(true);
   });
 
-  it("offers inline first, then the floating layout modes", () => {
+  it("offers only the anchor modes the save path re-encodes; no inline entry", () => {
     expect(DOCX_SHAPE_WRAP_OPTIONS.map((option) => option.wrap)).toEqual([
-      null,
       "square-left",
       "square-right",
       "topBottom",
       "behind",
       "front",
     ]);
+    expect(DOCX_SHAPE_WRAP_OPTIONS.every((option) => DOCX_IMAGE_WRAPS.includes(option.wrap))).toBe(true);
   });
 
   it("parses whole px inside the clamp only", () => {
@@ -168,5 +164,49 @@ describe("gallery and numeric parsing", () => {
     expect(parseShapePx("-3")).toBeNull();
     expect(parseShapePx("20000")).toBeNull();
     expect(parseShapePx("abc")).toBeNull();
+    // trailing garbage must not commit its numeric prefix
+    expect(parseShapePx("48abc")).toBeNull();
+    expect(parseShapePx("1.5")).toBeNull();
+  });
+
+  it("parses offsets exactly; empty and whitespace mean no offset", () => {
+    expect(parseOffsetPx("96")).toBe(96);
+    expect(parseOffsetPx(" -48 ")).toBe(-48);
+    expect(parseOffsetPx("")).toBeNull();
+    expect(parseOffsetPx("   ")).toBeNull();
+    expect(parseOffsetPx("96abc")).toBeNull();
+    expect(parseOffsetPx("1.5")).toBeNull();
+    expect(parseOffsetPx("10001")).toBeNull();
+    expect(parseOffsetPx("-10001")).toBeNull();
+  });
+});
+
+describe("docxShapeWrapEdit", () => {
+  const info = {
+    prst: "rect",
+    straight: false,
+    fill: null,
+    borderColor: null,
+    widthPx: 100,
+    heightPx: 50,
+    wrap: null,
+    offsetXEmu: null,
+    offsetYEmu: null,
+  };
+
+  it("maps a selectable mode to the position edit and keeps the current offsets", () => {
+    expect(docxShapeWrapEdit("behind", { ...info, wrap: "square-left", offsetXEmu: 914400, offsetYEmu: 0 })).toEqual({
+      kind: "position",
+      wrap: "behind",
+      offsetXEmu: 914400,
+      offsetYEmu: 0,
+    });
+  });
+
+  it("resolves to nothing for the resting state and unknown values", () => {
+    expect(docxShapeWrapEdit(null, info)).toBeNull();
+    expect(docxShapeWrapEdit("", info)).toBeNull();
+    expect(docxShapeWrapEdit("inline", info)).toBeNull();
+    expect(docxShapeWrapEdit("sideways", info)).toBeNull();
   });
 });

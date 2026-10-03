@@ -95,6 +95,9 @@ describe("insertDocxShape", () => {
     const attrs = protectedAttrs(editor)[0];
     expect(attrs?.genXml).toContain('a:prstGeom prst="straightConnector1"');
     expect(attrs?.textboxes?.[0]).toMatchObject({ widthPx: 189, heightPx: 12, prst: "lineArrow", readOnly: true });
+    // the display mirrors the parse, so the panel locks the arrow's height
+    selectProtected(editor);
+    expect(selectedDocxShape(editor)).toMatchObject({ prst: "lineArrow", straight: true, heightPx: 12 });
   });
 
   it("lands the insert after a selected block instead of replacing it", () => {

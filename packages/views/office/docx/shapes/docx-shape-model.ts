@@ -22,11 +22,28 @@ export const DOCX_SHAPE_GALLERY: readonly { kind: DocxShapeKind; labelKey: strin
 
 const MIN_SHAPE_PX = 1;
 const MAX_SHAPE_PX = 10000;
+const MIN_OFFSET_PX = -10000;
+const MAX_OFFSET_PX = 10000;
+const INT_RE = /^-?\d+$/;
+
+/** Digits only: Number.parseInt would accept a numeric prefix of a typo. */
+function parseIntExact(value: string): number | null {
+  const text = value.trim();
+  return INT_RE.test(text) ? Number(text) : null;
+}
 
 /** Numeric field text → whole px, null when out of range. */
 export function parseShapePx(value: string): number | null {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < MIN_SHAPE_PX || parsed > MAX_SHAPE_PX) return null;
+  const parsed = parseIntExact(value);
+  if (parsed === null || parsed < MIN_SHAPE_PX || parsed > MAX_SHAPE_PX) return null;
+  return parsed;
+}
+
+/** Offset field text → whole px; empty is "no offset" (align-based position). */
+export function parseOffsetPx(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = parseIntExact(value);
+  if (parsed === null || parsed < MIN_OFFSET_PX || parsed > MAX_OFFSET_PX) return null;
   return parsed;
 }
 
@@ -78,10 +95,15 @@ export function readDocxShapeInfo(attrs: Record<string, unknown> | null | undefi
   };
 }
 
-/** Wrap picker order: inline first, then the layout modes a floating shape
- * uses (applyImageWrap rebuilds the anchor from these; generate.ts:165). */
-export const DOCX_SHAPE_WRAP_OPTIONS: readonly { wrap: DocxImageWrap | null; labelKey: string }[] = [
-  { wrap: null, labelKey: "office.docx.shapes.wrapInline" },
+/** Wrap picker modes: only the anchor modes the genXml save path re-encodes
+ * (convert.ts:2061 calls applyImageWrap for a non-null imageWrap). "In line
+ * with text" is deliberately absent: an explicitly null imageWrap is
+ * indistinguishable from the untouched default at save time, so the vendored
+ * branch drops it. A parsed shape's wrap change only reaches the file
+ * piggybacked on an offset commit (convert.ts:1857-1860) — hence the offsets
+ * beside the picker. No mode is preselected: a fresh insert keeps the anchor
+ * its fragment carries. */
+export const DOCX_SHAPE_WRAP_OPTIONS: readonly { wrap: DocxImageWrap; labelKey: string }[] = [
   { wrap: "square-left", labelKey: "office.docx.shapes.wrapSquareLeft" },
   { wrap: "square-right", labelKey: "office.docx.shapes.wrapSquareRight" },
   { wrap: "topBottom", labelKey: "office.docx.shapes.wrapTopBottom" },
@@ -93,7 +115,8 @@ export type DocxShapeEdit =
   | { kind: "fill"; color: string | null }
   | { kind: "outline"; color: string | null }
   | { kind: "size"; widthPx: number; heightPx: number }
-  | { kind: "position"; wrap: DocxImageWrap | null; offsetXEmu: number | null; offsetYEmu: number | null };
+  /** wrap is never null: the save path only re-encodes a non-null imageWrap. */
+  | { kind: "position"; wrap: DocxImageWrap; offsetXEmu: number | null; offsetYEmu: number | null };
 
 const HEX_RE = /^[0-9a-fA-F]{6}$/;
 
@@ -131,10 +154,6 @@ export function docxShapeAttrsPatch(
       return { textboxes: [nextBox, ...rest] };
     }
     case "position": {
-      if (edit.wrap === null) {
-        // back to inline: drop every anchor hint so the paragraph returns to flow
-        return { imageWrap: null, imagePosH: null, imagePosV: null, imageOffsetXEmu: null, imageOffsetYEmu: null };
-      }
       if (!(DOCX_IMAGE_WRAPS as readonly string[]).includes(edit.wrap)) return null;
       const x = edit.offsetXEmu === null ? null : Math.round(edit.offsetXEmu);
       const y = edit.offsetYEmu === null ? null : Math.round(edit.offsetYEmu);
@@ -145,4 +164,12 @@ export function docxShapeAttrsPatch(
       return { imageWrap: edit.wrap, imagePosH: null, imagePosV: null, ...offsets };
     }
   }
+}
+
+/** One wrap-picker selection → the position edit, or null for the resting
+ * state the save path cannot re-encode (no selection, or a value that is not
+ * one of DOCX_SHAPE_WRAP_OPTIONS). */
+export function docxShapeWrapEdit(value: string | null, shape: DocxShapeInfo): DocxShapeEdit | null {
+  if (value === null || !(DOCX_IMAGE_WRAPS as readonly string[]).includes(value)) return null;
+  return { kind: "position", wrap: value as DocxImageWrap, offsetXEmu: shape.offsetXEmu, offsetYEmu: shape.offsetYEmu };
 }

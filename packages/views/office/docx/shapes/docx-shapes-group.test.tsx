@@ -134,12 +134,19 @@ describe("DocxShapesGroup format panel", () => {
     expect(height).toHaveValue("113");
   });
 
-  it("locks the height of a straight line and disables offsets while inline", () => {
+  it("locks the height of a straight line and disables offsets while no wrap mode is set", () => {
     renderGroup({ shape: { ...SHAPE, prst: "lineArrow", straight: true, heightPx: 12 } });
     fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
     expect(screen.getByTestId("docx-shape-height")).toBeDisabled();
     expect(screen.getByTestId("docx-shape-offset-x")).toBeDisabled();
     expect(screen.getByTestId("docx-shape-offset-y")).toBeDisabled();
+  });
+
+  it("rests on the shape-default placeholder instead of a fake inline mode", () => {
+    renderGroup({ shape: SHAPE });
+    fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
+    const wrap = screen.getByRole("combobox", { name: "Cách bao văn bản" });
+    expect(wrap).toHaveTextContent("Mặc định của hình");
   });
 
   it("commits a floating offset pair once the shape wraps", () => {

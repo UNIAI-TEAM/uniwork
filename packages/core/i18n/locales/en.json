@@ -7887,7 +7887,7 @@
         "width": "Width (px)",
         "height": "Height (px)",
         "wrap": "Text wrapping",
-        "wrapInline": "In line with text",
+        "wrapDefault": "Shape default",
         "wrapSquareLeft": "Square, left",
         "wrapSquareRight": "Square, right",
         "wrapTopBottom": "Top and bottom",
