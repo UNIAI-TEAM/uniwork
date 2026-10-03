@@ -13,6 +13,17 @@ export interface PdfNoteIdentity {
   contents: string;
 }
 
+/** Reply target: a note (Text) annotation already saved in the file. Mirrors
+ * the engine's NoteReplyTarget, so it carries no pageIndex - a reply's page
+ * always follows its parent, which the bridge resolves from the parent's
+ * identity rather than from this target. `objNum` is a lookup hint; the
+ * engine confirms the parent by rect + contents at write time. */
+export interface PdfNoteReplyTarget {
+  objNum: number;
+  rect: PdfNoteRect;
+  contents: string;
+}
+
 /** One thread member as the host reports it from the saved file. */
 export interface PdfNoteRow extends PdfNoteIdentity {
   /** Host-provided stable row key. */
@@ -61,7 +72,7 @@ export interface PdfNoteResolveInput {
 /** Serialisable envelopes for the host submitter. */
 export interface PdfNoteAddOperation {
   op: "addNote";
-  attributes: { note: { pageIndex: number; rect: PdfNoteRect; contents: string; author?: string; replyTo?: PdfNoteIdentity } };
+  attributes: { note: { pageIndex: number; rect: PdfNoteRect; contents: string; author?: string; replyTo?: PdfNoteReplyTarget } };
 }
 
 export interface PdfNoteEditOperation {

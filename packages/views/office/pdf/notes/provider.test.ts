@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPdfNoteOperationProvider, PdfNoteProviderError } from "./provider";
-import type { PdfNoteEngineOperation, PdfNoteIdentity } from "./types";
+import type { PdfNoteAddOperation, PdfNoteEngineOperation, PdfNoteIdentity, PdfNoteReplyTarget } from "./types";
 
 const identity: PdfNoteIdentity = { pageIndex: 2, objNum: 7, rect: [10, 20, 30, 40], contents: "Gốc" };
 
@@ -25,6 +25,25 @@ describe("createPdfNoteOperationProvider", () => {
     expect(submitted).toEqual([
       [{ op: "addNote", attributes: { note: { pageIndex: 2, rect: [10, 20, 30, 40], contents: "Trả lời", replyTo: { objNum: 7, rect: [10, 20, 30, 40], contents: "Gốc" } } } }],
     ]);
+  });
+
+  it("emits an addNote envelope whose replyTo matches the declared PdfNoteReplyTarget", async () => {
+    const submitted: PdfNoteAddOperation[] = [];
+    const provider = createPdfNoteOperationProvider({
+      submit: (operations) => {
+        submitted.push(...(operations as readonly PdfNoteAddOperation[]));
+      },
+    });
+    await provider.replyToNote({ replyTo: identity, contents: "Trả lời", author: "An" });
+    expect(submitted).toHaveLength(1);
+    const envelope = submitted[0]!;
+    expect(envelope.op).toBe("addNote");
+    // Type-level pin: the emitted literal must be a PdfNoteAddOperation, so a
+    // replyTo that still demanded a pageIndex would not compile.
+    const replyTo: PdfNoteReplyTarget | undefined = envelope.attributes.note.replyTo;
+    expect(replyTo).toEqual({ objNum: 7, rect: [10, 20, 30, 40], contents: "Gốc" });
+    expect(replyTo).not.toHaveProperty("pageIndex");
+    expect(Object.keys(replyTo!).sort()).toEqual(["contents", "objNum", "rect"]);
   });
 
   it("edits by identity, keeping oldContents as the match and the draft as the new text", async () => {
