@@ -8,6 +8,7 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
+import { formatFromFilename, isLocalDocumentFormat } from "./shared/document-format";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
@@ -323,9 +324,11 @@ async function startElectronHost(): Promise<void> {
    * immediately before a write, so a plain open never offers a draft of the
    * file's own unchanged bytes. Opening also refreshes the encrypted recent list. */
   const localOpenContext = (metadata: OpenFileMetadata) => {
-    // The desktop host is DOCX-only; a non-docx pick/drop is refused before it
-    // can register a context or enter the recent list.
-    if (!/\.docx$/i.test(metadata.name)) { fileRegistry.revoke(metadata.handle); return; }
+    // Only a locally editable format may register a context or enter the
+    // recent list; C1a carries docx locally (the cloud xlsx lane opens through
+    // the library, not a pick/drop).
+    const format = formatFromFilename(metadata.name);
+    if (!format || !isLocalDocumentFormat(format)) { fileRegistry.revoke(metadata.handle); return; }
     setLocalDocument(metadata);
     const path = fileRegistry.pathOf(metadata.handle);
     if (path && recentFiles) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
@@ -556,15 +559,17 @@ async function startElectronHost(): Promise<void> {
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });
   const announceFile = async (path: string) => {
-    if (!isAbsolute(path) || !/\.docx$/i.test(path)) return;
+    const format = formatFromFilename(path);
+    if (!isAbsolute(path) || !format || !isLocalDocumentFormat(format)) return;
     try {
       const metadata = await fileRegistry.openEvent(path);
       window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
     } catch { /* Refused local files never cross the preload seam. */ }
   };
-  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => /\.docx$/i.test(arg))) void announceFile(path); });
+  const isOpenablePath = (value: string): boolean => { const format = formatFromFilename(value); return format !== undefined && isLocalDocumentFormat(format); };
+  app.on("second-instance", (_event, argv) => { for (const path of argv.filter(isOpenablePath)) void announceFile(path); });
   app.on("open-file", (_event, path) => { if (!window.webContents.isLoading()) void announceFile(path); });
-  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => /\.docx$/i.test(arg))]) void announceFile(path); });
+  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter(isOpenablePath)]) void announceFile(path); });
 
   window.once("ready-to-show", () => {
     if (!SMOKE_MODE) {

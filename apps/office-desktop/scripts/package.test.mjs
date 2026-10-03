@@ -29,6 +29,7 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.match(config.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64\.zip$/);
   assert.equal(config.publish, null);
   assert.equal(config.win.signAndEditExecutable, false);
+  assert.deepEqual(config.fileAssociations.map((association) => association.ext), ["docx", "xlsx"]);
   assert.deepEqual(config.win.target, [{ target: "zip", arch: ["x64"] }, { target: "nsis", arch: ["x64"] }]);
   assert.equal(config.nsis.oneClick, true);
   assert.equal(config.nsis.perMachine, false);
@@ -123,7 +124,10 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.equal(config.fileAssociations, undefined);
   assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
   assert.equal(config.linux.fileAssociations[0].mimeType, LINUX_DOCX_MIME);
-  assert.equal("mimeTypes" in config.linux, false, "the file association already supplies the docx MimeType");
+  // The widened format table registers every carried format, not only docx.
+  assert.deepEqual(config.linux.fileAssociations.map((association) => association.ext), ["docx", "xlsx"]);
+  assert.equal(config.linux.fileAssociations[1].mimeType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.equal("mimeTypes" in config.linux, false, "the file association already supplies the MimeType entries");
   assert.equal(config.publish, null);
   assert.equal(config.extraMetadata.name, "uniwork-office-dev");
   assert.equal(validateLinuxTargets(config), true);

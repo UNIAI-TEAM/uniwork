@@ -5,12 +5,19 @@ import type { DesktopLibraryDocument } from "../../shared/ipc";
 const row = (overrides: Partial<DesktopLibraryDocument> = {}): DesktopLibraryDocument => ({ id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.docx", kind: "file", format: "docx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true, ...overrides });
 
 describe("desktop library scope and filtering", () => {
-  it("removes Work Product and unknown formats before rendering", () => {
-    expect(filterLibraryDocuments([row(), row({ id: "doc-work", ownerKind: "work_product" }), row({ id: "doc-x", format: "docx" })])).toHaveLength(2);
+  it("keeps docx and xlsx rows, drops Work Product and formats the host does not carry", () => {
+    const kept = filterLibraryDocuments([
+      row(),
+      row({ id: "doc-sheet", format: "xlsx", title: "Budget.xlsx" }),
+      row({ id: "doc-work", ownerKind: "work_product" }),
+      row({ id: "doc-deck", format: "pptx" as DesktopLibraryDocument["format"], title: "Deck.pptx" }),
+    ]);
+    expect(kept.map((document) => document.format)).toEqual(["docx", "xlsx"]);
   });
 
-  it("keeps DOCX download available while the engine is down", () => {
+  it("keeps a carried format downloadable while the engine is down", () => {
     expect(canDownloadDocument(row(), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "xlsx", title: "Budget.xlsx" }), false)).toBe(true);
     expect(canDownloadDocument(row({ downloadAvailable: false }), false)).toBe(false);
   });
 

@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { createIpcDispatcher, validateIpcRequest } from "./ipc";
+import { desktopLibraryResponseSchema, desktopOfficeOpenResponseSchema } from "./ipc";
 
 const sender = { senderId: 1, expectedSenderId: 1, frameId: 0, expectedFrameId: 0, origin: "uniwork-office-app://app", expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const tabs = { sessionGeneration: sender.sessionGeneration, documentIds: ["a", "b"], activeDocumentId: "b" };
@@ -35,4 +36,28 @@ it("requires document id on checkpoint and recovery but keeps account-level list
 it("validates tabs-update responses", async () => {
   const dispatch = createIpcDispatcher({ "desktop:tabs-update": () => ({ updated: true, path: "/secret" }) }, sender);
   await expect(dispatch("desktop:tabs-update", tabs)).rejects.toMatchObject({ code: "schema" });
+});
+
+it("carries docx and xlsx through the widened library and open schemas", () => {
+  const document = (format: string) => ({ id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: `Plan.${format}`, kind: "file", format, version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true });
+  for (const format of ["docx", "xlsx"]) {
+    expect(desktopLibraryResponseSchema.safeParse({ documents: [document(format)], nextCursor: null, engineAvailable: false }).success).toBe(true);
+  }
+  // A format the host does not carry yet is rejected at the wire boundary.
+  for (const format of ["pptx", "pdf", "md", "html"]) {
+    expect(desktopLibraryResponseSchema.safeParse({ documents: [document(format)], nextCursor: null, engineAvailable: false }).success).toBe(false);
+  }
+});
+
+it("accepts one of the two carried MIME types on an office-open response and refuses others", () => {
+  const document = { id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
+  const response = { document, dataBase64: "aGVsbG8=", filename: "Plan.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", checksum: `sha256:${"a".repeat(64)}` };
+  expect(desktopOfficeOpenResponseSchema.safeParse(response).success).toBe(true);
+  expect(desktopOfficeOpenResponseSchema.safeParse({ ...response, mimeType: "application/pdf" }).success).toBe(false);
+});
+
+it("requires a carried format on an office-save request", () => {
+  const save = (format: string) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` });
+  for (const format of ["docx", "xlsx"]) expect(() => validateIpcRequest("desktop:office-save", save(format), sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:office-save", save("pptx"), sender)).toThrow();
 });

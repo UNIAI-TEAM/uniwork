@@ -137,4 +137,17 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [] });
   });
+  it("maps an xlsx list row and download by its spreadsheet MIME/extension", async () => {
+    const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
+    const fetchImpl = vi.fn(async (input: string) => {
+      if (input.includes("/workspaces/ws-1/documents")) return new Response(JSON.stringify({ documents: [summaryRow], next_cursor: null }), { status: 200 });
+      if (input.includes("/documents/doc-x/download")) {
+        return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": "attachment; filename=\"budget.xlsx\"" } });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [{ id: "doc-x", format: "xlsx", canEdit: true }] });
+    await expect(transport.download({ workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename: "budget.xlsx" });
+  });
 });

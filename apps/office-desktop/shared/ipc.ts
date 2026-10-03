@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isAllowedExternalUrl } from "./external-url";
+import { desktopDocumentFormatSchema, desktopFormatMimeTypeSchema } from "./document-format";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */
@@ -134,7 +135,7 @@ export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status",
 ]);
 export const desktopDraftDiscardResponseSchema = z.object({ discarded: z.boolean() }).strict();
 const documentKindSchema = z.literal("file");
-const documentFormatSchema = z.literal("docx");
+const documentFormatSchema = desktopDocumentFormatSchema;
 const libraryDocumentSchema = z.object({
   id: documentIdSchema,
   workspaceId: opaqueHandleSchema,
@@ -168,7 +169,7 @@ export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
   version: z.number().int().nonnegative(),
   filename: z.string().min(1).max(255),
-  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  mimeType: desktopFormatMimeTypeSchema,
   dataBase64: base64BytesSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
@@ -177,7 +178,7 @@ export const desktopOfficeOpenResponseSchema = z.object({
   document: libraryDocumentSchema,
   dataBase64: base64BytesSchema,
   filename: z.string().min(1).max(255),
-  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  mimeType: desktopFormatMimeTypeSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
@@ -291,7 +292,7 @@ const requestSchemas = {
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255) }).strict(),
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
-  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
+  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
@@ -345,8 +346,8 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves carry the serialized DOCX in the same bounded byte class as
-  // local-file and draft payloads. Keep control calls at the smaller limit.
+  // Office saves carry the serialized document in the same bounded byte class
+  // as local-file and draft payloads. Keep control calls at the smaller limit.
   const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };

@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 import identity from "../identity.json" with { type: "json" };
 import { generateReleaseInventory } from "./release-inventory.mjs";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
+import { DESKTOP_FORMAT_PROFILES } from "../shared/document-format.ts";
 
 const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -18,7 +19,9 @@ const distDirectory = join(appDirectory, "dist");
 const outputDirectory = resolve(process.env.OFFICE_DESKTOP_OUTPUT ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "artifacts"));
 const cacheRoot = resolve(process.env.OFFICE_DESKTOP_CACHE ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "cache"));
 
-/** The single docx MIME the desktop app registers on Linux. */
+/** The docx MIME the desktop app registers on Linux. Kept as a named export
+ * for the packaging tests; the file-association list itself is derived from
+ * the shared format table so a new format widens one seam. */
 export const LINUX_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 /** Electron 44.5.0 (pinned) requires macOS 13 Ventura; spec §6.6 pins the same floor. */
 export const MACOS_MINIMUM_SYSTEM_VERSION = "13.0";
@@ -79,7 +82,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
   const buildVersion = version.includes("-") ? version : channel === "stable" ? version : `${version}-${channel}.0`;
   const artifactBase = `${channelIdentity.artifactPrefix}_${buildVersion}_${artifactLabel}_${platform}_${arch}`;
   const protocols = [{ name: channelIdentity.product, schemes: [channelIdentity.userScheme] }];
-  const fileAssociations = [{ ext: "docx", name: "Word document", role: "Editor", ...(platform === "linux" ? { mimeType: LINUX_DOCX_MIME } : {}) }];
+  const fileAssociations = DESKTOP_FORMAT_PROFILES.map((profile) => ({ ext: profile.extension, name: profile.associationName, role: "Editor", ...(platform === "linux" ? { mimeType: profile.mimeType } : {}) }));
   const packagingMetadata = linuxPackagingMetadata();
   return {
     appId: channelIdentity.appId,

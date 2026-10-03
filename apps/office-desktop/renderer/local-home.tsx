@@ -5,6 +5,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
 import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
 import type { RecentFile } from "../shared/ipc";
+import { formatFromFilename } from "../shared/document-format";
 
 const HomeIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
@@ -53,7 +54,7 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
             {rows.map((file) => (
               <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
                 <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
-                  <DocumentTypeIcon format="docx" className="size-8 shrink-0 text-primary" />
+                  <DocumentTypeIcon format={formatFromFilename(file.name) ?? "file"} className="size-8 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body text-foreground">{file.name}</span>
                     <span className="mt-1 block truncate text-caption text-muted-foreground">{file.directory ? `${file.directory} · ` : ""}{t("updated", { time: time(file.updatedAt) })}</span>

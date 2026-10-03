@@ -1,4 +1,5 @@
 import type { OfficeFormat, OfficeHostAdapter, OpenOutcome } from "@uniwork/office-contracts";
+import { isDesktopDocumentFormat, type DesktopDocumentFormat } from "../../shared/document-format";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -42,7 +43,7 @@ export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): Offi
     return decodeBase64(result.dataBase64);
   };
   const openDocument = async (documentId: string, format: OfficeFormat): Promise<OpenOutcome> => {
-    if (format !== "docx") return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "Desktop DOCX host only" };
+    if (!isDesktopDocumentFormat(format)) return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "Format is not carried by this desktop host" };
     try {
       const result = await call("desktop:office-open", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId, ...(options.context.version === undefined ? {} : { version: options.context.version }) }) as DesktopOfficeOpenResponse;
       return { outcome: "opened", document_id: documentId, document_model_ref: `desktop:${result.document.id}:${result.document.revision}`, warnings: [] };
@@ -76,23 +77,30 @@ export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): Offi
   };
 }
 
-export type DesktopDocxSaveTransportOptions<TSnapshot> = Readonly<{
+export type DesktopOfficeSaveTransportOptions<TSnapshot> = Readonly<{
   bridge: LibraryBridge;
   context: DesktopOfficeContext;
+  /** The carried format whose bytes this transport commits. */
+  format: DesktopDocumentFormat;
+  /** One engine build identity per format; the receipt names it. */
+  engineName?: string;
+  engineVersion?: string;
+  contractVersion?: string;
   serialize(input: { snapshot: TSnapshot; documentId: string }): Promise<{ bytes: Uint8Array; checksum: string }>;
 }>;
 
 /** Adapts the shared coordinator's serialize/upload/commit pipeline to one
  * main-process `desktop:office-save` command. Upload is represented by an
  * in-memory receipt; commit is the only cloud mutation and carries the same
- * intent id, idempotency key, base pair and serialized bytes. */
-export function createDesktopDocxSaveTransport<TSnapshot>(options: DesktopDocxSaveTransportOptions<TSnapshot>) {
+ * intent id, idempotency key, base pair and serialized bytes. The format is
+ * carried on the request so main selects the right upload MIME/filename. */
+export function createDesktopOfficeSaveTransport<TSnapshot>(options: DesktopOfficeSaveTransportOptions<TSnapshot>) {
   const outputs = new Map<string, { bytes: Uint8Array; checksum: string }>();
   return {
     async serialize(input: { intent: { intentId: string; identity: { documentId: string } }; snapshot: { value: TSnapshot } }) {
       const result = await options.serialize({ snapshot: input.snapshot.value, documentId: input.intent.identity.documentId });
       outputs.set(input.intent.intentId, result);
-      return { data: result.bytes, checksumSha256: result.checksum, sizeBytes: result.bytes.byteLength, format: "docx" as const };
+      return { data: result.bytes, checksumSha256: result.checksum, sizeBytes: result.bytes.byteLength, format: options.format };
     },
     async upload(input: { intent: { intentId: string; idempotencyKey: string }; output: { checksumSha256: string; sizeBytes: number } }) {
       return { uploadId: `desktop-upload:${input.intent.intentId}`, checksumSha256: input.output.checksumSha256, sizeBytes: input.output.sizeBytes, claimExpiresAt: new Date(Date.now() + 120_000).toISOString() };
@@ -100,9 +108,9 @@ export function createDesktopDocxSaveTransport<TSnapshot>(options: DesktopDocxSa
     async commit(input: { intent: { intentId: string; idempotencyKey: string; identity: { documentId: string; baseVersionId: string; baseRevision: string } }; upload: { checksumSha256: string } }) {
       const output = outputs.get(input.intent.intentId);
       if (!output) throw new Error("desktop save output missing");
-      const result = await options.bridge.call("desktop:office-save", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId: input.intent.identity.documentId, intentId: input.intent.intentId, idempotencyKey: input.intent.idempotencyKey, baseVersionId: input.intent.identity.baseVersionId, baseRevision: input.intent.identity.baseRevision, dataBase64: encodeBase64(output.bytes), checksum: input.upload.checksumSha256 }) as DesktopOfficeSaveResponse;
+      const result = await options.bridge.call("desktop:office-save", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId: input.intent.identity.documentId, format: options.format, intentId: input.intent.intentId, idempotencyKey: input.intent.idempotencyKey, baseVersionId: input.intent.identity.baseVersionId, baseRevision: input.intent.identity.baseRevision, dataBase64: encodeBase64(output.bytes), checksum: input.upload.checksumSha256 }) as DesktopOfficeSaveResponse;
       outputs.delete(input.intent.intentId);
-      return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.bytes.byteLength, engineName: "docx", engineVersion: "desktop", contractVersion: ["uniwork", "office", "engine-contract"].join("-") + "/1", protocolVersion: "1" };
+      return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.bytes.byteLength, engineName: options.engineName ?? options.format, engineVersion: options.engineVersion ?? "desktop", contractVersion: options.contractVersion ?? ["uniwork", "office", "engine-contract"].join("-") + "/1", protocolVersion: "1" };
     },
     async reconcile() { return null; },
   };

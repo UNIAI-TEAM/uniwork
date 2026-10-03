@@ -16,6 +16,7 @@ import { blankDocxBytes } from "./files/blank-docx";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
+import { formatFromFilename, isLocalDocumentFormat, type DesktopDocumentFormat } from "../shared/document-format";
 
 /** Main-process transport for cloud Documents and Office operations. The
  * implementation owns the bearer token and is injected by the Electron
@@ -26,7 +27,7 @@ export type DesktopOfficeTransport = Readonly<{
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
-  save(input: { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
+  save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
 }>;
 
 export interface OfficeIpcOptions {
@@ -93,7 +94,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       options.onDocumentOpened?.(response.document);
       return response;
     },
-    "desktop:office-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }>) => {
+    "desktop:office-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }>) => {
       requireSession();
       const session = options.session?.();
       if (options.isOpened && !options.isOpened(request.documentId, request.workspaceId)) throw new OfficeIpcError("document_context_refused");
@@ -176,9 +177,11 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       const path = await options.pickOpen();
       if (!path) return { opened: false };
-      // The desktop host is DOCX-only: a non-docx pick is refused here, before
-      // any handle, document context or recent row exists.
-      if (!/\.docx$/i.test(path)) return { opened: false, unsupported: true };
+      // A locally editable format is required here, before any handle, document
+      // context or recent row exists. C1a carries docx locally; the cloud xlsx
+      // lane opens through the library, not a pick.
+      const pickedFormat = formatFromFilename(path);
+      if (!pickedFormat || !isLocalDocumentFormat(pickedFormat)) return { opened: false, unsupported: true };
       assertSession(session);
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
@@ -198,7 +201,8 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!options.recents) throw new FileIpcError("invalid_path");
       const entry = await options.recents.resolve(request.id);
       if (!entry) return { opened: false, missing: true };
-      if (!/\.docx$/i.test(entry.path)) return { opened: false, unsupported: true };
+      const recentFormat = formatFromFilename(entry.path);
+      if (!recentFormat || !isLocalDocumentFormat(recentFormat)) return { opened: false, unsupported: true };
       const session = options.session?.();
       let metadata: import("./files/registry").OpenFileMetadata;
       try {

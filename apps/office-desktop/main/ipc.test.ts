@@ -27,7 +27,7 @@ describe("desktop IPC allowlist", () => {
   }, 20_000);
   it("allows DOCX save bytes above the control-message budget", () => {
     const dataBase64 = Buffer.alloc(96 * 1024).toString("base64");
-    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
+    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
     expect(() => validateIpcRequest("desktop:office-save", request, context)).not.toThrow();
     expect(() => validateIpcRequest("desktop:office-save", { ...request, dataBase64: "x".repeat(IPC_FILE_MAX_BYTES) }, context)).toThrowError(IpcValidationError);
   });
@@ -153,7 +153,7 @@ describe("desktop IPC allowlist", () => {
     };
     const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => true });
     await expect(handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).resolves.toMatchObject({ engineAvailable: false });
-    await expect(handlers["desktop:office-save"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })).resolves.toMatchObject({ revision: "10" });
+    await expect(handlers["desktop:office-save"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })).resolves.toMatchObject({ revision: "10" });
     expect(transport.save).toHaveBeenCalledOnce();
     expect(desktopLibraryResponseSchema.safeParse(await handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).success).toBe(true);
     const signedOut = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
