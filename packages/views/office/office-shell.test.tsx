@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { createOfficeSaveCoordinator, type DraftAdapter, type EditorHandle, type OfficeIdentity, type StableSnapshot } from "@uniwork/core/office";
 import { createFakeOfficeTransport } from "../../core/office/test-fakes";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { OfficeShell, type OfficeSaveCoordinatorLike } from "./office-shell";
 
 initI18n();
@@ -26,7 +27,7 @@ describe("OfficeShell", () => {
     const saveCoordinator = coordinator("ready");
     render(<OfficeShell title="Document" editor={<div />} saveCoordinator={saveCoordinator} />);
     expect(screen.queryByTestId("office-save-ready")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Lưu lên UniWork" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lưu vào UniWork" })).not.toBeInTheDocument();
   });
 
   it("preserves a real saving status when the editor is unavailable", () => {
@@ -59,9 +60,9 @@ describe("OfficeShell", () => {
 
   it("uses the scalar cloud-save translation for the toolbar control", () => {
     render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
-    const save = screen.getByRole("button", { name: "Lưu lên UniWork" });
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
     expect(save).toBeVisible();
-    expect(save).toHaveAttribute("aria-label", "Lưu lên UniWork");
+    expect(save).toHaveAttribute("aria-label", "Lưu vào UniWork");
   });
 
   it("labels a local save receipt on the machine instead of the cloud", () => {
@@ -69,7 +70,7 @@ describe("OfficeShell", () => {
     expect(screen.getByTestId("office-save-saved-local")).toHaveTextContent("Đã lưu trên máy");
     local.unmount();
     render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("saved")} />);
-    expect(screen.getByTestId("office-save-saved-cloud")).toHaveTextContent("Đã lưu lên UniWork");
+    expect(screen.getByTestId("office-save-saved-cloud")).toHaveTextContent("Đã lưu");
   });
 
   it("keeps the real G3-01 coordinator fake single-flight at the views seam", async () => {
@@ -208,6 +209,71 @@ describe("OfficeShell", () => {
     fireEvent.keyDown(tabs[0]!, { key: "ArrowRight" });
     expect(onTabChange).toHaveBeenCalledWith("activity");
     expect(tabs[1]).toHaveFocus();
+  });
+
+  it("labels the primary button Save and names the destination in its tooltip", () => {
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveTextContent(/^Lưu$/);
+    expect(save).toHaveAttribute("title", "Lưu vào UniWork");
+    expect(screen.queryByText("Sẵn sàng lưu")).not.toBeInTheDocument();
+    expect(screen.getByTestId("office-save-ready")).toHaveTextContent("Chưa có thay đổi");
+  });
+
+  it("names a local destination for a local save", () => {
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} saveDestination="local" />);
+    expect(screen.getByRole("button", { name: "Lưu vào máy" })).toHaveTextContent(/^Lưu$/);
+  });
+
+  it("keeps its own header with the cluster when it is not embedded", () => {
+    const { container } = render(
+      <HeaderActionsSlotProvider>
+        <OfficeShell title="Report.docx" editor={<div />} editorReady saveCoordinator={coordinator("ready")} desktopAction={<button type="button">desktop</button>} />
+        <HeaderActionsSlot />
+      </HeaderActionsSlotProvider>,
+    );
+    const header = container.querySelector("[data-office-shell] header")!;
+    expect(header).toHaveTextContent("Report.docx");
+    const cluster = header.querySelector("[data-office-header-actions]")!;
+    expect(cluster).toHaveClass("flex-nowrap");
+    const order = [...cluster.querySelectorAll("button")].map((button) => button.textContent);
+    expect(order).toEqual(["Lưu", "desktop"]);
+    expect(container.querySelector("[data-header-actions-slot]")).toBeNull();
+  });
+
+  it("renders no header in embedded mode and hands the cluster to the page slot", async () => {
+    const { container } = render(
+      <HeaderActionsSlotProvider>
+        <header data-testid="page-header"><HeaderActionsSlot /></header>
+        <OfficeShell embedded title="Report.docx" editor={<div data-testid="canvas" />} editorReady saveCoordinator={coordinator("ready")} desktopAction={<button type="button">desktop</button>} />
+      </HeaderActionsSlotProvider>,
+    );
+    const shell = container.querySelector("[data-office-shell]")!;
+    expect(shell.querySelector("header")).toBeNull();
+    expect(shell).not.toHaveTextContent("Report.docx");
+    const pageHeader = screen.getByTestId("page-header");
+    await waitFor(() => expect(pageHeader.querySelector("[data-office-header-actions]")).not.toBeNull());
+    expect(within(pageHeader).getByRole("button", { name: "Lưu vào UniWork" })).toBeInTheDocument();
+    expect(within(pageHeader).getByRole("button", { name: "desktop" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Lưu vào UniWork" })).toHaveLength(1);
+  });
+
+  it("hides the status text on phones so the header keeps title, Save and the menu", async () => {
+    render(
+      <HeaderActionsSlotProvider>
+        <header data-testid="page-header"><HeaderActionsSlot /></header>
+        <OfficeShell embedded title="Report.docx" editor={<div />} editorReady saveCoordinator={coordinator("saved")} />
+      </HeaderActionsSlotProvider>,
+    );
+    const status = await screen.findByTestId("office-save-saved-cloud");
+    expect(status).toHaveClass("hidden", "sm:flex");
+    expect(status).toHaveAttribute("title", "Đã lưu lên UniWork");
+  });
+
+  it("falls back to its own header when embedded without a page slot", () => {
+    const { container } = render(<OfficeShell embedded title="Report.docx" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
+    expect(container.querySelector("[data-office-shell] header")).toHaveTextContent("Report.docx");
+    expect(screen.getByRole("button", { name: "Lưu vào UniWork" })).toBeInTheDocument();
   });
 
   it("does not expose Save until the editor has opened successfully", () => {
