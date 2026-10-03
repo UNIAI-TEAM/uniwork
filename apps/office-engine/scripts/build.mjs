@@ -10,7 +10,8 @@ import process from "node:process";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..");
 const requireRoot = createRequire(join(app, "..", "..", "package.json"));
-const requireApp = createRequire(join(app, "package.json"));
+const packageRoot = join(app, "..", "..", "packages", "office-engine");
+const requireOffice = createRequire(join(packageRoot, "package.json"));
 const esbuild = requireRoot("esbuild");
 
 const common = { bundle: true, platform: "node", format: "esm", target: "node22", sourcemap: false, legalComments: "none", logLevel: "warning" };
@@ -29,11 +30,10 @@ await esbuild.build({
 // runtime assets beside the bundle: pdfium.ts resolves ./pdf-assets from
 // worker.mjs/worker-run.mjs in both the test bundle and the production image.
 const pdfAssets = join(app, "dist", "pdf-assets");
-const packageRoot = join(app, "..", "..", "packages", "office-engine");
 await mkdir(join(pdfAssets, "fonts"), { recursive: true });
-await cp(requireApp.resolve("@embedpdf/pdfium/pdfium.wasm"), join(pdfAssets, "pdfium.wasm"));
+await cp(requireOffice.resolve("@embedpdf/pdfium/pdfium.wasm"), join(pdfAssets, "pdfium.wasm"));
 await cp(
-  join(dirname(requireApp.resolve("harfbuzzjs")), "harfbuzz-subset.wasm"),
+  join(dirname(requireOffice.resolve("harfbuzzjs")), "harfbuzz-subset.wasm"),
   join(pdfAssets, "harfbuzz-subset.wasm"),
 );
 for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
