@@ -6901,6 +6901,24 @@
     }
   },
   "office": {
+    "common": {
+      "find": {
+        "title": "Tìm và thay thế",
+        "findPlaceholder": "Tìm trong tài liệu",
+        "replacePlaceholder": "Thay bằng",
+        "caseSensitive": "Phân biệt chữ hoa, chữ thường",
+        "wholeWord": "Toàn bộ từ",
+        "regex": "Biểu thức chính quy",
+        "replace": "Thay",
+        "replaceAll": "Thay tất cả",
+        "next": "Kết quả tiếp theo",
+        "previous": "Kết quả trước",
+        "matchCount_one": "{{count}} kết quả",
+        "matchCount_other": "{{count}} kết quả",
+        "noMatches": "Không có kết quả",
+        "close": "Đóng thanh tìm"
+      }
+    },
     "docx": {
       "title": "Tài liệu DOCX",
       "editor": {
@@ -7313,7 +7331,7 @@
         "viewSource": "Xem mã nguồn",
         "viewWysiwyg": "Xem trực quan",
         "viewOutline": "Xem dàn ý",
-        "viewFrontmatter": "Xem front-matter",
+        "viewFrontmatter": "Xem front matter",
         "rawBlock": "Khối giữ nguyên",
         "rawBlockHint": "Trình soạn thảo trực quan không hiển thị được khối này nên giữ nguyên mã nguồn."
       },
@@ -7389,25 +7407,9 @@
         "jump": "Tới tiêu đề {{title}}"
       },
       "frontmatter": {
-        "title": "Front-matter",
-        "empty": "Tài liệu không có front-matter.",
-        "preserved": "Giữ nguyên front-matter khi bạn không sửa."
-      },
-      "find": {
-        "title": "Tìm và thay thế",
-        "findPlaceholder": "Tìm trong tài liệu",
-        "replacePlaceholder": "Thay bằng",
-        "caseSensitive": "Phân biệt chữ hoa chữ thường",
-        "wholeWord": "Toàn bộ từ",
-        "regex": "Biểu thức chính quy",
-        "replace": "Thay",
-        "replaceAll": "Thay tất cả",
-        "next": "Kết quả tiếp theo",
-        "previous": "Kết quả trước",
-        "matchCount_one": "{{count}} kết quả",
-        "matchCount_other": "{{count}} kết quả",
-        "noMatches": "Không có kết quả",
-        "close": "Đóng thanh tìm"
+        "title": "Front matter",
+        "empty": "Tài liệu không có front matter.",
+        "preserved": "Giữ nguyên front matter khi bạn không sửa."
       },
       "print": {
         "title": "In",
@@ -7423,7 +7425,7 @@
         "source": "Mã nguồn",
         "wysiwyg": "Trực quan",
         "outline": "Dàn ý",
-        "frontmatter": "Front-matter"
+        "frontmatter": "Front matter"
       }
     },
     "html": {
@@ -7492,7 +7494,7 @@
         "opacity": "Độ mờ",
         "imageAlt": "Chữ thay thế",
         "imageFit": "Cách hiển thị ảnh",
-        "customCss": "CSS riêng",
+        "customCss": "CSS tùy chỉnh",
         "customCssPlaceholder": "Nhập CSS cho phần tử này",
         "revert": "Khôi phục"
       },
@@ -7667,7 +7669,7 @@
         "markdown": "Markdown",
         "html": "HTML"
       },
-      "saveFilters": {
+      "fileFilters": {
         "markdown": "Tài liệu Markdown",
         "html": "Tài liệu HTML",
         "allFiles": "Tất cả tệp"

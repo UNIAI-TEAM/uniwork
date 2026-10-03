@@ -6907,6 +6907,24 @@
     }
   },
   "office": {
+    "common": {
+      "find": {
+        "title": "Find and replace",
+        "findPlaceholder": "Find in document",
+        "replacePlaceholder": "Replace with",
+        "caseSensitive": "Match case",
+        "wholeWord": "Whole word",
+        "regex": "Regular expression",
+        "replace": "Replace",
+        "replaceAll": "Replace all",
+        "next": "Next match",
+        "previous": "Previous match",
+        "matchCount_one": "{{count}} match",
+        "matchCount_other": "{{count}} matches",
+        "noMatches": "No matches",
+        "close": "Close find"
+      }
+    },
     "docx": {
       "title": "DOCX document",
       "editor": {
@@ -7399,22 +7417,6 @@
         "empty": "This document has no front matter.",
         "preserved": "Front matter is kept as is while you do not edit it."
       },
-      "find": {
-        "title": "Find and replace",
-        "findPlaceholder": "Find in document",
-        "replacePlaceholder": "Replace with",
-        "caseSensitive": "Match case",
-        "wholeWord": "Whole word",
-        "regex": "Regular expression",
-        "replace": "Replace",
-        "replaceAll": "Replace all",
-        "next": "Next match",
-        "previous": "Previous match",
-        "matchCount_one": "{{count}} match",
-        "matchCount_other": "{{count}} matches",
-        "noMatches": "No matches",
-        "close": "Close find"
-      },
       "print": {
         "title": "Print",
         "browser": "Print in browser",
@@ -7451,7 +7453,7 @@
       },
       "present": {
         "enter": "Present",
-        "exit": "Exit present",
+        "exit": "Exit presentation",
         "label": "Present mode"
       },
       "zoom": {
@@ -7686,7 +7688,7 @@
         "markdown": "Markdown",
         "html": "HTML"
       },
-      "saveFilters": {
+      "fileFilters": {
         "markdown": "Markdown document",
         "html": "HTML document",
         "allFiles": "All files"
