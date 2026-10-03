@@ -15,3 +15,4 @@ export * from "./wave-ab-gestures";
 export * from "./edits/animation-edits";
 export * from "./edits/text-edits";
 export * from "./edits/notes-comment-edits";
+export * from "./edits/headerfooter-edits";
