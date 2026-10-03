@@ -140,6 +140,8 @@ export function OfficeShell({
   // disabled state communicates the single coordinator guard.
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
   const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
+  const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
+  const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;
   const setPanelOpen = (open: boolean) => {
@@ -184,7 +186,7 @@ export function OfficeShell({
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
   const headerActions = (
     <div className="flex min-w-0 flex-wrap items-center gap-1">
-      {showSaveStatus ? <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} /> : null}
+      {showSaveStatus ? <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} compact /> : null}
       {canSave ? (
         <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
           <Save aria-hidden />
@@ -218,6 +220,14 @@ export function OfficeShell({
         segments={breadcrumbs} leaf={title} actions={headerActions}
         className="h-auto min-h-12 flex-wrap gap-y-2 py-2 sm:flex-nowrap sm:py-0 [&>div:last-child]:w-full sm:[&>div:last-child]:w-auto [&>div:last-child]:max-w-none [&>div:last-child]:flex-wrap [&>div:last-child]:overflow-visible"
       />
+      {showSaveAlert ? (
+        <SaveStatus
+          status={saveStatus}
+          coordinatorState={coordinatorState}
+          destination={saveDestination}
+          className="mx-4 my-2 w-auto"
+        />
+      ) : null}
       {toolbar ? <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{toolbar}</div>
       </div> : null}

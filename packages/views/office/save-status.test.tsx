@@ -73,6 +73,16 @@ describe("SaveStatus", () => {
     expect(alert).toHaveTextContent("corr-conflict");
   });
 
+  it("keeps a destructive header status compact while exposing its full message", () => {
+    render(<SaveStatus status="error" compact />);
+    const status = screen.getByTestId("office-save-error");
+    expect(status).toHaveAttribute("role", "alert");
+    expect(status).toHaveAttribute("title", "The document was kept. Try again.");
+    expect(status).toHaveTextContent("Save could not be confirmed");
+    expect(status).toHaveAttribute("aria-describedby");
+    expect(document.getElementById(status.getAttribute("aria-describedby")!)).toHaveTextContent("The document was kept. Try again.");
+  });
+
   it("preserves an explicit ready status instead of treating it as a receipt", () => {
     render(<SaveStatus status="ready" />);
     expect(screen.getByText("Ready to save")).toBeInTheDocument();
