@@ -7300,6 +7300,9 @@
           "find": {
             "label": "Tìm và thay thế"
           },
+          "formula": {
+            "label": "Thư viện hàm"
+          },
           "view": {
             "zoom": {
               "label": "Thu phóng"
@@ -7513,6 +7516,101 @@
         "renameInput": "Tên trang tính",
         "tabColorReadOnly": "Màu tab (chỉ đọc — chờ gateway)",
         "unhide": "Hiện trang tính"
+      },
+      "formulas": {
+        "categories": {
+          "all": "Tất cả",
+          "math": "Toán & Lượng giác",
+          "statistical": "Thống kê",
+          "text": "Văn bản",
+          "date": "Ngày & Giờ",
+          "lookup": "Tìm kiếm & Tham chiếu",
+          "logical": "Logic",
+          "financial": "Tài chính"
+        },
+        "fn": {
+          "sum": "Cộng các đối số.",
+          "sumif": "Cộng các ô trong vùng thỏa một điều kiện.",
+          "sumifs": "Cộng các ô thỏa nhiều điều kiện.",
+          "sumproduct": "Nhân các phần tử tương ứng trong mảng rồi cộng các tích.",
+          "abs": "Trả về giá trị tuyệt đối của một số.",
+          "round": "Làm tròn một số đến số chữ số cho trước.",
+          "roundup": "Làm tròn lên, ra xa số 0.",
+          "rounddown": "Làm tròn xuống, về phía số 0.",
+          "int": "Làm tròn xuống số nguyên gần nhất.",
+          "mod": "Trả về số dư khi chia một số cho số khác.",
+          "power": "Tính một số lũy thừa.",
+          "sqrt": "Trả về căn bậc hai của một số.",
+          "rand": "Trả về số ngẫu nhiên từ 0 đến 1.",
+          "randbetween": "Trả về số nguyên ngẫu nhiên trong khoảng cho trước.",
+          "average": "Trả về trung bình cộng của các đối số.",
+          "averageif": "Tính trung bình các ô trong vùng thỏa một điều kiện.",
+          "count": "Đếm các ô chứa số.",
+          "counta": "Đếm các ô không trống.",
+          "countif": "Đếm các ô trong vùng thỏa một điều kiện.",
+          "countifs": "Đếm các ô thỏa nhiều điều kiện.",
+          "min": "Trả về số nhỏ nhất.",
+          "max": "Trả về số lớn nhất.",
+          "median": "Trả về số giữa của một tập hợp.",
+          "large": "Trả về giá trị lớn thứ k.",
+          "small": "Trả về giá trị nhỏ thứ k.",
+          "concatenate": "Nối nhiều đoạn văn bản thành một.",
+          "text": "Định dạng một số thành văn bản theo mã định dạng.",
+          "left": "Trả về các ký tự bên trái của văn bản.",
+          "right": "Trả về các ký tự bên phải của văn bản.",
+          "mid": "Trả về các ký tự ở giữa văn bản.",
+          "len": "Trả về số ký tự của văn bản.",
+          "trim": "Loại bỏ khoảng trắng thừa trong văn bản.",
+          "upper": "Chuyển văn bản thành chữ hoa.",
+          "lower": "Chuyển văn bản thành chữ thường.",
+          "substitute": "Thay thế các lần xuất hiện của một đoạn văn bản.",
+          "today": "Trả về ngày hôm nay.",
+          "now": "Trả về ngày và giờ hiện tại.",
+          "date": "Tạo ngày từ năm, tháng và ngày.",
+          "year": "Trả về năm của một ngày.",
+          "month": "Trả về tháng của một ngày.",
+          "day": "Trả về ngày trong tháng của một ngày.",
+          "edate": "Trả về ngày trước hoặc sau một số tháng.",
+          "vlookup": "Tìm ở cột đầu của vùng rồi trả về giá trị cùng hàng.",
+          "hlookup": "Tìm ở hàng đầu của vùng rồi trả về giá trị cùng cột.",
+          "index": "Trả về giá trị trong vùng tại hàng và cột cho trước.",
+          "match": "Trả về vị trí của một giá trị trong vùng.",
+          "choose": "Trả về một giá trị trong danh sách theo vị trí.",
+          "if": "Trả về một giá trị khi điều kiện đúng và giá trị khác khi sai.",
+          "iferror": "Trả về giá trị dự phòng khi công thức bị lỗi.",
+          "and": "Trả về TRUE khi mọi đối số đều đúng.",
+          "or": "Trả về TRUE khi có đối số đúng.",
+          "not": "Đảo ngược giá trị logic của đối số.",
+          "pmt": "Trả về khoản thanh toán cố định của một khoản vay.",
+          "fv": "Trả về giá trị tương lai của một khoản đầu tư.",
+          "pv": "Trả về giá trị hiện tại của một khoản đầu tư.",
+          "rate": "Trả về lãi suất mỗi kỳ của một khoản vay.",
+          "nper": "Trả về số kỳ của một khoản vay.",
+          "npv": "Trả về giá trị hiện tại ròng của các dòng tiền.",
+          "irr": "Trả về tỷ suất hoàn vốn nội bộ của các dòng tiền."
+        },
+        "library": {
+          "title": "Thư viện hàm",
+          "open": "Thư viện hàm",
+          "close": "Đóng thư viện hàm",
+          "search": "Tìm kiếm",
+          "searchPlaceholder": "Tìm hàm",
+          "category": "Nhóm",
+          "list": "Danh sách hàm",
+          "noMatch": "Không có hàm nào phù hợp.",
+          "noTarget": "Hãy chọn một ô trước khi chèn hàm.",
+          "insertFailed": "Không thể chèn hàm ở đây.",
+          "cancel": "Hủy"
+        },
+        "autosum": {
+          "label": "Tự động tính tổng",
+          "hint": "Tính tổng vùng chọn, hoặc các ô số phía trên ô hiện tại.",
+          "empty": "Không tìm thấy số để tính tổng.",
+          "failed": "Không thể tự động tính tổng ở đây."
+        },
+        "hints": {
+          "label": "Gợi ý hàm"
+        }
       },
       "formula": {
         "label": "Công thức hoặc giá trị"

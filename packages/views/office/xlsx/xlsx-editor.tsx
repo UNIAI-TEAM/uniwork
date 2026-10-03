@@ -9,6 +9,8 @@ import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxFindPanel } from "./find/find-panel";
 import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
+import { XlsxFunctionLibraryMount } from "./formulas/function-library";
+import { XlsxFormulaBar } from "./formulas/formula-bar";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { XlsxGridSurface, type XlsxGridHandle, type XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
@@ -122,6 +124,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // Same ownership for the Advanced Filter dialog: its column provider reads
   // the selection's header row through the renderer host.
   const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false);
+  // Same ownership for the Function Library dialog: it inserts into the active
+  // cell through the toolbar's command port.
+  const [functionLibraryOpen, setFunctionLibraryOpen] = useState(false);
   // Live sheet list (tab order, names, hidden) for the sheet-tab strip: the
   // mounted grid's own state, so a session rename/add/reorder is reflected the
   // moment it happens. Empty without a grid (the snapshot drives the strip).
@@ -570,6 +575,11 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
             onPrint={rendererHost ? pageSetup.print : undefined}
             onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
+            host={rendererHost}
+            unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
+            sheetName={selection?.sheet ?? activeSheet}
+            resolveSheetId={gridSheetId}
+            onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
             onSave={() => save("button")}
             onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
           />
@@ -595,6 +605,15 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               onClose={() => setAdvancedFilterOpen(false)}
             />
           ) : null}
+          <XlsxFunctionLibraryMount
+            open={functionLibraryOpen}
+            host={rendererHost}
+            commands={gridCommands}
+            selection={selection}
+            resolveSheetId={gridSheetId}
+            readOnly={readOnly}
+            onClose={() => setFunctionLibraryOpen(false)}
+          />
           {pageSetup.dialog}
           {recalcProgress !== null ? (
             <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
@@ -616,10 +635,12 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onAction={runSheetAction}
               />
             </div>
-            <div className="flex items-center gap-2 border-b border-border bg-muted/10 px-3 py-2">
-              <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">{t("office.xlsx.formula.label")}</label>
-              <input id="xlsx-formula-bar" value={formulaDraft} disabled={!canEdit || selection === null} onChange={(event) => setFormulaDraft(event.target.value)} onBlur={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } }} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption pointer-coarse:min-h-11" data-testid="xlsx-formula-bar" aria-label={t("office.xlsx.formula.label")} />
-            </div>
+            <XlsxFormulaBar
+              value={formulaDraft}
+              disabled={!canEdit || selection === null}
+              onChange={setFormulaDraft}
+              onCommit={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
+            />
             {rendererHost ? (
               <XlsxGridSurface
                 ref={gridRef}

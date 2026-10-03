@@ -170,6 +170,38 @@ describe("XlsxEditor", () => {
     expect(formula).toHaveValue("=A1+B1");
   });
 
+  it("shows formula-bar hints and completes a function name with Tab", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "=SU" } });
+    expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-formula-hint-SUM")).toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Tab" });
+    expect(formula).toHaveValue("=SUM(");
+    expect(formula).toHaveFocus();
+    expect(screen.queryByTestId("xlsx-formula-hints")).not.toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Enter" });
+    expect(handle.edit).toHaveBeenLastCalledWith([
+      { op: "set_cell", target: { sheet: "Data", cell: "C1" }, attributes: { formula: "=SUM(" } },
+    ]);
+  });
+
+  it("closes the formula-bar hints with Escape without committing", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "=AVE" } });
+    expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Escape" });
+    expect(screen.queryByTestId("xlsx-formula-hints")).not.toBeInTheDocument();
+    expect(formula).toHaveValue("=AVE");
+    expect(handle.edit).not.toHaveBeenCalled();
+  });
+
   it("sends numeric formula-bar input as a scalar value", async () => {
     const handle = editor();
     renderEditor(opened(), { editor: handle });

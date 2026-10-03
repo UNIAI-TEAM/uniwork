@@ -7306,6 +7306,9 @@
           "find": {
             "label": "Find & replace"
           },
+          "formula": {
+            "label": "Function library"
+          },
           "view": {
             "zoom": {
               "label": "Zoom"
@@ -7519,6 +7522,101 @@
         "renameInput": "Sheet name",
         "tabColorReadOnly": "Tab colour (read-only — pending gateway)",
         "unhide": "Show sheet"
+      },
+      "formulas": {
+        "categories": {
+          "all": "All",
+          "math": "Math & Trig",
+          "statistical": "Statistical",
+          "text": "Text",
+          "date": "Date & Time",
+          "lookup": "Lookup & Reference",
+          "logical": "Logical",
+          "financial": "Financial"
+        },
+        "fn": {
+          "sum": "Adds its arguments.",
+          "sumif": "Adds the cells in a range that meet one condition.",
+          "sumifs": "Adds the cells that meet several conditions.",
+          "sumproduct": "Multiplies matching items in the arrays and adds the products.",
+          "abs": "Returns the absolute value of a number.",
+          "round": "Rounds a number to the given number of digits.",
+          "roundup": "Rounds a number up, away from zero.",
+          "rounddown": "Rounds a number down, toward zero.",
+          "int": "Rounds a number down to the nearest integer.",
+          "mod": "Returns the remainder after dividing one number by another.",
+          "power": "Raises a number to a power.",
+          "sqrt": "Returns the square root of a number.",
+          "rand": "Returns a random number between 0 and 1.",
+          "randbetween": "Returns a random integer between the given bounds.",
+          "average": "Returns the average of its arguments.",
+          "averageif": "Averages the cells in a range that meet one condition.",
+          "count": "Counts the cells that contain numbers.",
+          "counta": "Counts the non-empty cells.",
+          "countif": "Counts the cells in a range that meet one condition.",
+          "countifs": "Counts the cells that meet several conditions.",
+          "min": "Returns the smallest number.",
+          "max": "Returns the largest number.",
+          "median": "Returns the middle number of a set.",
+          "large": "Returns the k-th largest value.",
+          "small": "Returns the k-th smallest value.",
+          "concatenate": "Joins several text items into one.",
+          "text": "Formats a number as text with a format code.",
+          "left": "Returns the leftmost characters of a text.",
+          "right": "Returns the rightmost characters of a text.",
+          "mid": "Returns characters from the middle of a text.",
+          "len": "Returns the number of characters in a text.",
+          "trim": "Removes extra spaces from a text.",
+          "upper": "Converts a text to upper case.",
+          "lower": "Converts a text to lower case.",
+          "substitute": "Replaces occurrences of a text within a text.",
+          "today": "Returns today's date.",
+          "now": "Returns the current date and time.",
+          "date": "Builds a date from a year, month and day.",
+          "year": "Returns the year of a date.",
+          "month": "Returns the month of a date.",
+          "day": "Returns the day of a date.",
+          "edate": "Returns a date a number of months before or after a start date.",
+          "vlookup": "Searches the first column of a range and returns a value from the row.",
+          "hlookup": "Searches the first row of a range and returns a value from the column.",
+          "index": "Returns a value from a range at a given row and column.",
+          "match": "Returns the position of a value in a range.",
+          "choose": "Returns one of a list of values by position.",
+          "if": "Returns one value when a condition is true and another when it is false.",
+          "iferror": "Returns a fallback value when a formula evaluates to an error.",
+          "and": "Returns TRUE when every argument is true.",
+          "or": "Returns TRUE when any argument is true.",
+          "not": "Reverses the logical value of its argument.",
+          "pmt": "Returns the constant payment for a loan.",
+          "fv": "Returns the future value of an investment.",
+          "pv": "Returns the present value of an investment.",
+          "rate": "Returns the interest rate per period of a loan.",
+          "nper": "Returns the number of periods for a loan.",
+          "npv": "Returns the net present value of cash flows.",
+          "irr": "Returns the internal rate of return of cash flows."
+        },
+        "library": {
+          "title": "Function library",
+          "open": "Function library",
+          "close": "Close function library",
+          "search": "Search",
+          "searchPlaceholder": "Search functions",
+          "category": "Category",
+          "list": "Functions",
+          "noMatch": "No functions match.",
+          "noTarget": "Select a cell first to insert a function.",
+          "insertFailed": "The function could not be inserted here.",
+          "cancel": "Cancel"
+        },
+        "autosum": {
+          "label": "AutoSum",
+          "hint": "Sum the selection, or the numeric cells above the active cell.",
+          "empty": "No numbers found to sum.",
+          "failed": "AutoSum could not be applied here."
+        },
+        "hints": {
+          "label": "Function suggestions"
+        }
       },
       "formula": {
         "label": "Formula or value"

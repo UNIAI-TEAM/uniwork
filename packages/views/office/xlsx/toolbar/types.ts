@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { XlsxGridFormatState } from "../xlsx-grid-surface";
+import type { XlsxGridFormatState, XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxEditorPermissions, XlsxSelection } from "../types";
 
 /** The six toolbar tabs. The active tab is local UI state and is never
@@ -59,6 +59,17 @@ export interface XlsxToolbarGroupProps {
   onPrint?: () => void;
   /** Downloads the active sheet as CSV. */
   onExportCsv?: () => void;
+  /** The renderer host for the groups that must read cells (AutoSum's guess).
+   *  Absent on the snapshot-table fallback. */
+  host?: XlsxGridHostPort;
+  /** The mounted workbook id (`file-<sha256>`); null without a live grid. */
+  unitId?: string | null;
+  /** The active sheet's live name; the groups' reads target it. */
+  sheetName?: string | null;
+  /** Live-name -> live-id resolver (a session rename keeps the id). */
+  resolveSheetId?: (liveName: string) => string | undefined;
+  /** Opens the editor-owned Function Library dialog. Absent without a grid. */
+  onOpenFunctionLibrary?: () => void;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

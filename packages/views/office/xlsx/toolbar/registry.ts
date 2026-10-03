@@ -12,6 +12,7 @@ import { XlsxSheetsGroup } from "./groups/sheets-group";
 import { XlsxAlignmentGroup } from "./home-alignment";
 import { XlsxBordersGroup } from "./home-borders";
 import { XlsxFontGroup } from "./home-font";
+import { XlsxFormulaGroup } from "./formula-group";
 import { XlsxStructureInsertGroup } from "./structure-insert";
 import { XlsxStructureMergeGroup } from "./structure-merge";
 import { XlsxStructureOutlineGroup } from "./structure-outline";
@@ -67,5 +68,6 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
   { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },
   { id: "filter", tab: "data", order: 20, labelKey: "office.xlsx.filter.groups.data", Component: XlsxFilterGroup },
+  { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
   { id: "page-setup", tab: "view", order: 40, labelKey: "office.xlsx.pageSetup.groups.view", Component: XlsxPageSetupGroup },
 ];
