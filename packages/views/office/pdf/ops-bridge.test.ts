@@ -55,6 +55,37 @@ const imageTargetMetadata = { page: 2, objectId: "image-1", rect: [1, 2, 30, 40]
     ]);
   });
 
+  it("maps replace_text through a non-identity page order and resolves the displayed page", async () => {
+    const resolveObject = vi.fn(() => ({
+      page: 2,
+      objectId: "text-1",
+      rect: [10, 20, 100, 40] as [number, number, number, number],
+      text: "old",
+      fontSize: 12,
+    }));
+    await expect(bridgePdfOperations([
+      { op: "replace_text", target: { page: 2, objectId: "text-1" }, text: "new" },
+    ], { pageOrder: [2, 0, 1], resolveObject })).resolves.toEqual([
+      { op: "putTextEdit", attributes: { pageIndex: 0, rect: [10, 20, 100, 40], oldText: "old", newText: "new", fontSize: 12 } },
+    ]);
+    expect(resolveObject).toHaveBeenCalledWith({ page: 2, objectId: "text-1" });
+  });
+
+  it("maps replace_image through a non-identity page order and resolves the displayed page", async () => {
+    const resolveObject = vi.fn(() => ({
+      page: 1,
+      objectId: "image-1",
+      rect: [1, 2, 30, 40] as [number, number, number, number],
+    }));
+    const read = vi.fn(async () => new Uint8Array([0, 1, 255]));
+    await expect(bridgePdfOperations([
+      { op: "replace_image", target: { page: 1, objectId: "image-1" }, assetId: "asset-1" },
+    ], { pageOrder: [2, 0, 1], assets: { read }, resolveObject })).resolves.toEqual([
+      { op: "addImageEdit", attributes: { kind: "replaceImage", pageIndex: 2, oldRect: [1, 2, 30, 40], rect: [1, 2, 30, 40], image: "AAH/" } },
+    ]);
+    expect(resolveObject).toHaveBeenCalledWith({ page: 1, objectId: "image-1" });
+  });
+
   it("threads multiple display reorders and emits one final order", async () => {
     const result = await bridgePdfOperations([
       { op: "reorder_page", target: { page: 1 }, index: 2 },

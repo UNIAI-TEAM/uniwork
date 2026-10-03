@@ -18,10 +18,14 @@ export interface PdfAssetProvider {
 }
 
 export interface PdfOpsBridgeOptions {
-  /** Operations resolve target.page sequentially against the display order produced by earlier operations. Omit pageOrder only for identity-order files. */
+  /** Resolve an object using its 1-based displayed page; metadata.page must echo that displayed position. */
   resolveObject?(target: { page: number; objectId: string }): Promise<PdfObjectMetadata | null> | PdfObjectMetadata | null;
   assets?: PdfAssetProvider;
-  /** Current displayed order, expressed as original zero-based page indices. Required for move. */
+  /**
+   * Current displayed order, expressed as original zero-based page indices. Operations resolve target.page sequentially
+   * against the display order produced by earlier operations. Omit pageOrder only for identity-order files; otherwise
+   * every page-addressed operation falls back to identity mapping. Required for move and non-identity-order files.
+   */
   pageOrder?: readonly number[];
 }
 
