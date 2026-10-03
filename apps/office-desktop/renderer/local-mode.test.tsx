@@ -93,6 +93,7 @@ async function enterLocal(h: ReturnType<typeof harness>) {
  * later Save (or Save As) still sees a matching snapshot. */
 async function edit(id: string) {
   const session = sessions.get(id)!;
+  await session.openEditor();
   let generation = 1;
   const capture = session.editor.captureSnapshot.bind(session.editor);
   vi.spyOn(session.editor, "getDirtyGeneration").mockImplementation(() => generation);
@@ -148,6 +149,7 @@ it("opens a .docx from the OS while signed out straight into the local mode", as
   await screen.findByText(i18n.t("officeDesktop.login.localNote"));
   h.emitFile(`file_${"a".repeat(32)}`);
   await screen.findByRole("tab", { name: /Opened\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
   expect(h.call).toHaveBeenCalledWith("desktop:local-mode", expect.objectContaining({ local: true }));
   expect(h.call).toHaveBeenCalledWith("desktop:file-open", expect.objectContaining({ handle: `file_${"a".repeat(32)}` }));
 });
@@ -245,6 +247,7 @@ it("creates a new local document and writes it through Save As", async () => {
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.anything()));
   await screen.findByRole("tab", { name: /Tài liệu mới\.docx/ });
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle: `file_${"1".repeat(32)}` })));
   expect(h.channels()).not.toContain("desktop:file-save");

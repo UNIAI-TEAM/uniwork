@@ -85,7 +85,7 @@ it("recovers edit B after ordinary local Save A against the newly saved file bas
     expect(offered).toMatchObject({ status: "found", conflict: false });
     if (offered.status !== "found") throw new Error("Protected draft B missing");
     expect(offered.metadata.identity.base).toEqual(reopened.active().base);
-    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe("recovered");
     expect(reopened.session.editor.commands!.getState().headingLevel).toBe(3);
     expect(reopened.session.coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 0 });
     expect(await fs.readFile(harness.path)).toEqual(savedA);
@@ -105,7 +105,7 @@ it("consumes the recovered local draft after its confirmed Save", async () => {
     const offered = await reopened.session.listDrafts();
     expect(offered).toMatchObject({ status: "found", conflict: false });
     if (offered.status !== "found") throw new Error("Recovered local draft missing");
-    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe("recovered");
     expect(await reopened.session.coordinator.save()).toMatchObject({ accepted: true });
     expect(await reopened.session.listDrafts()).toEqual({ status: "none" });
   } finally { first.session.dispose(); reopened?.session.dispose(); }
@@ -133,7 +133,7 @@ it("retains a confirmed Save when context refresh fails and retries before a lat
     const offered = await reopened.session.listDrafts();
     expect(offered).toMatchObject({ status: "found", conflict: false });
     if (offered.status !== "found") throw new Error("Protected draft B missing");
-    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe("recovered");
     expect(reopened.session.editor.commands!.getState().headingLevel).toBe(3);
     expect(await fs.readFile(harness.path)).toEqual(savedA);
     expect(harness.writes).toHaveLength(1);
@@ -189,7 +189,7 @@ it("defers an N+1 checkpoint during context refresh and refuses another Save", a
     const offered = await reopened.session.listDrafts();
     expect(offered).toMatchObject({ status: "found", conflict: false });
     if (offered.status !== "found") throw new Error("Protected draft B missing");
-    expect(await reopened.session.recoverDraft(offered.metadata)).toBe(true);
+    expect(await reopened.session.recoverDraft(offered.metadata)).toBe("recovered");
     expect(reopened.session.editor.commands!.getState().headingLevel).toBe(3);
     expect(harness.writes).toHaveLength(1);
   } finally { release(); first.session.dispose(); reopened?.session.dispose(); }

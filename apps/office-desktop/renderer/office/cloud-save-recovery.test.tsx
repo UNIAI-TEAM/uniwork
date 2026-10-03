@@ -85,7 +85,7 @@ async function assertFreshRecovery(harness: Awaited<ReturnType<typeof cloudHarne
   expect(offered).toMatchObject({ status: "found", conflict: false });
   if (offered.status !== "found") throw new Error("Cloud draft B missing");
   expect(offered.metadata.identity.base).toEqual({ revision: "2", version: "2" });
-  expect(await fresh.recoverDraft(offered.metadata)).toBe(true);
+  expect(await fresh.recoverDraft(offered.metadata)).toBe("recovered");
   expect(fresh.editor.commands!.getState().headingLevel).toBe(3);
   expect(fresh.coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 0 });
   expect(harness.savedBytes).toEqual(savedA);

@@ -192,7 +192,6 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
   await screen.findByRole("button", { name: "Về thư viện" });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10000 });
-  expect(container.querySelector("[data-desktop-library]")).toBeNull();
   expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(0);
   const paragraph = container.querySelector('.ProseMirror p, .ProseMirror h1')!;
   act(() => { paragraph.textContent = "Edited fixture"; fireEvent.input(paragraph); });

@@ -75,6 +75,7 @@ async function open(index: number) {
 /** Simulate an engine edit through its snapshot contract, without wiring G4-06b. */
 async function edit(id: string) {
   const session = sessions.get(id)!;
+  await session.openEditor();
   const snapshot = await session.editor.captureSnapshot();
   vi.spyOn(session.editor, "captureSnapshot").mockResolvedValue({ ...snapshot, generation: 1 });
   vi.spyOn(session.editor, "getDirtyGeneration").mockReturnValue(1);

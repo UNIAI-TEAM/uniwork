@@ -157,7 +157,7 @@ it("restores a real protected draft into a fresh editor and leaves it unsaved", 
   session.dispose();
   const restarted = createByteDocumentSession({ call: call as never }, docxIdentity, original);
   try {
-    await expect(restarted.recoverDraft(draft)).resolves.toBe(true);
+    await expect(restarted.recoverDraft(draft)).resolves.toBe("recovered");
     expect(restarted.editor.commands?.getState().headingLevel).toBe(2);
     expect(restarted.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1, lastSavedGeneration: 0 });
     expect(call.mock.calls.some(([channel]) => /office-save|file-save/.test(channel))).toBe(false);
@@ -208,7 +208,7 @@ it("creates the first local checkpoint through Keep, then recovers the edit afte
   const restarted = createByteDocumentSession({ call: call as never }, identity, opened);
   try {
     expect(await restarted.listDrafts()).toMatchObject({ status: "found", conflict: false });
-    expect(await restarted.recoverDraft(rows[0]!)).toBe(true);
+    expect(await restarted.recoverDraft(rows[0]!)).toBe("recovered");
     expect(restarted.editor.commands!.getState().headingLevel).toBe(2);
     expect(restarted.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1, lastSavedGeneration: 0 });
     expect((await restarted.editor.captureSnapshot()).value).toEqual(Uint8Array.from(Buffer.from(checkpointBytes, "base64")));
