@@ -20,7 +20,10 @@
         "k6",
         "sharp",
         "jszip",
-        "esbuild"
+        "esbuild",
+        "@univerjs/core",
+        "@univerjs/sheets",
+        "@univerjs/preset-sheets-core"
       ]
     },
     "apps/web": {
@@ -69,7 +72,14 @@
       ],
       "entry": [
         "shims/docs-renderer-entry.ts",
-        "shims/genoffice-ui.ts"
+        "shims/genoffice-ui.ts",
+        "shims/xlsx-renderer-entry.ts",
+        "shims/xlsx-renderer/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@univerjs/*",
+        "@genoffice/ui",
+        "numfmt"
       ]
     },
     "packages/views": {

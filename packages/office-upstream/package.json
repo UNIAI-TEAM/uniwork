@@ -6,24 +6,54 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "node ../../scripts/office/build-upstream.mjs --docx-browser",
-    "prepare": "node ../../scripts/office/build-upstream.mjs --docx-browser"
+    "build": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs",
+    "prepare": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs",
+    "build:xlsx-browser": "node ../../scripts/office/build-xlsx-browser.mjs"
   },
   "dependencies": {
     "@tiptap/core": "catalog:",
     "@tiptap/extensions": "catalog:",
     "@tiptap/pm": "catalog:",
+    "@univerjs/core": "catalog:",
+    "@univerjs/docs": "catalog:",
+    "@univerjs/docs-ui": "catalog:",
+    "@univerjs/engine-formula": "catalog:",
+    "@univerjs/engine-render": "catalog:",
+    "@univerjs/find-replace": "catalog:",
+    "@univerjs/preset-sheets-conditional-formatting": "catalog:",
+    "@univerjs/preset-sheets-core": "catalog:",
+    "@univerjs/preset-sheets-data-validation": "catalog:",
+    "@univerjs/preset-sheets-drawing": "catalog:",
+    "@univerjs/preset-sheets-filter": "catalog:",
+    "@univerjs/preset-sheets-find-replace": "catalog:",
+    "@univerjs/preset-sheets-note": "catalog:",
+    "@univerjs/preset-sheets-sort": "catalog:",
+    "@univerjs/preset-sheets-table": "catalog:",
+    "@univerjs/sheets": "catalog:",
+    "@univerjs/sheets-filter": "catalog:",
+    "@univerjs/sheets-formula": "catalog:",
+    "@univerjs/sheets-ui": "catalog:",
+    "@univerjs/themes": "catalog:",
+    "@univerjs/ui": "catalog:",
     "fast-xml-parser": "catalog:",
     "i18next": "catalog:",
     "jszip": "catalog:",
+    "numfmt": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "rxjs": "catalog:",
     "utif2": "catalog:",
-    "react": "catalog:"
+    "zod": "catalog:"
   },
   "exports": {
     "./browser/locale": "./shims/docs-renderer/locale.ts",
     "./docs-renderer-editor": {
       "types": "./shims/docs-renderer.d.ts",
       "default": "./dist/docs-renderer.mjs"
+    },
+    "./xlsx-renderer": {
+      "types": "./shims/xlsx-renderer.d.ts",
+      "default": "./dist/xlsx-renderer.mjs"
     }
   }
 }

@@ -151,6 +151,10 @@ export interface XlsxGatewayFunctions {
   /** Raw text of one package entry (workbook.xml, a worksheet part) or null
    *  when absent — the probe's feature-flag source. */
   readEntryText(bytes: Uint8Array, path: string): Promise<string | null>;
+  /** Batched variant over ONE entry source: the render-model reader needs
+   *  workbook/styles/theme/worksheet parts together, and one source per part
+   *  would re-inflate the package once per part. */
+  readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>>;
   /** Apply the cell edits plus refreshed formula cached values in ONE
    *  assemble pass (applyCellEditsToXlsx with only the arguments this lane
    *  binds: edits + formulaValues). */

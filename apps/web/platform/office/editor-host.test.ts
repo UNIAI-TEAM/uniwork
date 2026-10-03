@@ -9,6 +9,7 @@ import type { EditorHandle, OfficeIdentity, OfficeSaveTransport, StableSnapshot 
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import { createBrowserOfficeDraftAdapter, createOfficeEditorSession } from "./editor-host-core";
+import { createFakeOfficeTransport } from "../../../../packages/core/office/test-fakes";
 
 const identity: OfficeIdentity = {
   deploymentId: "deployment",
@@ -25,6 +26,7 @@ const session = { sessionId: "session", deploymentId: "deployment", accountId: "
 function fakeStore() {
   return {
     checkpointEncrypted: vi.fn(async () => ({ status: "stored", metadata: { draftId: "document", identity: { deploymentId: "deployment", accountId: "account", organizationId: "org", workspaceId: "workspace", documentId: "document", base: { revision: "1", version: "version-1" } }, generation: 1, checksum: "sha256:1", byteLength: 3, updatedAt: 1 } })),
+    rebaseEncrypted: vi.fn(async () => ({ status: "stored", metadata: {} })),
     clearMemory: vi.fn(),
     list: vi.fn(async () => []),
     recoverEncrypted: vi.fn(async () => ({ status: "missing" as const })),
@@ -127,5 +129,56 @@ describe("browser Office host draft adapter", () => {
     expect(transport.upload).not.toHaveBeenCalled();
     expect(transport.commit).not.toHaveBeenCalled();
     await sessionHost.dispose();
+  });
+
+  it("recovers N+1 against the committed base after Save N and a fresh session", async () => {
+    type Snapshot = { text: string };
+    let generation = 0;
+    let record: Parameters<IndexedDbDraftStore["checkpointEncrypted"]>[0] | null = null;
+    const store = fakeStore();
+    vi.mocked(store.checkpointEncrypted).mockImplementation(async (request) => {
+      record = request;
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.rebaseEncrypted).mockImplementation(async (request) => {
+      record = request;
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.list).mockImplementation(async () => record ? [{ ...record.snapshot, byteLength: 1, updatedAt: 1 }] : []);
+    vi.mocked(store.recoverEncrypted).mockImplementation(async ({ currentBase }) => {
+      if (!record) return { status: "missing" };
+      if (currentBase.revision !== record.snapshot.identity.base.revision) return { status: "conflict" } as never;
+      return { status: "recovered", metadata: { ...record.snapshot, byteLength: 1, updatedAt: 1 }, ciphertext: record.snapshot.ciphertext, wrappedKey: record.wrappedKey };
+    });
+    const provider = fakeKeyProvider();
+    vi.mocked(provider.encrypt).mockImplementation(async ({ plaintext }) => ({ ciphertext: plaintext, wrappedKey: new Uint8Array([1]), checksum: "sha256:checkpoint" }));
+    vi.mocked(provider.decrypt).mockImplementation(async ({ ciphertext }) => ciphertext);
+    const editor: EditorHandle<Snapshot> = {
+      format: "md", open: vi.fn(), dispose: vi.fn(),
+      getDirtyGeneration: () => generation,
+      captureSnapshot: async () => ({ generation, fingerprint: `fp-${generation}`, value: { text: `edit-${generation}` } }),
+    };
+    const transport = createFakeOfficeTransport<Snapshot>();
+    transport.serializedOutput = { data: new Uint8Array([1]), checksumSha256: "sha", sizeBytes: 1, format: "md" };
+    let finishCommit!: () => void;
+    transport.commit = vi.fn(({ intent }) => new Promise((resolve) => {
+      finishCommit = () => resolve({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: "document", versionId: "version-2", revision: "2", checksumSha256: "sha", sizeBytes: 1, engineName: "test", engineVersion: "1", contractVersion: "1", protocolVersion: "1" });
+    }));
+    const host = createOfficeEditorSession({ identity, session, editor, transport, draftStore: store, keyProvider: provider });
+    generation = 1;
+    await host.checkpoint();
+    const saving = host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledOnce());
+    generation = 2;
+    await host.checkpoint();
+    finishCommit();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    expect(host.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
+    expect(store.rebaseEncrypted).toHaveBeenCalledOnce();
+    expect(await host.recoverDraft()).toMatchObject({ status: "recovered", snapshot: { generation: 2, value: { text: "edit-2" } } });
+    const reopened = createOfficeEditorSession({ identity: { ...identity, baseRevision: "2", baseVersionId: "version-2" }, session, editor, transport, draftStore: store, keyProvider: provider });
+    expect(await reopened.recoverDraft()).toMatchObject({ status: "recovered", snapshot: { generation: 2, value: { text: "edit-2" } }, metadata: { identity: { base: { revision: "2" } } } });
+    await host.dispose();
+    await reopened.dispose();
   });
 });

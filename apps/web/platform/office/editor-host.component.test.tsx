@@ -101,7 +101,7 @@ beforeEach(async () => {
   await setLocale("en");
 });
 
-function renderHost(session: OfficeEditorSession<unknown>) {
+function renderHost(session: OfficeEditorSession<unknown>, overrides: Partial<OfficeEditorHostProps> = {}) {
   const props: OfficeEditorHostProps = {
     document: officeDocument,
     wsId: "workspace",
@@ -109,6 +109,7 @@ function renderHost(session: OfficeEditorSession<unknown>) {
     session,
     capability,
     editorView: React.createElement("div", { contentEditable: true, role: "textbox", suppressContentEditableWarning: true }),
+    ...overrides,
   };
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -135,6 +136,60 @@ async function settle(): Promise<void> {
 }
 
 describe("OfficeEditorHost composition", () => {
+  it("renders a negotiated readonly editor without exposing or invoking Save", async () => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session, {
+      readonly: true,
+      capability: { ...capability, status: "readonly", reason: "view permission" },
+      editorView: React.createElement("div", { role: "grid", tabIndex: 0 }),
+    });
+    await settle();
+    const grid = rendered.container.querySelector('[role="grid"]');
+    expect(grid).toBeTruthy();
+    expect(rendered.container.querySelector('[data-testid="office-host-unbound"]')).toBeNull();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    act(() => { grid!.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })); });
+    expect(coordinator.save).not.toHaveBeenCalled();
+    expect(session.checkpoint).not.toHaveBeenCalled();
+    rendered.root.unmount();
+  });
+
+  it.each(["unknown", "unavailable"] as const)("keeps a readonly %s capability closed", async (status) => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session, { readonly: true, capability: { ...capability, status } });
+    await settle();
+    expect(rendered.container.querySelector('[role="textbox"]')).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-host-unbound"]')).toBeTruthy();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    expect(coordinator.save).not.toHaveBeenCalled();
+    rendered.root.unmount();
+  });
+
+  it("does not expose a readonly capability as an editable editor", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session, { readonly: false, capability: { ...capability, status: "readonly" } });
+    await settle();
+    expect(rendered.container.querySelector('[role="textbox"]')).toBeNull();
+    expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    rendered.root.unmount();
+  });
+  it("gates Save on an optional renderer readiness port and keeps dirty evidence", async () => {
+    const { session } = makeSession();
+    let ready = false;
+    const listeners = new Set<() => void>();
+    const viewReadiness = { getSnapshot: () => ready, subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); } };
+    const rendered = renderHost(session, { formatAdapter: { session, capability, editorView: React.createElement("div"), viewReadiness } });
+    await settle();
+    const saveButton = () => rendered.container.querySelector('button[aria-label="Save to UniWork"]');
+    expect(saveButton()).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-save-not-sent"]')).toBeTruthy();
+    act(() => { ready = true; listeners.forEach(listener => listener()); });
+    expect(saveButton()).toBeTruthy();
+    act(() => { ready = false; listeners.forEach(listener => listener()); });
+    expect(saveButton()).toBeNull();
+    expect(rendered.container.querySelector('[data-testid="office-save-not-sent"]')).toBeTruthy();
+    rendered.root.unmount();
+  });
   it("shows a localized unavailable state when the flag-on route has no 0Xb adapter", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

@@ -37,6 +37,7 @@ import {
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps, XlsxOpError } from "./ops.ts";
 import { buildRecalcReadBatches, recalcToFormulaValues, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
+import { readXlsxRenderModel, type XlsxRenderModel } from "./render-model.ts";
 
 const ZIP_MAGIC = [0x50, 0x4b];
 function isZipPackage(bytes: Uint8Array): boolean {
@@ -497,12 +498,21 @@ function toXlsxFailure(error: unknown): XlsxTypedError {
 export interface XlsxOpenModel {
   readonly probe: XlsxProbe;
   readonly snapshot: XlsxWorkbookSnapshot;
+  /** G3-05c: the render model the vendored sheets renderer mounts (layout,
+   *  styles, cached formula results). Additive: G3-05b consumers read
+   *  `snapshot` unchanged. */
+  readonly renderModel: XlsxRenderModel;
 }
 
-/** Open once through the G2 gateway and return both the capability probe and
- * the exact gateway snapshot.  Consumers must not parse OOXML independently:
- * this is the one model contract shared by service and browser hosts. */
-export async function openXlsxModel(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxOpenModel> {
+/** Open once through the G2 gateway and return the capability probe, the
+ * exact gateway snapshot and the render model.  Consumers must not parse
+ * OOXML independently: this is the one model contract shared by service and
+ * browser hosts. */
+export async function openXlsxModel(
+  engine: XlsxGatewayFunctions,
+  bytes: Uint8Array,
+  options: { renderModel?: boolean } = {},
+): Promise<XlsxOpenModel> {
   const adapter = new XlsxAdapter({ engine });
   const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
   if (outcome.outcome !== "opened") {
@@ -523,6 +533,12 @@ export async function openXlsxModel(engine: XlsxGatewayFunctions, bytes: Uint8Ar
         if (cell.formula !== undefined) formulaCellCount += 1;
       }
     }
+    // Only the open path pays for the render model; the serialize/probe path
+    // (which shares this function) reads the snapshot without it.
+    const renderModel =
+      options.renderModel === false
+        ? { revision: snapshot.revision, activeTab: 0, date1904: false, sheets: [], styles: [], dxfStyles: [] }
+        : await readXlsxRenderModel(engine, bytes);
     return {
       probe: {
         format: "xlsx",
@@ -533,6 +549,7 @@ export async function openXlsxModel(engine: XlsxGatewayFunctions, bytes: Uint8Ar
         preservedParts: preservedPartsOf(entries),
       },
       snapshot,
+      renderModel,
     };
   } finally {
     adapter.release(ref);
@@ -540,7 +557,7 @@ export async function openXlsxModel(engine: XlsxGatewayFunctions, bytes: Uint8Ar
 }
 
 export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxProbe> {
-  return (await openXlsxModel(engine, bytes)).probe;
+  return (await openXlsxModel(engine, bytes, { renderModel: false })).probe;
 }
 
 /**

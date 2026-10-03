@@ -105,6 +105,14 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       if (!(await source.has(path))) return null;
       return source.readText(path);
     },
+    async readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>> {
+      const source = await gateway.createBufferEntrySource(toEngineBytes(bytes));
+      const out: Record<string, string | null> = {};
+      for (const path of paths) {
+        out[path] = (await source.has(path)) ? await source.readText(path) : null;
+      }
+      return out;
+    },
     async applyCellEdits(
       source: Uint8Array,
       edits: readonly XlsxCellEdit[],

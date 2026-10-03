@@ -27,25 +27,18 @@ export function XlsxErrorState({
   onRetry?: () => void;
 }) {
   const { t } = useTranslation();
-  const Icon = FAILURE_ICON[failureKey(failure.failure_class)] ?? AlertTriangle;
-  const reason = failure.message ?? t(`office.xlsx.errors.${failure.failure_class}`, {
-    defaultValue: t("office.xlsx.errors.unknown"),
-  });
+  const key = failureKey(failure.failure_class);
+  const Icon = FAILURE_ICON[key];
+  const reason = t(`office.xlsx.errors.${key}`);
 
   return (
     <section className="flex min-h-64 flex-1 items-center justify-center p-6" data-testid="xlsx-error-state">
       <Notice tone="destructive" icon={Icon} layout="inline" live="assertive" className="w-full max-w-xl">
         <div className="space-y-1">
-          <p className="text-body font-semibold">{t("office.xlsx.errors.title")}</p>
+          <h2 className="text-body font-semibold">{t("office.xlsx.errors.title")}</h2>
           <p>{reason}</p>
-          <p className="text-caption text-destructive-soft-foreground/80">
-            {t("office.xlsx.errors.reason", { reason: failure.failure_class })}
-          </p>
-          {failure.engine_error ? (
-            <p className="font-mono text-caption text-destructive-soft-foreground/80">{failure.engine_error}</p>
-          ) : null}
           {onRetry ? (
-            <Button type="button" variant="outline" size="sm" onClick={onRetry} className="mt-2">
+            <Button type="button" variant="outline" size="sm" onClick={onRetry} className="mt-2 min-h-11">
               {t("office.xlsx.actions.retryOpen")}
             </Button>
           ) : null}
