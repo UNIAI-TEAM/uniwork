@@ -23,15 +23,30 @@ export function PdfTextInsertPanel({ page, provider, disabled = false, origin = 
   const [font, setFont] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const parsedSize = Number(fontSize);
+  const sizeInvalid = !Number.isFinite(parsedSize) || parsedSize <= 0;
+  const nextFont = font.trim();
 
   const submit = async () => {
-    if (!text.trim()) return;
-    const size = Number(fontSize);
-    if (!Number.isFinite(size) || size <= 0) return;
+    if (!text.trim() || sizeInvalid) return;
     setPending(true);
     setError(null);
+    setNotice(null);
     try {
-      await provider.addTextInsert({ pageIndex: page - 1, origin, text, fontSize: size, color: [0, 0, 0], ...(font.trim() ? { font: font.trim() } : {}) });
+      const outcome = await provider.addTextInsert({
+        pageIndex: page - 1,
+        origin,
+        text,
+        fontSize: parsedSize,
+        color: [0, 0, 0],
+        ...(nextFont ? { font: nextFont } : {}),
+      });
+      if (outcome?.warnings?.some((warning) => warning.code === "edit_skipped")) {
+        setNotice(t("office.pdf.edit.skipped"));
+        return;
+      }
       setText("");
       onApplied?.();
     } catch (reason) {
@@ -42,16 +57,17 @@ export function PdfTextInsertPanel({ page, provider, disabled = false, origin = 
   };
 
   return (
-    <section className="mt-3 grid gap-2" data-testid="pdf-text-insert-panel" aria-label={t("office.pdf.commands.editText")}>
+    <section className="mt-3 grid gap-2" data-testid="pdf-text-insert-panel" aria-label={t("office.pdf.commands.insertText")}>
       <label className="sr-only" htmlFor="pdf-text-insert-input">{t("office.pdf.edit.textLabel")}</label>
       <Input id="pdf-text-insert-input" value={text} onChange={(event) => setText(event.target.value)} placeholder={t("office.pdf.edit.textPlaceholder")} disabled={disabled || pending} />
       <div className="flex gap-2">
-        <label className="sr-only" htmlFor="pdf-text-insert-font">{t("office.pdf.edit.textLabel")}</label>
-        <Input id="pdf-text-insert-font" value={font} onChange={(event) => setFont(event.target.value)} placeholder={t("office.pdf.edit.textLabel")} disabled={disabled || pending} />
-        <label className="sr-only" htmlFor="pdf-text-insert-size">{t("office.pdf.statusBar.zoom")}</label>
-        <Input id="pdf-text-insert-size" inputMode="decimal" type="number" min={1} step={1} value={fontSize} onChange={(event) => setFontSize(event.target.value)} disabled={disabled || pending} />
-        <Button type="button" variant="outline" onClick={() => void submit()} disabled={disabled || pending || !text.trim()}>{t("office.pdf.edit.applyText")}</Button>
+        <label className="sr-only" htmlFor="pdf-text-insert-font">{t("office.pdf.edit.fontLabel")}</label>
+        <Input id="pdf-text-insert-font" value={font} onChange={(event) => setFont(event.target.value)} placeholder={t("office.pdf.edit.fontPlaceholder")} disabled={disabled || pending} />
+        <label className="sr-only" htmlFor="pdf-text-insert-size">{t("office.pdf.edit.fontSizeLabel")}</label>
+        <Input id="pdf-text-insert-size" inputMode="decimal" type="number" min={1} step={1} aria-invalid={sizeInvalid} value={fontSize} onChange={(event) => setFontSize(event.target.value)} disabled={disabled || pending} />
+        <Button type="button" variant="outline" onClick={() => void submit()} disabled={disabled || pending || !text.trim() || sizeInvalid}>{t("office.pdf.edit.applyText")}</Button>
       </div>
+      {notice ? <p role="status" className="text-caption text-muted-foreground">{notice}</p> : null}
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
     </section>
   );

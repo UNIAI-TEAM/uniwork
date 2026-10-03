@@ -7315,7 +7315,7 @@
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
       },
       "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
@@ -7346,6 +7346,8 @@
       },
       "edit": {
         "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
+        "fontLabel": "Font", "fontPlaceholder": "Giữ font hiện tại", "fontSizeLabel": "Cỡ chữ",
+        "skipped": "Engine đã bỏ qua thay đổi này; tệp lưu không bao gồm nó.",
         "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
       },
       "image": {
@@ -7354,7 +7356,7 @@
         "left": "Trái", "top": "Trên", "right": "Phải", "bottom": "Dưới",
         "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
       },
-      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
+      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này.", "missingUnknown": "Thiếu font nhúng; engine không âm thầm thay thế font." },
       "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
       "annotations": {
         "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích",
@@ -7369,7 +7371,8 @@
         "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
         "too_large": "PDF này quá lớn để mở tại đây.", "invalid_structure": "PDF có cấu trúc không hợp lệ.",
         "truncated": "PDF bị cắt ngắn hoặc chưa đầy đủ.", "unsupported_encryption": "PDF dùng cơ chế mã hóa chưa được hỗ trợ.",
-        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
+        "objectUnavailable": "Nội dung đã chọn không còn khả dụng. Chọn lại."
       }
     }
   },

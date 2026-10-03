@@ -3,13 +3,13 @@ export { PdfTextInsertPanel, type PdfTextInsertPanelProps } from "./text-insert-
 export { pdfTextErrorMessage } from "./error";
 export { bridgePdfTextOperation, createPdfTextOperationProvider, type PdfTextBridgeInput, type PdfTextOperationSubmitter } from "./provider";
 export type {
+  PdfTextEditEnvelope,
   PdfTextEditInput,
   PdfTextEngineOperation,
+  PdfTextInsertEnvelope,
   PdfTextInsertInput,
-  PdfTextOperationError,
+  PdfTextOperationOutcome,
   PdfTextOperationProvider,
+  PdfTextOperationWarning,
   PdfTextSelection,
 } from "./types";
-
-export { PdfTextEditPanel as PdfTextEditingPanel } from "./text-edit-panel";
-export { PdfTextInsertPanel as PdfTextInsertionPanel } from "./text-insert-panel";

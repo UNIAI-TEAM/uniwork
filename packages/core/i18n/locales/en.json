@@ -7326,6 +7326,7 @@
       },
       "commands": {
         "editText": "Edit existing text",
+        "insertText": "Insert text",
         "replaceImage": "Replace image",
         "insertPage": "Insert page",
         "deletePage": "Delete page",
@@ -7365,6 +7366,8 @@
       },
       "edit": {
         "textLabel": "Replacement text", "textPlaceholder": "Enter replacement text", "applyText": "Apply text",
+        "fontLabel": "Font", "fontPlaceholder": "Keep current font", "fontSizeLabel": "Font size",
+        "skipped": "The engine skipped this change; the saved file does not include it.",
         "imageLabel": "Provider asset id", "imagePlaceholder": "Enter provider asset id", "applyImage": "Replace image"
       },
       "image": {
@@ -7373,7 +7376,7 @@
         "left": "Left", "top": "Top", "right": "Right", "bottom": "Bottom",
         "errors": { "asset": "The image could not be read.", "fileType": "Select a PNG or JPEG image." }
       },
-      "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it." },
+      "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it.", "missingUnknown": "An embedded font face is missing; the engine did not silently substitute it." },
       "markups": { "label": "Text markup tools", "highlight": "Highlight", "underline": "Underline", "strikeout": "Strikeout" },
       "annotations": {
         "contentNotice": "Annotations stay separate from PDF content.", "delete": "Delete annotation",
@@ -7388,7 +7391,8 @@
         "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
         "too_large": "This PDF is too large to open here.", "invalid_structure": "The PDF has an invalid structure.",
         "truncated": "The PDF is truncated or incomplete.", "unsupported_encryption": "This PDF uses unsupported encryption.",
-        "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
+        "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again.",
+        "objectUnavailable": "The selected content is no longer available. Select it again."
       }
     }
   },
