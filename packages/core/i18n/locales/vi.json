@@ -6970,6 +6970,22 @@
           "navigation": "Điều hướng"
         }
       },
+      "links": {
+        "insertTitle": "Chèn liên kết",
+        "description": "Địa chỉ sẽ mở trong tab mới.",
+        "text": "Văn bản hiển thị",
+        "url": "Địa chỉ",
+        "urlPlaceholder": "https://example.com",
+        "tooltip": "Chú thích (không bắt buộc)",
+        "invalid": "Nhập địa chỉ http, https hoặc mailto.",
+        "insert": "Chèn",
+        "apply": "Áp dụng",
+        "remove": "Bỏ liên kết",
+        "chipLabel": "Liên kết",
+        "open": "Mở liên kết",
+        "copy": "Sao chép liên kết",
+        "edit": "Sửa liên kết"
+      },
       "status": {
         "label": "Trạng thái tài liệu",
         "unknown": "—",
@@ -7036,6 +7052,25 @@
         "wrong_password": "Mật khẩu không mở khóa được tài liệu này.",
         "io_error": "Không thể đọc tài liệu từ bộ nhớ.",
         "too_large": "Tài liệu này quá lớn để mở tại đây."
+      },
+      "find": {
+        "label": "Tìm và thay thế",
+        "searchLabel": "Tìm trong tài liệu",
+        "searchPlaceholder": "Tìm trong tài liệu",
+        "replaceLabel": "Thay thế bằng",
+        "replacePlaceholder": "Thay thế bằng",
+        "matchCase": "Phân biệt chữ hoa chữ thường",
+        "wholeWord": "Chỉ tìm toàn bộ từ",
+        "previous": "Kết quả trước",
+        "next": "Kết quả tiếp theo",
+        "close": "Đóng tìm kiếm",
+        "noQuery": "Nhập để tìm",
+        "noMatches": "Không có kết quả",
+        "matchCount": "{{current}} / {{total}}",
+        "replace": "Thay thế",
+        "replaceAll": "Thay thế tất cả",
+        "replaced_one": "Đã thay thế {{count}} kết quả",
+        "replaced_other": "Đã thay thế {{count}} kết quả"
       }
     },
     "title": "Office",
