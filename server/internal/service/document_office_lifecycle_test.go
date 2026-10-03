@@ -493,9 +493,13 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A stranger never reaches a job: the document is not found for them.
+		// The payload is a well-formed edit so the ACL gate, not op
+		// validation, is the refusal under test.
 		editInput := f.input("k-acl-none")
 		editInput.Operation = office.OperationEdit
-		editInput.Edits = []office.EditOp{{Op: "set_cell"}}
+		editInput.Edits = []office.EditOp{{
+			Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"A1"}`), Attributes: json.RawMessage(`{"value":1}`),
+		}}
 		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), editInput); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("stranger submit: %v", err)
 		}
@@ -508,7 +512,9 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		viewer := human(f.tn.creator)
 		viewerEdit := f.input("k-acl-view")
 		viewerEdit.Operation = office.OperationEdit
-		viewerEdit.Edits = []office.EditOp{{Op: "set_cell"}}
+		viewerEdit.Edits = []office.EditOp{{
+			Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"A1"}`), Attributes: json.RawMessage(`{"value":1}`),
+		}}
 		if _, err := svc.StartOfficeJob(ctx, viewer, viewerEdit); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("viewer submit: %v", err)
 		}

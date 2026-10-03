@@ -139,6 +139,43 @@ export interface XlsxMutation {
   readonly afterEntries: readonly XlsxPackageEntry[];
 }
 
+/**
+ * The non-cell argument slots applyCellEditsToXlsx accepts
+ * (xlsx-gateway.ts:579), behind one optional argument so a new op kind fills
+ * its slot without widening the gateway seam. Slot names mirror the upstream
+ * parameter names; the vendored payload types stay opaque here (upstream owns
+ * their vocabulary — SheetStructuralOps, WorkbookChartEdit, SheetEditPlan,
+ * SheetFilterState, SheetHyperlinkEdits, SheetCfState, SheetDvState,
+ * SheetProtectionState, DefinedNamesState, SheetPageSetupState,
+ * SheetNoteState). Every slot is optional, and an absent slot reproduces the
+ * gateway call this lane made before the slots existed: [] for the list
+ * slots, undefined for sheetPlan, null for definedNamesState.
+ */
+export interface XlsxGatewayArguments {
+  /** SheetStructuralOps[] — row/column inserts, deletes, sizes, merges. */
+  readonly structuralOps?: readonly unknown[];
+  /** WorkbookChartEdit[] — charts, images, shapes. */
+  readonly chartEdits?: readonly unknown[];
+  /** SheetEditPlan — sheet add/rename/delete/reorder/hide/tab colour. */
+  readonly sheetPlan?: unknown;
+  /** SheetFilterState[] — filter and sort state. */
+  readonly filterStates?: readonly unknown[];
+  /** SheetHyperlinkEdits[] — hyperlinks. */
+  readonly hyperlinkEdits?: readonly unknown[];
+  /** SheetCfState[] — conditional formatting. */
+  readonly cfStates?: readonly unknown[];
+  /** SheetDvState[] — data validation. */
+  readonly dvStates?: readonly unknown[];
+  /** SheetProtectionState[] — sheet/workbook protection. */
+  readonly sheetProtections?: readonly unknown[];
+  /** DefinedNamesState — workbook defined names. */
+  readonly definedNamesState?: unknown;
+  /** SheetPageSetupState[] — page setup and print options. */
+  readonly pageSetupStates?: readonly unknown[];
+  /** SheetNoteState[] — notes/comments. */
+  readonly noteStates?: readonly unknown[];
+}
+
 /** The vendored gateway functions this lane consumes (bound via vendor.ts).
  *  Everything takes/returns Uint8Array; vendor.ts bridges Buffer where the
  *  upstream signature names it. */
@@ -156,12 +193,15 @@ export interface XlsxGatewayFunctions {
    *  would re-inflate the package once per part. */
   readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>>;
   /** Apply the cell edits plus refreshed formula cached values in ONE
-   *  assemble pass (applyCellEditsToXlsx with only the arguments this lane
-   *  binds: edits + formulaValues). */
+   *  assemble pass (applyCellEditsToXlsx). The optional trailing
+   *  XlsxGatewayArguments carries the other 11 gateway slots; absent (or
+   *  empty) reproduces the edits + formulaValues call this lane bound
+   *  before the slots existed. */
   applyCellEdits(
     source: Uint8Array,
     edits: readonly XlsxCellEdit[],
     formulaValues?: readonly XlsxSheetFormulaValues[],
+    gatewayArguments?: XlsxGatewayArguments,
   ): Promise<XlsxMutation>;
   /** The preservation guard: every package entry outside
    *  touched/added/removed must be byte-identical before/after; throws when

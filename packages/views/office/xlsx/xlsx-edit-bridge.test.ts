@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rendererEditsToOperations } from "./xlsx-edit-bridge";
+import { rendererEditsToOperations, XLSX_JOURNAL_OP_MAPPINGS, type XlsxGridCellEdit } from "./xlsx-edit-bridge";
 
 const sheets = [{ id: "sheet-1", name: "Data" }, { id: "sheet-2", name: "Summary" }];
 
@@ -33,5 +33,29 @@ describe("rendererEditsToOperations", () => {
   it("rejects a lost sheet identity and invalid coordinates before editing", () => {
     expect(() => rendererEditsToOperations(sheets, [{ sheetId: "removed", row: 0, column: 0, writeValue: true, value: 1 }])).toThrow("xlsx_edit_unknown_sheet");
     expect(() => rendererEditsToOperations(sheets, [{ sheetId: "sheet-1", row: -1, column: 0, writeValue: true, value: 1 }])).toThrow("xlsx_edit_outside_grid");
+  });
+
+  it("pins the wire key order of the mapped operations", () => {
+    const [setOp, clearOp] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", row: 0, column: 0, writeValue: true, value: 7 },
+      { sheetId: "sheet-1", row: 1, column: 0, writeValue: true, value: null },
+    ]);
+    expect(Object.keys(setOp!)).toEqual(["op", "target", "attributes"]);
+    expect(Object.keys(clearOp!)).toEqual(["op", "target"]);
+    const [styled] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", row: 2, column: 0, writeValue: true, value: 1, style: { bold: true } },
+    ]);
+    expect(Object.keys(styled!)).toEqual(["op", "target", "attributes", "style"]);
+  });
+
+  it("selects the op kind through the named registry entries", () => {
+    expect(XLSX_JOURNAL_OP_MAPPINGS.map((entry) => entry.op)).toEqual(["clear_cell", "set_cell"]);
+    const pick = (edit: XlsxGridCellEdit): string | undefined =>
+      XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit))?.op;
+    expect(pick({ sheetId: "sheet-1", row: 0, column: 0, writeValue: true, value: null })).toBe("clear_cell");
+    expect(pick({ sheetId: "sheet-1", row: 0, column: 0, writeValue: true, value: "x" })).toBe("set_cell");
+    expect(pick({ sheetId: "sheet-1", row: 0, column: 0, writeValue: false, value: null, style: { bold: true } })).toBe("set_cell");
+    // A clear carrying a style is a style edit, never a clear.
+    expect(pick({ sheetId: "sheet-1", row: 0, column: 0, writeValue: true, value: null, style: { bold: true } })).toBe("set_cell");
   });
 });

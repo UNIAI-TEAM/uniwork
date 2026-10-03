@@ -4,7 +4,7 @@
 // never a silent drop — the caller's ops either all parse or the job fails
 // before a byte is touched.
 import { ENGINE_LIMITS } from "@uniwork/office-contracts";
-import type { XlsxCellScalar, XlsxCellState } from "./engine.ts";
+import type { XlsxCellScalar, XlsxCellState, XlsxGatewayArguments } from "./engine.ts";
 
 export class XlsxOpError extends Error {
   readonly opName: string;
@@ -55,6 +55,24 @@ export type XlsxEditOp =
       readonly recalcInput: string;
     }
   | { readonly kind: "clear_cell"; readonly target: XlsxCellTarget; readonly recalcInput: "" };
+
+/** The gateway argument slot an op kind feeds. `cellEdits` is
+ *  applyCellEditsToXlsx's `edits` argument (the cell path the session model
+ *  folds); every other name is one of the XlsxGatewayArguments slots
+ *  vendor.ts maps positionally. Typing the tag as keyof
+ *  XlsxGatewayArguments keeps a registry entry from drifting off the
+ *  argument interface. */
+export type XlsxOpKindSlot = "cellEdits" | keyof XlsxGatewayArguments;
+
+/** One bound wire op kind. A later op kind lands as one entry in
+ *  XLSX_OP_KINDS (plus its typed op in XlsxEditOp) — parseXlsxOps never grows
+ *  another case. `parse` returns ops because a kind may expand: set_cells
+ *  folds one range item into one op per cell. */
+export interface XlsxOpKind {
+  readonly wireName: string;
+  readonly slot: XlsxOpKindSlot;
+  parse(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[];
+}
 
 /** Sheet-name resolver over the opened workbook: names are the wire identity;
  *  `sheet-N` gateway ids resolve through sheetNamesById when a caller uses
@@ -222,10 +240,69 @@ function parseStyle(item: Dict, op: string): { style?: Record<string, unknown>; 
   return { ...(isDict(style) ? { style } : {}), ...(styleReset !== undefined ? { styleReset } : {}) };
 }
 
+function parseSetCell(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const target = parseTarget(item, op, sheets);
+  const { cell, writeValue } = parseCellValue(item, op);
+  const { style, styleReset } = parseStyle(item, op);
+  if (!writeValue && style === undefined && styleReset === undefined) {
+    throw new XlsxOpError(op, "text", "set_cell needs text, attributes.value/formula, or a style");
+  }
+  return [
+    {
+      kind: "set_cell",
+      target,
+      cell,
+      writeValue,
+      style,
+      styleReset,
+      // Style-only edits are invisible to the recalc model.
+      recalcInput: writeValue ? recalcInputFor(cell) : "",
+    },
+  ];
+}
+
+function parseClearCell(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  return [{ kind: "clear_cell", target: parseTarget(item, op, sheets), recalcInput: "" }];
+}
+
+function parseSetCells(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const { sheetName, rows, columns } = parseRange(item, op, sheets);
+  const { cell, writeValue } = parseCellValue(item, op);
+  if (!writeValue) throw new XlsxOpError(op, "text", "set_cells needs text or attributes.value/formula");
+  const { style, styleReset } = parseStyle(item, op);
+  const ops: XlsxEditOp[] = [];
+  for (const row of rows) {
+    for (const column of columns) {
+      ops.push({
+        kind: "set_cell",
+        target: { sheetName, row, column, address: toA1(row, column) },
+        cell,
+        writeValue: true,
+        style,
+        styleReset,
+        recalcInput: recalcInputFor(cell),
+      });
+    }
+  }
+  return ops;
+}
+
+/** The bound wire vocabulary, in the order the unknown-op message lists it.
+ *  A later op kind appends its entry here (with its typed op in XlsxEditOp
+ *  and its slot named) — parseXlsxOps itself does not change. */
+export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
+  { wireName: "set_cell", slot: "cellEdits", parse: parseSetCell },
+  { wireName: "clear_cell", slot: "cellEdits", parse: parseClearCell },
+  { wireName: "set_cells", slot: "cellEdits", parse: parseSetCells },
+];
+
+const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));
+
 /**
- * Fold a validated envelope edits array into typed ops. Unknown op names are
- * a typed error (unsupported): the caller learns the vocabulary is narrower
- * than upstream's full sheet-op set, not that its op vanished.
+ * Fold a validated envelope edits array into typed ops through the op-kind
+ * registry. Unknown op names are a typed error (unsupported): the caller
+ * learns the vocabulary is narrower than upstream's full sheet-op set, not
+ * that its op vanished.
  */
 export function parseXlsxOps(edits: unknown[], sheets: XlsxSheetResolver): XlsxEditOp[] {
   if (edits.length > ENGINE_LIMITS.max_edit_ops) {
@@ -235,53 +312,12 @@ export function parseXlsxOps(edits: unknown[], sheets: XlsxSheetResolver): XlsxE
   for (const item of edits) {
     if (!isDict(item)) throw new XlsxOpError("<item>", "", "object required");
     const op = str(item.op, "<item>", "op");
-    switch (op) {
-      case "set_cell": {
-        const target = parseTarget(item, op, sheets);
-        const { cell, writeValue } = parseCellValue(item, op);
-        const { style, styleReset } = parseStyle(item, op);
-        if (!writeValue && style === undefined && styleReset === undefined) {
-          throw new XlsxOpError(op, "text", "set_cell needs text, attributes.value/formula, or a style");
-        }
-        ops.push({
-          kind: "set_cell",
-          target,
-          cell,
-          writeValue,
-          style,
-          styleReset,
-          // Style-only edits are invisible to the recalc model.
-          recalcInput: writeValue ? recalcInputFor(cell) : "",
-        });
-        break;
-      }
-      case "clear_cell": {
-        ops.push({ kind: "clear_cell", target: parseTarget(item, op, sheets), recalcInput: "" });
-        break;
-      }
-      case "set_cells": {
-        const { sheetName, rows, columns } = parseRange(item, op, sheets);
-        const { cell, writeValue } = parseCellValue(item, op);
-        if (!writeValue) throw new XlsxOpError(op, "text", "set_cells needs text or attributes.value/formula");
-        const { style, styleReset } = parseStyle(item, op);
-        for (const row of rows) {
-          for (const column of columns) {
-            ops.push({
-              kind: "set_cell",
-              target: { sheetName, row, column, address: toA1(row, column) },
-              cell,
-              writeValue: true,
-              style,
-              styleReset,
-              recalcInput: recalcInputFor(cell),
-            });
-          }
-        }
-        break;
-      }
-      default:
-        throw new XlsxOpError(op, "", "unknown op for xlsx (bound: set_cell, clear_cell, set_cells)", true);
+    const kind = OP_KIND_BY_NAME.get(op);
+    if (!kind) {
+      const bound = XLSX_OP_KINDS.map((entry) => entry.wireName).join(", ");
+      throw new XlsxOpError(op, "", `unknown op for xlsx (bound: ${bound})`, true);
     }
+    for (const parsed of kind.parse(item, op, sheets)) ops.push(parsed);
   }
   return ops;
 }

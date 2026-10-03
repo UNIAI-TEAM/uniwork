@@ -1,7 +1,7 @@
 // XLSX ops parser tests — the wire vocabulary is a closed set; malformed
 // items are typed failures before any byte is touched.
 import { describe, expect, it } from "vitest";
-import { parseXlsxOps, XlsxOpError, a1ToRowColumn, toA1, type XlsxSheetResolver } from "../src/xlsx/ops";
+import { parseXlsxOps, XlsxOpError, XLSX_OP_KINDS, a1ToRowColumn, toA1, type XlsxSheetResolver } from "../src/xlsx/ops";
 
 const sheets: XlsxSheetResolver = {
   sheetNames: () => ["Data", "Report"],
@@ -95,5 +95,37 @@ describe("parseXlsxOps", () => {
   it("caps the op list at the envelope bound", () => {
     const many = Array.from({ length: 20001 }, () => ({ op: "clear_cell", target: { sheet: "Data", cell: "A1" } }));
     expect(() => parseXlsxOps(many, sheets)).toThrow(XlsxOpError);
+  });
+});
+
+describe("op-kind registry", () => {
+  it("binds the cell vocabulary in wire order on the cell-edit slot", () => {
+    expect(XLSX_OP_KINDS.map((kind) => kind.wireName)).toEqual(["set_cell", "clear_cell", "set_cells"]);
+    expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual(["cellEdits", "cellEdits", "cellEdits"]);
+  });
+
+  it("parses each bound kind through its own registry entry", () => {
+    const items: Record<string, Record<string, unknown>> = {
+      set_cell: { op: "set_cell", target: { sheet: "Data", cell: "A1" }, text: "x" },
+      clear_cell: { op: "clear_cell", target: { sheet: "Data", cell: "A1" } },
+      set_cells: { op: "set_cells", target: { sheet: "Data" }, range: "A1:B1", text: "x" },
+    };
+    for (const kind of XLSX_OP_KINDS) {
+      const item = items[kind.wireName]!;
+      const direct = kind.parse(item, kind.wireName, sheets);
+      expect(direct.length).toBeGreaterThan(0);
+      expect(parseXlsxOps([item], sheets)).toEqual(direct);
+    }
+  });
+
+  it("keeps the unknown-op message listing the bound names from the registry", () => {
+    let caught: XlsxOpError | undefined;
+    try {
+      parseXlsxOps([{ op: "drop_sheet", target: { sheet: "Data" } }], sheets);
+    } catch (error) {
+      caught = error as XlsxOpError;
+    }
+    expect(caught?.unsupported).toBe(true);
+    expect(caught?.message).toBe("drop_sheet.: unknown op for xlsx (bound: set_cell, clear_cell, set_cells)");
   });
 });

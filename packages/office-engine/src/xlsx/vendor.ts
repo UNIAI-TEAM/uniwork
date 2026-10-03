@@ -12,6 +12,7 @@
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type {
   XlsxCellEdit,
+  XlsxGatewayArguments,
   XlsxGatewayFunctions,
   XlsxImported,
   XlsxMutation,
@@ -117,27 +118,28 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       source: Uint8Array,
       edits: readonly XlsxCellEdit[],
       formulaValues: readonly XlsxSheetFormulaValues[] = [],
+      gatewayArguments: XlsxGatewayArguments = {},
     ): Promise<XlsxMutation> {
-      // Positional tail of applyCellEditsToXlsx this lane binds:
+      // Positional tail of applyCellEditsToXlsx this lane binds. Each slot's
+      // absent/empty default reproduces the pre-arguments call exactly:
       //   structuralOps [], chartEdits [], sheetPlan undefined,
       //   filterStates [], hyperlinkEdits [], cfStates [], dvStates [],
       //   sheetProtections [], definedNamesState null, pageSetupStates [],
-      //   noteStates [], formulaValues — everything else stays upstream's
-      //   default until the edit vocabulary grows.
+      //   noteStates [], formulaValues.
       const mutation = await gateway.applyCellEditsToXlsx(
         toEngineBytes(source),
         edits,
-        [],
-        [],
-        undefined,
-        [],
-        [],
-        [],
-        [],
-        [],
-        null,
-        [],
-        [],
+        gatewayArguments.structuralOps ?? [],
+        gatewayArguments.chartEdits ?? [],
+        gatewayArguments.sheetPlan,
+        gatewayArguments.filterStates ?? [],
+        gatewayArguments.hyperlinkEdits ?? [],
+        gatewayArguments.cfStates ?? [],
+        gatewayArguments.dvStates ?? [],
+        gatewayArguments.sheetProtections ?? [],
+        gatewayArguments.definedNamesState ?? null,
+        gatewayArguments.pageSetupStates ?? [],
+        gatewayArguments.noteStates ?? [],
         formulaValues,
       );
       assertMutationShape(mutation);

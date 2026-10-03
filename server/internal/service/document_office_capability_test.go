@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -400,6 +401,95 @@ func TestOfficeOutputKeepsFormat(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := officeOutputKeepsFormat(string(c.job), c.current, c.incoming); got != c.want {
 				t.Fatalf("officeOutputKeepsFormat(%s, %q, %q) = %v, want %v", c.job, c.current, c.incoming, got, c.want)
+			}
+		})
+	}
+}
+
+// TestValidateOfficeJobEdits is the per-op-kind table: the bound vocabulary
+// (set_cell, clear_cell, set_cells) accepts real payloads and refuses unknown
+// op names, malformed targets and malformed attributes/styles before a job
+// row exists. The loop-level count and marshalled-size bounds are unchanged.
+func TestValidateOfficeJobEdits(t *testing.T) {
+	target := json.RawMessage(`{"sheet":"Data","cell":"B2"}`)
+	edit := func(op string, mutate func(*office.EditOp)) office.EditOp {
+		out := office.EditOp{Op: op, Target: target}
+		if mutate != nil {
+			mutate(&out)
+		}
+		return out
+	}
+	overText := strings.Repeat("a", maxOfficeEditTextLen+1)
+	bigStyle := json.RawMessage(`{"padding":"` + strings.Repeat("x", 5_000) + `"}`)
+	bigEdits := make([]office.EditOp, 2_000)
+	for i := range bigEdits {
+		bigEdits[i] = edit("set_cell", func(e *office.EditOp) { e.Style = bigStyle })
+	}
+	if raw, err := json.Marshal(bigEdits); err != nil || len(raw) <= maxOfficeEditsSize {
+		t.Fatalf("size fixture does not exceed the bound: %d bytes, %v", len(raw), err)
+	}
+	tooMany := make([]office.EditOp, maxOfficeEditOps+1)
+	for i := range tooMany {
+		tooMany[i] = edit("clear_cell", nil)
+	}
+
+	cases := []struct {
+		name      string
+		operation office.Operation
+		edits     []office.EditOp
+		valid     bool
+	}{
+		{"set_cell text", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "hello" })}, true},
+		{"set_cell attributes value", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"value":100}`) })}, true},
+		{"set_cell formula", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"formula":"=SUM(A1:A3)"}`) })}, true},
+		{"set_cell row/column", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":0,"column":25}`), Text: "x"}}, true},
+		{"set_cell style only", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Style = json.RawMessage(`{"bold":true}`) })}, true},
+		{"set_cell styleReset without style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"styleReset":false}`) })}, true},
+		{"set_cell attributes style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"style":{"bold":true}}`) })}, true},
+		{"clear_cell", office.OperationEdit, []office.EditOp{edit("clear_cell", nil)}, true},
+		{"set_cells A1 range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:B2"`); e.Text = "x" })}, true},
+		{"set_cells bounds range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) {
+			e.Range = json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1,"endColumn":1}`)
+			e.Attributes = json.RawMessage(`{"value":0}`)
+		})}, true},
+		{"serialize without edits", office.OperationSerialize, nil, true},
+
+		{"unknown op", office.OperationEdit, []office.EditOp{edit("drop_sheet", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"op with surrounding space", office.OperationEdit, []office.EditOp{edit(" set_cell", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"empty op", office.OperationEdit, []office.EditOp{edit("", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"set_cell missing target", office.OperationEdit, []office.EditOp{{Op: "set_cell", Text: "x"}}, false},
+		{"set_cell target without sheet", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"cell":"A1"}`), Text: "x"}}, false},
+		{"set_cell sheet empty", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"","cell":"A1"}`), Text: "x"}}, false},
+		{"set_cell cell outside grid", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"XFE1"}`), Text: "x"}}, false},
+		{"set_cell row outside grid", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":1048576,"column":0}`), Text: "x"}}, false},
+		{"set_cell row not an integer", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":0.5,"column":0}`), Text: "x"}}, false},
+		{"set_cell row not a number", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":"0","column":0}`), Text: "x"}}, false},
+		{"set_cell without content or style", office.OperationEdit, []office.EditOp{edit("set_cell", nil)}, false},
+		{"set_cell malformed formula", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"formula":"SUM(A1:A2)"}`) })}, false},
+		{"set_cell non-scalar value", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"value":{"a":1}}`) })}, false},
+		{"set_cell style not an object", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Style = json.RawMessage(`"bold"`) })}, false},
+		{"set_cell styleReset not a boolean", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "x"; e.Attributes = json.RawMessage(`{"styleReset":1}`) })}, false},
+		{"set_cell attributes not an object", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "x"; e.Attributes = json.RawMessage(`[1]`) })}, false},
+		{"set_cell text over the bound", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = overText })}, false},
+		{"clear_cell missing target", office.OperationEdit, []office.EditOp{{Op: "clear_cell"}}, false},
+		{"set_cells missing range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"set_cells malformed range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1"`); e.Text = "x" })}, false},
+		{"set_cells reversed range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"B2:A1"`); e.Text = "x" })}, false},
+		{"set_cells over the op budget", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:Z1000"`); e.Text = "x" })}, false},
+		{"set_cells without content", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:B2"`) })}, false},
+		{"edits on a non-edit operation", office.OperationSerialize, []office.EditOp{edit("clear_cell", nil)}, false},
+		{"over the op count", office.OperationEdit, tooMany, false},
+		{"over the marshalled size", office.OperationEdit, bigEdits, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateOfficeJobEdits(c.operation, c.edits)
+			if c.valid && err != nil {
+				t.Fatalf("validateOfficeJobEdits = %v, want nil", err)
+			}
+			if !c.valid && !errors.Is(err, ErrOfficeJobInvalid) {
+				t.Fatalf("validateOfficeJobEdits = %v, want office_job_invalid", err)
 			}
 		})
 	}

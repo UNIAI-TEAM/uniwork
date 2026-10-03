@@ -11,7 +11,10 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"math"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -612,6 +615,12 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	})
 }
 
+// validateOfficeJobEdits is the pre-storage gate for one job's edit list. The
+// loop-level bounds stay where they were (operation scope, the 10k op count
+// and the marshalled-size bound), then every edit's op name must be in the
+// bound vocabulary and pass its per-op-kind validator. A name outside the
+// table is refused outright: the engine parser would answer unsupported, but
+// a job row is never created for a vocabulary this service does not bind.
 func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) error {
 	if operation != office.OperationEdit && len(edits) > 0 {
 		return ErrOfficeJobInvalid
@@ -630,8 +639,291 @@ func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) e
 		if strings.TrimSpace(edit.Op) == "" {
 			return ErrOfficeJobInvalid
 		}
+		validate, bound := officeEditValidators[edit.Op]
+		if !bound || !validate(edit) {
+			return ErrOfficeJobInvalid
+		}
 	}
 	return nil
+}
+
+// officeEditValidators is the per-op-kind validation table for the edit
+// vocabulary this service binds. Each entry checks its op deeply enough to be
+// real — target shape and OOXML grid, content/attribute/style shapes, text
+// and range bounds — before a job row exists. A later op kind adds one entry
+// here (beside its TS parser); nothing else in the gate changes.
+var officeEditValidators = map[string]func(office.EditOp) bool{
+	"set_cell":   officeSetCellValid,
+	"clear_cell": officeClearCellValid,
+	"set_cells":  officeSetCellsValid,
+}
+
+// OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
+// the engine's own parser.
+const (
+	maxOfficeEditRows    = 1_048_576
+	maxOfficeEditColumns = 16_384
+	// One cell's text/formula bound (ops.ts MAX_TEXT_LEN).
+	maxOfficeEditTextLen = 1 << 20
+)
+
+var officeA1Pattern = regexp.MustCompile(`^\$?([A-Za-z]{1,3})\$?([1-9][0-9]*)$`)
+
+// officeA1Index decodes an A1 address ("B5", "$B$5") into 0-based row/column
+// inside the OOXML grid.
+func officeA1Index(address string) (int, int, bool) {
+	m := officeA1Pattern.FindStringSubmatch(address)
+	if m == nil {
+		return 0, 0, false
+	}
+	row, err := strconv.Atoi(m[2])
+	if err != nil || row < 1 || row > maxOfficeEditRows {
+		return 0, 0, false
+	}
+	column := 0
+	for _, letter := range strings.ToUpper(m[1]) {
+		column = column*26 + int(letter-'A') + 1
+	}
+	column--
+	if column < 0 || column >= maxOfficeEditColumns {
+		return 0, 0, false
+	}
+	return row - 1, column, true
+}
+
+// officeGridIndex decodes a 0-based row/column JSON number inside [0,size).
+func officeGridIndex(raw json.RawMessage, size int) (int, bool) {
+	if len(raw) == 0 || (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || value < 0 || value >= float64(size) || value != math.Trunc(value) {
+		return 0, false
+	}
+	return int(value), true
+}
+
+// officeSheetRefOK accepts a present sheet name / gateway sheet id: a
+// non-empty string. The workbook's real sheet list lives with the engine, so
+// the bound check here is the target shape, not the name's existence.
+func officeSheetRefOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil {
+		return false
+	}
+	return strings.TrimSpace(name) != ""
+}
+
+// officeCellTargetOK checks the bound cell target shape: a sheet name (or
+// gateway sheet id) plus exactly one cell reference — A1 or 0-based
+// row/column — inside the OOXML grid.
+func officeCellTargetOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var target map[string]json.RawMessage
+	if json.Unmarshal(raw, &target) != nil {
+		return false
+	}
+	// sheet wins when both spellings are present, as parseXlsxOps reads it.
+	if sheet, ok := target["sheet"]; ok {
+		if !officeSheetRefOK(sheet) {
+			return false
+		}
+	} else if !officeSheetRefOK(target["sheetId"]) {
+		return false
+	}
+	if cell, ok := target["cell"]; ok {
+		var address string
+		if json.Unmarshal(cell, &address) != nil {
+			return false
+		}
+		_, _, ok = officeA1Index(address)
+		return ok
+	}
+	if _, ok := officeGridIndex(target["row"], maxOfficeEditRows); !ok {
+		return false
+	}
+	_, ok := officeGridIndex(target["column"], maxOfficeEditColumns)
+	return ok
+}
+
+// officeEditAttributes is the bound attributes object; RawMessage keeps
+// presence (including an explicit null) visible.
+type officeEditAttributes struct {
+	Value      json.RawMessage `json:"value"`
+	Formula    json.RawMessage `json:"formula"`
+	StyleReset json.RawMessage `json:"styleReset"`
+	Style      json.RawMessage `json:"style"`
+}
+
+// officeAttributesOf decodes an op's attributes; absent or JSON null is the
+// empty object (parseXlsxOps reads attributes only when it is an object), and
+// any other non-object shape is refused as malformed.
+func officeAttributesOf(raw json.RawMessage) (officeEditAttributes, bool) {
+	var attributes officeEditAttributes
+	if len(raw) == 0 || string(raw) == "null" {
+		return attributes, true
+	}
+	if json.Unmarshal(raw, &attributes) != nil {
+		return attributes, false
+	}
+	return attributes, true
+}
+
+// officeScalarOK accepts the value shape attributes.value may carry: a JSON
+// scalar (string, number, boolean, null).
+func officeScalarOK(raw json.RawMessage) bool {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return false
+	}
+	switch value.(type) {
+	case nil, string, float64, bool:
+		return true
+	}
+	return false
+}
+
+// officeEditContent is the parseCellValue half of set_cell/set_cells: content
+// reports text or attributes.value/formula was supplied; valid reports a
+// supplied field was well formed (a formula starts with "=", a value is a
+// scalar, text stays inside the bound).
+func officeEditContent(edit office.EditOp, attributes officeEditAttributes) (content, valid bool) {
+	if attributes.Formula != nil {
+		var formula string
+		if json.Unmarshal(attributes.Formula, &formula) != nil || formula == "" ||
+			!strings.HasPrefix(formula, "=") || len(formula) > maxOfficeEditTextLen {
+			return false, false
+		}
+		return true, true
+	}
+	if attributes.Value != nil {
+		if !officeScalarOK(attributes.Value) {
+			return false, false
+		}
+		return true, true
+	}
+	if len(edit.Text) > maxOfficeEditTextLen {
+		return false, false
+	}
+	return len(edit.Text) > 0, true
+}
+
+// officeStyleOf is the parseStyle half: style reports an object style was
+// supplied through either spelling (item.style, attributes.style) and reset
+// reports the styleReset key was present (its value must be a boolean).
+func officeStyleOf(edit office.EditOp, attributes officeEditAttributes) (style, reset, valid bool) {
+	if attributes.StyleReset != nil {
+		if raw := string(attributes.StyleReset); raw != "true" && raw != "false" {
+			return false, false, false
+		}
+		reset = true
+	}
+	for _, raw := range []json.RawMessage{edit.Style, attributes.Style} {
+		if len(raw) == 0 || string(raw) == "null" {
+			continue
+		}
+		var object map[string]json.RawMessage
+		if json.Unmarshal(raw, &object) != nil {
+			return false, false, false
+		}
+		style = true
+	}
+	return style, reset, true
+}
+
+// officeRangeOK is the parseRange half of set_cells: "A1:B5" or the four
+// 0-based bounds; start <= end, inside the grid, and at most maxOfficeEditOps
+// cells — the job's op budget the range expands into.
+func officeRangeOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var startRow, startColumn, endRow, endColumn int
+	var address string
+	if json.Unmarshal(raw, &address) == nil {
+		parts := strings.Split(address, ":")
+		if len(parts) != 2 {
+			return false
+		}
+		var ok bool
+		if startRow, startColumn, ok = officeA1Index(parts[0]); !ok {
+			return false
+		}
+		if endRow, endColumn, ok = officeA1Index(parts[1]); !ok {
+			return false
+		}
+	} else {
+		var bounds map[string]json.RawMessage
+		if json.Unmarshal(raw, &bounds) != nil {
+			return false
+		}
+		var ok bool
+		if startRow, ok = officeGridIndex(bounds["startRow"], maxOfficeEditRows); !ok {
+			return false
+		}
+		if startColumn, ok = officeGridIndex(bounds["startColumn"], maxOfficeEditColumns); !ok {
+			return false
+		}
+		if endRow, ok = officeGridIndex(bounds["endRow"], maxOfficeEditRows); !ok {
+			return false
+		}
+		if endColumn, ok = officeGridIndex(bounds["endColumn"], maxOfficeEditColumns); !ok {
+			return false
+		}
+	}
+	if startRow > endRow || startColumn > endColumn {
+		return false
+	}
+	return (endRow-startRow+1)*(endColumn-startColumn+1) <= maxOfficeEditOps
+}
+
+// officeSetCellValid: a cell target plus content, a style, or a style reset.
+func officeSetCellValid(edit office.EditOp) bool {
+	if !officeCellTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeAttributesOf(edit.Attributes)
+	if !ok {
+		return false
+	}
+	content, ok := officeEditContent(edit, attributes)
+	if !ok {
+		return false
+	}
+	style, reset, ok := officeStyleOf(edit, attributes)
+	if !ok {
+		return false
+	}
+	return content || style || reset
+}
+
+// officeClearCellValid: a cell target; content fields are ignored, as the
+// engine's own parser ignores them for clear_cell.
+func officeClearCellValid(edit office.EditOp) bool {
+	return officeCellTargetOK(edit.Target)
+}
+
+// officeSetCellsValid: a cell target, a bounded range, and content (style is
+// optional, exactly as parseXlsxOps reads a range fill).
+func officeSetCellsValid(edit office.EditOp) bool {
+	if !officeCellTargetOK(edit.Target) || !officeRangeOK(edit.Range) {
+		return false
+	}
+	attributes, ok := officeAttributesOf(edit.Attributes)
+	if !ok {
+		return false
+	}
+	content, ok := officeEditContent(edit, attributes)
+	if !ok || !content {
+		return false
+	}
+	_, _, ok = officeStyleOf(edit, attributes)
+	return ok
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another
