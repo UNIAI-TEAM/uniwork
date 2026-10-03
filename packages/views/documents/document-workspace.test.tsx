@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Editor } from "@tiptap/core";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -50,17 +51,27 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
 
 /** The editor arrives through React.lazy; the first TipTap import is slow. */
 function findEditor() {
-  return screen.findByRole("textbox", {}, { timeout: 15_000 });
+  return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }
 
-/** Paste through the real ProseMirror handler, the way a user types text in. */
+/** Paste through the real ProseMirror clipboard handler. */
 function pasteText(text: string) {
-  const surface = screen.getByRole("textbox");
+  const surface = screen.getByRole("textbox", { name: t("documents.editor.aria_label") });
   const event = new Event("paste", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "clipboardData", {
     value: { files: [], getData: (type: string) => (type === "text/plain" ? text : "") },
   });
   fireEvent(surface, event);
+}
+
+function typeText(surface: HTMLElement, text: string) {
+  const editor = (surface as HTMLElement & { editor: Editor }).editor;
+  for (const char of text) {
+    const { from, to } = editor.state.selection;
+    const handled = editor.view.someProp("handleTextInput", (fn) =>
+      fn(editor.view, from, to, char, () => editor.state.tr.insertText(char, from, to)));
+    if (!handled) editor.view.dispatch(editor.state.tr.insertText(char, from, to));
+  }
 }
 
 interface PatchCall {
@@ -106,6 +117,44 @@ beforeEach(() => {
   requestMock.mockReset();
 });
 
+describe("DocumentWorkspace note page UI", () => {
+  it("hands focus from title Enter to the body and back on empty first-line Backspace/ArrowUp", async () => {
+    renderWorkspace({ content: { type: "doc", content: [{ type: "paragraph" }] } });
+    const body = await findEditor();
+    const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(body).toHaveFocus());
+    fireEvent.keyDown(body, { key: "Backspace" });
+    expect(title).toHaveFocus();
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(body).toHaveFocus());
+    fireEvent.keyDown(body, { key: "ArrowUp" });
+    expect(title).toHaveFocus();
+  });
+
+  it("opens the page listbox and Escape preserves the slash without producing a chat command", async () => {
+    renderWorkspace({ content: { type: "doc", content: [{ type: "paragraph" }] } });
+    const body = await findEditor();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: t("documents.page_ui.title_label") }), { key: "Enter" });
+    await act(async () => { typeText(body, "/"); });
+    expect(await screen.findByRole("listbox", { name: t("documents.page_ui.insert_block") })).toBeInTheDocument();
+    fireEvent.keyDown(body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(body).toHaveTextContent("/");
+    expect(body.querySelector("[data-type='slashCommand']")).toBeNull();
+  });
+
+  it("has a static title and no metadata controls in read-only mode", async () => {
+    renderWorkspace({ my_level: "view", icon: "📝" });
+    await findEditor();
+    expect(screen.getByRole("heading", { level: 1, name: "Kế hoạch Q3" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: t("documents.page_ui.title_label") })).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.page_ui.change_icon") })).toBeNull();
+    expect(screen.getAllByText(t("documents.save.readonly"))).toHaveLength(1);
+    expect(screen.queryByText(t("documents.detail.readonly_title"))).toBeNull();
+  });
+});
+
 describe("DocumentWorkspace autosave", () => {
   it("saves the page and only then reports it saved", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
@@ -131,7 +180,7 @@ describe("DocumentWorkspace autosave", () => {
     expect(JSON.stringify(call?.body.content)).toContain("Xin chào");
     expect(call?.headers?.["Idempotency-Key"]).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByText(/^Đã lưu/)).toBeInTheDocument(), {
+    await waitFor(() => expect(screen.getByRole("status", { name: /^Đã lưu/ })).toBeInTheDocument(), {
       timeout: 8_000,
     });
   });
@@ -340,7 +389,7 @@ describe("DocumentWorkspace autosave", () => {
 
     pasteText("Lần một");
     await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
-    await waitFor(() => expect(screen.getByText(/^Đã lưu/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("status", { name: /^Đã lưu/ })).toBeInTheDocument());
 
     pasteText("Lần hai");
     fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
@@ -412,6 +461,6 @@ describe("DocumentWorkspace autosave", () => {
     pasteText("không được sửa");
     await new Promise((resolve) => setTimeout(resolve, 2_500));
     expect(patchCalls()).toHaveLength(0);
-    expect(screen.getByText(t("documents.detail.readonly_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.save.readonly"))).toBeInTheDocument();
   });
 });
