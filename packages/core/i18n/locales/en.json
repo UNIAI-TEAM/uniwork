@@ -7024,6 +7024,42 @@
           "unreadable": "This picture could not be read."
         }
       },
+      "charts": {
+        "insert": "Insert chart",
+        "insertTitle": "Insert chart",
+        "insertHint": "Pick a type and enter the data grid.",
+        "insertFromTable": "Insert chart from the selected table",
+        "fromTable": "Using the selected table's data.",
+        "type": "Chart type",
+        "kinds": {
+          "bar": "Column",
+          "line": "Line",
+          "pie": "Pie"
+        },
+        "title": "Chart title",
+        "titlePlaceholder": "Optional",
+        "data": "Data",
+        "dataCorner": "Series",
+        "categoryLabel": "Category {{num}}",
+        "categoryPlaceholder": "Category {{num}}",
+        "seriesName": "Series name {{num}}",
+        "seriesPlaceholder": "Series name",
+        "seriesDefault": "Series {{num}}",
+        "valueLabel": "Value {{num}}",
+        "addCategory": "Add category",
+        "addSeries": "Add series",
+        "removeSeries": "Remove series {{num}}",
+        "cancel": "Cancel",
+        "close": "Close",
+        "label": "Chart",
+        "errors": {
+          "noCategories": "Add at least one category.",
+          "noSeries": "Add at least one data series.",
+          "seriesName": "Every series needs a name.",
+          "seriesLength": "Each series needs one value per category.",
+          "noValues": "Enter at least one number to plot."
+        }
+      },
       "toolbar": {
         "label": "DOCX editing commands",
         "tabsLabel": "Document tabs",
@@ -7056,7 +7092,8 @@
           "protect": "Protect",
           "export": "Export",
           "toc": "Table of contents",
-          "captions": "Captions and citations"
+          "captions": "Captions and citations",
+          "chart": "Chart"
         },
         "insert": {
           "symbol": "Symbol",

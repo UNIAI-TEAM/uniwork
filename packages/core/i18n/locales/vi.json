@@ -7018,6 +7018,42 @@
           "unreadable": "Không đọc được ảnh này."
         }
       },
+      "charts": {
+        "insert": "Chèn biểu đồ",
+        "insertTitle": "Chèn biểu đồ",
+        "insertHint": "Chọn loại biểu đồ và nhập bảng dữ liệu.",
+        "insertFromTable": "Chèn biểu đồ từ bảng đã chọn",
+        "fromTable": "Dùng dữ liệu từ bảng đã chọn.",
+        "type": "Loại biểu đồ",
+        "kinds": {
+          "bar": "Cột",
+          "line": "Đường",
+          "pie": "Tròn"
+        },
+        "title": "Tiêu đề biểu đồ",
+        "titlePlaceholder": "Không bắt buộc",
+        "data": "Dữ liệu",
+        "dataCorner": "Chuỗi",
+        "categoryLabel": "Danh mục {{num}}",
+        "categoryPlaceholder": "Danh mục {{num}}",
+        "seriesName": "Tên chuỗi {{num}}",
+        "seriesPlaceholder": "Tên chuỗi",
+        "seriesDefault": "Chuỗi {{num}}",
+        "valueLabel": "Giá trị {{num}}",
+        "addCategory": "Thêm danh mục",
+        "addSeries": "Thêm chuỗi",
+        "removeSeries": "Xóa chuỗi {{num}}",
+        "cancel": "Hủy",
+        "close": "Đóng",
+        "label": "Biểu đồ",
+        "errors": {
+          "noCategories": "Cần ít nhất một danh mục.",
+          "noSeries": "Cần ít nhất một chuỗi dữ liệu.",
+          "seriesName": "Mỗi chuỗi cần có tên.",
+          "seriesLength": "Mỗi chuỗi cần đủ giá trị cho các danh mục.",
+          "noValues": "Nhập ít nhất một con số để vẽ biểu đồ."
+        }
+      },
       "toolbar": {
         "label": "Lệnh chỉnh sửa DOCX",
         "tabsLabel": "Thẻ tài liệu",
@@ -7050,7 +7086,8 @@
           "protect": "Bảo vệ",
           "export": "Xuất",
           "toc": "Mục lục",
-          "captions": "Chú thích và trích dẫn"
+          "captions": "Chú thích và trích dẫn",
+          "chart": "Biểu đồ"
         },
         "insert": {
           "symbol": "Ký hiệu",
