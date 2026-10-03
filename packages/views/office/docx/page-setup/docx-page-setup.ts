@@ -73,7 +73,7 @@ export const DOCX_PAPER_SIZES: readonly DocxPaperSize[] = [
 export const DOCX_COLUMN_CHOICES: readonly number[] = [1, 2, 3];
 
 /** Every start type a section can carry (the dialog offers all of them). */
-export const DOCX_SECTION_START_TYPES: readonly DocxSectionStartType[] = ["nextPage", "continuous", "evenPage", "oddPage"];
+export const DOCX_SECTION_START_TYPES: readonly DocxSectionStartType[] = ["nextPage", "continuous", "evenPage", "oddPage", "nextColumn"];
 
 const DEFAULT_COLUMN_SPACE = 720;
 const TWIPS_PER_CM = 1440 / 2.54;
@@ -97,8 +97,19 @@ function startTypeOf(value: unknown): DocxSectionStartType {
 }
 
 function sectionFromRenderer(section: RendererSection, index: number): DocxPageSetupSection {
-  const settings = section.settings as RendererSection["settings"] & { orientation?: string; columns?: number; colSpace?: number };
+  const settings = section.settings as RendererSection["settings"] & {
+    orientation?: string;
+    columns?: number;
+    colSpace?: number;
+    gutter?: number;
+    gutterAtTop?: boolean;
+  };
   const columns = typeof settings.columns === "number" && settings.columns > 0 ? settings.columns : 1;
+  // The engine writes the raw w:pgMar attributes; readSections folds w:gutter
+  // into the margin it displays, so subtract it back to show (and edit) the
+  // value the file carries.
+  const gutter = typeof settings.gutter === "number" && settings.gutter > 0 ? settings.gutter : 0;
+  const gutterAtTop = settings.gutterAtTop === true;
   return {
     index,
     firstBlockIndex: section.firstBlockIndex,
@@ -106,10 +117,10 @@ function sectionFromRenderer(section: RendererSection, index: number): DocxPageS
     pageWidth: settings.pageWidth,
     pageHeight: settings.pageHeight,
     orientation: settings.orientation === "landscape" ? "landscape" : "portrait",
-    marginTop: settings.marginTop,
+    marginTop: settings.marginTop - (gutterAtTop ? gutter : 0),
     marginRight: settings.marginRight,
     marginBottom: settings.marginBottom,
-    marginLeft: settings.marginLeft,
+    marginLeft: settings.marginLeft - (gutterAtTop ? 0 : gutter),
     columns,
     columnSpace: typeof settings.colSpace === "number" ? settings.colSpace : DEFAULT_COLUMN_SPACE,
     startType: startTypeOf(section.startType),

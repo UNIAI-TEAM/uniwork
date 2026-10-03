@@ -7238,7 +7238,8 @@
           "nextPage": "New page",
           "continuous": "Continuous",
           "evenPage": "Even page",
-          "oddPage": "Odd page"
+          "oddPage": "Odd page",
+          "nextColumn": "New column"
         }
       },
       "pageDecor": {

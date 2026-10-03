@@ -4,6 +4,7 @@ import {
   activeSectionIndex,
   applyPropertiesToSection,
   cmFromTwips,
+  DOCX_SECTION_START_TYPES,
   formatCm,
   marginPresetKey,
   marginsFit,
@@ -78,6 +79,30 @@ describe("sectionsFromParsed", () => {
       columnSpace: 425,
       startType: "nextPage",
     });
+  });
+
+  it("shows the raw w:pgMar margins, not the gutter-folded value", () => {
+    const margins = '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1200" w:header="708" w:footer="708" w:gutter="245"/>';
+    const guttered = (gutterAtTop: boolean) => ({
+      gutterAtTop,
+      blocks: [
+        { docxIndex: 0, type: "paragraph", originalXml: P("a") },
+        { docxIndex: 1, type: "sectPr", hidden: true, originalXml: `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>${margins}</w:sectPr>` },
+      ],
+    });
+    expect(sectionsFromParsed(guttered(false))[0]).toMatchObject({ marginLeft: 1200, marginTop: 1440 });
+    expect(sectionsFromParsed(guttered(true))[0]).toMatchObject({ marginLeft: 1200, marginTop: 1440 });
+  });
+
+  it("offers every engine start type and maps nextColumn through", () => {
+    expect(DOCX_SECTION_START_TYPES).toEqual(["nextPage", "continuous", "evenPage", "oddPage", "nextColumn"]);
+    const nextColumn = {
+      blocks: [
+        { docxIndex: 0, type: "paragraph", originalXml: P("a") },
+        { docxIndex: 1, type: "sectPr", hidden: true, originalXml: SECT_PR({ type: "nextColumn" }) },
+      ],
+    };
+    expect(sectionsFromParsed(nextColumn)[0]!.startType).toBe("nextColumn");
   });
 });
 
