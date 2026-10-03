@@ -1,14 +1,11 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { XlsxNumberFormatGroup } from "../../number-format/number-format-group";
 import type { XlsxToolbarGroupProps } from "../types";
 
-export function XlsxNumberGroup({ readOnly = false, canFormat, onNumberFormat }: XlsxToolbarGroupProps) {
-  const { t } = useTranslation();
-  return (
-    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.numberFormat")} aria-disabled={readOnly || !canFormat || undefined} title="0.00" onClick={onNumberFormat}>
-      <span aria-hidden className="text-caption font-semibold">123</span>
-    </Button>
-  );
+/** Registry-facing name for the Home number-format group. The controls live in
+ *  `xlsx/number-format/` so the gallery catalog, validation and command guard
+ *  stay one folder; this file keeps the registry seam's import unchanged. */
+export function XlsxNumberGroup(props: XlsxToolbarGroupProps) {
+  return <XlsxNumberFormatGroup {...props} />;
 }

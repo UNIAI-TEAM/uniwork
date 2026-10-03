@@ -145,13 +145,16 @@ describe("XlsxToolbar tabbed shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Trang tính" }));
     fireEvent.click(screen.getByRole("button", { name: "Sao chép ô đã chọn" }));
     fireEvent.click(screen.getByRole("button", { name: "Dán vào ô đã chọn" }));
-    fireEvent.click(screen.getByRole("button", { name: "Định dạng số" }));
     expect(props.onUndo).toHaveBeenCalledOnce();
     expect(props.onRedo).toHaveBeenCalledOnce();
     expect(props.onShowSheets).toHaveBeenCalledOnce();
     expect(props.onCopy).toHaveBeenCalledOnce();
     expect(props.onPaste).toHaveBeenCalledOnce();
-    expect(props.onNumberFormat).toHaveBeenCalledOnce();
+    // The number-format group drives renderer commands through the toolbar
+    // port (it no longer calls onNumberFormat); this shell harness mounts no
+    // port, so its trigger renders disabled and inert — its own suite covers
+    // the gallery and the decimal steppers.
+    expect(screen.getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
 
     activateTab("formulas");
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
@@ -246,8 +249,9 @@ describe("XlsxToolbar overflow", () => {
     expect(within(panel).queryByRole("button", { name: "Định dạng số" })).not.toBeInTheDocument();
     fireEvent.click(trigger);
     const overflowPanel = await screen.findByTestId("xlsx-toolbar-overflow-panel");
-    fireEvent.click(within(overflowPanel).getByRole("button", { name: "Định dạng số" }));
-    expect(props.onNumberFormat).toHaveBeenCalledOnce();
+    expect(within(overflowPanel).getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(within(overflowPanel).getByRole("button", { name: "Trang tính" }));
+    expect(props.onShowSheets).toHaveBeenCalledOnce();
   });
 
   it("keeps the overflow trigger reachable when nothing fits", async () => {
