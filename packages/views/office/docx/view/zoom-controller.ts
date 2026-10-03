@@ -71,18 +71,21 @@ export interface DocxZoomController {
   getState(): DocxZoomState;
   subscribe(listener: (state: DocxZoomState) => void): () => void;
   /** Attach to a mounted surface. Re-attaching replaces the previous target;
-   *  the zoom state (a view setting) is kept across documents. */
+   *  the zoom state (a view setting) is kept across documents. A page size
+   *  stashed by an earlier `setPageSize` is merged in when the target does not
+   *  carry one. */
   attach(target: DocxZoomTarget): void;
   /** Detach listeners and remove the property — call when the surface unmounts. */
   detach(): void;
-  /** Detach and drop every subscriber; the controller is not reusable after. */
+  /** Detach and drop every subscriber (subsequent attach calls still work). */
   dispose(): void;
   setPercent(percent: number): void;
   zoomIn(): void;
   zoomOut(): void;
   reset(): void;
   fit(mode: "width" | "page"): void;
-  /** The wiring learns the page box after open; refits when a fit mode is active. */
+  /** The wiring learns the page box after open; stashed for a later attach and
+   *  refit immediately while a fit mode is active. */
   setPageSize(pageSize: DocxZoomPageSize | null): void;
 }
 
@@ -99,6 +102,9 @@ export function createDocxZoomController(): DocxZoomController {
   const listeners = new Set<(state: DocxZoomState) => void>();
   let attachment: DocxZoomAttachment | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  // A wiring that learns the page box before the surface mounts must not lose
+  // it: the value rides into the next attach unless that attach carries one.
+  let knownPageSize: DocxZoomPageSize | null = null;
 
   const applyZoom = (): void => {
     if (!attachment) return;
@@ -184,7 +190,7 @@ export function createDocxZoomController(): DocxZoomController {
       const next: DocxZoomAttachment = {
         zoomElement: target.zoomElement,
         scrollElement: target.scrollElement ?? target.zoomElement,
-        pageSize: target.pageSize ?? null,
+        pageSize: target.pageSize === undefined ? knownPageSize : target.pageSize,
         fitPaddingPx: target.fitPaddingPx ?? DOCX_ZOOM_FIT_PADDING_PX,
       };
       attachment = next;
@@ -208,6 +214,7 @@ export function createDocxZoomController(): DocxZoomController {
     reset,
     fit: fitTo,
     setPageSize(pageSize) {
+      knownPageSize = pageSize;
       if (!attachment) return;
       attachment = { ...attachment, pageSize };
       refit();

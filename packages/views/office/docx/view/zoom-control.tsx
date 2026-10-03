@@ -72,6 +72,7 @@ export function DocxZoomControl({ controller, disabled = false, className }: Doc
         size="icon-sm"
         aria-label={t("office.docx.view.zoom.fitWidth")}
         aria-pressed={state.mode === "fit-width"}
+        className="aria-pressed:bg-surface-hover aria-pressed:text-foreground"
         disabled={disabled}
         onClick={() => resolved.fit("width")}
       >
@@ -83,6 +84,7 @@ export function DocxZoomControl({ controller, disabled = false, className }: Doc
         size="icon-sm"
         aria-label={t("office.docx.view.zoom.fitPage")}
         aria-pressed={state.mode === "fit-page"}
+        className="aria-pressed:bg-surface-hover aria-pressed:text-foreground"
         disabled={disabled}
         onClick={() => resolved.fit("page")}
       >

@@ -18,7 +18,8 @@ export interface DocxOutlineDocNode {
 }
 
 export interface DocxOutlineItem {
-  /** Stable id for React keys / active tracking. */
+  /** Stable id for React keys / active tracking within one extraction — an
+   *  edit that shifts the heading's position produces a new id. */
   id: string;
   level: number;
   text: string;

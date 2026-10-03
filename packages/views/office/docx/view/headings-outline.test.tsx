@@ -1,5 +1,8 @@
 // UNI-924 A6: heading outline extraction and nesting for the navigation pane.
+import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
+import { blocksToDoc } from "../docx-doc-convert";
+import { docxExtensions } from "../docx-schema";
 import { docxOutlineFromDoc, type DocxOutlineDocNode } from "./headings-outline";
 
 interface FakeBlock {
@@ -87,5 +90,27 @@ describe("docxOutlineFromDoc", () => {
     expect(docxOutlineFromDoc(fakeDoc([]))).toEqual([]);
     expect(docxOutlineFromDoc(null)).toEqual([]);
     expect(docxOutlineFromDoc(undefined)).toEqual([]);
+  });
+
+  it("extracts the outline from a real TipTap docHeading document", () => {
+    // F4: the fake above mirrors the structural contract; this pins the
+    // extraction against the nodes a real editor produces from engine blocks.
+    const editor = new Editor({
+      extensions: docxExtensions(),
+      content: blocksToDoc([
+        { type: "heading", docxIndex: 0, level: 1, runs: [{ text: "One" }] },
+        { type: "paragraph", docxIndex: 1, runs: [{ text: "body" }] },
+        { type: "heading", docxIndex: 2, level: 2, runs: [{ text: "One A" }] },
+      ]),
+    });
+    try {
+      const outline = docxOutlineFromDoc(editor.state.doc);
+      expect(outline.map((item) => item.text)).toEqual(["One"]);
+      expect(outline[0]?.level).toBe(1);
+      expect(outline[0]?.children.map((item) => item.text)).toEqual(["One A"]);
+      expect(outline[0]?.children[0]?.level).toBe(2);
+    } finally {
+      editor.destroy();
+    }
   });
 });

@@ -181,6 +181,16 @@ describe("DOCX zoom controller", () => {
     controller.dispose();
   });
 
+  it("keeps a page size set before the surface attaches", () => {
+    const controller = createDocxZoomController();
+    // The wiring may learn the page box before it finds the .doc-zoom element.
+    controller.setPageSize(PAGE);
+    controller.attach({ zoomElement: document.createElement("div"), scrollElement: sizedElement(848, 1056) });
+    controller.fit("width");
+    expect(controller.getState()).toEqual({ percent: 98, mode: "fit-width" });
+    controller.dispose();
+  });
+
   it("reads a missing or malformed factor as 1", () => {
     expect(docxZoomFactorOf(null)).toBe(1);
     expect(docxZoomFactorOf(undefined)).toBe(1);

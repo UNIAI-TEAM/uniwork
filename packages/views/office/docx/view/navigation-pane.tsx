@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -45,10 +46,31 @@ function flattenOutline(items: readonly DocxOutlineItem[], depth = 0, out: FlatO
 }
 
 /** Word's navigation pane: the headings outline with click-to-jump. The pane
- *  is presentational — the wiring owns the editor, the scroll and the toggle. */
+ *  is presentational — the wiring owns the editor, the scroll and the toggle.
+ *  The list is exposed as a tree (aria-level carries the nesting to AT) with a
+ *  roving tab stop; Arrow/Home/End move focus between the headings. */
 export function DocxNavigationPane({ items, activeId, onSelect, onClose, className }: DocxNavigationPaneProps) {
   const { t } = useTranslation();
   const entries = flattenOutline(items);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const hasEntry = (id: string | null) => id !== null && entries.some((entry) => entry.item.id === id);
+  // One tab stop for the whole tree: the focused heading, else the active one
+  // (caret tracking), else the first heading.
+  const tabbableId = hasEntry(focusId) ? focusId : hasEntry(activeId ?? null) ? activeId ?? null : entries[0]?.item.id ?? null;
+
+  const moveFocus = (event: KeyboardEvent<HTMLUListElement>) => {
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="treeitem"]:not(:disabled)'));
+    const current = buttons.indexOf(event.target as HTMLButtonElement);
+    if (current === -1) return;
+    let next: number | null = null;
+    if (event.key === "ArrowDown") next = Math.min(current + 1, buttons.length - 1);
+    else if (event.key === "ArrowUp") next = Math.max(current - 1, 0);
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = buttons.length - 1;
+    if (next === null) return;
+    event.preventDefault();
+    buttons[next]?.focus();
+  };
 
   return (
     <aside
@@ -79,20 +101,25 @@ export function DocxNavigationPane({ items, activeId, onSelect, onClose, classNa
         </p>
       ) : (
         <nav aria-label={t("office.docx.view.navigation.list")} className="min-h-0 flex-1 overflow-y-auto p-1">
-          <ul className="flex flex-col gap-0.5">
+          <ul role="tree" aria-label={t("office.docx.view.navigation.list")} className="flex flex-col gap-0.5" onKeyDown={moveFocus}>
             {entries.map(({ item, depth }) => {
               const active = activeId === item.id;
               return (
-                <li key={item.id}>
+                <li key={item.id} role="none">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
+                    role="treeitem"
+                    aria-level={depth + 1}
                     data-testid={`docx-navigation-item-${item.id}`}
                     data-active={active ? "true" : undefined}
                     aria-current={active ? "true" : undefined}
+                    tabIndex={tabbableId === item.id ? 0 : -1}
+                    disabled={!onSelect}
                     className="h-auto min-h-7 w-full justify-start whitespace-normal py-1 text-start data-[active=true]:bg-muted data-[active=true]:text-foreground"
                     style={{ paddingInlineStart: `${8 + depth * 12}px` }}
+                    onFocus={() => setFocusId(item.id)}
                     onClick={() => onSelect?.(item)}
                   >
                     {item.text}

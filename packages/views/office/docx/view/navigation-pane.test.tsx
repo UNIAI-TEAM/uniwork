@@ -19,8 +19,8 @@ const ITEMS: DocxOutlineItem[] = [
 describe("DocxNavigationPane", () => {
   it("renders the nested outline flattened in document order with depth indent", () => {
     render(<DocxNavigationPane items={ITEMS} />);
-    const buttons = screen.getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual(["One", "One A", "Two"]);
+    const items = screen.getAllByRole("treeitem");
+    expect(items.map((item) => item.textContent)).toEqual(["One", "One A", "Two"]);
     expect(
       Number.parseFloat(screen.getByTestId("docx-navigation-item-heading-0").style.paddingInlineStart),
     ).toBeCloseTo(8, 5);
@@ -32,18 +32,43 @@ describe("DocxNavigationPane", () => {
   it("reports the clicked item and highlights the active heading", () => {
     const onSelect = vi.fn();
     render(<DocxNavigationPane items={ITEMS} activeId="heading-10" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "One A" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: "One A" }));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(ITEMS[0]?.children[0]);
     expect(screen.getByTestId("docx-navigation-item-heading-10")).toHaveAttribute("aria-current", "true");
     expect(screen.getByTestId("docx-navigation-item-heading-0")).not.toHaveAttribute("aria-current");
   });
 
+  it("exposes the nesting as tree levels and moves focus with the arrow keys", () => {
+    render(<DocxNavigationPane items={ITEMS} onSelect={vi.fn()} />);
+    const one = screen.getByRole("treeitem", { name: "One" });
+    expect(one).toHaveAttribute("aria-level", "1");
+    expect(screen.getByRole("treeitem", { name: "One A" })).toHaveAttribute("aria-level", "2");
+    expect(screen.getByRole("treeitem", { name: "Two" })).toHaveAttribute("aria-level", "1");
+    // A single tab stop for the tree: the first heading until focus moves.
+    expect(one).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("treeitem", { name: "One A" })).toHaveAttribute("tabindex", "-1");
+
+    one.focus();
+    fireEvent.keyDown(one, { key: "ArrowDown" });
+    expect(screen.getByRole("treeitem", { name: "One A" })).toHaveFocus();
+    expect(screen.getByRole("treeitem", { name: "One A" })).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(screen.getByRole("treeitem", { name: "One A" }), { key: "End" });
+    expect(screen.getByRole("treeitem", { name: "Two" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("treeitem", { name: "Two" }), { key: "Home" });
+    expect(screen.getByRole("treeitem", { name: "One" })).toHaveFocus();
+  });
+
+  it("disables the outline items when no select handler is wired", () => {
+    render(<DocxNavigationPane items={ITEMS} />);
+    expect(screen.getByRole("treeitem", { name: "One" })).toBeDisabled();
+  });
+
   it("shows the empty state and the close affordance when one is provided", () => {
     const onClose = vi.fn();
     render(<DocxNavigationPane items={[]} onClose={onClose} />);
     expect(screen.getByTestId("docx-navigation-empty")).toHaveTextContent("Tài liệu chưa có tiêu đề");
-    expect(screen.queryByRole("button", { name: "One" })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: "One" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Đóng ngăn điều hướng" }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

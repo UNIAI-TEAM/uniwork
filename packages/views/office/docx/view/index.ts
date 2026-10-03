@@ -8,9 +8,9 @@
 //
 //   const controller = getDocxZoomController();
 //   controller.attach({
-//     zoomElement,                     // surface's `.doc-zoom`
-//     scrollElement,                   // surface's `.editor-scroll`
-//     pageSize: { widthPx, heightPx }, // sectionPageBox(canvas settings)
+//     zoomElement,   // surface's `.doc-zoom`
+//     scrollElement, // surface's `.editor-scroll`
+//     pageSize: { widthPx: page.width, heightPx: page.height }, // sectionPageBox(canvas.settings)
 //   });
 //   ...
 //   controller.detach();               // on unmount

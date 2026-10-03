@@ -51,4 +51,22 @@ describe("DocxZoomControl", () => {
     expect(controller.getState().mode).toBe("manual");
     controller.dispose();
   });
+
+  it("paints the engaged fit mode through the aria-pressed variant", () => {
+    const controller = createDocxZoomController();
+    const zoomElement = document.createElement("div");
+    const scrollElement = document.createElement("div");
+    Object.defineProperty(scrollElement, "clientWidth", { value: 848, configurable: true });
+    Object.defineProperty(scrollElement, "clientHeight", { value: 1056, configurable: true });
+    controller.attach({ zoomElement, scrollElement, pageSize: { widthPx: 816, heightPx: 1056 } });
+    render(<DocxZoomControl controller={controller} />);
+
+    const fitWidth = screen.getByRole("button", { name: "Vừa chiều rộng" });
+    fireEvent.click(fitWidth);
+    expect(controller.getState().mode).toBe("fit-width");
+    expect(fitWidth).toHaveAttribute("aria-pressed", "true");
+    // The toolbar variant has no pressed paint of its own; the class carries it.
+    expect(fitWidth).toHaveClass("aria-pressed:bg-surface-hover");
+    controller.dispose();
+  });
 });
