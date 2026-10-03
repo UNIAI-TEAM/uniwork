@@ -62,12 +62,13 @@ describe("PdfStampPalette", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Engine PDF hiện tại chưa đóng được con dấu."));
   });
 
-  it("refuses a non-PNG/JPEG file without touching the provider", () => {
+  it("refuses a non-PNG/JPEG file without touching the provider", async () => {
     const host = provider();
     render(<PdfStampPalette placement={placement} provider={host} />);
     chooseFile(new File([Uint8Array.from([1, 2, 3])], "note.pdf", { type: "application/pdf" }));
     fireEvent.click(screen.getByRole("button", { name: "Đóng dấu ảnh" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Chọn ảnh PNG hoặc JPEG.");
+    // prepareStampImage rejects on a microtask, so the alert lands a tick later.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chọn ảnh PNG hoặc JPEG.");
     expect(host.placeStamp).not.toHaveBeenCalled();
   });
 

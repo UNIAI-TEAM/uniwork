@@ -12,7 +12,7 @@ import {
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 
-function fileOf(bytes: Uint8Array, type: string, name = "signature"): File {
+function fileOf(bytes: Uint8Array<ArrayBuffer>, type: string, name = "signature"): File {
   return new File([bytes], name, { type });
 }
 

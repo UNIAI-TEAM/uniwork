@@ -74,7 +74,11 @@ describe("PdfFormsPanel", () => {
     const host = provider();
     render(<PdfFormsPanel fields={FIELDS} provider={host} />);
     fireEvent.click(screen.getByRole("combobox", { name: "Thành phố" }));
-    fireEvent.click(await screen.findByRole("option", { name: "TP. Hồ Chí Minh" }));
+    const option = await screen.findByRole("option", { name: "TP. Hồ Chí Minh" });
+    // Base UI's select commits on a pointer press, not on a bare click.
+    fireEvent.pointerDown(option, { pointerType: "mouse" });
+    fireEvent.pointerUp(option, { pointerType: "mouse" });
+    fireEvent.click(option);
     await waitFor(() =>
       expect(host.setFormValue).toHaveBeenCalledWith({ name: "city", kind: "choice", value: "hcm" }),
     );
