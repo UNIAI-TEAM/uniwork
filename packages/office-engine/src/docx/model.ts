@@ -26,6 +26,7 @@ import {
   type DocxSaveOptions,
 } from "./engine";
 import { DocxNumberingEdits } from "./numbering";
+import { DocxPageDecorState, isPageDecorEdit, type DocxPageBorders, type DocxPageDecorEdit, type DocxThemeColors, type DocxThemeFonts, type DocxWatermark } from "./page-decor";
 import { cloneNote, requireCommentEntry, requireImageBytes, requireNote } from "./payloads";
 import {
   applySectionProperties,
@@ -48,6 +49,9 @@ export {
   type DocxSectionSnapshot,
   type DocxSectionStartType,
 } from "./section-properties";
+// B6 page-decoration surface: readPageDecor/readPageBorders/applyPageBorders,
+// the border style list and the op/options types.
+export * from "./page-decor";
 
 /** One plan row: an original block ref, or the replacement the model carries. */
 type PlanEntry =
@@ -72,7 +76,8 @@ export type DocxEdit =
   | { op: "set_notes"; kind: DocxNoteKind; notes: DocxNoteInfo[] }
   | { op: "set_section_properties"; sectionIndex: number; properties: DocxSectionProperties }
   | { op: "insert_numbering_def"; def: DocxNewNumberingDef }
-  | { op: "restart_numbering"; restart: DocxRestartNumbering };
+  | { op: "restart_numbering"; restart: DocxRestartNumbering }
+  | DocxPageDecorEdit;
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
 
@@ -115,6 +120,8 @@ export class DocxSessionModel {
   private touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
+  /** Pending page-decoration edits (B6); see ./page-decor. */
+  private readonly pageDecor = new DocxPageDecorState(() => { this.touched = true; this.revision += 1; });
 
   constructor(parsed: DocxParsed) {
     this.parsed = parsed;
@@ -269,6 +276,14 @@ export class DocxSessionModel {
     this.revision += 1;
   }
 
+  /** B6 page decoration: colour/watermark/theme become SaveOptions; the
+   * section's border box rides the section rewrites. */
+  setPageColor(color: string | null): void { this.pageDecor.setPageColor(color); }
+  setWatermark(watermark: DocxWatermark | null): void { this.pageDecor.setWatermark(watermark); }
+  setThemeFonts(fonts: DocxThemeFonts): void { this.pageDecor.setThemeFonts(fonts); }
+  setThemeColors(colors: DocxThemeColors): void { this.pageDecor.setThemeColors(colors); }
+  setPageBorders(sectionIndex: number, borders: DocxPageBorders | null): void { this.pageDecor.setPageBorders(this.parsed, sectionIndex, borders); }
+
   /** Set page-setup fields of one section. `sectionIndex` is the section's
    * 0-based document-order position (docxSections/readSections order), never a
    * block docxIndex. Fields merge: an absent field keeps the section's current
@@ -333,13 +348,14 @@ export class DocxSessionModel {
    * its bytes ride `options.trailingSectPr` instead. */
   private sectionRewrites(options: DocxSaveOptions): Map<number, { from: string; to: string }> {
     const rewrites = new Map<number, { from: string; to: string }>();
-    if (this.sectionEdits.size === 0) return rewrites;
+    const borderIndexes = this.pageDecor.borderIndexes();
+    if (this.sectionEdits.size === 0 && borderIndexes.length === 0) return rewrites;
     const sections = docxSections(this.parsed);
     const consumed = new Set<number>();
-    for (const sectionIndex of [...this.sectionEdits.keys()].sort((a, b) => a - b)) {
+    for (const sectionIndex of [...new Set([...this.sectionEdits.keys(), ...borderIndexes])].sort((a, b) => a - b)) {
       const section = sections[sectionIndex];
       if (!section || section.sectPrXml.length === 0) continue;
-      const to = applySectionProperties(section.sectPrXml, this.sectionEdits.get(sectionIndex)!);
+      const to = this.pageDecor.applyBorders(sectionIndex, applySectionProperties(section.sectPrXml, this.sectionEdits.get(sectionIndex) ?? {}));
       if (to === section.sectPrXml) continue;
       if (section.breakDocxIndex === null) {
         options.trailingSectPr = section.blockXml.replace(section.sectPrXml, to);
@@ -531,6 +547,7 @@ export class DocxSessionModel {
 
   /** Typed dispatch so the adapter's edit channel stays a single entry. */
   applyEdit(edit: DocxEdit): void {
+    if (isPageDecorEdit(edit)) return this.pageDecor.applyEdit(this.parsed, edit);
     switch (edit.op) {
       case "set_paragraph_text":
         return this.setParagraphText(edit.docxIndex, edit.runs);
@@ -569,7 +586,7 @@ export class DocxSessionModel {
    * An untouched plan is the all-original set — upstream answers the original
    * bytes (no-op save), which is the correct result, not a shortcut. */
   savePlan(): { finalBlocks: DocxSaveBlock[]; options: DocxSaveOptions } {
-    const options: DocxSaveOptions = { ...this.options };
+    const options: DocxSaveOptions = { ...this.options, ...this.pageDecor.saveOptions() };
     const numbering = this.numbering.options();
     if (numbering) options.numbering = numbering;
     const rewrites = this.sectionRewrites(options);
@@ -618,6 +635,7 @@ export class DocxSessionModel {
     this.plan = visibleIndexes(newParsed).map((docxIndex) => ({ source: "original", docxIndex }));
     this.options = {};
     this.sectionEdits.clear();
+    this.pageDecor.clear();
     this.numbering = new DocxNumberingEdits(newParsed.numbering instanceof Map ? newParsed.numbering : undefined);
     this.touched = false;
   }

@@ -289,6 +289,63 @@ export interface DocxHeaderFooter {
   [key: string]: unknown;
 }
 
+/** Text watermark — upstream WatermarkSpec (watermark.ts:87); a bare string
+ * would be the text alone. The save writes/removes the VML watermark in the
+ * default page header (patch.ts:211). Picture watermarks are upstream-
+ * supported but not surfaced by B6. */
+export interface DocxWatermark {
+  text: string;
+  fontFamily?: string;
+  /** hex without '#' (upstream default: silver) */
+  colorHex?: string;
+  /** 0..1 fill opacity (upstream default 0.5) */
+  opacity?: number;
+  /** rotated 315° like Word's diagonal layout (upstream default true) */
+  diagonal?: boolean;
+  bold?: boolean;
+  italic?: boolean;
+}
+
+/** Theme font pair — upstream ThemeFonts (types.ts:2049), the subset the save
+ * writes (applyThemeFonts, theme.ts:73). */
+export interface DocxThemeFonts {
+  major: string;
+  minor: string;
+  /** a:ea typeface, written to both font groups when present */
+  eastAsia?: string;
+}
+
+/** Writeable theme colour slots — upstream ThemeColors (types.ts:2102).
+ * applyThemeColors (theme.ts:212) rewrites the six accents + dk2/lt2 and the
+ * scheme name; dk1/lt1/hlink/folHlink stay read-only. Hex without '#'. */
+export interface DocxThemeColors {
+  name?: string;
+  dk2?: string;
+  lt2?: string;
+  accent1?: string;
+  accent2?: string;
+  accent3?: string;
+  accent4?: string;
+  accent5?: string;
+  accent6?: string;
+}
+
+/** Page borders of one section: one style on all four sides, written as
+ * w:pgBorders in the section's w:sectPr. The vendored save carries no option
+ * for them, so B6 rewrites the sectPr slice through the section seam. */
+export interface DocxPageBorders {
+  /** ST_Border line style: single, double, dashed, dotted, wave, … */
+  style: string;
+  /** w:sz in eighths of a point (2-96; upstream default 4) */
+  widthEighths?: number;
+  /** w:color hex without '#'; absent writes "auto" */
+  colorHex?: string;
+  /** w:space: distance from the offset base in points (upstream default 24) */
+  spacePt?: number;
+  /** w:offsetFrom; absent keeps Word's default ("text") */
+  offsetFrom?: "page" | "text";
+}
+
 /** SaveBlock — upstream patch.ts:88-109 verbatim union, plus the shared
  * `revision` tail (tracked insertion/deletion wrapper). */
 export type DocxSaveBlock = (
@@ -328,6 +385,17 @@ export interface DocxSaveOptions {
   footerEven?: DocxHeaderFooter;
   titlePg?: boolean;
   evenAndOddHeaders?: boolean;
+  /** Page colour: hex without '#' to set, null to remove, undefined to keep
+   * (upstream patch.ts:125 — w:background + the settings display flag). */
+  pageColor?: string | null;
+  /** Default-header watermark: a spec sets/replaces it, null removes it,
+   * undefined keeps the header's own (upstream patch.ts:211). */
+  watermark?: DocxWatermark | null;
+  /** Theme font pair / colour scheme: patches (or creates)
+   * word/theme/theme1.xml; undefined keeps the part byte-identical
+   * (upstream patch.ts:223-226). */
+  themeFonts?: DocxThemeFonts;
+  themeColors?: DocxThemeColors;
   sectionHf?: Array<{ lastBlockIndex: number; kind: "header" | "footer"; hf: DocxHeaderFooter }>;
   hfAllSections?: boolean;
   /** Full desired comment list; word/comments.xml is regenerated from it and
