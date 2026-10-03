@@ -195,21 +195,68 @@ function numberingStorage(editor: Editor | null): ListNumberingStorage | null {
   return storage ?? null;
 }
 
+/** The numIds/abstractNumIds the editor was opened with — the parse's own
+ * definitions, before any overlay this session writes. The save oracle accepts
+ * a restart only over an abstractNumId the parsed part carries, so these sets
+ * are the view-side record of "restarting over this is legal". */
+export interface DocxListParseBaseline {
+  readonly numIds: ReadonlySet<string>;
+  readonly abstractNumIds: ReadonlySet<string>;
+}
+
+const EMPTY_LIST_BASELINE: DocxListParseBaseline = { numIds: new Set(), abstractNumIds: new Set() };
+const listParseBaselines = new WeakMap<Editor, DocxListParseBaseline>();
+
+function captureParseBaseline(editor: Editor): DocxListParseBaseline {
+  const own = numberingStorage(editor)?.defs;
+  const defs = own instanceof Map ? own : new Map<string, DocxNumberingDef>();
+  const baseline: DocxListParseBaseline = {
+    numIds: new Set(defs.keys()),
+    abstractNumIds: new Set([...defs.values()].map((def) => def.abstractNumId).filter((id) => typeof id === "string" && id.length > 0)),
+  };
+  listParseBaselines.set(editor, baseline);
+  return baseline;
+}
+
+/** The open parse's own numbering ids, captured once per editor instance: the
+ * first read (or first overlay) sees the parse's Map because overlays only
+ * ever append. Empty without an editor or the numbering extension. */
+export function parseBackedListBaseline(editor: Editor | null): DocxListParseBaseline {
+  if (!editor || editor.isDestroyed) return EMPTY_LIST_BASELINE;
+  return listParseBaselines.get(editor) ?? captureParseBaseline(editor);
+}
+
 /** The definitions the editor renders markers from: the open parse's own plus
  * every overlay this session added (mutating it is the overlay channel). */
 export function listDefsOf(editor: Editor | null): Map<string, DocxNumberingDef> {
   const defs = numberingStorage(editor)?.defs;
+  if (editor && !editor.isDestroyed) parseBackedListBaseline(editor);
   return defs instanceof Map ? defs : new Map<string, DocxNumberingDef>();
 }
 
 /** Write a definition into the list-numbering storage so the editor draws its
  * markers before a save writes the part (upstream App overlayNumberingDef:33
- * replaces the Map so the extension's identity checks see the change). */
+ * replaces the Map so the extension's identity checks see the change). The
+ * parse baseline is captured before the first overlay, never after it. */
 export function overlayListDef(editor: Editor | null, def: DocxNumberingDef): void {
+  const storage = numberingStorage(editor);
+  if (!storage || !editor) return;
+  parseBackedListBaseline(editor);
+  const defs = storage.defs instanceof Map ? storage.defs : new Map<string, DocxNumberingDef>();
+  storage.defs = new Map(defs).set(def.numId, def);
+}
+
+/** Keep only the definitions `keep` names — the draft-restore path. A storage
+ * def that is neither parse-backed nor part of the restored snapshot is a
+ * stale overlay; dropping it stops a later toggle from restarting over its
+ * synthetic abstractNumId (review F2). */
+export function pruneListDefs(editor: Editor | null, keep: ReadonlySet<string>): void {
   const storage = numberingStorage(editor);
   if (!storage) return;
   const defs = storage.defs instanceof Map ? storage.defs : new Map<string, DocxNumberingDef>();
-  storage.defs = new Map(defs).set(def.numId, def);
+  const next = new Map<string, DocxNumberingDef>();
+  for (const [numId, def] of defs) if (keep.has(numId)) next.set(numId, def);
+  storage.defs = next;
 }
 
 /** The next free numeric numId: one above every definition the document

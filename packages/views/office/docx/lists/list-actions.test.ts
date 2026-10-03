@@ -193,6 +193,34 @@ describe("restart and continue", () => {
     expect(attrsAt(editor).numId).toBe("3");
   });
 
+  it("restarts a list created this session with a fresh definition, never a pending abstractNum", () => {
+    const editor = editorWith([paragraph("one")]);
+    const pending = emptyPending();
+    caretInBlock(editor);
+    expect(toggleDocxList(editor, pending, "ordered")).toBe(true);
+    expect(attrsAt(editor).numId).toBe("3");
+    expect(restartDocxListNumbering(editor, pending)).toBe(true);
+    expect(pending.restartNums).toEqual([]);
+    expect(pending.newDefs.map((def) => def.numId)).toEqual(["3", "4"]);
+    expect(attrsAt(editor).numId).toBe("4");
+    expect(listDefsOf(editor).get("4")).toMatchObject({ abstractNumId: "pending-4" });
+  });
+
+  it("clones a pending preset's levels when restarting its list", () => {
+    const editor = editorWith([paragraph("one"), paragraph("two")]);
+    const pending = emptyPending();
+    selectAllBlocks(editor);
+    expect(applyDocxListPreset(editor, pending, listPresetById("multilevel-decimal")!)).toBe(true);
+    expect(restartDocxListNumbering(editor, pending)).toBe(true);
+    expect(pending.restartNums).toEqual([]);
+    const clone = pending.newDefs[1]!;
+    expect(clone.numId).toBe("4");
+    expect(clone.levels).toHaveLength(9);
+    expect(clone.levels?.[8]?.lvlText).toBe("1.1.1.1.1.1.1.1.1.");
+    expect(attrsAt(editor, 0).numId).toBe("4");
+    expect(attrsAt(editor, 1).numId).toBe("4");
+  });
+
   it("does nothing outside a list or without a numId", () => {
     const editor = editorWith([paragraph("one")], [DEF7]);
     caretInBlock(editor);

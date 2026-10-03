@@ -22,6 +22,8 @@ import {
   overlayDefForNew,
   overlayDefForRestart,
   overlayListDef,
+  parseBackedListBaseline,
+  pruneListDefs,
   type DocxListKind,
   type DocxListPresetId,
   type DocxListState,
@@ -93,8 +95,15 @@ export function createNumberingCommands(
         pending.newDefs = next.newDefs;
         pending.restartNums = next.restartNums;
         // Re-overlay the pending definitions: the storage belongs to this
-        // editor instance, so a restored draft must rebuild its markers.
+        // editor instance, so a restored draft must rebuild its markers. Drop
+        // every other overlay first — a stale one from an earlier pending
+        // state would be picked by a later toggle and restart over its
+        // synthetic abstractNumId, which the save refuses (review F2).
         const editor = context.getEditor();
+        const keep = new Set<string>(parseBackedListBaseline(editor).numIds);
+        for (const def of pending.newDefs) keep.add(def.numId);
+        for (const restart of pending.restartNums) keep.add(restart.numId);
+        pruneListDefs(editor, keep);
         for (const def of pending.newDefs) overlayListDef(editor, overlayDefForNew(def));
         for (const restart of pending.restartNums) {
           const overlay = overlayDefForRestart(listDefsOf(editor), restart);

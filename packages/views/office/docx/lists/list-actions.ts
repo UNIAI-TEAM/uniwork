@@ -4,7 +4,7 @@
 // part those numIds point at), so a save carries both halves.
 import type { Editor } from "@tiptap/core";
 import type { Node as PmNode, NodeType } from "@tiptap/pm/model";
-import type { DocxNewNumberingDef } from "@uniwork/office-engine/docx";
+import type { DocxNewNumberingDef, DocxNumberingLevelSpec } from "@uniwork/office-engine/docx";
 import { isParagraphBlock, readLevel } from "../paragraph/paragraph-format";
 import {
   clonePresetLevels,
@@ -15,6 +15,7 @@ import {
   nextListNumId,
   overlayDefForNew,
   overlayListDef,
+  parseBackedListBaseline,
   type DocxListKind,
   type DocxListPreset,
   type DocxListState,
@@ -70,11 +71,17 @@ function updateSelectedListBlocks(
   return changed;
 }
 
-/** Append a brand-new definition (blank-template style) and overlay it so the
- * editor draws markers before the save writes the part. */
-function createPendingListDef(editor: Editor, pending: DocxNumberingSnapshot, kind: DocxListKind): string {
+/** Append a brand-new definition (blank-template style, or the cloned levels
+ * of a this-session preset) and overlay it so the editor draws markers before
+ * the save writes the part. */
+function createPendingListDef(
+  editor: Editor,
+  pending: DocxNumberingSnapshot,
+  kind: DocxListKind,
+  levels?: readonly DocxNumberingLevelSpec[],
+): string {
   const numId = nextListNumId(listDefsOf(editor), pending);
-  const def: DocxNewNumberingDef = { numId, kind };
+  const def: DocxNewNumberingDef = { numId, kind, ...(levels ? { levels: clonePresetLevels(levels) } : {}) };
   pending.newDefs.push(def);
   overlayListDef(editor, overlayDefForNew(def));
   return numId;
@@ -108,10 +115,16 @@ export function toggleDocxList(editor: Editor | null, pending: DocxNumberingSnap
       node.type.name === "docListItem" && listKindOf(node) === kind ? { type: paragraph, attrs: { styleId: null } } : null,
     );
   }
-  const numId = allocateListNumId(current, pending, kind);
-  return updateSelectedListBlocks(current, (node) => {
+  // Allocate lazily, after a block accepts the new type: a selection that
+  // changes nothing must not leave a pending definition behind (review F3).
+  const listItem = current.schema.nodes.docListItem;
+  if (!listItem) return false;
+  let numId: string | null = null;
+  return updateSelectedListBlocks(current, (node, parent, index) => {
     if (node.type.name === "docListItem" && listKindOf(node) === kind) return null;
-    return { type: current.schema.nodes.docListItem, attrs: { kind, numId, ilvl: 0 } };
+    if (!canHostBlock(parent, index, listItem)) return null;
+    if (numId === null) numId = allocateListNumId(current, pending, kind);
+    return { type: listItem, attrs: { kind, numId, ilvl: 0 } };
   });
 }
 
@@ -121,12 +134,23 @@ export function toggleDocxList(editor: Editor | null, pending: DocxNumberingSnap
 export function applyDocxListPreset(editor: Editor | null, pending: DocxNumberingSnapshot, preset: DocxListPreset): boolean {
   const current = editable(editor);
   if (!current) return false;
-  const numId = nextListNumId(listDefsOf(current), pending);
-  pending.newDefs.push({ numId, kind: preset.kind, levels: clonePresetLevels(preset.levels) });
-  overlayListDef(current, overlayDefForNew({ numId, kind: preset.kind, levels: preset.levels }));
-  return updateSelectedListBlocks(current, (node) => {
-    if (node.type.name === "docListItem" && readNumId(node.attrs) === numId) return null;
-    return { type: current.schema.nodes.docListItem, attrs: { kind: preset.kind, numId, ilvl: 0 } };
+  const listItem = current.schema.nodes.docListItem;
+  if (!listItem) return false;
+  // Same lazy allocation as the toggle: a refused selection keeps no pending
+  // definition (review F3).
+  let numId: string | null = null;
+  const ensureNumId = (): string => {
+    if (numId === null) {
+      numId = nextListNumId(listDefsOf(current), pending);
+      pending.newDefs.push({ numId, kind: preset.kind, levels: clonePresetLevels(preset.levels) });
+      overlayListDef(current, overlayDefForNew({ numId, kind: preset.kind, levels: preset.levels }));
+    }
+    return numId;
+  };
+  return updateSelectedListBlocks(current, (node, parent, index) => {
+    if (numId !== null && node.type.name === "docListItem" && readNumId(node.attrs) === numId) return null;
+    if (!canHostBlock(parent, index, listItem)) return null;
+    return { type: listItem, attrs: { kind: preset.kind, numId: ensureNumId(), ilvl: 0 } };
   });
 }
 
@@ -191,7 +215,10 @@ function applyListNumId(editor: Editor, items: readonly ForwardListItem[], newNu
 /** Restart numbering at the selection: a new num over the same abstractNum
  * with a w:startOverride at the item's level, and the items from here on moved
  * to it (genoffice restartNumbering:138). A list item whose numId has no
- * definition gets a fresh one instead, which starts at 1 by construction. */
+ * parse-backed definition gets a fresh one instead, which starts at 1 by
+ * construction: a definition this session created (or a stale overlay) points
+ * at a `pending-*` abstractNumId the save oracle refuses to restart over
+ * (review F1), and a preset's levels are cloned so the list keeps its look. */
 export function restartDocxListNumbering(editor: Editor | null, pending: DocxNumberingSnapshot): boolean {
   const current = editable(editor);
   if (!current) return false;
@@ -204,14 +231,16 @@ export function restartDocxListNumbering(editor: Editor | null, pending: DocxNum
   const ilvl = readLevel(caret.attrs.ilvl) ?? 0;
   const defs = listDefsOf(current);
   const def = defs.get(oldNumId);
+  const abstractNumIds = parseBackedListBaseline(current).abstractNumIds;
   let numId: string;
-  if (def) {
+  if (def && abstractNumIds.has(def.abstractNumId)) {
     numId = nextListNumId(defs, pending);
     const restart = { numId, abstractNumId: def.abstractNumId, startOverrides: { [ilvl]: 1 } };
     pending.restartNums.push(restart);
     overlayListDef(current, { ...def, numId, startOverrides: { ...restart.startOverrides } });
   } else {
-    numId = createPendingListDef(current, pending, listKindOf(caret));
+    const source = pending.newDefs.find((entry) => entry.numId === oldNumId);
+    numId = createPendingListDef(current, pending, listKindOf(caret), source?.levels);
   }
   return applyListNumId(current, items, numId);
 }

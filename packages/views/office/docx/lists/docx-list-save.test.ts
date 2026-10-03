@@ -204,4 +204,24 @@ describe("DOCX list save path", () => {
       await handle.dispose();
     }
   });
+
+  it("restarts a list created this session and saves cleanly", async () => {
+    const source = await fixture({ withNumbering: false });
+    const handle = handleFor(source);
+    try {
+      await handle.open();
+      handle.commands.toggleList("ordered");
+      expect(handle.commands.restartDocxListNumbering()).toBe(true);
+      const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
+      const numbering = await partOf(saved.bytes, "word/numbering.xml");
+      // The restart allocated a fresh definition instead of pointing at the
+      // first pending def's synthetic abstractNumId, so the save succeeds.
+      expect(numbering).not.toContain("pending-");
+      expect(numbering).toContain('<w:num w:numId="4">');
+      const items = await listBlocks(saved.bytes);
+      expect(items[0]).toEqual({ list: { kind: "ordered", numId: "4", ilvl: 0 } });
+    } finally {
+      await handle.dispose();
+    }
+  });
 });
