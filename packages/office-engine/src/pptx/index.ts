@@ -5,3 +5,6 @@ export * from "./model";
 export * from "./assets";
 export * from "./adapter";
 export * from "./vendor";
+export * from "./edits/find-link-edits";
+export * from "./edits/table-edits";
+export * from "./edits/section-edits";
