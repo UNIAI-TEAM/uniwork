@@ -7310,7 +7310,7 @@
       },
     "pdf": {
       "title": "Tài liệu PDF",
-      "toolbar": { "label": "Lệnh chỉnh sửa PDF" },
+      "toolbar": { "label": "Lệnh chỉnh sửa PDF", "tabsLabel": "Các thẻ công cụ PDF", "more": "Lệnh khác" },
       "actions": {
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
       },
@@ -7325,21 +7325,38 @@
         "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa"
       },
       "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang" },
+      "search": {
+        "label": "Tìm trong PDF", "placeholder": "Tìm trong PDF này", "inputLabel": "Tìm chữ trong PDF", "loading": "Đang tìm…",
+        "matches": "{{current}} trên {{count}} kết quả", "previous": "Kết quả trước", "next": "Kết quả tiếp theo", "close": "Đóng tìm kiếm"
+      },
       "pages": {
         "label": "Các trang PDF", "title": "Trang", "page": "Trang {{page}}", "moveUp": "Đưa lên", "extract": "Tách", "empty": "Adapter chưa báo trang nào."
+      },
+      "properties": {
+        "close": "Đóng", "title": "Thuộc tính tài liệu", "description": "Chỉnh sửa thông tin được nhúng trong PDF này.",
+        "fields": { "title": "Tiêu đề", "author": "Tác giả", "subject": "Chủ đề", "keywords": "Từ khóa" },
+        "saveError": "Không thể lưu thuộc tính. Thử lại.", "cancel": "Hủy", "save": "Lưu"
+      },
+      "statusBar": {
+        "label": "Thanh trạng thái PDF", "page": "Trang {{page}} / {{total}}", "pageInput": "Trang hiện tại",
+        "zoomOut": "Thu nhỏ", "zoom": "{{percent}}%", "zoomIn": "Phóng to"
       },
       "edit": {
         "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
         "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
       },
       "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
+      "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
+      "tabs": { "home": "Trang chính", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {
         "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
         "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.", "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
         "password_required": "Cần mật khẩu để mở PDF này.", "wrong_password": "Mật khẩu không mở khóa được PDF này.",
         "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.", "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
         "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
-        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
+        "too_large": "PDF này quá lớn để mở tại đây.", "invalid_structure": "PDF có cấu trúc không hợp lệ.",
+        "truncated": "PDF bị cắt ngắn hoặc chưa đầy đủ.", "unsupported_encryption": "PDF dùng cơ chế mã hóa chưa được hỗ trợ.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
       }
     }
   },

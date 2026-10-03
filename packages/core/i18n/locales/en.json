@@ -7316,7 +7316,7 @@
       },
     "pdf": {
       "title": "PDF document",
-      "toolbar": { "label": "PDF editing commands" },
+      "toolbar": { "label": "PDF editing commands", "tabsLabel": "PDF tool tabs", "more": "More commands" },
       "actions": {
         "undo": "Undo",
         "redo": "Redo",
@@ -7344,21 +7344,38 @@
         "readonly": "Read-only", "incompatible": "Editing unavailable"
       },
       "surface": { "ready": "PDF canvas is ready for the host renderer.", "page": "Showing page {{page}} of {{count}}" },
+      "search": {
+        "label": "Find in PDF", "placeholder": "Search this PDF", "inputLabel": "Search PDF text", "loading": "Searching…",
+        "matches": "{{current}} of {{count}} matches", "previous": "Previous match", "next": "Next match", "close": "Close search"
+      },
       "pages": {
         "label": "PDF pages", "title": "Pages", "page": "Page {{page}}", "moveUp": "Move up", "extract": "Extract", "empty": "No pages reported by the adapter."
+      },
+      "properties": {
+        "close": "Close", "title": "Document properties", "description": "Edit the information embedded in this PDF.",
+        "fields": { "title": "Title", "author": "Author", "subject": "Subject", "keywords": "Keywords" },
+        "saveError": "The properties could not be saved. Try again.", "cancel": "Cancel", "save": "Save"
+      },
+      "statusBar": {
+        "label": "PDF status bar", "page": "Page {{page}} / {{total}}", "pageInput": "Current page",
+        "zoomOut": "Zoom out", "zoom": "{{percent}}%", "zoomIn": "Zoom in"
       },
       "edit": {
         "textLabel": "Replacement text", "textPlaceholder": "Enter replacement text", "applyText": "Apply text",
         "imageLabel": "Provider asset id", "imagePlaceholder": "Enter provider asset id", "applyImage": "Replace image"
       },
       "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it." },
+      "markups": { "label": "Text markup tools", "highlight": "Highlight", "underline": "Underline", "strikeout": "Strikeout" },
+      "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
       "errors": {
         "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",
         "corrupted": "The PDF is corrupt or incomplete.", "password_cancelled": "The password prompt was cancelled.",
         "password_required": "A password is required to open this PDF.", "wrong_password": "The password did not unlock this PDF.",
         "unsupported_feature": "This PDF feature is not supported by the current engine.", "not_office_file": "The selected file is not a PDF document.",
         "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
-        "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
+        "too_large": "This PDF is too large to open here.", "invalid_structure": "The PDF has an invalid structure.",
+        "truncated": "The PDF is truncated or incomplete.", "unsupported_encryption": "This PDF uses unsupported encryption.",
+        "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
       }
     }
   },
