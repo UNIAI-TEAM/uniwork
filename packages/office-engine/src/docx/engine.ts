@@ -90,7 +90,35 @@ export interface DocxGeneratedBlock {
   [key: string]: unknown;
 }
 
-/** NewImage — upstream types.ts:1343. */
+/** ImageWrap — upstream types.ts:1331 verbatim: the wrap modes generate.ts
+ * encodes. tight/through keep their own anchor kind for fidelity (a
+ * reposition reuses the original wrapTight/wrapThrough bytes). Absent = inline. */
+export type DocxImageWrap =
+  | "square-left"
+  | "square-right"
+  | "tight-left"
+  | "tight-right"
+  | "through-left"
+  | "through-right"
+  | "topBottom"
+  | "behind"
+  | "front";
+
+export const DOCX_IMAGE_WRAPS: readonly DocxImageWrap[] = [
+  "square-left",
+  "square-right",
+  "tight-left",
+  "tight-right",
+  "through-left",
+  "through-right",
+  "topBottom",
+  "behind",
+  "front",
+];
+
+/** NewImage — upstream types.ts:1343. Crop is bytes-level: a cropped picture is
+ * re-encoded before it reaches the engine (new image = cropped genImage bytes,
+ * original image = replaceImage bytes), so no crop field exists here. */
 export interface DocxNewImage {
   base64: string;
   mime: "image/png" | "image/jpeg" | "image/gif";
@@ -98,7 +126,7 @@ export interface DocxNewImage {
   heightPx: number;
   align?: "left" | "center" | "right";
   altText?: string;
-  wrap?: unknown;
+  wrap?: DocxImageWrap;
   posOffsetEmu?: { x: number; y: number; relativeTo?: "page" | "margin" };
   zOrder?: number;
   rotDeg?: number;

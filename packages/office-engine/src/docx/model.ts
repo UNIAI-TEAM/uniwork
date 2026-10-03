@@ -29,6 +29,20 @@ type PlanEntry =
   | { source: "image"; image: DocxNewImage }
   | { source: "chart"; chart: DocxNewChart; extentPx?: { w: number; h: number } };
 
+/** Formats the vendored writer can embed (patch.ts embedImage). */
+const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/gif"]);
+
+/** Shared bytes oracle for image payloads: a mime the writer cannot embed would
+ * otherwise produce a dangling relationship (or a silently dropped picture). */
+function requireImageBytes(image: { base64: string; mime: string } | undefined, what: string): void {
+  if (!image || typeof image.base64 !== "string" || image.base64.length === 0) {
+    throw new DocxEngineError("bad_image", what + " needs image bytes");
+  }
+  if (!IMAGE_MIMES.has(image.mime)) {
+    throw new DocxEngineError("bad_image_mime", what + " mime " + String(image.mime) + " is not png/jpeg/gif");
+  }
+}
+
 export type DocxEdit =
   | { op: "set_paragraph_text"; docxIndex: number; runs: DocxRun[] }
   | { op: "insert_generated"; index: number; block: DocxGeneratedBlock }
@@ -145,6 +159,7 @@ export class DocxSessionModel {
     if (typeof xml !== "string" || xml.length === 0) {
       throw new DocxEngineError("empty_xml", "replace_block_xml needs a non-empty fragment");
     }
+    if (replaceImage) requireImageBytes(replaceImage, "replace_block_xml replaceImage");
     this.plan[this.planIndexOf(docxIndex)] = { source: "xml", xml, docxIndex, ...(replaceImage ? { replaceImage } : {}) };
     this.touched = true;
     this.revision += 1;
@@ -176,8 +191,16 @@ export class DocxSessionModel {
   }
 
   insertImage(index: number, image: DocxNewImage): void {
-    if (!image || typeof image.base64 !== "string" || !image.base64) {
-      throw new DocxEngineError("bad_image", "insert_image needs image.base64 bytes");
+    requireImageBytes(image, "insert_image");
+    if (!Number.isFinite(image.widthPx) || !Number.isFinite(image.heightPx) || image.widthPx <= 0 || image.heightPx <= 0) {
+      throw new DocxEngineError(
+        "bad_image_size",
+        "insert_image needs positive widthPx/heightPx, got " + String(image.widthPx) + "x" + String(image.heightPx),
+      );
+    }
+    const offset = image.posOffsetEmu;
+    if (offset && (!Number.isFinite(offset.x) || !Number.isFinite(offset.y))) {
+      throw new DocxEngineError("bad_image_position", "insert_image posOffsetEmu needs finite x/y");
     }
     this.insertAt(index, { source: "image", image });
   }
