@@ -323,6 +323,35 @@ test('renderer command port runs allowlisted commands through the policy and ref
   } finally { readonly.close(); }
 });
 
+test('renderer format state mirrors the active range composed style and stays readable for readonly mounts', async () => {
+  const mounted = mountController();
+  try {
+    assert.equal(mounted.handle.getActiveFormatState(), null, 'no active range before load');
+    await mounted.handle.loadWorkbook(file);
+    mounted.setCellStyle('s1', 0, 0, {
+      ff: 'Verdana', fs: 14, bl: 1, it: 1, ul: { s: 1 }, st: { s: 1 },
+      cl: { rgb: '#C00000' }, bg: { rgb: '#FFFF00' }, ht: 2, vt: 3, tb: 3, tr: { a: 45 },
+    });
+    assert.deepEqual(mounted.handle.getActiveFormatState(), {
+      fontFamily: 'Verdana', fontSize: 14, bold: true, italic: true, underline: true, strike: true,
+      textColor: '#C00000', fillColor: '#FFFF00', horizontalAlign: 2, verticalAlign: 3, wrap: true, textRotation: 45,
+    });
+    mounted.workbook.setActiveRange(mounted.workbook.getActiveSheet().getRange(1, 1));
+    assert.deepEqual(mounted.handle.getActiveFormatState(), {
+      fontFamily: null, fontSize: null, bold: false, italic: false, underline: false, strike: false,
+      textColor: null, fillColor: null, horizontalAlign: null, verticalAlign: null, wrap: false, textRotation: null,
+    });
+    mounted.workbook.setActiveRange(null);
+    assert.equal(mounted.handle.getActiveFormatState(), null);
+  } finally { mounted.close(); }
+  const readonly = mountController({ readOnly: true });
+  try {
+    await readonly.handle.loadWorkbook(file);
+    readonly.setCellStyle('s1', 0, 0, { bl: 1 });
+    assert.equal(readonly.handle.getActiveFormatState().bold, true);
+  } finally { readonly.close(); }
+});
+
 test('disposing during font preparation prevents a late workbook installation', async () => {
   const previous = globalThis.FontFace;
   let resolveProbe;

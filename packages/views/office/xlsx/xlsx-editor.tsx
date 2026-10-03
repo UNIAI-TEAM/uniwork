@@ -9,8 +9,9 @@ import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
+import { XlsxStatusBar } from "./status-bar";
 import { XlsxToolbar } from "./xlsx-toolbar";
-import type { XlsxToolbarCommands } from "./toolbar/types";
+import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
 import { addressParts, cellEditOperation, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
 import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
@@ -97,11 +98,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [editor]);
   const gridEdits = useXlsxGridEdits(documentKey, editor, coordinator, rendererHost, canEdit, refreshSnapshot);
   const flushGridEdits = gridEdits.flush;
-  // The toolbar's one command port: it reaches the mounted renderer only, and
-  // the renderer's policy gate keeps every command savable or refused.
-  const gridCommands = useMemo<XlsxToolbarCommands>(() => ({
-    execute: (id, params) => gridRef.current?.executeCommand(id, params) ?? false,
-  }), []);
+  // One port for the toolbar: it reaches the mounted renderer only, and the
+  // renderer's policy gate keeps every command savable or refused.
+  const { formatState, refreshFormatState, commands: gridCommands } = useXlsxGridFormat(gridRef);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
@@ -448,6 +447,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             canRecalculate={recalcController !== undefined}
             canFormat={gridReady && selection !== null}
             commands={gridCommands}
+            formatState={formatState}
             onNumberFormat={() => gridRef.current?.setNumberFormat("0.00")}
             recalculating={recalcProgress !== null}
             onUndo={undo}
@@ -487,8 +487,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 host={rendererHost}
                 dark={dark}
                 readOnly={readOnly || !canEdit}
-                onEdits={gridEdits.onEdits}
-                onReady={() => setGridReady(true)}
+                onEdits={(edits) => { gridEdits.onEdits(edits); refreshFormatState(); }}
+                onReady={() => { setGridReady(true); refreshFormatState(); }}
                 onFailure={(message) => {
                   const failureValue: XlsxOpenFailure = {
                     outcome: "failed",
@@ -504,20 +504,19 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   if (!next) {
                     setSelection(null);
                     onSelectionChange?.(null);
-                    return;
+                  } else {
+                    const sheet = rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId);
+                    const nextSelection: XlsxSelection = {
+                      sheet: sheet?.name ?? next.sheetId,
+                      address: toA1Address(next.range.startRow, next.range.startColumn),
+                      ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) } : {}),
+                    };
+                    setSelection(nextSelection);
+                    setActiveSheet(nextSelection.sheet);
+                    editor.selection?.setSelection?.(nextSelection);
+                    onSelectionChange?.(nextSelection);
                   }
-                  const sheet = rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId);
-                  const nextSelection: XlsxSelection = {
-                    sheet: sheet?.name ?? next.sheetId,
-                    address: toA1Address(next.range.startRow, next.range.startColumn),
-                    ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn
-                      ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) }
-                      : {}),
-                  };
-                  setSelection(nextSelection);
-                  setActiveSheet(nextSelection.sheet);
-                  editor.selection?.setSelection?.(nextSelection);
-                  onSelectionChange?.(nextSelection);
+                  refreshFormatState();
                 }}
               />
             ) : (
@@ -530,6 +529,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
             </div>
             )}
+            <XlsxStatusBar documentKey={documentKey} host={rendererHost} selection={selection} />
           </div>
         </>
       ) : viewState === "error" && failure ? (

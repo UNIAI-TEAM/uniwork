@@ -35,6 +35,7 @@ function fakeModule() {
     selectSheet: vi.fn(),
     setNumberFormat: vi.fn(),
     executeCommand: vi.fn(() => true),
+    getActiveFormatState: vi.fn(() => null),
     setDarkMode: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -108,6 +109,19 @@ describe("XlsxGridSurface", () => {
     vi.mocked(handle.executeCommand).mockReturnValue(false);
     expect(ref.current?.executeCommand("sheet.command.set-font-size", { value: 14 })).toBe(false);
     expect(handle.executeCommand).toHaveBeenLastCalledWith("sheet.command.set-font-size", { value: 14 });
+  });
+
+  it("forwards the active format state read to the artifact handle", async () => {
+    const { module, handle } = fakeModule();
+    const state = {
+      fontFamily: "Calibri", fontSize: 14, bold: true, italic: false, underline: false, strike: false,
+      textColor: null, fillColor: null, horizontalAlign: 2, verticalAlign: 1, wrap: true, textRotation: 45,
+    };
+    vi.mocked(handle.getActiveFormatState).mockReturnValue(state);
+    const ref = createRef<XlsxGridHandle>();
+    render(<XlsxGridSurface ref={ref} documentKey="state-doc" host={host} loadModule={async () => module} />);
+    await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalled());
+    expect(ref.current?.getActiveFormatState()).toBe(state);
   });
 
   it("shows a typed failure when the artifact cannot load", async () => {

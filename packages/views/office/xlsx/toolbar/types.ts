@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { XlsxGridFormatState } from "../xlsx-grid-surface";
 import type { XlsxEditorPermissions, XlsxSelection } from "../types";
 
 /** The six toolbar tabs. The active tab is local UI state and is never
@@ -35,6 +36,9 @@ export interface XlsxToolbarGroupProps {
   /** Present when the host mounts the live grid; absent on the snapshot-table
    *  fallback, where every renderer command is unavailable. */
   commands?: XlsxToolbarCommands;
+  /** The active selection's mirrored style; null until the renderer reports
+   *  one (controls then render their inactive state). */
+  formatState?: XlsxGridFormatState | null;
   onUndo: () => void;
   onRedo: () => void;
   onNumberFormat: () => void;

@@ -4,6 +4,9 @@ import { XlsxClipboardGroup } from "./groups/clipboard-group";
 import { XlsxHistoryGroup } from "./groups/history-group";
 import { XlsxNumberGroup } from "./groups/number-group";
 import { XlsxSheetsGroup } from "./groups/sheets-group";
+import { XlsxAlignmentGroup } from "./home-alignment";
+import { XlsxBordersGroup } from "./home-borders";
+import { XlsxFontGroup } from "./home-font";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
 /** The extension seam for Wave A tasks (A1-A9): add ONE group to ONE tab by
@@ -29,6 +32,9 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "sheets", tab: "home", order: 20, labelKey: "office.xlsx.toolbar.groups.sheets", Component: XlsxSheetsGroup },
   { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", Component: XlsxClipboardGroup },
   { id: "number", tab: "home", order: 40, labelKey: "office.xlsx.toolbar.groups.number", Component: XlsxNumberGroup },
+  { id: "font", tab: "home", order: 50, labelKey: "office.xlsx.toolbar.groups.font.label", Component: XlsxFontGroup },
+  { id: "alignment", tab: "home", order: 60, labelKey: "office.xlsx.toolbar.groups.alignment.label", Component: XlsxAlignmentGroup },
+  { id: "borders", tab: "home", order: 70, labelKey: "office.xlsx.toolbar.groups.borders.label", Component: XlsxBordersGroup },
   { id: "charts", tab: "insert", order: 10, labelKey: "office.xlsx.toolbar.groups.charts", Component: XlsxChartsGroup },
   {
     id: "calculation",

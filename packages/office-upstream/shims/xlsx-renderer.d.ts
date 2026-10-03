@@ -114,6 +114,24 @@ export interface XlsxRendererJournal {
   [key: string]: unknown;
 }
 
+/** The cheap active-selection style read (alignment values are the pinned
+ *  Univer style numbers: horizontal 1=left/2=center/3=right, vertical
+ *  1=top/2=middle/3=bottom; rotation is degrees). */
+export interface XlsxRendererFormatState {
+  readonly fontFamily: string | null;
+  readonly fontSize: number | null;
+  readonly bold: boolean;
+  readonly italic: boolean;
+  readonly underline: boolean;
+  readonly strike: boolean;
+  readonly textColor: string | null;
+  readonly fillColor: string | null;
+  readonly horizontalAlign: number | null;
+  readonly verticalAlign: number | null;
+  readonly wrap: boolean;
+  readonly textRotation: number | null;
+}
+
 export interface XlsxRendererHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
@@ -126,6 +144,8 @@ export interface XlsxRendererHandle {
    *  when the mount is read-only, there is no active range, or the command
    *  policy cancels the command. */
   executeCommand(id: string, params?: unknown): boolean;
+  /** The active range's composed style, or null without an active range. */
+  getActiveFormatState(): XlsxRendererFormatState | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;

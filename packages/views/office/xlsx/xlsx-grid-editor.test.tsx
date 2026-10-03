@@ -7,7 +7,10 @@ import type { XlsxEditorHandle, XlsxSaveCoordinator, XlsxWorkbookSnapshot } from
 
 const grid = vi.hoisted(() => ({
   props: null as XlsxGridSurfaceProps | null,
-  handle: { undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn(), commitEdit: vi.fn(async () => undefined) },
+  handle: {
+    undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn(), commitEdit: vi.fn(async () => undefined),
+    executeCommand: vi.fn(() => true), getActiveFormatState: vi.fn((): unknown => null),
+  },
 }));
 vi.mock("./xlsx-grid-surface", async () => {
   const React = await import("react");
@@ -142,6 +145,24 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     expect(grid.handle.undo).toHaveBeenCalled();
     expect(grid.handle.redo).toHaveBeenCalled();
+  });
+
+  it("runs Home formatting commands on the live grid and mirrors the active format state", async () => {
+    const formatState = {
+      fontFamily: "Calibri", fontSize: 14, bold: true, italic: false, underline: false, strike: false,
+      textColor: "#C00000", fillColor: null, horizontalAlign: 1, verticalAlign: 1, wrap: false, textRotation: 0,
+    };
+    grid.handle.getActiveFormatState.mockReturnValue(formatState);
+    grid.handle.executeCommand.mockClear();
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    const bold = await screen.findByRole("button", { name: "In đậm" });
+    expect(bold).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "In nghiêng" }));
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-italic", undefined);
+    expect(grid.handle.getActiveFormatState).toHaveBeenCalled();
+    grid.handle.getActiveFormatState.mockReturnValue(null);
   });
 
   it("surfaces a rejected host edit and blocks Save", async () => {

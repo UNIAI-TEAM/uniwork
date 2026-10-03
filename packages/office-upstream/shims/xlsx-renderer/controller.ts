@@ -7,6 +7,7 @@ import {
   BooleanNumber,
   LocaleType,
   ThemeService,
+  WrapStrategy,
   mergeLocales,
 } from "@univerjs/core";
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
@@ -27,7 +28,7 @@ import UniverPresetSheetsSortEnUS from "@univerjs/preset-sheets-sort/locales/en-
 import { UniverSheetsTablePreset, UniverSheetsTableUIPlugin } from "@univerjs/preset-sheets-table";
 import UniverPresetSheetsTableEnUS from "@univerjs/preset-sheets-table/locales/en-US";
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
-import type { IRange } from "@univerjs/core";
+import type { IRange, IStyleData } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
@@ -95,6 +96,42 @@ export interface XlsxRendererOptions {
 
 type DesktopApi = Record<string, unknown>;
 
+/** The cheap active-selection style read the toolbar mirrors control state
+ *  from. Alignment numbers are the pinned Univer style values (horizontal
+ *  1=left, 2=center, 3=right; vertical 1=top, 2=middle, 3=bottom); rotation is
+ *  degrees. A null field means the cell declares no value for it. */
+export interface XlsxRendererFormatState {
+  readonly fontFamily: string | null;
+  readonly fontSize: number | null;
+  readonly bold: boolean;
+  readonly italic: boolean;
+  readonly underline: boolean;
+  readonly strike: boolean;
+  readonly textColor: string | null;
+  readonly fillColor: string | null;
+  readonly horizontalAlign: number | null;
+  readonly verticalAlign: number | null;
+  readonly wrap: boolean;
+  readonly textRotation: number | null;
+}
+
+function formatStateFromStyle(style: IStyleData | null | undefined): XlsxRendererFormatState {
+  return {
+    fontFamily: style?.ff ?? null,
+    fontSize: typeof style?.fs === "number" ? style.fs : null,
+    bold: style?.bl === BooleanNumber.TRUE,
+    italic: style?.it === BooleanNumber.TRUE,
+    underline: style?.ul?.s === BooleanNumber.TRUE,
+    strike: style?.st?.s === BooleanNumber.TRUE,
+    textColor: style?.cl?.rgb ?? null,
+    fillColor: style?.bg?.rgb ?? null,
+    horizontalAlign: typeof style?.ht === "number" ? style.ht : null,
+    verticalAlign: typeof style?.vt === "number" ? style.vt : null,
+    wrap: style?.tb === WrapStrategy.WRAP,
+    textRotation: typeof style?.tr?.a === "number" ? style.tr.a : null,
+  };
+}
+
 export interface XlsxRendererHandle {
   /** Install the workbook skeleton and stream the first visible window. */
   loadWorkbook(file: WorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
@@ -112,6 +149,9 @@ export interface XlsxRendererHandle {
    *  command policy cancels (the policy stays the single savability gate).
    *  Returns whether the command actually ran. */
   executeCommand(id: string, params?: unknown): boolean;
+  /** The active range's composed style, or null without an active range.
+   *  Read-only mounts still report state; only writes are refused. */
+  getActiveFormatState(): XlsxRendererFormatState | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -479,6 +519,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       // gate, so `canExecuteCommand` decides savability; a cancelled command
       // comes back as false and never touches the model.
       return runtime.univerAPI.syncExecuteCommand(id, (params ?? {}) as object) === true;
+    },
+    getActiveFormatState() {
+      const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();
+      return range ? formatStateFromStyle(range.getCellStyleData()) : null;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {

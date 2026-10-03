@@ -38,6 +38,7 @@ const result = await build({
         if (name === 'Direction') lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3};');
         else if (name === 'KeyCode') lines.push('export const KeyCode={TAB:9,ENTER:13};');
         else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
+        else if (name === 'WrapStrategy') lines.push('export const WrapStrategy={UNSPECIFIED:0,OVERFLOW:1,CLIP:2,WRAP:3};');
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS"};');
         else if (name === 'ThemeService' || name === 'SheetInterceptorService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
@@ -66,6 +67,7 @@ export function mountController(options = {}, environment = {}) {
   const handlers = new Map();
   const events = [];
   const cells = new Map();
+  const styles = new Map();
   let file;
   let activeSheet;
   let activeRange;
@@ -91,6 +93,7 @@ export function mountController(options = {}, environment = {}) {
             const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
             return {
               getRange: () => range,
+              getCellStyleData: () => styles.get(`${meta.id}:${row}:${column}`) ?? null,
               activate() { workbook.setActiveRange(this); return this; },
               setValue(text) {
                 const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
@@ -171,6 +174,7 @@ export function mountController(options = {}, environment = {}) {
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
     handle, h, workbook, events, container,
+    setCellStyle(sheetId, row, column, style) { styles.set(`${sheetId}:${row}:${column}`, style); },
     key(event) {
       h.target ??= { id:'__editor___INTERNAL_EDITOR__DOCS_NORMAL', isContentEditable:true,
         getAttribute: () => 'editor', focus() {} };

@@ -25,6 +25,25 @@ export interface XlsxGridSelection {
   range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
 }
 
+/** The active-selection style the renderer mirrors back for the toolbar
+ *  controls. Alignment numbers are the pinned Univer style values
+ *  (horizontal 1=left/2=center/3=right; vertical 1=top/2=middle/3=bottom);
+ *  rotation is degrees; null means the cell declares no value for the field. */
+export interface XlsxGridFormatState {
+  fontFamily: string | null;
+  fontSize: number | null;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  textColor: string | null;
+  fillColor: string | null;
+  horizontalAlign: number | null;
+  verticalAlign: number | null;
+  wrap: boolean;
+  textRotation: number | null;
+}
+
 /** The subset of the artifact handle the surface uses. */
 export interface XlsxGridHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
@@ -37,6 +56,8 @@ export interface XlsxGridHandle {
   /** Run an allowlisted Univer command on the active selection (false when
    *  the renderer refuses it: read-only, no active range, or policy). */
   executeCommand(id: string, params?: unknown): boolean;
+  /** The active range's composed style, or null without an active range. */
+  getActiveFormatState(): XlsxGridFormatState | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -120,6 +141,7 @@ export function XlsxGridSurface({
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
+      getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
