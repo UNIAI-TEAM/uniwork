@@ -4,6 +4,7 @@
 // their bytes.
 import { describe, expect, it } from "vitest";
 import { createDocxAdapter, DocxSessionModel, type DocxNewChart } from "../src/docx";
+import { requireDocxChartExtent, requireDocxNewChart, type DocxChartExtent } from "../src/docx/chart";
 import { createFakeDocxEngine, decodeFakeDocx, makeFakeDocxBytes } from "./fake-docx-engine";
 
 /** Typed-error oracle: callers branch on `code`, never on message text. */
@@ -123,7 +124,7 @@ describe("insert_chart refusals", () => {
   const refuse = async (chart: unknown, extentPx?: unknown): Promise<string> => {
     const { adapter, ref } = await openKitchen();
     const code = errCode(() =>
-      adapter.edit(ref, { op: "insert_chart", index: 1, chart: chart as DocxNewChart, extentPx: extentPx as { w: number; h: number } | undefined }),
+      adapter.edit(ref, { op: "insert_chart", index: 1, chart: chart as DocxNewChart, extentPx: extentPx as DocxChartExtent | undefined }),
     );
     // a refused edit never reaches the plan: the model stays clean and saves
     // the original bytes untouched
@@ -181,5 +182,15 @@ describe("insert_chart refusals", () => {
   it("refuses an out-of-range insert index after the payload passes", async () => {
     const { adapter, ref } = await openKitchen();
     expect(errCode(() => adapter.edit(ref, { op: "insert_chart", index: 99, chart: BAR }))).toBe("bad_index");
+  });
+});
+
+describe("chart seam module", () => {
+  it("stands on its own with the same spec refusals (split out of engine.ts)", () => {
+    const extent: DocxChartExtent = { w: 560, h: 262 };
+    expect(() => requireDocxNewChart(BAR, extent)).not.toThrow();
+    expect(errCode(() => requireDocxNewChart(BAR, { ...extent, w: 0 }))).toBe("bad_chart_extent");
+    expect(errCode(() => requireDocxChartExtent("560x262"))).toBe("bad_chart_extent");
+    expect(errCode(() => requireDocxNewChart({ ...BAR, kind: "histogram" }))).toBe("bad_chart_kind");
   });
 });

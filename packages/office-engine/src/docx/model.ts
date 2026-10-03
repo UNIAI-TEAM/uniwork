@@ -9,12 +9,11 @@
 // editableIndexes = visible paragraphs, hidden blocks appended automatically
 // by saveDocx.
 import {
-  DocxEngineError, requireDocxNewChart,
+  DocxEngineError,
   type DocxBlock,
   type DocxCommentInfo,
   type DocxGeneratedBlock,
   type DocxHeaderFooter,
-  type DocxNewChart,
   type DocxNewImage,
   type DocxNewNumberingDef,
   type DocxNoteInfo,
@@ -25,6 +24,7 @@ import {
   type DocxSaveBlock,
   type DocxSaveOptions,
 } from "./engine";
+import { requireDocxNewChart, type DocxChartExtent, type DocxNewChart } from "./chart";
 import { DocxFieldEdits, isDocxFieldEdit, type DocxFieldEdit } from "./fields";
 import { DocxNumberingEdits } from "./numbering";
 import { visibleIndexes } from "./plan-view";
@@ -64,7 +64,7 @@ type PlanEntry =
   | { source: "generated"; block: DocxGeneratedBlock }
   | { source: "xml"; xml: string; docxIndex?: number; replaceImage?: { base64: string; mime: DocxNewImage["mime"] } }
   | { source: "image"; image: DocxNewImage }
-  | { source: "chart"; chart: DocxNewChart; extentPx?: { w: number; h: number } };
+  | { source: "chart"; chart: DocxNewChart; extentPx?: DocxChartExtent };
 
 export type DocxEdit =
   | { op: "set_paragraph_text"; docxIndex: number; runs: DocxRun[] }
@@ -72,7 +72,7 @@ export type DocxEdit =
   | { op: "replace_block_xml"; docxIndex: number; xml: string; replaceImage?: { base64: string; mime: DocxNewImage["mime"] } }
   | { op: "insert_xml"; index: number; xml: string }
   | { op: "insert_image"; index: number; image: DocxNewImage }
-  | { op: "insert_chart"; index: number; chart: DocxNewChart; extentPx?: { w: number; h: number } }
+  | { op: "insert_chart"; index: number; chart: DocxNewChart; extentPx?: DocxChartExtent }
   | { op: "remove_block"; docxIndex: number }
   | { op: "set_header_footer"; slot: DocxHfSlot; hf: DocxHeaderFooter | null }
   | { op: "set_title_pg"; value: boolean }
@@ -238,7 +238,7 @@ export class DocxSessionModel {
     this.insertAt(index, { source: "image", image });
   }
 
-  insertChart(index: number, chart: DocxNewChart, extentPx?: { w: number; h: number }): void {
+  insertChart(index: number, chart: DocxNewChart, extentPx?: DocxChartExtent): void {
     requireDocxNewChart(chart, extentPx);
     this.insertAt(index, { source: "chart", chart, ...(extentPx ? { extentPx } : {}) });
   }

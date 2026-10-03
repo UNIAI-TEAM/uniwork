@@ -1,6 +1,9 @@
 // DOCX adapter lane (G2-03): engine seam, session model, password intents,
 // asset oracle, and the contract adapter surface.
 export * from "./engine";
+// B8 chart surface: the insert spec types and their typed refusals, split out
+// of the seam file to keep engine.ts inside the 500-line budget.
+export * from "./chart";
 export * from "./model";
 // B7 field surface: the TOC line/caption builders and their payload types —
 // the editor lays out the same field XML it later saves.
