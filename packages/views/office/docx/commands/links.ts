@@ -1,11 +1,27 @@
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
+import { applyLink, getActiveLink, readLinkSeed, removeLink } from "../links/link-commands";
+import type { DocxLinkInput, DocxLinkSeed, DocxLinksCommands, DocxLinksFormatState } from "../links/link-commands";
 
-/** Reserved for task A4: link commands and state fields. */
-export type DocxLinksCommands = object;
-/** Reserved for task A4: link state fields. */
-export type DocxLinksFormatState = object;
+export type { DocxLinksCommands, DocxLinksFormatState } from "../links/link-commands";
 
-// Placeholder — owned by task A4 (wave A).
-export function createLinksCommands(_context: DocxCommandFactoryContext): DocxCommandArea<DocxLinksCommands, DocxLinksFormatState> {
-  return { commands: {}, readState: () => ({}) };
+/** A4: the link area's factory. Commands wrap the editor-level functions in
+ * ../links/link-commands, which also own the dialog/chip surface. */
+export function createLinksCommands(context: DocxCommandFactoryContext): DocxCommandArea<DocxLinksCommands, DocxLinksFormatState> {
+  return {
+    commands: {
+      linkSeed: (): DocxLinkSeed => {
+        const editor = context.getEditor();
+        return editor ? readLinkSeed(editor) : { link: null, selectionText: "" };
+      },
+      applyLink: (input: DocxLinkInput): boolean => {
+        const editor = context.getEditor();
+        return editor ? applyLink(editor, input) : false;
+      },
+      removeLink: (): boolean => {
+        const editor = context.getEditor();
+        return editor ? removeLink(editor) : false;
+      },
+    },
+    readState: (editor) => ({ activeLink: editor ? getActiveLink(editor) : null }),
+  };
 }

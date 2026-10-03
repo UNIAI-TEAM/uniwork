@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { LinkDialog, type LinkDialogProps } from "./link-dialog";
+import { LinkDialog, type LinkDialogProps } from "./index";
 
-const INITIAL = { from: 1, to: 6, href: "https://a.test", text: "hello", tooltip: "tip" };
+const INITIAL = { from: 1, to: 6, href: "https://a.test", rId: null, text: "hello", tooltip: "tip" };
 
 function renderDialog(overrides: Partial<LinkDialogProps> = {}) {
   const props: LinkDialogProps = {

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { LinkChip, type LinkChipProps } from "./link-chip";
+import { LinkChip, type LinkChipProps } from "./index";
 
 const HREF = "https://uniwork.vn/page";
 

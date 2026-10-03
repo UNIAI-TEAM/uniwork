@@ -3,14 +3,8 @@ import { Document } from "@tiptap/extension-document";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Text } from "@tiptap/extension-text";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  applyLink,
-  createLinksCommandArea,
-  getActiveLink,
-  isValidLinkHref,
-  readLinkSeed,
-  removeLink,
-} from "./link-commands";
+import { createLinksCommands } from "../commands/links";
+import { applyLink, getActiveLink, isValidLinkHref, readLinkSeed, removeLink } from "./index";
 
 const LinkMark = Mark.create({
   name: "link",
@@ -56,6 +50,10 @@ describe("isValidLinkHref", () => {
     expect(isValidLinkHref("ftp://uniwork.vn")).toBe(false);
     expect(isValidLinkHref("uniwork.vn")).toBe(false);
     expect(isValidLinkHref("https://uni work.vn")).toBe(false);
+    expect(isValidLinkHref("javascript:alert(1)")).toBe(false);
+    expect(isValidLinkHref("data:text/html;base64,PHNjcmlwdD4=")).toBe(false);
+    expect(isValidLinkHref("file:///etc/passwd")).toBe(false);
+    expect(isValidLinkHref("vbscript:msgbox(1)")).toBe(false);
   });
 });
 
@@ -76,6 +74,7 @@ describe("getActiveLink / readLinkSeed", () => {
       from: 1,
       to: 6,
       href: "https://uniwork.vn",
+      rId: null,
       text: "hello",
       tooltip: "UniWork",
     });
@@ -99,6 +98,7 @@ describe("applyLink", () => {
     expect(applyLink(editor, { href: "https://uniwork.vn" })).toBe(true);
     expect(editor.state.doc.textBetween(1, 12)).toBe("hello world");
     expect(linkAt(editor, 1)?.attrs.href).toBe("https://uniwork.vn");
+    expect(linkAt(editor, 1)?.attrs.rId).toBeNull();
     expect(linkAt(editor, 1)?.attrs.tooltip).toBeNull();
     expect(linkAt(editor, 7)).toBeUndefined();
   });
@@ -153,6 +153,26 @@ describe("applyLink", () => {
     expect(linkAt(editor, 1)?.attrs.href).toBe("https://c.test");
     expect(linkAt(editor, 1)?.attrs.tooltip).toBe("second");
   });
+
+  it("preserves the imported rId on an address-unchanged edit and drops it when the target changes", () => {
+    const editor = editorWith("<p>hello world</p>");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    // An imported relationship-backed hyperlink, as parse.ts:3960 builds it.
+    editor.commands.setMark("link", { href: "https://a.test", rId: "rId7", tooltip: null });
+    editor.commands.setTextSelection(3);
+    expect(getActiveLink(editor)).toMatchObject({ href: "https://a.test", rId: "rId7" });
+
+    // Same address, new ScreenTip: the relationship stays.
+    applyLink(editor, { href: "https://a.test", tooltip: "tip" });
+    expect(linkAt(editor, 1)?.attrs.rId).toBe("rId7");
+    expect(linkAt(editor, 1)?.attrs.tooltip).toBe("tip");
+
+    // Changed address: drop the stale relationship; the writer mints one for the
+    // new href (generate.ts:2357 prefers rId over href).
+    applyLink(editor, { href: "https://b.test" });
+    expect(linkAt(editor, 1)?.attrs.href).toBe("https://b.test");
+    expect(linkAt(editor, 1)?.attrs.rId).toBeNull();
+  });
 });
 
 describe("removeLink", () => {
@@ -179,19 +199,19 @@ describe("removeLink", () => {
   });
 });
 
-describe("createLinksCommandArea", () => {
+describe("createLinksCommands", () => {
   it("exposes the same behaviour through the command seam", () => {
     const editor = editorWith("<p>hello world</p>");
-    const area = createLinksCommandArea({ getEditor: () => editor });
+    const area = createLinksCommands({ getEditor: () => editor });
     expect(area.readState(editor)).toEqual({ activeLink: null });
 
     editor.commands.setTextSelection({ from: 1, to: 6 });
     expect(area.commands.applyLink({ href: "https://uniwork.vn" })).toBe(true);
     expect(area.readState(editor)).toEqual({
-      activeLink: { from: 1, to: 6, href: "https://uniwork.vn", text: "hello", tooltip: null },
+      activeLink: { from: 1, to: 6, href: "https://uniwork.vn", rId: null, text: "hello", tooltip: null },
     });
     expect(area.commands.linkSeed()).toEqual({
-      link: { from: 1, to: 6, href: "https://uniwork.vn", text: "hello", tooltip: null },
+      link: { from: 1, to: 6, href: "https://uniwork.vn", rId: null, text: "hello", tooltip: null },
       selectionText: "hello",
     });
     expect(area.commands.removeLink()).toBe(true);
@@ -199,7 +219,7 @@ describe("createLinksCommandArea", () => {
   });
 
   it("answers empty results while no editor is open", () => {
-    const area = createLinksCommandArea({ getEditor: () => null });
+    const area = createLinksCommands({ getEditor: () => null });
     expect(area.commands.linkSeed()).toEqual({ link: null, selectionText: "" });
     expect(area.commands.applyLink({ href: "https://uniwork.vn" })).toBe(false);
     expect(area.commands.removeLink()).toBe(false);

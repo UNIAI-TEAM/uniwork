@@ -9,7 +9,6 @@ export {
 export { LinkChip, type LinkChipProps } from "./link-chip";
 export {
   applyLink,
-  createLinksCommandArea,
   getActiveLink,
   isValidLinkHref,
   readLinkSeed,

@@ -1,11 +1,12 @@
 import { getMarkRange, type Editor } from "@tiptap/core";
-import type { DocxCommandArea, DocxCommandFactoryContext } from "../commands/context";
 
 /** The link covering the caret/selection, as the dialog and chip need it. */
 export interface DocxLinkTarget {
   from: number;
   to: number;
   href: string;
+  /** The imported relationship id, kept so an address-only edit does not orphan it. */
+  rId: string | null;
   text: string;
   tooltip: string | null;
 }
@@ -59,6 +60,7 @@ export function getActiveLink(editor: Editor): DocxLinkTarget | null {
     from: range.from,
     to: range.to,
     href: typeof attrs.href === "string" ? attrs.href : "",
+    rId: typeof attrs.rId === "string" ? attrs.rId : null,
     text: editor.state.doc.textBetween(range.from, range.to, " "),
     tooltip: typeof attrs.tooltip === "string" ? attrs.tooltip : null,
   };
@@ -72,7 +74,13 @@ export function readLinkSeed(editor: Editor): DocxLinkSeed {
   };
 }
 
-/** Creates a link over the selection (or inserts its text), or updates the link at the caret. */
+/**
+ * Creates a link over the selection (or inserts its text), or updates the link at the caret.
+ *
+ * Internal `#anchor` targets (OOXML w:anchor, parsed as `#name`) are not in the allowlist and
+ * have no anchor editor here: the dialog shows them but can only convert them into an external
+ * http(s)/mailto link.
+ */
 export function applyLink(editor: Editor, input: DocxLinkInput): boolean {
   if (!editor.isEditable) return false;
   const href = input.href.trim();
@@ -82,7 +90,16 @@ export function applyLink(editor: Editor, input: DocxLinkInput): boolean {
   const active = getActiveLink(editor);
   if (active) {
     const text = input.text?.trim() || active.text;
-    const attrs = { href, rId: null, tooltip: tooltip === undefined ? active.tooltip : tooltip };
+    // The writer serializes a stored rId in preference to the href
+    // (docx-engine generate.ts:2357 `finalRId = rId ?? allocate?.(href)`), so an
+    // address-only edit must keep the imported relationship (no orphan), while a
+    // changed target drops it and lets the writer mint one from the new href
+    // (patch.ts:430 allocateHyperlinkRel).
+    const attrs = {
+      href,
+      rId: href === active.href ? active.rId : null,
+      tooltip: tooltip === undefined ? active.tooltip : tooltip,
+    };
     if (text === active.text) {
       // Address-only change: re-mark the existing run so character formatting,
       // comments and inline objects survive; the stored ScreenTip follows the
@@ -133,25 +150,3 @@ export interface DocxLinksFormatState {
   activeLink: DocxLinkTarget | null;
 }
 
-/** A4's contribution to the command seam (commands/links.ts re-exports this). */
-export function createLinksCommandArea(
-  context: DocxCommandFactoryContext,
-): DocxCommandArea<DocxLinksCommands, DocxLinksFormatState> {
-  return {
-    commands: {
-      linkSeed: () => {
-        const editor = context.getEditor();
-        return editor ? readLinkSeed(editor) : { link: null, selectionText: "" };
-      },
-      applyLink: (input) => {
-        const editor = context.getEditor();
-        return editor ? applyLink(editor, input) : false;
-      },
-      removeLink: () => {
-        const editor = context.getEditor();
-        return editor ? removeLink(editor) : false;
-      },
-    },
-    readState: (editor) => ({ activeLink: editor ? getActiveLink(editor) : null }),
-  };
-}
