@@ -1,11 +1,12 @@
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot, SaveAttemptResult } from "@uniwork/core/office";
-import type { DocxEditorHandle } from "@uniwork/views/office/docx";
-import type { DesktopDocxSurface } from "./docx-surface";
+import type { DesktopEditorSurface, DesktopSurfaceSettings } from "./surface";
+import { desktopSurfaceFactory } from "./surface-registry";
+import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
-export type OpenedBytes = { dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
+export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -40,16 +41,16 @@ export type LocalFileRebind = Readonly<{
  * the typed IPC seam, a confirmed save consumes exactly the committed draft,
  * and a crash recovers only the last confirmed row. */
 export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: OfficeIdentity, openedBytes: OpenedBytes, options: {
-  createEditor?: (options: { documentId: string; readBytes(): Promise<Uint8Array>; generation: number; readOnly: boolean }) => Promise<DesktopDocxSurface>;
+  createEditor?: (options: DesktopSurfaceSettings) => Promise<DesktopEditorSurface>;
   onLocalRebind?: (next: LocalFileRebind) => void;
 } = {}) {
   const identity = { ...inputIdentity };
   const opened = { ...openedBytes };
   let generation = 0;
   let bytes = decode(opened.dataBase64);
-  let surface: DesktopDocxSurface | null = null;
+  let surface: DesktopEditorSurface | null = null;
   let surfaceOffset = 0;
-  let opening: Promise<DesktopDocxSurface> | null = null;
+  let opening: Promise<DesktopEditorSurface> | null = null;
   let disposed = false;
   let unsubscribeDirty: (() => void) | undefined;
   let localHandle = opened.localHandle;
@@ -130,8 +131,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     }
   };
 
-  const editor: DocxEditorHandle<Uint8Array> = {
-    format: "docx", open: async () => { await openEditor(); },
+  const editor: DesktopEditorSurface = {
+    format: opened.format, open: async () => { await openEditor(); },
     getDirtyGeneration: () => rebindingGeneration ?? generation,
     captureSnapshot: async () => {
       if (!surface || disposed) throw new Error("docx_snapshot_unavailable");
@@ -146,19 +147,21 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     undo: () => surface?.undo?.(), redo: () => surface?.redo?.(),
     dispose: () => { disposed = true; unsubscribeDirty?.(); bytes = new Uint8Array(); checkpoint = null; pendingIntent = null; return surface?.dispose(); },
   };
-  const createSurface = async (source: Uint8Array, initialGeneration: number) => {
-    const settings = { documentId: currentIdentity().documentId, readBytes: async () => source.slice(), generation: initialGeneration, readOnly: opened.canSave === false };
-    const next = options.createEditor ? await options.createEditor(settings) : (await import("./docx-surface")).createDesktopDocxSurface(settings);
+  const createSurface = async (source: Uint8Array, initialGeneration: number): Promise<DesktopEditorSurface> => {
+    const settings: DesktopSurfaceSettings = { documentId: currentIdentity().documentId, readBytes: async () => source.slice(), generation: initialGeneration, readOnly: opened.canSave === false, bridge, sessionGeneration: SESSION_GENERATION };
+    const factory = options.createEditor ?? desktopSurfaceFactory(opened.format);
+    if (!factory) throw Object.assign(new Error("desktop_surface_unbound"), { code: "desktop_surface_unbound" });
+    const next = await factory(settings);
     try { await next.open(); if (disposed) throw new Error("docx_editor_disposed"); }
     catch (error) { await next.dispose(); throw error; }
     return next;
   };
-  const attachSurface = (next: DesktopDocxSurface) => {
+  const attachSurface = (next: DesktopEditorSurface) => {
     unsubscribeDirty?.(); surface = next; surfaceOffset = 0;
     generation = next.getDirtyGeneration();
     unsubscribeDirty = next.subscribeDirty?.((value) => { generation = value + surfaceOffset; rawCoordinator.markDirty(generation); });
   };
-  async function openEditor(): Promise<DesktopDocxSurface> {
+  async function openEditor(): Promise<DesktopEditorSurface> {
     if (disposed) throw new Error("docx_editor_disposed");
     if (surface) return surface;
     opening ??= createSurface(bytes, generation).then((next) => { attachSurface(next); return next; }).catch((error: unknown) => { opening = null; throw error; });
@@ -212,7 +215,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     serialize: async ({ intent, snapshot }) => {
       const checksum = `sha256:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(snapshot.value))), (value) => value.toString(16).padStart(2, "0")).join("")}`;
       outputs.set(intent.intentId, { dataBase64: encode(snapshot.value), sizeBytes: snapshot.value.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
-      return { data: snapshot.value, sizeBytes: snapshot.value.length, checksumSha256: checksum, format: "docx" };
+      return { data: snapshot.value, sizeBytes: snapshot.value.length, checksumSha256: checksum, format: opened.format };
     },
     upload: async ({ intent, output }) => ({ uploadId: intent.intentId, sizeBytes: output.sizeBytes, checksumSha256: output.checksumSha256, claimExpiresAt: new Date(Date.now() + 60_000).toISOString() }),
     commit: async ({ intent }) => {
@@ -235,11 +238,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         revision = String(BigInt(output.localBase.revision) > BigInt(intent.identity.baseRevision) ? BigInt(output.localBase.revision) : BigInt(intent.identity.baseRevision) + 1n);
         if (useSaveAs && result.metadata.handle !== localHandle) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
       } else {
-        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: opened.format, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
-      return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "docx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
+      return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: opened.format, engineVersion: desktopEngineBuild(opened.format), contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },
     reconcile: async () => null,
   };
@@ -328,7 +331,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       } finally { saveInProgress = false; releaseSave(); saveSettled = undefined; }
     },
   };
-  if (opened.canSave === false) coordinator.setCapability({ format: "docx", operation: "serialize", host: "desktop", engineBuild: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
+  if (opened.canSave === false) coordinator.setCapability({ format: opened.format, operation: "serialize", host: "desktop", engineBuild: desktopEngineBuild(opened.format), contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
   const captured = async (): Promise<StableSnapshot<Uint8Array> | null> => {
     const snapshot = await editor.captureSnapshot();
     return snapshot.generation === editor.getDirtyGeneration() ? snapshot : null;

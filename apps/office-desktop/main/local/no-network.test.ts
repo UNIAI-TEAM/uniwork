@@ -41,7 +41,7 @@ describe("local mode opens no network connection", () => {
     const dispatch = createIpcDispatcher(handlers, sender);
     for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save"]) {
       const payload = channel === "desktop:office-save"
-        ? { sessionGeneration, workspaceId: "ws", documentId: "doc", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", dataBase64: "b2s=", checksum: `sha256:${"a".repeat(64)}` }
+        ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "docx", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", dataBase64: "b2s=", checksum: `sha256:${"a".repeat(64)}` }
         : channel === "desktop:library-create" ? { sessionGeneration, workspaceId: "ws", title: "Plan.docx" }
         : channel === "desktop:library-search" ? { sessionGeneration, workspaceId: "ws", query: "plan" }
         : channel === "desktop:library-context" ? { sessionGeneration }

@@ -4,7 +4,7 @@ import { createByteTestEditor } from "../../test/byte-editor";
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-const opened = { dataBase64: "aGVsbG8=", checksum };
+const opened = { format: "docx" as const, dataBase64: "aGVsbG8=", checksum };
 
 async function openSession(...args: Parameters<typeof createByteDocumentSession>) {
   const session = createByteDocumentSession(args[0], args[1], args[2], { createEditor: createByteTestEditor });
@@ -35,7 +35,7 @@ it("sends the opened snapshot once through coordinator save and blocks a concurr
   expect(request[1].dataBase64).toBe(opened.dataBase64);
   complete({ documentId: "doc", intentId: request[1].intentId, idempotencyKey: request[1].idempotencyKey, revision: "3", versionId: "v3", checksum });
   await expect(first).resolves.toMatchObject({ accepted: true, receipt: { revision: "3", versionId: "v3" } });
-  expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "3" });
+  expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "v3" });
   expect(call).toHaveBeenCalledWith("desktop:office-open", { sessionGeneration: "desktop-dev-session", workspaceId: "ws", documentId: "doc" });
   expect(call.mock.calls.filter(([channel]) => channel === "desktop:office-save")).toHaveLength(1);
 });

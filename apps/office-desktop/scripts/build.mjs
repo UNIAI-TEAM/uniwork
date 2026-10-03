@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { mkdir, copyFile, writeFile, rm, readFile } from "node:fs/promises";
+import { dirname as pathDirname, join as pathJoin } from "node:path";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv, writeDeploymentProfile } from "./deployment-profile.mjs";
 import { compileRendererStyles } from "./compile-styles.mjs";
 
@@ -33,6 +34,15 @@ await writeFile(join(dist, "build-identity.json"), JSON.stringify({ ...buildMeta
 const inputs = {};
 for (const metafile of buildMetafiles) for (const [input, details] of Object.entries(metafile.inputs ?? {})) inputs[input] = details;
 await writeFile(join(dist, ".build-metafile.json"), JSON.stringify({ inputs }, null, 2) + "\n");
+
+const officeEngine = createRequire(join(app, "..", "..", "packages", "office-engine", "package.json"));
+const pdfAssets = join(dist, "main", "pdf-assets");
+await mkdir(join(pdfAssets, "fonts"), { recursive: true });
+await copyFile(officeEngine.resolve("@embedpdf/pdfium/pdfium.wasm"), join(pdfAssets, "pdfium.wasm"));
+await copyFile(pathJoin(pathDirname(officeEngine.resolve("harfbuzzjs")), "harfbuzz-subset.wasm"), join(pdfAssets, "harfbuzz-subset.wasm"));
+for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
+  await copyFile(join(app, "..", "..", "packages", "office-engine", "assets", "fonts", font), join(pdfAssets, "fonts", font));
+}
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
   product: buildMetadata.identity.product,
   appId: buildMetadata.identity.appId,

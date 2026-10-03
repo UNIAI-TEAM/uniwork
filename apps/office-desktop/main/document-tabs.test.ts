@@ -145,7 +145,7 @@ it("registers created DOCX documents and rejects late cloud opens from the previ
   let session = { sessionId: sessionGeneration, deploymentId: "dep", accountId: "account-a", generation: 1 };
   const onDocumentOpened = vi.fn();
   const handlers = createOfficeIpcHandlers({ session: () => session, onDocumentOpened, transport: { create: async () => response, open: async () => { session = { ...session, accountId: "account-b" }; return response; } } as never });
-  await handlers["desktop:library-create"]({ sessionGeneration, workspaceId: "ws", title: "A.docx" });
+  await handlers["desktop:library-create"]({ sessionGeneration, workspaceId: "ws", title: "A.docx", format: "docx" });
   expect(onDocumentOpened).toHaveBeenCalledWith(response.document);
   onDocumentOpened.mockClear();
   await expect(handlers["desktop:office-open"]({ sessionGeneration, workspaceId: "ws", documentId: "a" })).rejects.toMatchObject({ code: "login_required" });

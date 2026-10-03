@@ -19,7 +19,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
     call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as RendererBridge["call"],
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} kind="cloud" signedIn onBack={() => undefined} />);
   return { calls, session };
 }

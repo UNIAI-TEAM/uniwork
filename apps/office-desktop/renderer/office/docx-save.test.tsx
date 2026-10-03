@@ -11,7 +11,7 @@ import { bytesChecksum, docxSource, docxIdentity, zipParts, installDocxGeometry 
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 
 installDocxGeometry();
-const original = { dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource) };
+const original = { format: "docx" as const, dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource) };
 const handle = `file_${"x".repeat(40)}`;
 const newHandle = `file_${"y".repeat(40)}`;
 type SavePayload = { dataBase64: string; documentId: string; intentId: string; idempotencyKey: string; checksum: string; handle: string };
@@ -46,7 +46,7 @@ it("commits real edited bytes once through native Save and preserves every untou
   expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
   expect(after.get("word/document.xml")).not.toEqual(before.get("word/document.xml"));
   for (const [name, value] of before) if (name !== "word/document.xml") expect(after.get(name), name).toEqual(value);
-  const reopened = createByteDocumentSession({ call: call as never }, { ...docxIdentity, baseVersionId: "v2", baseRevision: "2" }, { dataBase64: Buffer.from(saved).toString("base64"), checksum: bytesChecksum(saved) });
+  const reopened = createByteDocumentSession({ call: call as never }, { ...docxIdentity, baseVersionId: "v2", baseRevision: "2" }, { format: "docx", dataBase64: Buffer.from(saved).toString("base64"), checksum: bytesChecksum(saved) });
   await reopened.openEditor();
   expect(reopened.editor.commands?.getState().headingLevel).toBe(2);
   expect(reopened.coordinator.getState().dirtyGeneration).toBe(0);
@@ -106,7 +106,7 @@ it("cancels a clean Save As without rebinding, leaving the document clean and wr
 });
 
 it("shows a reasoned corrupt-file error with no Save", async () => {
-  const broken = harness(async () => ({}), { dataBase64: "AQID", checksum: bytesChecksum(new Uint8Array([1, 2, 3])) });
+  const broken = harness(async () => ({}), { format: "docx", dataBase64: "AQID", checksum: bytesChecksum(new Uint8Array([1, 2, 3])) });
   expect(await screen.findByTestId("office-open-error")).toHaveTextContent(/.+/);
   expect(document.querySelector(".ProseMirror")).toBeNull();
   expect(screen.queryByRole("button", { name: i18n.t("office.save.save") })).toBeNull();

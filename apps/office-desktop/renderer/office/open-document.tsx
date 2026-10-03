@@ -12,6 +12,7 @@ import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 import { DOCX_DESKTOP_ENGINE_BUILD } from "./docx-surface";
+import type { DesktopDocxSurface } from "./docx-surface";
 
 export function OpenByteDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
@@ -56,7 +57,8 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
   const loadEditor = useMemo<OfficeEditorLoader<Uint8Array>>(() => async () => ({ default: function DesktopDocx() {
     // A recovered draft owns a new TipTap surface; remount its shared toolbar.
     void surfaceVersion;
-    return <DocxEditor documentKey={documentKey} title={effectiveTitle} editor={session.editor} coordinator={session.coordinator} capability={capability} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor()).openOutcome()! }} />;
+    const docxEditor = session.editor as DesktopDocxSurface;
+    return <DocxEditor documentKey={documentKey} title={effectiveTitle} editor={docxEditor} coordinator={session.coordinator} capability={capability} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor() as DesktopDocxSurface).openOutcome()! }} />;
   } }), [capability, documentKey, session, effectiveTitle, surfaceVersion]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [active, bridge, documentKey, ready, session]);
   const saveAs = async () => {
