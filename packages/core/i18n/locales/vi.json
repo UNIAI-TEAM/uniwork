@@ -6946,6 +6946,16 @@
       "toolbar": {
         "label": "Lệnh chỉnh sửa DOCX"
       },
+      "status": {
+        "label": "Trạng thái tài liệu",
+        "unknown": "—",
+        "page": "Trang {{current}} / {{total}}",
+        "words": "Từ: {{value}}",
+        "characters": "Ký tự: {{value}}",
+        "charactersNoSpaces": "Không dấu cách: {{value}}",
+        "language": "Ngôn ngữ: {{language}}",
+        "zoom": "Thu phóng: {{percent}}%"
+      },
       "actions": {
         "undo": "Hoàn tác",
         "redo": "Làm lại",

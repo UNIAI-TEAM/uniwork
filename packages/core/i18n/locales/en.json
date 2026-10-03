@@ -6952,6 +6952,16 @@
       "toolbar": {
         "label": "DOCX editing commands"
       },
+      "status": {
+        "label": "Document status",
+        "unknown": "—",
+        "page": "Page {{current}} / {{total}}",
+        "words": "Words: {{value}}",
+        "characters": "Characters: {{value}}",
+        "charactersNoSpaces": "No spaces: {{value}}",
+        "language": "Language: {{language}}",
+        "zoom": "Zoom: {{percent}}%"
+      },
       "actions": {
         "undo": "Undo",
         "redo": "Redo",
