@@ -40,6 +40,7 @@ import {
   applyColumnDefaultWidth,
   applyOutlineAction,
   ingestCellMutation,
+  ingestFilterMutation,
   ingestMergeMutation,
   ingestSheetMutation,
   ingestStructuralMutation,
@@ -50,6 +51,7 @@ import {
   type AxisRange,
   type RendererCommand,
   type XlsxRendererEdit,
+  type XlsxRendererFilterEdit,
 } from "./edits";
 import { t } from "./locale";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
@@ -589,9 +591,24 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         pendingSheetCopy === null ? {} : { copy: pendingSheetCopy },
       );
       if (isSheetMutation(event.id)) pendingSheetCopy = null;
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0) return;
+      // Filters (B4) ride it too: every filter mutation snapshots the live
+      // model of its sheet as a whole-sheet declarative state. A snapshot
+      // carrying color criteria cannot be written to OOXML; the refusal is
+      // surfaced and no edit is emitted (the file keeps its previous filter
+      // state) instead of silently dropping criteria.
+      let filterEdits: XlsxRendererFilterEdit[] = [];
+      try {
+        filterEdits = ingestFilterMutation(
+          lazyWorkbookRef.current, event,
+          (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
+          journalSuppression.active,
+        );
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : String(error));
+      }
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits]));
       options.onDirty?.();
     }),
   );

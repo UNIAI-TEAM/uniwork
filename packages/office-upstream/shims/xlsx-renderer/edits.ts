@@ -1,4 +1,5 @@
 import {
+  recordFilterChange,
   recordSetNumfmt,
   recordSetRangeValues,
   recordSheetDuplicate,
@@ -10,10 +11,11 @@ import {
   recordStructuralOp,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
-import { pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
+import { FILTER_MUTATIONS, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { SharedFormulaResolver } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
-import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { IExecutionOptions } from "@univerjs/core";
+import { t } from "./locale";
 
 export interface XlsxRendererCellEdit {
   sheetId: string;
@@ -53,8 +55,46 @@ export type RendererSheetJournalOp =
   | { kind: "set-sheet-hidden"; hidden: boolean }
   | { kind: "reorder-sheet"; index: number };
 
+/** One custom filter condition (upstream FilterColumnState.customs entry): a
+ *  value and an optional OOXML comparison operator (absent = equality). */
+export interface XlsxRendererFilterCustomCondition {
+  val: string | number;
+  operator?: string;
+}
+
+/** One filter column's criteria; colId is the 0-based offset inside the filter
+ *  range (OOXML filterColumn/@colId). */
+export interface XlsxRendererFilterColumnState {
+  colId: number;
+  values?: string[];
+  blank?: boolean;
+  customs?: { and?: boolean; filters: XlsxRendererFilterCustomCondition[] };
+}
+
+/** The declarative filter snapshot of one sheet: the filter rectangle and its
+ *  per-column criteria (the engine's XlsxFilterSetState). */
+export interface XlsxRendererFilterSetState {
+  range: AxisRange;
+  columns: XlsxRendererFilterColumnState[];
+}
+
+/** One filter edit (B4): the whole-sheet snapshot, or a clear (a removed
+ *  filter) with only the visibility range the gateway unhides. `sheetName` is
+ *  stamped by the controller when it differs from the host file's. */
+export interface XlsxRendererFilterEdit {
+  sheetId: string;
+  sheetName?: string;
+  filter: XlsxRendererFilterSetState | null;
+  hiddenRows: number[];
+  visibilityRange: AxisRange;
+}
+
 /** Everything the renderer's edit channel can emit. */
-export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit | XlsxRendererSheetEdit;
+export type XlsxRendererEdit =
+  | XlsxRendererCellEdit
+  | XlsxRendererStructuralEdit
+  | XlsxRendererSheetEdit
+  | XlsxRendererFilterEdit;
 
 export interface RendererCommand {
   id: string;
@@ -577,4 +617,128 @@ export function applyOutlineAction(
   }
   closeRun(end);
   return touched ? edits : [];
+}
+
+// ── filter capture (B4: auto filter / advanced filter) ─────────────────────
+//
+// The pinned filter preset keeps one FilterModel per sheet; every mutation in
+// FILTER_MUTATIONS changes it. The save snapshot is declarative (a whole-sheet
+// SheetFilterState), so the capture reads the live model back at mutation time
+// and emits one snapshot — the plan folds last-write-per-sheet. The pinned
+// plugin's ref-range handler re-runs `set-filter-range` after an insert/remove
+// rows/cols command, so a structural shift re-snapshots the filter at its
+// post-shift coordinates. Color criteria have no OOXML mapping in the vendored
+// writer (serializeFilterColumn only writes values/customs): the snapshot
+// refuses with the same message the vendored save path used, rather than
+// silently dropping criteria.
+
+/** The last visibility range seen for a sheet's filter this session. A removed
+ *  filter has no live model left to read, and a session-created filter has no
+ *  file origin, so the clear snapshot falls back to this range. */
+const lastFilterRanges = new WeakMap<LazyWorkbookState, Map<string, AxisRange>>();
+
+/** Snapshot one sheet's live filter model. `filter: null` is a clear: the
+ *  filter was removed, and the visibility range is the file origin's range (or
+ *  the last range this session saw). Returns null when no filter ever existed
+ *  on the sheet, so nothing needs emitting. Throws when the filter carries
+ *  color criteria — unsaveable, exactly like the vendored `collectFilterStates`
+ *  path (`appColorFiltersUnsaveable`). */
+export function snapshotSheetFilter(
+  state: LazyWorkbookState,
+  sheetId: string,
+  worksheet: UniverWorksheet,
+): { filter: XlsxRendererFilterSetState | null; hiddenRows: number[]; visibilityRange: AxisRange } | null {
+  const filter = worksheet.getFilter();
+  const origin = state.filterOrigins.get(sheetId);
+  if (!filter) {
+    const visibilityRange = origin?.range ?? lastFilterRanges.get(state)?.get(sheetId);
+    if (!visibilityRange) return null;
+    return { filter: null, hiddenRows: [], visibilityRange: { ...visibilityRange } };
+  }
+  const raw = filter.getRange().getRange();
+  const range: AxisRange = {
+    startRow: raw.startRow, endRow: raw.endRow, startColumn: raw.startColumn, endColumn: raw.endColumn,
+  };
+  const columns: XlsxRendererFilterColumnState[] = [];
+  for (let column = range.startColumn; column <= range.endColumn; column += 1) {
+    const criteria = filter.getColumnFilterCriteria(column);
+    if (!criteria) continue;
+    if (criteria.colorFilters) throw new Error(t("appColorFiltersUnsaveable"));
+    if (!criteria.filters && !criteria.customFilters) continue;
+    const customFilters = criteria.customFilters;
+    columns.push({
+      colId: column - range.startColumn,
+      ...(criteria.filters?.filters ? { values: [...criteria.filters.filters] } : {}),
+      ...(criteria.filters?.blank ? { blank: true } : {}),
+      ...(customFilters
+        ? {
+            customs: {
+              ...(customFilters.and ? { and: true } : {}),
+              filters: customFilters.customFilters.map((custom) => ({
+                val: custom.val,
+                ...(custom.operator ? { operator: custom.operator } : {}),
+              })),
+            },
+          }
+        : {}),
+    });
+  }
+  // The visibility span is the union of the filter range and its file origin:
+  // the save unhides every row inside it that is not filtered out, so a filter
+  // that shrank must keep unhiding the rows the origin covered.
+  const visibilityRange = origin
+    ? {
+        startRow: Math.min(range.startRow, origin.range.startRow),
+        endRow: Math.max(range.endRow, origin.range.endRow),
+        startColumn: Math.min(range.startColumn, origin.range.startColumn),
+        endColumn: Math.max(range.endColumn, origin.range.endColumn),
+      }
+    : { ...range };
+  rememberFilterRange(state, sheetId, visibilityRange);
+  // The filter model lists absolute row indexes; only rows inside the data
+  // span are meaningful to the writer, but extras are ignored there.
+  const hiddenRows = [...filter.getFilteredOutRows()].sort((left, right) => left - right);
+  return {
+    filter: { range, columns },
+    hiddenRows: hiddenRows.filter((row) => Number.isInteger(row) && row >= 0),
+    visibilityRange,
+  };
+}
+
+function rememberFilterRange(state: LazyWorkbookState, sheetId: string, range: AxisRange): void {
+  const ranges = lastFilterRanges.get(state) ?? new Map<string, AxisRange>();
+  ranges.set(sheetId, range);
+  lastFilterRanges.set(state, ranges);
+}
+
+/** Ingest one filter mutation into a whole-sheet filter edit. The worksheet
+ *  getter resolves the mutated sheet's live filter model (the controller reads
+ *  it off the mounted workbook); a mutation for another workbook, an unknown
+ *  sheet, or with the journal suppressed emits nothing. Throws on color
+ *  criteria (see snapshotSheetFilter) — the caller surfaces the message. */
+export function ingestFilterMutation(
+  state: LazyWorkbookState | null,
+  event: RendererCommand,
+  worksheetFor: (sheetId: string) => UniverWorksheet | null,
+  suppressed = false,
+): XlsxRendererFilterEdit[] {
+  if (!state || suppressed || event.options?.fromFormula || !FILTER_MUTATIONS.has(event.id)) return [];
+  const params = event.params as { unitId?: string; subUnitId?: string } | undefined;
+  const sheetId = params?.subUnitId;
+  const liveSheets = liveSessionSheets(state);
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+      !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
+  const worksheet = worksheetFor(sheetId);
+  if (!worksheet) return [];
+  recordFilterChange(state.editJournal, sheetId);
+  const snapshot = snapshotSheetFilter(state, sheetId, worksheet);
+  if (!snapshot) return [];
+  return [
+    {
+      sheetId,
+      filter: snapshot.filter,
+      hiddenRows: snapshot.hiddenRows,
+      visibilityRange: snapshot.visibilityRange,
+    },
+  ];
 }

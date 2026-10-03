@@ -1,4 +1,5 @@
 import type { IRange } from "@univerjs/core";
+import { FILTER_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import {
   CELL_MUTATIONS,
@@ -406,6 +407,140 @@ function sheetMutationAllowed(event: RendererCommand, state: LazyWorkbookState):
   return false;
 }
 
+// ── filters (B4: auto filter / advanced filter) ────────────────────────────
+//
+// Exactly the pinned filter commands the Data-tab group and the header filter
+// panel dispatch, plus the four mutations those commands run (undo replays the
+// mutations; the pinned plugin's ref-range handler also injects a
+// set-filter-range mutation after an insert/remove rows/cols command). Filter
+// state is declarative — the save snapshots the live model — so the validators
+// only bound params: the filter area stays inside the grid and under the span
+// ceiling, criteria columns/values/operators stay under the wire bounds. Color
+// criteria pass the gate (the pinned panel offers them) but have no OOXML
+// mapping; the save-side snapshot refuses them with a message instead of
+// silently dropping criteria. Default deny stays.
+
+const FILTER_COMMANDS = new Set([
+  "sheet.command.set-filter-range",
+  "sheet.command.remove-sheet-filter",
+  "sheet.command.smart-toggle-filter",
+  "sheet.command.set-filter-criteria",
+  "sheet.command.clear-filter-criteria",
+  "sheet.command.re-calc-filter",
+]);
+
+/** The OOXML customFilter operators + the filter bounds the ops.ts parsers and
+ *  the vendored wire schema share. */
+const FILTER_OPERATORS = new Set([
+  "equal", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual",
+]);
+const FILTER_VALUE_LEN = 32_767;
+const FILTER_VALUES_MAX = 10_000;
+
+function filterAreaOK(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const area = value as Record<string, unknown>;
+  if (![area.startRow, area.endRow, area.startColumn, area.endColumn].every(
+    (field) => typeof field === "number" && Number.isInteger(field) && field >= 0)) return false;
+  const { startRow, endRow, startColumn, endColumn } =
+    area as { startRow: number; endRow: number; startColumn: number; endColumn: number };
+  if (startRow > endRow || startColumn > endColumn || endRow >= 1_048_576 || endColumn >= 16_384) return false;
+  return endRow - startRow < 100_000 && endColumn - startColumn < 100_000;
+}
+
+/** A filter column's criteria as the pinned commands carry it: an
+ *  IFilterColumn (values/blank, custom filters, or color filters) or null to
+ *  clear the column. A column with no criteria family would make the pinned
+ *  filter model throw, so it is refused here too. */
+function filterCriteriaOK(criteria: unknown): boolean {
+  if (criteria === null) return true;
+  if (!criteria || typeof criteria !== "object") return false;
+  const column = criteria as { colId?: unknown; filters?: unknown; customFilters?: unknown; colorFilters?: unknown };
+  if (column.colId !== undefined && !(typeof column.colId === "number" && Number.isInteger(column.colId) &&
+    column.colId >= 0 && column.colId < 16_384)) return false;
+  let present = false;
+  if (column.filters !== undefined) {
+    if (!column.filters || typeof column.filters !== "object") return false;
+    const filters = column.filters as { blank?: unknown; filters?: unknown };
+    if (filters.blank !== undefined && typeof filters.blank !== "boolean") return false;
+    if (filters.filters !== undefined) {
+      if (!Array.isArray(filters.filters) || filters.filters.length > FILTER_VALUES_MAX) return false;
+      if (!filters.filters.every((value) => typeof value === "string" && value.length <= FILTER_VALUE_LEN)) return false;
+    }
+    if (filters.blank !== undefined || filters.filters !== undefined) present = true;
+  }
+  if (column.customFilters !== undefined) {
+    if (!column.customFilters || typeof column.customFilters !== "object") return false;
+    const customs = column.customFilters as { and?: unknown; customFilters?: unknown };
+    if (customs.and !== undefined && customs.and !== 0 && customs.and !== 1 && customs.and !== true) return false;
+    if (!Array.isArray(customs.customFilters) || customs.customFilters.length < 1 || customs.customFilters.length > 2) return false;
+    for (const custom of customs.customFilters) {
+      if (!custom || typeof custom !== "object") return false;
+      const condition = custom as { val?: unknown; operator?: unknown };
+      const val = condition.val;
+      if (typeof val === "string") {
+        if (val.length > FILTER_VALUE_LEN) return false;
+      } else if (typeof val !== "number" || !Number.isFinite(val)) return false;
+      if (condition.operator !== undefined && (typeof condition.operator !== "string" || !FILTER_OPERATORS.has(condition.operator))) return false;
+    }
+    present = true;
+  }
+  if (column.colorFilters !== undefined) {
+    if (!column.colorFilters || typeof column.colorFilters !== "object") return false;
+    const colors = column.colorFilters as { cellFillColors?: unknown; cellTextColors?: unknown };
+    for (const group of [colors.cellFillColors, colors.cellTextColors]) {
+      if (group === undefined) continue;
+      if (!Array.isArray(group) || group.length > FILTER_VALUES_MAX) return false;
+      if (!group.every((color) => color === null || typeof color === "string")) return false;
+    }
+    present = true;
+  }
+  return present;
+}
+
+interface FilterParams {
+  unitId?: unknown;
+  subUnitId?: unknown;
+  range?: unknown;
+  col?: unknown;
+  criteria?: unknown;
+}
+
+/** The pinned filter commands are sheet-scoped: `subUnitId`/`unitId` are
+ *  optional (the command resolves the active sheet) and must name this
+ *  workbook's live sheet when present. */
+function filterSheetScopeOK(params: FilterParams | undefined, state: LazyWorkbookState): boolean {
+  if (params !== undefined && (typeof params !== "object" || params === null)) return false;
+  if (params?.unitId !== undefined && params.unitId !== `file-${state.file.sha256}`) return false;
+  if (params?.subUnitId === undefined) return true;
+  return typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId);
+}
+
+function filterColOK(col: unknown): boolean {
+  return typeof col === "number" && Number.isInteger(col) && col >= 0 && col < 16_384;
+}
+
+function filterCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as FilterParams | undefined;
+  if (!filterSheetScopeOK(params, state)) return false;
+  if (event.id === "sheet.command.set-filter-range") return filterAreaOK(params?.range);
+  if (event.id === "sheet.command.set-filter-criteria") {
+    return filterColOK(params?.col) && filterCriteriaOK(params?.criteria);
+  }
+  return true;
+}
+
+function filterMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as FilterParams | undefined;
+  if (!params || typeof params !== "object" || params.unitId !== `file-${state.file.sha256}` ||
+    typeof params.subUnitId !== "string" || !liveSheetIds(state).has(params.subUnitId)) return false;
+  if (event.id === "sheet.mutation.set-filter-range") return filterAreaOK(params.range);
+  if (event.id === "sheet.mutation.set-filter-criteria") {
+    return filterColOK(params.col) && filterCriteriaOK(params.criteria);
+  }
+  return true;
+}
+
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
@@ -516,6 +651,8 @@ export function canExecuteCommand(
     if (STRUCTURAL_MUTATIONS[event.id]) return structuralMutationAllowed(event, state);
     if (MERGE_MUTATIONS.has(event.id)) return mergeMutationAllowed(event, state);
     if (isSheetMutation(event.id)) return sheetMutationAllowed(event, state);
+    if (FILTER_COMMANDS.has(event.id)) return filterCommandAllowed(event, state);
+    if (FILTER_MUTATIONS.has(event.id)) return filterMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

@@ -21,6 +21,10 @@ const bundled = await build({
       builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
         contents: 'export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3}; export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};',
       }));
+      // The shim's locale seam resolves to the host i18next at build time; the
+      // test bundle returns the key itself so assertions can pin message ids.
+      builder.onResolve({ filter: /^\.\/locale$/ }, () => ({ path: 'locale', namespace: 'test-locale' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-locale' }, () => ({ contents: 'export const t = (key) => key;' }));
       builder.onResolve({ filter: /^@genoffice\/xlsx-gateway\// }, (args) => ({
         path: path.join(upstream, 'packages/xlsx-gateway/src', args.path.split('/').slice(2).join('/')) + '.ts',
       }));
@@ -31,8 +35,9 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, applyColumnDefaultWidth,
-  applyOutlineAction, seedColumnOutline, liveSessionSheets, sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText } = module.exports;
+const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
+  sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -42,8 +47,21 @@ function state() {
     flags: { preloadComplete: false },
     closure: { pinned: new Map() },
     outline: new Map(),
+    filterOrigins: new Map(),
   };
 }
+/** A fake Univer worksheet surface the filter snapshot reads. */
+function filterWorksheet(filter) {
+  return { getFilter: () => filter };
+}
+function filterModel(range, criteriaByColumn = {}, filteredOut = []) {
+  return {
+    getRange: () => ({ getRange: () => range }),
+    getColumnFilterCriteria: (column) => criteriaByColumn[column] ?? null,
+    getFilteredOutRows: () => filteredOut,
+  };
+}
+const filterEvent = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
 /** Two-sheet state for the sheet-op tests (a removal needs a survivor). */
 function sheetState() {
   const model = state();
@@ -152,6 +170,10 @@ test('readonly gates mutations, editor activation, shortcuts, undo/redo and past
 
 test('structural, sheet, chart, filter and untranslatable command surfaces are refused', () => {
   const model = state();
+  // Unbound surfaces — and bound ones missing their required params — stay
+  // refused (default deny). The filter commands/mutations are bound in B4;
+  // their paramless shape is refused here and their bound shape is covered by
+  // the filter policy test below.
   // Tab colour stays refused on purpose: the vendored gateway has no tabColor
   // write path, so the colour is shown read-only (B3 report: pending gateway).
   for (const id of ['sheet.command.set-tab-color', 'sheet.mutation.set-tab-color',
@@ -685,4 +707,152 @@ test('the pinned validateSheetName shape is enforced for names', () => {
   for (const name of ['', 'a'.repeat(32), 'a/b', 'a\\b', 'a?b', 'a*b', 'a[b', 'a]b', 'a:b', "'q'", "'a"]) {
     assert.equal(sheetNameShapeOK(name), false, name);
   }
+});
+
+test('filter mutations snapshot the live model into a whole-sheet edit', () => {
+  const model = state();
+  const range = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 };
+  const criteria = {
+    0: { colId: 0, filters: { filters: ['alpha', 'beta'] } },
+    1: { colId: 1, customFilters: { and: 1, customFilters: [{ val: 'x', operator: 'notEqual' }] } },
+    2: { colId: 2, filters: { blank: true } },
+  };
+  const worksheet = filterWorksheet(filterModel(range, criteria, [2, 3]));
+  const edits = ingestFilterMutation(
+    model,
+    filterEvent('sheet.mutation.set-filter-criteria', { col: 0, criteria: { colId: 0, filters: { filters: ['alpha'] } } }),
+    () => worksheet,
+  );
+  assert.deepEqual(edits, [{
+    sheetId: 's1',
+    filter: {
+      range,
+      columns: [
+        { colId: 0, values: ['alpha', 'beta'] },
+        { colId: 1, customs: { and: true, filters: [{ val: 'x', operator: 'notEqual' }] } },
+        { colId: 2, blank: true },
+      ],
+    },
+    hiddenRows: [2, 3],
+    visibilityRange: range,
+  }]);
+  assert.equal(model.editJournal.filterDirty.has('s1'), true);
+
+  // The visibility span widens to the file origin's range when one exists.
+  const native = state();
+  native.filterOrigins.set('s1', { origin: 'worksheet', range: { startRow: 0, endRow: 9, startColumn: 0, endColumn: 4 } });
+  const widened = ingestFilterMutation(
+    native,
+    filterEvent('sheet.mutation.set-filter-range', {}),
+    () => filterWorksheet(filterModel(range, {}, [])),
+  );
+  assert.deepEqual(widened[0].visibilityRange, { startRow: 0, endRow: 9, startColumn: 0, endColumn: 4 });
+});
+
+test('a removed filter emits a clear with the origin or last-seen visibility range', () => {
+  const model = state();
+  const sessionRange = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 };
+  // A session-created filter first: the snapshot records its range...
+  const created = ingestFilterMutation(
+    model,
+    filterEvent('sheet.mutation.set-filter-range', {}),
+    () => filterWorksheet(filterModel(sessionRange, {}, [])),
+  );
+  assert.equal(created.length, 1);
+  // ...so the later removal can still unhide what it was hiding without a file origin.
+  const cleared = ingestFilterMutation(model, filterEvent('sheet.mutation.remove-filter', {}), () => filterWorksheet(null));
+  assert.deepEqual(cleared, [{ sheetId: 's1', filter: null, hiddenRows: [], visibilityRange: sessionRange }]);
+
+  // A file-native origin is used when the sheet never saw a session snapshot.
+  const native = state();
+  const origin = { startRow: 0, endRow: 6, startColumn: 0, endColumn: 2 };
+  native.filterOrigins.set('s1', { origin: 'worksheet', range: origin });
+  const nativeCleared = ingestFilterMutation(native, filterEvent('sheet.mutation.remove-filter', {}), () => filterWorksheet(null));
+  assert.deepEqual(nativeCleared[0].visibilityRange, origin);
+
+  // Nothing was ever filtered: no state to emit.
+  assert.deepEqual(ingestFilterMutation(state(), filterEvent('sheet.mutation.remove-filter', {}), () => filterWorksheet(null)), []);
+});
+
+test('color criteria refuse the snapshot instead of silently dropping criteria', () => {
+  const model = state();
+  const worksheet = filterWorksheet(filterModel(
+    { startRow: 0, endRow: 3, startColumn: 0, endColumn: 1 },
+    { 0: { colId: 0, colorFilters: { cellFillColors: ['#ff0000'] } } },
+  ));
+  assert.throws(
+    () => ingestFilterMutation(model, filterEvent('sheet.mutation.set-filter-criteria', { col: 0, criteria: {} }), () => worksheet),
+    /appColorFiltersUnsaveable/,
+  );
+});
+
+test('filter mutations ignore foreign workbooks, unknown sheets, suppression and other ids', () => {
+  const model = state();
+  const worksheet = () => filterWorksheet(filterModel({ startRow: 0, endRow: 3, startColumn: 0, endColumn: 1 }, {}, []));
+  for (const event of [
+    { id: 'sheet.mutation.set-filter-criteria', type: 2, params: { unitId: 'other', subUnitId: 's1' } },
+    filterEvent('sheet.mutation.set-filter-criteria', { subUnitId: 'ghost' }),
+    filterEvent('sheet.mutation.set-range-values', {}),
+  ]) {
+    assert.deepEqual(ingestFilterMutation(model, event, worksheet), [], JSON.stringify(event));
+  }
+  assert.deepEqual(ingestFilterMutation(model, filterEvent('sheet.mutation.set-filter-criteria', {}), worksheet, true), []);
+  assert.deepEqual(ingestFilterMutation(null, filterEvent('sheet.mutation.set-filter-criteria', {}), worksheet), []);
+  assert.deepEqual(ingestFilterMutation(model, filterEvent('sheet.mutation.set-filter-criteria', {}), () => null), []);
+});
+
+test('filter commands and mutations pass the policy only with bounded params', () => {
+  const model = state();
+  const command = (id, params) => ({ id, type: 1, params });
+  const mutationEvent = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const range = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 };
+
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-range', { range }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-range', { range: { ...range, startRow: 5 } }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-range', { range: { ...range, endColumn: 16_384 } }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.smart-toggle-filter', { subUnitId: 's1' }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.smart-toggle-filter', {}), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.remove-sheet-filter', { subUnitId: 'ghost' }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.clear-filter-criteria', {}), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.re-calc-filter', {}), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-criteria', {
+    col: 0, criteria: { colId: 0, filters: { filters: ['x'] } },
+  }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-criteria', {
+    col: 0, criteria: { colId: 0, customFilters: { customFilters: [{ val: 5, operator: 'greaterThanOrEqual' }] } },
+  }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-criteria', { col: 0, criteria: null }), model, false), true);
+  // Color criteria pass (the pinned panel offers them; the snapshot refuses
+  // them with a message rather than dropping criteria silently).
+  assert.equal(canExecuteCommand(command('sheet.command.set-filter-criteria', {
+    col: 0, criteria: { colId: 0, colorFilters: { cellFillColors: ['#fff'] } },
+  }), model, false), true);
+  for (const params of [
+    { col: 16_384, criteria: { colId: 0, filters: { filters: ['x'] } } },
+    { col: 0.5, criteria: { colId: 0, filters: { filters: ['x'] } } },
+    { col: 0, criteria: { colId: 0, customFilters: { customFilters: [{ val: 1, operator: 'contains' }] } } },
+    { col: 0, criteria: { colId: 0 } },
+    { col: 0 },
+    { col: 0, criteria: { colId: 0, filters: { filters: [7] } } },
+  ]) {
+    assert.equal(canExecuteCommand(command('sheet.command.set-filter-criteria', params), model, false), false, JSON.stringify(params));
+  }
+
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-filter-range', { range }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-filter-criteria', {
+    col: 1, criteria: { colId: 1, filters: { blank: true } },
+  }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-filter', {}), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.re-calc-filter', {}), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-filter-range', { range: { ...range, startColumn: 3, endColumn: 1 } }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-filter-criteria', {
+    col: 16_384, criteria: { colId: 0, filters: { filters: [] } },
+  }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-filter', { subUnitId: 'ghost' }), model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.mutation.set-filter-range', type: 2, params: { range } }, model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-filter-range', {}), model, false), false);
+
+  // Read-only refuses every filter surface (the generic gate runs first).
+  assert.equal(canExecuteCommand(command('sheet.command.smart-toggle-filter', {}), model, true), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-filter', {}), model, true), false);
 });

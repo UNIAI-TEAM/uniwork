@@ -146,8 +146,45 @@ export type XlsxRendererSheetJournalOp =
   | { kind: "set-sheet-hidden"; hidden: boolean }
   | { kind: "reorder-sheet"; index: number };
 
+/** One custom filter condition (the upstream FilterColumnState.customs entry):
+ *  a value and an optional OOXML comparison operator (absent = equality). */
+export interface XlsxRendererFilterCustomCondition {
+  val: string | number;
+  operator?: string;
+}
+
+/** One filter column's criteria; colId is the 0-based offset inside the filter
+ *  range (OOXML filterColumn/@colId). */
+export interface XlsxRendererFilterColumnState {
+  colId: number;
+  values?: string[];
+  blank?: boolean;
+  customs?: { and?: boolean; filters: XlsxRendererFilterCustomCondition[] };
+}
+
+/** The declarative filter snapshot of one sheet. */
+export interface XlsxRendererFilterSetState {
+  range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
+  columns: XlsxRendererFilterColumnState[];
+}
+
+/** One filter edit (B4): the whole-sheet snapshot, or a clear (a removed
+ *  filter) with only the visibility range the gateway unhides. `sheetName` is
+ *  stamped when it differs from the host file's. */
+export interface XlsxRendererFilterEdit {
+  sheetId: string;
+  sheetName?: string;
+  filter: XlsxRendererFilterSetState | null;
+  hiddenRows: number[];
+  visibilityRange: { startRow: number; endRow: number; startColumn: number; endColumn: number };
+}
+
 /** Every edit the renderer's onEdits channel can emit. */
-export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit | XlsxRendererSheetEdit;
+export type XlsxRendererEdit =
+  | XlsxRendererCellEdit
+  | XlsxRendererStructuralEdit
+  | XlsxRendererSheetEdit
+  | XlsxRendererFilterEdit;
 
 export interface XlsxRendererFontMapping {
   declared: string;
