@@ -328,7 +328,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       event.preventDefault(); const file = event.dataTransfer.files[0];
       if (file && bridge.openDroppedFile && canOpen()) void perform(() => bridge.openDroppedFile!(file), acceptLocal);
     }}>
-      {alerts}
+      {mode !== "login" ? alerts : null}
       <div role="tabpanel" id={`desktop-panel-${homeKind}`} aria-labelledby={`desktop-tab-${homeKind}`} hidden={tabs.activeTabId !== null} inert={tabs.activeTabId !== null} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === null}>
         {mode === "local"
           ? <LocalHomeView files={recents.files} error={recents.error} busy={busy} onOpen={openLocal} onCreate={createLocal} onOpenRecent={openRecent} onRemoveRecent={(id) => { void recents.remove(id).then((removed) => { if (!removed) setActionError(t("officeDesktop.library.actionError")); }); }} onRetry={recents.reload} />
