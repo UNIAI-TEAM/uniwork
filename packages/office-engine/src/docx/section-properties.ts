@@ -39,18 +39,16 @@ const DEFAULT_COLUMN_SPACE = 720;
 const SECT_PR_RE = /<w:sectPr[^>]*\/>|<w:sectPr[\s\S]*?<\/w:sectPr>/;
 const PG_SZ_RE = /<w:pgSz[^>]*\/?>/;
 const PG_MAR_RE = /<w:pgMar[^>]*\/?>/;
-const PG_BORDERS_RE = /<w:pgBorders[^>]*\/>|<w:pgBorders[\s\S]*?<\/w:pgBorders>/;
 const COLS_RE = /<w:cols[^>]*\/>|<w:cols[^>]*>[\s\S]*?<\/w:cols>/;
 const TYPE_RE = /<w:type[^>]*\/>/;
-const PG_BORDERS_OR_MAR_RE = /<w:pgBorders[^>]*\/>|<w:pgBorders[\s\S]*?<\/w:pgBorders>|<w:pgMar[^>]*\/?>/;
 /** CT_SectPr children that follow w:type (the anchor list for a w:type insert). */
-const AFTER_TYPE_RE = /<w:(?:pgSz|pgMar|pgBorders|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|lnNumType)[\s/>]/;
+const AFTER_TYPE_RE = /<w:(?:pgSz|pgMar|paperSrc|pgBorders|lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)[\s/>]/;
 /** CT_SectPr children that follow w:pgSz (the anchor list when it is missing). */
-const AFTER_PG_SZ_RE = /<w:(?:pgMar|paperSrc|pgBorders|lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings)[\s/>]/;
+const AFTER_PG_SZ_RE = /<w:(?:pgMar|paperSrc|pgBorders|lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)[\s/>]/;
 /** CT_SectPr children that follow w:cols (the anchor list when it is missing). */
-const AFTER_COLS_RE = /<w:(?:formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings)[\s/>]/;
+const AFTER_COLS_RE = /<w:(?:formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)[\s/>]/;
 /** CT_SectPr children that follow w:pgMar (the anchor list when it is missing). */
-const AFTER_PG_MAR_RE = /<w:(?:paperSrc|pgBorders|lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings)[\s/>]/;
+const AFTER_PG_MAR_RE = /<w:(?:paperSrc|pgBorders|lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)[\s/>]/;
 
 const START_TYPES: readonly DocxSectionStartType[] = ["nextPage", "continuous", "evenPage", "oddPage", "nextColumn"];
 const PROPERTY_KEYS = [
@@ -78,6 +76,10 @@ export interface DocxSectionSnapshot {
   columns: number;
   columnSpace: number;
   startType: DocxSectionStartType;
+  /** negative w:top / w:bottom in the file: the displayed value is the absolute
+   * margin, the sign is restored on write (upstream section.ts). */
+  marginTopFixed: boolean;
+  marginBottomFixed: boolean;
 }
 
 /** One section, targeted by its 0-based document-order index — the same order
@@ -144,25 +146,37 @@ export function docxSections(parsed: DocxParsed): DocxSectionSlice[] {
   return sections;
 }
 
+/** The section's own children: a trailing w:sectPrChange embeds a copy of an
+ * earlier sectPr that must never be read from or rewritten. */
+function ownContent(sectPrXml: string): string {
+  const change = sectPrXml.indexOf("<w:sectPrChange");
+  return change === -1 ? sectPrXml : sectPrXml.slice(0, change);
+}
+
 /** Read the page-setup numbers out of one sectPr slice, with the same
  * defaults upstream section.ts applies to a missing tag. */
 export function readSectionSnapshot(sectPrXml: string): DocxSectionSnapshot {
-  const pgSz = PG_SZ_RE.exec(sectPrXml)?.[0] ?? "";
-  const pgMar = PG_MAR_RE.exec(sectPrXml)?.[0] ?? "";
-  const cols = COLS_RE.exec(sectPrXml)?.[0] ?? "";
+  const own = ownContent(sectPrXml);
+  const pgSz = PG_SZ_RE.exec(own)?.[0] ?? "";
+  const pgMar = PG_MAR_RE.exec(own)?.[0] ?? "";
+  const cols = COLS_RE.exec(own)?.[0] ?? "";
   const colsOpen = /^<w:cols[^>]*\/?>/.exec(cols)?.[0] ?? cols;
-  const type = /<w:type[^>]*w:val="(nextPage|continuous|evenPage|oddPage|nextColumn)"/.exec(sectPrXml)?.[1];
+  const type = /<w:type[^>]*w:val="(nextPage|continuous|evenPage|oddPage|nextColumn)"/.exec(own)?.[1];
+  const rawTop = intAttr(pgMar, "w:top", DEFAULT_MARGIN);
+  const rawBottom = intAttr(pgMar, "w:bottom", DEFAULT_MARGIN);
   return {
     pageWidth: intAttr(pgSz, "w:w", DEFAULT_PAGE_WIDTH),
     pageHeight: intAttr(pgSz, "w:h", DEFAULT_PAGE_HEIGHT),
     orientation: pgSz.includes('w:orient="landscape"') ? "landscape" : "portrait",
-    marginTop: Math.abs(intAttr(pgMar, "w:top", DEFAULT_MARGIN)),
+    marginTop: Math.abs(rawTop),
     marginRight: intAttr(pgMar, "w:right", DEFAULT_MARGIN),
-    marginBottom: Math.abs(intAttr(pgMar, "w:bottom", DEFAULT_MARGIN)),
+    marginBottom: Math.abs(rawBottom),
     marginLeft: intAttr(pgMar, "w:left", DEFAULT_MARGIN),
     columns: intAttr(colsOpen, "w:num", 1),
     columnSpace: intAttr(colsOpen, "w:space", DEFAULT_COLUMN_SPACE),
     startType: (type as DocxSectionStartType | undefined) ?? "nextPage",
+    marginTopFixed: rawTop < 0,
+    marginBottomFixed: rawBottom < 0,
   };
 }
 
@@ -183,16 +197,16 @@ export function requireSectionProperties(properties: DocxSectionProperties): voi
   for (const side of ["marginTop", "marginRight", "marginBottom", "marginLeft"] as const) {
     const value = properties[side];
     if (value === undefined) continue;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      throw new DocxEngineError("bad_margin", side + " must be a finite number of twips");
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      throw new DocxEngineError("bad_margin", side + " must be an integer number of twips");
     }
     if (value < 0) throw new DocxEngineError("bad_margin", side + " must not be negative");
   }
   for (const dimension of ["pageWidth", "pageHeight"] as const) {
     const value = properties[dimension];
     if (value === undefined) continue;
-    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-      throw new DocxEngineError("bad_page_size", dimension + " must be a positive number of twips");
+    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+      throw new DocxEngineError("bad_page_size", dimension + " must be a positive integer number of twips");
     }
   }
   if (properties.orientation !== undefined && properties.orientation !== "portrait" && properties.orientation !== "landscape") {
@@ -209,8 +223,8 @@ export function requireSectionProperties(properties: DocxSectionProperties): voi
   }
   if (properties.columnSpace !== undefined) {
     const space = properties.columnSpace;
-    if (typeof space !== "number" || !Number.isFinite(space) || space < 0) {
-      throw new DocxEngineError("bad_column_space", "columnSpace must be a non-negative number of twips");
+    if (typeof space !== "number" || !Number.isInteger(space) || space < 0) {
+      throw new DocxEngineError("bad_column_space", "columnSpace must be a non-negative integer number of twips");
     }
   }
 }
@@ -229,15 +243,21 @@ function setIntAttr(tag: string, name: string, value: number): string {
 }
 
 /** Insert a child of w:sectPr at its schema slot: before the first named
- * follower, else before the closing tag. */
+ * follower, else before the closing tag. A self-closing sectPr has no closing
+ * tag to anchor on, so it is expanded first. */
 function insertBefore(xml: string, tag: string, followers: RegExp): string {
   const match = followers.exec(xml);
-  return match ? xml.slice(0, match.index) + tag + xml.slice(match.index) : xml.replace(/<\/w:sectPr>/, `${tag}</w:sectPr>`);
+  if (match) return xml.slice(0, match.index) + tag + xml.slice(match.index);
+  const selfClosing = /^<w:sectPr(\s[^>]*)?\/>$/.exec(xml);
+  if (selfClosing) return `<w:sectPr${selfClosing[1] ?? ""}>${tag}</w:sectPr>`;
+  const close = xml.lastIndexOf("</w:sectPr>");
+  return close === -1 ? xml : xml.slice(0, close) + tag + xml.slice(close);
 }
 
 function applyStartType(sectPrXml: string, properties: DocxSectionProperties): string {
   if (properties.startType === undefined) return sectPrXml;
-  const xml = sectPrXml.replace(TYPE_RE, "");
+  const ownType = TYPE_RE.exec(ownContent(sectPrXml))?.[0];
+  const xml = ownType ? sectPrXml.replace(TYPE_RE, "") : sectPrXml;
   if (properties.startType === "nextPage") return xml;
   return insertBefore(xml, `<w:type w:val="${properties.startType}"/>`, AFTER_TYPE_RE);
 }
@@ -254,7 +274,7 @@ function applyPageSize(sectPrXml: string, snapshot: DocxSectionSnapshot, propert
     [width, height] = [height, width];
   }
   const landscape = properties.orientation !== undefined ? properties.orientation === "landscape" : snapshot.orientation === "landscape";
-  const pgSz = PG_SZ_RE.exec(sectPrXml)?.[0];
+  const pgSz = PG_SZ_RE.exec(ownContent(sectPrXml))?.[0];
   if (!pgSz) {
     const tag = `<w:pgSz w:w="${width}" w:h="${height}"${landscape ? ' w:orient="landscape"' : ""}/>`;
     return insertBefore(sectPrXml, tag, AFTER_PG_SZ_RE);
@@ -269,14 +289,18 @@ function applyMargins(sectPrXml: string, snapshot: DocxSectionSnapshot, properti
   if (properties.marginTop === undefined && properties.marginRight === undefined && properties.marginBottom === undefined && properties.marginLeft === undefined) {
     return sectPrXml;
   }
-  const top = properties.marginTop ?? snapshot.marginTop;
+  // a negative w:top / w:bottom is the fixed-height form: display the absolute
+  // value, write the sign back (upstream section.ts)
+  const topMargin = properties.marginTop ?? snapshot.marginTop;
+  const bottomMargin = properties.marginBottom ?? snapshot.marginBottom;
+  const top = snapshot.marginTopFixed ? -topMargin : topMargin;
   const right = properties.marginRight ?? snapshot.marginRight;
-  const bottom = properties.marginBottom ?? snapshot.marginBottom;
+  const bottom = snapshot.marginBottomFixed ? -bottomMargin : bottomMargin;
   const left = properties.marginLeft ?? snapshot.marginLeft;
-  const pgMar = PG_MAR_RE.exec(sectPrXml)?.[0];
+  const pgMar = PG_MAR_RE.exec(ownContent(sectPrXml))?.[0];
   if (!pgMar) {
     const tag = `<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="708" w:footer="708" w:gutter="0"/>`;
-    const pgSz = PG_SZ_RE.exec(sectPrXml)?.[0];
+    const pgSz = PG_SZ_RE.exec(ownContent(sectPrXml))?.[0];
     return pgSz ? sectPrXml.replace(pgSz, `${pgSz}${tag}`) : insertBefore(sectPrXml, tag, AFTER_PG_MAR_RE);
   }
   let tag = setIntAttr(pgMar, "w:top", top);
@@ -288,16 +312,13 @@ function applyMargins(sectPrXml: string, snapshot: DocxSectionSnapshot, properti
 
 function applyColumns(sectPrXml: string, snapshot: DocxSectionSnapshot, properties: DocxSectionProperties): string {
   if (properties.columns === undefined && properties.columnSpace === undefined) return sectPrXml;
-  const cols = COLS_RE.exec(sectPrXml)?.[0];
+  const cols = COLS_RE.exec(ownContent(sectPrXml))?.[0];
   const colsOpen = cols ? (/^<w:cols[^>]*\/?>/.exec(cols)?.[0] ?? cols) : "";
   if (!cols) {
     const count = properties.columns ?? snapshot.columns;
     const space = properties.columnSpace ?? snapshot.columnSpace;
     const tag = `<w:cols${count > 1 ? ` w:num="${count}"` : ""} w:space="${space}"/>`;
-    const anchor = PG_BORDERS_OR_MAR_RE.exec(sectPrXml);
-    if (anchor) return sectPrXml.replace(anchor[0], `${anchor[0]}${tag}`);
-    const pgSz = PG_SZ_RE.exec(sectPrXml)?.[0];
-    return pgSz ? sectPrXml.replace(pgSz, `${pgSz}${tag}`) : insertBefore(sectPrXml, tag, AFTER_COLS_RE);
+    return insertBefore(sectPrXml, tag, AFTER_COLS_RE);
   }
   const currentCount = intAttr(colsOpen, "w:num", 1);
   const count = properties.columns ?? currentCount;

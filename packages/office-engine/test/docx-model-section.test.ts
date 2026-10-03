@@ -87,8 +87,26 @@ describe("docxSections", () => {
       columnSpace: 720,
       startType: "nextPage",
       marginTop: 1440,
+      marginTopFixed: false,
+      marginBottomFixed: false,
     });
     expect(readSectionSnapshot("<w:sectPr/>")).toMatchObject({ pageWidth: 12240, pageHeight: 15840, orientation: "portrait", columns: 1 });
+  });
+
+  it("reads absolute margins with their fixed flags, never the change record's copy", () => {
+    const margins = '<w:pgMar w:top="-720" w:right="1" w:bottom="-1080" w:left="1" w:header="1" w:footer="1" w:gutter="0"/>';
+    expect(readSectionSnapshot(`<w:sectPr>${margins}</w:sectPr>`)).toMatchObject({
+      marginTop: 720,
+      marginTopFixed: true,
+      marginBottom: 1080,
+      marginBottomFixed: true,
+    });
+    const change = '<w:sectPrChange w:id="1"><w:sectPr><w:pgMar w:top="999" w:right="999" w:bottom="999" w:left="999" w:header="1" w:footer="1" w:gutter="0"/></w:sectPr></w:sectPrChange>';
+    expect(readSectionSnapshot(`<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>${change}</w:sectPr>`)).toMatchObject({
+      marginTop: 1440,
+      marginLeft: 1440,
+      marginTopFixed: false,
+    });
   });
 });
 
@@ -150,6 +168,65 @@ describe("set_section_properties — final section via trailingSectPr", () => {
     const { options } = model.savePlan();
     expect(options.trailingSectPr).toContain('w:top="567"');
     expect(options.trailingSectPr).toContain('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>');
+  });
+});
+
+describe("set_section_properties — CT_SectPr slots and change records", () => {
+  it("slots a missing w:cols after w:pgNumType/w:lnNumType, not at the margin anchor", () => {
+    const model = new DocxSessionModel(singleSectionParsed(SECT_PR({ extra: '<w:lnNumType w:countBy="1"/><w:pgNumType w:start="5"/>' })));
+    model.setSectionProperties(0, { columns: 2 });
+    const out = model.savePlan().options.trailingSectPr ?? "";
+    expect(out).toContain('<w:pgNumType w:start="5"/><w:cols w:num="2" w:space="720"/>');
+    expect(out.indexOf("<w:cols")).toBeGreaterThan(out.indexOf("<w:pgNumType"));
+  });
+
+  it("inserts before w:sectPrChange instead of after it", () => {
+    const changed = new DocxSessionModel(singleSectionParsed('<w:sectPr><w:sectPrChange w:id="1"/></w:sectPr>'));
+    changed.setSectionProperties(0, { startType: "evenPage" });
+    expect(changed.savePlan().options.trailingSectPr).toContain('<w:type w:val="evenPage"/><w:sectPrChange w:id="1"/>');
+
+    const paper = new DocxSessionModel(singleSectionParsed('<w:sectPr><w:paperSrc w:first="1"/></w:sectPr>'));
+    paper.setSectionProperties(0, { startType: "evenPage" });
+    expect(paper.savePlan().options.trailingSectPr).toContain('<w:type w:val="evenPage"/><w:paperSrc w:first="1"/>');
+  });
+
+  it("expands a self-closing sectPr instead of silently dropping the insert", () => {
+    const size = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
+    size.setSectionProperties(0, { pageWidth: 11906, pageHeight: 16838 });
+    expect(size.savePlan().options.trailingSectPr).toContain('<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>');
+
+    const margins = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
+    margins.setSectionProperties(0, { marginTop: 720 });
+    expect(margins.savePlan().options.trailingSectPr).toContain('<w:sectPr><w:pgMar w:top="720"');
+    expect(margins.savePlan().options.trailingSectPr).toContain("</w:pgMar></w:sectPr>");
+
+    const columns = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
+    columns.setSectionProperties(0, { columns: 2 });
+    expect(columns.savePlan().options.trailingSectPr).toContain('<w:sectPr><w:cols w:num="2" w:space="720"/></w:sectPr>');
+  });
+
+  it("never reads or rewrites the sectPr copy embedded in w:sectPrChange", () => {
+    const change = '<w:sectPrChange w:id="1"><w:sectPr><w:pgMar w:top="999" w:right="1" w:bottom="1" w:left="1" w:header="1" w:footer="1" w:gutter="0"/></w:sectPr></w:sectPrChange>';
+    const model = new DocxSessionModel(singleSectionParsed(`<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>${change}</w:sectPr>`));
+    model.setSectionProperties(0, { marginLeft: 720 });
+    const out = model.savePlan().options.trailingSectPr ?? "";
+    expect(out).toContain('<w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="720"');
+    expect(out).toContain('<w:pgMar w:top="999"');
+  });
+
+  it("keeps the sign of untouched fixed margins and re-negates on edit", () => {
+    const margins = '<w:pgMar w:top="-720" w:right="1440" w:bottom="-1080" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>';
+    const model = new DocxSessionModel(singleSectionParsed(SECT_PR({ margins })));
+    model.setSectionProperties(0, { marginLeft: 720 });
+    const out = model.savePlan().options.trailingSectPr ?? "";
+    expect(out).toContain('w:top="-720"');
+    expect(out).toContain('w:bottom="-1080"');
+    expect(out).toContain('w:left="720"');
+    expect(out).toContain('w:right="1440"');
+
+    const edited = new DocxSessionModel(singleSectionParsed(SECT_PR({ margins })));
+    edited.setSectionProperties(0, { marginTop: 1000 });
+    expect(edited.savePlan().options.trailingSectPr).toContain('w:top="-1000"');
   });
 });
 
@@ -217,11 +294,14 @@ describe("set_section_properties — refusals and byte preservation", () => {
     expect(errCode(() => model.setSectionProperties(9, { marginTop: 1 }))).toBe("bad_section_index");
     expect(errCode(() => model.setSectionProperties(0, { marginTop: -1 }))).toBe("bad_margin");
     expect(errCode(() => model.setSectionProperties(0, { marginLeft: Number.NaN }))).toBe("bad_margin");
+    expect(errCode(() => model.setSectionProperties(0, { marginBottom: 100.7 }))).toBe("bad_margin");
     expect(errCode(() => model.setSectionProperties(0, { pageWidth: 0 }))).toBe("bad_page_size");
+    expect(errCode(() => model.setSectionProperties(0, { pageWidth: 12240.5 }))).toBe("bad_page_size");
     expect(errCode(() => model.setSectionProperties(0, { columns: 0 }))).toBe("bad_columns");
     expect(errCode(() => model.setSectionProperties(0, { columns: 2.5 }))).toBe("bad_columns");
     expect(errCode(() => model.setSectionProperties(0, { columns: 99 }))).toBe("bad_columns");
     expect(errCode(() => model.setSectionProperties(0, { columnSpace: -5 }))).toBe("bad_column_space");
+    expect(errCode(() => model.setSectionProperties(0, { columnSpace: 12.5 }))).toBe("bad_column_space");
     expect(errCode(() => model.setSectionProperties(0, { orientation: "sideways" as "portrait" }))).toBe("bad_section_orientation");
     expect(errCode(() => model.setSectionProperties(0, { startType: "sometimes" as "nextPage" }))).toBe("bad_section_start_type");
     expect(errCode(() => model.setSectionProperties(0, {}))).toBe("empty_section_properties");
