@@ -49,7 +49,8 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
       return { ...dimension, top: current };
     });
   }, [dimensions]);
-  const contentHeight = tops.length ? tops[tops.length - 1].top + tops[tops.length - 1].height + PAGE_GAP : PAGE_GAP;
+  const lastTop = tops[tops.length - 1];
+  const contentHeight = lastTop ? lastTop.top + lastTop.height + PAGE_GAP : PAGE_GAP;
   const firstVisible = Math.max(0, tops.findIndex((item) => item.top + item.height >= scrollTop) - overscan);
   const lastVisibleIndex = tops.findIndex((item) => item.top > scrollTop + viewportHeight);
   const lastVisible = Math.min(pages.length, (lastVisibleIndex < 0 ? pages.length : lastVisibleIndex + overscan));
@@ -62,6 +63,7 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
       {pages.slice(firstVisible, lastVisible).map((page, offset) => {
         const index = firstVisible + offset;
         const item = tops[index];
+        if (!item) return null;
         return <div key={page.pageNumber} className="absolute left-1/2 -translate-x-1/2" style={{ top: item.top }}><PdfPageCanvas page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} selection={activeSelection} onSelectionChange={onSelect} /></div>;
       })}
       {pages.length === 0 ? <p className="p-6 text-center text-caption text-muted-foreground">{t("office.pdf.pages.empty")}</p> : null}

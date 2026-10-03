@@ -28,7 +28,7 @@ describe("PdfCanvas", () => {
 
   it("uses tile rendering when a tile size is supplied", async () => {
     const renderer: PdfPageRenderService = { renderPage: vi.fn(), renderTile: vi.fn(async ({ pageNumber, x, y }) => ({ src: `${pageNumber}:${x}:${y}`, width: 50, height: 50 })) };
-    render(<PdfCanvas pages={[pages[0]]} renderer={renderer} tileSize={50} />);
+    render(<PdfCanvas pages={[pages[0]!]} renderer={renderer} tileSize={50} />);
     await waitFor(() => expect(renderer.renderTile).toHaveBeenCalled());
     expect(renderer.renderPage).not.toHaveBeenCalled();
   });
