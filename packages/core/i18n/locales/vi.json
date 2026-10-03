@@ -7345,7 +7345,8 @@
         "groups": {
           "insert": "Chèn dòng và cột",
           "size": "Kích thước dòng, cột",
-          "outline": "Nhóm theo cấp"
+          "outline": "Nhóm theo cấp",
+          "merge": "Gộp ô"
         },
         "rowCount": "Số dòng",
         "colCount": "Số cột",
@@ -7367,7 +7368,10 @@
         "ungroupRows": "Bỏ nhóm dòng",
         "groupCols": "Nhóm cột",
         "ungroupCols": "Bỏ nhóm cột",
-        "clearOutline": "Xóa phân cấp nhóm"
+        "clearOutline": "Xóa phân cấp nhóm",
+        "mergeCells": "Gộp ô",
+        "mergeAcross": "Gộp theo hàng",
+        "unmergeCells": "Bỏ gộp ô"
       },
       "sheets": {
         "label": "Các trang tính trong sổ"

@@ -466,6 +466,12 @@ func TestValidateOfficeJobEdits(t *testing.T) {
 			e.Attributes = json.RawMessage(`{"start":1,"end":3,"level":2,"collapsed":false}`)
 		})}, true},
 		{"set_cols_outline level 0", office.OperationEdit, []office.EditOp{edit("set_cols_outline", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":0}`) })}, true},
+		// Merges (B2): the rectangle rides the envelope's own range field; the
+		// target only needs the sheet ref (a cell address there is ignored).
+		{"merge_cells A1 range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`)}}, true},
+		{"unmerge_cells bounds range", office.OperationEdit, []office.EditOp{{Op: "unmerge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}`)}}, true},
+		{"merge_cells ignores a target cell address", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S","cell":"XFE99999"}`), Range: json.RawMessage(`"A1:B2"`)}}, true},
+		{"merge_cells at the last cell", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"XFD1048575:XFD1048576"`)}}, true},
 		{"serialize without edits", office.OperationSerialize, nil, true},
 
 		{"unknown op", office.OperationEdit, []office.EditOp{edit("drop_sheet", func(e *office.EditOp) { e.Text = "x" })}, false},
@@ -514,6 +520,17 @@ func TestValidateOfficeJobEdits(t *testing.T) {
 		{"set_rows_outline collapsed not a boolean", office.OperationEdit, []office.EditOp{edit("set_rows_outline", func(e *office.EditOp) {
 			e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":1,"collapsed":"yes"}`)
 		})}, false},
+		{"merge_cells missing range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`)}}, false},
+		{"merge_cells malformed range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1"`)}}, false},
+		{"merge_cells three-part range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2:C3"`)}}, false},
+		{"merge_cells reversed range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"B2:A1"`)}}, false},
+		{"merge_cells single cell", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:A1"`)}}, false},
+		{"unmerge_cells single cell bounds", office.OperationEdit, []office.EditOp{{Op: "unmerge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":3,"startColumn":3,"endRow":3,"endColumn":3}`)}}, false},
+		{"merge_cells range outside the grid", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:XFE1"`)}}, false},
+		{"merge_cells bounds outside the grid", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":0,"endColumn":16384}`)}}, false},
+		{"merge_cells over the span ceiling", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:A100001"`)}}, false},
+		{"merge_cells fractional bounds", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1.5,"endColumn":1}`)}}, false},
+		{"merge_cells missing target sheet", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"cell":"A1"}`), Range: json.RawMessage(`"A1:B2"`)}}, false},
 		{"edits on a non-edit operation", office.OperationSerialize, []office.EditOp{edit("clear_cell", nil)}, false},
 		{"over the op count", office.OperationEdit, tooMany, false},
 		{"over the marshalled size", office.OperationEdit, bigEdits, false},

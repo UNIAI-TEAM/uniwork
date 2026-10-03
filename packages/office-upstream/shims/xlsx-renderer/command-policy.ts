@@ -217,6 +217,74 @@ function structuralCommandAllowed(
   return true;
 }
 
+// ── merges (B2) ────────────────────────────────────────────────────────────
+//
+// Exactly the pinned Univer merge commands the toolbar wires, plus the shared
+// base command the two family commands dispatch and the two mutations that
+// change the merge model. `add-worksheet-merge-vertical` (one merge per
+// column) is not a bound behaviour and stays refused; default deny remains.
+
+const MERGE_COMMANDS = new Set([
+  "sheet.command.add-worksheet-merge-all",
+  "sheet.command.add-worksheet-merge-horizontal",
+  "sheet.command.remove-worksheet-merge",
+  // The family commands above dispatch the shared base command with the
+  // expanded selections; it must pass the same gate or the merge never runs.
+  "sheet.command.add-worksheet-merge",
+]);
+
+const MERGE_MUTATIONS = new Set([
+  "sheet.mutation.add-worksheet-merge",
+  "sheet.mutation.remove-worksheet-merge",
+]);
+
+/** One merge rectangle: integers, ordered, inside the grid, under the span
+ *  ceiling and at least two cells — the ops.ts parseMergeArea bounds. */
+function mergeRangeOK(range: unknown): boolean {
+  if (!range || typeof range !== "object") return false;
+  const area = range as Record<string, unknown>;
+  if (![area.startRow, area.endRow, area.startColumn, area.endColumn].every(
+    (value) => typeof value === "number" && Number.isInteger(value) && value >= 0)) return false;
+  const { startRow, endRow, startColumn, endColumn } =
+    area as { startRow: number; endRow: number; startColumn: number; endColumn: number };
+  if (startRow > endRow || startColumn > endColumn || endRow >= 1_048_576 || endColumn >= 16_384) return false;
+  if (endRow - startRow >= 100_000 || endColumn - startColumn >= 100_000) return false;
+  return startRow !== endRow || startColumn !== endColumn;
+}
+
+function mergeRangesOK(ranges: unknown): boolean {
+  return Array.isArray(ranges) && ranges.length > 0 && ranges.every((range) => mergeRangeOK(range));
+}
+
+function mergeCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as {
+    unitId?: unknown; subUnitId?: unknown; selections?: unknown; ranges?: unknown; value?: unknown;
+  } | undefined;
+  if (event.id === "sheet.command.add-worksheet-merge") {
+    // The base command the family commands dispatch: the expanded selections
+    // are required (a direct call without them would read a live selection
+    // this gate cannot see), bound to this workbook, with the merge-across
+    // axis (Dimension.ROWS 1 / COLUMNS 2) when present.
+    if (params?.value !== undefined && params.value !== 1 && params.value !== 2) return false;
+    if (params?.unitId !== undefined && params.unitId !== `file-${state.file.sha256}`) return false;
+    return mergeRangesOK(params?.selections);
+  }
+  if (params?.subUnitId !== undefined &&
+    !state.file.sheets.some((sheet) => sheet.id === params.subUnitId)) return false;
+  // Family and remove commands are selection-driven: an explicit range set is
+  // optional and bounded when present.
+  if (params?.selections !== undefined && !mergeRangesOK(params.selections)) return false;
+  if (params?.ranges !== undefined && !mergeRangesOK(params.ranges)) return false;
+  return true;
+}
+
+function mergeMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: string; subUnitId?: string; ranges?: unknown } | undefined;
+  const sheetId = params?.subUnitId;
+  return !!params && params.unitId === `file-${state.file.sha256}` && !!sheetId &&
+    state.file.sheets.some((sheet) => sheet.id === sheetId) && mergeRangesOK(params.ranges);
+}
+
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
@@ -319,7 +387,9 @@ export function canExecuteCommand(
   }
   if (!CELL_MUTATIONS.has(event.id)) {
     if (STRUCTURAL_COMMANDS.has(event.id)) return structuralCommandAllowed(event, state);
+    if (MERGE_COMMANDS.has(event.id)) return mergeCommandAllowed(event, state);
     if (STRUCTURAL_MUTATIONS[event.id]) return structuralMutationAllowed(event, state);
+    if (MERGE_MUTATIONS.has(event.id)) return mergeMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

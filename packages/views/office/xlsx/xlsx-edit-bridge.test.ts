@@ -53,6 +53,7 @@ describe("rendererEditsToOperations", () => {
       "clear_cell", "set_cell",
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
+      "merge_cells", "unmerge_cells",
     ]);
     const pick = (edit: XlsxGridEdit): string | undefined =>
       XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit))?.op;
@@ -63,6 +64,22 @@ describe("rendererEditsToOperations", () => {
     expect(pick({ sheetId: "sheet-1", row: 0, column: 0, writeValue: true, value: null, style: { bold: true } })).toBe("set_cell");
     expect(pick({ sheetId: "sheet-1", structural: { kind: "insert-rows", index: 3, count: 2 } })).toBe("insert_rows");
     expect(pick({ sheetId: "sheet-1", structural: { kind: "set-cols-outline", start: 0, end: 2, level: 1 } })).toBe("set_cols_outline");
+    expect(pick({ sheetId: "sheet-1", structural: { kind: "merge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 } } })).toBe("merge_cells");
+    expect(pick({ sheetId: "sheet-1", structural: { kind: "unmerge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 } } })).toBe("unmerge_cells");
+  });
+
+  it("maps merge journal edits onto the envelope's own range field", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", structural: { kind: "merge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 } } },
+      { sheetId: "sheet-2", structural: { kind: "unmerge-cells", range: { startRow: 2, endRow: 2, startColumn: 3, endColumn: 4 } } },
+    ])).toEqual([
+      { op: "merge_cells", target: { sheet: "Data" }, range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 } },
+      { op: "unmerge_cells", target: { sheet: "Summary" }, range: { startRow: 2, endRow: 2, startColumn: 3, endColumn: 4 } },
+    ]);
+    const [mergeOp] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", structural: { kind: "merge-cells", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 1 } } },
+    ]);
+    expect(Object.keys(mergeOp!)).toEqual(["op", "target", "range"]);
   });
 
   it("maps structural journal edits onto the attributes wire shape", () => {

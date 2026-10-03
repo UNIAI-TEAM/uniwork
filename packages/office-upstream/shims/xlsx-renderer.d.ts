@@ -102,15 +102,20 @@ export interface XlsxRendererCellEdit {
   styleReset?: boolean;
 }
 
-/** One row/column journal op the renderer's structural journal emits. The
- *  vendored StructuralJournalOp subset this lane binds: no move-rows, no
- *  merges, no set-col-style. Positions are 0-based; row sizes are points,
- *  column sizes character width; a null size resets the sheet default. */
+/** One row/column or merge journal op the renderer's structural journal
+ *  emits. The vendored StructuralJournalOp subset this lane binds: no
+ *  move-rows, no set-col-style. Positions are 0-based; row sizes are points,
+ *  column sizes character width; a null size resets the sheet default. Merge
+ *  ops carry their 0-based rectangle and never shift coordinates. */
 export type XlsxRendererStructuralJournalOp =
   | { kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols"; index: number; count: number }
   | { kind: "set-row-size" | "set-col-size"; start: number; end: number; size: number | null }
   | { kind: "set-rows-hidden" | "set-cols-hidden"; start: number; end: number; hidden: boolean }
-  | { kind: "set-rows-outline" | "set-cols-outline"; start: number; end: number; level: number; collapsed?: boolean };
+  | { kind: "set-rows-outline" | "set-cols-outline"; start: number; end: number; level: number; collapsed?: boolean }
+  | {
+      kind: "merge-cells" | "unmerge-cells";
+      range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
+    };
 
 export interface XlsxRendererStructuralEdit {
   sheetId: string;

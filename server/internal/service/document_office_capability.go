@@ -683,6 +683,11 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	"set_cols_hidden":  officeHiddenValid(true),
 	"set_rows_outline": officeOutlineValid(false),
 	"set_cols_outline": officeOutlineValid(true),
+	// Merge/unmerge (B2). The rectangle rides the shared envelope's own range
+	// field (EditOp.Range preserves it), matching the upstream StructuralOp
+	// merge branch; merges never shift coordinates.
+	"merge_cells":   officeMergeValid,
+	"unmerge_cells": officeMergeValid,
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -883,47 +888,54 @@ func officeStyleOf(edit office.EditOp, attributes officeEditAttributes) (style, 
 	return style, reset, true
 }
 
-// officeRangeOK is the parseRange half of set_cells: "A1:B5" or the four
-// 0-based bounds; start <= end, inside the grid, and at most maxOfficeEditOps
-// cells — the job's op budget the range expands into.
-func officeRangeOK(raw json.RawMessage) bool {
+// officeRangeBounds decodes a range in either wire spelling — "A1:B5" or the
+// four 0-based bounds — into its ordered 0-based corners (start <= end, inside
+// the OOXML grid). The caller applies its own cell/span budget on top.
+func officeRangeBounds(raw json.RawMessage) (startRow, startColumn, endRow, endColumn int, ok bool) {
 	if len(raw) == 0 {
-		return false
+		return 0, 0, 0, 0, false
 	}
-	var startRow, startColumn, endRow, endColumn int
 	var address string
 	if json.Unmarshal(raw, &address) == nil {
 		parts := strings.Split(address, ":")
 		if len(parts) != 2 {
-			return false
+			return 0, 0, 0, 0, false
 		}
-		var ok bool
 		if startRow, startColumn, ok = officeA1Index(parts[0]); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 		if endRow, endColumn, ok = officeA1Index(parts[1]); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 	} else {
 		var bounds map[string]json.RawMessage
 		if json.Unmarshal(raw, &bounds) != nil {
-			return false
+			return 0, 0, 0, 0, false
 		}
-		var ok bool
 		if startRow, ok = officeGridIndex(bounds["startRow"], maxOfficeEditRows); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 		if startColumn, ok = officeGridIndex(bounds["startColumn"], maxOfficeEditColumns); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 		if endRow, ok = officeGridIndex(bounds["endRow"], maxOfficeEditRows); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 		if endColumn, ok = officeGridIndex(bounds["endColumn"], maxOfficeEditColumns); !ok {
-			return false
+			return 0, 0, 0, 0, false
 		}
 	}
 	if startRow > endRow || startColumn > endColumn {
+		return 0, 0, 0, 0, false
+	}
+	return startRow, startColumn, endRow, endColumn, true
+}
+
+// officeRangeOK is the parseRange half of set_cells: an ordered, in-grid range
+// that expands to at most maxOfficeEditOps cells — the job's op budget.
+func officeRangeOK(raw json.RawMessage) bool {
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(raw)
+	if !ok {
 		return false
 	}
 	return (endRow-startRow+1)*(endColumn-startColumn+1) <= maxOfficeEditOps
@@ -1127,6 +1139,25 @@ func officeOutlineValid(columns bool) func(office.EditOp) bool {
 		}
 		return true
 	}
+}
+
+// officeMergeValid: merge_cells/unmerge_cells — a sheet-ref target plus a
+// bounded rectangle, mirroring ops.ts parseMergeArea: the shared envelope's
+// range field ("A1:B2" or the four 0-based bounds), ordered, inside the grid,
+// under the structural span ceiling and at least two cells (a single-cell
+// merge is not a merge Excel would write).
+func officeMergeValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(edit.Range)
+	if !ok {
+		return false
+	}
+	if endRow-startRow >= maxOfficeStructuralSpan || endColumn-startColumn >= maxOfficeStructuralSpan {
+		return false
+	}
+	return endRow > startRow || endColumn > startColumn
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another

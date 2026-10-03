@@ -46,6 +46,15 @@ export interface XlsxCellTarget {
   readonly address: string;
 }
 
+/** A 0-based inclusive rectangle — the merge range and the shape the upstream
+ *  StructuralOp merge branch carries (xlsx-structure.ts CellArea). */
+export interface XlsxMergeArea {
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startColumn: number;
+  readonly endColumn: number;
+}
+
 /** One row/column structural op (envelope `structuralOps` slot). Positions
  *  are 0-based; sizes are points for rows and character width for columns,
  *  null = the sheet default. Every op maps 1:1 to the upstream StructuralOp
@@ -79,6 +88,16 @@ export type XlsxStructuralOp =
       readonly level: number;
       /** Omitted leaves the file's collapsed flag untouched (upstream). */
       readonly collapsed?: boolean | undefined;
+    }
+  | {
+      /** merge_cells/unmerge_cells — the rectangle rides the envelope's own
+       *  `range` field (EditOp.Range preserves it). Merges never move cells,
+       *  so the journal records them in emission order and the session model
+       *  appends without shifting (a later row/column op shifts them in the
+       *  gateway, which is the same result the renderer shows). */
+      readonly kind: "merge_cells" | "unmerge_cells";
+      readonly sheetName: string;
+      readonly range: XlsxMergeArea;
     };
 
 /** The bound structural wire vocabulary; the model's shift rule keys on it. */
@@ -93,6 +112,8 @@ const STRUCTURAL_OP_KIND_LIST = [
   "set_cols_hidden",
   "set_rows_outline",
   "set_cols_outline",
+  "merge_cells",
+  "unmerge_cells",
 ] as const;
 
 const STRUCTURAL_KIND_SET: ReadonlySet<string> = new Set(STRUCTURAL_OP_KIND_LIST);
@@ -105,6 +126,7 @@ export function isXlsxStructuralOp(op: XlsxEditOp): op is XlsxStructuralOp {
  *  (kebab-case kinds; xlsx-structure.ts). */
 export type XlsxUpstreamStructuralOp =
   | { readonly kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols"; readonly index: number; readonly count: number }
+  | { readonly kind: "merge-cells" | "unmerge-cells"; readonly range: XlsxMergeArea }
   | { readonly kind: "set-row-size" | "set-col-size"; readonly start: number; readonly end: number; readonly size: number | null }
   | { readonly kind: "set-rows-hidden" | "set-cols-hidden"; readonly start: number; readonly end: number; readonly hidden: boolean }
   | {
@@ -144,6 +166,9 @@ function toUpstreamStructuralOp(op: XlsxStructuralOp): XlsxUpstreamStructuralOp 
         level: op.level,
         ...(op.collapsed === undefined ? {} : { collapsed: op.collapsed }),
       } as XlsxUpstreamStructuralOp;
+    case "merge_cells":
+    case "unmerge_cells":
+      return { kind, range: { ...op.range } } as XlsxUpstreamStructuralOp;
   }
 }
 
@@ -497,6 +522,60 @@ function outlineParser(kind: "set_rows_outline" | "set_cols_outline") {
   };
 }
 
+// ── merge ops (merge cells / unmerge) ──────────────────────────────────────
+//
+// Wire shape: { op, target: { sheet }, range }. Unlike the row/column kinds the
+// rectangle rides the shared envelope's own `range` field (EditOp.Range /
+// OfficeEditSDI preserve it), which is the upstream StructuralOp merge shape
+// 1:1. "Merge across" is a UI behaviour, not a wire kind: the toolbar emits one
+// merge_cells per row of the selection.
+
+/** The merge rectangle: the same two spellings parseRange accepts — an A1
+ *  "A1:B2" string or the four 0-based bounds. Ordered, inside the grid, under
+ *  the span ceiling and at least two cells (a single-cell merge is not a
+ *  merge Excel would write). */
+function parseMergeArea(item: Dict, op: string): XlsxMergeArea {
+  const raw = item.range;
+  let startRow: number;
+  let startColumn: number;
+  let endRow: number;
+  let endColumn: number;
+  if (typeof raw === "string") {
+    const parts = raw.split(":");
+    if (parts.length !== 2) throw new XlsxOpError(op, "range", "expected A1:B2");
+    ({ row: startRow, column: startColumn } = a1ToRowColumn(parts[0] ?? "", op, "range"));
+    ({ row: endRow, column: endColumn } = a1ToRowColumn(parts[1] ?? "", op, "range"));
+  } else if (isDict(raw)) {
+    startRow = int(raw.startRow, op, "range.startRow");
+    startColumn = int(raw.startColumn, op, "range.startColumn");
+    endRow = int(raw.endRow, op, "range.endRow");
+    endColumn = int(raw.endColumn, op, "range.endColumn");
+    if (startRow < 0 || startRow >= MAX_ROWS || endRow < 0 || endRow >= MAX_ROWS ||
+        startColumn < 0 || startColumn >= MAX_COLS || endColumn < 0 || endColumn >= MAX_COLS) {
+      throw new XlsxOpError(op, "range", "range is outside the OOXML grid");
+    }
+  } else {
+    throw new XlsxOpError(op, "range", "A1:B5 string or {startRow,startColumn,endRow,endColumn} required");
+  }
+  if (startRow > endRow || startColumn > endColumn) {
+    throw new XlsxOpError(op, "range", "reversed bounds");
+  }
+  if (endRow - startRow >= MAX_AXIS_SPAN || endColumn - startColumn >= MAX_AXIS_SPAN) {
+    throw new XlsxOpError(op, "range", `span over ${MAX_AXIS_SPAN} lines`);
+  }
+  if (startRow === endRow && startColumn === endColumn) {
+    throw new XlsxOpError(op, "range", "a merge needs at least two cells");
+  }
+  return { startRow, endRow, startColumn, endColumn };
+}
+
+function mergeParser(kind: "merge_cells" | "unmerge_cells") {
+  return (item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] => {
+    const sheetName = parseStructuralTarget(item, op, sheets);
+    return [{ kind, sheetName, range: parseMergeArea(item, op) }];
+  };
+}
+
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp
  *  and its slot named) — parseXlsxOps itself does not change. */
@@ -514,6 +593,8 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_cols_hidden", slot: "structuralOps", parse: hiddenParser("set_cols_hidden") },
   { wireName: "set_rows_outline", slot: "structuralOps", parse: outlineParser("set_rows_outline") },
   { wireName: "set_cols_outline", slot: "structuralOps", parse: outlineParser("set_cols_outline") },
+  { wireName: "merge_cells", slot: "structuralOps", parse: mergeParser("merge_cells") },
+  { wireName: "unmerge_cells", slot: "structuralOps", parse: mergeParser("unmerge_cells") },
 ];
 
 const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));

@@ -7351,7 +7351,8 @@
         "groups": {
           "insert": "Insert rows and columns",
           "size": "Row and column size",
-          "outline": "Outline"
+          "outline": "Outline",
+          "merge": "Merge cells"
         },
         "rowCount": "Row count",
         "colCount": "Column count",
@@ -7373,7 +7374,10 @@
         "ungroupRows": "Ungroup rows",
         "groupCols": "Group columns",
         "ungroupCols": "Ungroup columns",
-        "clearOutline": "Clear outline"
+        "clearOutline": "Clear outline",
+        "mergeCells": "Merge cells",
+        "mergeAcross": "Merge across",
+        "unmergeCells": "Unmerge cells"
       },
       "sheets": {
         "label": "Workbook sheets"

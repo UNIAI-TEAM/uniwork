@@ -40,8 +40,12 @@ import {
   applyColumnDefaultWidth,
   applyOutlineAction,
   ingestCellMutation,
+  ingestMergeMutation,
   ingestStructuralMutation,
+  intersectMergeRanges,
   seedColumnOutline,
+  type AxisRange,
+  type RendererCommand,
   type XlsxRendererEdit,
 } from "./edits";
 import { t } from "./locale";
@@ -442,12 +446,34 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runColumnDefaultWidth(params),
   }));
+  // Merge capture (B2): `sheet.mutation.remove-worksheet-merge` carries the
+  // user's selection ranges, not the merges it removes — the mutation filters
+  // the live merge list by intersection. Snapshot the pre-mutation merge list
+  // here, the last moment it is intact, and hand the intersect to the edit
+  // ingest at CommandExecuted time, keyed by the params object both events
+  // share. Add mutations need no snapshot: their `ranges` are already the
+  // exact rectangles.
+  const pendingMergeRemovals = new WeakMap<object, AxisRange[]>();
+  const rememberMergeRemoval = (event: RendererCommand): void => {
+    if (event.id !== "sheet.mutation.remove-worksheet-merge" ||
+        typeof event.params !== "object" || event.params === null) return;
+    const params = event.params as { subUnitId?: string; ranges?: AxisRange[] };
+    if (!Array.isArray(params.ranges) || params.ranges.length === 0) return;
+    const worksheet = params.subUnitId
+      ? runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(params.subUnitId)
+      : undefined;
+    const merges = worksheet?.getSheet().getMergeData();
+    if (!Array.isArray(merges)) return;
+    pendingMergeRemovals.set(event.params, intersectMergeRanges(merges, params.ranges));
+  };
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
       if (commitInProgress) commitDenied = true;
       event.cancel = true;
+      return;
     }
+    rememberMergeRemoval(event);
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -495,9 +521,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       // hidden flags and auto-height resets journal here (outline levels are
       // recorded by the two commands above, outside Univer's mutation set).
       const structuralEdits = ingestStructuralMutation(lazyWorkbookRef.current, event, journalSuppression.active);
-      if (edits.length === 0 && structuralEdits.length === 0) return;
+      // Merges ride it too; a remove mutation's removed rectangles were
+      // snapshot before the mutation ran (the params key both events share).
+      const mergeRanges = typeof event.params === "object" && event.params !== null
+        ? pendingMergeRemovals.get(event.params)
+        : undefined;
+      if (typeof event.params === "object" && event.params !== null) pendingMergeRemovals.delete(event.params);
+      const mergeEdits = ingestMergeMutation(lazyWorkbookRef.current, event, journalSuppression.active, mergeRanges);
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.([...edits, ...structuralEdits]);
+      options.onEdits?.([...edits, ...structuralEdits, ...mergeEdits]);
       options.onDirty?.();
     }),
   );

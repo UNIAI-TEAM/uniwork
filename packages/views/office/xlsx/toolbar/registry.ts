@@ -10,6 +10,7 @@ import { XlsxAlignmentGroup } from "./home-alignment";
 import { XlsxBordersGroup } from "./home-borders";
 import { XlsxFontGroup } from "./home-font";
 import { XlsxStructureInsertGroup } from "./structure-insert";
+import { XlsxStructureMergeGroup } from "./structure-merge";
 import { XlsxStructureOutlineGroup } from "./structure-outline";
 import { XlsxStructureSizeGroup } from "./structure-size";
 import type { XlsxToolbarGroupDefinition } from "./types";
@@ -51,6 +52,7 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   },
   { id: "structure-insert", tab: "insert", order: 20, labelKey: "office.xlsx.structure.groups.insert", Component: XlsxStructureInsertGroup },
   { id: "structure-size", tab: "home", order: 80, labelKey: "office.xlsx.structure.groups.size", Component: XlsxStructureSizeGroup },
+  { id: "structure-merge", tab: "home", order: 75, labelKey: "office.xlsx.structure.groups.merge", Component: XlsxStructureMergeGroup },
   { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
   { id: "clear", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.clear.label", Component: XlsxClearGroup },
   { id: "painter", tab: "home", order: 90, labelKey: "office.xlsx.toolbar.groups.painter.label", Component: XlsxFormatPainterGroup },

@@ -284,12 +284,13 @@ export function ingestMergeMutation(
   suppressed = false,
   removedMerges?: readonly AxisRange[] | undefined,
 ): XlsxRendererStructuralEdit[] {
-  if (!state || suppressed || event.options?.fromFormula || !MERGE_MUTATIONS[event.id as keyof typeof MERGE_MUTATIONS]) return [];
+  if (!state || suppressed || event.options?.fromFormula || !event.id.startsWith("sheet.mutation.")) return [];
+  const kind = MERGE_MUTATIONS[event.id];
+  if (!kind) return [];
   const params = event.params as StructuralMutationParams | undefined;
   const sheetId = params?.subUnitId;
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
       !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
-  const kind = MERGE_MUTATIONS[event.id as keyof typeof MERGE_MUTATIONS];
   const ranges = kind === "unmerge-cells" ? removedMerges ?? [] : params.ranges;
   if (!Array.isArray(ranges)) return [];
   const sheetName = state.file.sheets.find((sheet) => sheet.id === sheetId)?.name;
