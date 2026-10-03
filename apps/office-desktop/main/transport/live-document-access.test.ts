@@ -20,6 +20,7 @@ describe("main fresh document detail access", () => {
     expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
       "http://127.0.0.1:8787/api/v1/workspaces/ws/documents?limit=50&kind=file",
       "http://127.0.0.1:8787/api/v1/workspaces/ws/members",
+      "http://127.0.0.1:8787/api/v1/documents/doc/office/capabilities",
       "http://127.0.0.1:8787/api/v1/documents/doc",
     ]);
   });

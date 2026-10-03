@@ -39,11 +39,11 @@ describe("main live draft recovery access", () => {
   });
 
   it("F-1 regression: refuses view-only detail access and fences a session switch", async () => {
-    const context = initial();
+    let context: LiveDraftContext | undefined = initial();
     await expect(createLiveDraftAccess({ context: () => context, readAccess: async () => "none" })()).resolves.toBe("none");
     let complete!: (access: "edit") => void;
     const pending = createLiveDraftAccess({ context: () => context, readAccess: () => new Promise<"edit">((resolve) => { complete = resolve; }) })();
-    context.session = { ...context.session, sessionId: "new-session" };
+    context = { ...context, session: { ...context.session, sessionId: "new-session" } };
     complete("edit");
     await expect(pending).resolves.toBe("none");
   });
