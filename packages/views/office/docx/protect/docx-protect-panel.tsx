@@ -182,6 +182,11 @@ export function DocxProtectPanel({
             <p className="text-caption text-muted-foreground" data-testid="docx-protect-restriction-state">
               {restrictionState}
             </p>
+            {restriction && !restriction.known ? (
+              <p className="text-caption text-muted-foreground" data-testid="docx-protect-restriction-unknown">
+                {t("office.docx.protect.restriction.customWarning")}
+              </p>
+            ) : null}
             <p className="text-caption text-muted-foreground">{t("office.docx.protect.restriction.advisory")}</p>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-1">
@@ -226,6 +231,11 @@ export function DocxProtectPanel({
                 {t("office.docx.protect.restriction.remove")}
               </Button>
             </div>
+            {restriction?.passwordProtected ? (
+              <p className="text-caption text-muted-foreground" data-testid="docx-protect-restriction-remove-note">
+                {t("office.docx.protect.remove.note")}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-2">
@@ -278,6 +288,11 @@ export function DocxProtectPanel({
                 {t("office.docx.protect.modify.remove")}
               </Button>
             </div>
+            {modify?.passwordProtected ? (
+              <p className="text-caption text-muted-foreground" data-testid="docx-protect-modify-remove-note">
+                {t("office.docx.protect.remove.note")}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-1">

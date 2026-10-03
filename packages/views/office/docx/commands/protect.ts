@@ -74,6 +74,10 @@ export function createProtectCommands(
     edit.protection !== undefined ? edit.protection : seeded.protection;
   const effectiveWriteProtection = (): WriteProtection | null =>
     edit.writeProtection !== undefined ? edit.writeProtection : seeded.writeProtection;
+  /** The snapshot channel copies the nested records so a caller mutating what
+   * it received cannot reach the pending edit (upstream copies on intake). */
+  const copyProtection = (value: DocProtection | null): DocProtection | null => (value === null ? null : { ...value });
+  const copyWriteProtection = (value: WriteProtection | null): WriteProtection | null => (value === null ? null : { ...value });
 
   return {
     commands: {
@@ -82,12 +86,22 @@ export function createProtectCommands(
         edit = {};
         ready = true;
       },
-      snapshotDocxProtection: () =>
-        edit.protection === undefined && edit.writeProtection === undefined
-          ? undefined
-          : { ...(edit.protection !== undefined ? { protection: edit.protection } : {}), ...(edit.writeProtection !== undefined ? { writeProtection: edit.writeProtection } : {}) },
+      snapshotDocxProtection: () => {
+        if (edit.protection === undefined && edit.writeProtection === undefined) return undefined;
+        const snapshot: DocxProtectionEdit = {};
+        if (edit.protection !== undefined) snapshot.protection = copyProtection(edit.protection);
+        if (edit.writeProtection !== undefined) snapshot.writeProtection = copyWriteProtection(edit.writeProtection);
+        return snapshot;
+      },
       restoreDocxProtection: (next) => {
-        edit = next ? { ...next } : {};
+        if (!next) {
+          edit = {};
+          return;
+        }
+        const restored: DocxProtectionEdit = {};
+        if (next.protection !== undefined) restored.protection = copyProtection(next.protection);
+        if (next.writeProtection !== undefined) restored.writeProtection = copyWriteProtection(next.writeProtection);
+        edit = restored;
       },
       applyDocxProtectionEdit: (adapter, ref) => {
         if (edit.protection !== undefined) {
@@ -101,7 +115,15 @@ export function createProtectCommands(
         const editor = context.getEditor();
         if (!editor || editor.isDestroyed || !ready) return false;
         if (protectionEquals(effectiveProtection(), protection)) return false;
-        edit = { ...edit, protection };
+        const next: DocxProtectionEdit = { ...edit };
+        if (protectionEquals(seeded.protection, protection)) {
+          // Back to the document's own value: drop the pending key so the
+          // settings part stays byte-identical instead of being regenerated.
+          delete next.protection;
+        } else {
+          next.protection = protection;
+        }
+        edit = next;
         touch();
         return true;
       },
@@ -109,7 +131,13 @@ export function createProtectCommands(
         const editor = context.getEditor();
         if (!editor || editor.isDestroyed || !ready) return false;
         if (writeProtectionEquals(effectiveWriteProtection(), writeProtection)) return false;
-        edit = { ...edit, writeProtection };
+        const next: DocxProtectionEdit = { ...edit };
+        if (writeProtectionEquals(seeded.writeProtection, writeProtection)) {
+          delete next.writeProtection;
+        } else {
+          next.writeProtection = writeProtection;
+        }
+        edit = next;
         touch();
         return true;
       },

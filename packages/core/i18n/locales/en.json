@@ -7091,6 +7091,7 @@
           "none": "The document carries no editing restriction.",
           "active": "Active: {{mode}}",
           "lifted": "Present but not enforced: {{mode}}",
+          "customWarning": "This editor does not recognize the document's restriction mode; applying replaces it with the selected mode.",
           "passwordSet": "A password protects it in Word.",
           "passwordNone": "No password on it.",
           "mode": "Restriction type",
@@ -7098,7 +7099,7 @@
           "passwordHint": "The password is hashed in this browser and is never stored or sent.",
           "apply": "Apply restriction",
           "remove": "Remove restriction",
-          "advisory": "DOCX editing restrictions are advisory: this editor writes and honors them, but nothing stops another tool from ignoring them."
+          "advisory": "DOCX editing restrictions are advisory: this editor writes them for Word and compatible viewers to enforce, but it does not lock its own editing surface, and other tools may ignore them."
         },
         "mode": {
           "readOnly": "Read only",
@@ -7116,6 +7117,9 @@
           "recommend": "Suggest read-only on open",
           "apply": "Set password to modify",
           "remove": "Remove"
+        },
+        "remove": {
+          "note": "Removal here does not check the document's password."
         },
         "encryption": {
           "heading": "File encryption",

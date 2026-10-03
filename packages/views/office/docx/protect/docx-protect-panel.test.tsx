@@ -100,4 +100,27 @@ describe("DocxProtectPanel", () => {
     expect(props.onSetProtection).not.toHaveBeenCalled();
     expect(props.onSetWriteProtection).not.toHaveBeenCalled();
   });
+
+  it("discloses that removal does not ask for the password it bypasses", () => {
+    renderPanel({ protection: { edit: "readOnly", enforced: true, ...CREDENTIALS }, writeProtection: { hash: CREDENTIALS.hash }, pending: false });
+    expect(screen.getByTestId("docx-protect-restriction-remove-note")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-protect-modify-remove-note")).toBeInTheDocument();
+  });
+
+  it("does not show the removal note when nothing is password-protected", () => {
+    renderPanel({ protection: { edit: "readOnly", enforced: true }, writeProtection: { recommended: true }, pending: false });
+    expect(screen.queryByTestId("docx-protect-restriction-remove-note")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("docx-protect-modify-remove-note")).not.toBeInTheDocument();
+  });
+
+  it("warns before replacing a restriction mode it does not recognize", () => {
+    renderPanel({ protection: { edit: "oddball", enforced: true }, writeProtection: null, pending: false });
+    expect(screen.getByTestId("docx-protect-restriction-unknown")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-protect-restriction-state")).toHaveTextContent("oddball");
+  });
+
+  it("does not warn when the restriction mode is recognized", () => {
+    renderPanel({ protection: { edit: "comments", enforced: true }, writeProtection: null, pending: false });
+    expect(screen.queryByTestId("docx-protect-restriction-unknown")).not.toBeInTheDocument();
+  });
 });

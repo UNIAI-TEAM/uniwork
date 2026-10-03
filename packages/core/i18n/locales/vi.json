@@ -7085,6 +7085,7 @@
           "none": "Tài liệu không có giới hạn chỉnh sửa.",
           "active": "Đang bật: {{mode}}",
           "lifted": "Có nhưng chưa bật: {{mode}}",
+          "customWarning": "Trình soạn thảo không nhận diện kiểu giới hạn của tài liệu; khi áp dụng, kiểu đã chọn sẽ thay thế nó.",
           "passwordSet": "Có mật khẩu bảo vệ trong Word.",
           "passwordNone": "Không đặt mật khẩu.",
           "mode": "Kiểu giới hạn",
@@ -7092,7 +7093,7 @@
           "passwordHint": "Mật khẩu được băm ngay trên trình duyệt, không lưu lại và không gửi đi đâu.",
           "apply": "Áp dụng giới hạn",
           "remove": "Gỡ giới hạn",
-          "advisory": "Giới hạn chỉnh sửa DOCX chỉ mang tính khuyến nghị: trình soạn thảo này ghi và tôn trọng chúng, nhưng công cụ khác có thể bỏ qua."
+          "advisory": "Giới hạn chỉnh sửa DOCX chỉ mang tính khuyến nghị: trình soạn thảo này ghi chúng để Word và các trình xem tương thích thực thi, nhưng không tự khóa phần soạn thảo, và công cụ khác có thể bỏ qua."
         },
         "mode": {
           "readOnly": "Chỉ đọc",
@@ -7110,6 +7111,9 @@
           "recommend": "Gợi ý mở chỉ đọc",
           "apply": "Đặt mật khẩu để sửa",
           "remove": "Gỡ"
+        },
+        "remove": {
+          "note": "Gỡ tại đây không kiểm tra mật khẩu của tài liệu."
         },
         "encryption": {
           "heading": "Mã hóa tệp",

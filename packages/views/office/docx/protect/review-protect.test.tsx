@@ -128,6 +128,39 @@ describe("ReviewProtectGroup", () => {
     expect(runtime.snapshotDocxProtection()).toEqual({ writeProtection: { recommended: true } });
   });
 
+  it("drops the pending restriction when it returns to the document's own value", () => {
+    const { runtime } = renderGroup({ parsed: { protection: RESTRICTION } });
+    expect(runtime.setDocxProtection({ edit: "comments", enforced: true })).toBe(true);
+    expect(runtime.snapshotDocxProtection()).toEqual({ protection: { edit: "comments", enforced: true } });
+    expect(runtime.setDocxProtection(RESTRICTION)).toBe(true);
+    expect(runtime.snapshotDocxProtection()).toBeUndefined();
+    expect(runtime.getState().docxProtection).toEqual({ protection: RESTRICTION, writeProtection: null, pending: false });
+  });
+
+  it("drops the pending modify password when it returns to the document's own value", () => {
+    const seeded = { recommended: true, hash: "aGFzaA==", salt: "c2FsdA==", spinCount: 1000, algorithmSid: 14 };
+    const { runtime } = renderGroup({ parsed: { writeProtection: seeded } });
+    expect(runtime.setDocxWriteProtection({ hash: "b3RoZXI=" })).toBe(true);
+    expect(runtime.snapshotDocxProtection()).toEqual({ writeProtection: { hash: "b3RoZXI=" } });
+    expect(runtime.setDocxWriteProtection(seeded)).toBe(true);
+    expect(runtime.snapshotDocxProtection()).toBeUndefined();
+    expect(runtime.getState().docxProtection).toEqual({ protection: null, writeProtection: seeded, pending: false });
+  });
+
+  it("keeps the snapshot and restore channels isolated from the pending edit", () => {
+    const { runtime } = renderGroup();
+    runtime.setDocxProtection({ edit: "comments", enforced: true });
+    const snapshot = runtime.snapshotDocxProtection();
+    if (!snapshot?.protection) throw new Error("expected a pending protection");
+    snapshot.protection.edit = "mutated";
+    expect(runtime.getState().docxProtection?.protection?.edit).toBe("comments");
+
+    const restored = { protection: { edit: "forms", enforced: true } };
+    runtime.restoreDocxProtection(restored);
+    restored.protection.edit = "mutated";
+    expect(runtime.getState().docxProtection?.protection?.edit).toBe("forms");
+  });
+
   it("blocks every action on a read-only host with a visible reason", async () => {
     const { runtime } = renderGroup({ readOnly: true });
     await openPanel();
