@@ -6,8 +6,10 @@ import type {
   PdfNewDocument,
   PdfPageOpsEngineOperation,
   PdfPageOpsOperationProvider,
+  PdfPageOpsDocumentPayload,
   PdfPageOpsOperationSubmitter,
   PdfPageOpsProviderOptions,
+  PdfPageOpsResult,
   PdfSplitPdfInput,
 } from "./types";
 
@@ -83,13 +85,22 @@ function base64(bytes: Uint8Array, operation: string): string {
   return globalThis.btoa(binary);
 }
 
-/** Decode the host's base64 document payload. The engine owns the bytes; this
-    only turns them back into a `Uint8Array` for the commit seam. */
-function decodeBase64(data: string): Uint8Array {
-  const binary = globalThis.atob(data);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+/** Decode the engine's base64 document payload into typed documents. Exported
+    so a host adapter can reuse the exact decode the provider relies on. */
+export function decodePdfPageOpsDocuments(payload: readonly PdfPageOpsDocumentPayload[]): PdfNewDocument[] {
+  if (typeof globalThis.atob !== "function") throw new PdfPageOpsProviderError("asset_unavailable", "documents", "base64 decoder is unavailable");
+  return payload.map((entry) => {
+    const binary = globalThis.atob(entry.dataBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return {
+      op: entry.op,
+      name: entry.name,
+      pageCount: entry.pageCount,
+      ...(entry.part === undefined ? {} : { part: entry.part }),
+      bytes,
+    };
+  });
 }
 
 /** Commit every produced document through the F2 seam before returning it. A
@@ -114,10 +125,11 @@ async function commitDocuments(
     mutation stay in the Node engine. Documents come back from the host, are
     committed through the F2 seam, and are returned for the panel to report. */
 export function createPdfPageOpsProvider(options: PdfPageOpsProviderOptions, submitter: PdfPageOpsOperationSubmitter): PdfPageOpsOperationProvider {
-  const apply = async (operation: PdfPageOpsEngineOperation): Promise<{ documents: readonly PdfNewDocument[]; warnings: readonly string[] }> => {
+  const apply = async (operation: PdfPageOpsEngineOperation): Promise<PdfPageOpsResult> => {
     const result = await submitter.submit([operation]);
-    await commitDocuments(result.documents, options);
-    return { documents: result.documents, warnings: result.warnings };
+    const documents = decodePdfPageOpsDocuments(result.documents);
+    await commitDocuments(documents, options);
+    return { documents, warnings: result.warnings };
   };
 
   return {
@@ -187,16 +199,4 @@ export function createPdfPageOpsProvider(options: PdfPageOpsProviderOptions, sub
       return { documents: result.documents, warnings: result.warnings };
     },
   };
-}
-
-/** Host payload → typed documents. Exported so a host adapter can reuse the
-    exact decode the provider relies on. */
-export function decodePdfPageOpsDocuments(payload: readonly { op: PdfNewDocument["op"]; name: string; pageCount: number; part?: number; dataBase64: string }[]): PdfNewDocument[] {
-  return payload.map((entry) => ({
-    op: entry.op,
-    name: entry.name,
-    pageCount: entry.pageCount,
-    ...(entry.part === undefined ? {} : { part: entry.part }),
-    bytes: decodeBase64(entry.dataBase64),
-  }));
 }

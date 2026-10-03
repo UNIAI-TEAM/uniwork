@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPdfPageOpsProvider, MAX_PDF_SOURCE_BYTES, PdfPageOpsProviderError } from "./provider";
-import type { PdfNewDocument, PdfPageOpsOperationSubmitter, PdfPageOpsResult } from "./types";
+import { createPdfPageOpsProvider, decodePdfPageOpsDocuments, MAX_PDF_SOURCE_BYTES, PdfPageOpsProviderError } from "./provider";
+import type { PdfNewDocument, PdfPageOpsDocumentPayload, PdfPageOpsOperationSubmitter, PdfPageOpsResult } from "./types";
 
 const empty: PdfPageOpsResult = { documents: [], warnings: [] };
+/** Base64 of Uint8Array([9]) — what the engine returns for a produced document. */
+const b64 = (value: string) => Buffer.from(value, "binary").toString("base64");
 
 function submitter(result: PdfPageOpsResult = empty): PdfPageOpsOperationSubmitter & { submit: ReturnType<typeof vi.fn> } {
   return { submit: vi.fn(async () => result) };
@@ -82,30 +84,37 @@ describe("PDF page-ops provider — documents", () => {
     await expect(provider.splitPdf({ chunkSize: 1.5 })).rejects.toThrow("chunkSize");
   });
 
-  it("returns produced documents and warnings to the caller", async () => {
-    const documents: PdfNewDocument[] = [{ op: "splitPdf", name: "tach-1", pageCount: 1, part: 1, bytes: Uint8Array.from([9]) }];
-    const submit = submitter({ documents, warnings: ["splitPdf #1: nothing"] });
+  it("decodes the engine's base64 payload into typed documents and returns warnings", async () => {
+    const payload: PdfPageOpsDocumentPayload[] = [{ op: "splitPdf", name: "tach-1", pageCount: 1, part: 1, dataBase64: b64("\t") }];
+    const submit = submitter({ documents: payload, warnings: ["splitPdf #1: nothing"] });
     const provider = createPdfPageOpsProvider({}, submit);
 
-    await expect(provider.splitPdf({ chunkSize: 1 })).resolves.toEqual({ documents, warnings: ["splitPdf #1: nothing"] });
+    const result = await provider.splitPdf({ chunkSize: 1 });
+    expect(result.warnings).toEqual(["splitPdf #1: nothing"]);
+    expect(result.documents).toEqual([{ op: "splitPdf", name: "tach-1", pageCount: 1, part: 1, bytes: Uint8Array.from([9]) }]);
+  });
+
+  it("decodes a payload through the exported host helper", () => {
+    const decoded: PdfNewDocument[] = decodePdfPageOpsDocuments([{ op: "mergePdfs", name: "gop", pageCount: 4, dataBase64: b64("\u0001\u0002") }]);
+    expect(decoded).toEqual([{ op: "mergePdfs", name: "gop", pageCount: 4, bytes: Uint8Array.from([1, 2]) }]);
   });
 
   it("commits every produced document through the F2 seam", async () => {
-    const documents: PdfNewDocument[] = [
-      { op: "splitPdf", name: "tach-1", pageCount: 1, part: 1, bytes: Uint8Array.from([1]) },
-      { op: "splitPdf", name: "tach-2", pageCount: 1, part: 2, bytes: Uint8Array.from([2]) },
+    const payload: PdfPageOpsDocumentPayload[] = [
+      { op: "splitPdf", name: "tach-1", pageCount: 1, part: 1, dataBase64: b64("\u0001") },
+      { op: "splitPdf", name: "tach-2", pageCount: 1, part: 2, dataBase64: b64("\u0002") },
     ];
     const commit = vi.fn(async () => undefined);
-    const provider = createPdfPageOpsProvider({ commit }, submitter({ documents, warnings: [] }));
+    const provider = createPdfPageOpsProvider({ commit }, submitter({ documents: payload, warnings: [] }));
 
     await provider.splitPdf({ chunkSize: 1 });
     expect(commit).toHaveBeenCalledTimes(2);
-    expect(commit).toHaveBeenCalledWith(documents[0]);
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({ name: "tach-1", bytes: Uint8Array.from([1]) }));
   });
 
   it("refuses the batch when the commit seam fails", async () => {
-    const documents: PdfNewDocument[] = [{ op: "extractPages", name: "pages", pageCount: 1, bytes: Uint8Array.from([1]) }];
-    const provider = createPdfPageOpsProvider({ commit: async () => { throw new Error("offline"); } }, submitter({ documents, warnings: [] }));
+    const payload: PdfPageOpsDocumentPayload[] = [{ op: "extractPages", name: "pages", pageCount: 1, dataBase64: b64("\u0001") }];
+    const provider = createPdfPageOpsProvider({ commit: async () => { throw new Error("offline"); } }, submitter({ documents: payload, warnings: [] }));
     const error = await provider.extractPages({ pages: [0] }).catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(PdfPageOpsProviderError);
     expect((error as PdfPageOpsProviderError).code).toBe("commit_failed");

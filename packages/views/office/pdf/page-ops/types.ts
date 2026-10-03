@@ -64,10 +64,23 @@ export type PdfPageOpsEngineOperation =
   | { op: "mergePdfs"; attributes: { pdfs: string[]; name?: string } }
   | { op: "splitPdf"; attributes: { chunkSize: number; name?: string } };
 
-/** What the host answers after applying a page-op batch: the produced
-    documents (base64 already decoded) and any honest per-op skip warnings. */
+/** One produced document exactly as the engine returns it (office-engine's
+    PdfEditOutcome.documents): base64-encoded so it crosses the worker / IPC
+    boundary unchanged. A host forwards the engine's array verbatim; the
+    provider decodes it, so the two shapes cannot drift. */
+export interface PdfPageOpsDocumentPayload {
+  op: "extractPages" | "mergePdfs" | "splitPdf";
+  name: string;
+  pageCount: number;
+  /** 1-based part ordinal for split output; absent for single-document ops. */
+  part?: number;
+  dataBase64: string;
+}
+
+/** What the host answers after applying a page-op batch: the engine's produced
+    documents and any honest per-op skip warnings. */
 export interface PdfPageOpsResult {
-  documents: readonly PdfNewDocument[];
+  documents: readonly PdfPageOpsDocumentPayload[];
   warnings: readonly string[];
 }
 

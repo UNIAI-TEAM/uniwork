@@ -9,6 +9,7 @@ export type {
   PdfMergePdfsInput,
   PdfNewDocument,
   PdfPageOpsAssetOption,
+  PdfPageOpsDocumentPayload,
   PdfPageOpsEngineOperation,
   PdfPageOpsOperationProvider,
   PdfPageOpsOperationSubmitter,
