@@ -7048,7 +7048,9 @@
           "navigation": "Điều hướng",
           "compare": "So sánh",
           "protect": "Bảo vệ",
-          "export": "Xuất"
+          "export": "Xuất",
+          "toc": "Mục lục",
+          "captions": "Chú thích và trích dẫn"
         },
         "insert": {
           "symbol": "Ký hiệu",
@@ -7766,6 +7768,60 @@
           "cellDel": "Xóa ô",
           "blockIns": "Chèn đoạn",
           "blockDel": "Xóa đoạn"
+        }
+      },
+      "toc": {
+        "open": "Chèn mục lục",
+        "update": "Cập nhật mục lục",
+        "updateTitle": "Cập nhật mục lục",
+        "updateHint": "Tài liệu chưa có mục lục.",
+        "title": "Mục lục",
+        "description": "Tạo trường mục lục từ các tiêu đề trong tài liệu. Word làm mới các mục và số trang khi cập nhật trường.",
+        "levels": "Cấp tiêu đề",
+        "depthOne": "Tiêu đề 1",
+        "depthRange": "Tiêu đề 1–{{max}}",
+        "pageNumbers": "Số trang",
+        "pageNumbersHint": "Word điền số trang khi cập nhật trường.",
+        "hyperlinks": "Siêu liên kết",
+        "preview": "{{count}} tiêu đề phù hợp.",
+        "empty": "Không có tiêu đề nào phù hợp với cấp đã chọn.",
+        "insert": "Chèn",
+        "apply": "Cập nhật",
+        "cancel": "Hủy",
+        "close": "Đóng mục lục",
+        "notice": {
+          "inserted": "Đã chèn {{count}} mục.",
+          "updated": "Đã cập nhật mục lục: {{count}} mục.",
+          "empty": "Không có tiêu đề nào phù hợp với cấp đã chọn.",
+          "missing": "Không tìm thấy mục lục trong tài liệu này.",
+          "readOnly": "Tài liệu đang ở chế độ chỉ đọc; mục lục không bị thay đổi.",
+          "refused": "Không thể ghi mục lục."
+        }
+      },
+      "captions": {
+        "insert": "Chèn chú thích",
+        "citation": "Chèn trích dẫn",
+        "citationTitle": "Chèn trích dẫn",
+        "citationDescription": "Chèn một trích dẫn trong ngoặc dưới dạng văn bản. Trình soạn thảo không ghi trường CITATION: trường trích dẫn cần một phần thư mục mà engine không tạo được, nên văn bản hiển thị là dạng trung thực nhất.",
+        "citationEmpty": "Nhập tác giả hoặc năm.",
+        "title": "Chèn chú thích",
+        "description": "Chú thích mang trường SEQ; Word đánh số lại các chú thích cùng nhãn khi cập nhật trường.",
+        "label": "Nhãn",
+        "labels": {
+          "figure": "Hình",
+          "table": "Bảng",
+          "equation": "Công thức"
+        },
+        "text": "Nội dung chú thích",
+        "textPlaceholder": "Mô tả hình",
+        "author": "Tác giả",
+        "year": "Năm",
+        "cancel": "Hủy",
+        "close": "Đóng hộp thoại chú thích",
+        "notice": {
+          "inserted": "Đã chèn chú thích.",
+          "cited": "Đã chèn trích dẫn.",
+          "refused": "Không thể chèn chú thích."
         }
       },
       "shortcuts": {

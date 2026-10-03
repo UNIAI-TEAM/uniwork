@@ -7054,7 +7054,9 @@
           "navigation": "Navigation",
           "compare": "Compare",
           "protect": "Protect",
-          "export": "Export"
+          "export": "Export",
+          "toc": "Table of contents",
+          "captions": "Captions and citations"
         },
         "insert": {
           "symbol": "Symbol",
@@ -7772,6 +7774,60 @@
           "cellDel": "Deleted cell",
           "blockIns": "Inserted paragraph",
           "blockDel": "Deleted paragraph"
+        }
+      },
+      "toc": {
+        "open": "Insert table of contents",
+        "update": "Update table of contents",
+        "updateTitle": "Update table of contents",
+        "updateHint": "The document has no table of contents.",
+        "title": "Table of contents",
+        "description": "Build a table-of-contents field from the document's headings. Word refreshes the entries and page numbers when it updates the field.",
+        "levels": "Heading levels",
+        "depthOne": "Heading 1",
+        "depthRange": "Headings 1–{{max}}",
+        "pageNumbers": "Page numbers",
+        "pageNumbersHint": "Word fills the page numbers when it updates the field.",
+        "hyperlinks": "Hyperlinks",
+        "preview": "{{count}} headings match.",
+        "empty": "No headings match the selected levels.",
+        "insert": "Insert",
+        "apply": "Update",
+        "cancel": "Cancel",
+        "close": "Close table of contents",
+        "notice": {
+          "inserted": "Inserted {{count}} entries.",
+          "updated": "Updated the table of contents: {{count}} entries.",
+          "empty": "No headings match the selected levels.",
+          "missing": "No table of contents was found in this document.",
+          "readOnly": "The document is read-only; the table of contents was not changed.",
+          "refused": "The table of contents could not be written."
+        }
+      },
+      "captions": {
+        "insert": "Insert caption",
+        "citation": "Insert citation",
+        "citationTitle": "Insert citation",
+        "citationDescription": "Inserts a bracketed reference as text. This editor writes no CITATION field: a citation field resolves against a bibliography part the engine cannot author, so the visible reference is the honest carrier.",
+        "citationEmpty": "Enter an author or a year.",
+        "title": "Insert caption",
+        "description": "The caption carries a SEQ field; Word renumbers captions with the same label when it updates the field.",
+        "label": "Label",
+        "labels": {
+          "figure": "Figure",
+          "table": "Table",
+          "equation": "Equation"
+        },
+        "text": "Caption text",
+        "textPlaceholder": "Describe the figure",
+        "author": "Author",
+        "year": "Year",
+        "cancel": "Cancel",
+        "close": "Close caption dialog",
+        "notice": {
+          "inserted": "Caption inserted.",
+          "cited": "Citation inserted.",
+          "refused": "The caption could not be inserted."
         }
       },
       "shortcuts": {
