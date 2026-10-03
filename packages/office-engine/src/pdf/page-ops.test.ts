@@ -101,6 +101,16 @@ describe("pdf page ops — insert pages from another PDF", () => {
     expect(await pageCount(subset.bytes)).toBe((await pageCount(host)) + 1);
   });
 
+  it("reports an insert whose source subset matched no page as skipped", async () => {
+    const host = IMAGE_PDF();
+    const out = await applyPdfEditBytes(host, [
+      { op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: b64(TEXT_PDF()), pages: [99] } } satisfies Op,
+    ]);
+    expect(out.report.insertedPdfs).toEqual({ applied: 0, skipped: 1 });
+    expect(out.warnings.some((w) => w.detail?.includes("insertPdfPages"))).toBe(true);
+    expect(await pageCount(out.bytes)).toBe(await pageCount(host));
+  });
+
   it("refuses an unusable source PDF as a typed error, not a silent skip", async () => {
     const bad64 = await applyPdfEditBytes(IMAGE_PDF(), [
       { op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: "!!!!" } } satisfies Op,

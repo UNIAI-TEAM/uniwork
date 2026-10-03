@@ -186,7 +186,8 @@ interface PageInsertPlan {
       page runs first and the inserted PDF's pages end up directly after the
       anchor, with the blank sheet following them. */
   tie: number;
-  run: (bytes: Uint8Array) => Promise<Uint8Array>;
+  op: string;
+  run: (bytes: Uint8Array) => Promise<{ bytes: Uint8Array; inserted: number }>;
 }
 
 /** Map an "insert after original page index" (-1 = front) to a position in the
@@ -220,7 +221,11 @@ async function applyPageInserts(
     plans.push({
       position,
       tie: 1,
-      run: async (current) => (await insertPdfBytes(current, source, position - 1, inserted.pages)).bytes,
+      op: "insertPdfPages",
+      run: async (current) => {
+        const result = await insertPdfBytes(current, source, position - 1, inserted.pages);
+        return { bytes: result.bytes, inserted: result.count };
+      },
     });
   }
   for (const blank of request.blankPages ?? []) {
@@ -230,13 +235,24 @@ async function applyPageInserts(
       continue;
     }
     const size = blank.width !== undefined && blank.height !== undefined ? ([blank.width, blank.height] as [number, number]) : undefined;
-    plans.push({ position, tie: 0, run: async (current) => (await insertBlankPageBytes(current, position - 1, size)).bytes });
+    plans.push({
+      position,
+      tie: 0,
+      op: "insertBlankPage",
+      run: async (current) => ({ bytes: (await insertBlankPageBytes(current, position - 1, size)).bytes, inserted: 1 }),
+    });
   }
   let out = bytes;
   // Highest position first: an insert at a higher index never shifts a lower
   // one, so every plan keeps its base-relative position while the bytes
   // accumulate.
-  for (const plan of plans.sort((a, b) => b.position - a.position || a.tie - b.tie)) out = await plan.run(out);
+  for (const plan of plans.sort((a, b) => b.position - a.position || a.tie - b.tie)) {
+    const result = await plan.run(out);
+    out = result.bytes;
+    // A source whose page subset matched nothing inserts no page: report it
+    // honestly rather than counting it as applied.
+    if (result.inserted === 0) skipped.push({ op: plan.op, index: 0, reason: "source selected no page to insert" });
+  }
   return out;
 }
 
