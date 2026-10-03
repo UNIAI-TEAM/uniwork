@@ -17,6 +17,7 @@ import { createParagraphCommands, type DocxParagraphCommands, type DocxParagraph
 import { createProtectCommands, type DocxProtectCommands, type DocxProtectFormatState } from "./protect";
 import { createReviewCommands, type DocxReviewCommands, type DocxReviewFormatState } from "./review";
 import { createTableCommands, type DocxTableCommands, type DocxTableFormatState } from "./table";
+import { createTocCommands, type DocxTocCommands, type DocxTocFormatState } from "./toc";
 
 /**
  * The composed format state every area contributes to, in one intersection.
@@ -37,6 +38,7 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxPageDecorFormatState &
   DocxCompareFormatState &
   DocxExportFormatState &
+  DocxTocFormatState &
   DocxProtectFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
@@ -61,6 +63,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxPageDecorCommands &
   DocxCompareCommands &
   DocxExportCommands &
+  DocxTocCommands &
   DocxProtectCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
@@ -91,6 +94,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createPageDecorCommands,
   createCompareCommands,
   createExportCommands,
+  createTocCommands,
   createProtectCommands,
 ];
 
