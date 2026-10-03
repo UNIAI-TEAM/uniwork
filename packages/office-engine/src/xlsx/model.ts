@@ -22,7 +22,7 @@ import {
   type XlsxSheetStructuralOps,
   type XlsxStructuralOp,
 } from "./ops.ts";
-import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
+import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 
 /** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
  *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
@@ -246,11 +246,18 @@ export class XlsxSessionModel {
     this.revision += 1;
   }
 
-  /** Page setup is a declarative whole-sheet snapshot: the last op per sheet
-   *  wins, in first-touch order. The gateway merges each present field into
+  /** Page setup is a declarative whole-sheet snapshot; the op carries only the
+   *  fields the UI changed, so the journal merges field-wise (last write per
+   *  field wins) in first-touch order — a second dialog apply must not drop
+   *  the first one's settings. The gateway then merges each present field into
    *  the file and keeps absent fields verbatim. */
   private applyPageSetupOp(op: XlsxPageSetupOp): void {
-    this.pageSetups.set(op.sheetName, op);
+    const previous = this.pageSetups.get(op.sheetName)?.setup;
+    const setup: XlsxPageSetupFields = { ...previous };
+    for (const [key, value] of Object.entries(op.setup)) {
+      if (value !== undefined) (setup as Record<string, unknown>)[key] = value;
+    }
+    this.pageSetups.set(op.sheetName, { kind: "set_page_setup", sheetName: op.sheetName, setup });
     this.touched = true;
     this.revision += 1;
   }

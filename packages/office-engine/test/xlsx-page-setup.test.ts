@@ -77,7 +77,7 @@ describe("XLSX page-setup ops in the session model", () => {
     // carries (a partial snapshot must not drop an earlier dialog apply's
     // settings). First-touch sheet order is kept.
     expect(model.pendingPageSetupStates()).toEqual([
-      { sheetName: "Data", orientation: "landscape", printArea: "A1:C10", scale: 80 },
+      { sheetName: "Data", orientation: "portrait", printArea: "A1:C10", scale: 80 },
       { sheetName: "Report", orientation: "landscape", printTitles: "1:2" },
     ]);
     expect(modelWith([]).pendingPageSetupStates()).toEqual([]);
@@ -136,6 +136,7 @@ describe("XLSX page-setup ops in the session model", () => {
       item({ printArea: "" }),
       item({ printTitles: "A1:B2" }),
       item({ printTitles: "3:1" }),
+      item({ printTitles: "0:5" }),
       item({ printTitles: 3 }),
       item({ rowBreaks: [0] }),
       item({ rowBreaks: [1_048_576] }),

@@ -858,7 +858,7 @@ const MAX_PAGE_SCALE = 400;
 /** Fit-to-page counts are 0 (automatic) .. 1000. */
 const MAX_FIT_TO = 1_000;
 /** A print-title row span like "1:3" (1-based, ascending). */
-const PRINT_TITLES = /^\d{1,7}:\d{1,7}$/;
+const PRINT_TITLES = /^(\d{1,7}):(\d{1,7})$/;
 
 function pageSetupBool(a: Dict, key: string, op: string): boolean | undefined {
   if (a[key] === undefined) return undefined;
@@ -901,7 +901,9 @@ function pageSetupPrintTitles(a: Dict, op: string): string | null | undefined {
   if (a.printTitles === null) return null;
   const value = str(a.printTitles, op, "attributes.printTitles");
   const match = PRINT_TITLES.exec(value);
-  if (!match || Number(match[1]) > Number(match[2])) {
+  const start = match ? Number(match[1]) : 0;
+  const end = match ? Number(match[2]) : 0;
+  if (!match || start < 1 || start > end || end > MAX_ROWS) {
     throw new XlsxOpError(op, "attributes.printTitles", "a row span like 1:3 (or null) required");
   }
   return value;
