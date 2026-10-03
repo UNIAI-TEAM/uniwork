@@ -86,10 +86,11 @@ describe("pdf page ops — insert pages from another PDF", () => {
     ]);
     expect(out.report.insertedPdfs).toEqual({ applied: 1, skipped: 0 });
     expect(await pageCount(out.bytes)).toBe(hostCount + sourceCount);
+    // Each inserted page keeps its own source text: page 1 carries the report
+    // title, page 2 its own heading (the source's page 2 has no title).
     const text = await readPdfText(out.bytes);
-    for (let i = 1; i <= sourceCount; i++) {
-      expect(text.pages[i]!.text).toContain("Bao cao tong hop nam 2026");
-    }
+    expect(text.pages[1]!.text).toContain("Bao cao tong hop nam 2026");
+    expect(text.pages[2]!.text).toContain("Trang hai");
   });
 
   it("honors a source page subset", async () => {
@@ -218,7 +219,7 @@ describe("pdf page ops — typed parse errors", () => {
     expect(await pageCount(out.bytes)).toBe(base + 2);
   });
 
-  it("rejects a negative anchor, non-numeric sizes, bad page entries and blank names", async () => {
+  it("rejects a negative anchor, non-numeric sizes, bad page entries and a blank source", async () => {
     const rejects = async (op: Op) => {
       const error = await applyPdfEditBytes(TEXT_PDF(), [op]).catch((reason: unknown) => reason);
       expect(error).toBeInstanceOf(PdfTypedError);
@@ -229,7 +230,6 @@ describe("pdf page ops — typed parse errors", () => {
     expect((await rejects({ op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: b64(TEXT_PDF()), pages: [] } })).reason).toContain("pages");
     expect((await rejects({ op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: b64(TEXT_PDF()), pages: [0.5] } })).reason).toContain("pages");
     expect((await rejects({ op: "mergePdfs", attributes: { pdfs: [7] } })).reason).toContain("pdfs[0]");
-    expect((await rejects({ op: "extractPages", attributes: { pages: [0], name: "   " } })).reason).toContain("name");
     expect((await rejects({ op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: "   " } })).reason).toContain("base64");
   });
 
@@ -238,6 +238,11 @@ describe("pdf page ops — typed parse errors", () => {
       { op: "splitPdf", attributes: { chunkSize: 1, name: "  " } } satisfies Op,
     ]);
     expect(out.documents.map((doc) => doc.name)).toEqual(Array.from({ length: out.documents.length }, (_value, i) => `split-${i + 1}`));
+
+    const extracted = await applyPdfEditBytes(TEXT_PDF(), [
+      { op: "extractPages", attributes: { pages: [0], name: "   " } } satisfies Op,
+    ]);
+    expect(extracted.documents[0]!.name).toBe("pages");
   });
 });
 
