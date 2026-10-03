@@ -23,3 +23,15 @@ export type {
   PdfViewState,
 } from "./types";
 export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type PdfEngineOperation, type PdfObjectMetadata, type PdfOpsBridgeOptions } from "./ops-bridge";
+export { PdfCanvas, PdfPageCanvas, hitTestPdfBox } from "./canvas";
+export type {
+  PdfCanvasBox,
+  PdfCanvasPage,
+  PdfCanvasProps,
+  PdfCanvasSelection,
+  PdfPageCanvasProps,
+  PdfPageRenderService,
+  PdfRenderPageRequest,
+  PdfRenderResult,
+  PdfRenderTileRequest,
+} from "./canvas";
