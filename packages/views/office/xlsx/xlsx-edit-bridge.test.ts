@@ -50,6 +50,8 @@ describe("rendererEditsToOperations", () => {
 
   it("selects the op kind through the named registry entries", () => {
     expect(XLSX_JOURNAL_OP_MAPPINGS.map((entry) => entry.op)).toEqual([
+      "set_page_setup",
+      "set_filter", "clear_filter",
       "clear_cell", "set_cell",
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
@@ -73,6 +75,9 @@ describe("rendererEditsToOperations", () => {
     expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "rename-sheet", newName: "Budget" } })).toBe("rename_sheet");
     expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "reorder-sheet", index: 1 } })).toBe("reorder_sheet");
     expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "set-sheet-hidden", hidden: true } })).toBe("set_sheet_hidden");
+    expect(pick({ sheetId: "sheet-1", setup: { orientation: "landscape" } })).toBe("set_page_setup");
+    // A page-setup edit is never mistaken for a cell edit.
+    expect(pick({ sheetId: "sheet-1", setup: { printArea: "A1:B2" } })).toBe("set_page_setup");
   });
 
   it("maps merge journal edits onto the envelope's own range field", () => {
@@ -126,6 +131,38 @@ describe("rendererEditsToOperations", () => {
     expect((keyOrdered[7] as { attributes: Record<string, unknown> }).attributes).toEqual({ start: 0, end: 0, level: 0 });
   });
 
+  it("maps filter journal edits onto the set/clear filter vocabulary", () => {
+    const range = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 };
+    const visibilityRange = { startRow: 0, endRow: 6, startColumn: 0, endColumn: 2 };
+    const filter = { range, columns: [{ colId: 0, values: ["alpha"] }, { colId: 2, customs: { and: true, filters: [{ val: 5, operator: "greaterThan" }] } }] };
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", filter, hiddenRows: [1, 3], visibilityRange },
+      { sheetId: "sheet-2", filter: null, hiddenRows: [], visibilityRange },
+    ])).toEqual([
+      { op: "set_filter", target: { sheet: "Data" }, attributes: { filter, hiddenRows: [1, 3], visibilityRange } },
+      { op: "clear_filter", target: { sheet: "Summary" }, attributes: { visibilityRange } },
+    ]);
+    const [setOp, clearOp] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", filter, hiddenRows: [1], visibilityRange: range },
+      { sheetId: "sheet-1", filter: null, hiddenRows: [], visibilityRange: range },
+    ]);
+    expect(Object.keys(setOp!)).toEqual(["op", "target", "attributes"]);
+    expect(Object.keys(clearOp!)).toEqual(["op", "target", "attributes"]);
+    expect(Object.keys((setOp as { attributes: Record<string, unknown> }).attributes)).toEqual(["filter", "hiddenRows", "visibilityRange"]);
+    expect(Object.keys((clearOp as { attributes: Record<string, unknown> }).attributes)).toEqual(["visibilityRange"]);
+    // A filter edit is never mistaken for a cell edit.
+    const pick = (edit: XlsxGridEdit): string | undefined =>
+      XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit))?.op;
+    expect(pick({ sheetId: "sheet-1", filter, hiddenRows: [], visibilityRange: range })).toBe("set_filter");
+    expect(pick({ sheetId: "sheet-1", filter: null, hiddenRows: [], visibilityRange: range })).toBe("clear_filter");
+    // A live name wins over the host file's stale one for filter edits too.
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", sheetName: "Budget", filter, hiddenRows: [], visibilityRange: range },
+    ])).toEqual([
+      { op: "set_filter", target: { sheet: "Budget" }, attributes: { filter, hiddenRows: [], visibilityRange: range } },
+    ]);
+  });
+
   it("maps sheet journal edits onto the sheet op vocabulary", () => {
     expect(rendererEditsToOperations(sheets, [
       { sheetId: "sheet-3", sheetName: "Scratch", sheetOp: { kind: "add-sheet", index: 0 } },
@@ -163,5 +200,21 @@ describe("rendererEditsToOperations", () => {
     expect(rendererEditsToOperations(sheets, [
       { sheetId: "added-1", sheetName: "Scratch", row: 2, column: 2, writeValue: true, value: "x" },
     ])).toEqual([{ op: "set_cell", target: { sheet: "Scratch", cell: "C3" }, attributes: { value: "x" } }]);
+  });
+  it("maps page-setup journal edits onto the set_page_setup vocabulary", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", setup: { orientation: "landscape", margins: "narrow", printArea: "A1:C10" } },
+      { sheetId: "sheet-2", sheetName: "Summary", setup: { printArea: null, printTitles: "1:2" } },
+    ])).toEqual([
+      { op: "set_page_setup", target: { sheet: "Data" }, attributes: { orientation: "landscape", margins: "narrow", printArea: "A1:C10" } },
+      { op: "set_page_setup", target: { sheet: "Summary" }, attributes: { printArea: null, printTitles: "1:2" } },
+    ]);
+    // The mapped attributes preserve the field order the edit carried and stay
+    // a plain (cloned) object so the host can serialize it verbatim.
+    const [op] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", setup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } },
+    ]);
+    expect(Object.keys((op as { attributes: Record<string, unknown> }).attributes)).toEqual(["fitToPage", "fitToWidth", "fitToHeight", "paperSize"]);
+    expect((op as { attributes: Record<string, unknown> }).attributes).toEqual({ fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 });
   });
 });

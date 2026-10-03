@@ -1,3 +1,4 @@
+import type { XlsxPageSetupFields } from "@uniwork/office-engine/xlsx";
 import { toA1Address } from "./xlsx-render-model-bridge";
 
 /** Serializable user edits emitted by the streamed grid, including undo.
@@ -68,9 +69,56 @@ export type XlsxSheetJournalOp =
   | { kind: "set-sheet-hidden"; hidden: boolean }
   | { kind: "reorder-sheet"; index: number };
 
-/** Every edit the streamed grid can emit: a cell edit, a structural op or a
- *  sheet op. */
-export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit | XlsxGridSheetEdit;
+/** One custom filter condition (the engine's XlsxFilterCustomCondition and the
+ *  upstream FilterColumnState.customs entry): a value and an optional OOXML
+ *  comparison operator (absent = equality). */
+export interface XlsxGridFilterCustomCondition {
+  val: string | number;
+  operator?: string;
+}
+
+/** One filter column's criteria; colId is the 0-based offset inside the filter
+ *  range (OOXML filterColumn/@colId). */
+export interface XlsxGridFilterColumnState {
+  colId: number;
+  values?: string[];
+  blank?: boolean;
+  customs?: { and?: boolean; filters: XlsxGridFilterCustomCondition[] };
+}
+
+/** The declarative filter snapshot of one sheet (the engine's
+ *  XlsxFilterSetState): the filter rectangle and its per-column criteria. */
+export interface XlsxGridFilterState {
+  range: XlsxStructuralJournalRange;
+  columns: XlsxGridFilterColumnState[];
+}
+
+/** One filter edit the renderer emits: the whole-sheet snapshot (a fresh
+ *  snapshot per filter mutation, last write per sheet wins) or a clear — a
+ *  removed filter — which carries only the visibility range the gateway
+ *  unhides. `sheetName` is the live name at emission when it differs from the
+ *  host file's (see XlsxGridCellEdit). */
+export interface XlsxGridFilterEdit {
+  sheetId: string;
+  sheetName?: string;
+  filter: XlsxGridFilterState | null;
+  hiddenRows: number[];
+  visibilityRange: XlsxStructuralJournalRange;
+}
+
+/** One page-setup edit the renderer emits (C2): the whole-sheet page-layout
+ *  snapshot (a fresh snapshot per page-setup change, last write per sheet
+ *  wins). Absent fields keep the file's value. `sheetName` is the live name
+ *  at emission when it differs from the host file's. */
+export interface XlsxGridPageSetupEdit {
+  sheetId: string;
+  sheetName?: string;
+  setup: XlsxPageSetupFields;
+}
+
+/** Every edit the streamed grid can emit: a cell edit, a structural op, a
+ *  sheet op or a filter snapshot. */
+export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit | XlsxGridSheetEdit | XlsxGridFilterEdit | XlsxGridPageSetupEdit;
 
 export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStructuralEdit {
   return "structural" in edit;
@@ -78,6 +126,14 @@ export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStruct
 
 export function isSheetGridEdit(edit: XlsxGridEdit): edit is XlsxGridSheetEdit {
   return "sheetOp" in edit;
+}
+
+export function isFilterGridEdit(edit: XlsxGridEdit): edit is XlsxGridFilterEdit {
+  return "filter" in edit;
+}
+
+export function isPageSetupGridEdit(edit: XlsxGridEdit): edit is XlsxGridPageSetupEdit {
+  return "setup" in edit;
 }
 
 /** The envelope target a cell operation addresses: the sheet name (not the
@@ -169,10 +225,34 @@ export type SheetOperation =
       attributes: { hidden: boolean };
     };
 
+/** The filter vocabulary; each kind maps 1:1 to an engine op kind (ops.ts) and
+ *  the upstream SheetFilterState the gateway consumes. A snapshot rides the
+ *  raw `attributes` object like the structural kinds. */
+export type FilterOperation =
+  | {
+      op: "set_filter";
+      target: XlsxStructuralOperationTarget;
+      attributes: { filter: XlsxGridFilterState; hiddenRows: number[]; visibilityRange: XlsxStructuralJournalRange };
+    }
+  | {
+      op: "clear_filter";
+      target: XlsxStructuralOperationTarget;
+      attributes: { visibilityRange: XlsxStructuralJournalRange };
+    };
+
 /** Every envelope operation a journal edit maps to. A later op kind adds its
  *  union member here and one XLSX_JOURNAL_OP_MAPPINGS entry —
  *  rendererEditsToOperations itself does not change. */
-export type XlsxJournalOperation = CellOperation | StructuralOperation | SheetOperation;
+export type PageSetupOperation = {
+  op: "set_page_setup";
+  target: XlsxStructuralOperationTarget;
+  attributes: XlsxPageSetupFields;
+};
+
+/** Every envelope operation a journal edit maps to. A later op kind adds its
+ *  union member here and one XLSX_JOURNAL_OP_MAPPINGS entry —
+ *  rendererEditsToOperations itself does not change. */
+export type XlsxJournalOperation = CellOperation | StructuralOperation | SheetOperation | FilterOperation | PageSetupOperation;
 
 /** One named journal-edit → op-kind mapping. Entries are tested in table
  *  order and the first match wins; the structural entries are appended after
@@ -187,7 +267,7 @@ export interface XlsxJournalOpMapping {
 /** A clear is a writeValue edit with no content and no style — the one shape
  *  that must not be written as an empty set_cell. */
 function isClearEdit(edit: XlsxGridEdit): boolean {
-  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
+  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
 }
 
 const STRUCTURAL_WIRE_OP = {
@@ -283,8 +363,48 @@ function sheetMapping(
   };
 }
 
+function filterOperation(edit: XlsxGridFilterEdit, sheet: string): FilterOperation {
+  const target = { sheet };
+  if (edit.filter === null) {
+    return { op: "clear_filter", target, attributes: { visibilityRange: { ...edit.visibilityRange } } };
+  }
+  return {
+    op: "set_filter",
+    target,
+    attributes: {
+      filter: structuredClone(edit.filter),
+      hiddenRows: [...edit.hiddenRows],
+      visibilityRange: { ...edit.visibilityRange },
+    },
+  };
+}
+
+function filterMapping(
+  op: FilterOperation["op"],
+  matches: (filter: XlsxGridFilterState | null) => boolean,
+): XlsxJournalOpMapping {
+  return {
+    op,
+    matches: (edit) => isFilterGridEdit(edit) && matches(edit.filter),
+    // A filter edit carries its own live name when it differs from the host
+    // file's; the second argument is only the id-map fallback.
+    build: (edit, sheet) => filterOperation(edit as XlsxGridFilterEdit, (edit as XlsxGridFilterEdit).sheetName || sheet),
+  };
+}
+
+function pageSetupOperation(edit: XlsxGridPageSetupEdit, sheet: string): PageSetupOperation {
+  return { op: "set_page_setup", target: { sheet }, attributes: { ...edit.setup } };
+}
+
 /** Journal-edit → op-kind table, in match order. */
 export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
+  {
+    op: "set_page_setup",
+    matches: isPageSetupGridEdit,
+    build: (edit, sheet) => pageSetupOperation(edit as XlsxGridPageSetupEdit, (edit as XlsxGridPageSetupEdit).sheetName || sheet),
+  },
+  filterMapping("set_filter", (filter) => filter !== null),
+  filterMapping("clear_filter", (filter) => filter === null),
   {
     op: "clear_cell",
     matches: isClearEdit,
@@ -295,7 +415,7 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   },
   {
     op: "set_cell",
-    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit),
+    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit),
     build: (edit, sheet) => {
       const cell = edit as XlsxGridCellEdit;
       const attributes: NonNullable<CellOperation["attributes"]> = {
@@ -342,7 +462,7 @@ export function rendererEditsToOperations(
   return edits.map((edit) => {
     const sheet = isSheetGridEdit(edit) ? edit.sheetName : edit.sheetName ?? names.get(edit.sheetId);
     if (!sheet) throw new Error("xlsx_edit_unknown_sheet");
-    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
+    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
     const mapping = XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit));
     if (!mapping) throw new Error("xlsx_edit_unmapped");
     return mapping.build(edit, sheet);

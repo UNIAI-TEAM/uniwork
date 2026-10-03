@@ -2,7 +2,7 @@
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
 import { dispatchOfficeError } from "@uniwork/core/office";
-import { isXlsxSheetOp, isXlsxStructuralOp, isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxSheetOp, type XlsxWorkbookSnapshot, type XlsxWorksheet, type XlsxCellState } from "@uniwork/office-engine/xlsx";
+import { isXlsxFilterOp, isXlsxPageSetupOp, isXlsxSheetOp, isXlsxStructuralOp, isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxSheetOp, type XlsxWorkbookSnapshot, type XlsxWorksheet, type XlsxCellState } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
 
@@ -121,13 +121,19 @@ function applySheetOp(sheets: XlsxWorksheet[], op: XlsxSheetOp): void {
  *  rows/columns, which this cell-content snapshot does not model: they ride
  *  the envelope to the server's structuralOps pass unapplied here (the
  *  renderer grid has already shifted what the user sees, and the server
- *  replays the shift before any cell edit). */
+ *  replays the shift before any cell edit). Filter snapshots are declarative
+ *  sheet state the snapshot does not carry: they ride the envelope to the
+ *  server's filterStates pass unapplied here as well. Page-setup snapshots are
+ *  the same kind of declarative sheet state (print settings, not cell data),
+ *  so they ride the envelope to the server's pageSetupStates pass unapplied. */
 function applyOp(sheets: XlsxWorksheet[], op: XlsxEditOp): void {
   if (isXlsxSheetOp(op)) {
     applySheetOp(sheets, op);
     return;
   }
   if (isXlsxStructuralOp(op)) return;
+  if (isXlsxFilterOp(op)) return;
+  if (isXlsxPageSetupOp(op)) return;
   const cells = sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, DraftCell>;
   const previous = cells[op.target.address];
   const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };

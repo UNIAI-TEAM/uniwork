@@ -318,6 +318,23 @@ export class XlsxAdapter {
       .model
       .pendingStructuralOps()
       .map((group) => ({ ...group, sheetName: gatewayName(group.sheetName) }));
+    // Filter states are declarative whole-sheet snapshots; their coordinates
+    // are final at emission time (the renderer re-snapshots after every
+    // structural shift the pinned filter plugin injects), and the gateway
+    // applies them after structural replay and cell edits. A filter change
+    // never moves cells, so the recalc pass is unaffected.
+    const filterStates = session
+      .model
+      .pendingFilterStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Page-setup states are declarative whole-sheet snapshots the gateway
+    // merges attribute-by-attribute; like filters they never move cells, so
+    // the recalc pass is unaffected. printArea/printTitles are sheet-scoped
+    // defined names the gateway rewrites on the final workbook.xml.
+    const pageSetupStates = session
+      .model
+      .pendingPageSetupStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
     // A structural save cannot refresh formula caches: the sidecar recalc runs
     // against the ORIGINAL bytes, where a shifted sheet's coordinates are the
     // pre-op ones, and a cross-sheet formula may read cells this envelope also
@@ -380,9 +397,14 @@ export class XlsxAdapter {
       }
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0
         ? {}
-        : { ...(structuralOps.length > 0 ? { structuralOps } : {}), ...(sheetPlan === undefined ? {} : { sheetPlan }) };
+        : {
+            ...(structuralOps.length > 0 ? { structuralOps } : {}),
+            ...(sheetPlan === undefined ? {} : { sheetPlan }),
+            ...(filterStates.length > 0 ? { filterStates } : {}),
+            ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
+          };
     let mutation;
     try {
       mutation = await this.deps.engine.applyCellEdits(

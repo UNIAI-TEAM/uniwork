@@ -50,6 +50,10 @@ export function XlsxToolbar({
   onPaste,
   onShowSheets,
   onOpenFind,
+  onOpenAdvancedFilter,
+  onOpenPageSetup,
+  onPrint,
+  onExportCsv,
   onSave,
   onCancelSave,
   showSave = true,
@@ -86,6 +90,10 @@ export function XlsxToolbar({
     onPaste,
     onShowSheets,
     onOpenFind,
+    onOpenAdvancedFilter,
+    onOpenPageSetup,
+    onPrint,
+    onExportCsv,
   };
 
   return (

@@ -5,6 +5,7 @@
 export * from "./engine.ts";
 export * from "./model.ts";
 export * from "./ops.ts";
+export * from "./page-setup.ts";
 export * from "./recalc.ts";
 export * from "./render-model.ts";
 export * from "./adapter.ts";

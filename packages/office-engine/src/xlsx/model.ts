@@ -8,16 +8,21 @@
 import { XlsxEngineError, type XlsxCellEdit, type XlsxCellState, type XlsxRecalcEdit, type XlsxWorkbookSnapshot } from "./engine.ts";
 import {
   a1ToRowColumn,
+  groupXlsxFilterStates,
   groupXlsxStructuralOps,
+  isXlsxFilterOp,
   isXlsxSheetOp,
   isXlsxStructuralOp,
   toA1,
   type XlsxEditOp,
+  type XlsxFilterOp,
+  type XlsxSheetFilterState,
   type XlsxSheetOp,
   type XlsxSheetResolver,
   type XlsxSheetStructuralOps,
   type XlsxStructuralOp,
 } from "./ops.ts";
+import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 
 /** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
  *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
@@ -91,6 +96,15 @@ export class XlsxSessionModel {
    *  gateway replays this list first and then writes the cell edits. The map
    *  key is the sheet's CURRENT name; a rename rewrites both. */
   private structural = new Map<string, XlsxStructuralOp[]>();
+  /** Declarative filter journal: the LAST filter op per sheet, in first-touch
+   *  order. A filter snapshot is whole-sheet, so only the last one matters
+   *  (the gateway applies filterStates after structural replay and cell
+   *  edits). The map key is the sheet's CURRENT name; a rename rewrites it. */
+  private filters = new Map<string, XlsxFilterOp>();
+  /** Declarative page-setup journal: the LAST page-setup op per sheet, in
+   *  first-touch order (whole-sheet, like filters). The map key is the
+   *  sheet's CURRENT name; a rename rewrites it. */
+  private pageSetups = new Map<string, XlsxPageSetupOp>();
   /** Ordered sheet registry: file sheets in tab order, plus additions. Ops
    *  are applied in emission order, so every entry's `name` is current. */
   private sheetStates: ModelSheetState[] = [];
@@ -164,6 +178,14 @@ export class XlsxSessionModel {
       this.applySheetOp(op);
       return;
     }
+    if (isXlsxFilterOp(op)) {
+      this.applyFilterOp(op);
+      return;
+    }
+    if (isXlsxPageSetupOp(op)) {
+      this.applyPageSetupOp(op);
+      return;
+    }
     if (isXlsxStructuralOp(op)) {
       this.applyStructuralOp(op);
       return;
@@ -210,6 +232,25 @@ export class XlsxSessionModel {
     ops.push(op);
     this.structural.set(op.sheetName, ops);
     if ("index" in op) this.shiftPendingCells(op);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Filters are declarative whole-sheet snapshots: the last op per sheet
+   *  wins, in first-touch order. Nothing shifts — filter coordinates are
+   *  final when the renderer snapshots them (the gateway applies the states
+   *  after structural replay and cell edits). */
+  private applyFilterOp(op: XlsxFilterOp): void {
+    this.filters.set(op.sheetName, op);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Page setup is a declarative whole-sheet snapshot: the last op per sheet
+   *  wins, in first-touch order. The gateway merges each present field into
+   *  the file and keeps absent fields verbatim. */
+  private applyPageSetupOp(op: XlsxPageSetupOp): void {
+    this.pageSetups.set(op.sheetName, op);
     this.touched = true;
     this.revision += 1;
   }
@@ -339,6 +380,16 @@ export class XlsxSessionModel {
       this.structural.delete(previous);
       this.structural.set(next, ops.map((structural) => ({ ...structural, sheetName: next })));
     }
+    const filter = this.filters.get(previous);
+    if (filter !== undefined) {
+      this.filters.delete(previous);
+      this.filters.set(next, { ...filter, sheetName: next });
+    }
+    const pageSetup = this.pageSetups.get(previous);
+    if (pageSetup !== undefined) {
+      this.pageSetups.delete(previous);
+      this.pageSetups.set(next, { ...pageSetup, sheetName: next });
+    }
   }
 
   private dropPendingSheet(sheetName: string): void {
@@ -346,6 +397,8 @@ export class XlsxSessionModel {
       if (entry.sheetName === sheetName) this.pending.delete(key);
     }
     this.structural.delete(sheetName);
+    this.filters.delete(sheetName);
+    this.pageSetups.delete(sheetName);
   }
 
   private cloneSheetEdits(fromName: string, toName: string): void {
@@ -361,6 +414,10 @@ export class XlsxSessionModel {
     if (ops !== undefined) {
       this.structural.set(toName, ops.map((structural) => ({ ...structural, sheetName: toName })));
     }
+    const filter = this.filters.get(fromName);
+    if (filter !== undefined) this.filters.set(toName, { ...filter, sheetName: toName });
+    const pageSetup = this.pageSetups.get(fromName);
+    if (pageSetup !== undefined) this.pageSetups.set(toName, { ...pageSetup, sheetName: toName });
   }
 
   /** The gateway's SheetEditPlan rebuilt from the model's final state. Field
@@ -427,6 +484,22 @@ export class XlsxSessionModel {
     return groupXlsxStructuralOps([...this.structural.values()].flat());
   }
 
+  /** The filter plan for the gateway's filterStates argument: one declarative
+   *  state per touched sheet, last write per sheet, in first-touch order. A
+   *  sheet whose last filter op was a clear folds to `filter: null` (remove
+   *  the autoFilter, unhide the visibility range). Empty when the session has
+   *  no filter edits. */
+  pendingFilterStates(): XlsxSheetFilterState[] {
+    return groupXlsxFilterStates([...this.filters.values()]);
+  }
+
+  /** The page-setup plan for the gateway's pageSetupStates argument: one
+   *  declarative state per touched sheet, last write per sheet, in first-touch
+   *  order. Empty when the session has no page-setup edits. */
+  pendingPageSetupStates(): XlsxSheetPageSetupState[] {
+    return groupXlsxPageSetupStates([...this.pageSetups.values()]);
+  }
+
   /** Edits in insertion order (last write wins per cell already applied). */
   pendingEdits(): XlsxCellEdit[] {
     return [...this.pending.values()].map((e) => e.edit);
@@ -479,6 +552,8 @@ export class XlsxSessionModel {
     this.inputSha256 = newInputSha256;
     this.pending.clear();
     this.structural.clear();
+    this.filters.clear();
+    this.pageSetups.clear();
     this.sheetStates = newSnapshot.sheets.map((sheet) => ({
       key: sheet.name,
       originalName: sheet.name,

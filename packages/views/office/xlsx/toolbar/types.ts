@@ -49,6 +49,16 @@ export interface XlsxToolbarGroupProps {
   /** Opens the editor-owned find & replace panel. Absent when the host has no
    *  mounted grid: the panel reads its cells from the renderer host. */
   onOpenFind?: () => void;
+  /** Opens the editor-owned Advanced Filter dialog. Absent when the host has no
+   *  mounted grid: its column provider reads the header row from the renderer
+   *  host. */
+  onOpenAdvancedFilter?: () => void;
+  /** Opens the editor-owned Page Setup dialog. */
+  onOpenPageSetup?: () => void;
+  /** Prints the document through the host print path. */
+  onPrint?: () => void;
+  /** Downloads the active sheet as CSV. */
+  onExportCsv?: () => void;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

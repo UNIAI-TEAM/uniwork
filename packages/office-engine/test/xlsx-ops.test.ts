@@ -105,6 +105,8 @@ describe("op-kind registry", () => {
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
       "merge_cells", "unmerge_cells",
+      "set_filter", "clear_filter",
+      "set_page_setup",
       "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
@@ -112,6 +114,8 @@ describe("op-kind registry", () => {
       "structuralOps", "structuralOps", "structuralOps", "structuralOps",
       "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps",
       "structuralOps", "structuralOps",
+      "filterStates", "filterStates",
+      "pageSetupStates",
       "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
     ]);
   });
@@ -133,6 +137,25 @@ describe("op-kind registry", () => {
       set_cols_outline: { op: "set_cols_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 0 } },
       merge_cells: { op: "merge_cells", target: { sheet: "Data" }, range: "A1:B2" },
       unmerge_cells: { op: "unmerge_cells", target: { sheet: "Data" }, range: "A1:B2" },
+      set_filter: {
+        op: "set_filter",
+        target: { sheet: "Data" },
+        attributes: {
+          filter: { range: { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 }, columns: [{ colId: 0, values: ["x"] }] },
+          hiddenRows: [2],
+          visibilityRange: { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 },
+        },
+      },
+      clear_filter: {
+        op: "clear_filter",
+        target: { sheet: "Data" },
+        attributes: { visibilityRange: { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 } },
+      },
+      set_page_setup: {
+        op: "set_page_setup",
+        target: { sheet: "Data" },
+        attributes: { orientation: "landscape", printArea: "A1:C10", printTitles: "1:2", margins: "narrow" },
+      },
       add_sheet: { op: "add_sheet", attributes: { name: "Scratch" } },
       duplicate_sheet: { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } },
       rename_sheet: { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Budget" } },

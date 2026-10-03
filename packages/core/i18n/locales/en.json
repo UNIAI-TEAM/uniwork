@@ -7448,6 +7448,60 @@
           "lessThanOrEqual": "Less than or equal"
         }
       },
+      "pageSetup": {
+        "open": "Page setup",
+        "groups": {
+          "view": "Page setup and export"
+        },
+        "dialog": {
+          "title": "Page setup",
+          "close": "Close page setup",
+          "keep": "Keep current",
+          "on": "On",
+          "off": "Off",
+          "orientation": "Orientation",
+          "portrait": "Portrait",
+          "landscape": "Landscape",
+          "paperSize": "Paper size",
+          "margins": "Margins",
+          "marginNormal": "Normal",
+          "marginWide": "Wide",
+          "marginNarrow": "Narrow",
+          "scale": "Scale (%)",
+          "fitToPage": "Fit to page",
+          "fitToWidth": "Fit to width",
+          "fitToHeight": "Fit to height",
+          "printGridlines": "Print gridlines",
+          "printHeadings": "Print headings",
+          "frozenRows": "Frozen rows",
+          "frozenColumns": "Frozen columns",
+          "printArea": "Print area",
+          "printAreaSelection": "Selected range ({{range}})",
+          "printAreaClear": "Clear print area",
+          "printTitles": "Print titles",
+          "printTitlesPlaceholder": "e.g. 1:2",
+          "printTitlesClear": "Clear print titles",
+          "note": "Only the settings you change are written; the rest stay as they are.",
+          "invalidNumber": "Enter a whole number within the allowed range.",
+          "invalidTitles": "Print titles use a row span like 1:2.",
+          "invalidPrintArea": "Select a range to use as the print area.",
+          "empty": "Change at least one setting.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "paper": {
+          "letter": "Letter",
+          "tabloid": "Tabloid",
+          "legal": "Legal",
+          "a3": "A3",
+          "a4": "A4",
+          "a5": "A5"
+        }
+      },
+      "export": {
+        "print": "Print",
+        "csv": "Export CSV"
+      },
       "sheets": {
         "label": "Workbook sheets",
         "actions": "Sheet actions",

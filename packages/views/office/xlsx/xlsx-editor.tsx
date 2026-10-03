@@ -8,6 +8,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxFindPanel } from "./find/find-panel";
+import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
+import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { XlsxGridSurface, type XlsxGridHandle, type XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
 import {
@@ -117,6 +119,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // The find panel needs the renderer host for its bounded cell reads, so the
   // editor owns its visibility and the Home-tab group only opens it.
   const [findOpen, setFindOpen] = useState(false);
+  // Same ownership for the Advanced Filter dialog: its column provider reads
+  // the selection's header row through the renderer host.
+  const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false);
   // Live sheet list (tab order, names, hidden) for the sheet-tab strip: the
   // mounted grid's own state, so a session rename/add/reorder is reflected the
   // moment it happens. Empty without a grid (the snapshot drives the strip).
@@ -460,6 +465,19 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
   }, [t]);
 
+  // Page Setup, Print and Export CSV (C2): the hook owns the dialog state,
+  // the set_page_setup op and the two host actions; see page-setup/.
+  const pageSetup = useXlsxPageSetup({
+    host: rendererHost,
+    selection,
+    activeSheet,
+    readOnly,
+    canEdit,
+    edit: editor.edit,
+    onApplied: () => { markDirty(); refreshSnapshot(); },
+    onError: setRecalcError,
+  });
+
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
     const modifier = event.metaKey || event.ctrlKey;
@@ -548,6 +566,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onPaste={() => { void paste().catch(clipboardFailure); }}
             onShowSheets={() => sheetTabsRef.current?.focus()}
             onOpenFind={rendererHost ? () => setFindOpen(true) : undefined}
+            onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
+            onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
+            onPrint={rendererHost ? pageSetup.print : undefined}
+            onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
             onSave={() => save("button")}
             onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
           />
@@ -563,6 +585,17 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               onClose={() => setFindOpen(false)}
             />
           ) : null}
+          {rendererHost && advancedFilterOpen ? (
+            <XlsxAdvancedFilterDialog
+              documentKey={documentKey}
+              host={rendererHost}
+              commands={gridCommands}
+              selection={selection}
+              readOnly={readOnly}
+              onClose={() => setAdvancedFilterOpen(false)}
+            />
+          ) : null}
+          {pageSetup.dialog}
           {recalcProgress !== null ? (
             <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
               <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>

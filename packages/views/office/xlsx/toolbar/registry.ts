@@ -1,6 +1,8 @@
 import { XlsxFindGroup } from "../find/find-group";
 import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
+import { XlsxPageSetupGroup } from "./page-setup-group";
+import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
 import { XlsxClipboardGroup } from "./groups/clipboard-group";
@@ -64,4 +66,6 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "view-zoom", tab: "view", order: 10, labelKey: "office.xlsx.toolbar.groups.view.zoom.label", Component: XlsxViewZoomGroup },
   { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
   { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },
+  { id: "filter", tab: "data", order: 20, labelKey: "office.xlsx.filter.groups.data", Component: XlsxFilterGroup },
+  { id: "page-setup", tab: "view", order: 40, labelKey: "office.xlsx.pageSetup.groups.view", Component: XlsxPageSetupGroup },
 ];

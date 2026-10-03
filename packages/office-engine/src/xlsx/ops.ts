@@ -5,6 +5,7 @@
 // before a byte is touched.
 import { ENGINE_LIMITS } from "@uniwork/office-contracts";
 import type { XlsxCellScalar, XlsxCellState, XlsxGatewayArguments } from "./engine.ts";
+import { PAGE_SETUP_OP_KIND, type XlsxPageSetupFields, type XlsxPageSetupOp } from "./page-setup.ts";
 
 export class XlsxOpError extends Error {
   readonly opName: string;
@@ -99,6 +100,60 @@ export type XlsxStructuralOp =
       readonly sheetName: string;
       readonly range: XlsxMergeArea;
     };
+
+/** One custom filter condition — the upstream FilterColumnState.customs entry
+ *  (xlsx-filter.ts): a value and an optional OOXML comparison operator
+ *  (absent = equality). */
+export interface XlsxFilterCustomCondition {
+  readonly val: string | number;
+  readonly operator?: string | undefined;
+}
+
+/** One filter column's criteria; colId is the 0-based offset inside the filter
+ *  range (OOXML filterColumn/@colId). Exactly one of values/blank/customs is
+ *  present, mirroring the vendored wire schema. */
+export interface XlsxFilterColumnState {
+  readonly colId: number;
+  readonly values?: readonly string[] | undefined;
+  readonly blank?: boolean | undefined;
+  readonly customs?: { readonly and?: boolean | undefined; readonly filters: readonly XlsxFilterCustomCondition[] } | undefined;
+}
+
+/** The declarative filter snapshot of one sheet (upstream SheetFilterState,
+ *  minus the sheet name the envelope target carries). `range` is owned by the
+ *  sheet (`<autoFilter ref>`), not the selection. */
+export interface XlsxFilterSetState {
+  readonly range: XlsxMergeArea;
+  readonly columns: readonly XlsxFilterColumnState[];
+}
+
+/** Filter ops (envelope `filterStates` slot). `set_filter` is a whole-sheet
+ *  declarative snapshot; `clear_filter` removes the autoFilter and unhides the
+ *  rows inside `visibilityRange` (the range the removed filter was hiding).
+ *  The model folds both per sheet, last write wins, in emission order — the
+ *  gateway applies the final states after structural replay and cell edits. */
+export type XlsxFilterOp =
+  | {
+      readonly kind: "set_filter";
+      readonly sheetName: string;
+      readonly filter: XlsxFilterSetState;
+      readonly hiddenRows: readonly number[];
+      readonly visibilityRange: XlsxMergeArea;
+    }
+  | {
+      readonly kind: "clear_filter";
+      readonly sheetName: string;
+      readonly visibilityRange: XlsxMergeArea;
+    };
+
+/** The gateway's SheetFilterState: one sheet's declarative filter state
+ *  (xlsx-filter.ts), the shape of the `filterStates` argument. */
+export interface XlsxSheetFilterState {
+  readonly sheetName: string;
+  readonly filter: XlsxFilterSetState | null;
+  readonly hiddenRows: readonly number[];
+  readonly visibilityRange: XlsxMergeArea;
+}
 
 /** The bound structural wire vocabulary; the model's shift rule keys on it. */
 const STRUCTURAL_OP_KIND_LIST = [
@@ -202,6 +257,35 @@ export function groupXlsxStructuralOps(ops: readonly XlsxEditOp[]): XlsxSheetStr
   return [...bySheet].map(([sheetName, sheetOps]) => ({ sheetName, ops: sheetOps }));
 }
 
+/** The bound filter wire vocabulary; the model's last-write-per-sheet fold
+ *  keys on it. */
+const FILTER_OP_KIND_LIST = ["set_filter", "clear_filter"] as const;
+
+const FILTER_KIND_SET: ReadonlySet<string> = new Set(FILTER_OP_KIND_LIST);
+
+export function isXlsxFilterOp(op: XlsxEditOp): op is XlsxFilterOp {
+  return FILTER_KIND_SET.has(op.kind);
+}
+
+/** Fold filter ops per sheet in emission order, last write wins (the plan is
+ *  whole-sheet, like sheetPlan). A `clear_filter` folds to the gateway's
+ *  `filter: null` state, which removes the sheet's autoFilter and unhides the
+ *  data rows inside `visibilityRange`. First-touch sheet order is kept; the
+ *  gateway applies each state independently. */
+export function groupXlsxFilterStates(ops: readonly XlsxEditOp[]): XlsxSheetFilterState[] {
+  const bySheet = new Map<string, XlsxSheetFilterState>();
+  for (const op of ops) {
+    if (!isXlsxFilterOp(op)) continue;
+    bySheet.set(
+      op.sheetName,
+      op.kind === "set_filter"
+        ? { sheetName: op.sheetName, filter: op.filter, hiddenRows: op.hiddenRows, visibilityRange: op.visibilityRange }
+        : { sheetName: op.sheetName, filter: null, hiddenRows: [], visibilityRange: op.visibilityRange },
+    );
+  }
+  return [...bySheet.values()];
+}
+
 /** One worksheet-level op (envelope `sheetPlan` slot): add, duplicate, rename,
  *  remove, reorder, show/hide. Names are the wire identity and every op
  *  addresses a sheet by its CURRENT name at emission time — the session model
@@ -233,6 +317,8 @@ export type XlsxEditOp =
     }
   | { readonly kind: "clear_cell"; readonly target: XlsxCellTarget; readonly recalcInput: "" }
   | XlsxStructuralOp
+  | XlsxFilterOp
+  | XlsxPageSetupOp
   | XlsxSheetOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is
@@ -610,6 +696,269 @@ function mergeParser(kind: "merge_cells" | "unmerge_cells") {
   };
 }
 
+// ── filter ops (auto filter / advanced filter) ─────────────────────────────
+//
+// Wire shape: { op, target: { sheet }, attributes: { ... } }. set_filter
+// carries the whole declarative snapshot — the filter rectangle, its
+// per-column criteria and the rows the filter hides; clear_filter carries the
+// visibility range so the gateway can unhide the rows the removed filter was
+// hiding. Bounds mirror the vendored wire schema (desktop-api.ts
+// workbookFilterStateSchema) and the upstream FilterColumnState.
+
+const MAX_FILTER_COLUMNS = 1_000;
+const MAX_FILTER_VALUES = 10_000;
+const MAX_FILTER_VALUE_LEN = 32_767;
+const MAX_FILTER_HIDDEN_ROWS = 100_000;
+/** The OOXML customFilter operators the upstream serializer accepts. */
+const FILTER_OPERATORS = new Set([
+  "equal",
+  "notEqual",
+  "greaterThan",
+  "greaterThanOrEqual",
+  "lessThan",
+  "lessThanOrEqual",
+]);
+
+/** A filter rectangle: the four 0-based bounds of an ordered, in-grid area
+ *  under the span ceiling. Unlike a merge it may be a single cell only for
+ *  `visibilityRange`; the filter's own range needs a header and a data row. */
+function parseFilterArea(raw: unknown, op: string, field: string): XlsxMergeArea {
+  if (!isDict(raw)) throw new XlsxOpError(op, field, "object required");
+  const startRow = int(raw.startRow, op, `${field}.startRow`);
+  const endRow = int(raw.endRow, op, `${field}.endRow`);
+  const startColumn = int(raw.startColumn, op, `${field}.startColumn`);
+  const endColumn = int(raw.endColumn, op, `${field}.endColumn`);
+  if (startRow < 0 || endRow < 0 || startColumn < 0 || endColumn < 0 ||
+      startRow > endRow || startColumn > endColumn ||
+      endRow >= MAX_ROWS || endColumn >= MAX_COLS) {
+    throw new XlsxOpError(op, field, "range must be ordered and inside the OOXML grid");
+  }
+  if (endRow - startRow >= MAX_AXIS_SPAN || endColumn - startColumn >= MAX_AXIS_SPAN) {
+    throw new XlsxOpError(op, field, `span over ${MAX_AXIS_SPAN} lines`);
+  }
+  return { startRow, endRow, startColumn, endColumn };
+}
+
+/** One filter column: colId inside the filter range, exactly one criteria
+ *  family, values/operators bounded. */
+function parseFilterColumn(raw: unknown, op: string, width: number): XlsxFilterColumnState {
+  if (!isDict(raw)) throw new XlsxOpError(op, "attributes.filter.columns", "column objects required");
+  const colId = int(raw.colId, op, "attributes.filter.columns.colId");
+  if (colId < 0 || colId >= width || colId >= MAX_COLS) {
+    throw new XlsxOpError(op, "attributes.filter.columns.colId", "colId outside the filter range");
+  }
+  let values: string[] | undefined;
+  if (raw.values !== undefined) {
+    if (!Array.isArray(raw.values) || raw.values.length > MAX_FILTER_VALUES) {
+      throw new XlsxOpError(op, "attributes.filter.columns.values", `at most ${MAX_FILTER_VALUES} values`);
+    }
+    values = raw.values.map((value) => {
+      if (typeof value !== "string" || value.length > MAX_FILTER_VALUE_LEN) {
+        throw new XlsxOpError(op, "attributes.filter.columns.values", "value strings are bounded");
+      }
+      return value;
+    });
+  }
+  let blank: boolean | undefined;
+  if (raw.blank !== undefined) {
+    if (typeof raw.blank !== "boolean") throw new XlsxOpError(op, "attributes.filter.columns.blank", "boolean required");
+    blank = raw.blank;
+  }
+  let customs: XlsxFilterColumnState["customs"];
+  if (raw.customs !== undefined) {
+    if (!isDict(raw.customs) || !Array.isArray(raw.customs.filters) ||
+        raw.customs.filters.length < 1 || raw.customs.filters.length > 2) {
+      throw new XlsxOpError(op, "attributes.filter.columns.customs", "one or two custom filters required");
+    }
+    if (raw.customs.and !== undefined && typeof raw.customs.and !== "boolean") {
+      throw new XlsxOpError(op, "attributes.filter.columns.customs.and", "boolean required");
+    }
+    const filters = raw.customs.filters.map((condition) => {
+      if (!isDict(condition)) throw new XlsxOpError(op, "attributes.filter.columns.customs.filters", "condition objects required");
+      const { val } = condition;
+      if (typeof val === "string") {
+        if (val.length > MAX_FILTER_VALUE_LEN) throw new XlsxOpError(op, "attributes.filter.columns.customs.filters.val", "value too long");
+      } else if (typeof val !== "number" || !Number.isFinite(val)) {
+        throw new XlsxOpError(op, "attributes.filter.columns.customs.filters.val", "string or finite number required");
+      }
+      if (condition.operator !== undefined && (typeof condition.operator !== "string" || !FILTER_OPERATORS.has(condition.operator))) {
+        throw new XlsxOpError(op, "attributes.filter.columns.customs.filters.operator", "unknown filter operator");
+      }
+      return { val, ...(condition.operator === undefined ? {} : { operator: condition.operator }) };
+    });
+    customs = { ...(raw.customs.and === undefined ? {} : { and: raw.customs.and }), filters };
+  }
+  if (values === undefined && blank === undefined && customs === undefined) {
+    throw new XlsxOpError(op, "attributes.filter.columns", "a filter column needs values, a blank flag, or custom criteria");
+  }
+  return { colId, values, blank, customs };
+}
+
+function parseFilterHiddenRows(raw: unknown, op: string): number[] {
+  if (!Array.isArray(raw) || raw.length > MAX_FILTER_HIDDEN_ROWS) {
+    throw new XlsxOpError(op, "attributes.hiddenRows", `at most ${MAX_FILTER_HIDDEN_ROWS} hidden rows`);
+  }
+  return raw.map((row) => {
+    const index = int(row, op, "attributes.hiddenRows");
+    if (index < 0 || index >= MAX_ROWS) throw new XlsxOpError(op, "attributes.hiddenRows", "row outside the OOXML grid");
+    return index;
+  });
+}
+
+function parseSetFilter(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const a = parseStructuralAttributes(item, op);
+  if (!isDict(a.filter)) throw new XlsxOpError(op, "attributes.filter", "object required");
+  const range = parseFilterArea(a.filter.range, op, "attributes.filter.range");
+  if (range.endRow === range.startRow) {
+    throw new XlsxOpError(op, "attributes.filter.range", "a filter range needs a header row and a data row");
+  }
+  if (!Array.isArray(a.filter.columns) || a.filter.columns.length > MAX_FILTER_COLUMNS) {
+    throw new XlsxOpError(op, "attributes.filter.columns", `at most ${MAX_FILTER_COLUMNS} columns`);
+  }
+  const width = range.endColumn - range.startColumn + 1;
+  const columns = a.filter.columns.map((column) => parseFilterColumn(column, op, width));
+  const seen = new Set<number>();
+  for (const column of columns) {
+    if (seen.has(column.colId)) throw new XlsxOpError(op, "attributes.filter.columns", "duplicate colId");
+    seen.add(column.colId);
+  }
+  return [
+    {
+      kind: "set_filter",
+      sheetName,
+      filter: { range, columns },
+      hiddenRows: parseFilterHiddenRows(a.hiddenRows, op),
+      visibilityRange: parseFilterArea(a.visibilityRange, op, "attributes.visibilityRange"),
+    },
+  ];
+}
+
+function parseClearFilter(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const a = parseStructuralAttributes(item, op);
+  return [{ kind: "clear_filter", sheetName, visibilityRange: parseFilterArea(a.visibilityRange, op, "attributes.visibilityRange") }];
+}
+
+// ── page setup (pageSetupStates slot) ─────────────────────────────────────
+//
+// Wire shape: { op: "set_page_setup", target: { sheet }, attributes: { ... } }.
+// The whole declarative snapshot rides the raw attributes object like the
+// structural kinds; the parser is strict (unknown or malformed fields are a
+// typed error, never a silent drop) and normalizes to the upstream
+// SheetPageSetupState vocabulary (xlsx-page-setup.ts). A field absent from the
+// attributes is absent from the op, so the gateway leaves the file's value
+// verbatim; a field present with the wrong type or range is refused here.
+
+/** OOXML paper-size codes the gateway/desktop schema accepts (1..118). */
+const MAX_PAPER_SIZE = 118;
+/** sheetView zoom / page scale percent bound (10..400). */
+const MIN_PAGE_SCALE = 10;
+const MAX_PAGE_SCALE = 400;
+/** Fit-to-page counts are 0 (automatic) .. 1000. */
+const MAX_FIT_TO = 1_000;
+/** A print-title row span like "1:3" (1-based, ascending). */
+const PRINT_TITLES = /^\d{1,7}:\d{1,7}$/;
+
+function pageSetupBool(a: Dict, key: string, op: string): boolean | undefined {
+  if (a[key] === undefined) return undefined;
+  if (typeof a[key] !== "boolean") throw new XlsxOpError(op, "attributes." + key, "boolean required");
+  return a[key];
+}
+
+function pageSetupInt(a: Dict, key: string, op: string, min: number, max: number): number | undefined {
+  if (a[key] === undefined) return undefined;
+  const value = int(a[key], op, "attributes." + key);
+  if (value < min || value > max) throw new XlsxOpError(op, "attributes." + key, "integer " + min + "-" + max + " required");
+  return value;
+}
+
+function pageSetupEnum<T extends string>(a: Dict, key: string, op: string, allowed: readonly T[]): T | undefined {
+  if (a[key] === undefined) return undefined;
+  const value = str(a[key], op, "attributes." + key);
+  if (!(allowed as readonly string[]).includes(value)) throw new XlsxOpError(op, "attributes." + key, "one of " + allowed.join(", "));
+  return value as T;
+}
+
+/** A print area: the A1 grammar the upstream toAbsoluteRange accepts, with the
+ *  upstream's 255-character bound. null clears the defined name. */
+function pageSetupPrintArea(a: Dict, op: string): string | null | undefined {
+  if (a.printArea === undefined) return undefined;
+  if (a.printArea === null) return null;
+  const value = str(a.printArea, op, "attributes.printArea");
+  if (value.length === 0 || value.length > 255 || !/^[$A-Za-z0-9:]+$/.test(value)) {
+    throw new XlsxOpError(op, "attributes.printArea", "an A1 range like A1:C10 (or null) required");
+  }
+  const parts = value.split(":");
+  for (const part of parts) a1ToRowColumn(part, op, "attributes.printArea");
+  return value;
+}
+
+/** Print titles: a row span "1:3" (the only spelling upstream
+ *  toAbsoluteRowSpan accepts), or null to clear. */
+function pageSetupPrintTitles(a: Dict, op: string): string | null | undefined {
+  if (a.printTitles === undefined) return undefined;
+  if (a.printTitles === null) return null;
+  const value = str(a.printTitles, op, "attributes.printTitles");
+  const match = PRINT_TITLES.exec(value);
+  if (!match || Number(match[1]) > Number(match[2])) {
+    throw new XlsxOpError(op, "attributes.printTitles", "a row span like 1:3 (or null) required");
+  }
+  return value;
+}
+
+/** One manual-break array. The upstream sorts and de-dupes; every id here must
+ *  be a positive in-grid index. */
+function pageSetupBreaks(a: Dict, key: "rowBreaks" | "colBreaks", op: string, max: number): number[] | undefined {
+  if (a[key] === undefined) return undefined;
+  if (!Array.isArray(a[key]) || a[key].length > 1_023) {
+    throw new XlsxOpError(op, "attributes." + key, "at most 1023 break indexes");
+  }
+  return a[key].map((entry) => {
+    const value = int(entry, op, "attributes." + key);
+    if (value < 1 || value > max) throw new XlsxOpError(op, "attributes." + key, "break index 1-" + max + " required");
+    return value;
+  });
+}
+
+/** The page-setup attribute vocabulary (the typed op's own fields). An unknown
+ *  attribute would be silently dropped by the typed op, so it is refused. */
+const PAGE_SETUP_FIELDS: ReadonlySet<string> = new Set([
+  "orientation", "paperSize", "scale", "fitToWidth", "fitToHeight", "fitToPage", "margins",
+  "printGridlines", "printHeadings", "printArea", "printTitles",
+  "frozenRows", "frozenColumns", "rowBreaks", "colBreaks",
+]);
+
+function parseSetPageSetup(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const a = parseStructuralAttributes(item, op);
+  for (const key of Object.keys(a)) {
+    if (!PAGE_SETUP_FIELDS.has(key)) throw new XlsxOpError(op, "attributes." + key, "unknown page-setup field");
+  }
+  const setup: XlsxPageSetupFields = {
+    orientation: pageSetupEnum(a, "orientation", op, ["portrait", "landscape"] as const),
+    paperSize: pageSetupInt(a, "paperSize", op, 1, MAX_PAPER_SIZE),
+    scale: pageSetupInt(a, "scale", op, MIN_PAGE_SCALE, MAX_PAGE_SCALE),
+    fitToWidth: pageSetupInt(a, "fitToWidth", op, 0, MAX_FIT_TO),
+    fitToHeight: pageSetupInt(a, "fitToHeight", op, 0, MAX_FIT_TO),
+    fitToPage: pageSetupBool(a, "fitToPage", op),
+    margins: pageSetupEnum(a, "margins", op, ["normal", "wide", "narrow"] as const),
+    printGridlines: pageSetupBool(a, "printGridlines", op),
+    printHeadings: pageSetupBool(a, "printHeadings", op),
+    printArea: pageSetupPrintArea(a, op),
+    printTitles: pageSetupPrintTitles(a, op),
+    frozenRows: pageSetupInt(a, "frozenRows", op, 0, MAX_ROWS - 1),
+    frozenColumns: pageSetupInt(a, "frozenColumns", op, 0, MAX_COLS - 1),
+    rowBreaks: pageSetupBreaks(a, "rowBreaks", op, MAX_ROWS - 1),
+    colBreaks: pageSetupBreaks(a, "colBreaks", op, MAX_COLS - 1),
+  };
+  if (Object.values(setup).every((value) => value === undefined)) {
+    throw new XlsxOpError(op, "attributes", "a page-setup op needs at least one setting");
+  }
+  return [{ kind: PAGE_SETUP_OP_KIND, sheetName, setup }];
+}
+
+
 // ── sheet ops (add / rename / remove / duplicate / reorder / hide) ─────────
 //
 // Wire shape mirrors B1/B2: { op, target: { sheet } , attributes: { ... } }.
@@ -747,6 +1096,9 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_cols_outline", slot: "structuralOps", parse: outlineParser("set_cols_outline") },
   { wireName: "merge_cells", slot: "structuralOps", parse: mergeParser("merge_cells") },
   { wireName: "unmerge_cells", slot: "structuralOps", parse: mergeParser("unmerge_cells") },
+  { wireName: "set_filter", slot: "filterStates", parse: parseSetFilter },
+  { wireName: "clear_filter", slot: "filterStates", parse: parseClearFilter },
+  { wireName: "set_page_setup", slot: "pageSetupStates", parse: parseSetPageSetup },
   { wireName: "add_sheet", slot: "sheetPlan", parse: parseAddSheet },
   { wireName: "duplicate_sheet", slot: "sheetPlan", parse: parseDuplicateSheet },
   { wireName: "rename_sheet", slot: "sheetPlan", parse: parseRenameSheet },
