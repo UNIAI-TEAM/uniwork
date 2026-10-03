@@ -16,8 +16,27 @@ describe("LoginScreen", () => {
   it("shows Start and calls onStart when not pending", () => {
     const onStart = vi.fn();
     render(<LoginScreen state="signed-out" onStart={onStart} onCancel={() => undefined} />);
-    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers sign-in and one local entry with their captions", () => {
+    const onUseLocal = vi.fn();
+    render(<LoginScreen state="signed-out" onStart={() => undefined} onCancel={() => undefined} onUseLocal={onUseLocal} />);
+    expect(screen.getByText("Đăng nhập để mở và lưu tài liệu trong thư viện UniWork.")).toBeInTheDocument();
+    expect(screen.getByText("Trang đăng nhập sẽ mở trong trình duyệt.")).toBeInTheDocument();
+    expect(screen.getByText("hoặc")).toBeInTheDocument();
+    expect(screen.getByText("Không cần đăng nhập. Tệp chỉ lưu trên máy này, bạn có thể đăng nhập bất cứ lúc nào.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Mở tệp trên máy" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Làm việc với tệp trên máy" }));
+    expect(onUseLocal).toHaveBeenCalledOnce();
+  });
+
+  it("hides the local entry while sign-in is pending", () => {
+    render(<LoginScreen state="pending" onStart={() => undefined} onCancel={() => undefined} onUseLocal={() => undefined} />);
+    expect(screen.queryByRole("button", { name: "Làm việc với tệp trên máy" })).toBeNull();
+    expect(screen.getByText("Tiếp tục đăng nhập trong trình duyệt để hoàn tất.")).toBeInTheDocument();
   });
 
   it("shows Cancel and calls onCancel while pending", () => {
@@ -29,7 +48,7 @@ describe("LoginScreen", () => {
 
   it("disables the start action once signed in", () => {
     render(<LoginScreen state="signed-in" onStart={() => undefined} onCancel={() => undefined} />);
-    expect(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeDisabled();
   });
 
   it("carries the state as a data attribute for host-level checks", () => {
