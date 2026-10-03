@@ -15,7 +15,6 @@ import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererP
 import type { DocxAdapter, DocxCommentInfo } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
-import type { DocxNotesSnapshot } from "./commands/notes";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
 import { prepareDocxHeadingStyles } from "./docx-heading-styles";
@@ -104,10 +103,6 @@ export interface DocxTiptapSnapshot {
    * edits, so serializeSnapshot applies them as a set_comments op before the
    * block plan, and restoreSnapshot re-seeds them. */
   comments?: DocxCommentInfo[];
-  /** The notes snapshot at capture (B3): footnote/endnote edits are list
-   * edits, so serializeSnapshot applies a set_notes op per edited kind before
-   * the block plan, and restoreSnapshot re-seeds the lists + flags. */
-  notes?: DocxNotesSnapshot;
 }
 
 export interface DocxOpenError extends Error {
@@ -230,8 +225,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       // B2: the open parse's comment list seeds the runtime; the comments
       // panel and the snapshot read it from there, never from the adapter.
       commandRuntime.seedDocxComments(parsed.comments ?? []);
-      // B3: same for the footnote/endnote parts (numbers follow part order).
-      commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
       commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
@@ -245,7 +238,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         doc: tiptapEditor.getJSON(),
         sourceBase64,
         comments: commandRuntime.listDocxComments(),
-        notes: commandRuntime.snapshotDocxNotes(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -287,7 +279,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
           if (prepared.outcome !== "opened") throw new Error(prepared.message ?? "docx_heading_styles_open_failed");
           saveRef = prepared.document_model_ref;
         }
-        applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef), snapshot.value.comments, snapshot.value.notes);
+        applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef), snapshot.value.comments);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -298,14 +290,6 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       if (snapshot.value.sourceBase64 !== sourceBase64) throw new Error("docx_draft_base_mismatch");
       tiptapEditor.commands.setContent(snapshot.value.doc);
       commandRuntime.seedDocxComments(snapshot.value.comments ?? []);
-      // A draft captured before the notes field restores the open parse's own
-      // lists (its base is the same source bytes — asserted above).
-      const notes = snapshot.value.notes;
-      if (notes) commandRuntime.restoreDocxNotes(notes);
-      else {
-        const parsed = options.adapter.parsedOf(ref);
-        commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
-      }
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },

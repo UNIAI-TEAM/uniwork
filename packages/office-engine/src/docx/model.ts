@@ -23,6 +23,27 @@ import {
   type DocxSaveBlock,
   type DocxSaveOptions,
 } from "./engine";
+import {
+  applySectionProperties,
+  docxSections,
+  originalXmlOf,
+  requireSectionProperties,
+  type DocxSectionProperties,
+  type DocxSectionSlice,
+} from "./section-properties";
+
+export {
+  applySectionProperties,
+  DOCX_SECTION_MAX_COLUMNS,
+  docxSections,
+  readSectionSnapshot,
+  requireSectionProperties,
+  type DocxSectionOrientation,
+  type DocxSectionProperties,
+  type DocxSectionSlice,
+  type DocxSectionSnapshot,
+  type DocxSectionStartType,
+} from "./section-properties";
 
 /** One plan row: an original block ref, or the replacement the model carries. */
 type PlanEntry =
@@ -101,7 +122,8 @@ export type DocxEdit =
   | { op: "set_title_pg"; value: boolean }
   | { op: "set_even_odd_headers"; value: boolean }
   | { op: "set_comments"; comments: DocxCommentInfo[] }
-  | { op: "set_notes"; kind: DocxNoteKind; notes: DocxNoteInfo[] };
+  | { op: "set_notes"; kind: DocxNoteKind; notes: DocxNoteInfo[] }
+  | { op: "set_section_properties"; sectionIndex: number; properties: DocxSectionProperties };
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
 
@@ -133,6 +155,11 @@ export class DocxSessionModel {
   parsed: DocxParsed;
   private plan: PlanEntry[];
   private options: DocxSaveOptions = {};
+  /** Per-section page-setup edits (B4), keyed by 0-based document-order
+   * section index. Applied against the final plan at savePlan() time — the
+   * plan may still move after the edit, and the final section's slice has no
+   * plan entry at all (it rides SaveOptions.trailingSectPr). */
+  private sectionEdits = new Map<number, DocxSectionProperties>();
   private touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
@@ -287,6 +314,74 @@ export class DocxSessionModel {
     this.options.evenAndOddHeaders = value;
     this.touched = true;
     this.revision += 1;
+  }
+
+  /** Set page-setup fields of one section. `sectionIndex` is the section's
+   * 0-based document-order position (docxSections/readSections order), never a
+   * block docxIndex. Fields merge: an absent field keeps the section's current
+   * value. The final section is written through SaveOptions.trailingSectPr; an
+   * earlier section's sectPr is rewritten inside its section-break paragraph. */
+  setSectionProperties(sectionIndex: number, properties: DocxSectionProperties): void {
+    if (!Number.isInteger(sectionIndex)) {
+      throw new DocxEngineError("bad_section_index", "sectionIndex must be an integer, got " + String(sectionIndex));
+    }
+    const sections = docxSections(this.parsed);
+    const target = sections[sectionIndex];
+    if (!target) {
+      throw new DocxEngineError("bad_section_index", "no section has index " + sectionIndex + " (" + sections.length + " sections)");
+    }
+    if (target.sectPrXml.length === 0) {
+      throw new DocxEngineError("no_section_sectPr", "section " + sectionIndex + " carries no w:sectPr to rewrite");
+    }
+    requireSectionProperties(properties);
+    this.sectionEdits.set(sectionIndex, { ...this.sectionEdits.get(sectionIndex), ...properties });
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Plan position of a section's closing block. The exact docxIndex wins;
+   * when the editor replaced that block, the replacement still carries the
+   * section's own sectPr bytes (generated pPr or xml fragment), so the first
+   * unconsumed carrier matches. -1 when the break paragraph is gone. */
+  private planIndexForSection(section: DocxSectionSlice, consumed: Set<number>): number {
+    const exact = this.plan.findIndex(
+      (entry, at) => !consumed.has(at) && "docxIndex" in entry && entry.docxIndex === section.breakDocxIndex,
+    );
+    if (exact >= 0) return exact;
+    if (section.sectPrXml.length === 0) return -1;
+    return this.plan.findIndex((entry, at) => {
+      if (consumed.has(at)) return false;
+      if (entry.source === "generated") {
+        const rawPPr = (entry.block as { rawPPr?: unknown }).rawPPr;
+        return typeof rawPPr === "string" && rawPPr.includes(section.sectPrXml);
+      }
+      return entry.source === "xml" && entry.xml.includes(section.sectPrXml);
+    });
+  }
+
+  /** Resolve this save's section rewrites: plan position -> sectPr swap. The
+   * final section has no plan entry (saveDocx appends the hidden block), so
+   * its bytes ride `options.trailingSectPr` instead. */
+  private sectionRewrites(options: DocxSaveOptions): Map<number, { from: string; to: string }> {
+    const rewrites = new Map<number, { from: string; to: string }>();
+    if (this.sectionEdits.size === 0) return rewrites;
+    const sections = docxSections(this.parsed);
+    const consumed = new Set<number>();
+    for (const sectionIndex of [...this.sectionEdits.keys()].sort((a, b) => a - b)) {
+      const section = sections[sectionIndex];
+      if (!section || section.sectPrXml.length === 0) continue;
+      const to = applySectionProperties(section.sectPrXml, this.sectionEdits.get(sectionIndex)!);
+      if (to === section.sectPrXml) continue;
+      if (section.breakDocxIndex === null) {
+        options.trailingSectPr = section.blockXml.replace(section.sectPrXml, to);
+        continue;
+      }
+      const at = this.planIndexForSection(section, consumed);
+      if (at < 0) continue;
+      consumed.add(at);
+      rewrites.set(at, { from: section.sectPrXml, to });
+    }
+    return rewrites;
   }
 
   /** The authoritative comment list: the parse's own list until an edit
@@ -486,6 +581,8 @@ export class DocxSessionModel {
         return this.setComments(edit.comments);
       case "set_notes":
         return this.setNotes(edit.kind, edit.notes);
+      case "set_section_properties":
+        return this.setSectionProperties(edit.sectionIndex, edit.properties);
     }
   }
 
@@ -493,26 +590,43 @@ export class DocxSessionModel {
    * An untouched plan is the all-original set — upstream answers the original
    * bytes (no-op save), which is the correct result, not a shortcut. */
   savePlan(): { finalBlocks: DocxSaveBlock[]; options: DocxSaveOptions } {
-    const finalBlocks: DocxSaveBlock[] = this.plan.map((e): DocxSaveBlock => {
-      switch (e.source) {
-        case "original":
-          return { kind: "original", docxIndex: e.docxIndex };
-        case "generated":
-          return { kind: "generated", block: e.block };
+    const options: DocxSaveOptions = { ...this.options };
+    const rewrites = this.sectionRewrites(options);
+    const finalBlocks: DocxSaveBlock[] = this.plan.map((entry, at): DocxSaveBlock => {
+      const rewrite = rewrites.get(at);
+      switch (entry.source) {
+        case "original": {
+          if (rewrite) {
+            const blockXml = originalXmlOf(this.parsed, entry.docxIndex);
+            if (blockXml !== null && blockXml.includes(rewrite.from)) {
+              return { kind: "xml", xml: blockXml.replace(rewrite.from, rewrite.to), docxIndex: entry.docxIndex };
+            }
+          }
+          return { kind: "original", docxIndex: entry.docxIndex };
+        }
+        case "generated": {
+          if (rewrite) {
+            const rawPPr = (entry.block as { rawPPr?: unknown }).rawPPr;
+            if (typeof rawPPr === "string" && rawPPr.includes(rewrite.from)) {
+              return { kind: "generated", block: { ...entry.block, rawPPr: rawPPr.replace(rewrite.from, rewrite.to) } };
+            }
+          }
+          return { kind: "generated", block: entry.block };
+        }
         case "xml":
           return {
             kind: "xml",
-            xml: e.xml,
-            ...(e.docxIndex !== undefined ? { docxIndex: e.docxIndex } : {}),
-            ...(e.replaceImage ? { replaceImage: e.replaceImage } : {}),
+            xml: rewrite && entry.xml.includes(rewrite.from) ? entry.xml.replace(rewrite.from, rewrite.to) : entry.xml,
+            ...(entry.docxIndex !== undefined ? { docxIndex: entry.docxIndex } : {}),
+            ...(entry.replaceImage ? { replaceImage: entry.replaceImage } : {}),
           };
         case "image":
-          return { kind: "image", image: e.image };
+          return { kind: "image", image: entry.image };
         case "chart":
-          return { kind: "chart", chart: e.chart, ...(e.extentPx ? { extentPx: e.extentPx } : {}) };
+          return { kind: "chart", chart: entry.chart, ...(entry.extentPx ? { extentPx: entry.extentPx } : {}) };
       }
     });
-    return { finalBlocks, options: { ...this.options } };
+    return { finalBlocks, options };
   }
 
   /** Re-base after a successful serialize: the produced bytes become the new
@@ -522,6 +636,7 @@ export class DocxSessionModel {
     this.parsed = newParsed;
     this.plan = visibleIndexes(newParsed).map((docxIndex) => ({ source: "original", docxIndex }));
     this.options = {};
+    this.sectionEdits.clear();
     this.touched = false;
   }
 }

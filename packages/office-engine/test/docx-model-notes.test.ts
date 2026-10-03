@@ -126,7 +126,7 @@ describe("docx notes model", () => {
     expect(model.savePlan().options.footnotes?.map((n) => n.id)).toEqual(["2", "3"]);
     expect(model.notes("footnote").map((n) => n.text)).toEqual(["second note", "third edited"]);
     expect(model.isDirty).toBe(true);
-    expect(model.revision).toBe(3);
+    expect(model.revision).toBe(4);
   });
 
   it("a text edit drops stale rich runs so the rebuild cannot revert it", async () => {

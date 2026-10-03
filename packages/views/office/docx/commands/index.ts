@@ -7,7 +7,6 @@ import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 import { createHeaderFooterCommands, type DocxHeaderFooterCommands, type DocxHeaderFooterFormatState } from "./header-footer";
 import { createInsertCommands, type DocxInsertCommands, type DocxInsertFormatState } from "./insert";
 import { createLinksCommands, type DocxLinksCommands, type DocxLinksFormatState } from "./links";
-import { createNotesCommands, type DocxNotesCommands, type DocxNotesFormatState } from "./notes";
 import { createParagraphCommands, type DocxParagraphCommands, type DocxParagraphFormatState } from "./paragraph";
 import { createReviewCommands, type DocxReviewCommands, type DocxReviewFormatState } from "./review";
 import { createTableCommands, type DocxTableCommands, type DocxTableFormatState } from "./table";
@@ -24,8 +23,7 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxInsertFormatState &
   DocxReviewFormatState &
   DocxHeaderFooterFormatState &
-  DocxCommentsFormatState &
-  DocxNotesFormatState;
+  DocxCommentsFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
 
@@ -42,8 +40,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxInsertCommands &
   DocxReviewCommands &
   DocxHeaderFooterCommands &
-  DocxCommentsCommands &
-  DocxNotesCommands & {
+  DocxCommentsCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
     /** Re-reads the composed state and notifies every subscriber. */
@@ -67,7 +64,6 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createReviewCommands,
   createHeaderFooterCommands,
   createCommentsCommands,
-  createNotesCommands,
 ];
 
 export interface DocxCommandRuntimeOptions {

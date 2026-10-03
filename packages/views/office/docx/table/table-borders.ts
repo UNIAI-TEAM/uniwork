@@ -63,14 +63,15 @@ function mapSelectedCells(
 /**
  * Word's border presets over the selected cells: grid (All Borders) draws every
  * edge of every selected cell, outline draws only the selection's boundary,
- * none writes explicit no-borders and clears the table-level inside lines that
- * would otherwise survive (genoffice applyCellBorders semantics).
+ * none writes explicit no-borders on the selected cells — those explicit
+ * tcBorders override the table-level inside lines where the selection is, so
+ * unselected cells keep theirs.
  */
 export function applyTableBorderPreset(preset: DocxTableBorderPreset): Command {
   return (state, dispatch) => {
     const ctx = docxTableContext(state);
     if (!ctx) return false;
-    let tr = mapSelectedCells(state, ctx, (cell, edges) => {
+    const tr = mapSelectedCells(state, ctx, (cell, edges) => {
       const next: Record<string, DocxBorderLine> = {
         ...((cell.attrs.borders as Record<string, DocxBorderLine> | null) ?? {}),
       };
@@ -81,7 +82,6 @@ export function applyTableBorderPreset(preset: DocxTableBorderPreset): Command {
       }
       return { ...cell.attrs, borders: next };
     });
-    if (preset === "none") tr = clearTableInsideBorders(tr, ctx);
     dispatch?.(tr);
     return true;
   };
@@ -95,19 +95,4 @@ export function applyCellFill(fill: string | null): Command {
     dispatch?.(mapSelectedCells(state, ctx, (cell) => ({ ...cell.attrs, fill })));
     return true;
   };
-}
-
-/** Drops the table-level w:tblBorders inside lines so "No borders" holds. */
-function clearTableInsideBorders(tr: Transaction, ctx: DocxTableContext): Transaction {
-  const table = tr.doc.nodeAt(ctx.tablePos);
-  if (!table || table.type.name !== "docTable") return tr;
-  const prev = table.attrs.borders as Record<string, DocxBorderLine> | null;
-  if (!prev || (!prev.insideH && !prev.insideV)) return tr;
-  const rest: Record<string, DocxBorderLine> = { ...prev };
-  delete rest.insideH;
-  delete rest.insideV;
-  return tr.setNodeMarkup(ctx.tablePos, undefined, {
-    ...table.attrs,
-    borders: Object.keys(rest).length > 0 ? rest : null,
-  });
 }

@@ -26,7 +26,6 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
-import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxTableBorderPreset } from "./table-borders";
 import type { DocxTableFormatState } from "./table-state";
 import type { DocxTableCommands } from "../commands/table";

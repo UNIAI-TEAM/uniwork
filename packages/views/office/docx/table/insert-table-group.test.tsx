@@ -75,6 +75,14 @@ function cellPositions(editor: Editor): number[] {
   return positions;
 }
 
+function rowCellTypes(table: PmNode, row: number): string[] {
+  const types: string[] = [];
+  table.child(row).forEach((cell) => {
+    types.push(cell.type.name);
+  });
+  return types;
+}
+
 function caretInCell(editor: Editor, index = 0): void {
   const pos = cellPositions(editor)[index];
   if (pos === undefined) throw new Error("table cell missing");
@@ -287,7 +295,8 @@ describe("InsertTableGroup", () => {
 
     fireEvent.click(screen.getByTestId("docx-table-header-row"));
     expect(tableOf(editor).attrs.tblLook).toMatchObject({ firstRow: true });
-    expect(tableOf(editor).firstChild?.firstChild?.type.name).toBe("docTableHeader");
+    expect(rowCellTypes(tableOf(editor), 0)).toEqual(["docTableHeader", "docTableHeader"]);
+    expect(rowCellTypes(tableOf(editor), 1)).toEqual(["docTableCell", "docTableCell"]);
     await waitFor(() => expect(screen.getByTestId("docx-table-header-row")).toHaveAttribute("aria-pressed", "true"));
 
     fireEvent.click(screen.getByTestId("docx-table-repeat-header"));

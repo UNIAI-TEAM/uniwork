@@ -265,6 +265,11 @@ export type DocxSaveBlock = (
  * header/footer + savedAt surface; every other field stays "keep as-is". */
 export interface DocxSaveOptions {
   savedAt?: string;
+  /** Replace the trailing hidden body w:sectPr block with this XML before the
+   * field-level options apply (upstream patch.ts:116). B4 page setup rewrites
+   * the final section's page-setup fields through this seam; undefined keeps
+   * the block byte-identical. */
+  trailingSectPr?: string;
   header?: DocxHeaderFooter;
   footer?: DocxHeaderFooter;
   headerFirst?: DocxHeaderFooter;
