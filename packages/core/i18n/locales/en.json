@@ -7169,6 +7169,7 @@
         "appRecalcDone": "Formulas recalculated from your edits ({{count}} cells, engine fallback).",
         "appRecalcPartial": "Formulas recalculated from your edits — {{count}} kept cached values (functions the fallback engine lacks).",
         "appSheetStillIndexing": "The sheet is still indexing — try again in a moment.",
+        "appAreaStreaming": "This part of the sheet is still loading — try again in a moment.",
         "appStreamingRows": "Streaming {{name}}: {{rows}} rows available."
       }
     },

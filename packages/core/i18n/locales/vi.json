@@ -7163,6 +7163,7 @@
         "appRecalcDone": "Đã tính lại công thức từ các sửa đổi của bạn ({{count}} ô, dùng công cụ dự phòng).",
         "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {{count}} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
         "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
+        "appAreaStreaming": "Khu vực này của trang tính vẫn đang tải — thử lại sau giây lát.",
         "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng."
       }
     },
