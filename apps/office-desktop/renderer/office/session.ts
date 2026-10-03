@@ -5,6 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import type { PdfEditOperation, PdfSnapshot } from "@uniwork/views/office/pdf";
 
 export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
@@ -28,6 +29,13 @@ export type DraftRecoveryView =
 
 export type DraftRecoverOutcome = "recovered" | "locked" | "failed";
 
+/** Lane facets a format surface may bind beyond the shared EditorHandle; the
+ * session forwards them opaquely so a mounted lane keeps its own typing. */
+type LaneEditorFacets = {
+  edit?(operations: readonly PdfEditOperation[]): Promise<void> | void;
+  getPdfSnapshot?(): PdfSnapshot | null;
+};
+
 export type LocalFileRebind = Readonly<{
   previousId: string;
   documentId: string;
@@ -48,7 +56,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   const opened = { ...openedBytes };
   let generation = 0;
   let bytes = decode(opened.dataBase64);
-  let surface: DesktopEditorSurface | null = null;
+  let surface: (DesktopEditorSurface & LaneEditorFacets) | null = null;
   let surfaceOffset = 0;
   let opening: Promise<DesktopEditorSurface> | null = null;
   let disposed = false;
@@ -131,7 +139,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     }
   };
 
-  const editor: DesktopEditorSurface = {
+  const editor: DesktopEditorSurface & LaneEditorFacets = {
     format: opened.format, open: async () => { await openEditor(); },
     getDirtyGeneration: () => rebindingGeneration ?? generation,
     captureSnapshot: async () => {
@@ -143,6 +151,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     },
     get commands() { return surface?.commands; },
     get selection() { return surface?.selection; },
+    get edit() { const lane = surface; return lane?.edit?.bind(lane); },
+    get getPdfSnapshot() { const lane = surface; return lane?.getPdfSnapshot?.bind(lane); },
+    get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
+    get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,
     undo: () => surface?.undo?.(), redo: () => surface?.redo?.(),
     dispose: () => { disposed = true; unsubscribeDirty?.(); bytes = new Uint8Array(); checkpoint = null; pendingIntent = null; return surface?.dispose(); },

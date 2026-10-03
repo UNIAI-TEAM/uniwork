@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { createByteDocumentSession } from "./session";
 import { createByteTestEditor } from "../../test/byte-editor";
+import { createDesktopPdfSurface } from "./pdf-surface";
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
@@ -180,4 +181,23 @@ it("FE-R1-03 accepts Keep once the editor-owned local checkpoint seam supplies a
   session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(true);
   expect(calls.filter((call) => call.channel === "desktop:draft-checkpoint")).toHaveLength(1);
+});
+
+it("forwards the pdf lane edit and snapshot facets through the session facade", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 3 } };
+    return { ok: true, operation: "edit", dataBase64: opened.dataBase64 };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.edit).toBeTypeOf("function");
+  expect(session.editor.getPdfSnapshot).toBeTypeOf("function");
+  expect(session.editor.subscribeDirty).toBeTypeOf("function");
+  expect(session.editor.openOutcome?.()).toMatchObject({ outcome: "opened" });
+  expect(session.editor.getPdfSnapshot?.()).toMatchObject({ pageCount: 3, pages: [{ pageNumber: 1 }, { pageNumber: 2 }, { pageNumber: 3 }] });
+  await session.editor.edit?.([{ op: "delete_page", target: { page: 1 } }]);
+  expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "edit")).toBe(true);
+  expect(session.editor.getDirtyGeneration()).toBe(1);
+  expect(session.coordinator.getState().dirtyGeneration).toBe(1);
 });
