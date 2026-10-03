@@ -333,4 +333,14 @@ describe("XlsxEditor", () => {
     expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(resolveOpen).toBeDefined();
   });
+
+  it("mounts the selection status bar under the workbook surface in both modes", async () => {
+    const { view } = renderEditor(opened());
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-status-bar-unavailable")).toHaveTextContent("Không có tóm tắt ở đây.");
+    view.rerender(<XlsxEditor documentKey="doc-v1" editor={editor()} open={{ open: async () => opened() }} coordinator={coordinator()} embedded />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
+  });
 });
