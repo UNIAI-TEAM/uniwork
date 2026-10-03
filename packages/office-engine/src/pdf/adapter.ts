@@ -3,13 +3,15 @@
 // failure leaves here as a PdfTypedError whose code is one of the worker's
 // closed outcome codes; nothing below this file throws a bare Error across
 // the handler boundary. The input buffer is never mutated and a failed edit
-// produces no output bytes — the caller keeps the original.
+// produces no output bytes — the caller keeps the original. probePdf accepts
+// an optional password for encrypted documents: pdfium decrypts in memory for
+// that probe, and no decrypted bytes are ever produced as output.
 import { EncryptedPDFError, PDFDocument } from "pdf-lib";
 
 import { ImageTooLargeError } from "./codec.ts";
-import { readPdfText } from "./extract.ts";
+import { readPdfText, type PdfTextDoc } from "./extract.ts";
 import { parsePdfOps, PdfOpError } from "./ops.ts";
-import { FPDF_ERR_PASSWORD, PdfOpenError } from "./pdfium.ts";
+import { FPDF_ERR_PASSWORD, FPDF_ERR_SECURITY, PdfOpenError } from "./pdfium.ts";
 import { applyPdfEdits, PdfVerifyError } from "./serialize.ts";
 import type { PdfEditRequest } from "./types.ts";
 
@@ -24,6 +26,29 @@ export class PdfTypedError extends Error {
     this.name = "PdfTypedError";
     this.code = code;
     this.reason = reason;
+  }
+}
+
+/**
+ * Open-path outcome when a document is encrypted. "required" means the bytes
+ * are encrypted and no password was supplied (the host should prompt);
+ * "wrong" means a supplied password was refused (the host re-prompts, showing
+ * the error). The reason strings are the host-visible contract — the worker
+ * forwards them verbatim — and the supplied password never appears in the
+ * reason, the message or any payload.
+ */
+export const PDF_PASSWORD_REASONS = {
+  required: "password_required",
+  wrong: "wrong_password",
+} as const;
+export type PdfPasswordStatus = keyof typeof PDF_PASSWORD_REASONS;
+
+export class PdfPasswordError extends PdfTypedError {
+  readonly status: PdfPasswordStatus;
+  constructor(status: PdfPasswordStatus) {
+    super("engine_result_invalid", PDF_PASSWORD_REASONS[status]);
+    this.name = "PdfPasswordError";
+    this.status = status;
   }
 }
 
@@ -69,7 +94,12 @@ function trailerEncrypted(input: Uint8Array): boolean {
   return false;
 }
 
-function sniffHeader(input: Uint8Array): void {
+/**
+ * Header + trailer inspection shared by both entries. `encrypted` is the
+ * trailer's /Encrypt mark: the open path can accept a password for those bytes
+ * (pdfium decrypts in memory), while the edit path keeps its typed refusal.
+ */
+function inspectPdf(input: Uint8Array): { encrypted: boolean } {
   // Some producers emit a BOM or junk before the header; PDFium tolerates a
   // small lead-in, so scan the first KiB rather than demanding offset 0.
   const head = input.subarray(0, Math.min(input.length, 1024));
@@ -79,25 +109,22 @@ function sniffHeader(input: Uint8Array): void {
   }
   // Encryption lives in the trailer's /Encrypt entry, which is never itself
   // encrypted — a trailer sniff catches password/cert files that pdf-lib's
-  // xref parser can only report as corrupt. This build has no password path.
-  if (trailerEncrypted(input)) {
-    throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
-  }
+  // xref parser can only report as corrupt.
+  return { encrypted: trailerEncrypted(input) };
 }
 
 /**
  * Pre-flight with pdf-lib: cheap compared to the pdfium load, and its error
- * surface carries the distinctions the adapter must report — encrypted bytes
- * (typed refusal; this build has no password path) vs. bytes that merely look
- * like a PDF but are corrupt.
+ * surface carries the distinction the adapter must report — bytes that merely
+ * look like a PDF but are corrupt. `null` means pdf-lib reports the bytes
+ * encrypted: it cannot decrypt (1.17 has no password support), so the caller
+ * routes them to the pdfium password path instead.
  */
-async function preflight(input: Uint8Array): Promise<PDFDocument> {
+async function preflight(input: Uint8Array): Promise<PDFDocument | null> {
   try {
     return await PDFDocument.load(input, { updateMetadata: false });
   } catch (error) {
-    if (error instanceof EncryptedPDFError) {
-      throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
-    }
+    if (error instanceof EncryptedPDFError) return null;
     throw new PdfTypedError("engine_result_invalid", "corrupt_pdf");
   }
 }
@@ -153,9 +180,11 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
       throw new PdfTypedError("engine_result_invalid", "image_too_large");
     }
     if (error instanceof PdfOpenError) {
-      // A document pdfium could not open: a password wall is an encrypted
-      // refusal, every other load failure is corruption — both typed, both
-      // keep the original bytes. A heap failure is engine-side: rethrow.
+      // A document pdfium could not open outside the open path's password
+      // classification (probeEncrypted owns FPDF_ERR_PASSWORD/_SECURITY): a
+      // password wall is an encrypted refusal, every other load failure is
+      // corruption — both typed, both keep the original bytes. A heap failure
+      // is engine-side: rethrow.
       if (error.detail === "heap") throw error;
       throw new PdfTypedError(
         "engine_result_invalid",
@@ -169,33 +198,67 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
   });
 }
 
+function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
+  return {
+    pageCount,
+    info: text.info,
+    hasTextLayer: text.pages.some((p) => p.hasTextLayer),
+    emptyTextPages: text.pages.filter((p) => !p.hasTextLayer).map((p) => p.page),
+    features: {
+      textEdit: true,
+      imageEdit: true,
+      pageOps: true,
+      annotationDelete: true,
+      drawing: true,
+      ink: true,
+      ocr: false,
+      ocrReason: OCR_REASON,
+    },
+  };
+}
+
+/**
+ * Encrypted-document probe. pdf-lib cannot decrypt, so pdfium performs the
+ * load with the supplied password (or with none) and its load error classifies
+ * the refusal: FPDF_ERR_PASSWORD is "password required" when no password was
+ * supplied and "wrong password" when one was; FPDF_ERR_SECURITY is a handler a
+ * password can never satisfy (certificate encryption), which stays a named
+ * refusal. Only a successful load produces a probe — this build never returns
+ * decrypted bytes as output, and the password is not kept anywhere.
+ */
+async function probeEncrypted(input: Uint8Array, password: string | undefined): Promise<PdfProbe> {
+  let text: PdfTextDoc;
+  try {
+    text = await readPdfText(input, password === undefined ? {} : { password });
+  } catch (error) {
+    if (error instanceof PdfOpenError) {
+      if (error.detail === FPDF_ERR_PASSWORD) {
+        throw new PdfPasswordError(password === undefined ? "required" : "wrong");
+      }
+      if (error.detail === FPDF_ERR_SECURITY) {
+        throw new PdfTypedError("unsupported_operation", "certificate_encrypted");
+      }
+    }
+    throw error;
+  }
+  return probeFromText(text, text.pageCount);
+}
+
 /**
  * `open:pdf` — probe the bytes into a document model summary. Output is a
  * JSON document (the host's open-outcome payload), never the input bytes.
+ * An encrypted document takes the pdfium password path: with no password it
+ * answers a typed password_required, with a wrong one wrong_password, and with
+ * the right one the ordinary probe.
  */
-export async function probePdf(input: Uint8Array): Promise<PdfProbe> {
+export async function probePdf(input: Uint8Array, password?: string): Promise<PdfProbe> {
   return typed(async () => {
-    sniffHeader(input);
+    const { encrypted } = inspectPdf(input);
+    if (encrypted) return probeEncrypted(input, password);
     const doc = await preflight(input);
-    const pageCount = doc.getPageCount();
-    const text = await readPdfText(input);
-    const emptyTextPages = text.pages.filter((p) => !p.hasTextLayer).map((p) => p.page);
-    return {
-      pageCount,
-      info: text.info,
-      hasTextLayer: text.pages.some((p) => p.hasTextLayer),
-      emptyTextPages,
-      features: {
-        textEdit: true,
-        imageEdit: true,
-        pageOps: true,
-        annotationDelete: true,
-        drawing: true,
-        ink: true,
-        ocr: false,
-        ocrReason: OCR_REASON,
-      },
-    };
+    // pdf-lib saw /Encrypt the trailer sniff missed; same encrypted path.
+    if (!doc) return probeEncrypted(input, password);
+    return probeFromText(await readPdfText(input), doc.getPageCount());
   });
 }
 
@@ -210,8 +273,11 @@ export async function applyPdfEditBytes(
   edits: unknown[],
 ): Promise<PdfEditOutcome> {
   return typed(async () => {
-    sniffHeader(input);
-    await preflight(input);
+    const { encrypted } = inspectPdf(input);
+    // The edit path carries no password channel: encrypted bytes stay the
+    // existing typed refusal and no output is produced.
+    if (encrypted) throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
+    if ((await preflight(input)) === null) throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
     const request: PdfEditRequest = parsePdfOps(edits);
     const applied = await applyPdfEdits(input, request);
     const warnings: { code: string; detail?: string }[] = [];
