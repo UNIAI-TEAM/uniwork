@@ -6944,7 +6944,31 @@
         "ribbonTableHandleTip": "Chọn bảng"
       },
       "toolbar": {
-        "label": "Lệnh chỉnh sửa DOCX"
+        "label": "Lệnh chỉnh sửa DOCX",
+        "tabsLabel": "Thẻ tài liệu",
+        "tabHome": "Trang chủ",
+        "tabInsert": "Chèn",
+        "tabLayout": "Bố cục",
+        "tabReview": "Xem lại",
+        "tabView": "Xem",
+        "overflow": "Thêm lệnh",
+        "groups": {
+          "baseFormat": "Định dạng",
+          "font": "Phông chữ",
+          "paragraph": "Đoạn văn",
+          "styles": "Kiểu đoạn",
+          "find": "Tìm kiếm",
+          "pending": "Bảng và hình ảnh",
+          "links": "Liên kết",
+          "table": "Bảng",
+          "symbols": "Ký hiệu",
+          "headerFooter": "Đầu trang và chân trang",
+          "pageSetup": "Thiết lập trang",
+          "trackChanges": "Theo dõi thay đổi",
+          "comments": "Bình luận",
+          "zoom": "Thu phóng",
+          "navigation": "Điều hướng"
+        }
       },
       "status": {
         "label": "Trạng thái tài liệu",

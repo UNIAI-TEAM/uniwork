@@ -14,6 +14,7 @@ import { createElement, useEffect, useState, type ReactNode } from "react";
 import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
+import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
 import { prepareDocxHeadingStyles } from "./docx-heading-styles";
@@ -21,7 +22,7 @@ import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
-import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
+import type { DocxEditorHandle, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
 
 /**
  * G3-04c T-01 (UNI-823): the renderer sheet paints the document for a light UI
@@ -85,10 +86,6 @@ function DocxRendererSurface({ editor, pagination }: { editor: Editor; paginatio
   );
 }
 
-function nextListId(): string {
-  return "new-list-" + (globalThis.crypto?.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2));
-}
-
 export interface DocxTiptapSnapshot {
   doc: JSONContent;
   sourceBase64: string;
@@ -108,6 +105,9 @@ export interface DocxTiptapHandleOptions {
 }
 
 export interface DocxTiptapHandle extends DocxEditorHandle<DocxTiptapSnapshot> {
+  /** The composed seam (base + every wave-A area factory) so hosts reach area
+   * commands and state without re-deriving the runtime type. */
+  commands: DocxCommandRuntime;
   modelRef(): string | null;
   openOutcome(): DocxOpenSuccess | null;
   serializeSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): Promise<{ bytes: Uint8Array; checksum: string; warnings?: unknown[] }>;
@@ -155,55 +155,14 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
   };
 
-  const formatListeners = new Set<(state: DocxFormatState) => void>();
-  const currentFormatState = (): DocxFormatState => {
-    if (!tiptapEditor) return { bold: false, italic: false, underline: false, headingLevel: null, listKind: null };
-    const node = tiptapEditor.state.selection.$from.parent;
-    const attrs = node.attrs;
-    return {
-      bold: tiptapEditor.isActive("bold"),
-      italic: tiptapEditor.isActive("italic"),
-      underline: tiptapEditor.isActive("underline"),
-      headingLevel: node.type.name === "docHeading" ? (attrs.level ?? 1) : null,
-      listKind: node.type.name === "docListItem" ? (attrs.kind ?? "bullet") : null,
-    };
-  };
-  const emitFormatState = () => {
-    const next = currentFormatState();
-    for (const listener of formatListeners) listener(next);
-  };
-  const setBlockType = (type: string, patch: Record<string, unknown>) => {
-    if (!tiptapEditor) return;
-    const attrs = tiptapEditor.state.selection.$from.parent.attrs;
-    tiptapEditor.chain().focus().setNode(type, { ...attrs, ...patch }).run();
-  };
-  const commands: DocxFormatCommands = {
-    getState: currentFormatState,
-    subscribe: (listener) => {
-      formatListeners.add(listener);
-      return () => formatListeners.delete(listener);
-    },
-    toggleBold: () => tiptapEditor?.chain().focus().toggleMark("bold").run(),
-    toggleItalic: () => tiptapEditor?.chain().focus().toggleMark("italic").run(),
-    toggleUnderline: () => tiptapEditor?.chain().focus().toggleMark("underline").run(),
-    setHeading: (level) => {
-      if (level !== null && currentFormatState().headingLevel === level) return;
-      // The OOXML writer prioritizes an explicit paragraph style over the
-      // heading level. Drop the old style when changing the semantic type.
-      if (level === null) setBlockType("docParagraph", { styleId: null });
-      else setBlockType("docHeading", { level, styleId: null, outlineOnly: false });
-    },
-    toggleList: (kind) => {
-      const state = currentFormatState();
-      if (state.listKind === kind) setBlockType("docParagraph", {});
-      else setBlockType("docListItem", { kind, numId: nextListId(), ilvl: 0 });
-    },
-  };
+  // The base commands and the wave-A area factories live in ./commands; this
+  // handle only mounts their runtime over the TipTap instance.
+  const commandRuntime = createDocxCommandRuntime(() => tiptapEditor);
 
   const handle: DocxTiptapHandle = {
     format: "docx",
     selection,
-    commands,
+    commands: commandRuntime,
     async open() {
       if (disposed) throw new Error("docx_editor_disposed");
       if (ref) return;
@@ -245,7 +204,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
             for (const listener of dirtyListeners) listener(generation);
           }
           emitSelection();
-          emitFormatState();
+          commandRuntime.emitState();
         },
       });
       generation = 0;
@@ -276,7 +235,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       ref = null;
       openedOutcome = null;
       selectionListeners.clear();
-      formatListeners.clear();
+      commandRuntime.clearListeners();
       dirtyListeners.clear();
     },
     renderSurface(): ReactNode {

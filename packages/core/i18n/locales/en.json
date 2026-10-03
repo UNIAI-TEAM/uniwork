@@ -6950,7 +6950,31 @@
         "ribbonTableHandleTip": "Select table"
       },
       "toolbar": {
-        "label": "DOCX editing commands"
+        "label": "DOCX editing commands",
+        "tabsLabel": "Document tabs",
+        "tabHome": "Home",
+        "tabInsert": "Insert",
+        "tabLayout": "Layout",
+        "tabReview": "Review",
+        "tabView": "View",
+        "overflow": "More commands",
+        "groups": {
+          "baseFormat": "Formatting",
+          "font": "Font",
+          "paragraph": "Paragraph",
+          "styles": "Styles",
+          "find": "Find",
+          "pending": "Table and images",
+          "links": "Links",
+          "table": "Table",
+          "symbols": "Symbols",
+          "headerFooter": "Header and footer",
+          "pageSetup": "Page setup",
+          "trackChanges": "Track changes",
+          "comments": "Comments",
+          "zoom": "Zoom",
+          "navigation": "Navigation"
+        }
       },
       "status": {
         "label": "Document status",

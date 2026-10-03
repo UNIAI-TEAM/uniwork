@@ -5,8 +5,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
+import { DocxContextMenu } from "./context-menu/docx-context-menu";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
+import { DocxFindPanel } from "./find/docx-find-panel";
+import { DocxShortcutsHelp } from "./shortcuts/docx-shortcuts-help";
+import { DocxStatusBar } from "./status-bar";
+import type { DocxToolbarGroupContext } from "./toolbar/types";
 import type {
   DocxEditorProps,
   DocxFormatState,
@@ -203,6 +209,25 @@ export function DocxEditor<TSnapshot = unknown>({
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 
+  // A host stub may supply only the base format contract; a real session always
+  // mounts the composed runtime from createDocxCommandRuntime, so the shared
+  // toolbar/chrome context asserts the runtime types once, here.
+  const sharedContext: DocxToolbarGroupContext = {
+    editor,
+    coordinator,
+    format: formatState as DocxRuntimeFormatState | null,
+    commands: editor.commands as DocxCommandRuntime | undefined,
+    selection,
+    readOnly,
+    saving,
+    dirty,
+    canUndo,
+    canRedo,
+    onUndo: undo,
+    onRedo: redo,
+    onSave: showDocumentControls ? save : undefined,
+  };
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {showDocumentControls ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
@@ -213,27 +238,18 @@ export function DocxEditor<TSnapshot = unknown>({
       </header> : null}
       {viewState === "ready" ? (
         <>
-          <DocxToolbar
-            coordinator={coordinator}
-            dirty={dirty}
-            saving={saving}
-            readOnly={readOnly}
-            selection={selection}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={undo}
-            onRedo={redo}
-            onSave={showDocumentControls ? save : undefined}
-            format={formatState}
-            commands={editor.commands}
-          />
+          <DocxToolbar {...sharedContext} />
+          <DocxFindPanel {...sharedContext} />
           <div className="flex min-h-64 min-w-0 flex-1 flex-col" data-testid="docx-canvas">
+            <DocxContextMenu {...sharedContext} />
             {editor.renderSurface ? (
               editor.renderSurface()
             ) : (
               <p className="p-8 text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
             )}
           </div>
+          <DocxStatusBar {...sharedContext} />
+          <DocxShortcutsHelp {...sharedContext} />
         </>
       ) : viewState === "error" && failure ? (
         <DocxErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
