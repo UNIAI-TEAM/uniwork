@@ -50,8 +50,11 @@ export interface PptxDeckLike {
 
 export interface PptxArchiveLike {
   entries?: Map<string, unknown> | Record<string, unknown>;
-  readBytes?(path: string): Uint8Array | null | undefined;
-  readText?(path: string): string | null | undefined;
+  // Upstream answers `null` for a missing part; declared `undefined` so the
+  // module stays structurally assignable to office-engine's PptxArchiveLike
+  // seam (both are falsy and every caller tests truthiness).
+  readBytes?(path: string): Uint8Array | undefined;
+  readText?(path: string): string | undefined;
   [key: string]: unknown;
 }
 
