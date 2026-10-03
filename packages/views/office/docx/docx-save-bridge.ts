@@ -1,8 +1,19 @@
 import type { JSONContent } from "@tiptap/core";
-import type { DocxAdapter, DocxBlock, DocxSaveBlock } from "@uniwork/office-engine/docx";
+import type { DocxAdapter, DocxBlock, DocxCommentInfo, DocxSaveBlock } from "@uniwork/office-engine/docx";
 import { pmDocToSavePlan } from "@uniwork/office-upstream/docs-renderer-editor";
 
-export function applyDocxSnapshot(adapter: DocxAdapter, ref: string, doc: JSONContent, originals: DocxBlock[]): void {
+export function applyDocxSnapshot(
+  adapter: DocxAdapter,
+  ref: string,
+  doc: JSONContent,
+  originals: DocxBlock[],
+  comments?: DocxCommentInfo[],
+): void {
+  // The comment list is authoritative when present: the save regenerates
+  // word/comments.xml from it and strips body markers for ids it no longer
+  // lists, so an edited list must reach the session before the block plan.
+  // undefined keeps the part byte-identical (no comment edits this save).
+  if (comments !== undefined) adapter.edit(ref, { op: "set_comments", comments });
   const plan = pmDocToSavePlan(doc, originals);
   if (plan.chartPatches.length) throw new Error("docx_chart_part_edits_unavailable");
   const blocks = plan.saveBlocks as DocxSaveBlock[];

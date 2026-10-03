@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/core";
 import type { DocxFormatState } from "../types";
 import { createBaseCommands, type DocxBaseCommands } from "./base";
 import { createCharacterCommands, type DocxCharacterCommands, type DocxCharacterFormatState } from "./character";
+import { createCommentsCommands, type DocxCommentsCommands, type DocxCommentsFormatState } from "./comments";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 import { createHeaderFooterCommands, type DocxHeaderFooterCommands, type DocxHeaderFooterFormatState } from "./header-footer";
 import { createInsertCommands, type DocxInsertCommands, type DocxInsertFormatState } from "./insert";
@@ -21,7 +22,8 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxLinksFormatState &
   DocxInsertFormatState &
   DocxReviewFormatState &
-  DocxHeaderFooterFormatState;
+  DocxHeaderFooterFormatState &
+  DocxCommentsFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
 
@@ -37,7 +39,8 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxLinksCommands &
   DocxInsertCommands &
   DocxReviewCommands &
-  DocxHeaderFooterCommands & {
+  DocxHeaderFooterCommands &
+  DocxCommentsCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
     /** Re-reads the composed state and notifies every subscriber. */
@@ -60,6 +63,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createInsertCommands,
   createReviewCommands,
   createHeaderFooterCommands,
+  createCommentsCommands,
 ];
 
 export interface DocxCommandRuntimeOptions {

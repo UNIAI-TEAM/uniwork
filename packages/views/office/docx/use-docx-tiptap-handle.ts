@@ -12,7 +12,7 @@ import { EditorContent } from "@tiptap/react";
 import type {} from "@tiptap/starter-kit";
 import { createElement, useEffect, useState, type ReactNode } from "react";
 import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
-import type { DocxAdapter } from "@uniwork/office-engine/docx";
+import type { DocxAdapter, DocxCommentInfo } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import { blocksToDoc } from "./docx-doc-convert";
@@ -99,6 +99,10 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
 export interface DocxTiptapSnapshot {
   doc: JSONContent;
   sourceBase64: string;
+  /** The authoritative comment list at capture (B2): comment edits are list
+   * edits, so serializeSnapshot applies them as a set_comments op before the
+   * block plan, and restoreSnapshot re-seeds them. */
+  comments?: DocxCommentInfo[];
 }
 
 export interface DocxOpenError extends Error {
@@ -218,6 +222,10 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         },
       });
       generation = 0;
+      // B2: the open parse's comment list seeds the runtime; the comments
+      // panel and the snapshot read it from there, never from the adapter.
+      commandRuntime.seedDocxComments(parsed.comments ?? []);
+      commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
     subscribeDirty(listener) {
@@ -226,7 +234,11 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
     async captureSnapshot() {
       if (!tiptapEditor || !ref) throw new Error("docx_snapshot_unavailable");
-      const value: DocxTiptapSnapshot = { doc: tiptapEditor.getJSON(), sourceBase64 };
+      const value: DocxTiptapSnapshot = {
+        doc: tiptapEditor.getJSON(),
+        sourceBase64,
+        comments: commandRuntime.listDocxComments(),
+      };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
     undo() {
@@ -267,7 +279,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
           if (prepared.outcome !== "opened") throw new Error(prepared.message ?? "docx_heading_styles_open_failed");
           saveRef = prepared.document_model_ref;
         }
-        applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef));
+        applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef), snapshot.value.comments);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -277,6 +289,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       if (!tiptapEditor || !ref || options.readOnly) throw new Error("docx_restore_unavailable");
       if (snapshot.value.sourceBase64 !== sourceBase64) throw new Error("docx_draft_base_mismatch");
       tiptapEditor.commands.setContent(snapshot.value.doc);
+      commandRuntime.seedDocxComments(snapshot.value.comments ?? []);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },
