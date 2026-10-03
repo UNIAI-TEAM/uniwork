@@ -26,10 +26,25 @@ export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type Pdf
 export { PdfCanvas, PdfPageCanvas, hitTestPdfBox } from "./canvas";
 export { PdfTextMarkupTools } from "./markups";
 export type { PdfTextMarkupToolsProps } from "./markups";
-export { PdfDrawingTools, createPdfDrawingOperationProvider } from "./drawings";
+export { PdfDrawingTools, createPdfDrawingOperationProvider, PdfDrawingProviderError } from "./drawings";
 export type { PdfDrawingToolsProps } from "./drawings";
-export { PdfInkTools, createPdfInkOperationProvider } from "./ink";
+export type {
+  PdfDrawingEngineOperation,
+  PdfDrawingGeometry,
+  PdfDrawingInput,
+  PdfDrawingOperationProvider,
+  PdfDrawingOperationSubmitter,
+  PdfDrawingProviderOptions,
+} from "./drawings";
+export { PdfInkTools, createPdfInkOperationProvider, PdfInkProviderError } from "./ink";
 export type { PdfInkToolsProps } from "./ink";
+export type {
+  PdfInkEngineOperation,
+  PdfInkInput,
+  PdfInkOperationProvider,
+  PdfInkOperationSubmitter,
+  PdfInkProviderOptions,
+} from "./ink";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,

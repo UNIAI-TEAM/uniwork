@@ -42,6 +42,16 @@ describe("bridgePdfOperations", () => {
     ]);
   });
 
+  it("rejects malformed drawing inputs as typed bridge errors", async () => {
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 0, geometry: { rect: { x: 1, y: 2, width: 30, height: 40 } } }, kind: "rect", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { rect: { x: 1, y: 2, width: 30, height: 40 } } }, kind: "rect", color: [0, 0, 0], width: 0 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { rect: { x: 1, y: 2, width: 0, height: 40 } } }, kind: "rect", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { rect: { x: 1, y: Number.NaN, width: 30, height: 40 } } }, kind: "ellipse", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { start: { x: 0, y: 0 }, end: { x: Number.POSITIVE_INFINITY, y: 5 } } }, kind: "line", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { points: [{ x: 0, y: 0 }, { x: Number.NaN, y: 1 }] } }, kind: "ink", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+    await expect(bridgePdfOperations([{ op: "add_drawing", target: { page: 1, geometry: { points: [{ x: 0, y: 0 }] } }, kind: "ink", color: [0, 0, 0], width: 1 }])).rejects.toMatchObject({ code: "invalid_target", operation: "add_drawing" });
+  });
+
   it("resolves asset ids and encodes bytes without importing the Node engine", async () => {
     const read = vi.fn(async () => new Uint8Array([0, 1, 255]));
     await expect(bridgePdfOperations([{ op: "replace_image", target: imageTarget, assetId: "asset-1" }], {

@@ -3,8 +3,8 @@ import type { PDFPage } from "pdf-lib";
 import type { DrawingInput } from "./types.ts";
 
 const round = (value: number): number => Math.round(value * 100) / 100;
-const bounds = (rect: readonly [number, number, number, number]): [number, number, number, number] => [
-  Math.min(rect[0], rect[2]), Math.min(rect[1], rect[3]), Math.max(rect[0], rect[2]), Math.max(rect[1], rect[3]),
+const bounds = (rect: readonly [number, number, number, number], pad: number): [number, number, number, number] => [
+  Math.min(rect[0], rect[2]) - pad, Math.min(rect[1], rect[3]) - pad, Math.max(rect[0], rect[2]) + pad, Math.max(rect[1], rect[3]) + pad,
 ];
 
 function appearance(pdfDoc: PDFDocument, input: DrawingInput, rect: [number, number, number, number]) {
@@ -38,18 +38,26 @@ function appearance(pdfDoc: PDFDocument, input: DrawingInput, rect: [number, num
     const y1 = input.geometry.rect.y;
     const x2 = x1 + input.geometry.rect.width;
     const y2 = y1 + input.geometry.rect.height;
-    if (input.fill) {
-      commands.push(`${input.fill[0]} ${input.fill[1]} ${input.fill[2]} rg`, `${round(x1)} ${round(y1)} ${round(x2 - x1)} ${round(y2 - y1)} re f`);
-    }
     if (input.kind === "rect") {
+      if (input.fill) {
+        commands.push(`${input.fill[0]} ${input.fill[1]} ${input.fill[2]} rg`, `${round(x1)} ${round(y1)} ${round(x2 - x1)} ${round(y2 - y1)} re f`);
+      }
       commands.push(`${round(x1)} ${round(y1)} ${round(x2 - x1)} ${round(y2 - y1)} re S`);
     } else {
+      if (input.fill) commands.push(`${input.fill[0]} ${input.fill[1]} ${input.fill[2]} rg`);
       const k = 0.5522848;
       const cx = (x1 + x2) / 2;
       const cy = (y1 + y2) / 2;
       const rx = (x2 - x1) / 2;
       const ry = (y2 - y1) / 2;
-      commands.push(`${round(cx + rx)} ${round(cy)} m`, `${round(cx + rx)} ${round(cy + k * ry)} ${round(cx + k * rx)} ${round(cy + ry)} ${round(cx)} ${round(cy + ry)} c`, `${round(cx - k * rx)} ${round(cy + ry)} ${round(cx - rx)} ${round(cy + k * ry)} ${round(cx - rx)} ${round(cy)} c`, `${round(cx - rx)} ${round(cy - k * ry)} ${round(cx - k * rx)} ${round(cy - ry)} ${round(cx)} ${round(cy - ry)} c`, `${round(cx + k * rx)} ${round(cy - ry)} ${round(cx + rx)} ${round(cy - k * ry)} ${round(cx + rx)} ${round(cy)} c S`);
+      commands.push(
+        `${round(cx + rx)} ${round(cy)} m`,
+        `${round(cx + rx)} ${round(cy + k * ry)} ${round(cx + k * rx)} ${round(cy + ry)} ${round(cx)} ${round(cy + ry)} c`,
+        `${round(cx - k * rx)} ${round(cy + ry)} ${round(cx - rx)} ${round(cy + k * ry)} ${round(cx - rx)} ${round(cy)} c`,
+        `${round(cx - rx)} ${round(cy - k * ry)} ${round(cx - k * rx)} ${round(cy - ry)} ${round(cx)} ${round(cy - ry)} c`,
+        `${round(cx + k * rx)} ${round(cy - ry)} ${round(cx + rx)} ${round(cy - k * ry)} ${round(cx + rx)} ${round(cy)} c`,
+        input.fill ? "B" : "S",
+      );
     }
   }
   return pdfDoc.context.stream(commands.join("\n"), { Type: "XObject", Subtype: "Form", BBox: rect });
@@ -62,11 +70,12 @@ function appendAnnotation(pdfDoc: PDFDocument, page: PDFPage, ref: PDFRef): void
 }
 
 export function addDrawing(pdfDoc: PDFDocument, page: PDFPage, input: DrawingInput): void {
+  const pad = round(input.width) / 2;
   const rect = "rect" in input.geometry
-    ? bounds([input.geometry.rect.x, input.geometry.rect.y, input.geometry.rect.x + input.geometry.rect.width, input.geometry.rect.y + input.geometry.rect.height])
+    ? bounds([input.geometry.rect.x, input.geometry.rect.y, input.geometry.rect.x + input.geometry.rect.width, input.geometry.rect.y + input.geometry.rect.height], pad)
     : "start" in input.geometry
-      ? bounds([input.geometry.start.x, input.geometry.start.y, input.geometry.end.x, input.geometry.end.y])
-    : bounds([Math.min(...input.geometry.points.map((point) => point.x)), Math.min(...input.geometry.points.map((point) => point.y)), Math.max(...input.geometry.points.map((point) => point.x)), Math.max(...input.geometry.points.map((point) => point.y))] as [number, number, number, number]);
+      ? bounds([input.geometry.start.x, input.geometry.start.y, input.geometry.end.x, input.geometry.end.y], pad)
+    : bounds([Math.min(...input.geometry.points.map((point) => point.x)), Math.min(...input.geometry.points.map((point) => point.y)), Math.max(...input.geometry.points.map((point) => point.x)), Math.max(...input.geometry.points.map((point) => point.y))] as [number, number, number, number], pad);
   const appearanceRef = pdfDoc.context.register(appearance(pdfDoc, input, rect));
   const subtype = input.kind === "rect" ? "Square" : input.kind === "ellipse" ? "Circle" : input.kind === "ink" ? "Ink" : "Line";
   const lineGeometry = "start" in input.geometry ? input.geometry : undefined;

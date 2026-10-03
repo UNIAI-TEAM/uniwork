@@ -11,7 +11,7 @@ export interface PdfInkToolsProps {
   disabled?: boolean;
   color?: [number, number, number];
   width?: number;
-  onInk: (operation: Extract<PdfEditOperation, { op: "add_ink" }>) => void;
+  onInk: (operation: Extract<PdfEditOperation, { op: "add_drawing" }>) => void;
 }
 
 export function PdfInkTools({ page, points, disabled = false, color = [0, 0, 0], width = 2, onInk }: PdfInkToolsProps) {

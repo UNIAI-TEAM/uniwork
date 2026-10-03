@@ -306,6 +306,7 @@ function parseDrawing(a: Dict, op: string): DrawingInput {
   const width = num(a.width ?? a.strokeWidth, op, "width");
   if (width <= 0) throw new PdfOpError(op, "width", "positive number required");
   if (kind === "rect" || kind === "ellipse") if (!("rect" in geometry) || geometry.rect.width <= 0 || geometry.rect.height <= 0) throw new PdfOpError(op, "geometry.rect", "shape bounds must have positive dimensions");
+  if ((kind === "line" || kind === "arrow") && !("start" in geometry)) throw new PdfOpError(op, "geometry", "line and arrow require start/end");
   if (kind === "ink" && !("points" in geometry)) throw new PdfOpError(op, "geometry.points", "ink requires points");
   if (kind !== "ink" && "points" in geometry) throw new PdfOpError(op, "geometry", "points only valid for ink");
   if (kind === "ink" && "points" in geometry && geometry.points.length < 2) throw new PdfOpError(op, "geometry.points", "at least two points required");

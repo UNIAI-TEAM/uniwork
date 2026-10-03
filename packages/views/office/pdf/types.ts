@@ -61,7 +61,7 @@ export type PdfEditOperation =
   | { op: "replace_text"; target: { page: number; objectId: string }; text: string }
   | { op: "replace_image"; target: { page: number; objectId: string }; assetId: string }
   | { op: "add_markup"; target: PdfTextMarkupSelection; type: PdfMarkupType; color: [number, number, number] }
-  | { op: "add_drawing"; target: { page: number; geometry: PdfDrawingGeometry }; kind: PdfDrawingType; color: [number, number, number]; width: number; fill?: [number, number, number] }
+  | { op: "add_drawing"; target: { page: number; geometry: PdfDrawingGeometry }; kind: PdfDrawingType | "ink"; color: [number, number, number]; width: number; fill?: [number, number, number] }
   | { op: "insert_page"; target: { index: number } }
   | { op: "delete_page"; target: { page: number } }
   | { op: "rotate_page"; target: { page: number }; degrees: 90 | 180 | 270 }
