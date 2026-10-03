@@ -154,7 +154,9 @@ describe("theme fonts / colours", () => {
 describe("set_page_borders", () => {
   it("writes the box into the final section's trailingSectPr at its schema slot", () => {
     const model = new DocxSessionModel(singleSectionParsed(SECT_PR('<w:cols w:num="2" w:space="425"/>')));
-    model.setPageBorders(1, { style: "single", widthEighths: 8, colorHex: "#44546a", spacePt: 24, offsetFrom: "page" });
+    // the fixture has one section; the product's section index is 0-based
+    // (docxSections/readSections order, like setSectionProperties)
+    model.setPageBorders(0, { style: "single", widthEighths: 8, colorHex: "#44546a", spacePt: 24, offsetFrom: "page" });
     const trailing = model.savePlan().options.trailingSectPr;
     expect(trailing).toContain('<w:pgBorders w:offsetFrom="page">');
     const box = /<w:pgBorders[\s\S]*?<\/w:pgBorders>/.exec(trailing ?? "")?.[0] ?? "";

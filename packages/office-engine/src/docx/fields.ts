@@ -129,7 +129,9 @@ export function buildDocxTocLines(entries: DocxTocEntry[], options: DocxTocOptio
       '<w:pPr><w:pStyle w:val="TOC' + level + '"/>' +
       (pageNumbers ? '<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + TOC_TAB_POS + '"/></w:tabs>' : "") +
       "<w:rPr><w:noProof/></w:rPr></w:pPr>";
-    const title = proofed('<w:t xml:space="preserve">' + escapeXmlText(entry.text) + "</w:t>");
+    // entry text is escaped like an attribute (quotes included) so a heading
+    // that carries a quote cannot break the fragment's XML when it is re-read
+    const title = proofed('<w:t xml:space="preserve">' + escapeXmlAttr(entry.text) + "</w:t>");
     const page =
       pageNumbers
         ? proofed("<w:tab/>") + (entry.pageNo !== undefined ? proofed("<w:t>" + entry.pageNo + "</w:t>") : "")

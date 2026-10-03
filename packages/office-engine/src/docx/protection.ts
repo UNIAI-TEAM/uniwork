@@ -104,11 +104,17 @@ export class DocxProtectionEdits {
     }
   }
 
-  /** Only the edits the user made; both keys stay absent otherwise. */
+  /** Only the edits the user made; both keys stay absent otherwise. Each call
+   * returns a fresh copy, so a caller mutating the returned spec cannot reach
+   * back into the model's stored edit. */
   saveOptions(): DocxSaveOptions {
     const options: DocxSaveOptions = {};
-    if (this.protection !== undefined) options.protection = this.protection;
-    if (this.writeProtection !== undefined) options.writeProtection = this.writeProtection;
+    if (this.protection !== undefined) {
+      options.protection = this.protection === null ? null : { ...this.protection };
+    }
+    if (this.writeProtection !== undefined) {
+      options.writeProtection = this.writeProtection === null ? null : { ...this.writeProtection };
+    }
     return options;
   }
 
