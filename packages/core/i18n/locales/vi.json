@@ -7047,7 +7047,8 @@
           "zoom": "Thu phóng",
           "navigation": "Điều hướng",
           "compare": "So sánh",
-          "protect": "Bảo vệ"
+          "protect": "Bảo vệ",
+          "export": "Xuất"
         },
         "insert": {
           "symbol": "Ký hiệu",
@@ -7120,6 +7121,20 @@
         "error": {
           "hash": "Trình duyệt không thể băm mật khẩu (thiếu WebCrypto); chưa có thay đổi nào.",
           "generic": "Không thể chuẩn bị thay đổi bảo vệ."
+        }
+      },
+      "export": {
+        "menuLabel": "Xuất và in",
+        "print": "In",
+        "html": "Xuất HTML",
+        "fileName": "tài liệu",
+        "documentTitle": "Tài liệu",
+        "pdf": {
+          "label": "Xuất PDF",
+          "title": "Xuất PDF",
+          "description": "Trình soạn thảo chưa tạo được tệp PDF trực tiếp.",
+          "hint": "Chọn In, rồi chọn “Lưu dưới dạng PDF” làm máy in để tạo tệp PDF.",
+          "print": "Mở hộp thoại in"
         }
       },
       "pageSetup": {

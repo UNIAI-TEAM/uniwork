@@ -5,6 +5,7 @@ import { createCharacterCommands, type DocxCharacterCommands, type DocxCharacter
 import { createCommentsCommands, type DocxCommentsCommands, type DocxCommentsFormatState } from "./comments";
 import { createCompareCommands, type DocxCompareCommands, type DocxCompareFormatState } from "./compare";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
+import { createExportCommands, type DocxExportCommands, type DocxExportFormatState } from "./export";
 import { createHeaderFooterCommands, type DocxHeaderFooterCommands, type DocxHeaderFooterFormatState } from "./header-footer";
 import { createInsertCommands, type DocxInsertCommands, type DocxInsertFormatState } from "./insert";
 import { createLinksCommands, type DocxLinksCommands, type DocxLinksFormatState } from "./links";
@@ -35,6 +36,7 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxPageSetupFormatState &
   DocxPageDecorFormatState &
   DocxCompareFormatState &
+  DocxExportFormatState &
   DocxProtectFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
@@ -58,6 +60,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxPageSetupCommands &
   DocxPageDecorCommands &
   DocxCompareCommands &
+  DocxExportCommands &
   DocxProtectCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
@@ -87,6 +90,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createPageSetupCommands,
   createPageDecorCommands,
   createCompareCommands,
+  createExportCommands,
   createProtectCommands,
 ];
 

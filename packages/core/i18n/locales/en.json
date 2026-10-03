@@ -7053,7 +7053,8 @@
           "zoom": "Zoom",
           "navigation": "Navigation",
           "compare": "Compare",
-          "protect": "Protect"
+          "protect": "Protect",
+          "export": "Export"
         },
         "insert": {
           "symbol": "Symbol",
@@ -7126,6 +7127,20 @@
         "error": {
           "hash": "This browser cannot hash passwords (WebCrypto is unavailable); nothing was changed.",
           "generic": "The protection change could not be prepared."
+        }
+      },
+      "export": {
+        "menuLabel": "Export and print",
+        "print": "Print",
+        "html": "Export HTML",
+        "fileName": "document",
+        "documentTitle": "Document",
+        "pdf": {
+          "label": "Export PDF",
+          "title": "Export PDF",
+          "description": "This editor cannot create a PDF file directly yet.",
+          "hint": "Choose Print, then pick “Save as PDF” as the printer to produce a PDF file.",
+          "print": "Open print dialog"
         }
       },
       "pageSetup": {

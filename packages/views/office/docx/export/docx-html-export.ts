@@ -77,10 +77,6 @@ function escapeDocxHtmlAttribute(value: string): string {
   return escapeDocxHtmlText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function escapeDocxHtmlStyleValue(value: string): string {
-  return escapeDocxHtmlAttribute(value).replace(/;/g, "&#59;");
-}
-
 function hexColor(value: unknown): string | null {
   return typeof value === "string" && SAFE_HEX_COLOR.test(value) ? value : null;
 }
@@ -308,8 +304,12 @@ function serializeBlockNodes(nodes: readonly JSONContent[]): string {
     const level = levels[depth];
     if (!level) return;
     levels[depth] = null;
-    const parentItem = depth > 0 ? currentItems[depth - 1] ?? null : null;
     currentItems[depth] = null;
+    // Nest under the nearest open shallower item; an ilvl jump that skipped a
+    // level has no immediate parent, and pushing to `parts` there would put
+    // the nested list before its own parent list.
+    let parentItem: ListItemNode | null = null;
+    for (let parent = depth - 1; parent >= 0 && !parentItem; parent -= 1) parentItem = currentItems[parent];
     if (parentItem) parentItem.sub.push(level);
     else parts.push(renderLevel(level));
   };
@@ -362,10 +362,13 @@ export function docxDocumentToHtml(doc: JSONContent, options: DocxHtmlExportOpti
   const lang = options.lang && SAFE_LANG.test(options.lang) ? ` lang="${escapeDocxHtmlAttribute(options.lang)}"` : "";
   const font = safeFontFamily(options.fontFamily);
   const textColor = safeCssColor(options.textColor);
+  // `font` and `textColor` already passed their whitelists, so they can be
+  // interpolated into the <style> element without escaping (entities are not
+  // decoded there).
   const base = [
     EXPORT_BASE_CSS,
-    font ? `body{font-family:${escapeDocxHtmlStyleValue(font)}}` : null,
-    textColor ? `body{color:${escapeDocxHtmlStyleValue(textColor)}}` : null,
+    font ? `body{font-family:${font}}` : null,
+    textColor ? `body{color:${textColor}}` : null,
   ]
     .filter((part): part is string => part !== null)
     .join("\n");
