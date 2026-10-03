@@ -1,0 +1,181 @@
+$ pnpm exec turbo test --filter=@uniwork/office-engine --force
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/office-engine
+   • Running test in 1 packages
+   • Remote caching disabled
+
+@uniwork/office-engine:test: cache bypass, force executing 82b9b5e9705007a9
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: > @uniwork/office-engine@0.0.0 test /workspace/packages/office-engine
+@uniwork/office-engine:test: > vitest run --passWithNoTests=false --coverage
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/office-engine:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+@uniwork/office-engine:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+@uniwork/office-engine:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  RUN  v4.1.11 /workspace/packages/office-engine
+@uniwork/office-engine:test:       Coverage enabled with v8
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  ✓ test/docx-model-section.test.ts (23 tests) 24ms
+@uniwork/office-engine:test:  ❯ test/docx-model-page-decor.test.ts (17 tests | 1 failed) 28ms
+@uniwork/office-engine:test:      ✓ reads the page colour from document.xml, the watermark, the theme and every section's box 3ms
+@uniwork/office-engine:test:      ✓ treats explicit w:val=none sides as no box and a missing parse state as null 0ms
+@uniwork/office-engine:test:      ✓ sets, normalizes and removes the background; untouched saves stay byte-clean 1ms
+@uniwork/office-engine:test:      ✓ refuses a non-hex colour without dirtying the model 0ms
+@uniwork/office-engine:test:      ✓ carries the spec into SaveOptions and null removes it 0ms
+@uniwork/office-engine:test:      ✓ refuses blank text, an out-of-range opacity and a bad colour 0ms
+@uniwork/office-engine:test:      ✓ writes the pair and the scheme slots into SaveOptions 0ms
+@uniwork/office-engine:test:      ✓ refuses an incomplete font pair, an unknown colour slot and an empty scheme 0ms
+@uniwork/office-engine:test:      × writes the box into the final section's trailingSectPr at its schema slot 9ms
+@uniwork/office-engine:test:      ✓ replaces an existing box and null removes it 1ms
+@uniwork/office-engine:test:      ✓ rewrites an earlier section's break paragraph and leaves the trailing section alone 0ms
+@uniwork/office-engine:test:      ✓ combines with a B4 page-setup edit on the same section 1ms
+@uniwork/office-engine:test:      ✓ inserts the box before w:sectPrChange and expands a self-closing sectPr 0ms
+@uniwork/office-engine:test:      ✓ refuses a bad section index, a section without sectPr and bad border values 5ms
+@uniwork/office-engine:test:      ✓ drains the edits on rebase (a two-save chain does not replay them) 0ms
+@uniwork/office-engine:test:      ✓ routes every op through the model and marks it dirty 0ms
+@uniwork/office-engine:test:      ✓ reaches the save through the adapter with the options and the rewritten section 4ms
+@uniwork/office-engine:test:  ❯ test/docx-model-fields.test.ts (23 tests | 1 failed) 32ms
+@uniwork/office-engine:test:      ✓ inserts one field fragment at a plan position with paired fldChars 4ms
+@uniwork/office-engine:test:      ✓ counts only levels inside maxLevel and filters the rest out 0ms
+@uniwork/office-engine:test:      × escapes entry text and the hyperlink anchor 16ms
+@uniwork/office-engine:test:      ✓ writes the page column with the cached number and drops it when off 0ms
+@uniwork/office-engine:test:      ✓ omits the hyperlink for an entry without an anchor or with hyperlinks off 1ms
+@uniwork/office-engine:test:      ✓ refuses malformed payloads with typed codes and leaves the plan untouched 1ms
+@uniwork/office-engine:test:      ✓ applies through the adapter op channel and serializes the fragment 3ms
+@uniwork/office-engine:test:      ✓ skips entries above maxLevel when maxLevel is the default 0ms
+@uniwork/office-engine:test:      ✓ regenerates the session TOC with the new entries and keeps the dirty flag 0ms
+@uniwork/office-engine:test:      ✓ is atomic: a malformed payload leaves the previous fragment in place 0ms
+@uniwork/office-engine:test:      ✓ refuses when no TOC was inserted in this session 0ms
+@uniwork/office-engine:test:      ✓ never rewrites a parse-loaded TOC: those blocks stay original 0ms
+@uniwork/office-engine:test:      ✓ drains with rebase: the next session starts without a TOC 0ms
+@uniwork/office-engine:test:      ✓ inserts a generated caption paragraph with a dirty SEQ field 1ms
+@uniwork/office-engine:test:      ✓ numbers from the document's own captions and counts per label 1ms
+@uniwork/office-engine:test:      ✓ quotes a multi-word label so Word keeps one SEQ identifier 0ms
+@uniwork/office-engine:test:      ✓ counts quoted and switch-bearing Word instructions in parsed XML 0ms
+@uniwork/office-engine:test:      ✓ trims a padded label before it reaches the instruction 0ms
+@uniwork/office-engine:test:      ✓ refuses labels that cannot be quoted and leaves the plan untouched 0ms
+@uniwork/office-engine:test:      ✓ inserts a label-only caption when the text is empty 0ms
+@uniwork/office-engine:test:      ✓ refuses a blank label without touching the plan 0ms
+@uniwork/office-engine:test:      ✓ keeps an untouched document out of SaveOptions 0ms
+@uniwork/office-engine:test:      ✓ accepts the quoted and bare forms and rejects near misses 0ms
+@uniwork/office-engine:test:  ✓ src/node/convert/convert.test.ts (14 tests) 16ms
+@uniwork/office-engine:test:  ✓ test/xlsx-adapter.test.ts (17 tests) 19ms
+@uniwork/office-engine:test:  ✓ test/docx-model-numbering.test.ts (9 tests) 14ms
+@uniwork/office-engine:test:  ❯ test/docx-protection.test.ts (12 tests | 1 failed) 110ms
+@uniwork/office-engine:test:      ✓ reproduces the vendored implementation's pinned vector 22ms
+@uniwork/office-engine:test:      ✓ generates a random salt, keeps the SHA-512 scheme and verifies by recomputation 72ms
+@uniwork/office-engine:test:      ✓ fails closed when WebCrypto is unavailable 0ms
+@uniwork/office-engine:test:      ✓ refuses an empty password, a bad spin count and an empty salt 0ms
+@uniwork/office-engine:test:      ✓ keeps an untouched document's options undefined 1ms
+@uniwork/office-engine:test:      × carries a restriction into SaveOptions.protection and copies the spec 6ms
+@uniwork/office-engine:test:      ✓ carries a password-to-modify, including the recommended-only form 0ms
+@uniwork/office-engine:test:      ✓ null removes each tag; an empty writeProtection spec is refused 0ms
+@uniwork/office-engine:test:      ✓ refuses malformed restrictions and credentials 0ms
+@uniwork/office-engine:test:      ✓ routes both ops through applyEdit without touching the block plan 0ms
+@uniwork/office-engine:test:      ✓ reaches saveDocx through the adapter edit channel and drains on rebase 2ms
+@uniwork/office-engine:test:      ✓ removal alone still reaches saveDocx when the parse carried a restriction 0ms
+@uniwork/office-engine:test:  ✓ test/docx-model-comments.test.ts (10 tests) 13ms
+@uniwork/office-engine:test:  ✓ test/docx-password.test.ts (10 tests) 16ms
+@uniwork/office-engine:test:  ✓ src/markdown/engine.test.ts (15 tests) 33ms
+@uniwork/office-engine:test:  ✓ test/docx-adapter.test.ts (15 tests) 13ms
+@uniwork/office-engine:test:  ✓ src/pdf/pipeline.test.ts (25 tests) 649ms
+@uniwork/office-engine:test:      ✓ replaces text, verifies it, and leaves the original bytes untouched  358ms
+@uniwork/office-engine:test:  ✓ test/docx-model.test.ts (10 tests) 21ms
+@uniwork/office-engine:test:  ✓ test/docx-model-chart.test.ts (13 tests) 54ms
+@uniwork/office-engine:test:  ✓ test/pptx-adapter.test.ts (14 tests) 14ms
+@uniwork/office-engine:test:  ✓ test/docx-model-notes.test.ts (8 tests) 11ms
+@uniwork/office-engine:test:  ✓ test/docx-model-shape.test.ts (12 tests) 15ms
+@uniwork/office-engine:test:  ✓ src/html/preview-copy.test.ts (14 tests) 14ms
+@uniwork/office-engine:test:  ✓ src/html/references.test.ts (10 tests) 8ms
+@uniwork/office-engine:test:  ✓ test/pptx-model.test.ts (11 tests) 13ms
+@uniwork/office-engine:test:  ✓ src/html/engine.test.ts (6 tests) 18ms
+@uniwork/office-engine:test:  ✓ test/pptx-channels.test.ts (9 tests) 11ms
+@uniwork/office-engine:test:  ✓ test/docx-model-image.test.ts (8 tests) 14ms
+@uniwork/office-engine:test:  ✓ test/refusals.test.ts (10 tests) 26ms
+@uniwork/office-engine:test:  ✓ test/vendor-binding.test.ts (7 tests) 6ms
+@uniwork/office-engine:test:  ✓ src/assets/manifest.test.ts (20 tests) 8ms
+@uniwork/office-engine:test:  ✓ src/assets/save.test.ts (7 tests) 14ms
+@uniwork/office-engine:test:  ↓ test/xlsx-real-artifact.test.ts (4 tests | 4 skipped)
+@uniwork/office-engine:test:  ✓ test/xlsx-sidecar.test.ts (9 tests) 1188ms
+@uniwork/office-engine:test:      ✓ a silent sidecar hits the request timeout  503ms
+@uniwork/office-engine:test:      ✓ a timeout kills the child AND the port — no wedged process survives  403ms
+@uniwork/office-engine:test:  ✓ test/assets.test.ts (7 tests) 7ms
+@uniwork/office-engine:test:  ✓ test/xlsx-ops.test.ts (10 tests) 9ms
+@uniwork/office-engine:test:  ✓ test/xlsx-recalc.test.ts (5 tests) 6ms
+@uniwork/office-engine:test:  ✓ src/html/foreign-content.test.ts (21 tests) 6ms
+@uniwork/office-engine:test:  ✓ src/markdown/vendor.test.ts (8 tests) 5ms
+@uniwork/office-engine:test:  ✓ src/assets/references.test.ts (33 tests) 9ms
+@uniwork/office-engine:test:  ✓ test/browser.test.ts (7 tests) 15ms
+@uniwork/office-engine:test:  ✓ test/facade.test.ts (10 tests) 17ms
+@uniwork/office-engine:test:  ✓ src/assets/test-fakes.guard.test.ts (1 test) 7ms
+@uniwork/office-engine:test:  ✓ test/node.test.ts (8 tests) 34ms
+@uniwork/office-engine:test:  ✓ test/desktop.test.ts (7 tests) 12ms
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  FAIL  test/docx-model-fields.test.ts > docx TOC model > escapes entry text and the hyperlink anchor
+@uniwork/office-engine:test: AssertionError: expected '<w:p><w:pPr><w:pStyle w:val="TOC1"/><…' to contain 'A &amp; B &lt;&quot;quoted&quot;&gt;'
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: Expected: "A &amp; B &lt;&quot;quoted&quot;&gt;"
+@uniwork/office-engine:test: Received: "<w:p><w:pPr><w:pStyle w:val="TOC1"/><w:rPr><w:noProof/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:hyperlink w:anchor="_Toc&quot;A&amp;B"><w:r><w:rPr><w:noProof/></w:rPr><w:t xml:space="preserve">A &amp; B &lt;"quoted"&gt;</w:t></w:r></w:hyperlink><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  ❯ test/docx-model-fields.test.ts:114:17
+@uniwork/office-engine:test:     112|     insertToc(model, 0, [{ level: 1, text: 'A & B <"quoted">', anchor:…
+@uniwork/office-engine:test:     113|     const xml = tocXml(model);
+@uniwork/office-engine:test:     114|     expect(xml).toContain("A &amp; B &lt;&quot;quoted&quot;&gt;");
+@uniwork/office-engine:test:        |                 ^
+@uniwork/office-engine:test:     115|     expect(xml).toContain('w:anchor="_Toc&quot;A&amp;B"');
+@uniwork/office-engine:test:     116|   });
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  FAIL  test/docx-model-page-decor.test.ts > set_page_borders > writes the box into the final section's trailingSectPr at its schema slot
+@uniwork/office-engine:test: DocxEngineError: no section has index 1
+@uniwork/office-engine:test:  ❯ DocxPageDecorState.setPageBorders src/docx/page-decor.ts:391:13
+@uniwork/office-engine:test:     389|     const section = docxSections(parsed)[sectionIndex];
+@uniwork/office-engine:test:     390|     if (!section) {
+@uniwork/office-engine:test:     391|       throw new DocxEngineError("bad_section_index", "no section has i…
+@uniwork/office-engine:test:        |             ^
+@uniwork/office-engine:test:     392|     }
+@uniwork/office-engine:test:     393|     if (section.sectPrXml.length === 0) {
+@uniwork/office-engine:test:  ❯ DocxSessionModel.setPageBorders src/docx/model.ts:284:96
+@uniwork/office-engine:test:  ❯ test/docx-model-page-decor.test.ts:157:11
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  FAIL  test/docx-protection.test.ts > docx protection model > carries a restriction into SaveOptions.protection and copies the spec
+@uniwork/office-engine:test: AssertionError: expected 'forms' to be 'trackedChanges' // Object.is equality
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: Expected: "trackedChanges"
+@uniwork/office-engine:test: Received: "forms"
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  ❯ test/docx-protection.test.ts:167:55
+@uniwork/office-engine:test:     165|     const again = model.savePlan().options.protection!;
+@uniwork/office-engine:test:     166|     again.edit = "forms";
+@uniwork/office-engine:test:     167|     expect(model.savePlan().options.protection?.edit).toBe("trackedCha…
+@uniwork/office-engine:test:        |                                                       ^
+@uniwork/office-engine:test:     168|   });
+@uniwork/office-engine:test:     169|
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  Test Files  3 failed | 36 passed | 1 skipped (40)
+@uniwork/office-engine:test:       Tests  3 failed | 472 passed | 4 skipped (479)
+@uniwork/office-engine:test:    Start at  20:25:33
+@uniwork/office-engine:test:    Duration  4.12s (transform 1.05s, setup 0ms, import 4.45s, tests 2.53s, environment 3ms)
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/office-engine#test:  ERROR  command (/workspace/packages/office-engine) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run test exited (1)
+
+ Tasks:    0 successful, 1 total
+Cached:    0 cached, 1 total
+  Time:    4.704s 
+Failed:    @uniwork/office-engine#test
+
+ ERROR  run failed: command  exited (1)

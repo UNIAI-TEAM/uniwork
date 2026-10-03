@@ -1,0 +1,48 @@
+$ pnpm exec turbo typecheck --filter=@uniwork/views --filter=@uniwork/office-engine --filter=@uniwork/core --force
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/office-engine, @uniwork/views
+   • Running typecheck in 3 packages
+   • Remote caching disabled
+
+@uniwork/office-contracts:typecheck: cache bypass, force executing 199ed69431845598
+@uniwork/ui:typecheck: cache bypass, force executing fd25ba990c0e7967
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-engine:typecheck: cache bypass, force executing 9f544af507aac72f
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/core:typecheck: cache bypass, force executing 487b443ec4e91a32
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/views:typecheck: cache bypass, force executing e2bfedc58442b0a2
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: office/docx/compare/read-compare.test.ts(36,52): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+@uniwork/views:typecheck:   Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+@uniwork/views:typecheck:     Types of property 'buffer' are incompatible.
+@uniwork/views:typecheck:       Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+@uniwork/views:typecheck:         Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+@uniwork/views:typecheck: office/docx/export/docx-html-export.ts(323,75): error TS2322: Type 'ListItemNode | null | undefined' is not assignable to type 'ListItemNode | null'.
+@uniwork/views:typecheck:   Type 'undefined' is not assignable to type 'ListItemNode | null'.
+@uniwork/views:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/views#typecheck:  ERROR  command (/workspace/packages/views) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run typecheck exited (2)
+
+ Tasks:    4 successful, 5 total
+Cached:    0 cached, 5 total
+  Time:    34.464s 
+Failed:    @uniwork/views#typecheck
+
+ ERROR  run failed: command  exited (2)

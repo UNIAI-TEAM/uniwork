@@ -1,0 +1,30 @@
+$ pnpm knip
+
+> uniwork@ knip /workspace
+> knip
+
+Unused files (1)
+packages/views/office/docx/find/index.ts
+Unused exports (2)
+isDocxImageMime   function  packages/views/office/docx/image/docx-image-model.ts:28:17     
+draftFromSection  function  packages/views/office/docx/page-setup/docx-page-setup.ts:141:17
+Unused exported types (18)
+DocxLinkFormValue        type  packages/views/office/docx/links/index.ts:17:15
+DocxLinkInput            type  packages/views/office/docx/links/index.ts:17:34
+DocxLinksCommands        type  packages/views/office/docx/links/index.ts:17:79
+DocxLinksFormatState     type  packages/views/office/docx/links/index.ts:17:98
+DocxViewChromeProps      type  packages/views/office/docx/view/index.ts:17:31 
+DocxNavigationHostProps  type  packages/views/office/docx/view/index.ts:18:35 
+DocxNavigationPaneProps  type  packages/views/office/docx/view/index.ts:19:62 
+DocxOutlineScrollView    type  packages/views/office/docx/view/index.ts:19:92 
+DocxRulerProps           type  packages/views/office/docx/view/index.ts:20:26 
+DocxZoomControlProps     type  packages/views/office/docx/view/index.ts:21:32 
+DocxZoomController       type  packages/views/office/docx/view/index.ts:26:8  
+DocxZoomPageSize         type  packages/views/office/docx/view/index.ts:27:8  
+DocxZoomTarget           type  packages/views/office/docx/view/index.ts:28:8  
+DocxZoomMode             type  packages/views/office/docx/view/index.ts:31:15 
+DocxZoomState            type  packages/views/office/docx/view/index.ts:31:29 
+DocxRulerIndent          type  packages/views/office/docx/view/index.ts:32:15 
+DocxOutlineDocNode       type  packages/views/office/docx/view/index.ts:33:35 
+DocxOutlineItem          type  packages/views/office/docx/view/index.ts:33:60 
+ ELIFECYCLE  Command failed with exit code 1.

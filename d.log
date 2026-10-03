@@ -1,0 +1,32 @@
+$ pnpm exec turbo lint --filter=@uniwork/views --filter=@uniwork/office-engine --force
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/office-engine, @uniwork/views
+   • Running lint in 2 packages
+   • Remote caching disabled
+
+@uniwork/views:lint: cache bypass, force executing 2edfacd449f3b841
+@uniwork/office-engine:lint: cache bypass, force executing a2bb5e035c4aa871
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/office/docx/export/docx-download.ts
+@uniwork/views:lint:   6:26  error  Unexpected control character(s) in regular expression: \x00, \x1f  no-control-regex
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 1 problem (1 error, 0 warnings)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run lint exited (1)
+
+ Tasks:    1 successful, 2 total
+Cached:    0 cached, 2 total
+  Time:    41.137s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
