@@ -5,12 +5,14 @@ import {
   ArchiveRestore,
   Copy,
   History,
+  MessageSquare,
   MoreHorizontal,
   ScrollText,
   Share2,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -19,7 +21,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
 import { useNavigation } from "../navigation";
+import { useDocumentCommentsChrome } from "./document-comments-context";
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { DocumentCopyDialog } from "./document-copy-dialog";
@@ -67,6 +71,9 @@ export function DocumentActionsMenu({
   const archived = !!doc.archived_at;
   const [panel, setPanel] = useState<PanelId>(null);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
+  const folded = useHeaderActionsSlotFilled();
+  const comments = useDocumentCommentsChrome();
+  const commentsEnabled = useFlag("documents", false);
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof History; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: History });
@@ -100,6 +107,15 @@ export function DocumentActionsMenu({
           <MoreHorizontal aria-hidden className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
+          {/* An embedded Office editor's entries: phone-only desktop actions
+              and the file commands its canvas replaced (download, upload). */}
+          <HeaderActionsMenuItems />
+          {folded && comments && commentsEnabled ? (
+            <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
+              <MessageSquare aria-hidden className="size-3.5" />
+              {t("documents.actions.comments")}
+            </DropdownMenuItem>
+          ) : null}
           {items.map((item) => (
             <DropdownMenuItem
               key={item.id}
