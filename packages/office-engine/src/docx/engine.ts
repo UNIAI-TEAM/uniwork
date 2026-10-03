@@ -120,6 +120,39 @@ export interface DocxNumberingOptions {
   restartNums?: DocxRestartNumbering[];
 }
 
+/** word/settings.xml w:documentProtection — the editing restriction (C3).
+ * Upstream types.ts:2003; the hash/salt/spinCount/algorithmSid fields carry
+ * the Word 2013+ iterated-SHA-512 verifier of the restriction password. */
+export interface DocProtection {
+  /** w:edit value, e.g. "readOnly" | "comments" | "trackedChanges" | "forms" */
+  edit: string;
+  /** w:enforcement="1" — the restriction is active */
+  enforced: boolean;
+  /** password hash (base64); absent = the restriction carries no password */
+  hash?: string;
+  /** salt (base64) */
+  salt?: string;
+  /** w:cryptSpinCount; Word's default is 100000 */
+  spinCount?: number;
+  /** w:cryptAlgorithmSid; 14 = SHA-512 (the only supported value) */
+  algorithmSid?: number;
+}
+
+/** word/settings.xml w:writeProtection — password to modify / read-only
+ * recommended (upstream types.ts:2019). Honor-system: it never encrypts. */
+export interface WriteProtection {
+  /** w:recommended="1" — Word suggests opening read-only */
+  recommended?: boolean;
+  /** password-to-modify hash (base64, same SHA-512 scheme); absent = none */
+  hash?: string;
+  /** salt (base64) */
+  salt?: string;
+  /** w:cryptSpinCount; Word's default is 100000 */
+  spinCount?: number;
+  /** w:cryptAlgorithmSid; 14 = SHA-512 (the only supported value) */
+  algorithmSid?: number;
+}
+
 /** CommentInfo — upstream types.ts:253. One comment from word/comments.xml;
  * the authoritative list a save regenerates the part from. `parentId` marks a
  * reply (resolved through commentsExtended), `done` the resolved state, and
@@ -207,6 +240,12 @@ export interface DocxParsed {
   endnotes?: DocxNoteInfo[];
   /** `${kind}:${id}` -> display number, derived from part order on parse. */
   noteNumbers?: Record<string, number>;
+  /** Editing restriction from word/settings.xml, null when none (upstream
+   * types.ts:2148); optional so a light/fake parse stays valid. */
+  protection?: DocProtection | null;
+  /** Password-to-modify / read-only-recommended from word/settings.xml
+   * (upstream types.ts:2150), null when none. */
+  writeProtection?: WriteProtection | null;
   internal?: Record<string, unknown>;
   extras?: { chartParts?: Record<string, string>; [key: string]: unknown };
   [key: string]: unknown;
@@ -408,6 +447,14 @@ export interface DocxSaveOptions {
    * byte-identical. */
   footnotes?: DocxNoteInfo[];
   endnotes?: DocxNoteInfo[];
+  /** Editing restriction (C3, upstream patch.ts:195): a spec sets/replaces
+   * w:documentProtection, null removes it, undefined keeps the part
+   * byte-identical. */
+  protection?: DocProtection | null;
+  /** Password to modify / read-only recommended (C3, upstream patch.ts:197):
+   * a spec sets/replaces w:writeProtection, null removes it, undefined keeps
+   * the part byte-identical. */
+  writeProtection?: WriteProtection | null;
   [key: string]: unknown;
 }
 

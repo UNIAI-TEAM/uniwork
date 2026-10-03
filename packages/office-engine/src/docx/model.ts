@@ -28,6 +28,7 @@ import {
 import { DocxNumberingEdits } from "./numbering";
 import { DocxPageDecorState, isPageDecorEdit, type DocxPageBorders, type DocxPageDecorEdit, type DocxThemeColors, type DocxThemeFonts, type DocxWatermark } from "./page-decor";
 import { cloneNote, requireCommentEntry, requireImageBytes, requireNote } from "./payloads";
+import { DocxProtectionEdits, isProtectionOp, type DocxProtectionOp } from "./protection";
 import {
   applySectionProperties,
   docxSections,
@@ -77,6 +78,7 @@ export type DocxEdit =
   | { op: "set_section_properties"; sectionIndex: number; properties: DocxSectionProperties }
   | { op: "insert_numbering_def"; def: DocxNewNumberingDef }
   | { op: "restart_numbering"; restart: DocxRestartNumbering }
+  | DocxProtectionOp
   | DocxPageDecorEdit;
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
@@ -122,6 +124,8 @@ export class DocxSessionModel {
   revision = 0;
   /** Pending page-decoration edits (B6); see ./page-decor. */
   private readonly pageDecor = new DocxPageDecorState(() => { this.touched = true; this.revision += 1; });
+  /** Pending protection edits (C3); see ./protection. */
+  private readonly protection = new DocxProtectionEdits(() => { this.touched = true; this.revision += 1; });
 
   constructor(parsed: DocxParsed) {
     this.parsed = parsed;
@@ -548,6 +552,7 @@ export class DocxSessionModel {
   /** Typed dispatch so the adapter's edit channel stays a single entry. */
   applyEdit(edit: DocxEdit): void {
     if (isPageDecorEdit(edit)) return this.pageDecor.applyEdit(this.parsed, edit);
+    if (isProtectionOp(edit)) return this.protection.applyEdit(edit);
     switch (edit.op) {
       case "set_paragraph_text":
         return this.setParagraphText(edit.docxIndex, edit.runs);
@@ -586,7 +591,7 @@ export class DocxSessionModel {
    * An untouched plan is the all-original set — upstream answers the original
    * bytes (no-op save), which is the correct result, not a shortcut. */
   savePlan(): { finalBlocks: DocxSaveBlock[]; options: DocxSaveOptions } {
-    const options: DocxSaveOptions = { ...this.options, ...this.pageDecor.saveOptions() };
+    const options: DocxSaveOptions = { ...this.options, ...this.pageDecor.saveOptions(), ...this.protection.saveOptions() };
     const numbering = this.numbering.options();
     if (numbering) options.numbering = numbering;
     const rewrites = this.sectionRewrites(options);
@@ -636,6 +641,7 @@ export class DocxSessionModel {
     this.options = {};
     this.sectionEdits.clear();
     this.pageDecor.clear();
+    this.protection.clear();
     this.numbering = new DocxNumberingEdits(newParsed.numbering instanceof Map ? newParsed.numbering : undefined);
     this.touched = false;
   }
