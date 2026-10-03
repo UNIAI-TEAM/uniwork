@@ -7086,6 +7086,7 @@
           "protect": "Bảo vệ",
           "export": "Xuất",
           "toc": "Mục lục",
+          "shapes": "Hình dạng",
           "captions": "Chú thích và trích dẫn",
           "chart": "Biểu đồ"
         },
@@ -7864,6 +7865,35 @@
           "inserted": "Đã chèn chú thích.",
           "cited": "Đã chèn trích dẫn.",
           "refused": "Không thể chèn chú thích."
+        }
+      },
+      "shapes": {
+        "insert": "Hình dạng",
+        "galleryLabel": "Chèn hình",
+        "format": "Định dạng hình",
+        "noSelection": "Hãy chọn một hình trước.",
+        "fill": "Màu tô",
+        "fillNone": "Không tô",
+        "outline": "Đường viền",
+        "outlineNone": "Không viền",
+        "width": "Chiều rộng (px)",
+        "height": "Chiều cao (px)",
+        "wrap": "Cách bao văn bản",
+        "wrapInline": "Cùng dòng văn bản",
+        "wrapSquareLeft": "Vuông, bên trái",
+        "wrapSquareRight": "Vuông, bên phải",
+        "wrapTopBottom": "Trên và dưới",
+        "wrapBehind": "Sau văn bản",
+        "wrapFront": "Trước văn bản",
+        "offsetX": "Lệch ngang (px)",
+        "offsetY": "Lệch dọc (px)",
+        "textHint": "Nhấp đúp vào hình để sửa chữ.",
+        "kind": {
+          "rect": "Hình chữ nhật",
+          "ellipse": "Hình bầu dục",
+          "line": "Đường thẳng",
+          "arrow": "Mũi tên",
+          "textBox": "Hộp văn bản"
         }
       },
       "shortcuts": {

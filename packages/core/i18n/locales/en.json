@@ -7092,6 +7092,7 @@
           "protect": "Protect",
           "export": "Export",
           "toc": "Table of contents",
+          "shapes": "Shapes",
           "captions": "Captions and citations",
           "chart": "Chart"
         },
@@ -7871,6 +7872,35 @@
           "inserted": "Caption inserted.",
           "cited": "Citation inserted.",
           "refused": "The caption could not be inserted."
+        }
+      },
+      "shapes": {
+        "insert": "Shapes",
+        "galleryLabel": "Insert shape",
+        "format": "Shape format",
+        "noSelection": "Select a shape first.",
+        "fill": "Fill",
+        "fillNone": "No fill",
+        "outline": "Outline",
+        "outlineNone": "No outline",
+        "width": "Width (px)",
+        "height": "Height (px)",
+        "wrap": "Text wrapping",
+        "wrapInline": "In line with text",
+        "wrapSquareLeft": "Square, left",
+        "wrapSquareRight": "Square, right",
+        "wrapTopBottom": "Top and bottom",
+        "wrapBehind": "Behind text",
+        "wrapFront": "In front of text",
+        "offsetX": "Horizontal offset (px)",
+        "offsetY": "Vertical offset (px)",
+        "textHint": "Double-click the shape to edit its text.",
+        "kind": {
+          "rect": "Rectangle",
+          "ellipse": "Oval",
+          "line": "Line",
+          "arrow": "Arrow",
+          "textBox": "Text box"
         }
       },
       "shortcuts": {
