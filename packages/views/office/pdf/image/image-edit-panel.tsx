@@ -15,10 +15,6 @@ export interface PdfImageEditPanelProps {
   onApplied?: () => void;
 }
 
-function copy(t: ReturnType<typeof useTranslation>["t"], key: string, fallback: string): string {
-  return t(key, { defaultValue: fallback });
-}
-
 function number(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -47,8 +43,9 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
   }, [selectedObjectId, selectedPage, selectedX1, selectedY1, selectedX2, selectedY2]);
 
   if (!selection) return null;
-  const applyLabel = copy(t, "office.pdf.image.apply", "Apply image changes");
-  const deleteLabel = copy(t, "office.pdf.image.delete", "Delete image");
+  const applyLabel = t("office.pdf.image.apply");
+  const deleteLabel = t("office.pdf.image.delete");
+  const replaceFileLabel = t("office.pdf.image.replaceFile");
   const replaceLabel = t("office.pdf.commands.replaceImage");
   const run = async (action: () => Promise<void> | void) => {
     setPending(true);
@@ -65,7 +62,7 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
   const transform = () => void run(() => provider.transformImage({ pageIndex: selection.page - 1, oldRect: selection.rect, rect, ...(selection.layer ? { layer: selection.layer } : {}), quarterTurns: number(quarterTurns, 0) }));
   const replace = () => {
     if (!file || !file.type.match(/^image\/(png|jpeg)$/)) {
-      setError(copy(t, "office.pdf.image.errors.fileType", t("office.pdf.errors.editFailed")));
+      setError(t("office.pdf.image.errors.fileType"));
       return;
     }
     void run(async () => provider.replaceImage({ target: { page: selection.page, objectId: selection.objectId }, image: await readImageFile(file), rect }));
@@ -77,21 +74,21 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(["Left", "Top", "Right", "Bottom"] as const).map((label, index) => (
           <label key={label} className="grid gap-1 text-caption" htmlFor={`pdf-image-${label.toLowerCase()}`}>
-            {copy(t, `office.pdf.image.${label.toLowerCase()}`, label)}
+            {t(`office.pdf.image.${label.toLowerCase()}`)}
             <Input id={`pdf-image-${label.toLowerCase()}`} type="number" value={rect[index]} disabled={disabled || pending} onChange={(event) => setRect((current) => current.map((value, position) => position === index ? number(event.target.value, value) : value) as PdfImageRect)} />
           </label>
         ))}
       </div>
       <label className="grid gap-1 text-caption" htmlFor="pdf-image-rotation">
-        {copy(t, "office.pdf.image.rotation", "Rotation")}
+        {t("office.pdf.image.rotation")}
         <Input id="pdf-image-rotation" type="number" step={1} value={quarterTurns} disabled={disabled || pending} onChange={(event) => setQuarterTurns(event.target.value)} />
       </label>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" onClick={transform} disabled={disabled || pending}>{applyLabel}</Button>
         <Button type="button" variant="outline" onClick={remove} disabled={disabled || pending}>{deleteLabel}</Button>
       </div>
-      <label className="sr-only" htmlFor="pdf-image-replace-file">{copy(t, "office.pdf.image.replaceFile", "Replace image file")}</label>
-      <Input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} aria-label={copy(t, "office.pdf.image.replaceFile", "Replace image file")} />
+      <label className="sr-only" htmlFor="pdf-image-replace-file">{replaceFileLabel}</label>
+      <Input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} aria-label={replaceFileLabel} />
       <Button type="button" variant="outline" onClick={replace} disabled={disabled || pending || !file}>{replaceLabel}</Button>
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
     </section>

@@ -10,8 +10,8 @@ describe("PdfImageInsertPanel", () => {
     const host = provider();
     render(<PdfImageInsertPanel page={2} provider={host} />);
     const file = new File([Uint8Array.from([1, 2, 3])], "stamp.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("Insert image"), { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Insert image" }));
+    fireEvent.change(screen.getByLabelText("Chèn ảnh"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Chèn ảnh" }));
     await waitFor(() => expect(host.insertImage).toHaveBeenCalledWith(expect.objectContaining({ pageIndex: 1, layer: "aboveText", image: expect.any(Uint8Array) })));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

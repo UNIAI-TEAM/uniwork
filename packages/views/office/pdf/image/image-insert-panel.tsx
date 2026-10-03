@@ -29,10 +29,6 @@ export interface PdfImageInsertPanelProps {
   onApplied?: () => void;
 }
 
-function copy(t: ReturnType<typeof useTranslation>["t"], key: string, fallback: string): string {
-  return t(key, { defaultValue: fallback });
-}
-
 /** File-backed image insertion. Bytes are handed to the browser-safe provider;
  * decoding and PDF mutation remain in the host U-4 codec. */
 export function PdfImageInsertPanel({ page, provider, disabled = false, rect = DEFAULT_RECT, onApplied }: PdfImageInsertPanelProps) {
@@ -42,11 +38,11 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
   const [layer, setLayer] = useState<ImageLayer>("aboveText");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const title = copy(t, "office.pdf.image.insert", "Insert image");
+  const title = t("office.pdf.image.insert");
 
   const submit = async () => {
     if (!file || !file.type.match(/^image\/(png|jpeg)$/)) {
-      setError(copy(t, "office.pdf.image.errors.fileType", t("office.pdf.errors.editFailed")));
+      setError(t("office.pdf.image.errors.fileType"));
       return;
     }
     setPending(true);
@@ -70,9 +66,9 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
       <Input ref={inputRef} id="pdf-image-insert-file" type="file" accept="image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
       {file ? <p className="text-caption text-muted-foreground">{file.name}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="sr-only">{copy(t, "office.pdf.image.layer", "Layer")}</span>
-        <Button type="button" variant={layer === "aboveText" ? "secondary" : "outline"} onClick={() => setLayer("aboveText")} disabled={disabled || pending}>{copy(t, "office.pdf.image.layerAbove", "Above text")}</Button>
-        <Button type="button" variant={layer === "belowText" ? "secondary" : "outline"} onClick={() => setLayer("belowText")} disabled={disabled || pending}>{copy(t, "office.pdf.image.layerBelow", "Below text")}</Button>
+        <span className="sr-only">{t("office.pdf.image.layer")}</span>
+        <Button type="button" variant={layer === "aboveText" ? "secondary" : "outline"} onClick={() => setLayer("aboveText")} disabled={disabled || pending}>{t("office.pdf.image.layerAbove")}</Button>
+        <Button type="button" variant={layer === "belowText" ? "secondary" : "outline"} onClick={() => setLayer("belowText")} disabled={disabled || pending}>{t("office.pdf.image.layerBelow")}</Button>
         <Button type="button" variant="outline" onClick={() => void submit()} disabled={disabled || pending || !file}>{title}</Button>
       </div>
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}

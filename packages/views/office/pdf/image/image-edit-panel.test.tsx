@@ -10,16 +10,16 @@ describe("PdfImageEditPanel", () => {
   it("submits move, resize and rotate through transformImage", async () => {
     const host = provider();
     render(<PdfImageEditPanel selection={selection} provider={host} />);
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Right" }), { target: { value: "120" } });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Rotation" }), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Phải" }), { target: { value: "120" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Góc xoay" }), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng thay đổi ảnh" }));
     await waitFor(() => expect(host.transformImage).toHaveBeenCalledWith({ pageIndex: 1, oldRect: [10, 20, 100, 140], rect: [10, 20, 120, 140], layer: "aboveText", quarterTurns: 1 }));
   });
 
   it("deletes the selected image", async () => {
     const host = provider();
     render(<PdfImageEditPanel selection={selection} provider={host} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xóa ảnh" }));
     await waitFor(() => expect(host.deleteImage).toHaveBeenCalledWith({ pageIndex: 1, oldRect: [10, 20, 100, 140] }));
   });
 
@@ -27,8 +27,8 @@ describe("PdfImageEditPanel", () => {
     const host = provider();
     render(<PdfImageEditPanel selection={selection} provider={host} />);
     const file = new File([Uint8Array.from([9, 8])], "replacement.jpg", { type: "image/jpeg" });
-    fireEvent.change(screen.getByLabelText("Replace image file"), { target: { files: [file] } });
-    fireEvent.click(screen.getAllByRole("button").find((button) => button.textContent === "Thay ảnh")!);
+    fireEvent.change(screen.getByLabelText("Thay tệp ảnh"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Thay ảnh" }));
     await waitFor(() => expect(host.replaceImage).toHaveBeenCalledWith(expect.objectContaining({ target: { page: 2, objectId: "image-1" }, image: expect.any(Uint8Array) })));
   });
 });
