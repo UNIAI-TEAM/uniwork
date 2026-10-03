@@ -10,6 +10,7 @@ import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
 
 /** A selection is an adapter identity, never a DOM range or a decoded PDF object. */
 export interface PdfSelection {
+  /** 1-based displayed page position; the host bridge maps it to the original engine index. */
   page: number;
   objectId: string | null;
   kind: "text" | "image" | "page";
@@ -41,6 +42,7 @@ export interface PdfFontReport {
 /** Public browser operations. Images are provider-owned asset references; raw
  * image bytes and codecs never cross into this package. */
 export type PdfEditOperation =
+  /** target.page is the 1-based displayed position at the time of the operation. */
   | { op: "replace_text"; target: { page: number; objectId: string }; text: string }
   | { op: "replace_image"; target: { page: number; objectId: string }; assetId: string }
   | { op: "insert_page"; target: { index: number } }

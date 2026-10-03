@@ -41,6 +41,46 @@ describe("bridgePdfOperations", () => {
     await expect(bridgePdfOperations([{ op: "replace_text", target: textTarget, text: "new" }])).rejects.toBeInstanceOf(PdfOpsBridgeError);
     await expect(bridgePdfOperations([{ op: "replace_image", target: imageTarget, assetId: "asset" }], { resolveObject: () => imageTargetMetadata })).rejects.toMatchObject({ code: "asset_provider_missing" });
   });
-});
 
 const imageTargetMetadata = { page: 2, objectId: "image-1", rect: [1, 2, 30, 40] as [number, number, number, number], layer: "aboveText" as const };
+
+  it("maps displayed positions through a non-identity page order", async () => {
+    const result = await bridgePdfOperations([
+      { op: "delete_page", target: { page: 1 } },
+      { op: "rotate_page", target: { page: 1 }, degrees: 90 },
+    ], { pageOrder: [2, 0, 1] });
+    expect(result).toEqual([
+      { op: "deletePage", attributes: { pageIndex: 2 } },
+      { op: "rotatePages", attributes: { pages: [0], dir: 90 } },
+    ]);
+  });
+
+  it("threads multiple display reorders and emits one final order", async () => {
+    const result = await bridgePdfOperations([
+      { op: "reorder_page", target: { page: 1 }, index: 2 },
+      { op: "reorder_page", target: { page: 2 }, index: 0 },
+    ], { pageOrder: [2, 0, 1] });
+    expect(result).toEqual([{ op: "setPageOrder", attributes: { order: [1, 0, 2] } }]);
+  });
+
+  it("keeps a delete plus reorder order compatible with the survivor list", async () => {
+    const result = await bridgePdfOperations([
+      { op: "delete_page", target: { page: 1 } },
+      { op: "reorder_page", target: { page: 1 }, index: 1 },
+    ], { pageOrder: [0, 1, 2] });
+    expect(result).toEqual([
+      { op: "deletePage", attributes: { pageIndex: 0 } },
+      { op: "setPageOrder", attributes: { order: [2, 1] } },
+    ]);
+  });
+
+  it("wraps synchronous and asynchronous resolver failures", async () => {
+    await expect(bridgePdfOperations([{ op: "replace_text", target: textTarget, text: "x" }], { resolveObject: () => { throw new Error("private"); } })).rejects.toMatchObject({ code: "object_unavailable" });
+    await expect(bridgePdfOperations([{ op: "replace_text", target: textTarget, text: "x" }], { resolveObject: async () => { throw new Error("private"); } })).rejects.toMatchObject({ code: "object_unavailable" });
+  });
+
+  it("rejects page positions outside the current order", async () => {
+    await expect(bridgePdfOperations([{ op: "delete_page", target: { page: 4 } }], { pageOrder: [0, 1, 2] })).rejects.toMatchObject({ code: "invalid_target" });
+    await expect(bridgePdfOperations([{ op: "reorder_page", target: { page: 1 }, index: 3 }], { pageOrder: [0, 1, 2] })).rejects.toMatchObject({ code: "invalid_target" });
+  });
+});
