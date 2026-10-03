@@ -61,3 +61,41 @@ function nestDocxOutline(flat: DocxOutlineItem[]): DocxOutlineItem[] {
   }
   return roots;
 }
+
+export interface DocxDomOutline {
+  items: DocxOutlineItem[];
+  /** The heading element each top-level item was extracted from, so a click
+   *  can scroll it without a ProseMirror view. */
+  elementById: Map<string, HTMLElement>;
+}
+
+function headingLevelFromTag(tagName: string): number | null {
+  const match = /^H([1-6])$/.exec(tagName);
+  if (!match) return null;
+  const level = Number(match[1]);
+  if (!Number.isFinite(level)) return null;
+  return Math.min(DOCX_OUTLINE_MAX_LEVEL, Math.max(1, level));
+}
+
+/**
+ * The outline of the rendered document: the top-level `h1`-`h6` blocks (the
+ * elements the vendored `docHeading` node renders) in document order, nested by
+ * tag level. DOM-side counterpart of docxOutlineFromDoc for the wiring, which
+ * cannot reach the TipTap editor; `pos` carries the child index and clicks go
+ * through `elementById`.
+ */
+export function docxOutlineFromElement(root: Element | null | undefined): DocxDomOutline {
+  const elementById = new Map<string, HTMLElement>();
+  if (!root) return { items: [], elementById };
+  const flat: DocxOutlineItem[] = [];
+  Array.from(root.children).forEach((child, index) => {
+    const level = headingLevelFromTag(child.tagName);
+    if (level === null) return;
+    const text = child.textContent?.trim() ?? "";
+    if (!text) return;
+    const id = `dom-heading-${index}`;
+    flat.push({ id, level, text, pos: index, children: [] });
+    elementById.set(id, child as HTMLElement);
+  });
+  return { items: nestDocxOutline(flat), elementById };
+}

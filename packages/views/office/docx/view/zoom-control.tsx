@@ -19,7 +19,9 @@ export interface DocxZoomControlProps {
   className?: string;
 }
 
-function useDocxZoomState(controller: DocxZoomController): DocxZoomState {
+/** The controller state for consumers that render off it (the control and the
+ *  chrome's ruler), re-subscribed when the controller instance changes. */
+export function useDocxZoomState(controller: DocxZoomController): DocxZoomState {
   const [state, setState] = useState(() => controller.getState());
   useEffect(() => {
     setState(controller.getState());

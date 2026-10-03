@@ -21,6 +21,7 @@ import type {
   DocxSelection,
   DocxViewState,
 } from "./types";
+import { DocxViewChrome } from "./view";
 
 function unexpectedFailure(documentId: string, error: unknown): DocxOpenFailure {
   return {
@@ -242,6 +243,10 @@ export function DocxEditor<TSnapshot = unknown>({
           <DocxFindPanel {...sharedContext} />
           <div className="flex min-h-64 min-w-0 flex-1 flex-col" data-testid="docx-canvas">
             <DocxContextMenu {...sharedContext} />
+            {/* A6-wire: attaches the zoom controller to the surface below and
+                draws the ruler above the pages; resolves the surface from the
+                DOM because the handle exposes no engine accessors. */}
+            <DocxViewChrome />
             {editor.renderSurface ? (
               editor.renderSurface()
             ) : (

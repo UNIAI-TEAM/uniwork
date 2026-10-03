@@ -3,7 +3,7 @@ import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 import { blocksToDoc } from "../docx-doc-convert";
 import { docxExtensions } from "../docx-schema";
-import { docxOutlineFromDoc, type DocxOutlineDocNode } from "./headings-outline";
+import { docxOutlineFromDoc, docxOutlineFromElement, type DocxOutlineDocNode } from "./headings-outline";
 
 interface FakeBlock {
   name: string;
@@ -112,5 +112,32 @@ describe("docxOutlineFromDoc", () => {
     } finally {
       editor.destroy();
     }
+  });
+});
+
+describe("docxOutlineFromElement", () => {
+  it("extracts top-level h1-h6 blocks, nests them and maps ids to elements", () => {
+    const root = document.createElement("div");
+    root.innerHTML =
+      "<h1>One</h1><p>body</p><h2>One A</h2><h3>Deep</h3><h1>Two</h1><div><h4>Nested</h4></div>";
+    const outline = docxOutlineFromElement(root);
+
+    expect(outline.items.map((item) => item.text)).toEqual(["One", "Two"]);
+    expect(outline.items[0]?.level).toBe(1);
+    expect(outline.items[0]?.children.map((item) => item.text)).toEqual(["One A"]);
+    expect(outline.items[0]?.children[0]?.children[0]?.text).toBe("Deep");
+    // A heading nested inside a container block is body content, not outline.
+    expect(outline.items.map((item) => item.text)).not.toContain("Nested");
+    expect(outline.elementById.get("dom-heading-0")).toBe(root.children[0]);
+    expect(outline.elementById.get("dom-heading-2")).toBe(root.children[2]);
+  });
+
+  it("skips empty headings and non-heading blocks, and tolerates a missing root", () => {
+    const root = document.createElement("div");
+    root.innerHTML = "<h1> </h1><p>body</p>";
+    expect(docxOutlineFromElement(root).items).toEqual([]);
+    expect(docxOutlineFromElement(root).elementById.size).toBe(0);
+    expect(docxOutlineFromElement(null)).toEqual({ items: [], elementById: new Map() });
+    expect(docxOutlineFromElement(undefined).items).toEqual([]);
   });
 });
