@@ -104,3 +104,18 @@ export type {
   PdfRenderResult,
   PdfRenderTileRequest,
 } from "./canvas";
+export { PdfSavedSignaturePicker } from "./signatures";
+export type { PdfSavedSignaturePickerProps, PdfSignatureThumbnail, SavedSignature } from "./signatures";
+export { PdfStampPalette, toStampSignatureSource } from "./stamps";
+export type {
+  PdfStampEngineOperation,
+  PdfStampInput,
+  PdfStampKind,
+  PdfStampOperationProvider,
+  PdfStampOperationSubmitter,
+  PdfStampPaletteProps,
+  PdfStampPlacement,
+  PdfStampProviderOptions,
+  PdfStampRect,
+  PdfStampSignatureSource,
+} from "./stamps";
