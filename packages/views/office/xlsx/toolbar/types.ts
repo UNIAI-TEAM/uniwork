@@ -46,6 +46,9 @@ export interface XlsxToolbarGroupProps {
   onCopy: () => void;
   onPaste: () => void;
   onShowSheets: () => void;
+  /** Opens the editor-owned find & replace panel. Absent when the host has no
+   *  mounted grid: the panel reads its cells from the renderer host. */
+  onOpenFind?: () => void;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

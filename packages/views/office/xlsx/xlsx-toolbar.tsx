@@ -49,6 +49,7 @@ export function XlsxToolbar({
   onCopy,
   onPaste,
   onShowSheets,
+  onOpenFind,
   onSave,
   onCancelSave,
   showSave = true,
@@ -84,6 +85,7 @@ export function XlsxToolbar({
     onCopy,
     onPaste,
     onShowSheets,
+    onOpenFind,
   };
 
   return (
