@@ -7200,6 +7200,41 @@
         "replaceAll": "Replace all",
         "replaced_one": "Replaced {{count}} match",
         "replaced_other": "Replaced {{count}} matches"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Every DOCX editor command in one place.",
+        "searchLabel": "Search shortcuts",
+        "searchPlaceholder": "Search by name or key",
+        "empty": "No shortcuts match your search.",
+        "or": "or",
+        "close": "Close",
+        "readOnlyNote": "This document is read-only. Commands that change it are unavailable.",
+        "readOnlyBadge": "Read-only",
+        "groups": {
+          "file": "Document",
+          "edit": "Editing",
+          "text": "Character formatting",
+          "para": "Paragraph formatting",
+          "insert": "Insert",
+          "view": "View"
+        },
+        "actions": {
+          "selectAll": "Select all",
+          "cut": "Cut",
+          "copy": "Copy",
+          "paste": "Paste",
+          "strike": "Strikethrough",
+          "superscript": "Superscript",
+          "subscript": "Subscript",
+          "growFont": "Grow font",
+          "shrinkFont": "Shrink font",
+          "changeCase": "Change case",
+          "clearFormatting": "Clear formatting",
+          "copyFormat": "Copy formatting",
+          "pasteFormat": "Apply formatting",
+          "zoomReset": "Reset zoom"
+        }
       }
     },
     "title": "Office",

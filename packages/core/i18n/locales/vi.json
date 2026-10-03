@@ -7194,6 +7194,41 @@
         "replaceAll": "Thay thế tất cả",
         "replaced_one": "Đã thay thế {{count}} kết quả",
         "replaced_other": "Đã thay thế {{count}} kết quả"
+      },
+      "shortcuts": {
+        "title": "Phím tắt",
+        "description": "Toàn bộ lệnh của trình soạn thảo DOCX trong một nơi.",
+        "searchLabel": "Tìm phím tắt",
+        "searchPlaceholder": "Tìm theo tên hoặc phím",
+        "empty": "Không có phím tắt nào khớp với tìm kiếm.",
+        "or": "hoặc",
+        "close": "Đóng",
+        "readOnlyNote": "Tài liệu đang ở chế độ chỉ đọc. Các lệnh thay đổi nội dung không dùng được.",
+        "readOnlyBadge": "Chỉ đọc",
+        "groups": {
+          "file": "Tài liệu",
+          "edit": "Chỉnh sửa",
+          "text": "Định dạng ký tự",
+          "para": "Định dạng đoạn",
+          "insert": "Chèn",
+          "view": "Xem"
+        },
+        "actions": {
+          "selectAll": "Chọn tất cả",
+          "cut": "Cắt",
+          "copy": "Sao chép",
+          "paste": "Dán",
+          "strike": "Gạch ngang",
+          "superscript": "Chỉ số trên",
+          "subscript": "Chỉ số dưới",
+          "growFont": "Tăng cỡ chữ",
+          "shrinkFont": "Giảm cỡ chữ",
+          "changeCase": "Đổi chữ hoa chữ thường",
+          "clearFormatting": "Xóa định dạng",
+          "copyFormat": "Sao chép định dạng",
+          "pasteFormat": "Áp dụng định dạng",
+          "zoomReset": "Đặt lại thu phóng"
+        }
       }
     },
     "title": "Office",
