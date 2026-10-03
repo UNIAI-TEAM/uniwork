@@ -6912,6 +6912,7 @@
         "caseSensitive": "Phân biệt chữ hoa, chữ thường",
         "wholeWord": "Toàn bộ từ",
         "regex": "Biểu thức chính quy",
+        "invalidPattern": "Biểu thức chính quy không hợp lệ",
         "replace": "Thay",
         "replaceAll": "Thay tất cả",
         "next": "Kết quả tiếp theo",

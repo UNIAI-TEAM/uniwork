@@ -6918,6 +6918,7 @@
         "caseSensitive": "Match case",
         "wholeWord": "Whole word",
         "regex": "Regular expression",
+        "invalidPattern": "Invalid pattern",
         "replace": "Replace",
         "replaceAll": "Replace all",
         "next": "Next match",
