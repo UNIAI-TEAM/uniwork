@@ -7330,6 +7330,30 @@
       "zoom_out": "Zoom out",
       "zoom_fit": "Fit to width",
       "zoom_level": "Zoom {{percent}}%",
+      "tab_empty": "This tab has no commands yet.",
+      "overflow_label": "More commands",
+      "history_empty": "No edit history yet.",
+      "tabs": {
+        "home": "Home",
+        "insert": "Insert",
+        "design": "Design",
+        "transitions": "Transitions",
+        "animations": "Animations",
+        "slide_show": "Slide Show",
+        "review": "Review",
+        "view": "View"
+      },
+      "groups": {
+        "file": "File",
+        "history": "History",
+        "editing": "Editing",
+        "insert": "Insert",
+        "design": "Design",
+        "animations": "Animations",
+        "show": "Slide Show",
+        "review": "Review",
+        "view": "View"
+      },
       "state": { "opening": "Opening presentation…" },
       "errors": { "capabilityUnavailable": "The presentation editor could not be loaded in this browser." },
       "commands": {

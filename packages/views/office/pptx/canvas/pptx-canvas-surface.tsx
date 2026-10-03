@@ -4,14 +4,18 @@
 
 /**
  * The slide surface: an SVG rendition of the current render tree inside a scrollable
- * `role="application"` canvas. Zoom is a viewBox-scaled display transform â€” the tree is
+ * `role="application"` canvas. Zoom is a viewBox-scaled display transform — the tree is
  * built at the measured fit width, so the vector content stays crisp at any zoom.
  *
  * The a11y contract is unchanged from the previous placeholder canvas: `role="application"`,
  * `aria-label` from `office.pptx.canvas_label`, `data-pptx-canvas`, `data-slide-canvas` and
  * `data-slide-index` (P0-3 selects against the same hooks).
+ *
+ * P0-3 integration point (the only canvas change the selection lane makes): an `overlay`
+ * slot rendered inside the slide box, so the selection outline/handles/marquee share the
+ * SVG's coordinate box without the canvas knowing what a selection is.
  */
-import { createElement, useEffect, useRef, type KeyboardEventHandler, type ReactElement } from "react";
+import { createElement, useEffect, useRef, type KeyboardEventHandler, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { reactSvgProps, type SvgNode } from "./svg-node";
@@ -44,6 +48,8 @@ export interface PptxCanvasSurfaceProps {
   onFitWidthChange?: (widthPx: number) => void;
   /** Keyboard slide navigation owned by the editor. */
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+  /** Selection overlay (P0-3), rendered inside the slide box in page coordinates. */
+  overlay?: ReactNode;
   className?: string;
 }
 
@@ -55,6 +61,7 @@ export function PptxCanvasSurface({
   fallbackFitWidthPx = PPTX_FALLBACK_FIT_WIDTH,
   onFitWidthChange,
   onKeyDown,
+  overlay,
   className,
 }: PptxCanvasSurfaceProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -98,6 +105,7 @@ export function PptxCanvasSurface({
             >
               <SvgNodeView node={content.root} />
             </svg>
+            {overlay}
             {content.hidden ? (
               <span className="absolute left-1 top-1 rounded-sm border border-border bg-muted px-1 text-caption text-muted-foreground" data-pptx-slide-hidden>
                 {t("slide_hidden")}

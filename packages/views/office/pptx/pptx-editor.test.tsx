@@ -134,12 +134,52 @@ describe("PptxEditor", () => {
   it("opens presenter mode over the selected slide without another editor", () => {
     const call = vi.fn();
     const view = render(<PptxEditor host={makeHost(call)} editorHandle={handle()} loadRendererModule={async () => fakeRendererModule().module} slides={[{ id: "s1", label: "Intro" }]} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
     fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
     expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
     expect(screen.getAllByText("Intro").length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole("button", { name: "Close presenter" }));
     expect(screen.queryByRole("dialog", { name: "Presenter view" })).not.toBeInTheDocument();
     view.unmount();
+  });
+
+  it("mounts the tabbed ribbon instead of the raw command-id row", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    expect(screen.getByRole("tablist", { name: "PowerPoint commands" })).toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(8);
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    expect(screen.getByText("This tab has no commands yet.")).toBeInTheDocument();
+  });
+
+  it("binds Ctrl+Y and Ctrl+Shift+Z to redo on the canvas", () => {
+    const editorHandle = handle();
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={editorHandle} loadRendererModule={async () => fakeRendererModule().module} slides={[{ id: "s1" }]} />);
+    const canvas = screen.getByRole("application", { name: "PowerPoint slide canvas" });
+    fireEvent.keyDown(canvas, { key: "y", ctrlKey: true });
+    fireEvent.keyDown(canvas, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(editorHandle.redo).toHaveBeenCalledTimes(2);
+  });
+
+  it("mounts the selection overlay inside the rendered slide box", async () => {
+    renderEditor({ slides: [{ id: "s1" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const slideBox = screen.getByRole("application").querySelector("[data-slide-canvas]");
+    expect(slideBox?.querySelector("[data-pptx-selection-overlay]")).not.toBeNull();
+  });
+
+  it("selects on a canvas click and routes Delete through the handle's edit channel", async () => {
+    const edit = vi.fn(async () => ({ revision: 1 }));
+    const editorHandle = { ...handle(), edit } as unknown as EditorHandle;
+    renderEditor({ slides: [{ id: "s1" }], deck, editorHandle });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+    fireEvent.pointerDown(overlay, { button: 0, clientX: 150, clientY: 100 });
+    fireEvent.pointerUp(overlay, { button: 0, clientX: 150, clientY: 100 });
+    await waitFor(() => expect(overlay.querySelector("[data-pptx-selection-outline]")).not.toBeNull());
+    fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "Delete" });
+    await waitFor(() => expect(edit).toHaveBeenCalledWith([{ op: "delete_element", slideIndex: 0, elementId: "shape-1" }]));
   });
 
   it("disposes the one editor handle when the view unmounts", async () => {

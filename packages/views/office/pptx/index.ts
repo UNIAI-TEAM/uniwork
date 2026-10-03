@@ -1,7 +1,16 @@
-export { createPptxCommandMap, findPptxCommand, type PptxCommand, type PptxCommandCapability, type PptxCommandId } from "./command-map";
+﻿export { createPptxCommandMap, findPptxCommand, type PptxCommand, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 export { PptxSlideRail, type PptxSlideRailProps, type PptxSlideView } from "./slide-rail";
 export { PptxPresenter, type PptxPresenterProps } from "./presenter";
 export { PptxToolbar, type PptxToolbarProps } from "./toolbar";
+export { PptxTabStrip, pptxTabDomId, pptxTabPanelId, type PptxTabStripProps } from "./toolbar/pptx-tab-strip";
+export { PptxCommandGroups, type PptxCommandGroupsProps } from "./toolbar/command-groups";
+export { PptxCommandButton, type PptxCommandButtonProps } from "./toolbar/command-button";
+export { PPTX_TOOLBAR_TABS, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, tabIsEmpty, toolbarCommandIds, type PptxGroupId, type PptxTabId, type PptxToolbarGroup, type PptxToolbarOverflow, type PptxToolbarTab } from "./toolbar/tabs";
+export { PptxSelectionOverlay, type PptxSelectionOverlayProps } from "./selection/pptx-selection-overlay";
+export { usePptxSelection, type PptxSelectionController, type PptxSelectionPreviewBox, type UsePptxSelectionOptions } from "./selection/use-pptx-selection";
+export { applyGesture, beginGesture, gestureCommitRequests, gestureHandleAt, gestureIsNoop, type PptxGesture, type PptxGestureContext, type PptxGestureKind, type PptxGestureMember, type PptxPreviewBox } from "./selection/gesture";
+export { PPTX_MIN_BOX_PX, PPTX_RESIZE_HANDLES, handlePosition, hitElement, hitHandle, marqueeSelection, moveBox, normalizeRect, rectsIntersect, resizeBox, rotateDegrees, rotateHandlePosition, selectionBounds, transformWithinBounds, unionBox, type PptxBox, type PptxHandleId, type PptxMarquee, type PptxPoint } from "./selection/geometry";
+export { EMPTY_SELECTION, pruneSelection, selectAt, selectionHas, setSelection, type PptxSelectionState } from "./selection/selection-model";
 export { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 export { PptxEditorView, type PptxEditorViewProps } from "./editor-view";
 export { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument, type SlideSvgOptions } from "./canvas/build-slide-svg";

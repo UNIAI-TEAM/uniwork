@@ -7324,6 +7324,30 @@
       "zoom_out": "Thu nhỏ",
       "zoom_fit": "Vừa chiều rộng",
       "zoom_level": "Thu phóng {{percent}}%",
+      "tab_empty": "Thẻ này chưa có lệnh nào.",
+      "overflow_label": "Thêm lệnh",
+      "history_empty": "Chưa có lịch sử chỉnh sửa.",
+      "tabs": {
+        "home": "Trang chủ",
+        "insert": "Chèn",
+        "design": "Thiết kế",
+        "transitions": "Chuyển trang",
+        "animations": "Hoạt ảnh",
+        "slide_show": "Trình chiếu",
+        "review": "Xem lại",
+        "view": "Xem"
+      },
+      "groups": {
+        "file": "Tệp",
+        "history": "Lịch sử",
+        "editing": "Chỉnh sửa",
+        "insert": "Chèn",
+        "design": "Thiết kế",
+        "animations": "Hoạt ảnh",
+        "show": "Trình chiếu",
+        "review": "Xem lại",
+        "view": "Xem"
+      },
       "state": { "opening": "Đang mở bản trình bày…" },
       "errors": { "capabilityUnavailable": "Không thể nạp trình chỉnh sửa bản trình bày trên trình duyệt này." },
       "commands": {

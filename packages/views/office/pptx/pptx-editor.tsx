@@ -1,22 +1,25 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
+import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
-import { buildSlideSvg, type SlideSvgDocument } from "./canvas/build-slide-svg";
+import { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument } from "./canvas/build-slide-svg";
 import { PptxCanvasSurface } from "./canvas/pptx-canvas-surface";
 import { PptxCanvasZoom } from "./canvas/pptx-canvas-zoom";
 import { loadPptxRendererModule, type PptxRendererModule } from "./canvas/renderer-module";
 import { usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRendition, type PptxDeckRendererInput } from "./canvas/use-canvas-host";
 import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
-import { PPTX_FALLBACK_FIT_WIDTH } from "./canvas/zoom";
+import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxPresenter } from "./presenter";
+import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
+import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxToolbar } from "./toolbar";
 
@@ -34,6 +37,9 @@ export interface PptxEditorProps {
   onTransform?: (request: SlidesEditTransformRequest) => Promise<unknown>;
   /** A real drag/resize request supplied by the host gesture surface. */
   transformRequest?: SlidesEditTransformRequest | null;
+  /** Delete channel (P0-3). When absent the editor falls back to the handle's
+   *  own `edit` port; when neither exists Delete stays honestly unbound. */
+  onDeleteElements?: (slideIndex: number, elementIds: readonly string[]) => Promise<unknown>;
   onTextEdit?: (slideIndex: number) => Promise<unknown>;
   onOpen?: () => void;
   onCommandError?: (error: unknown) => void;
@@ -52,10 +58,21 @@ interface GestureState {
   resolve: () => void;
 }
 
+/** The web host's editor handle adds the typed edit channel to the shared
+ * handle; the editor reads it structurally so a fake in a unit test can bind
+ * Delete without implementing the whole web adapter. */
+interface EditableHandle extends EditorHandle {
+  edit?(edits: readonly PptxEdit[]): Promise<{ revision: number }>;
+}
+
 function makeGesture(): GestureState {
   let resolve!: () => void;
   const promise = new Promise<void>((done) => { resolve = done; });
   return { promise, resolve };
+}
+
+function isEditableHandle(handle: EditorHandle | null): handle is EditableHandle {
+  return typeof (handle as EditableHandle | null)?.edit === "function";
 }
 
 /** PPTX renderer mounted by EditorSlot. It renders the current model supplied
@@ -70,6 +87,7 @@ export function PptxEditor({
   onSlideSelect,
   onTransform,
   transformRequest = null,
+  onDeleteElements,
   onTextEdit,
   onOpen,
   onCommandError,
@@ -220,6 +238,33 @@ export function PptxEditor({
     if (saveCoordinator) void saveCoordinator.save("button");
   }, [saveCoordinator]);
 
+  const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
+  const deleteElements = useMemo(() => {
+    if (onDeleteElements) return onDeleteElements;
+    if (!editableHandle?.edit) return undefined;
+    return async (slideIndex: number, elementIds: readonly string[]) => {
+      await editableHandle.edit?.(elementIds.map((elementId) => ({ op: "delete_element", slideIndex, elementId })));
+    };
+  }, [editableHandle, onDeleteElements]);
+
+  const selection = usePptxSelection({
+    slideIndex: selectedIndex,
+    boxes: rendition ? collectRenderNodeBoxes(rendition) : [],
+    page: { widthPx: rendition?.widthPx ?? 0, heightPx: rendition?.heightPx ?? 0 },
+    fitWidthPx,
+    scale: zoom,
+    interactive: Boolean(rendition) && !gesturePending,
+    commitTransform: runTransform,
+    ...(deleteElements ? { deleteElements } : {}),
+    onError: reportCommandError,
+    ...(onDirty ? { onDeleteCommitted: onDirty } : {}),
+  });
+
+  const displaySize = useMemo(() => {
+    const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
+    return slideDisplaySize(fitWidthPx, zoom, aspect);
+  }, [fitWidthPx, rendition, zoom]);
+
   const onCommand = useCallback((id: PptxCommandId) => {
     switch (id) {
       case "edit-shape-image":
@@ -245,15 +290,26 @@ export function PptxEditor({
   }, [fullscreen, onFullscreenChange, onOpen, reportCommandError, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
 
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const key = event.key.toLowerCase();
     if (event.key === "PageDown" || event.key === "ArrowDown") { event.preventDefault(); selectSlide(selectedIndex + 1); }
     if (event.key === "PageUp" || event.key === "ArrowUp") { event.preventDefault(); selectSlide(selectedIndex - 1); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); requestHistory(event.shiftKey ? "redo" : "undo"); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); save(); }
+    if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); requestHistory(event.shiftKey ? "redo" : "undo"); }
+    if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); requestHistory("redo"); }
+    if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); save(); }
+    if (event.key === "Escape") { selection.clear(); }
+    if ((event.key === "Delete" || event.key === "Backspace") && selection.canDelete) {
+      event.preventDefault();
+      selection.deleteSelection();
+    }
   };
 
   return (
     <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
-      <PptxToolbar commands={commands.filter((command) => command.id !== "save" || includeSave)} onCommand={onCommand} />
+      <PptxToolbar
+        commands={commands.filter((command) => command.id !== "save" || includeSave)}
+        onCommand={onCommand}
+        {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
+      />
       {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
       {rendererState.status === "error" ? (
         <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error">
@@ -278,6 +334,14 @@ export function PptxEditor({
             zoom={zoom}
             onFitWidthChange={setFitWidthPx}
             onKeyDown={onCanvasKeyDown}
+            overlay={rendition ? (
+              <PptxSelectionOverlay
+                page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
+                displayWidthPx={displaySize.widthPx}
+                displayHeightPx={displaySize.heightPx}
+                controller={selection}
+              />
+            ) : null}
           />
         </div>
       </div>
