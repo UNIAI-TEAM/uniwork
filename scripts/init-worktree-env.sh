@@ -52,7 +52,7 @@ PREVIEW_ASSET_MAX_BYTES=10485760
 METRICS_ADDR=127.0.0.1:${metrics_port}
 # Storage is chosen explicitly: an unset STORAGE_BACKEND means minio, and the
 # server refuses to start without the MINIO_* group. Switch to MinIO with
-# `make minio-up` and the block below (the bucket is shared by every worktree).
+# "make minio-up" and the block below (the bucket is shared by every worktree).
 STORAGE_BACKEND=local
 LOCAL_UPLOAD_DIR=./server/data/uploads-${slug}
 LOCAL_UPLOAD_BASE_URL=http://localhost:${backend_port}
