@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 import { bindDocxEngine, createDocxAdapter, readPageDecor, type DocxParsed } from "@uniwork/office-engine/docx";
 import { parseDocx, readSections, saveDocx } from "@uniwork/office-upstream/docs-renderer-editor";
 import { createDocxTiptapHandle } from "../use-docx-tiptap-handle";
-import { assertDocxPartsPreserved } from "../test-fixtures/docx-preservation";
 
 const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -47,6 +46,22 @@ function handleFor(source: Uint8Array) {
     documentId: "page-decor",
     readBytes: async () => source,
   });
+}
+
+/** The whole part-level footprint of a decoration save: the four ops create
+ * the settings/theme/header parts the fixture lacks and rewrite the document,
+ * its rels and the content types; every other part stays byte-identical. */
+const DECOR_CREATED_PARTS = ["word/settings.xml", "word/theme/theme1.xml", "word/header1.xml"];
+const DECOR_REWRITTEN_PARTS = ["[Content_Types].xml", "word/_rels/document.xml.rels", "word/document.xml"];
+
+async function readPartBytes(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+  const zip = await JSZip.loadAsync(bytes);
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  return new Map(
+    await Promise.all(
+      entries.map(async (entry): Promise<[string, Uint8Array]> => [entry.name, await entry.async("uint8array")]),
+    ),
+  );
 }
 
 describe("page-decoration save path", () => {
@@ -109,8 +124,17 @@ describe("page-decoration save path", () => {
       } finally {
         await fresh.dispose();
       }
-      // only the parts the edits own change
-      await assertDocxPartsPreserved(source, saved.bytes, false);
+      // the pair of lists above is the complete footprint: a new part outside
+      // them, a dropped part or a changed byte outside them fails
+      const before = await readPartBytes(source);
+      const after = await readPartBytes(saved.bytes);
+      expect([...after.keys()].filter((name) => !before.has(name)).sort()).toEqual([...DECOR_CREATED_PARTS].sort());
+      for (const [name, bytes] of before) {
+        const next = after.get(name);
+        expect(next, `part ${name} present`).toBeDefined();
+        if (DECOR_REWRITTEN_PARTS.includes(name)) expect(next, `${name} rewritten`).not.toEqual(bytes);
+        else expect(next, `${name} untouched`).toEqual(bytes);
+      }
     } finally {
       await handle.dispose();
     }

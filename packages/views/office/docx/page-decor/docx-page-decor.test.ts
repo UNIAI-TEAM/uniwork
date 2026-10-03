@@ -90,6 +90,7 @@ describe("decorViewFromParsed", () => {
     expect(view?.sections[0]!.borders).toBeNull();
     expect(view?.sections[1]!.borders).toEqual({ style: "double", widthEighths: 8, spacePt: 16, colorHex: "44546A", offsetFrom: "page" });
     expect(decorViewFromParsed(null)).toBeNull();
+    expect(decorViewFromParsed({})).toBeNull();
   });
 
   it("mirrors every op onto a display copy without touching the source", () => {

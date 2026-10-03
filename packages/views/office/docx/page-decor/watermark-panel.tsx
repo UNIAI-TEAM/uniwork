@@ -79,7 +79,7 @@ export function DocxWatermarkPanel({ draft, readOnly, patch }: DocxPageDecorPane
             type="color"
             value={draft.watermarkColor === "" ? "#C0C0C0" : `#${draft.watermarkColor}`}
             disabled={readOnly}
-            onChange={(event) => patch({ watermarkColor: event.target.value })}
+            onChange={(event) => patch({ watermarkColor: event.target.value.replace(/^#/, "") })}
             data-testid="docx-page-decor-watermark-color"
           />
         </div>

@@ -68,7 +68,7 @@ export function DocxBordersPanel({ draft, readOnly, patch }: DocxPageDecorPanelP
             type="color"
             value={draft.borderColor === "" ? "#000000" : `#${draft.borderColor}`}
             disabled={readOnly || !draft.borderOn}
-            onChange={(event) => patch({ borderColor: event.target.value })}
+            onChange={(event) => patch({ borderColor: event.target.value.replace(/^#/, "") })}
             data-testid="docx-page-decor-border-color"
           />
         </div>

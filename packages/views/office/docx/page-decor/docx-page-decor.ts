@@ -45,7 +45,7 @@ export interface DocxPageDecorView {
 }
 
 export function decorViewFromParsed(parsed: unknown): DocxPageDecorView | null {
-  if (!parsed || typeof parsed !== "object") return null;
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { blocks?: unknown }).blocks)) return null;
   const snapshot = readPageDecor(parsed as DocxParsed);
   return {
     pageColor: snapshot.pageColor,
@@ -325,7 +325,7 @@ export function editsFromDraft(
   if (nextColor !== view.pageColor) edits.push({ op: "set_page_color", color: nextColor });
 
   const width = Number(draft.borderWidth);
-  if (draft.borderOn && (!Number.isInteger(width) || width < 2 || width > 96)) return { edits: [], error: "invalidBorderSize" };
+  if (draft.borderOn && (!Number.isInteger(width) || width < 4 || width > 96)) return { edits: [], error: "invalidBorderSize" };
   const space = Number(draft.borderSpace);
   if (draft.borderOn && (!Number.isInteger(space) || space < 0 || space > 31)) return { edits: [], error: "invalidBorderSpace" };
   const borderColor = draft.borderColor === "" ? null : normalizeHex(draft.borderColor);

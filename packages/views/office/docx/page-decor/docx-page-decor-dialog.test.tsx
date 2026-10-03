@@ -68,6 +68,22 @@ describe("DocxPageDecorDialog", () => {
     expect(props.onApply).toHaveBeenCalledWith([{ op: "set_page_color", color: "E8F1FB" }]);
   });
 
+  it("keeps picked colours bare so the pickers and labels round-trip", () => {
+    renderDialog(fixtureView());
+    const watermarkColor = screen.getByTestId("docx-page-decor-watermark-color") as HTMLInputElement;
+    fireEvent.change(watermarkColor, { target: { value: "#123456" } });
+    expect(watermarkColor.value).toBe("#123456");
+    fireEvent.click(screen.getByTestId("docx-page-decor-tab-borders"));
+    const borderColor = screen.getByTestId("docx-page-decor-border-color") as HTMLInputElement;
+    fireEvent.change(borderColor, { target: { value: "#abcdef" } });
+    expect(borderColor.value).toBe("#abcdef");
+    fireEvent.click(screen.getByTestId("docx-page-decor-tab-theme"));
+    const themeColor = screen.getByTestId("docx-page-decor-theme-color-accent1") as HTMLInputElement;
+    fireEvent.change(themeColor, { target: { value: "#123456" } });
+    expect(themeColor.value).toBe("#123456");
+    expect(screen.getByText("123456")).toBeInTheDocument();
+  });
+
   it("blocks apply on a malformed custom colour and explains it", () => {
     const props = renderDialog(fixtureView());
     fireEvent.click(screen.getByTestId("docx-page-decor-tab-color"));

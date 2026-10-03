@@ -106,7 +106,7 @@ export function DocxThemePanel({ draft, readOnly, patch }: DocxPageDecorPanelPro
                   className="w-10 shrink-0"
                   value={`#${draft.themeColors[slot]}`}
                   disabled={readOnly}
-                  onChange={(event) => patch({ themeColors: { ...draft.themeColors, [slot]: event.target.value } })}
+                  onChange={(event) => patch({ themeColors: { ...draft.themeColors, [slot]: event.target.value.replace(/^#/, "") } })}
                   data-testid={`docx-page-decor-theme-color-${slot}`}
                 />
                 <span className="text-caption text-muted-foreground">{draft.themeColors[slot]}</span>
