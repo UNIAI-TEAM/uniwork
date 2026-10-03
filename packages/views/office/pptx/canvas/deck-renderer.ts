@@ -67,8 +67,8 @@ export function createPptxDeckRenderer(
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
     // A slide the artifact cannot build (corrupt geometry, an unsupported node) degrades to a
-    // null rendition — the canvas shows its per-slide pending state and the rail skips that
-    // thumbnail — instead of throwing through React and taking the whole editor down.
+    // null rendition -- the canvas shows its per-slide pending state and the rail skips that
+    // thumbnail -- instead of throwing through React and taking the whole editor down.
     let built: PptxRenderSlide | null = null;
     try {
       built = module.buildRenderSlide(slide, size, {

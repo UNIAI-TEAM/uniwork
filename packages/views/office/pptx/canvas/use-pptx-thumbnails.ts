@@ -41,7 +41,7 @@ interface PptxThumbnailOptions {
   renderer: PptxDeckRenderer | null;
   /**
    * Rail order. `renderer.buildThumbnail` is positional while results are keyed by `slide.id`,
-   * so `slides[i]` must be the deck's slide `i` — a host that reorders or filters this view
+   * so `slides[i]` must be the deck's slide `i` -- a host that reorders or filters this view
    * attaches the wrong image to an id with no error. Pass the deck order, or extend the
    * renderer seam to resolve by id before feeding a reordered view.
    */
