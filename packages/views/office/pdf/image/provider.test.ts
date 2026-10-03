@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPdfImageOperationProvider } from "./provider";
+import { createPdfImageOperationProvider, MAX_PDF_IMAGE_BYTES, PdfImageProviderError } from "./provider";
 
 function bytes(...values: number[]): Uint8Array { return Uint8Array.from(values); }
 
@@ -27,6 +27,21 @@ describe("createPdfImageOperationProvider", () => {
     await provider.transformImage({ pageIndex: 1, oldRect: [1, 2, 30, 40], rect: [5, 6, 35, 46], quarterTurns: -1 });
     await provider.deleteImage({ pageIndex: 1, oldRect: [5, 6, 35, 46] });
     expect(submit).toHaveBeenNthCalledWith(1, [{ op: "addImageEdit", attributes: { kind: "transformImage", pageIndex: 1, oldRect: [1, 2, 30, 40], rect: [5, 6, 35, 46], quarterTurns: -1 } }]);
-    expect(submit).toHaveBeenNthCalledWith(2, [{ op: "addImageEdit", attributes: { kind: "deleteImage", pageIndex: 1, oldRect: [5, 6, 35, 46], rect: [5, 6, 35, 46] } }]);
+    expect(submit).toHaveBeenNthCalledWith(2, [{ op: "addImageEdit", attributes: { kind: "deleteImage", pageIndex: 1, oldRect: [5, 6, 35, 46] } }]);
+  });
+
+  it("rejects fractional quarter turns before building the envelope", async () => {
+    const submit = vi.fn();
+    const provider = createPdfImageOperationProvider({}, { submit });
+    await expect(provider.transformImage({ pageIndex: 0, oldRect: [1, 2, 30, 40], rect: [5, 6, 35, 46], quarterTurns: 1.5 })).rejects.toBeInstanceOf(PdfImageProviderError);
+    await expect(provider.replaceImage({ target: { page: 1, objectId: "image-1" }, image: bytes(4, 5), quarterTurns: 0.5 })).rejects.toThrow(/whole number/);
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("rejects image bytes over the engine cap before encoding", async () => {
+    const submit = vi.fn();
+    const provider = createPdfImageOperationProvider({}, { submit });
+    await expect(provider.insertImage({ pageIndex: 0, rect: [1, 2, 30, 40], image: new Uint8Array(MAX_PDF_IMAGE_BYTES + 1), layer: "aboveText" })).rejects.toThrow(/size cap/);
+    expect(submit).not.toHaveBeenCalled();
   });
 });

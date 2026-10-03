@@ -2,13 +2,18 @@ import type { PdfObjectMetadata } from "../ops-bridge";
 import type {
   PdfImageDeleteInput,
   PdfImageEngineOperation,
+  PdfImageInsertInput,
   PdfImageOperationProvider,
   PdfImageOperationSubmitter,
   PdfImageProviderOptions,
   PdfImageReplaceInput,
   PdfImageTransformInput,
 } from "./types";
-import type { PdfImageInsertInput } from "./types";
+
+/** Raw-byte bound mirroring the engine's 64 MiB base64 cap (`capImageB64` in
+ * office-engine): 64 MiB of base64 is exactly 48 MiB of raw bytes, so one byte
+ * more would be rejected only after the encode. Keep the two in step. */
+export const MAX_PDF_IMAGE_BYTES = 48 * 1024 * 1024;
 
 export class PdfImageProviderError extends Error {
   readonly code: "invalid_input" | "object_unavailable";
@@ -34,8 +39,15 @@ function rect(rect: readonly number[], name: string): [number, number, number, n
   return result;
 }
 
+function quarterTurns(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value)) throw new PdfImageProviderError("invalid_input", "quarterTurns must be a whole number");
+  return value;
+}
+
 function imageBase64(image: Uint8Array): string {
   if (!(image instanceof Uint8Array) || image.length === 0) throw new PdfImageProviderError("invalid_input", "image bytes are required");
+  if (image.length > MAX_PDF_IMAGE_BYTES) throw new PdfImageProviderError("invalid_input", "image exceeds the engine image size cap");
   if (typeof globalThis.btoa !== "function") throw new PdfImageProviderError("invalid_input", "base64 encoder is unavailable");
   let binary = "";
   for (let offset = 0; offset < image.length; offset += 0x8000) binary += String.fromCharCode(...image.subarray(offset, offset + 0x8000));
@@ -64,6 +76,7 @@ function submitInsert(input: PdfImageInsertInput, options: PdfImageProviderOptio
 }
 
 function submitTransform(input: PdfImageTransformInput, options: PdfImageProviderOptions): PdfImageEngineOperation {
+  const turns = quarterTurns(input.quarterTurns);
   return {
     op: "addImageEdit",
     attributes: {
@@ -72,17 +85,17 @@ function submitTransform(input: PdfImageTransformInput, options: PdfImageProvide
       oldRect: rect(input.oldRect, "oldRect"),
       rect: rect(input.rect, "rect"),
       ...(input.layer ? { layer: input.layer } : {}),
-      ...(input.quarterTurns === undefined ? {} : { quarterTurns: input.quarterTurns }),
+      ...(turns === undefined ? {} : { quarterTurns: turns }),
     },
   };
 }
 
 function submitDelete(input: PdfImageDeleteInput, options: PdfImageProviderOptions): PdfImageEngineOperation {
-  const oldRect = rect(input.oldRect, "oldRect");
-  return { op: "addImageEdit", attributes: { kind: "deleteImage", pageIndex: pageIndex(input.pageIndex, options.pageOrder), oldRect, rect: oldRect } };
+  return { op: "addImageEdit", attributes: { kind: "deleteImage", pageIndex: pageIndex(input.pageIndex, options.pageOrder), oldRect: rect(input.oldRect, "oldRect") } };
 }
 
 async function submitReplace(input: PdfImageReplaceInput, options: PdfImageProviderOptions): Promise<PdfImageEngineOperation> {
+  const turns = quarterTurns(input.quarterTurns);
   const object = await objectMetadata(options, input.target);
   const oldRect = rect(object.rect, "oldRect");
   return {
@@ -94,7 +107,7 @@ async function submitReplace(input: PdfImageReplaceInput, options: PdfImageProvi
       rect: rect(input.rect ?? oldRect, "rect"),
       image: imageBase64(input.image),
       ...(input.layer ?? object.layer ? { layer: input.layer ?? object.layer } : {}),
-      ...(input.quarterTurns === undefined ? {} : { quarterTurns: input.quarterTurns }),
+      ...(turns === undefined ? {} : { quarterTurns: turns }),
     },
   };
 }

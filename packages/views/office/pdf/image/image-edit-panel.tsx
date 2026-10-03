@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { pdfImageErrorMessage } from "./error";
 import { readImageFile } from "./image-insert-panel";
+import { MAX_PDF_IMAGE_BYTES } from "./provider";
 import type { PdfImageOperationProvider, PdfImageRect, PdfImageSelection } from "./types";
 
 export interface PdfImageEditPanelProps {
@@ -15,15 +16,24 @@ export interface PdfImageEditPanelProps {
   onApplied?: () => void;
 }
 
-function number(value: string, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+type RectFields = [string, string, string, string];
+
+/** `Number("")` is 0, so emptiness is answered before the parse: a cleared
+ * coordinate stays invalid instead of silently zeroing the field. */
+function parseNumber(value: string): number {
+  return value.trim() === "" ? Number.NaN : Number(value);
+}
+
+function rectFields(selection: PdfImageSelection | null): RectFields {
+  return selection
+    ? [String(selection.rect[0]), String(selection.rect[1]), String(selection.rect[2]), String(selection.rect[3])]
+    : ["0", "0", "1", "1"];
 }
 
 /** Image-object controls for move/resize/rotate, replacement and deletion. */
 export function PdfImageEditPanel({ selection, provider, disabled = false, onApplied }: PdfImageEditPanelProps) {
   const { t } = useTranslation();
-  const [rect, setRect] = useState<PdfImageRect>(selection?.rect ?? [0, 0, 1, 1]);
+  const [fields, setFields] = useState<RectFields>(() => rectFields(selection));
   const [quarterTurns, setQuarterTurns] = useState("0");
   const [file, setFile] = useState<File | null>(null);
   const [pending, setPending] = useState(false);
@@ -36,13 +46,26 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
   const selectedY2 = selection?.rect[3];
 
   useEffect(() => {
-    setRect([selectedX1 ?? 0, selectedY1 ?? 0, selectedX2 ?? 1, selectedY2 ?? 1]);
+    setFields([String(selectedX1 ?? 0), String(selectedY1 ?? 0), String(selectedX2 ?? 1), String(selectedY2 ?? 1)]);
     setQuarterTurns("0");
     setFile(null);
     setError(null);
   }, [selectedObjectId, selectedPage, selectedX1, selectedY1, selectedX2, selectedY2]);
 
   if (!selection) return null;
+
+  const values: PdfImageRect = [parseNumber(fields[0]), parseNumber(fields[1]), parseNumber(fields[2]), parseNumber(fields[3])];
+  const fieldInvalid = (index: number): boolean => {
+    const value = values[index]!;
+    if (!Number.isFinite(value)) return true;
+    if (index === 2) return Number.isFinite(values[0]) && value <= values[0]!;
+    if (index === 3) return Number.isFinite(values[1]) && value <= values[1]!;
+    return false;
+  };
+  const rectInvalid = fieldInvalid(0) || fieldInvalid(1) || fieldInvalid(2) || fieldInvalid(3);
+  const turns = parseNumber(quarterTurns);
+  const turnsInvalid = !Number.isSafeInteger(turns);
+
   const applyLabel = t("office.pdf.image.apply");
   const deleteLabel = t("office.pdf.image.delete");
   const replaceFileLabel = t("office.pdf.image.replaceFile");
@@ -59,13 +82,21 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
       setPending(false);
     }
   };
-  const transform = () => void run(() => provider.transformImage({ pageIndex: selection.page - 1, oldRect: selection.rect, rect, ...(selection.layer ? { layer: selection.layer } : {}), quarterTurns: number(quarterTurns, 0) }));
+  const transform = () => {
+    if (rectInvalid || turnsInvalid) return;
+    void run(() => provider.transformImage({ pageIndex: selection.page - 1, oldRect: selection.rect, rect: values, ...(selection.layer ? { layer: selection.layer } : {}), quarterTurns: turns }));
+  };
   const replace = () => {
     if (!file || !file.type.match(/^image\/(png|jpeg)$/)) {
       setError(t("office.pdf.image.errors.fileType"));
       return;
     }
-    void run(async () => provider.replaceImage({ target: { page: selection.page, objectId: selection.objectId }, image: await readImageFile(file), rect }));
+    if (file.size > MAX_PDF_IMAGE_BYTES) {
+      setError(t("office.pdf.image.errors.asset"));
+      return;
+    }
+    if (rectInvalid) return;
+    void run(async () => provider.replaceImage({ target: { page: selection.page, objectId: selection.objectId }, image: await readImageFile(file), rect: values }));
   };
   const remove = () => void run(() => provider.deleteImage({ pageIndex: selection.page - 1, oldRect: selection.rect }));
 
@@ -75,21 +106,34 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
         {(["Left", "Top", "Right", "Bottom"] as const).map((label, index) => (
           <label key={label} className="grid gap-1 text-caption" htmlFor={`pdf-image-${label.toLowerCase()}`}>
             {t(`office.pdf.image.${label.toLowerCase()}`)}
-            <Input id={`pdf-image-${label.toLowerCase()}`} type="number" value={rect[index]} disabled={disabled || pending} onChange={(event) => setRect((current) => current.map((value, position) => position === index ? number(event.target.value, value) : value) as PdfImageRect)} />
+            <Input
+              id={`pdf-image-${label.toLowerCase()}`}
+              type="number"
+              value={fields[index]}
+              aria-invalid={fieldInvalid(index)}
+              disabled={disabled || pending}
+              onChange={(event) =>
+                setFields((current) => {
+                  const next = [...current] as RectFields;
+                  next[index] = event.target.value;
+                  return next;
+                })
+              }
+            />
           </label>
         ))}
       </div>
       <label className="grid gap-1 text-caption" htmlFor="pdf-image-rotation">
         {t("office.pdf.image.rotation")}
-        <Input id="pdf-image-rotation" type="number" step={1} value={quarterTurns} disabled={disabled || pending} onChange={(event) => setQuarterTurns(event.target.value)} />
+        <Input id="pdf-image-rotation" type="number" step={1} value={quarterTurns} aria-invalid={turnsInvalid} disabled={disabled || pending} onChange={(event) => setQuarterTurns(event.target.value)} />
       </label>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={transform} disabled={disabled || pending}>{applyLabel}</Button>
+        <Button type="button" variant="outline" onClick={transform} disabled={disabled || pending || rectInvalid || turnsInvalid}>{applyLabel}</Button>
         <Button type="button" variant="outline" onClick={remove} disabled={disabled || pending}>{deleteLabel}</Button>
       </div>
       <label className="sr-only" htmlFor="pdf-image-replace-file">{replaceFileLabel}</label>
-      <Input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} aria-label={replaceFileLabel} />
-      <Button type="button" variant="outline" onClick={replace} disabled={disabled || pending || !file}>{replaceLabel}</Button>
+      <Input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      <Button type="button" variant="outline" onClick={replace} disabled={disabled || pending || !file || rectInvalid}>{replaceLabel}</Button>
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
     </section>
   );

@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import type { PdfImageOperationProvider, PdfImageRect } from "./types";
 import { pdfImageErrorMessage } from "./error";
+import { MAX_PDF_IMAGE_BYTES } from "./provider";
 
 const DEFAULT_RECT: PdfImageRect = [36, 36, 216, 156];
 
@@ -45,6 +46,10 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
       setError(t("office.pdf.image.errors.fileType"));
       return;
     }
+    if (file.size > MAX_PDF_IMAGE_BYTES) {
+      setError(t("office.pdf.image.errors.asset"));
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -64,11 +69,12 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
     <section className="mt-3 grid gap-2" data-testid="pdf-image-insert-panel">
       <label className="sr-only" htmlFor="pdf-image-insert-file">{title}</label>
       <Input ref={inputRef} id="pdf-image-insert-file" type="file" accept="image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
-      {file ? <p className="text-caption text-muted-foreground">{file.name}</p> : null}
+      {file ? <p className="min-w-0 truncate text-caption text-muted-foreground">{file.name}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="sr-only">{t("office.pdf.image.layer")}</span>
-        <Button type="button" variant={layer === "aboveText" ? "secondary" : "outline"} onClick={() => setLayer("aboveText")} disabled={disabled || pending}>{t("office.pdf.image.layerAbove")}</Button>
-        <Button type="button" variant={layer === "belowText" ? "secondary" : "outline"} onClick={() => setLayer("belowText")} disabled={disabled || pending}>{t("office.pdf.image.layerBelow")}</Button>
+        <div role="group" aria-label={t("office.pdf.image.layer")} className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant={layer === "aboveText" ? "secondary" : "outline"} aria-pressed={layer === "aboveText"} onClick={() => setLayer("aboveText")} disabled={disabled || pending}>{t("office.pdf.image.layerAbove")}</Button>
+          <Button type="button" variant={layer === "belowText" ? "secondary" : "outline"} aria-pressed={layer === "belowText"} onClick={() => setLayer("belowText")} disabled={disabled || pending}>{t("office.pdf.image.layerBelow")}</Button>
+        </div>
         <Button type="button" variant="outline" onClick={() => void submit()} disabled={disabled || pending || !file}>{title}</Button>
       </div>
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
