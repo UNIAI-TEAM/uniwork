@@ -226,14 +226,19 @@ export function DocxShapePanel({
               </Label>
               <Select
                 value={shape.wrap}
-                disabled={disabled}
+                disabled={disabled || shape.parsed}
                 items={DOCX_SHAPE_WRAP_OPTIONS.map((option) => ({ value: option.wrap, label: t(option.labelKey) }))}
                 onValueChange={(value) => {
                   const edit = docxShapeWrapEdit(value, shape);
                   if (edit) onEdit(edit);
                 }}
               >
-                <SelectTrigger id="docx-shape-wrap" aria-label={t("office.docx.shapes.wrap")} className="w-full">
+                <SelectTrigger
+                  id="docx-shape-wrap"
+                  aria-label={t("office.docx.shapes.wrap")}
+                  title={shape.parsed ? t("office.docx.shapes.wrapParsedHint") : undefined}
+                  className="w-full"
+                >
                   <SelectValue placeholder={t("office.docx.shapes.wrapDefault")} />
                 </SelectTrigger>
                 <SelectContent>

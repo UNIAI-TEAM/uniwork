@@ -62,6 +62,12 @@ export interface DocxShapeInfo {
   wrap: DocxImageWrap | null;
   offsetXEmu: number | null;
   offsetYEmu: number | null;
+  /** True for a shape parsed from the document (`docxIndex` is a number), false
+   * for one inserted in this session (`docxIndex === null`). An inserted shape
+   * persists a wrap pick through the genXml save branch; a parsed shape's
+   * wrap-only pick drops in the vendored save path (convert.ts:1837-1992), so
+   * the panel disables the wrap control for parsed shapes. */
+  parsed: boolean;
 }
 
 const finite = (value: unknown): number | null =>
@@ -92,6 +98,7 @@ export function readDocxShapeInfo(attrs: Record<string, unknown> | null | undefi
     wrap: pickWrap(attrs.imageWrap),
     offsetXEmu: finite(attrs.imageOffsetXEmu),
     offsetYEmu: finite(attrs.imageOffsetYEmu),
+    parsed: typeof attrs.docxIndex === "number",
   };
 }
 

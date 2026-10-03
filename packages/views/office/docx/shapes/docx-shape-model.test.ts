@@ -38,6 +38,7 @@ describe("readDocxShapeInfo", () => {
       wrap: "square-left",
       offsetXEmu: 914400,
       offsetYEmu: 457200,
+      parsed: false,
     });
   });
 
@@ -59,6 +60,7 @@ describe("readDocxShapeInfo", () => {
       wrap: null,
       offsetXEmu: null,
       offsetYEmu: null,
+      parsed: false,
     });
   });
 
@@ -72,6 +74,11 @@ describe("readDocxShapeInfo", () => {
 
   it("drops an unknown wrap value instead of guessing", () => {
     expect(readDocxShapeInfo(attrsWith({ prst: "rect" }, { imageWrap: "sideways" }))?.wrap).toBeNull();
+  });
+
+  it("flags a parsed shape so the panel can disable the wrap picker", () => {
+    expect(readDocxShapeInfo(attrsWith({ prst: "rect" }, { docxIndex: 5 }))?.parsed).toBe(true);
+    expect(readDocxShapeInfo(attrsWith({ prst: "rect" }))?.parsed).toBe(false);
   });
 });
 
@@ -192,6 +199,7 @@ describe("docxShapeWrapEdit", () => {
     wrap: null,
     offsetXEmu: null,
     offsetYEmu: null,
+    parsed: false,
   };
 
   it("maps a selectable mode to the position edit and keeps the current offsets", () => {

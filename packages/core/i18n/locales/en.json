@@ -7894,6 +7894,7 @@
         "wrapTopBottom": "Top and bottom",
         "wrapBehind": "Behind text",
         "wrapFront": "In front of text",
+        "wrapParsedHint": "Text wrapping on shapes from the document is only saved with a position change.",
         "offsetX": "Horizontal offset (px)",
         "offsetY": "Vertical offset (px)",
         "textHint": "Double-click the shape to edit its text.",

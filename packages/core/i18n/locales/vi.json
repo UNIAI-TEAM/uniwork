@@ -7887,6 +7887,7 @@
         "wrapTopBottom": "Trên và dưới",
         "wrapBehind": "Sau văn bản",
         "wrapFront": "Trước văn bản",
+        "wrapParsedHint": "Cách bao văn bản cho hình có sẵn trong tài liệu chỉ được lưu khi vị trí thay đổi.",
         "offsetX": "Lệch ngang (px)",
         "offsetY": "Lệch dọc (px)",
         "textHint": "Nhấp đúp vào hình để sửa chữ.",

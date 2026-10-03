@@ -43,6 +43,7 @@ const SHAPE: DocxShapeInfo = {
   wrap: null,
   offsetXEmu: null,
   offsetYEmu: null,
+  parsed: false,
 };
 
 function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntime {
@@ -147,6 +148,19 @@ describe("DocxShapesGroup format panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
     const wrap = screen.getByRole("combobox", { name: "Cách bao văn bản" });
     expect(wrap).toHaveTextContent("Mặc định của hình");
+    // an inserted shape still persists a wrap pick, so the picker stays live
+    expect(wrap).not.toBeDisabled();
+  });
+
+  it("disables the wrap picker for a parsed shape and explains why on the trigger", () => {
+    renderGroup({ shape: { ...SHAPE, parsed: true } });
+    fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
+    const wrap = screen.getByRole("combobox", { name: "Cách bao văn bản" });
+    expect(wrap).toBeDisabled();
+    expect(wrap).toHaveAttribute(
+      "title",
+      "Cách bao văn bản cho hình có sẵn trong tài liệu chỉ được lưu khi vị trí thay đổi.",
+    );
   });
 
   it("commits a floating offset pair once the shape wraps", () => {
