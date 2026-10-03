@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * The ribbon tab strip: `role="tablist"` with one `role="tab"` per tab, roving

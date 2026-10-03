@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The PPTX ribbon shell: the tab strip and the command groups each tab holds.
  *
  * The tab/group layout is data, not JSX, so the overflow budget, the roving

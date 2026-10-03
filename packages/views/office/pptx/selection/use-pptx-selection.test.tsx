@@ -1,4 +1,4 @@
-﻿import { act, render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { PptxNodeBox } from "../canvas/render-tree";

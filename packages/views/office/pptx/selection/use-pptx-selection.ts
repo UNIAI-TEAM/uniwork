@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * The selection/gesture controller mounted over the P0-2 canvas.

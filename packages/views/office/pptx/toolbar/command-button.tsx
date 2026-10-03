@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * One ribbon command button. The capability status comes straight from the

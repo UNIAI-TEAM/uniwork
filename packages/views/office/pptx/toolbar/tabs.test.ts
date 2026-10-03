@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { PPTX_TOOLBAR_TABS, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, tabIsEmpty, toolbarCommandIds } from "./tabs";
 
 describe("PPTX toolbar tab model", () => {

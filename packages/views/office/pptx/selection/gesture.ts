@@ -1,4 +1,4 @@
-﻿/**
+/**
  * One drag gesture, start to finish, as pure data.
  *
  * A gesture is opened once on pointer-down, mutated by pointer-move (which only

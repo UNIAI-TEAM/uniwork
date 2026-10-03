@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * The selection overlay mounted inside the slide canvas box: the selection

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * The PPTX ribbon shell: the tab strip plus the active tab's command groups.

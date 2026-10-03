@@ -1,4 +1,4 @@
-﻿import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PptxSelectionOverlay } from "./pptx-selection-overlay";

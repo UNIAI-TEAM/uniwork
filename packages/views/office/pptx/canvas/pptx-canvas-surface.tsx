@@ -4,7 +4,7 @@
 
 /**
  * The slide surface: an SVG rendition of the current render tree inside a scrollable
- * `role="application"` canvas. Zoom is a viewBox-scaled display transform — the tree is
+ * `role="application"` canvas. Zoom is a viewBox-scaled display transform â€” the tree is
  * built at the measured fit width, so the vector content stays crisp at any zoom.
  *
  * The a11y contract is unchanged from the previous placeholder canvas: `role="application"`,

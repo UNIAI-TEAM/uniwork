@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The PPTX selection model: which element ids are selected on the current
  * slide.
  *

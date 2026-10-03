@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * One tab's command groups: labelled group boxes separated by a hairline, with

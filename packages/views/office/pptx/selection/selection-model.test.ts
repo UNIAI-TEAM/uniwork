@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { PptxNodeBox } from "../canvas/render-tree";
 import { box } from "../canvas/pptx-render-fixtures";
 import { EMPTY_SELECTION, pruneSelection, selectAt, selectionHas, setSelection } from "./selection-model";

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Selection geometry: marquee hit-testing and the move / 8-handle resize /
  * rotate math behind the drag handles.
  *
