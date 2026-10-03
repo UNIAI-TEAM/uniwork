@@ -22,3 +22,4 @@ export type {
   PdfSaveCoordinator,
   PdfViewState,
 } from "./types";
+export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type PdfEngineOperation, type PdfObjectMetadata, type PdfOpsBridgeOptions } from "./ops-bridge";
