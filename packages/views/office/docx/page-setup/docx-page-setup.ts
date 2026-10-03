@@ -137,22 +137,6 @@ export function clonePageSetupSection(section: DocxPageSetupSection): DocxPageSe
   return { ...section };
 }
 
-/** The dialog's seed values for one section. */
-export function draftFromSection(section: DocxPageSetupSection): DocxPageSetupDraft {
-  return {
-    pageWidth: section.pageWidth,
-    pageHeight: section.pageHeight,
-    orientation: section.orientation,
-    marginTop: section.marginTop,
-    marginRight: section.marginRight,
-    marginBottom: section.marginBottom,
-    marginLeft: section.marginLeft,
-    columns: section.columns,
-    columnSpace: section.columnSpace,
-    startType: section.startType,
-  };
-}
-
 /** The 0-based section index a block belongs to; a block beyond the last
  * section's closing block (an inserted one) keeps the nearest preceding
  * section, and a block before the first keeps section 0. */

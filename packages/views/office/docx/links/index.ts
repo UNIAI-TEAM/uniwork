@@ -14,5 +14,5 @@ export {
   readLinkSeed,
   removeLink,
 } from "./link-commands";
-export type { DocxLinkFormValue, DocxLinkInput, DocxLinkSeed, DocxLinkTarget, DocxLinksCommands, DocxLinksFormatState } from "./link-commands";
+export type { DocxLinkSeed, DocxLinkTarget } from "./link-commands";
 export { LinkDialog, type LinkDialogProps } from "./link-dialog";
