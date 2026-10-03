@@ -1148,6 +1148,29 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-925 B6: the per-user saved-signature store.
+		audit.ActionSignatureCreated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			if _, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionSignatureDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			row, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteSavedSignature(f.ctx, Human(f.owner.ID), f.orgID, row.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1273,6 +1296,8 @@ func auditActions() []string {
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,
+		audit.ActionSignatureCreated,
+		audit.ActionSignatureDeleted,
 	}
 }
 
