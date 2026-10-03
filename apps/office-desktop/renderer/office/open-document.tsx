@@ -15,6 +15,7 @@ import { DOCX_DESKTOP_ENGINE_BUILD } from "./docx-surface";
 
 export function OpenByteDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
   const [recovered, setRecovered] = useState(false);
