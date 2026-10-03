@@ -194,7 +194,7 @@ export function PdfToolbarShell({
       </Tabs>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="pdf-toolbar-commands">
-        {visibleCommands.map((command) => <CommandButton key={command.id} command={command} onCommand={onCommand} t={(key) => defaultCommandLabel(t, key as PdfCommandId)} />)}
+        {visibleCommands.map((command) => <CommandButton key={command.id} command={command} onCommand={onCommand} t={t} />)}
         {overflowCommands.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -220,4 +220,3 @@ export function PdfToolbarShell({
 }
 
 export { COMMAND_TABS };
-export { PdfToolbarShell as PdfToolbar };

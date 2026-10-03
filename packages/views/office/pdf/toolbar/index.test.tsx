@@ -7,6 +7,12 @@ import { PdfToolbarShell, type PdfToolbarCommand } from "./index";
 const command = (id: PdfToolbarCommand["id"], label?: string, onExecute = vi.fn()): PdfToolbarCommand => ({ id, label: label ?? id, onExecute });
 
 describe("PdfToolbarShell", () => {
+  it("provides a localized accessible name when a command omits its label", async () => {
+    await setLocale("en");
+    render(<PdfToolbarShell commands={[{ id: PDF_COMMANDS.undo }]} />);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+  });
+
   it("renders the five ribbon tabs and changes tabs with keyboard navigation", async () => {
     render(<PdfToolbarShell commands={[command(PDF_COMMANDS.annotations, "Annotate")]} />);
     const tabs = screen.getAllByRole("tab");
