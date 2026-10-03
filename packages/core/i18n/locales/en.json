@@ -7385,6 +7385,16 @@
         "deleteError": "The annotation could not be deleted. Try again.", "empty": "No saved annotations.",
         "kind": { "note": "Note", "ink": "Ink", "image": "Image", "unknown": "Annotation" }, "readOnly": "Read-only"
       },
+      "print": {
+        "action": "Print", "preparing": "Printing…",
+        "failed": "The document could not be printed."
+      },
+      "export": {
+        "pages": "Export pages as PNG", "progress": "Exporting page {{page}} / {{total}}…",
+        "failed": "The pages could not be exported.",
+        "saveCopy": "Save a copy", "savingCopy": "Saving…",
+        "saveCopyUnavailable": "Saving a copy is not available yet.", "copyFailed": "The copy could not be saved."
+      },
       "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
       "errors": {
         "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",
