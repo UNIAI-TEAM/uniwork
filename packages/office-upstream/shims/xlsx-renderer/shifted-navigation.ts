@@ -47,6 +47,7 @@ export function installShiftedNavigation(
       : lastSelection ? workbook?.getSheetBySheetId(lastSelection.sheetId) : undefined;
     const activeRange = workbook?.getActiveRange();
     const range = activeRange?.getRange() ?? lastSelection?.range;
+    const rangeFacade = activeRange ?? (sheet && range ? sheet.getRange(range.startRow, range.startColumn) : undefined);
     if (!state || !workbook || !sheet || !range ||
       !canEditRange(state, sheet.getSheetId(), range)) return;
     event.preventDefault();
@@ -65,7 +66,7 @@ export function installShiftedNavigation(
         !container.contains(container.ownerDocument.activeElement)) return;
       // endEditingAsync(true) uses plain Enter and may move down. Restore its
       // captured selection before activating the reverse target.
-      if (editing) workbook.setActiveRange(range);
+      if (editing && rangeFacade) workbook.setActiveRange(rangeFacade);
       // The enter/tab command indexes the preceding selection at -1 when
       // there is only one selection. The directional command has the same
       // failure mode when the native editor owns focus: it clears the
@@ -73,7 +74,7 @@ export function installShiftedNavigation(
       // the preceding cell through the worksheet facade instead. Besides
       // retaining the primary selection, this uses the normal facade path for
       // merge-aware and edge-safe selection activation.
-      const current = range.getRange();
+      const current = range;
       const row = key === "Enter" ? Math.max(0, current.startRow - 1) : current.startRow;
       const column = key === "Tab" ? Math.max(0, current.startColumn - 1) : current.startColumn;
       sheet.getRange(row, column).activate();
