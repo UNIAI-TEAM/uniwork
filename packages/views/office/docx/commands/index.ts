@@ -10,6 +10,7 @@ import { createInsertCommands, type DocxInsertCommands, type DocxInsertFormatSta
 import { createLinksCommands, type DocxLinksCommands, type DocxLinksFormatState } from "./links";
 import { createNotesCommands, type DocxNotesCommands, type DocxNotesFormatState } from "./notes";
 import { createNumberingCommands, type DocxNumberingCommands, type DocxNumberingFormatState } from "./numbering";
+import { createPageDecorCommands, type DocxPageDecorCommands, type DocxPageDecorFormatState } from "./page-decor";
 import { createPageSetupCommands, type DocxPageSetupCommands, type DocxPageSetupFormatState } from "./page-setup";
 import { createParagraphCommands, type DocxParagraphCommands, type DocxParagraphFormatState } from "./paragraph";
 import { createReviewCommands, type DocxReviewCommands, type DocxReviewFormatState } from "./review";
@@ -31,7 +32,8 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxNotesFormatState &
   DocxNumberingFormatState &
   DocxPageSetupFormatState &
-  DocxCompareFormatState;
+  DocxCompareFormatState &
+  DocxPageDecorFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
 
@@ -52,6 +54,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxNotesCommands &
   DocxNumberingCommands &
   DocxPageSetupCommands &
+  DocxPageDecorCommands &
   DocxCompareCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
@@ -79,6 +82,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createNotesCommands,
   createNumberingCommands,
   createPageSetupCommands,
+  createPageDecorCommands,
   createCompareCommands,
 ];
 

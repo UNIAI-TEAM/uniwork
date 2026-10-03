@@ -17,6 +17,7 @@ import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import type { DocxNotesSnapshot } from "./commands/notes";
 import type { DocxNumberingSnapshot } from "./commands/numbering";
+import type { DocxPageDecorEdit } from "./commands/page-decor";
 import type { DocxPageSetupEdit } from "./commands/page-setup";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
@@ -121,6 +122,11 @@ export interface DocxTiptapSnapshot {
    * insert_numbering_def / restart_numbering ops; restoreSnapshot re-overlays
    * their markers (the editor storage is per-instance). */
   numbering?: DocxNumberingSnapshot;
+  /** The pending page-decoration ops at capture (B6): page colour, watermark,
+   * theme colours/fonts and per-section border boxes live outside the document,
+   * so serializeSnapshot replays them onto the save session after the block
+   * plan and restoreSnapshot re-seeds them. */
+  pageDecor?: DocxPageDecorEdit[];
 }
 
 export interface DocxOpenError extends Error {
@@ -265,6 +271,8 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
       // B4: the page-setup dialog's section list, from the same parse.
       commandRuntime.seedDocxPageSetup(parsed);
+      // B6: the page-decoration dialog's read state, from the same parse.
+      commandRuntime.seedDocxPageDecor(parsed);
       commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
@@ -286,6 +294,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         notes: commandRuntime.snapshotDocxNotes(),
         pageSetup: commandRuntime.listDocxPageSetupEdits(),
         numbering: commandRuntime.listDocxNumberingEdits(),
+        pageDecor: commandRuntime.listDocxPageDecorEdits(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -334,6 +343,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // B5: same for the numbering part — the new definitions/restart nums
         // the block plan's list items point at.
         commandRuntime.applyDocxNumberingEdits(options.adapter, saveRef);
+        // B6: page decoration — colour/watermark/theme ride SaveOptions, the
+        // border boxes rewrite their sections' sectPr slices.
+        commandRuntime.applyDocxPageDecorEdits(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -358,6 +370,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       }
       commandRuntime.restoreDocxPageSetupEdits(snapshot.value.pageSetup);
       commandRuntime.restoreDocxNumberingEdits(snapshot.value.numbering);
+      commandRuntime.restoreDocxPageDecorEdits(snapshot.value.pageDecor);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },
