@@ -6943,6 +6943,81 @@
         "editorUnknownAuthor": "Không rõ tác giả",
         "ribbonTableHandleTip": "Chọn bảng"
       },
+      "image": {
+        "insert": "Chèn ảnh",
+        "insertTitle": "Chèn ảnh",
+        "insertHint": "Ảnh PNG, JPEG hoặc GIF, tối đa 10 MB.",
+        "altText": "Văn bản thay thế",
+        "altTextPlaceholder": "Mô tả ảnh cho trình đọc màn hình",
+        "width": "Chiều rộng (px)",
+        "height": "Chiều cao (px)",
+        "lockAspect": "Giữ tỉ lệ khung ảnh",
+        "cancel": "Hủy",
+        "close": "Đóng",
+        "inspector": "Ảnh",
+        "delete": "Xóa ảnh",
+        "size": "Kích thước",
+        "align": {
+          "label": "Căn lề",
+          "left": "Căn trái",
+          "center": "Căn giữa",
+          "right": "Căn phải"
+        },
+        "wrap": {
+          "label": "Cách bố trí văn bản",
+          "inline": "Cùng dòng với văn bản",
+          "square-left": "Vuông — bên trái",
+          "square-right": "Vuông — bên phải",
+          "tight-left": "Sát — bên trái",
+          "tight-right": "Sát — bên phải",
+          "through-left": "Xuyên — bên trái",
+          "through-right": "Xuyên — bên phải",
+          "topBottom": "Trên và dưới",
+          "behind": "Sau văn bản",
+          "front": "Trước văn bản"
+        },
+        "position": {
+          "label": "Vị trí",
+          "TopLeft": "Trên trái",
+          "TopCenter": "Trên giữa",
+          "TopRight": "Trên phải",
+          "CenterLeft": "Giữa trái",
+          "CenterCenter": "Chính giữa",
+          "CenterRight": "Giữa phải",
+          "BottomLeft": "Dưới trái",
+          "BottomCenter": "Dưới giữa",
+          "BottomRight": "Dưới phải"
+        },
+        "positionAfterSave": "Vị trí neo dùng được sau lần lưu đầu tiên.",
+        "offset": {
+          "label": "Độ lệch (px)",
+          "x": "Độ lệch ngang",
+          "y": "Độ lệch dọc"
+        },
+        "rotate": {
+          "left": "Xoay trái",
+          "right": "Xoay phải"
+        },
+        "flip": {
+          "h": "Lật ngang",
+          "v": "Lật dọc"
+        },
+        "replace": "Thay ảnh",
+        "crop": {
+          "command": "Cắt ảnh",
+          "title": "Cắt ảnh",
+          "hint": "Kéo các tay nắm để chọn vùng giữ lại.",
+          "handle": "Tay nắm cắt {{handle}}",
+          "failed": "Không cắt được ảnh trong trình duyệt này.",
+          "reset": "Đặt lại",
+          "apply": "Áp dụng"
+        },
+        "errors": {
+          "unsupported": "Chỉ hỗ trợ ảnh PNG, JPEG hoặc GIF.",
+          "tooLarge": "Ảnh vượt quá 10 MB.",
+          "unreadable": "Không đọc được ảnh này."
+        }
+      },
       "toolbar": {
         "label": "Lệnh chỉnh sửa DOCX",
         "tabsLabel": "Thẻ tài liệu",
@@ -7037,6 +7112,26 @@
       },
       "surface": {
         "ready": "Canvas DOCX sẵn sàng cho bộ dựng của host."
+      },
+      "view": {
+        "zoom": {
+          "label": "Mức thu phóng",
+          "in": "Phóng to",
+          "out": "Thu nhỏ",
+          "percent": "{{percent}}%",
+          "fitWidth": "Vừa chiều rộng",
+          "fitPage": "Vừa trang"
+        },
+        "ruler": {
+          "label": "Thước ngang"
+        },
+        "navigation": {
+          "label": "Ngăn điều hướng",
+          "title": "Tiêu đề",
+          "list": "Tiêu đề trong tài liệu",
+          "empty": "Tài liệu chưa có tiêu đề",
+          "close": "Đóng ngăn điều hướng"
+        }
       },
       "errors": {
         "title": "Không mở được DOCX này",

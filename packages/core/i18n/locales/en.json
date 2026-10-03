@@ -6949,6 +6949,81 @@
         "editorUnknownAuthor": "Unknown author",
         "ribbonTableHandleTip": "Select table"
       },
+      "image": {
+        "insert": "Insert image",
+        "insertTitle": "Insert image",
+        "insertHint": "PNG, JPEG or GIF, up to 10 MB.",
+        "altText": "Alt text",
+        "altTextPlaceholder": "Describe the picture for screen readers",
+        "width": "Width (px)",
+        "height": "Height (px)",
+        "lockAspect": "Keep aspect ratio",
+        "cancel": "Cancel",
+        "close": "Close",
+        "inspector": "Image",
+        "delete": "Delete image",
+        "size": "Size",
+        "align": {
+          "label": "Alignment",
+          "left": "Align left",
+          "center": "Align center",
+          "right": "Align right"
+        },
+        "wrap": {
+          "label": "Text wrapping",
+          "inline": "In line with text",
+          "square-left": "Square — left",
+          "square-right": "Square — right",
+          "tight-left": "Tight — left",
+          "tight-right": "Tight — right",
+          "through-left": "Through — left",
+          "through-right": "Through — right",
+          "topBottom": "Top and bottom",
+          "behind": "Behind text",
+          "front": "In front of text"
+        },
+        "position": {
+          "label": "Position",
+          "TopLeft": "Top left",
+          "TopCenter": "Top center",
+          "TopRight": "Top right",
+          "CenterLeft": "Middle left",
+          "CenterCenter": "Middle center",
+          "CenterRight": "Middle right",
+          "BottomLeft": "Bottom left",
+          "BottomCenter": "Bottom center",
+          "BottomRight": "Bottom right"
+        },
+        "positionAfterSave": "Anchor position unlocks after the first save.",
+        "offset": {
+          "label": "Offset (px)",
+          "x": "Horizontal offset",
+          "y": "Vertical offset"
+        },
+        "rotate": {
+          "left": "Rotate left",
+          "right": "Rotate right"
+        },
+        "flip": {
+          "h": "Flip horizontally",
+          "v": "Flip vertically"
+        },
+        "replace": "Replace image",
+        "crop": {
+          "command": "Crop",
+          "title": "Crop picture",
+          "hint": "Drag the handles to choose the kept area.",
+          "handle": "Crop handle {{handle}}",
+          "failed": "This browser could not crop the picture.",
+          "reset": "Reset",
+          "apply": "Apply"
+        },
+        "errors": {
+          "unsupported": "Only PNG, JPEG or GIF pictures are supported.",
+          "tooLarge": "The picture is larger than 10 MB.",
+          "unreadable": "This picture could not be read."
+        }
+      },
       "toolbar": {
         "label": "DOCX editing commands",
         "tabsLabel": "Document tabs",
@@ -7043,6 +7118,26 @@
       },
       "surface": {
         "ready": "DOCX canvas is ready for the host renderer."
+      },
+      "view": {
+        "zoom": {
+          "label": "Zoom",
+          "in": "Zoom in",
+          "out": "Zoom out",
+          "percent": "{{percent}}%",
+          "fitWidth": "Fit width",
+          "fitPage": "Fit page"
+        },
+        "ruler": {
+          "label": "Horizontal ruler"
+        },
+        "navigation": {
+          "label": "Navigation pane",
+          "title": "Headings",
+          "list": "Document headings",
+          "empty": "This document has no headings",
+          "close": "Close navigation pane"
+        }
       },
       "errors": {
         "title": "This DOCX could not be opened",
