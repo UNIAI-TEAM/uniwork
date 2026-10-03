@@ -541,6 +541,92 @@ function filterMutationAllowed(event: RendererCommand, state: LazyWorkbookState)
   return true;
 }
 
+// ── sort (A7: sort ascending / descending / custom) ─────────────────────────
+//
+// Exactly the pinned sort command the Data-tab group dispatches and the two
+// commands/mutations it re-dispatches internally:
+//   sheet.command.sort-range -> sheet.command.reorder-range
+//     -> sheet.mutation.reorder-range
+// The sort reorders whole rows in place. Validators bound the sorted rectangle
+// and every sort key / order-map entry to the live grid; default deny stays.
+//
+// NOTE (A7 r2): the shim controller's CommandExecuted ingest does NOT handle
+// sheet.mutation.reorder-range yet, so today the model sorts but the journal
+// stays empty (no save). See worker-A7-r2.md; the capture is a shim change
+// (controller.ts + edits.ts) outside this task's owned paths.
+
+const SORT_COMMANDS = new Set([
+  "sheet.command.sort-range",
+  "sheet.command.reorder-range",
+]);
+
+const SORT_MUTATIONS = new Set([
+  "sheet.mutation.reorder-range",
+]);
+
+const SORT_DIRECTIONS = new Set(["asc", "desc"]);
+
+/** One sort key: a known direction and a 0-based column inside the sorted
+ *  range. A bounded list keeps the pinned multi-rule comparator from being
+ *  driven by an oversized payload. */
+function sortOrderRulesOK(value: unknown, range: Record<string, unknown>): boolean {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 64) return false;
+  const startColumn = range.startColumn;
+  const endColumn = range.endColumn;
+  if (typeof startColumn !== "number" || typeof endColumn !== "number") return false;
+  return value.every((rule) => {
+    if (!rule || typeof rule !== "object") return false;
+    const { type, colIndex } = rule as { type?: unknown; colIndex?: unknown };
+    return typeof type === "string" && SORT_DIRECTIONS.has(type) &&
+      typeof colIndex === "number" && Number.isInteger(colIndex) &&
+      colIndex >= startColumn && colIndex <= endColumn;
+  });
+}
+
+/** A reorder-range order map: integer target row -> source row, both inside the
+ *  sorted range. */
+function sortOrderMapOK(value: unknown, range: Record<string, unknown>): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const startRow = range.startRow;
+  const endRow = range.endRow;
+  if (typeof startRow !== "number" || typeof endRow !== "number") return false;
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.length > 0 && entries.every(([target, source]) => {
+    const targetRow = Number(target);
+    return Number.isInteger(targetRow) && targetRow >= startRow && targetRow <= endRow &&
+      typeof source === "number" && Number.isInteger(source) && source >= startRow && source <= endRow;
+  });
+}
+
+/** The pinned sort commands/mutations all carry the workbook and sheet they
+ *  address (the group fills them, and the pinned dispatcher passes the location
+ *  through); both must name this workbook and a live sheet. */
+function sortScopeOK(
+  params: { unitId?: unknown; subUnitId?: unknown } | undefined,
+  state: LazyWorkbookState,
+): boolean {
+  if (!params || typeof params !== "object") return false;
+  if (params.unitId !== `file-${state.file.sha256}`) return false;
+  return typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId);
+}
+
+function sortCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as {
+    unitId?: unknown; subUnitId?: unknown; range?: unknown; orderRules?: unknown; hasTitle?: unknown;
+  } | undefined;
+  if (!sortScopeOK(params, state) || !params || !filterAreaOK(params.range)) return false;
+  return sortOrderRulesOK(params.orderRules, params.range as Record<string, unknown>) &&
+    (params.hasTitle === undefined || typeof params.hasTitle === "boolean");
+}
+
+function sortReorderAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as {
+    unitId?: unknown; subUnitId?: unknown; range?: unknown; order?: unknown;
+  } | undefined;
+  if (!sortScopeOK(params, state) || !params || !filterAreaOK(params.range)) return false;
+  return sortOrderMapOK(params.order, params.range as Record<string, unknown>);
+}
+
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
@@ -653,6 +739,10 @@ export function canExecuteCommand(
     if (isSheetMutation(event.id)) return sheetMutationAllowed(event, state);
     if (FILTER_COMMANDS.has(event.id)) return filterCommandAllowed(event, state);
     if (FILTER_MUTATIONS.has(event.id)) return filterMutationAllowed(event, state);
+    if (SORT_COMMANDS.has(event.id)) {
+      return event.id === "sheet.command.sort-range" ? sortCommandAllowed(event, state) : sortReorderAllowed(event, state);
+    }
+    if (SORT_MUTATIONS.has(event.id)) return sortReorderAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

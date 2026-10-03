@@ -856,3 +856,58 @@ test('filter commands and mutations pass the policy only with bounded params', (
   assert.equal(canExecuteCommand(command('sheet.command.smart-toggle-filter', {}), model, true), false);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-filter', {}), model, true), false);
 });
+
+test('sort commands and the reorder mutation pass only with a bounded range and keys', () => {
+  const model = state();
+  const range = { startRow: 0, endRow: 4, startColumn: 1, endColumn: 3 };
+  const command = (params) => ({ id: 'sheet.command.sort-range', type: 0, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const reorderCommand = (params) => ({ id: 'sheet.command.reorder-range', type: 0, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const mutation = (params) => ({ id: 'sheet.mutation.reorder-range', type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+
+  // The Data-tab group's single-key sort command.
+  assert.equal(canExecuteCommand(command({ range, orderRules: [{ type: 'asc', colIndex: 1 }], hasTitle: true }), model, false), true);
+  assert.equal(canExecuteCommand(command({ range, orderRules: [{ type: 'desc', colIndex: 3 }], hasTitle: false }), model, false), true);
+  assert.equal(canExecuteCommand(command({ range, orderRules: [{ type: 'asc', colIndex: 1 }] }), model, false), true);
+  // The internally re-dispatched reorder command + mutation (order map).
+  assert.equal(canExecuteCommand(reorderCommand({ range, order: { 0: 2, 2: 0 } }), model, false), true);
+  assert.equal(canExecuteCommand(mutation({ range, order: { 4: 0 } }), model, false), true);
+
+  for (const params of [
+    // Key outside the range, unknown direction, empty rules.
+    { range, orderRules: [{ type: 'asc', colIndex: 0 }], hasTitle: false },
+    { range, orderRules: [{ type: 'asc', colIndex: 4 }], hasTitle: false },
+    { range, orderRules: [{ type: 'sideways', colIndex: 1 }], hasTitle: false },
+    { range, orderRules: [], hasTitle: false },
+    { range, orderRules: [{ type: 'asc', colIndex: 1.5 }], hasTitle: false },
+    // Range outside the grid / inverted / over the span ceiling.
+    { range: { ...range, startRow: 3, endRow: 1 }, orderRules: [{ type: 'asc', colIndex: 1 }] },
+    { range: { ...range, endRow: 1_048_576 }, orderRules: [{ type: 'asc', colIndex: 1 }] },
+    { range: { ...range, startRow: 0, endRow: 100_000 }, orderRules: [{ type: 'asc', colIndex: 1 }] },
+    // Missing params.
+    { orderRules: [{ type: 'asc', colIndex: 1 }] },
+  ]) {
+    assert.equal(canExecuteCommand(command(params), model, false), false, JSON.stringify(params));
+  }
+
+  // The reorder order map must keep every entry inside the range.
+  for (const order of [
+    { 0: 9 },
+    { 0: -1 },
+    { 0: 0.5 },
+    { 0: 'x' },
+    {},
+    [],
+  ]) {
+    assert.equal(canExecuteCommand(mutation({ range, order }), model, false), false, JSON.stringify(order));
+  }
+
+  // Foreign workbook, ghost sheet, missing scope.
+  assert.equal(canExecuteCommand({ id: 'sheet.command.sort-range', type: 0, params: { unitId: 'other', subUnitId: 's1', range, orderRules: [{ type: 'asc', colIndex: 1 }] } }, model, false), false);
+  assert.equal(canExecuteCommand(mutation({ subUnitId: 'ghost', range, order: { 0: 1 } }), model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.sort-range', type: 0, range, orderRules: [{ type: 'asc', colIndex: 1 }] }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.mutation.reorder-range', type: 2, params: { range, order: { 0: 1 } } }, model, false), false);
+
+  // Read-only refuses every sort surface (the generic gate runs first).
+  assert.equal(canExecuteCommand(command({ range, orderRules: [{ type: 'asc', colIndex: 1 }] }), model, true), false);
+  assert.equal(canExecuteCommand(mutation({ range, order: { 0: 1 } }), model, true), false);
+});

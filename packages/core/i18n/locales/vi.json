@@ -7445,6 +7445,28 @@
           "lessThanOrEqual": "Nhỏ hơn hoặc bằng"
         }
       },
+      "sort": {
+        "groups": {
+          "data": "Sắp xếp"
+        },
+        "ascending": "Sắp xếp tăng dần",
+        "descending": "Sắp xếp giảm dần",
+        "custom": "Sắp xếp tùy chỉnh…",
+        "limitExceeded": "Vùng chọn quá lớn để sắp xếp. Mỗi lần lưu chỉ sắp xếp tối đa {{limit}} ô; hãy chọn vùng nhỏ hơn.",
+        "applyFailed": "Không sắp xếp được tại đây. Hãy chọn đúng vùng rồi thử lại.",
+        "dialog": {
+          "title": "Sắp xếp tùy chỉnh",
+          "close": "Đóng sắp xếp tùy chỉnh",
+          "keyColumn": "Sắp xếp theo",
+          "direction": "Thứ tự",
+          "hasHeaderRow": "Dữ liệu của tôi có dòng tiêu đề",
+          "reading": "Đang đọc vùng chọn…",
+          "noSelection": "Chọn danh sách có ít nhất hai dòng để sắp xếp.",
+          "note": "Sắp xếp một cấp. Sắp xếp nhiều cấp chưa được hỗ trợ.",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        }
+      },
       "pageSetup": {
         "open": "Thiết lập trang",
         "groups": {

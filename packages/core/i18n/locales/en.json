@@ -7451,6 +7451,28 @@
           "lessThanOrEqual": "Less than or equal"
         }
       },
+      "sort": {
+        "groups": {
+          "data": "Sort"
+        },
+        "ascending": "Sort ascending",
+        "descending": "Sort descending",
+        "custom": "Custom sort…",
+        "limitExceeded": "This range is too large to sort. Each save sorts at most {{limit}} cells; select a smaller range.",
+        "applyFailed": "The sort could not be applied here. Select the range and try again.",
+        "dialog": {
+          "title": "Custom sort",
+          "close": "Close custom sort",
+          "keyColumn": "Sort by",
+          "direction": "Order",
+          "hasHeaderRow": "My data has a header row",
+          "reading": "Reading the selection…",
+          "noSelection": "Select a list of at least two rows to sort.",
+          "note": "Single-level sort. Multi-level sort is not available yet.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        }
+      },
       "pageSetup": {
         "open": "Page setup",
         "groups": {

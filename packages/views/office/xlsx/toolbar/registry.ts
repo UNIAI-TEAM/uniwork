@@ -2,6 +2,7 @@ import { XlsxFindGroup } from "../find/find-group";
 import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxPageSetupGroup } from "./page-setup-group";
+import { XlsxSortGroup } from "./sort-group";
 import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
@@ -70,4 +71,5 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "filter", tab: "data", order: 20, labelKey: "office.xlsx.filter.groups.data", Component: XlsxFilterGroup },
   { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
   { id: "page-setup", tab: "view", order: 40, labelKey: "office.xlsx.pageSetup.groups.view", Component: XlsxPageSetupGroup },
+  { id: "sort", tab: "data", order: 30, labelKey: "office.xlsx.sort.groups.data", Component: XlsxSortGroup },
 ];
