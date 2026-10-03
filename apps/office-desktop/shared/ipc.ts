@@ -347,9 +347,10 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves carry the serialized document in the same bounded byte class
-  // as local-file and draft payloads. Keep control calls at the smaller limit.
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  // Office saves and engine calls carry the serialized document in the same
+  // bounded byte class as local-file and draft payloads. Keep the remaining
+  // control calls at the smaller limit.
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {
@@ -384,6 +385,6 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
 
 function containsPathLikeValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsPathLikeValue);
-  if (!value || typeof value !== "object") return typeof value === "string" && (/^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\") || value.startsWith("/"));
+  if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => /(?:^|_)(?:path|filepath|file_path)$/i.test(key) || containsPathLikeValue(child));
 }

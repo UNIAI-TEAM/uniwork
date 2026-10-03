@@ -31,6 +31,16 @@ describe("desktop IPC allowlist", () => {
     expect(() => validateIpcRequest("desktop:office-save", request, context)).not.toThrow();
     expect(() => validateIpcRequest("desktop:office-save", { ...request, dataBase64: "x".repeat(IPC_FILE_MAX_BYTES) }, context)).toThrowError(IpcValidationError);
   });
+  it("allows PDF engine payloads above the control-message budget but refuses a genuinely oversized one", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "x".repeat(100_000), edits: [] } };
+    expect(() => validateIpcRequest("desktop:engine-call", payload, context)).not.toThrow();
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { value: "x".repeat(IPC_FILE_MAX_BYTES) } }, context)).toThrowError(IpcValidationError);
+  });
+  it("accepts user content that starts with a path-like character", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "b2s=", edits: [{ op: "insert", value: "/leading slash" }], password: "/secret-password" } };
+    expect(validateIpcRequest("desktop:engine-call", payload, context)).toEqual(payload);
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { nested: { file_path: "/etc/passwd" } } }, context)).toThrowError(IpcValidationError);
+  });
 
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
@@ -91,7 +101,7 @@ describe("desktop IPC allowlist", () => {
   });
   it("rejects payloads over the byte limit", () => {
     const large = { ...valid, args: { value: "x".repeat(IPC_MAX_BYTES) } };
-    expect(() => validateIpcRequest("desktop:engine-call", large, context)).toThrow(/byte limit/);
+    expect(() => validateIpcRequest("desktop:window-theme", large, context)).toThrow(/byte limit/);
   });
   it("rejects structured-clone values instead of measuring only JSON", () => {
     const payload = { ...valid, args: { buffer: new ArrayBuffer(8 * 1024 * 1024) } };
