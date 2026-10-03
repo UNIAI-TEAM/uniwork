@@ -13,6 +13,7 @@ interface FakeKeyInit {
   metaKey?: boolean;
   altKey?: boolean;
   shiftKey?: boolean;
+  code?: string;
   repeat?: boolean;
   isComposing?: boolean;
   defaultPrevented?: boolean;
@@ -120,6 +121,18 @@ describe("createDocxShortcutController", () => {
     expect(controller.handle(keyEvent("-", { ctrlKey: true }))).toBe(true);
     expect(zoomIn).toHaveBeenCalledTimes(1);
     expect(zoomOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves shifted digits and punctuation through the physical code", () => {
+    const bulletList = vi.fn();
+    const growFont = vi.fn();
+    const controller = createDocxShortcutController({ bulletList, growFont }, { platform: "windows" });
+
+    // Ctrl+Shift+8 arrives as key "*" with code Digit8 on a US keyboard.
+    expect(controller.handle(keyEvent("*", { ctrlKey: true, shiftKey: true, code: "Digit8" }))).toBe(true);
+    expect(controller.handle(keyEvent(">", { ctrlKey: true, shiftKey: true, code: "Period" }))).toBe(true);
+    expect(bulletList).toHaveBeenCalledTimes(1);
+    expect(growFont).toHaveBeenCalledTimes(1);
   });
 
   it("binds and unbinds a target element", () => {

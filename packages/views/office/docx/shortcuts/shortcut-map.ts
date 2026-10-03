@@ -1,11 +1,11 @@
 import {
   createShortcutChord,
   getShortcutPlatform,
-  shortcutMatchesEvent,
   type ShortcutChord,
   type ShortcutModifiers,
   type ShortcutPlatform,
 } from "@uniwork/core/shortcuts";
+import { docxShortcutMatchesEvent } from "./chord-matching";
 
 /**
  * The single declarative DOCX shortcut list, genoffice's `shortcuts.ts` shape
@@ -70,7 +70,7 @@ const DOCX_SHORTCUT_DEFS = [
   { id: "help", category: "file", labelKey: "office.docx.shortcuts.title", chords: [mod("/")], global: true },
 
   // Editing
-  { id: "undo", category: "edit", labelKey: "office.docx.actions.undo", chords: [mod("Z")] },
+  { id: "undo", category: "edit", labelKey: "office.docx.actions.undo", chords: [mod("Z")], write: true },
   // Word for Windows redoes on Ctrl+Y, the Mac on ⇧⌘Z; listing both keeps the
   // ⌘-side from advertising a chord macOS apps do not use.
   {
@@ -79,11 +79,12 @@ const DOCX_SHORTCUT_DEFS = [
     labelKey: "office.docx.actions.redo",
     chords: [mod("Y"), mod("Z", { shift: true })],
     macChords: [mod("Z", { shift: true })],
+    write: true,
   },
   { id: "selectAll", category: "edit", labelKey: "office.docx.shortcuts.actions.selectAll", chords: [mod("A")] },
-  { id: "cut", category: "edit", labelKey: "office.docx.shortcuts.actions.cut", chords: [mod("X")] },
+  { id: "cut", category: "edit", labelKey: "office.docx.shortcuts.actions.cut", chords: [mod("X")], write: true },
   { id: "copy", category: "edit", labelKey: "office.docx.shortcuts.actions.copy", chords: [mod("C")] },
-  { id: "paste", category: "edit", labelKey: "office.docx.shortcuts.actions.paste", chords: [mod("V")] },
+  { id: "paste", category: "edit", labelKey: "office.docx.shortcuts.actions.paste", chords: [mod("V")], write: true },
 
   // Character formatting
   { id: "bold", category: "text", labelKey: "office.docx.commands.bold", chords: [mod("B")], write: true },
@@ -98,8 +99,12 @@ const DOCX_SHORTCUT_DEFS = [
   },
   { id: "superscript", category: "text", labelKey: "office.docx.shortcuts.actions.superscript", chords: [mod(".")], write: true },
   { id: "subscript", category: "text", labelKey: "office.docx.shortcuts.actions.subscript", chords: [mod(",")], write: true },
-  { id: "growFont", category: "text", labelKey: "office.docx.shortcuts.actions.growFont", chords: [mod("]")], write: true },
-  { id: "shrinkFont", category: "text", labelKey: "office.docx.shortcuts.actions.shrinkFont", chords: [mod("[")], write: true },
+  // Word puts grow/shrink on Ctrl+] / Ctrl+[, but the workspace shell owns both
+  // for goForward/goBack (core shortcuts definitions; GlobalShortcuts dispatches
+  // them on any non-editable target in the same document first). Word's other
+  // pair, Ctrl+Shift+. / Ctrl+Shift+, stays free, so that is the lane's chord.
+  { id: "growFont", category: "text", labelKey: "office.docx.shortcuts.actions.growFont", chords: [mod(".", { shift: true })], write: true },
+  { id: "shrinkFont", category: "text", labelKey: "office.docx.shortcuts.actions.shrinkFont", chords: [mod(",", { shift: true })], write: true },
   {
     id: "changeCase",
     category: "text",
@@ -204,6 +209,10 @@ const DOCX_SHORTCUT_DEFS = [
   },
 
   // Insert
+  // Mod+K is Word's hyperlink chord, but the shell's openSearch global
+  // (allowInEditable) uses it too; the wiring follow-up must decide precedence
+  // (A9 review F3). Recorded here so the collision test's exemption stays
+  // honest instead of silently drifting.
   { id: "insertLink", category: "insert", labelKey: "office.docx.links.insertTitle", chords: [mod("K")], write: true },
 
   // View
@@ -224,13 +233,14 @@ export function docxShortcutChords(shortcut: DocxShortcut, platform: ShortcutPla
 }
 
 /** The first entry whose chord matches the event. The map's uniqueness test
- * guarantees there is at most one, so "first" is only about determinism. */
+ * guarantees there is at most one, so "first" is only about determinism. The
+ * match resolves shifted digits/punctuation through the physical key code. */
 export function resolveDocxShortcut(
   event: KeyboardEvent,
   platform: ShortcutPlatform = getShortcutPlatform(),
 ): DocxShortcut<DocxShortcutId> | null {
   for (const shortcut of DOCX_SHORTCUTS) {
-    if (docxShortcutChords(shortcut, platform).some((chord) => shortcutMatchesEvent(chord, event, platform))) {
+    if (docxShortcutChords(shortcut, platform).some((chord) => docxShortcutMatchesEvent(chord, event, platform))) {
       return shortcut;
     }
   }

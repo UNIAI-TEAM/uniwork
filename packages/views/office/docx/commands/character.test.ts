@@ -1,7 +1,7 @@
 import { Editor } from "@tiptap/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { docxExtensions } from "../docx-schema";
-import { createCharacterCommands } from "./character";
+import { createCharacterCommands, FONT_STEP_COALESCE_MS } from "./character";
 
 const editors: Editor[] = [];
 
@@ -12,6 +12,15 @@ function editorWith(text: string): Editor {
   });
   editors.push(editor);
   return editor;
+}
+
+function withFakeTimers(run: () => void): void {
+  vi.useFakeTimers();
+  try {
+    run();
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 function areaWith(editor: Editor | null) {
@@ -142,12 +151,58 @@ describe("createCharacterCommands: commands", () => {
     const editor = editorWith("hello world");
     const area = areaWith(editor);
     editor.commands.setTextSelection({ from: 1, to: 6 });
-    area.commands.stepFontSize(1);
-    expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
-    area.commands.stepFontSize(1);
-    expect(styleAttrs(editor).sizeHalfPoints).toBe(28);
-    area.commands.stepFontSize(-1);
-    expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+    withFakeTimers(() => {
+      area.commands.stepFontSize(1);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+      // A second click inside the window only moves the pending target; the
+      // burst applies once, on the trailing edge.
+      area.commands.stepFontSize(1);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+      vi.advanceTimersByTime(FONT_STEP_COALESCE_MS);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(28);
+      area.commands.stepFontSize(-1);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+    });
+  });
+
+  it("coalesces a burst of steps into one trailing apply", () => {
+    const editor = editorWith("hello world");
+    const area = areaWith(editor);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    withFakeTimers(() => {
+      area.commands.stepFontSize(1);
+      area.commands.stepFontSize(1);
+      area.commands.stepFontSize(1);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+      vi.advanceTimersByTime(FONT_STEP_COALESCE_MS);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(32);
+    });
+  });
+
+  it("drops a pending step when the selection moved before the trailing apply", () => {
+    const editor = editorWith("hello world");
+    const area = areaWith(editor);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    withFakeTimers(() => {
+      area.commands.stepFontSize(1);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(24);
+      editor.commands.setTextSelection({ from: 7, to: 12 });
+      vi.advanceTimersByTime(FONT_STEP_COALESCE_MS);
+      // The pending 14pt never lands on the new selection.
+      expect(markNamesAt(editor, 7)).not.toContain("docTextStyle");
+    });
+  });
+
+  it("does not overwrite a size set another way while a step is pending", () => {
+    const editor = editorWith("hello world");
+    const area = areaWith(editor);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    withFakeTimers(() => {
+      area.commands.stepFontSize(1);
+      area.commands.setFontSizePt(24);
+      vi.advanceTimersByTime(FONT_STEP_COALESCE_MS);
+      expect(styleAttrs(editor).sizeHalfPoints).toBe(48);
+    });
   });
 
   it("normalises colour input and clears to automatic", () => {
@@ -283,6 +338,25 @@ describe("createCharacterCommands: format painter", () => {
     editor.commands.setTextSelection({ from: 7, to: 12 });
     expect(area.commands.applyCharacterFormat()).toBe(false);
     expect(markNamesAt(editor, 7)).not.toContain("strike");
+  });
+
+  it("brushes the sentence under a bare click and restores the caret", () => {
+    const editor = editorWith("One. Two three.");
+    const area = areaWith(editor);
+    editor.commands.setTextSelection({ from: 1, to: 4 });
+    editor.chain().toggleMark("bold").run();
+    editor.commands.setTextSelection(2);
+    area.commands.copyCharacterFormat();
+
+    // The click collapses into the second sentence ("Two three.", offsets 5-14).
+    editor.commands.setTextSelection(7);
+    expect(area.commands.applyCharacterFormat()).toBe(true);
+    expect(markNamesAt(editor, 6)).toContain("bold");
+    expect(markNamesAt(editor, 12)).toContain("bold");
+    // The space between the sentences belongs to the first one and stays plain.
+    expect(markNamesAt(editor, 5)).not.toContain("bold");
+    expect(editor.state.selection.empty).toBe(true);
+    expect(editor.state.selection.from).toBe(7);
   });
 });
 

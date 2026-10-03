@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, type KeyboardEvent } from "react";
 import { Baseline, Highlighter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -31,7 +32,9 @@ const TEXT_COLORS: readonly string[] = [
   "7030A0",
 ];
 
-/** Word's named highlight colours (OOXML w:highlight) with their on-screen CSS. */
+/** Word's named highlight colours (OOXML w:highlight) with their on-screen CSS.
+ * Mirrors the vendored HIGHLIGHT_CSS map, `white` included: a run carrying
+ * w:highlight="white" must show and stay re-pickable. */
 const HIGHLIGHTS: readonly { name: string; css: string }[] = [
   { name: "yellow", css: "#FFFF00" },
   { name: "green", css: "#00FF00" },
@@ -48,6 +51,7 @@ const HIGHLIGHTS: readonly { name: string; css: string }[] = [
   { name: "darkGray", css: "#808080" },
   { name: "lightGray", css: "#C0C0C0" },
   { name: "black", css: "#000000" },
+  { name: "white", css: "#FFFFFF" },
 ];
 
 interface SwatchGridProps {
@@ -59,17 +63,56 @@ interface SwatchGridProps {
   onPick(value: string | null): void;
 }
 
+const GRID_COLUMNS = 5;
+
 function SwatchGrid({ items, current, disabled, noneLabel, testId, onPick }: SwatchGridProps) {
+  const [focusIndex, setFocusIndex] = useState(0);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  /** Word's palette is one tab stop and the arrows walk it. */
+  const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    const last = items.length - 1;
+    let next: number;
+    switch (event.key) {
+      case "ArrowLeft":
+        next = Math.max(index - 1, 0);
+        break;
+      case "ArrowRight":
+        next = Math.min(index + 1, last);
+        break;
+      case "ArrowUp":
+        next = Math.max(index - GRID_COLUMNS, 0);
+        break;
+      case "ArrowDown":
+        next = Math.min(index + GRID_COLUMNS, last);
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = last;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    setFocusIndex(next);
+    Array.from(gridRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])[next]?.focus();
+  };
+
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-5 gap-1" data-testid={`${testId}-grid`}>
-        {items.map((item) => (
+      <div ref={gridRef} className="grid grid-cols-5 gap-1" data-testid={`${testId}-grid`}>
+        {items.map((item, index) => (
           <button
             key={item.value}
             type="button"
             disabled={disabled}
+            tabIndex={index === focusIndex ? 0 : -1}
             aria-label={item.label}
             aria-pressed={current === item.value}
+            onFocus={() => setFocusIndex(index)}
+            onKeyDown={(event) => moveFocus(event, index)}
             onClick={() => onPick(item.value)}
             className={cn(
               "size-5 rounded-sm ring-1 ring-border ring-inset hover:scale-105",

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import vi from "@uniwork/core/i18n/locales/vi.json";
-import { formatShortcut, type ShortcutChord, type ShortcutPlatform } from "@uniwork/core/shortcuts";
+import {
+  formatShortcut,
+  SHORTCUT_ACTIONS,
+  shortcutChordEquals,
+  type ShortcutChord,
+  type ShortcutPlatform,
+} from "@uniwork/core/shortcuts";
 import {
   DOCX_SHORTCUT_GROUPS,
   DOCX_SHORTCUTS,
@@ -12,6 +18,36 @@ import {
 } from "./shortcut-map";
 
 const PLATFORMS: readonly ShortcutPlatform[] = ["macos", "windows", "linux", "unknown"];
+
+/** Mirrors GLOBAL_ACTIONS in packages/views/layout/global-shortcuts.tsx — the chords the
+ * workspace shell dispatches while the DOCX editor is mounted. The page-scoped
+ * findInTask/openThreadNav/send never listen there. */
+const WORKSPACE_GLOBAL_ACTION_IDS = [
+  "openSearch",
+  "ai.askUni",
+  "createTask",
+  "goBack",
+  "goForward",
+  "goInbox",
+  "goTasks",
+  "goMyTasks",
+  "goProjects",
+  "goMeetings",
+  "goChat",
+  "goPeople",
+  "goSettings",
+] as const;
+
+/** Collisions the wiring follow-up must settle (A9 review F3); any other collision fails. */
+const DOCUMENTED_GLOBAL_COLLISIONS: Partial<Record<DocxShortcutId, string>> = {
+  insertLink: "openSearch",
+};
+
+function workspaceGlobals() {
+  return SHORTCUT_ACTIONS.filter((action) =>
+    (WORKSPACE_GLOBAL_ACTION_IDS as readonly string[]).includes(action.id),
+  );
+}
 
 function byId(id: DocxShortcutId): DocxShortcut {
   const found = DOCX_SHORTCUTS.find((shortcut) => shortcut.id === id);
@@ -35,8 +71,9 @@ function chordKey(chord: ShortcutChord): string {
 function keyEvent(
   key: string,
   modifiers: Partial<Record<"ctrlKey" | "metaKey" | "altKey" | "shiftKey", boolean>> = {},
+  code?: string,
 ): KeyboardEvent {
-  return { key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...modifiers } as KeyboardEvent;
+  return { key, code, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...modifiers } as KeyboardEvent;
 }
 
 describe("DOCX shortcut map", () => {
@@ -127,5 +164,66 @@ describe("DOCX shortcut map", () => {
     expect(resolveDocxShortcut(keyEvent("y", { metaKey: true }), "macos")).toBeNull();
     expect(resolveDocxShortcut(keyEvent("z", { metaKey: true, shiftKey: true }), "macos")?.id).toBe("redo");
     expect(resolveDocxShortcut(keyEvent("q", { ctrlKey: true }), "windows")).toBeNull();
+  });
+
+  it("resolves shifted digit and punctuation chords through the physical code", () => {
+    // What a real US keydown delivers for the sheet's Ctrl+Shift+8 / Ctrl+Shift+7.
+    expect(resolveDocxShortcut(keyEvent("*", { ctrlKey: true, shiftKey: true }, "Digit8"), "windows")?.id).toBe("bulletList");
+    expect(resolveDocxShortcut(keyEvent("&", { ctrlKey: true, shiftKey: true }, "Digit7"), "windows")?.id).toBe("orderedList");
+    // Grow/shrink advertise Ctrl+Shift+. / Ctrl+Shift+, — the key reports ">" / "<".
+    expect(resolveDocxShortcut(keyEvent(">", { ctrlKey: true, shiftKey: true }, "Period"), "windows")?.id).toBe("growFont");
+    expect(resolveDocxShortcut(keyEvent("<", { ctrlKey: true, shiftKey: true }, "Comma"), "windows")?.id).toBe("shrinkFont");
+    // The same events on a Mac move to ⌘.
+    expect(resolveDocxShortcut(keyEvent("*", { metaKey: true, shiftKey: true }, "Digit8"), "macos")?.id).toBe("bulletList");
+  });
+
+  it("resolves the shifted glyph even when the event carries no code", () => {
+    expect(resolveDocxShortcut(keyEvent("*", { ctrlKey: true, shiftKey: true }), "windows")?.id).toBe("bulletList");
+    expect(resolveDocxShortcut(keyEvent(">", { ctrlKey: true, shiftKey: true }), "windows")?.id).toBe("growFont");
+  });
+
+  it("keeps the physical fallback behind the chord's modifier requirements", () => {
+    // Ctrl+8 is not the shifted chord, and Shift+8 alone lacks the primary modifier.
+    expect(resolveDocxShortcut(keyEvent("*", { ctrlKey: true }, "Digit8"), "windows")).toBeNull();
+    expect(resolveDocxShortcut(keyEvent("*", { shiftKey: true }, "Digit8"), "windows")).toBeNull();
+  });
+
+  it("marks every command that edits the document as write", () => {
+    for (const id of ["undo", "redo", "cut", "paste", "bold", "growFont", "clearFormatting", "bulletList", "insertLink"] as const) {
+      expect(byId(id).write, id).toBe(true);
+    }
+    for (const id of ["selectAll", "copy", "find", "help", "zoomIn"] as const) {
+      expect(byId(id).write, id).toBeFalsy();
+    }
+  });
+
+  it("declares no chord that collides with a workspace-shell global chord", () => {
+    const globals = workspaceGlobals();
+    for (const platform of PLATFORMS) {
+      for (const shortcut of DOCX_SHORTCUTS) {
+        for (const chord of docxShortcutChords(shortcut, platform)) {
+          for (const action of globals) {
+            if (!shortcutChordEquals(chord, action.defaultShortcut)) continue;
+            expect(
+              DOCUMENTED_GLOBAL_COLLISIONS[shortcut.id],
+              `${shortcut.id} ${formatShortcut(chord, platform)} collides with global ${action.id}`,
+            ).toBe(action.id);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps every documented global collision real", () => {
+    const globals = workspaceGlobals();
+    for (const [docxId, globalId] of Object.entries(DOCUMENTED_GLOBAL_COLLISIONS)) {
+      const action = globals.find((candidate) => candidate.id === globalId);
+      const collides = PLATFORMS.some((platform) =>
+        docxShortcutChords(byId(docxId as DocxShortcutId), platform).some((chord) =>
+          shortcutChordEquals(chord, action?.defaultShortcut ?? null),
+        ),
+      );
+      expect(collides, `${docxId} no longer collides with ${globalId}`).toBe(true);
+    }
   });
 });

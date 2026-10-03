@@ -3,6 +3,7 @@ import type { Mark } from "@tiptap/pm/model";
 import { applyCase, caseModeForToggle, selectionText, type CaseCommandMode } from "../character/case-transform";
 import { collectDocumentFonts, isEastAsianFontName, textHasCjk } from "../character/font-list";
 import { DEFAULT_FONT_SIZE_PT, nextFontSize } from "../character/font-size";
+import { sentenceRangeAt } from "../character/sentence-range";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 
 export type VerticalAlign = "superscript" | "subscript";
@@ -34,7 +35,8 @@ export interface DocxCharacterCommands {
   documentFonts(): string[];
   /** Format painter: capture the caret/selection's character marks. */
   copyCharacterFormat(): boolean;
-  /** Apply the captured marks to the current selection, then disarm. */
+  /** Apply the captured marks to the current selection — a collapsed caret
+   * brushes the sentence under it — then disarm. */
   applyCharacterFormat(): boolean;
   /** Drop a capture without applying it. */
   clearCharacterFormat(): void;
@@ -43,6 +45,22 @@ export interface DocxCharacterCommands {
 /** Character-formatting marks shared by the clear-formatting command and the
  * painter; semantic marks (links, comments, revisions, fields) stay put. */
 const CHARACTER_MARKS = ["bold", "italic", "underline", "strike", "docTextStyle"] as const;
+
+/** A+/A− bursts closer together than this coalesce into one trailing apply —
+ * genoffice's FONT_STEP_COALESCE_MS. Long enough to catch burst-click spacing,
+ * short enough that the deferred re-layout still feels attached to the click. */
+export const FONT_STEP_COALESCE_MS = 300;
+
+interface FontStepState {
+  /** The size the burst heads for; null once no step is pending. */
+  pending: number | null;
+  /** The size the last apply wrote. */
+  applied: number | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  anchor: number;
+  head: number;
+  doc: unknown;
+}
 
 const EMPTY_STATE: DocxCharacterFormatState = {
   strike: false,
@@ -127,6 +145,7 @@ export function createCharacterCommands(
 ): DocxCommandArea<DocxCharacterCommands, DocxCharacterFormatState> {
   const getEditor = () => context.getEditor();
   let painterMarks: PainterMark[] | null = null;
+  const fontStep: FontStepState = { pending: null, applied: null, timer: null, anchor: 0, head: 0, doc: null };
 
   const runEditable = (action: (editor: Editor) => void): void => {
     const editor = editable(getEditor());
@@ -174,9 +193,40 @@ export function createCharacterCommands(
         if (!editor) return;
         const attrs = editor.getAttributes("docTextStyle") as Record<string, unknown>;
         const explicit = typeof attrs.sizeHalfPoints === "number" ? attrs.sizeHalfPoints / 2 : null;
-        const current = explicit ?? DEFAULT_FONT_SIZE_PT;
-        const next = Math.round(nextFontSize(current, direction) * 2);
-        editor.chain().focus().setMark("docTextStyle", { sizeHalfPoints: next }).run();
+        // A burst reads its own pending target so rapid clicks keep walking the
+        // preset list even while the state (and the size box) still lag.
+        const next = nextFontSize(fontStep.pending ?? explicit ?? DEFAULT_FONT_SIZE_PT, direction);
+        fontStep.pending = next;
+        if (fontStep.timer === null) {
+          fontStep.applied = next;
+          editor.chain().focus().setMark("docTextStyle", { sizeHalfPoints: Math.round(next * 2) }).run();
+        } else {
+          clearTimeout(fontStep.timer);
+        }
+        // The deferred apply is only valid while nothing else has touched the
+        // editor: a selection move, an undo, or a size set another way shows up
+        // as a selection or document change and must invalidate the pending
+        // step instead of overwriting it.
+        const target = editor;
+        fontStep.anchor = target.state.selection.anchor;
+        fontStep.head = target.state.selection.head;
+        fontStep.doc = target.state.doc;
+        fontStep.timer = setTimeout(() => {
+          fontStep.timer = null;
+          const pending = fontStep.pending;
+          fontStep.pending = null;
+          if (pending === null || pending === fontStep.applied || target.isDestroyed || !target.isEditable) return;
+          if (
+            target.state.selection.anchor !== fontStep.anchor ||
+            target.state.selection.head !== fontStep.head ||
+            target.state.doc !== fontStep.doc
+          ) {
+            return;
+          }
+          fontStep.applied = pending;
+          // Deliberately no focus(): a deferred apply must never pull focus back.
+          target.chain().setMark("docTextStyle", { sizeHalfPoints: Math.round(pending * 2) }).run();
+        }, FONT_STEP_COALESCE_MS);
       },
       setTextColor: (color) => {
         if (color === null) {
@@ -223,9 +273,16 @@ export function createCharacterCommands(
         const marks = painterMarks;
         if (!editor || !marks) return false;
         painterMarks = null;
+        // A bare click collapses the caret; brush the sentence it landed in so
+        // the paint is visible immediately (Word/genoffice behaviour), then put
+        // the caret back where the click left it.
+        const { empty, $head, head } = editor.state.selection;
+        const brush = empty ? sentenceRangeAt($head) : null;
         let chain = editor.chain().focus();
+        if (brush) chain = chain.setTextSelection(brush);
         for (const mark of CHARACTER_MARKS) chain = chain.unsetMark(mark);
         for (const mark of marks) chain = chain.setMark(mark.type, mark.attrs);
+        if (brush) chain = chain.setTextSelection(head);
         chain.run();
         return true;
       },

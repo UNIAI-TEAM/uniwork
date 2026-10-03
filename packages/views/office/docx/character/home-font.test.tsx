@@ -249,6 +249,56 @@ describe("HomeFontGroup", () => {
     expect(attrs(editor).highlight ?? null).toBeNull();
   });
 
+  it("offers the full OOXML highlight set, white included", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    const white = await screen.findByTestId("docx-highlight-swatch-white");
+    fireEvent.click(white);
+    expect(attrs(editor).highlight).toBe("white");
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    expect(await screen.findByTestId("docx-highlight-swatch-white")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("walks the colour swatches with the arrow keys", async () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-text-color"));
+    const first = await screen.findByTestId("docx-text-color-swatch-FFFFFF");
+    fireEvent.focus(first);
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-000000"));
+    // Down moves a full row of the 5-column grid.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-196B24"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "End" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-7030A0"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-7030A0"));
+  });
+
+  it("walks the font family list with the arrow keys", async () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    const list = await screen.findByTestId("docx-font-family-list");
+    const search = screen.getByTestId("docx-font-family-search");
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-font-family-default"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "Calibri" }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "End" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "PMingLiU" }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "Microsoft JhengHei" }));
+  });
+
   it("changes case from the menu", async () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
