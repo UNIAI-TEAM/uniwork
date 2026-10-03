@@ -155,7 +155,7 @@ export class PptxAdapter {
   edit(
     documentModelRef: string,
     edit: PptxEdit,
-  ): { applied: true; revision: number; createdId?: string; targetId?: string } {
+  ): { applied: true; revision: number; createdId?: string; targetId?: string; elementId?: string } {
     const session = this.sessionOf(documentModelRef);
     const result = session.model.applyEdit(edit);
     return { ...result, applied: true, revision: session.model.revision };

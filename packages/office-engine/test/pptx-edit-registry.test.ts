@@ -51,6 +51,13 @@ const DECLARED_KINDS: PptxEdit["op"][] = [
   "remove_section",
   "move_section",
   "set_sections",
+  // Animation (B5e) + text formatting (A1e) kinds (WIRE delta).
+  "add_animation",
+  "remove_animation",
+  "reorder_animation",
+  "set_animations",
+  "set_font",
+  "set_paragraph_format",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -120,6 +127,17 @@ const ONE_OF_EACH: PptxEdit[] = [
   { op: "remove_section", id: "{A}" },
   { op: "move_section", id: "{A}", dir: "down" },
   { op: "set_sections", sections: [{ id: "{A}", name: "Intro", slideIndices: [0] }] },
+  // Animation (B5e) + text formatting (A1e).
+  { op: "add_animation", slideIndex: 0, elementId: "t1", effect: "fade" },
+  { op: "remove_animation", slideIndex: 0, elementId: "t1" },
+  { op: "reorder_animation", slideIndex: 0, seq: 0, to: 1 },
+  {
+    op: "set_animations",
+    slideIndex: 0,
+    items: [{ sourceId: "t1", effect: "fade", trigger: "onClick", durationMs: 500, delayMs: 0 }],
+  },
+  { op: "set_font", slideIndex: 0, elementId: "t1", font: { bold: true } },
+  { op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { align: "center" } },
 ];
 
 describe("pptx edit-kind registry", () => {

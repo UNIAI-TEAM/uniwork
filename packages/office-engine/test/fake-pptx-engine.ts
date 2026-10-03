@@ -249,7 +249,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
       slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
     }
-    // Wave A/B (UNI-927) â€” deterministic JSON-convention effects.
+    // Wave A/B (UNI-927) -- deterministic JSON-convention effects.
     case "applyTheme":
       opened.__theme = op.name;
       return { op, after: op.name };
@@ -309,6 +309,21 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     case "setTableStyle":
       resolveElement(opened, op);
       return { op, after: { el: (op.target as { el?: string }).el } };
+    case "setFont":
+    case "setParagraphFormat":
+      resolveElement(opened, op);
+      return { op, after: { el: (op.target as { el?: string }).el } };
+    case "addAnimation":
+      resolveElement(opened, op);
+      return { op, after: { el: (op.target as { el?: string }).el } };
+    case "removeAnimation":
+      if (op.seq !== undefined) resolveSlide(opened, op);
+      else resolveElement(opened, op);
+      return { op };
+    case "reorderAnimation":
+    case "setAnimations":
+      resolveSlide(opened, op);
+      return { op, after: { slide: (op.target as { slide?: number }).slide } };
     case "tableMerge":
     case "tableStructure": {
       const { el } = resolveElement(opened, op);
@@ -432,6 +447,19 @@ function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
     case "setChart":
     case "setLink":
       resolveElement(opened, op);
+      break;
+    case "setFont":
+    case "setParagraphFormat":
+    case "addAnimation":
+      resolveElement(opened, op);
+      break;
+    case "removeAnimation":
+      if (op.seq !== undefined) resolveSlide(opened, op);
+      else resolveElement(opened, op);
+      break;
+    case "reorderAnimation":
+    case "setAnimations":
+      resolveSlide(opened, op);
       break;
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');

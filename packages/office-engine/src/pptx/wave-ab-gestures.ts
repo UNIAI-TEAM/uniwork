@@ -21,10 +21,12 @@ import {
   type PptxOpRecord,
   type PptxTxnResult,
 } from "./engine";
+import { buildAnimationOps, type AnimationEdit } from "./edits/animation-edits";
 import { buildChartOps, type ChartEdit } from "./edits/chart-edits";
 import { buildFindLinkOps, type FindLinkEdit } from "./edits/find-link-edits";
 import { buildSectionOps, type SectionEdit } from "./edits/section-edits";
 import { buildTableOps, type TableEdit } from "./edits/table-edits";
+import { buildTextOps, type TextEdit } from "./edits/text-edits";
 import { buildThemeOps, type ThemeEdit } from "./edits/theme-edits";
 import { buildTransitionOps, type TransitionEdit } from "./edits/transition-edits";
 
@@ -146,7 +148,7 @@ export function setTableStyleGesture(model: WaveGestureModel, edit: Extract<Tabl
 
 // -- charts (B3e chart-edits.ts) ------------------------------------------
 
-/** add_chart -> buildChartOps.addChart (insert-ops.ts:217): px rect -> EMU. */
+/** add_chart -> buildChartOps.addChart (insert-ops.ts:218): px rect -> EMU. */
 export function addChartGesture(
   model: WaveGestureModel,
   edit: Extract<ChartEdit, { op: "add_chart" }>,
@@ -155,14 +157,14 @@ export function addChartGesture(
   return { applied: true, createdId: requireCreated(result.records, "addChart") };
 }
 
-/** set_chart -> buildChartOps.setChart (table-ops.ts:312). */
+/** set_chart -> buildChartOps.setChart (table-ops.ts:316). */
 export function setChartGesture(model: WaveGestureModel, edit: Extract<ChartEdit, { op: "set_chart" }>): void {
   model.runBuiltTxn(buildChartOps(model.opened, model.fitWidthPx, edit));
 }
 
 // -- transitions (B4e transition-edits.ts) --------------------------------
 
-/** set_transition -> buildTransitionOps.setTransition (slide-ops.ts:472). */
+/** set_transition -> buildTransitionOps.setTransition (slide-ops.ts:473). */
 export function setTransitionGesture(
   model: WaveGestureModel,
   edit: Extract<TransitionEdit, { op: "set_transition" }>,
@@ -170,7 +172,7 @@ export function setTransitionGesture(
   model.runBuiltTxn(buildTransitionOps(model.opened, model.fitWidthPx, edit));
 }
 
-/** set_advance_time -> buildTransitionOps.setAdvanceTime (slide-ops.ts:490). */
+/** set_advance_time -> buildTransitionOps.setAdvanceTime (slide-ops.ts:491). */
 export function setAdvanceTimeGesture(
   model: WaveGestureModel,
   edit: Extract<TransitionEdit, { op: "set_advance_time" }>,
@@ -221,4 +223,53 @@ export function moveSectionGesture(model: WaveGestureModel, edit: Extract<Sectio
 /** set_sections -> buildSectionOps.setSections (slide-ops.ts:638). */
 export function setSectionsGesture(model: WaveGestureModel, edit: Extract<SectionEdit, { op: "set_sections" }>): void {
   model.runBuiltTxn(buildSectionOps(model.opened, model.fitWidthPx, edit));
+}
+
+// -- animations (B5e animation-edits.ts) ----------------------------------
+
+/** add_animation -> buildAnimationOps.addAnimation (animation-ops.ts:284). */
+export function addAnimationGesture(
+  model: WaveGestureModel,
+  edit: Extract<AnimationEdit, { op: "add_animation" }>,
+): void {
+  model.runBuiltTxn(buildAnimationOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** remove_animation -> buildAnimationOps.removeAnimation (animation-ops.ts:308). */
+export function removeAnimationGesture(
+  model: WaveGestureModel,
+  edit: Extract<AnimationEdit, { op: "remove_animation" }>,
+): void {
+  model.runBuiltTxn(buildAnimationOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** reorder_animation -> buildAnimationOps.reorderAnimation (animation-ops.ts:341). */
+export function reorderAnimationGesture(
+  model: WaveGestureModel,
+  edit: Extract<AnimationEdit, { op: "reorder_animation" }>,
+): void {
+  model.runBuiltTxn(buildAnimationOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_animations -> buildAnimationOps.setAnimations (slide-ops.ts:511). */
+export function setAnimationsGesture(
+  model: WaveGestureModel,
+  edit: Extract<AnimationEdit, { op: "set_animations" }>,
+): void {
+  model.runBuiltTxn(buildAnimationOps(model.opened, model.fitWidthPx, edit));
+}
+
+// -- text formatting (A1e text-edits.ts) ----------------------------------
+
+/** set_font -> buildTextOps.setFont (text-ops.ts:233). */
+export function setFontGesture(model: WaveGestureModel, edit: Extract<TextEdit, { op: "set_font" }>): void {
+  model.runBuiltTxn(buildTextOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_paragraph_format -> buildTextOps.setParagraphFormat (text-ops.ts:277). */
+export function setParagraphFormatGesture(
+  model: WaveGestureModel,
+  edit: Extract<TextEdit, { op: "set_paragraph_format" }>,
+): void {
+  model.runBuiltTxn(buildTextOps(model.opened, model.fitWidthPx, edit));
 }

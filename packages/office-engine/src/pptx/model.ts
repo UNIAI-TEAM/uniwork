@@ -15,25 +15,33 @@ import {
   type PptxParagraphLike,
   type PptxTxnResult,
 } from "./engine";
+import type { AnimationEdit } from "./edits/animation-edits";
 import type { ChartEdit } from "./edits/chart-edits";
 import type { FindLinkEdit } from "./edits/find-link-edits";
 import type { SectionEdit } from "./edits/section-edits";
 import type { TableEdit } from "./edits/table-edits";
+import type { TextEdit } from "./edits/text-edits";
 import type { ThemeEdit } from "./edits/theme-edits";
 import type { TransitionEdit } from "./edits/transition-edits";
 import {
+  addAnimationGesture,
   addChartGesture,
   addSectionGesture,
   addTableGesture,
   applyThemeGesture,
   findReplaceGesture,
   moveSectionGesture,
+  removeAnimationGesture,
   removeSectionGesture,
   renameSectionGesture,
+  reorderAnimationGesture,
   setAdvanceTimeGesture,
+  setAnimationsGesture,
   setBackgroundGesture,
   setChartGesture,
+  setFontGesture,
   setLinkGesture,
+  setParagraphFormatGesture,
   setSectionsGesture,
   setSlideLayoutGesture,
   setSlideSizeGesture,
@@ -125,7 +133,9 @@ export type PptxEdit =
   | ChartEdit
   | TransitionEdit
   | FindLinkEdit
-  | SectionEdit;
+  | SectionEdit
+  | AnimationEdit
+  | TextEdit;
 
 /** One open deck, mutated only via runTxn — the same object openPptx produced
  * and savePptx will serialize (one engine instance, one model). */
@@ -443,6 +453,9 @@ type PptxEditHandler = (model: PptxSessionModel, edit: PptxEdit) => PptxEditResu
  * (add_chart, set_chart), transitions (set_transition, set_advance_time),
  * find/link (find_replace, set_link) and sections (add_section,
  * rename_section, remove_section, move_section, set_sections).
+ * Animation (add_animation, remove_animation, reorder_animation,
+ * set_animations) and text formatting (set_font, set_paragraph_format) are
+ * registered alongside them.
  *
  * To add a kind:
  *   1. add its shape to the `PptxEdit` union above;
@@ -574,6 +587,14 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
     setSectionsGesture(model, edit);
     return { applied: true };
   },
+  // Animation (B5e) + text formatting (A1e) kinds: same mechanical
+  // txn(build<Area>Ops) gesture; validation/px->EMU stay in the builders.
+  add_animation: (model, edit) => { addAnimationGesture(model, edit); return { applied: true }; },
+  remove_animation: (model, edit) => { removeAnimationGesture(model, edit); return { applied: true }; },
+  reorder_animation: (model, edit) => { reorderAnimationGesture(model, edit); return { applied: true }; },
+  set_animations: (model, edit) => { setAnimationsGesture(model, edit); return { applied: true }; },
+  set_font: (model, edit) => { setFontGesture(model, edit); return { applied: true }; },
+  set_paragraph_format: (model, edit) => { setParagraphFormatGesture(model, edit); return { applied: true }; },
 };
 
 /** Registered edit kinds, in registry order — the surface the B track extends. */

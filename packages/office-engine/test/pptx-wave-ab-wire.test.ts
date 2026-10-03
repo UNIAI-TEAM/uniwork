@@ -78,6 +78,23 @@ const WAVE_AB: Array<{ edit: PptxEdit; op: string }> = [
     edit: { op: "set_sections", sections: [{ id: "{A}", name: "Intro", slideIndices: [0] }] },
     op: "setSections",
   },
+  // Animation (B5e) + text formatting (A1e) kinds (WIRE delta).
+  { edit: { op: "add_animation", slideIndex: 0, elementId: "t1", effect: "fade" }, op: "addAnimation" },
+  { edit: { op: "remove_animation", slideIndex: 0, elementId: "t1" }, op: "removeAnimation" },
+  { edit: { op: "reorder_animation", slideIndex: 0, seq: 0, to: 1 }, op: "reorderAnimation" },
+  {
+    edit: {
+      op: "set_animations",
+      slideIndex: 0,
+      items: [{ sourceId: "t1", effect: "fade", trigger: "onClick", durationMs: 500, delayMs: 0 }],
+    },
+    op: "setAnimations",
+  },
+  { edit: { op: "set_font", slideIndex: 0, elementId: "t1", font: { bold: true } }, op: "setFont" },
+  {
+    edit: { op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { align: "center" } },
+    op: "setParagraphFormat",
+  },
 ];
 
 const lastOp = (model: { journal: Array<{ op: { op: string } }> }) => model.journal[model.journal.length - 1]!.op;
@@ -191,6 +208,39 @@ describe("wave-A/B kinds are registered on PptxSessionModel", () => {
     expect(lastOp(sections)).toStrictEqual({
       op: "setSections",
       sections: [{ id: "{A}", name: "Intro", slideIndices: [0] }],
+    });
+    // WIRE delta: animation (B5e) + text formatting (A1e) exact op shapes.
+    const anim = await openModel();
+    anim.applyEdit({
+      op: "add_animation",
+      slideIndex: 0,
+      elementId: "t1",
+      effect: "fade",
+      trigger: "onClick",
+      durationMs: 500,
+    });
+    expect(lastOp(anim)).toStrictEqual({
+      op: "addAnimation",
+      target: { slide: 0, el: "t1" },
+      effect: "fade",
+      trigger: "onClick",
+      durationMs: 500,
+    });
+
+    const font = await openModel();
+    font.applyEdit({ op: "set_font", slideIndex: 0, elementId: "t1", font: { bold: true } });
+    expect(lastOp(font)).toStrictEqual({
+      op: "setFont",
+      target: { slide: 0, el: "t1" },
+      font: { bold: true },
+    });
+
+    const format = await openModel();
+    format.applyEdit({ op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { align: "center" } });
+    expect(lastOp(format)).toStrictEqual({
+      op: "setParagraphFormat",
+      target: { slide: 0, el: "t1" },
+      format: { align: "center" },
     });
   });
 
