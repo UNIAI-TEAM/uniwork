@@ -1,3 +1,4 @@
+import { XlsxFindGroup } from "../find/find-group";
 import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
@@ -13,6 +14,9 @@ import { XlsxStructureInsertGroup } from "./structure-insert";
 import { XlsxStructureMergeGroup } from "./structure-merge";
 import { XlsxStructureOutlineGroup } from "./structure-outline";
 import { XlsxStructureSizeGroup } from "./structure-size";
+import { XlsxViewDisplayGroup } from "./view-display";
+import { XlsxViewGoToGroup } from "./view-goto";
+import { XlsxViewZoomGroup } from "./view-zoom";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
 /** The extension seam for Wave A tasks (A1-A9): add ONE group to ONE tab by
@@ -56,4 +60,8 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
   { id: "clear", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.clear.label", Component: XlsxClearGroup },
   { id: "painter", tab: "home", order: 90, labelKey: "office.xlsx.toolbar.groups.painter.label", Component: XlsxFormatPainterGroup },
+  { id: "find", tab: "home", order: 95, labelKey: "office.xlsx.toolbar.groups.find.label", Component: XlsxFindGroup },
+  { id: "view-zoom", tab: "view", order: 10, labelKey: "office.xlsx.toolbar.groups.view.zoom.label", Component: XlsxViewZoomGroup },
+  { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
+  { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },
 ];
