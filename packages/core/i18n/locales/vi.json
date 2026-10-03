@@ -7043,6 +7043,20 @@
           "comments": "Bình luận",
           "zoom": "Thu phóng",
           "navigation": "Điều hướng"
+        },
+        "paragraph": {
+          "alignLeft": "Căn trái",
+          "alignCenter": "Căn giữa",
+          "alignRight": "Căn phải",
+          "alignJustify": "Căn đều hai bên",
+          "indentDecrease": "Giảm thụt lề",
+          "indentIncrease": "Tăng thụt lề",
+          "spacing": "Giãn cách đoạn",
+          "lineSpacing": "Giãn dòng",
+          "lineSpacingCustom": "Giãn dòng tùy chỉnh",
+          "lineSpacingCustomHint": "Hệ số",
+          "spaceBefore": "Khoảng cách trước (pt)",
+          "spaceAfter": "Khoảng cách sau (pt)"
         }
       },
       "character": {
@@ -7072,6 +7086,14 @@
         "clearFormatting": "Xóa định dạng",
         "formatPainter": "Sao chép định dạng",
         "formatPainterArmed": "Sao chép định dạng đang bật — chọn văn bản để áp dụng, hoặc nhấn Escape"
+      },
+      "styles": {
+        "gallery": "Kiểu đoạn",
+        "normal": "Chuẩn",
+        "heading": "Tiêu đề {{level}}",
+        "title": "Tiêu đề",
+        "quote": "Trích dẫn",
+        "other": "Kiểu khác"
       },
       "links": {
         "insertTitle": "Chèn liên kết",

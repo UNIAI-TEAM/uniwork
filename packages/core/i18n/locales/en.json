@@ -7049,6 +7049,20 @@
           "comments": "Comments",
           "zoom": "Zoom",
           "navigation": "Navigation"
+        },
+        "paragraph": {
+          "alignLeft": "Align left",
+          "alignCenter": "Align center",
+          "alignRight": "Align right",
+          "alignJustify": "Justify",
+          "indentDecrease": "Decrease indent",
+          "indentIncrease": "Increase indent",
+          "spacing": "Paragraph spacing",
+          "lineSpacing": "Line spacing",
+          "lineSpacingCustom": "Custom line spacing",
+          "lineSpacingCustomHint": "Multiple",
+          "spaceBefore": "Space before (pt)",
+          "spaceAfter": "Space after (pt)"
         }
       },
       "character": {
@@ -7078,6 +7092,14 @@
         "clearFormatting": "Clear formatting",
         "formatPainter": "Format painter",
         "formatPainterArmed": "Format painter on — select text to apply, or press Escape"
+      },
+      "styles": {
+        "gallery": "Styles",
+        "normal": "Normal",
+        "heading": "Heading {{level}}",
+        "title": "Title",
+        "quote": "Quote",
+        "other": "Other style"
       },
       "links": {
         "insertTitle": "Insert link",

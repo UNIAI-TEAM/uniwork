@@ -1,11 +1,33 @@
+import {
+  applyParagraphStyle,
+  setLineSpacing,
+  setParagraphAlign,
+  setSpaceAfterPt,
+  setSpaceBeforePt,
+  stepParagraphIndent,
+  type DocxParagraphCommands,
+} from "../paragraph/paragraph-commands";
+import { readParagraphState, type DocxParagraphFormatState } from "../paragraph/paragraph-format";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 
-/** Reserved for task A3: paragraph-formatting commands and state fields. */
-export type DocxParagraphCommands = object;
-/** Reserved for task A3: paragraph-formatting state fields. */
-export type DocxParagraphFormatState = object;
+export type { DocxParagraphCommands } from "../paragraph/paragraph-commands";
+export type { DocxParagraphFormatState } from "../paragraph/paragraph-format";
 
-// Placeholder — owned by task A3 (wave A).
-export function createParagraphCommands(_context: DocxCommandFactoryContext): DocxCommandArea<DocxParagraphCommands, DocxParagraphFormatState> {
-  return { commands: {}, readState: () => ({}) };
+/** A3: the paragraph area's factory. The command and state logic lives in
+ * ../paragraph/, next to the controls that use it. */
+export function createParagraphCommands(
+  context: DocxCommandFactoryContext,
+): DocxCommandArea<DocxParagraphCommands, DocxParagraphFormatState> {
+  const getEditor = () => context.getEditor();
+  return {
+    commands: {
+      setParagraphAlign: (align) => setParagraphAlign(getEditor(), align),
+      stepParagraphIndent: (direction) => stepParagraphIndent(getEditor(), direction),
+      setLineSpacing: (multiple) => setLineSpacing(getEditor(), multiple),
+      setSpaceBeforePt: (pt) => setSpaceBeforePt(getEditor(), pt),
+      setSpaceAfterPt: (pt) => setSpaceAfterPt(getEditor(), pt),
+      applyParagraphStyle: (style) => applyParagraphStyle(getEditor(), style),
+    },
+    readState: readParagraphState,
+  };
 }
