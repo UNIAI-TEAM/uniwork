@@ -129,6 +129,8 @@ catalog:
   # packages/views HTML source editor. Only the packages the editor imports
   # directly are pinned; lang-html brings lang-css / lang-javascript /
   # @lezer/html and the rest of the lezer token stack in transitively.
+  # @lezer/highlight is pinned because the H1 syntax theme imports `tags` from
+  # it directly, and pnpm's strict layout does not expose a transitive dep.
   "@codemirror/autocomplete": "6.20.3"
   "@codemirror/commands": "6.11.1"
   "@codemirror/lang-html": "6.4.12"
@@ -136,6 +138,7 @@ catalog:
   "@codemirror/search": "6.7.2"
   "@codemirror/state": "6.7.6"
   "@codemirror/view": "6.43.13"
+  "@lezer/highlight": "1.2.5"
 
   # Product analytics (packages/core/analytics)
   posthog-js: "^1.176.1"

@@ -63,6 +63,9 @@ catalogs:
     '@gsap/react':
       specifier: ^2.1.2
       version: 2.1.2
+    '@lezer/highlight':
+      specifier: 1.2.5
+      version: 1.2.5
     '@tailwindcss/postcss':
       specifier: ^4
       version: 4.3.3
@@ -1100,6 +1103,9 @@ importers:
       '@fullcalendar/timegrid':
         specifier: 'catalog:'
         version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@lezer/highlight':
+        specifier: 'catalog:'
+        version: 1.2.5
       '@livekit/components-react':
         specifier: ^2.9.23
         version: 2.9.24(livekit-client@2.22.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
