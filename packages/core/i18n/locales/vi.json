@@ -7443,6 +7443,64 @@
           "failed": "Không thể áp dụng thao tác trang. Thử lại."
         }
       },
+      "pageBox": {
+        "close": "Đóng",
+        "cancel": "Hủy",
+        "applying": "Đang áp dụng…",
+        "pages": {
+          "all": "Tất cả {{count}} trang",
+          "ranges": "Khoảng trang",
+          "rangesPlaceholder": "Ví dụ: 1-3, 5"
+        },
+        "box": {
+          "label": "Hộp trang",
+          "media": "Khổ giấy (media)",
+          "crop": "Vùng hiển thị (crop)"
+        },
+        "rect": {
+          "legend": "Hình chữ nhật (điểm tính từ gốc trang)",
+          "unit": "Khổ {{width}} × {{height}} pt",
+          "points": "pt",
+          "left": "Trái",
+          "bottom": "Dưới",
+          "right": "Phải",
+          "top": "Trên",
+          "preset": {
+            "label": "Hình chữ nhật nhanh",
+            "full": "Toàn trang",
+            "inset": "Thụt lề 10%",
+            "left": "Nửa trái",
+            "top": "Nửa trên"
+          }
+        },
+        "pageSize": {
+          "title": "Kích thước trang",
+          "description": "Đặt khổ giấy hoặc vùng hiển thị cho các trang đã chọn. Phần nằm ngoài hình chữ nhật không bị xóa, chỉ bị ẩn.",
+          "submit": "Áp dụng kích thước"
+        },
+        "nUp": {
+          "title": "Số trang mỗi tờ",
+          "description": "Xếp nhiều trang đã chọn lên một tờ theo dạng lưới.",
+          "rows": "Số hàng",
+          "cols": "Số cột",
+          "perSheet": "{{count}} trang mỗi tờ",
+          "perSheetInvalid": "Nhập số hàng và số cột",
+          "paper": "Khổ giấy",
+          "paperKeep": "Giữ khổ giấy hiện tại",
+          "submit": "Xếp nhiều trang"
+        },
+        "paper": {
+          "a4": "A4",
+          "letter": "Letter"
+        },
+        "errors": {
+          "pages": "Chọn ít nhất một trang trong tài liệu.",
+          "rect": "Hình chữ nhật không hợp lệ.",
+          "layout": "Cách xếp trang không được hỗ trợ.",
+          "input": "Yêu cầu không hợp lệ. Thử lại.",
+          "failed": "Không thể áp dụng thay đổi hộp trang. Thử lại."
+        }
+      },
       "signatures": {
         "title": "Chữ ký đã lưu",
         "loading": "Đang tải chữ ký…",

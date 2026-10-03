@@ -7463,6 +7463,64 @@
           "failed": "The page operation could not be applied. Try again."
         }
       },
+      "pageBox": {
+        "close": "Close",
+        "cancel": "Cancel",
+        "applying": "Applying…",
+        "pages": {
+          "all": "All {{count}} pages",
+          "ranges": "Page range",
+          "rangesPlaceholder": "e.g. 1-3, 5"
+        },
+        "box": {
+          "label": "Page box",
+          "media": "Sheet (media)",
+          "crop": "Visible area (crop)"
+        },
+        "rect": {
+          "legend": "Rectangle (points from the page origin)",
+          "unit": "Sheet {{width}} × {{height}} pt",
+          "points": "pt",
+          "left": "Left",
+          "bottom": "Bottom",
+          "right": "Right",
+          "top": "Top",
+          "preset": {
+            "label": "Quick rectangle",
+            "full": "Whole page",
+            "inset": "Inset 10%",
+            "left": "Left half",
+            "top": "Top half"
+          }
+        },
+        "pageSize": {
+          "title": "Page size",
+          "description": "Set the sheet or visible area of the chosen pages. Pages outside the rectangle are not deleted, only hidden.",
+          "submit": "Apply page size"
+        },
+        "nUp": {
+          "title": "Pages per sheet",
+          "description": "Place several pages of the selection on one sheet as a grid.",
+          "rows": "Rows",
+          "cols": "Columns",
+          "perSheet": "{{count}} pages per sheet",
+          "perSheetInvalid": "Enter a row and column count",
+          "paper": "Paper size",
+          "paperKeep": "Keep the current sheet size",
+          "submit": "Apply layout"
+        },
+        "paper": {
+          "a4": "A4",
+          "letter": "Letter"
+        },
+        "errors": {
+          "pages": "Select at least one page in the document.",
+          "rect": "The rectangle is invalid.",
+          "layout": "This page layout is not supported.",
+          "input": "The request is invalid. Try again.",
+          "failed": "The page box change could not be applied. Try again."
+        }
+      },
       "signatures": {
         "title": "Saved signatures",
         "loading": "Loading signatures…",
