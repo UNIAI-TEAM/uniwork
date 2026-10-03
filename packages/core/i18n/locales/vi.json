@@ -7405,6 +7405,42 @@
         "mergeAcross": "Gộp theo hàng",
         "unmergeCells": "Bỏ gộp ô"
       },
+      "filter": {
+        "groups": {
+          "data": "Lọc"
+        },
+        "toggle": "Bật/tắt lọc",
+        "clear": "Xóa điều kiện lọc",
+        "advanced": "Lọc nâng cao…",
+        "dialog": {
+          "title": "Lọc nâng cao",
+          "close": "Đóng lọc nâng cao",
+          "column": "Cột",
+          "operator": "Điều kiện",
+          "value": "Giá trị",
+          "join": "Kết hợp",
+          "and": "Tất cả điều kiện (VÀ)",
+          "or": "Một trong các điều kiện (HOẶC)",
+          "addCondition": "Thêm điều kiện",
+          "removeCondition": "Xóa điều kiện",
+          "reading": "Đang đọc vùng chọn…",
+          "noSelection": "Chọn danh sách, gồm cả dòng tiêu đề, để tạo điều kiện lọc.",
+          "valueRequired": "Nhập giá trị cho mỗi điều kiện.",
+          "tooManyConditions": "Mỗi cột chỉ nhận tối đa hai điều kiện.",
+          "applyFailed": "Không áp dụng được bộ lọc tại đây. Hãy chọn đúng vùng đang lọc rồi thử lại.",
+          "note": "Khi áp dụng, bộ lọc sẽ được tạo trên vùng chọn nếu trang tính chưa có bộ lọc.",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        },
+        "operators": {
+          "equal": "Bằng",
+          "notEqual": "Khác",
+          "greaterThan": "Lớn hơn",
+          "greaterThanOrEqual": "Lớn hơn hoặc bằng",
+          "lessThan": "Nhỏ hơn",
+          "lessThanOrEqual": "Nhỏ hơn hoặc bằng"
+        }
+      },
       "sheets": {
         "label": "Các trang tính trong sổ",
         "actions": "Thao tác trang tính",

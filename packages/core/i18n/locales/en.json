@@ -7411,6 +7411,42 @@
         "mergeAcross": "Merge across",
         "unmergeCells": "Unmerge cells"
       },
+      "filter": {
+        "groups": {
+          "data": "Filter"
+        },
+        "toggle": "Toggle filter",
+        "clear": "Clear filter",
+        "advanced": "Advanced filter…",
+        "dialog": {
+          "title": "Advanced filter",
+          "close": "Close advanced filter",
+          "column": "Column",
+          "operator": "Condition",
+          "value": "Value",
+          "join": "Match",
+          "and": "All conditions (AND)",
+          "or": "Any condition (OR)",
+          "addCondition": "Add condition",
+          "removeCondition": "Remove condition",
+          "reading": "Reading the selection…",
+          "noSelection": "Select the list, including its header row, to build filter criteria.",
+          "valueRequired": "Enter a value for each condition.",
+          "tooManyConditions": "A column takes at most two conditions.",
+          "applyFailed": "The filter could not be applied here. Select the filtered range and try again.",
+          "note": "Applying builds the filter over the selection when the sheet has none.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "operators": {
+          "equal": "Equals",
+          "notEqual": "Does not equal",
+          "greaterThan": "Greater than",
+          "greaterThanOrEqual": "Greater than or equal",
+          "lessThan": "Less than",
+          "lessThanOrEqual": "Less than or equal"
+        }
+      },
       "sheets": {
         "label": "Workbook sheets",
         "actions": "Sheet actions",
