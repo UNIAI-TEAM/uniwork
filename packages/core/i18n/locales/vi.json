@@ -7361,8 +7361,9 @@
       "drawings": { "label": "Công cụ vẽ", "rect": "Hình chữ nhật", "ellipse": "Hình elip", "line": "Đường thẳng", "arrow": "Mũi tên" },
       "ink": { "draw": "Vẽ tay" },
       "annotations": {
-        "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích",
-        "deleteError": "Không thể xóa chú thích. Thử lại.", "kind": "Chú thích", "readOnly": "Chỉ đọc"
+        "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích: {{kind}}, trang {{page}}",
+        "deleteError": "Không thể xóa chú thích. Thử lại.", "empty": "Chưa có chú thích nào được lưu.",
+        "kind": { "note": "Ghi chú", "ink": "Nét vẽ tay", "image": "Ảnh", "unknown": "Chú thích" }, "readOnly": "Chỉ đọc"
       },
       "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {

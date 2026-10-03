@@ -7381,8 +7381,9 @@
       "drawings": { "label": "Drawing tools", "rect": "Rectangle", "ellipse": "Ellipse", "line": "Line", "arrow": "Arrow" },
       "ink": { "draw": "Draw" },
       "annotations": {
-        "contentNotice": "Annotations stay separate from PDF content.", "delete": "Delete annotation",
-        "deleteError": "The annotation could not be deleted. Try again.", "kind": "Annotation", "readOnly": "Read-only"
+        "contentNotice": "Annotations stay separate from PDF content.", "delete": "Delete annotation: {{kind}}, page {{page}}",
+        "deleteError": "The annotation could not be deleted. Try again.", "empty": "No saved annotations.",
+        "kind": { "note": "Note", "ink": "Ink", "image": "Image", "unknown": "Annotation" }, "readOnly": "Read-only"
       },
       "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
       "errors": {

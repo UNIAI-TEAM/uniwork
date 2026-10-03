@@ -12,27 +12,36 @@ export type { PdfAnnotationOperationProvider, PdfAnnotationOperationSubmitter, P
 
 const BOUND_SUBTYPES = new Set<PdfSavedAnnotationSubtype>(["highlight", "underline", "strikeout", "note"]);
 
-function copy(t: ReturnType<typeof useTranslation>["t"], key: string, fallback: string, values?: Record<string, unknown>): string {
-  return t(key, { ...values, defaultValue: fallback });
-}
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+/** One label key per representable kind; any other kind falls back to the
+    generic annotation label. */
+const KIND_LABEL_KEYS: Record<string, string> = {
+  highlight: "office.pdf.markups.highlight",
+  underline: "office.pdf.markups.underline",
+  strikeout: "office.pdf.markups.strikeout",
+  note: "office.pdf.annotations.kind.note",
+  ink: "office.pdf.annotations.kind.ink",
+  image: "office.pdf.annotations.kind.image",
+};
 
 function identityFor(annotation: PdfSavedAnnotation): PdfSavedAnnotationIdentity | null {
+  const { pageIndex, objNum, rect } = annotation;
   if (annotation.binding === "unbound" || !BOUND_SUBTYPES.has(annotation.kind as PdfSavedAnnotationSubtype)) return null;
-  if (!Number.isSafeInteger(annotation.pageIndex) || !Number.isSafeInteger(annotation.objNum) || !annotation.rect || annotation.rect.length !== 4) return null;
+  if (typeof pageIndex !== "number" || typeof objNum !== "number") return null;
+  if (!Number.isSafeInteger(pageIndex) || pageIndex < 0 || !Number.isSafeInteger(objNum) || objNum < 0) return null;
+  if (!rect || rect.length !== 4) return null;
   return {
-    pageIndex: annotation.pageIndex!,
-    objNum: annotation.objNum!,
+    pageIndex,
+    objNum,
     subtype: annotation.kind as PdfSavedAnnotationSubtype,
-    rect: [...annotation.rect] as PdfAnnotationIdentityRect,
+    rect: [...rect],
     ...(annotation.contents !== undefined ? { contents: annotation.contents } : {}),
   };
 }
 
-type PdfAnnotationIdentityRect = [number, number, number, number];
-
-function annotationLabel(t: ReturnType<typeof useTranslation>["t"], annotation: PdfSavedAnnotation): string {
-  const key = annotation.kind === "highlight" || annotation.kind === "underline" || annotation.kind === "strikeout" ? `office.pdf.markups.${annotation.kind}` : "office.pdf.annotations.kind";
-  return copy(t, key, annotation.kind === "note" ? "Note" : annotation.kind === "ink" ? "Ink" : annotation.kind === "image" ? "Image" : "Annotation");
+function annotationLabel(t: Translate, annotation: PdfSavedAnnotation): string {
+  return t(KIND_LABEL_KEYS[annotation.kind] ?? "office.pdf.annotations.kind.unknown");
 }
 
 /**
@@ -60,33 +69,34 @@ export function PdfAnnotationsPanel({ annotations, deleteSavedAnnot, provider, d
   };
 
   return (
-    <section className={cn("grid gap-2", className)} data-testid="pdf-annotations-panel" aria-label={copy(t, "office.pdf.commands.annotations", "Annotations")}>
-      <h2 className="text-label font-medium">{copy(t, "office.pdf.commands.annotations", "Annotations")}</h2>
-      {annotations.length === 0 ? <p className="text-caption text-muted-foreground">{copy(t, "office.pdf.markups.label", "No saved annotations.")}</p> : (
-        <ul className="grid gap-1" aria-label={copy(t, "office.pdf.commands.annotations", "Annotations")}>
+    <section className={cn("grid gap-2", className)} data-testid="pdf-annotations-panel" aria-label={t("office.pdf.commands.annotations")}>
+      <h2 className="text-label font-medium">{t("office.pdf.commands.annotations")}</h2>
+      {annotations.length === 0 ? <p className="text-caption text-muted-foreground">{t("office.pdf.annotations.empty")}</p> : (
+        <ul className="grid gap-1" aria-label={t("office.pdf.commands.annotations")}>
           {annotations.map((annotation) => {
             const identity = identityFor(annotation);
             const canDelete = identity !== null && (provider !== undefined || deleteSavedAnnot !== undefined);
-            const pending = pendingId === annotation.id;
             const label = annotationLabel(t, annotation);
             return (
-              <li key={annotation.id} className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5" data-testid={`pdf-annotation-${annotation.id}`}>
-                <div className="min-w-0">
-                  <p className="truncate text-body">{label}</p>
-                  <p className="text-caption text-muted-foreground">{copy(t, "office.pdf.pages.page", "Page {{page}}", { page: annotation.page })}{annotation.contents ? ` · ${annotation.contents}` : ""}</p>
+              <li key={annotation.id} className="grid gap-1 rounded-md border border-border px-2 py-1.5" data-testid={`pdf-annotation-${annotation.id}`}>
+                <div className="flex min-h-11 items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-body">{label}</p>
+                    <p className="text-caption text-muted-foreground">{t("office.pdf.pages.page", { page: annotation.page })}{annotation.contents ? ` · ${annotation.contents}` : ""}</p>
+                  </div>
+                  {canDelete ? (
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label={t("office.pdf.annotations.delete", { kind: label, page: annotation.page })} disabled={disabled || pendingId !== null} onClick={() => { if (identity) void remove(annotation, identity); }}>
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  ) : <span className="shrink-0 text-caption text-muted-foreground">{t("office.pdf.annotations.readOnly")}</span>}
                 </div>
-                {canDelete ? (
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label={copy(t, "office.pdf.annotations.delete", "Delete annotation")} disabled={disabled || pending} onClick={() => { if (identity) void remove(annotation, identity); }}>
-                    <Trash2 aria-hidden="true" />
-                  </Button>
-                ) : <span className="shrink-0 text-caption text-muted-foreground">{copy(t, "office.pdf.annotations.readOnly", "Read-only")}</span>}
-                {errorId === annotation.id ? <span role="alert" className="sr-only">{copy(t, "office.pdf.annotations.deleteError", "The annotation could not be deleted. Try again.")}</span> : null}
+                {errorId === annotation.id ? <p role="alert" className="text-caption text-destructive">{t("office.pdf.annotations.deleteError")}</p> : null}
               </li>
             );
           })}
         </ul>
       )}
-      <p className="text-caption text-muted-foreground">{copy(t, "office.pdf.annotations.contentNotice", "Annotations stay separate from PDF content.")}</p>
+      <p className="text-caption text-muted-foreground">{t("office.pdf.annotations.contentNotice")}</p>
     </section>
   );
 }

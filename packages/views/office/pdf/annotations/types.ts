@@ -4,12 +4,18 @@ export type PdfAnnotationRect = readonly [number, number, number, number];
 /** Annotation subtypes the PDF save contract can identify and remove safely. */
 export type PdfSavedAnnotationSubtype = "highlight" | "underline" | "strikeout" | "note";
 
-/** The browser-safe identity needed by the host's guarded deleteSavedAnnot op. */
+/** The browser-safe identity needed by the host's guarded deleteSavedAnnot op.
+ * `pageIndex` is the original 0-based page index in the file, never the page
+ * number the host displays: a host that shows pages in another order must map
+ * back before emitting, because the engine matches the annotation on it. */
 export interface PdfSavedAnnotationIdentity {
   pageIndex: number;
   objNum: number;
   subtype: PdfSavedAnnotationSubtype;
   rect: PdfAnnotationRect;
+  /** /Contents matched by the engine. Required for `note` deletions: every
+      comment of a thread shares the root rect, so contents is the only
+      discriminator between thread members. */
   contents?: string;
 }
 
@@ -17,11 +23,17 @@ export interface PdfSavedAnnotationIdentity {
  * representable so the panel can show them without pretending they are editable. */
 export interface PdfSavedAnnotation {
   id: string;
+  /** 1-based page number as displayed by the host (display only). The delete
+      identity uses `pageIndex`, the original 0-based index. */
   page: number;
   kind: string;
   /** Hosts may expose a known subtype as unbound while its serializer is unavailable. */
   binding?: "bound" | "unbound";
+  /** /Contents of the annotation. Required for `kind === "note"`: the engine
+      disambiguates thread members by contents, since they share the root rect. */
   contents?: string;
+  /** Original 0-based page index in the file (identity), not the page's
+      position in a reordered display. */
   pageIndex?: number;
   objNum?: number;
   rect?: PdfAnnotationRect;
@@ -38,7 +50,7 @@ export interface PdfAnnotationOperationProvider {
 }
 
 export interface PdfAnnotationOperationSubmitter {
-  submit(operations: readonly PdfDeleteSavedAnnotOperation[]) : Promise<void> | void;
+  submit(operations: readonly PdfDeleteSavedAnnotOperation[]): Promise<void> | void;
 }
 
 export type PdfDeleteSavedAnnot = (input: PdfSavedAnnotationIdentity) => Promise<void> | void;
