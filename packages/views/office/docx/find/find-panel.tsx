@@ -75,7 +75,19 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return undefined;
-    return mountDocxFindHighlight(editor);
+    const unmount = mountDocxFindHighlight(editor);
+    // Every close path ends in this unmount: Escape and the X button call
+    // close() above, but the toolbar toggle only flips the store, which
+    // unmounts this panel. On a schema-owned plugin the unmount above is a
+    // no-op, so the hit set would survive and keep being re-mapped; release
+    // the session here instead.
+    return () => {
+      unmount();
+      if (editor.isDestroyed) return;
+      clearDocxFindHighlight(editor);
+      // Word hands focus back to the document when Find closes.
+      editor.commands.focus();
+    };
   }, [editor]);
 
   useEffect(() => {

@@ -3,8 +3,9 @@ import { Editor, type JSONContent } from "@tiptap/core";
 import { Document } from "@tiptap/extension-document";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Text } from "@tiptap/extension-text";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocxFindPanel } from "./docx-find-panel";
+import { docxFindPluginKey } from "./find-decoration";
 import { DocxFindExtension } from "./find-extension";
 import { closeDocxFind, isDocxFindOpen, toggleDocxFind } from "./find-store";
 
@@ -65,5 +66,52 @@ describe("DocxFindPanel chrome slot", () => {
     });
     editors.splice(editors.indexOf(editor), 1);
     expect(screen.queryByTestId("docx-find-panel")).not.toBeInTheDocument();
+    expect(isDocxFindOpen()).toBe(false);
+  });
+
+  it("releases the find session when the toolbar toggle closes the panel", async () => {
+    const editor = editorWith("alpha beta alpha");
+    const focus = vi.spyOn(editor.view, "focus");
+    render(<DocxFindPanel readOnly={false} />);
+
+    act(() => {
+      toggleDocxFind();
+    });
+    fireEvent.change(screen.getByTestId("docx-find-input"), { target: { value: "alpha" } });
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(2);
+
+    act(() => {
+      toggleDocxFind();
+    });
+    expect(screen.queryByTestId("docx-find-panel")).not.toBeInTheDocument();
+    expect(isDocxFindOpen()).toBe(false);
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(0);
+
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it("releases the find session when Escape closes the panel", async () => {
+    const editor = editorWith("alpha beta alpha");
+    const focus = vi.spyOn(editor.view, "focus");
+    render(<DocxFindPanel readOnly={false} />);
+
+    act(() => {
+      toggleDocxFind();
+    });
+    fireEvent.change(screen.getByTestId("docx-find-input"), { target: { value: "alpha" } });
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(2);
+
+    fireEvent.keyDown(screen.getByTestId("docx-find-input"), { key: "Escape" });
+    expect(screen.queryByTestId("docx-find-panel")).not.toBeInTheDocument();
+    expect(isDocxFindOpen()).toBe(false);
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(0);
+
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(focus).toHaveBeenCalled();
   });
 });

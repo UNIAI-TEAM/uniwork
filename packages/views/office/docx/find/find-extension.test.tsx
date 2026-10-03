@@ -5,6 +5,7 @@ import { Text } from "@tiptap/extension-text";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { docxFindPluginKey } from "./find-decoration";
 import { DocxFindExtension, getDocxFindEditor, subscribeDocxFindEditor } from "./find-extension";
+import { closeDocxFind, isDocxFindOpen, openDocxFind } from "./find-store";
 
 const editors: Editor[] = [];
 
@@ -20,6 +21,7 @@ function editorWith(text: string): Editor {
 
 afterEach(() => {
   for (const editor of editors.splice(0)) editor.destroy();
+  closeDocxFind();
 });
 
 describe("DocxFindExtension", () => {
@@ -39,5 +41,15 @@ describe("DocxFindExtension", () => {
     editor.destroy();
     editors.splice(editors.indexOf(editor), 1);
     expect(getDocxFindEditor()).toBeNull();
+  });
+
+  it("closes the find panel when the editor is destroyed", () => {
+    const editor = editorWith("alpha");
+    openDocxFind();
+    expect(isDocxFindOpen()).toBe(true);
+
+    editor.destroy();
+    editors.splice(editors.indexOf(editor), 1);
+    expect(isDocxFindOpen()).toBe(false);
   });
 });

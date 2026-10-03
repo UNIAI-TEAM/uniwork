@@ -4,7 +4,7 @@ import { Document } from "@tiptap/extension-document";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Text } from "@tiptap/extension-text";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { docxFindPluginKey } from "./find-decoration";
+import { createDocxFindPlugin, docxFindPluginKey } from "./find-decoration";
 import { DocxFindPanel } from "./find-panel";
 
 const editors: Editor[] = [];
@@ -189,6 +189,23 @@ describe("DocxFindPanel", () => {
 
     fireEvent.click(screen.getByTestId("docx-find-close"));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the highlight and returns focus when the host unmounts the panel", async () => {
+    const editor = createEditor(["alpha"]);
+    editor.registerPlugin(createDocxFindPlugin());
+    const focus = vi.spyOn(editor.view, "focus");
+    const { unmount } = render(<DocxFindPanel editor={editor} onClose={vi.fn()} />);
+    search("alpha");
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(1);
+
+    unmount();
+    expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(0);
+
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(focus).toHaveBeenCalled();
   });
 
   it("re-scans when the document changes underneath", () => {

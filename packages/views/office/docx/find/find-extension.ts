@@ -1,5 +1,6 @@
 import { Extension, type Editor } from "@tiptap/core";
 import { createDocxFindPlugin } from "./find-decoration";
+import { closeDocxFind } from "./find-store";
 
 let current: Editor | null = null;
 const listeners = new Set<() => void>();
@@ -7,6 +8,9 @@ const listeners = new Set<() => void>();
 function publish(editor: Editor | null): void {
   if (current === editor) return;
   current = editor;
+  // A fresh document starts with Find closed, the way Word does it: the open
+  // state must not leak across an editor teardown into the next document.
+  if (!editor) closeDocxFind();
   for (const listener of listeners) listener();
 }
 

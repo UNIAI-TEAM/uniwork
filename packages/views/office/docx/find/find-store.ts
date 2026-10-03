@@ -24,6 +24,10 @@ export function subscribeDocxFind(listener: () => void): () => void {
   };
 }
 
+export function openDocxFind(): void {
+  setOpen(true);
+}
+
 export function closeDocxFind(): void {
   setOpen(false);
 }
