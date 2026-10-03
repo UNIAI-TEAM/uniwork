@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import type { DocxFormatState } from "../types";
 import { createBaseCommands, type DocxBaseCommands } from "./base";
+import { createChartCommands, type DocxChartCommands, type DocxChartFormatState } from "./charts";
 import { createCharacterCommands, type DocxCharacterCommands, type DocxCharacterFormatState } from "./character";
 import { createCommentsCommands, type DocxCommentsCommands, type DocxCommentsFormatState } from "./comments";
 import { createCompareCommands, type DocxCompareCommands, type DocxCompareFormatState } from "./compare";
@@ -39,6 +40,7 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxCompareFormatState &
   DocxExportFormatState &
   DocxTocFormatState &
+  DocxChartFormatState &
   DocxProtectFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
@@ -64,6 +66,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxCompareCommands &
   DocxExportCommands &
   DocxTocCommands &
+  DocxChartCommands &
   DocxProtectCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
@@ -95,6 +98,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createCompareCommands,
   createExportCommands,
   createTocCommands,
+  createChartCommands,
   createProtectCommands,
 ];
 
