@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
@@ -8,22 +8,27 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
+import { buildSlideSvg, type SlideSvgDocument } from "./canvas/build-slide-svg";
+import { PptxCanvasSurface } from "./canvas/pptx-canvas-surface";
+import { PptxCanvasZoom } from "./canvas/pptx-canvas-zoom";
+import { loadPptxRendererModule, type PptxRendererModule } from "./canvas/renderer-module";
+import { usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRendition, type PptxDeckRendererInput } from "./canvas/use-canvas-host";
+import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
+import { PPTX_FALLBACK_FIT_WIDTH } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxPresenter } from "./presenter";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxToolbar } from "./toolbar";
 
-export interface PptxElementView {
-  id: string;
-  type: string;
-  label?: string;
-}
-
 export interface PptxEditorProps {
   host: OfficeHost;
   editorHandle: EditorHandle | null;
   slides?: readonly PptxSlideView[];
-  elements?: readonly PptxElementView[];
+  /** Opened deck model for the real rendition (UNI-927 P0-2). Without it the canvas
+   *  reports that no render source is bound instead of inventing slide content. */
+  deck?: PptxDeckRendererInput;
+  /** Artifact loader seam; tests inject a fake module. */
+  loadRendererModule?: () => Promise<PptxRendererModule>;
   selectedIndex?: number;
   onSlideSelect?: (index: number) => void;
   onTransform?: (request: SlidesEditTransformRequest) => Promise<unknown>;
@@ -59,7 +64,8 @@ export function PptxEditor({
   host,
   editorHandle,
   slides = [],
-  elements = [],
+  deck,
+  loadRendererModule = loadPptxRendererModule,
   selectedIndex: controlledIndex,
   onSlideSelect,
   onTransform,
@@ -81,11 +87,39 @@ export function PptxEditor({
   const [presenterOpen, setPresenterOpen] = useState(false);
   const [gesturePending, setGesturePending] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [fitWidthPx, setFitWidthPx] = useState(PPTX_FALLBACK_FIT_WIDTH);
   const gestureRef = useRef<GestureState | null>(null);
   const historyQueue = useRef<"undo" | "redo" | null>(null);
   const presenterTriggerRef = useRef<HTMLElement | null>(null);
   const editorRootRef = useRef<HTMLElement | null>(null);
   const selectedIndex = Math.min(Math.max(controlledIndex ?? internalIndex, 0), Math.max(slides.length - 1, 0));
+  const railIdPrefix = `pptx-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
+  const palette = usePptxPalette();
+  const rendererState = usePptxRendererModule(loadRendererModule, deck != null);
+  const deckRenderer = usePptxDeckRenderer(rendererState, deck ?? {}, railIdPrefix, palette);
+  const rendition = useSlideRendition(deckRenderer, selectedIndex, fitWidthPx);
+  const patternGrid = rendererState.status === "ready" ? rendererState.module.patternGrid : undefined;
+  const presetPath = rendererState.status === "ready" ? rendererState.module.presetPath : undefined;
+  const presetPolygon = rendererState.status === "ready" ? rendererState.module.presetPolygon : undefined;
+  const imageSize = deck?.imageSize;
+  const thumbnailRevision = deck?.revision;
+  const svgDocument = useMemo<SlideSvgDocument | null>(() => {
+    if (!rendition) return null;
+    return buildSlideSvg(rendition, {
+      idPrefix: railIdPrefix,
+      palette,
+      ...(imageSize ? { imageSize } : {}),
+      ...(patternGrid ? { patternGrid } : {}),
+      ...(presetPath ? { presetPath } : {}),
+      ...(presetPolygon ? { presetPolygon } : {}),
+    });
+  }, [imageSize, palette, patternGrid, presetPath, presetPolygon, railIdPrefix, rendition]);
+  const thumbnails = usePptxThumbnails({ renderer: deckRenderer, slides, ...(thumbnailRevision !== undefined ? { revision: thumbnailRevision } : {}) });
+  const railSlides = useMemo<readonly PptxSlideView[]>(
+    () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
+    [slides, thumbnails],
+  );
   const effectiveCapabilities = useMemo(() => ({
     ...capabilities,
     open: onOpen
@@ -221,25 +255,34 @@ export function PptxEditor({
     <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
       <PptxToolbar commands={commands.filter((command) => command.id !== "save" || includeSave)} onCommand={onCommand} />
       {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
+      {rendererState.status === "error" ? (
+        <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error">
+          <AlertTitle>{t("render_failed")}</AlertTitle>
+          <AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription>
+        </Alert>
+      ) : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <PptxSlideRail slides={slides} selectedIndex={selectedIndex} onSelect={selectSlide} />
+        <PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />
         <div className="flex min-h-48 min-w-0 flex-1 flex-col p-3">
           <div className="mb-2 flex items-center justify-between gap-2 text-caption text-muted-foreground">
             <span>{t("slide_position", { current: slides.length ? selectedIndex + 1 : 0, total: slides.length })}</span>
-            {gesturePending ? <span role="status" data-testid="pptx-gesture-pending">{t("gesture_pending")}</span> : null}
+            <span className="flex items-center gap-3">
+              {gesturePending ? <span role="status" data-testid="pptx-gesture-pending">{t("gesture_pending")}</span> : null}
+              <PptxCanvasZoom zoom={zoom} onZoomChange={setZoom} />
+            </span>
           </div>
-          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- role=application is the keyboard slide surface */}
-          <div className="relative flex min-h-48 flex-1 items-center justify-center overflow-auto rounded-md border border-border bg-background p-4" role="application" aria-label={t("canvas_label")} tabIndex={0} onKeyDown={onCanvasKeyDown} data-pptx-canvas>
-            {slides.length === 0 ? <p className="text-sm text-muted-foreground">{t("no_slides")}</p> : (
-              <div className="flex aspect-video w-full max-w-5xl items-center justify-center rounded-sm border border-border bg-muted/30" data-slide-canvas data-slide-index={selectedIndex}>
-                {elements.length > 0 ? <div className="grid gap-2 text-center text-caption text-muted-foreground">{elements.map((element) => <span key={element.id} data-element-id={element.id}>{element.label ?? element.type}</span>)}</div> : <span className="text-sm text-muted-foreground">{slides[selectedIndex]?.label ?? t("slide_number", { index: selectedIndex + 1 })}</span>}
-              </div>
-            )}
-          </div>
+          <PptxCanvasSurface
+            content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
+            slideIndex={selectedIndex}
+            slideCount={slides.length}
+            zoom={zoom}
+            onFitWidthChange={setFitWidthPx}
+            onKeyDown={onCanvasKeyDown}
+          />
         </div>
       </div>
       <PptxPresenter
-        slides={slides}
+        slides={railSlides}
         selectedIndex={selectedIndex}
         open={presenterOpen}
         onClose={() => {

@@ -2,6 +2,16 @@ export { createPptxCommandMap, findPptxCommand, type PptxCommand, type PptxComma
 export { PptxSlideRail, type PptxSlideRailProps, type PptxSlideView } from "./slide-rail";
 export { PptxPresenter, type PptxPresenterProps } from "./presenter";
 export { PptxToolbar, type PptxToolbarProps } from "./toolbar";
-export { PptxEditor, type PptxEditorProps, type PptxElementView } from "./pptx-editor";
+export { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 export { PptxEditorView, type PptxEditorViewProps } from "./editor-view";
-
+export { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument, type SlideSvgOptions } from "./canvas/build-slide-svg";
+export { SvgNodeView, PptxCanvasSurface, type PptxCanvasContent, type PptxCanvasSurfaceProps } from "./canvas/pptx-canvas-surface";
+export { PptxCanvasZoom, type PptxCanvasZoomProps } from "./canvas/pptx-canvas-zoom";
+export { createPptxDeckRenderer, type PptxDeckModel, type PptxDeckRenderer, type PptxRenderInput } from "./canvas/deck-renderer";
+export { assertPptxRendererModule, loadPptxRendererModule, type PptxRendererModule } from "./canvas/renderer-module";
+export { readPptxPalette, type PptxCanvasPalette, type PptxImageSize } from "./canvas/paint";
+export type { PptxNodeBox, PptxRenderSlide, PptxSlideSize, PptxViewport } from "./canvas/render-tree";
+export { useElementWidth, usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRendition, type PptxDeckRendererInput, type PptxRendererState } from "./canvas/use-canvas-host";
+export { clearPptxThumbnailCache, PPTX_THUMBNAIL_WIDTH, pptxThumbnailKey, usePptxThumbnails, type PptxThumbnailSlide } from "./canvas/use-pptx-thumbnails";
+export { serializeSvgNode, slideSvgMarkup, svgDataUrl, type SvgNode } from "./canvas/svg-node";
+export { PPTX_FALLBACK_FIT_WIDTH, PPTX_ZOOM_MAX, PPTX_ZOOM_MIN, PPTX_ZOOM_STEPS, clampZoom, resolveFitWidth, slideDisplaySize, stepZoom, zoomPercent } from "./canvas/zoom";
