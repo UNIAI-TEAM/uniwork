@@ -34,6 +34,9 @@ export interface XlsxGridHandle {
   commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
+  /** Run an allowlisted Univer command on the active selection (false when
+   *  the renderer refuses it: read-only, no active range, or policy). */
+  executeCommand(id: string, params?: unknown): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -116,6 +119,7 @@ export function XlsxGridSurface({
       commitEdit: () => handleRef.current?.commitEdit() ?? Promise.reject(new Error("xlsx_renderer_not_ready")),
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
+      executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),

@@ -154,6 +154,7 @@ export function mountController(options = {}, environment = {}) {
       async undo() { h.undoCalls = (h.undoCalls ?? 0) + 1; },
       async redo() { h.redoCalls = (h.redoCalls ?? 0) + 1; },
       async executeCommand(id, params) { return h.execute({id,params}); },
+      syncExecuteCommand(id, params) { return h.execute({id,params}); },
     },
   };
   globalThis.__xlsxControllerTest = h;

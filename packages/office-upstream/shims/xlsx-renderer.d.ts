@@ -122,6 +122,10 @@ export interface XlsxRendererHandle {
   commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
+  /** Run an allowlisted Univer command against the active selection; false
+   *  when the mount is read-only, there is no active range, or the command
+   *  policy cancels the command. */
+  executeCommand(id: string, params?: unknown): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;

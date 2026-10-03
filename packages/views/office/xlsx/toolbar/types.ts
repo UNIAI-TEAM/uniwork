@@ -11,6 +11,14 @@ export interface XlsxToolbarTabDefinition {
   readonly labelKey: string;
 }
 
+/** The narrow renderer-command port a group executes through. The mounted
+ *  renderer refuses read-only/no-selection commands and the command policy
+ *  stays authoritative, so a group never needs a save or byte path of its own;
+ *  `false` means the renderer did not run the command. */
+export interface XlsxToolbarCommands {
+  execute(id: string, params?: unknown): boolean;
+}
+
 /** The slice of the toolbar props a command group may read. It is declared
  *  here, not in `xlsx-toolbar.tsx`, so a group file never imports the shell;
  *  the public `XlsxToolbarProps` extends it and adds the coordinator/save
@@ -24,6 +32,9 @@ export interface XlsxToolbarGroupProps {
   canRecalculate: boolean;
   canFormat: boolean;
   recalculating: boolean;
+  /** Present when the host mounts the live grid; absent on the snapshot-table
+   *  fallback, where every renderer command is unavailable. */
+  commands?: XlsxToolbarCommands;
   onUndo: () => void;
   onRedo: () => void;
   onNumberFormat: () => void;

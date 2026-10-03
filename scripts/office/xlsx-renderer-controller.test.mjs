@@ -301,6 +301,28 @@ test('workbook skeleton waits for local font probes and exposes truthful font ma
   } finally { mounted.close(); globalThis.FontFace = previous; }
 });
 
+test('renderer command port runs allowlisted commands through the policy and refuses the rest', async () => {
+  const mounted = mountController();
+  try {
+    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no open workbook');
+    await mounted.handle.loadWorkbook(file);
+    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), true);
+    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-bold', params: {} });
+    assert.equal(mounted.handle.executeCommand('sheet.command.set-font-size', { value: 14 }), true);
+    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-font-size', params: { value: 14 } });
+    assert.equal(mounted.handle.executeCommand('sheet.mutation.insert-row'), false, 'policy refuses the command');
+    assert.equal(mounted.events.some((event) => event.id === 'sheet.mutation.insert-row'), false);
+    mounted.workbook.setActiveRange(null);
+    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no active range');
+  } finally { mounted.close(); }
+  const readonly = mountController({ readOnly: true });
+  try {
+    await readonly.handle.loadWorkbook(file);
+    assert.equal(readonly.handle.executeCommand('sheet.command.set-bold'), false);
+    assert.equal(readonly.events.some((event) => event.id === 'sheet.command.set-bold'), false);
+  } finally { readonly.close(); }
+});
+
 test('disposing during font preparation prevents a late workbook installation', async () => {
   const previous = globalThis.FontFace;
   let resolveProbe;

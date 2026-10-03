@@ -107,6 +107,11 @@ export interface XlsxRendererHandle {
   commitEdit(): Promise<void>;
   selectSheet(sheetId: string): void;
   setNumberFormat(pattern: string): void;
+  /** Run an allowlisted Univer command against the active selection. Refuses
+   *  read-only mounts, a missing workbook/sheet/range, and anything the
+   *  command policy cancels (the policy stays the single savability gate).
+   *  Returns whether the command actually ran. */
+  executeCommand(id: string, params?: unknown): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -463,6 +468,17 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       if (options.readOnly || !sheetId || !range || !pattern || pattern.length > 255 ||
         !canEditRange(lazyWorkbookRef.current, sheetId, range.getRange())) return;
       range.setNumberFormat(pattern);
+    },
+    executeCommand(id, params) {
+      if (options.readOnly) return false;
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const sheet = workbook?.getActiveSheet();
+      const range = workbook?.getActiveRange();
+      if (!workbook || !sheet || !range) return false;
+      // The synchronous command service still runs the BeforeCommandExecute
+      // gate, so `canExecuteCommand` decides savability; a cancelled command
+      // comes back as false and never touches the model.
+      return runtime.univerAPI.syncExecuteCommand(id, (params ?? {}) as object) === true;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {

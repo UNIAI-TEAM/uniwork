@@ -10,6 +10,7 @@ import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
 import { XlsxToolbar } from "./xlsx-toolbar";
+import type { XlsxToolbarCommands } from "./toolbar/types";
 import { addressParts, cellEditOperation, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
 import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
@@ -96,6 +97,11 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [editor]);
   const gridEdits = useXlsxGridEdits(documentKey, editor, coordinator, rendererHost, canEdit, refreshSnapshot);
   const flushGridEdits = gridEdits.flush;
+  // The toolbar's one command port: it reaches the mounted renderer only, and
+  // the renderer's policy gate keeps every command savable or refused.
+  const gridCommands = useMemo<XlsxToolbarCommands>(() => ({
+    execute: (id, params) => gridRef.current?.executeCommand(id, params) ?? false,
+  }), []);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
@@ -441,6 +447,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             canRedo={gridReady || typeof editor.redo === "function"}
             canRecalculate={recalcController !== undefined}
             canFormat={gridReady && selection !== null}
+            commands={gridCommands}
             onNumberFormat={() => gridRef.current?.setNumberFormat("0.00")}
             recalculating={recalcProgress !== null}
             onUndo={undo}

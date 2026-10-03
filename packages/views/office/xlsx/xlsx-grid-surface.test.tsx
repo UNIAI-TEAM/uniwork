@@ -34,6 +34,7 @@ function fakeModule() {
     commitEdit: vi.fn(async () => undefined),
     selectSheet: vi.fn(),
     setNumberFormat: vi.fn(),
+    executeCommand: vi.fn(() => true),
     setDarkMode: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -95,6 +96,18 @@ describe("XlsxGridSurface", () => {
     expect(handle.setDarkMode).toHaveBeenLastCalledWith(true);
     expect(handle.dispose).not.toHaveBeenCalled();
     expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+  });
+
+  it("forwards commands to the artifact handle and reports its boolean result", async () => {
+    const { module, handle } = fakeModule();
+    const ref = createRef<XlsxGridHandle>();
+    render(<XlsxGridSurface ref={ref} documentKey="cmd-doc" host={host} loadModule={async () => module} />);
+    await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalled());
+    expect(ref.current?.executeCommand("sheet.command.set-bold")).toBe(true);
+    expect(handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-bold", undefined);
+    vi.mocked(handle.executeCommand).mockReturnValue(false);
+    expect(ref.current?.executeCommand("sheet.command.set-font-size", { value: 14 })).toBe(false);
+    expect(handle.executeCommand).toHaveBeenLastCalledWith("sheet.command.set-font-size", { value: 14 });
   });
 
   it("shows a typed failure when the artifact cannot load", async () => {
