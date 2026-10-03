@@ -33,6 +33,7 @@ interface FakePptxPackage {
   slides: Array<Record<string, unknown>>;
   layouts?: Array<{ name: string; path: string }>;
   entries?: Record<string, string>;
+  sections?: Array<{ id: string; name: string; slideIndices: number[] }>;
 }
 
 function decode(bytes: Uint8Array): FakePptxPackage {
@@ -86,6 +87,7 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
           readText: (path: string) => entries.get(path) as string | undefined,
         },
         __layouts: pkg.layouts ?? [],
+        __sections: pkg.sections ?? [],
       };
     },
     async savePptx(opened: OpenedPptxLike): Promise<Uint8Array> {
@@ -99,6 +101,7 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
           size: opened.deck.size,
           slides: opened.deck.slides,
           layouts: (opened.__layouts as unknown[]) ?? [],
+          sections: (opened.__sections as unknown[]) ?? [],
           entries,
         }),
       );
@@ -246,6 +249,125 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
       slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
     }
+    // Wave A/B (UNI-927) â€” deterministic JSON-convention effects.
+    case "applyTheme":
+      opened.__theme = op.name;
+      return { op, after: op.name };
+    case "setSlideSize":
+      (opened.deck as { size?: unknown }).size = { cx: op.cx, cy: op.cy };
+      return { op, after: { cx: op.cx, cy: op.cy } };
+    case "setSlideLayout": {
+      const { slide } = resolveSlide(opened, op);
+      slide.layout = op.layout;
+      return { op, after: op.layout };
+    }
+    case "setBackground": {
+      const { index } = resolveSlide(opened, op);
+      const backgrounds = (opened.__backgrounds as Record<number, unknown>) ?? {};
+      backgrounds[index] = op;
+      opened.__backgrounds = backgrounds;
+      return { op, after: { slide: index } };
+    }
+    case "setTransition": {
+      const { index } = resolveSlide(opened, op);
+      const transitions = (opened.__transitions as Record<number, unknown>) ?? {};
+      transitions[index] = op.kind;
+      opened.__transitions = transitions;
+      return { op, after: op.kind };
+    }
+    case "setAdvanceTime": {
+      const { index } = resolveSlide(opened, op);
+      const times = (opened.__advanceTimes as Record<number, unknown>) ?? {};
+      times[index] = op.ms;
+      opened.__advanceTimes = times;
+      return { op, after: op.ms };
+    }
+    case "addTable": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = {
+        id: "new_" + newElementSeq++,
+        type: "table",
+        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
+      };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
+    case "addChart": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = {
+        id: "new_" + newElementSeq++,
+        type: "chart",
+        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
+      };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
+    case "setTableCell":
+    case "setTableRowHeight":
+    case "setTableColWidth":
+    case "setTableCellAnchor":
+    case "setTableStyle":
+      resolveElement(opened, op);
+      return { op, after: { el: (op.target as { el?: string }).el } };
+    case "tableMerge":
+    case "tableStructure": {
+      const { el } = resolveElement(opened, op);
+      return { op, after: { elementId: el.id } };
+    }
+    case "setChart":
+      resolveElement(opened, op);
+      return { op, after: op.patch };
+    case "setLink":
+      resolveElement(opened, op);
+      return { op, after: op.link };
+    case "findReplace": {
+      const find = String(op.find ?? "");
+      const replace = String(op.replace ?? "");
+      if (find) {
+        for (const slide of opened.deck.slides) {
+          for (const el of slide.elements) {
+            for (const paragraph of el.text?.paragraphs ?? []) {
+              for (const run of paragraph.runs ?? []) {
+                if (typeof run.text === "string") run.text = run.text.split(find).join(replace);
+              }
+            }
+          }
+        }
+      }
+      return { op, after: { find, replace } };
+    }
+    case "addSection": {
+      const sections =
+        (opened.__sections as Array<{ id: string; name: string; slideIndices: number[] }> | undefined) ?? [];
+      const id = "{sec-" + newElementSeq++ + "}";
+      sections.push({ id, name: String(op.name ?? ""), slideIndices: [Number(op.atSlideIndex ?? 0)] });
+      opened.__sections = sections;
+      return { op, after: { id } };
+    }
+    case "renameSection": {
+      const sections = (opened.__sections as Array<{ id: string; name: string }> | undefined) ?? [];
+      const section = sections.find((s) => s.id === op.id);
+      if (section) section.name = String(op.name ?? "");
+      return { op, after: { id: op.id } };
+    }
+    case "removeSection": {
+      const sections = (opened.__sections as Array<{ id: string }> | undefined) ?? [];
+      opened.__sections = sections.filter((s) => s.id !== op.id);
+      return { op };
+    }
+    case "moveSection": {
+      const sections = (opened.__sections as Array<{ id: string }> | undefined) ?? [];
+      const from = sections.findIndex((s) => s.id === op.id);
+      const to = op.dir === "up" ? from - 1 : from + 1;
+      if (from >= 0 && to >= 0 && to < sections.length) {
+        const [moved] = sections.splice(from, 1);
+        sections.splice(to, 0, moved as { id: string });
+      }
+      return { op, after: op.dir };
+    }
+    case "setSections":
+      opened.__sections = JSON.parse(JSON.stringify(op.sections ?? [])) as unknown[];
+      return { op, after: op.sections };
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');
   }
@@ -278,6 +400,38 @@ function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
       break;
     case "addSlideWithLayout":
       if (!op.layout && op.layout !== 0) throw new Error('op "addSlideWithLayout" needs "layout"');
+      break;
+    // Wave A/B (UNI-927): deck-level + slide-scoped kinds need no target check.
+    case "applyTheme":
+    case "setSlideSize":
+    case "findReplace":
+    case "addSection":
+    case "renameSection":
+    case "removeSection":
+    case "moveSection":
+    case "setSections":
+      break;
+    case "setBackground":
+    case "setTransition":
+    case "setAdvanceTime":
+    case "setSlideLayout":
+      resolveSlide(opened, op);
+      break;
+    case "addTable":
+    case "addChart":
+      resolveSlide(opened, op);
+      if (!op.offset) throw new Error('op "' + op.op + '" needs "offset"');
+      break;
+    case "setTableCell":
+    case "tableMerge":
+    case "tableStructure":
+    case "setTableRowHeight":
+    case "setTableColWidth":
+    case "setTableCellAnchor":
+    case "setTableStyle":
+    case "setChart":
+    case "setLink":
+      resolveElement(opened, op);
       break;
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');

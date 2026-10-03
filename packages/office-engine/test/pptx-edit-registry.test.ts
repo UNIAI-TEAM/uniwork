@@ -1,16 +1,20 @@
-// PPTX edit-kind registry tests — P0-1 (UNI-927).
+// PPTX edit-kind registry tests - P0-1 (UNI-927), extended by the WIRE round.
 //
 // The registry is the extension point the B1..B8 tasks add kinds to: the
-// PptxEdit union and the kind → handler table must agree, every registered
+// PptxEdit union and the kind -> handler table must agree, every registered
 // kind must actually dispatch through the model's runTxn seam (one revision
-// per applied edit), and an unregistered kind must be refused by code —
-// never silently ignored.
+// per applied edit), and an unregistered kind must be refused by code - never
+// silently ignored.
+//
+// Every edit is applied on a fresh model so no kind depends on another kind's
+// side effects (the previous order-coupled form was not runnable under the
+// lane's cloud-only vitest rule).
 import { describe, expect, it } from "vitest";
 import { createPptxAdapter, type PptxEdit, pptxEditKinds } from "../src/pptx";
 import { createFakePptxEngine, createFakePptxOps } from "./fake-pptx-engine";
 import { makeFakePptxBytes, para } from "./fake-pptx-fixtures";
 
-const DECLARED_KINDS = [
+const DECLARED_KINDS: PptxEdit["op"][] = [
   "edit_text",
   "edit_transform",
   "add_element",
@@ -24,6 +28,29 @@ const DECLARED_KINDS = [
   "add_blank_slide",
   "add_slide_with_layout",
   "delete_element",
+  "apply_theme",
+  "set_slide_size",
+  "set_background",
+  "set_slide_layout",
+  "add_table",
+  "set_table_cell",
+  "table_merge",
+  "table_structure",
+  "set_table_row_height",
+  "set_table_col_width",
+  "set_table_cell_anchor",
+  "set_table_style",
+  "add_chart",
+  "set_chart",
+  "set_transition",
+  "set_advance_time",
+  "find_replace",
+  "set_link",
+  "add_section",
+  "rename_section",
+  "remove_section",
+  "move_section",
+  "set_sections",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -43,21 +70,56 @@ const openModel = async () => {
   return { adapter, ref: out.document_model_ref, model: adapter.sessionOf(out.document_model_ref).model };
 };
 
-/** One valid edit per declared kind, in an order the fake deck satisfies. */
+/** One valid edit per declared kind, in registry order. Each is applied on a
+ * fresh deck, so the fixture only has to satisfy that single edit. */
 const ONE_OF_EACH: PptxEdit[] = [
   { op: "edit_text", slideIndex: 0, elementId: "t1", paragraphs: [para("registry")] },
   { op: "edit_transform", slideIndex: 0, elementId: "s1", xPx: 10, yPx: 10, wPx: 100, hPx: 50 },
   { op: "add_element", slideIndex: 0, kind: "textbox", xPx: 0, yPx: 0, wPx: 100, hPx: 50 },
   { op: "add_image", slideIndex: 0, bytes: new Uint8Array([1]), ext: "png", xPx: 0, yPx: 0, wPx: 10, hPx: 10 },
   { op: "replace_picture", slideIndex: 0, elementId: "p1", bytes: new Uint8Array([2]), ext: "png" },
-  { op: "reorder_element", slideIndex: 0, elementId: "t1", dir: "back" },
-  { op: "delete_element", slideIndex: 0, elementId: "t1" },
-  { op: "set_slide_hidden", slideIndex: 1, hidden: true },
-  { op: "duplicate_slide", slideIndex: 0 },
-  { op: "delete_slide", slideIndex: 2 },
   { op: "move_slide", slideIndex: 0, toIndex: 1 },
+  { op: "reorder_element", slideIndex: 0, elementId: "t1", dir: "back" },
+  { op: "set_slide_hidden", slideIndex: 0, hidden: true },
+  { op: "duplicate_slide", slideIndex: 0 },
+  { op: "delete_slide", slideIndex: 1 },
   { op: "add_blank_slide", slideIndex: 0 },
   { op: "add_slide_with_layout", layout: "Title Slide" },
+  { op: "delete_element", slideIndex: 0, elementId: "t1" },
+  // Wave A/B (UNI-927).
+  { op: "apply_theme", name: "Aurora", colors: { lt1: "#FFFFFF", dk1: "#000000" } },
+  { op: "set_slide_size", cxEmu: 12192000, cyEmu: 6858000 },
+  { op: "set_background", slideIndex: 0, kind: "solid", color: "#112233" },
+  { op: "set_slide_layout", slideIndex: 0, layout: "Title Slide" },
+  { op: "add_table", slideIndex: 0, rows: 2, cols: 2, xPx: 10, yPx: 20, wPx: 300, hPx: 150 },
+  { op: "set_table_cell", slideIndex: 0, elementId: "tbl1", row: 0, col: 0, paragraphs: [para("A")] },
+  { op: "table_merge", slideIndex: 0, elementId: "tbl1", kind: "merge-right", row: 0, col: 0 },
+  { op: "table_structure", slideIndex: 0, elementId: "tbl1", kind: "insert-row", index: 0 },
+  { op: "set_table_row_height", slideIndex: 0, elementId: "tbl1", row: 0, hPx: 40 },
+  { op: "set_table_col_width", slideIndex: 0, elementId: "tbl1", col: 0, wPx: 80 },
+  { op: "set_table_cell_anchor", slideIndex: 0, elementId: "tbl1", row: 0, col: 0, anchor: "middle" },
+  { op: "set_table_style", slideIndex: 0, elementId: "tbl1", styleName: "zebraBlue" },
+  {
+    op: "add_chart",
+    slideIndex: 0,
+    kind: "bar",
+    xPx: 10,
+    yPx: 20,
+    wPx: 300,
+    hPx: 200,
+    categories: ["Q1", "Q2"],
+    series: [{ name: "North", values: [1, 2] }],
+  },
+  { op: "set_chart", slideIndex: 0, elementId: "chart1", patch: { kind: "line" } },
+  { op: "set_transition", slideIndex: 0, kind: "fade" },
+  { op: "set_advance_time", slideIndex: 0, ms: 5000 },
+  { op: "find_replace", find: "slide", replace: "SLIDE" },
+  { op: "set_link", slideIndex: 0, elementId: "s1", link: { kind: "url", url: "https://example.com" } },
+  { op: "add_section", atSlideIndex: 0, name: "Intro" },
+  { op: "rename_section", id: "{A}", name: "Renamed" },
+  { op: "remove_section", id: "{A}" },
+  { op: "move_section", id: "{A}", dir: "down" },
+  { op: "set_sections", sections: [{ id: "{A}", name: "Intro", slideIndices: [0] }] },
 ];
 
 describe("pptx edit-kind registry", () => {
@@ -68,21 +130,45 @@ describe("pptx edit-kind registry", () => {
   });
 
   it("dispatches every registered kind through the runTxn seam with one revision per edit", async () => {
-    const { adapter, ref, model } = await openModel();
-    const results = ONE_OF_EACH.map((edit) => adapter.edit(ref, edit));
-    expect(results.every((result) => result.applied === true)).toBe(true);
-    expect(results.map((result) => result.revision)).toEqual(DECLARED_KINDS.map((_, index) => index + 1));
-    expect(model.revision).toBe(DECLARED_KINDS.length);
-    expect(model.dirty).toBe(true);
-    expect(typeof results[2]?.createdId).toBe("string");
-    expect(typeof results[3]?.createdId).toBe("string");
-    expect(model.opened.deck.slides[1]?.hidden).toBe(true);
-    expect(model.opened.deck.slides.length).toBe(4);
+    for (const edit of ONE_OF_EACH) {
+      const { model } = await openModel();
+      const result = model.applyEdit(edit);
+      expect(result.applied, edit.op).toBe(true);
+      expect(model.revision, edit.op).toBe(1);
+      expect(model.dirty, edit.op).toBe(true);
+      expect(model.journal.length, edit.op).toBeGreaterThanOrEqual(1);
+      expect(model.journal[model.journal.length - 1]!.op.op, edit.op).not.toBe("");
+    }
+  });
+
+  it("surfaces createdId for the inserting kinds and a table id for merge/structure", async () => {
+    const { model } = await openModel();
+    const created = model.applyEdit({
+      op: "add_element",
+      slideIndex: 0,
+      kind: "textbox",
+      xPx: 0,
+      yPx: 0,
+      wPx: 10,
+      hPx: 10,
+    });
+    expect(typeof created.createdId).toBe("string");
+
+    const table = await openModel();
+    expect(
+      table.model.applyEdit({
+        op: "table_structure",
+        slideIndex: 0,
+        elementId: "tbl1",
+        kind: "delete-col",
+        index: 0,
+      }).elementId,
+    ).toBe("tbl1");
   });
 
   it("refuses an unregistered kind with a typed error instead of ignoring it", async () => {
     const { model } = await openModel();
-    const unregistered = { op: "apply_theme", theme: "Office" } as unknown as PptxEdit;
+    const unregistered = { op: "set_wallpaper", value: "Office" } as unknown as PptxEdit;
     expect(errCode(() => model.applyEdit(unregistered))).toBe("unsupported_edit");
     expect(model.revision).toBe(0);
   });

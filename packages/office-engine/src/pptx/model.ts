@@ -15,6 +15,37 @@ import {
   type PptxParagraphLike,
   type PptxTxnResult,
 } from "./engine";
+import type { ChartEdit } from "./edits/chart-edits";
+import type { FindLinkEdit } from "./edits/find-link-edits";
+import type { SectionEdit } from "./edits/section-edits";
+import type { TableEdit } from "./edits/table-edits";
+import type { ThemeEdit } from "./edits/theme-edits";
+import type { TransitionEdit } from "./edits/transition-edits";
+import {
+  addChartGesture,
+  addSectionGesture,
+  addTableGesture,
+  applyThemeGesture,
+  findReplaceGesture,
+  moveSectionGesture,
+  removeSectionGesture,
+  renameSectionGesture,
+  setAdvanceTimeGesture,
+  setBackgroundGesture,
+  setChartGesture,
+  setLinkGesture,
+  setSectionsGesture,
+  setSlideLayoutGesture,
+  setSlideSizeGesture,
+  setTableCellAnchorGesture,
+  setTableCellGesture,
+  setTableColWidthGesture,
+  setTableRowHeightGesture,
+  setTableStyleGesture,
+  setTransitionGesture,
+  tableMergeGesture,
+  tableStructureGesture,
+} from "./wave-ab-gestures";
 
 export const EMU_PER_PX_96 = 9525;
 const DEFAULT_FIT_WIDTH_PX = 960;
@@ -88,7 +119,13 @@ export type PptxEdit =
   | { op: "delete_slide"; slideIndex: number }
   | { op: "add_blank_slide"; slideIndex: number }
   | { op: "add_slide_with_layout"; slideIndex?: number; layout: string | number }
-  | { op: "delete_element"; slideIndex: number; elementId: string };
+  | { op: "delete_element"; slideIndex: number; elementId: string }
+  | ThemeEdit
+  | TableEdit
+  | ChartEdit
+  | TransitionEdit
+  | FindLinkEdit
+  | SectionEdit;
 
 /** One open deck, mutated only via runTxn — the same object openPptx produced
  * and savePptx will serialize (one engine instance, one model). */
@@ -345,6 +382,13 @@ export class PptxSessionModel {
     this.txn([{ op: "deleteElement", target: { slide: slideIndex, el: elementId } }]);
   }
 
+  /** One transaction for the extracted wave-A/B gestures (wave-ab-gestures.ts):
+   * the same dry-run plan + atomic apply + journal seam the built-in gestures
+   * use. Validation and px->EMU stay in the builders, never here. */
+  runBuiltTxn(ops: PptxOp[]): PptxTxnResult {
+    return this.txn(ops);
+  }
+
   /** Typed dispatch so the adapter's edit channel stays a single entry.
    * The kind → handler table is PPTX_EDIT_REGISTRY below (the B1..B8
    * extension point); an unregistered kind is refused, never ignored. */
@@ -369,6 +413,8 @@ interface PptxEditResult {
   applied: true;
   createdId?: string;
   targetId?: string;
+  /** tableMerge/tableStructure only: the surviving element id (after.elementId). */
+  elementId?: string;
 }
 
 /** One edit kind → one handler. `Extract` keeps every entry tied to its own
@@ -389,6 +435,14 @@ type PptxEditHandler = (model: PptxSessionModel, edit: PptxEdit) => PptxEditResu
  * The mapped type makes the union and the table agree: adding a kind to the
  * `PptxEdit` union without registering it here is a compile error, so the
  * model can never advertise an edit it does not apply.
+ *
+ * Wave A/B logic kinds are registered here: design (apply_theme,
+ * set_slide_size, set_background, set_slide_layout), tables (add_table,
+ * set_table_cell, table_merge, table_structure, set_table_row_height,
+ * set_table_col_width, set_table_cell_anchor, set_table_style), charts
+ * (add_chart, set_chart), transitions (set_transition, set_advance_time),
+ * find/link (find_replace, set_link) and sections (add_section,
+ * rename_section, remove_section, move_section, set_sections).
  *
  * To add a kind:
  *   1. add its shape to the `PptxEdit` union above;
@@ -435,6 +489,89 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
   },
   delete_element: (model, edit) => {
     model.deleteElement(edit.slideIndex, edit.elementId);
+    return { applied: true };
+  },
+  // Wave A/B logic kinds (UNI-927): design, tables, charts, transitions,
+  // find/link, sections. Each handler is the mechanical txn(build<Area>Ops)
+  // gesture; validation and px->EMU stay in the builders.
+  apply_theme: (model, edit) => {
+    applyThemeGesture(model, edit);
+    return { applied: true };
+  },
+  set_slide_size: (model, edit) => {
+    setSlideSizeGesture(model, edit);
+    return { applied: true };
+  },
+  set_background: (model, edit) => {
+    setBackgroundGesture(model, edit);
+    return { applied: true };
+  },
+  set_slide_layout: (model, edit) => {
+    setSlideLayoutGesture(model, edit);
+    return { applied: true };
+  },
+  add_table: (model, edit) => addTableGesture(model, edit),
+  set_table_cell: (model, edit) => {
+    setTableCellGesture(model, edit);
+    return { applied: true };
+  },
+  table_merge: (model, edit) => tableMergeGesture(model, edit),
+  table_structure: (model, edit) => tableStructureGesture(model, edit),
+  set_table_row_height: (model, edit) => {
+    setTableRowHeightGesture(model, edit);
+    return { applied: true };
+  },
+  set_table_col_width: (model, edit) => {
+    setTableColWidthGesture(model, edit);
+    return { applied: true };
+  },
+  set_table_cell_anchor: (model, edit) => {
+    setTableCellAnchorGesture(model, edit);
+    return { applied: true };
+  },
+  set_table_style: (model, edit) => {
+    setTableStyleGesture(model, edit);
+    return { applied: true };
+  },
+  add_chart: (model, edit) => addChartGesture(model, edit),
+  set_chart: (model, edit) => {
+    setChartGesture(model, edit);
+    return { applied: true };
+  },
+  set_transition: (model, edit) => {
+    setTransitionGesture(model, edit);
+    return { applied: true };
+  },
+  set_advance_time: (model, edit) => {
+    setAdvanceTimeGesture(model, edit);
+    return { applied: true };
+  },
+  find_replace: (model, edit) => {
+    findReplaceGesture(model, edit);
+    return { applied: true };
+  },
+  set_link: (model, edit) => {
+    setLinkGesture(model, edit);
+    return { applied: true };
+  },
+  add_section: (model, edit) => {
+    addSectionGesture(model, edit);
+    return { applied: true };
+  },
+  rename_section: (model, edit) => {
+    renameSectionGesture(model, edit);
+    return { applied: true };
+  },
+  remove_section: (model, edit) => {
+    removeSectionGesture(model, edit);
+    return { applied: true };
+  },
+  move_section: (model, edit) => {
+    moveSectionGesture(model, edit);
+    return { applied: true };
+  },
+  set_sections: (model, edit) => {
+    setSectionsGesture(model, edit);
     return { applied: true };
   },
 };

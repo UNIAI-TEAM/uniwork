@@ -11,4 +11,6 @@ export * from "./edits/section-edits";
 export * from "./edits/theme-edits";
 export * from "./edits/transition-edits";
 export * from "./edits/chart-edits";
+export * from "./wave-ab-gestures";
 export * from "./edits/animation-edits";
+export * from "./edits/text-edits";
