@@ -7046,6 +7046,7 @@
           "symbols": "Symbols",
           "headerFooter": "Header and footer",
           "pageSetup": "Page setup",
+          "pageDecor": "Page decoration",
           "trackChanges": "Track changes",
           "comments": "Comments",
           "notes": "Notes",
@@ -7124,6 +7125,103 @@
           "continuous": "Continuous",
           "evenPage": "Even page",
           "oddPage": "Odd page"
+        }
+      },
+      "pageDecor": {
+        "title": "Page decoration",
+        "section": "Section {{current}} of {{total}}",
+        "tabsLabel": "Page decoration sections",
+        "hint": "Changes are written to the file on the next save.",
+        "apply": "Apply",
+        "tabs": {
+          "watermark": "Watermark",
+          "color": "Page colour",
+          "borders": "Borders",
+          "theme": "Theme"
+        },
+        "error": {
+          "invalidColor": "Colours must be 6-digit hex values.",
+          "invalidOpacity": "Opacity must be between 25% and 100%.",
+          "invalidBorderSize": "Border width must be between 0.5 pt and 12 pt.",
+          "invalidBorderSpace": "Border offset must be between 0 and 31 pt.",
+          "emptyThemeFont": "Heading and body fonts cannot be empty.",
+          "invalidThemeColor": "Theme colours must be 6-digit hex values."
+        },
+        "watermark": {
+          "text": "Watermark text",
+          "font": "Font",
+          "fontDefault": "Document default",
+          "color": "Colour",
+          "opacity": "Opacity",
+          "opacityValue": "{{value}}%",
+          "diagonal": "Diagonal",
+          "remove": "Remove watermark",
+          "presets": {
+            "confidential": "CONFIDENTIAL",
+            "draft": "DRAFT",
+            "sample": "SAMPLE",
+            "doNotCopy": "DO NOT COPY"
+          }
+        },
+        "pageColor": {
+          "palette": "Page colour",
+          "none": "No colour",
+          "custom": "Custom hex",
+          "paletteNames": {
+            "lightYellow": "Light yellow",
+            "beige": "Beige",
+            "lightGreen": "Light green",
+            "lightBlue": "Light blue",
+            "lightPurple": "Light purple",
+            "lightGray": "Light grey",
+            "darkGray": "Dark grey",
+            "black": "Black"
+          }
+        },
+        "borders": {
+          "box": "Page border",
+          "style": "Style",
+          "styles": {
+            "single": "Single",
+            "double": "Double",
+            "dashed": "Dashed",
+            "dotted": "Dotted",
+            "dotDash": "Dot dash",
+            "triple": "Triple",
+            "wave": "Wave",
+            "thick": "Thick"
+          },
+          "width": "Width",
+          "widthValue": "{{pt}} pt",
+          "color": "Colour",
+          "space": "Offset from edge",
+          "spaceValue": "{{pt}} pt",
+          "offset": "Measure from",
+          "offsetPage": "Page edge",
+          "offsetText": "Text"
+        },
+        "theme": {
+          "presets": "Theme presets",
+          "presetNames": {
+            "office": "Office",
+            "facet": "Facet",
+            "ion": "Ion",
+            "retrospect": "Retrospect"
+          },
+          "major": "Heading font",
+          "minor": "Body font",
+          "eastAsia": "East Asian font",
+          "colors": "Theme colours",
+          "slots": {
+            "dk2": "Dark 2",
+            "lt2": "Light 2",
+            "accent1": "Accent 1",
+            "accent2": "Accent 2",
+            "accent3": "Accent 3",
+            "accent4": "Accent 4",
+            "accent5": "Accent 5",
+            "accent6": "Accent 6"
+          }
         }
       },
       "character": {

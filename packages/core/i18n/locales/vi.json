@@ -7040,6 +7040,7 @@
           "symbols": "Ký hiệu",
           "headerFooter": "Đầu trang và chân trang",
           "pageSetup": "Thiết lập trang",
+          "pageDecor": "Trang trí trang",
           "trackChanges": "Theo dõi thay đổi",
           "comments": "Bình luận",
           "notes": "Chú thích",
@@ -7118,6 +7119,103 @@
           "continuous": "Liên tục",
           "evenPage": "Trang chẵn",
           "oddPage": "Trang lẻ"
+        }
+      },
+      "pageDecor": {
+        "title": "Trang trí trang",
+        "section": "Mục {{current}}/{{total}}",
+        "tabsLabel": "Các nhóm trang trí trang",
+        "hint": "Thay đổi được ghi vào tệp ở lần lưu kế tiếp.",
+        "apply": "Áp dụng",
+        "tabs": {
+          "watermark": "Hình chìm",
+          "color": "Màu trang",
+          "borders": "Viền trang",
+          "theme": "Chủ đề"
+        },
+        "error": {
+          "invalidColor": "Màu phải là mã hex 6 ký tự.",
+          "invalidOpacity": "Độ mờ phải từ 25% đến 100%.",
+          "invalidBorderSize": "Độ dày viền phải từ 0,5 pt đến 12 pt.",
+          "invalidBorderSpace": "Khoảng cách viền phải từ 0 đến 31 pt.",
+          "emptyThemeFont": "Phông tiêu đề và phông nội dung không được để trống.",
+          "invalidThemeColor": "Màu chủ đề phải là mã hex 6 ký tự."
+        },
+        "watermark": {
+          "text": "Nội dung hình chìm",
+          "font": "Phông chữ",
+          "fontDefault": "Mặc định của tài liệu",
+          "color": "Màu",
+          "opacity": "Độ mờ",
+          "opacityValue": "{{value}}%",
+          "diagonal": "Nghiêng chéo",
+          "remove": "Xoá hình chìm",
+          "presets": {
+            "confidential": "BẢO MẬT",
+            "draft": "BẢN NHÁP",
+            "sample": "BẢN MẪU",
+            "doNotCopy": "KHÔNG SAO CHÉP"
+          }
+        },
+        "pageColor": {
+          "palette": "Màu trang",
+          "none": "Không màu",
+          "custom": "Mã hex tuỳ chỉnh",
+          "paletteNames": {
+            "lightYellow": "Vàng nhạt",
+            "beige": "Màu be",
+            "lightGreen": "Xanh lá nhạt",
+            "lightBlue": "Xanh dương nhạt",
+            "lightPurple": "Tím nhạt",
+            "lightGray": "Xám nhạt",
+            "darkGray": "Xám đậm",
+            "black": "Đen"
+          }
+        },
+        "borders": {
+          "box": "Viền trang",
+          "style": "Kiểu",
+          "styles": {
+            "single": "Nét liền",
+            "double": "Nét đôi",
+            "dashed": "Nét đứt",
+            "dotted": "Chấm",
+            "dotDash": "Chấm gạch",
+            "triple": "Nét ba",
+            "wave": "Lượn sóng",
+            "thick": "Nét đậm"
+          },
+          "width": "Độ dày",
+          "widthValue": "{{pt}} pt",
+          "color": "Màu",
+          "space": "Khoảng cách từ mép",
+          "spaceValue": "{{pt}} pt",
+          "offset": "Căn theo",
+          "offsetPage": "Mép trang",
+          "offsetText": "Văn bản"
+        },
+        "theme": {
+          "presets": "Bộ chủ đề",
+          "presetNames": {
+            "office": "Office",
+            "facet": "Facet",
+            "ion": "Ion",
+            "retrospect": "Retrospect"
+          },
+          "major": "Phông tiêu đề",
+          "minor": "Phông nội dung",
+          "eastAsia": "Phông Đông Á",
+          "colors": "Màu chủ đề",
+          "slots": {
+            "dk2": "Đậm 2",
+            "lt2": "Nhạt 2",
+            "accent1": "Màu nhấn 1",
+            "accent2": "Màu nhấn 2",
+            "accent3": "Màu nhấn 3",
+            "accent4": "Màu nhấn 4",
+            "accent5": "Màu nhấn 5",
+            "accent6": "Màu nhấn 6"
+          }
         }
       },
       "character": {
