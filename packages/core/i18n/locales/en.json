@@ -7037,6 +7037,7 @@
           "baseFormat": "Formatting",
           "font": "Font",
           "paragraph": "Paragraph",
+          "lists": "Lists",
           "styles": "Styles",
           "find": "Find",
           "pending": "Table and images",
@@ -7186,6 +7187,22 @@
         "title": "Title",
         "quote": "Quote",
         "other": "Other style"
+      },
+      "lists": {
+        "gallery": "List styles",
+        "multilevel": "Multilevel list",
+        "levelLabel": "List level",
+        "level": "Level {{level}}",
+        "increaseLevel": "Increase level",
+        "decreaseLevel": "Decrease level",
+        "restartNumbering": "Restart numbering",
+        "continueNumbering": "Continue numbering",
+        "groupBullets": "Bullets",
+        "groupNumbers": "Numbering",
+        "groupMultilevel": "Multilevel",
+        "presetBullet": "Bullet {{glyph}}",
+        "presetNumber": "Numbering {{sample}}",
+        "presetMultilevel": "Multilevel list {{sample}}"
       },
       "links": {
         "insertTitle": "Insert link",

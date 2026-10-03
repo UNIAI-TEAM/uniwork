@@ -7031,6 +7031,7 @@
           "baseFormat": "Định dạng",
           "font": "Phông chữ",
           "paragraph": "Đoạn văn",
+          "lists": "Danh sách",
           "styles": "Kiểu đoạn",
           "find": "Tìm kiếm",
           "pending": "Bảng và hình ảnh",
@@ -7180,6 +7181,22 @@
         "title": "Tên đề",
         "quote": "Trích dẫn",
         "other": "Kiểu khác"
+      },
+      "lists": {
+        "gallery": "Kiểu danh sách",
+        "multilevel": "Danh sách nhiều cấp",
+        "levelLabel": "Cấp danh sách",
+        "level": "Cấp {{level}}",
+        "increaseLevel": "Tăng cấp",
+        "decreaseLevel": "Giảm cấp",
+        "restartNumbering": "Bắt đầu lại số thứ tự",
+        "continueNumbering": "Tiếp tục số thứ tự",
+        "groupBullets": "Dấu đầu dòng",
+        "groupNumbers": "Đánh số",
+        "groupMultilevel": "Nhiều cấp",
+        "presetBullet": "Dấu đầu dòng {{glyph}}",
+        "presetNumber": "Đánh số {{sample}}",
+        "presetMultilevel": "Danh sách nhiều cấp {{sample}}"
       },
       "links": {
         "insertTitle": "Chèn liên kết",
