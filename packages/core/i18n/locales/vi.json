@@ -7310,7 +7310,7 @@
       },
     "pdf": {
       "title": "Tài liệu PDF",
-      "toolbar": { "label": "Lệnh chỉnh sửa PDF", "tabsLabel": "Các thẻ công cụ PDF", "more": "Lệnh khác" },
+      "toolbar": { "label": "Lệnh chỉnh sửa PDF", "tabsLabel": "Các tab công cụ PDF", "more": "Lệnh khác" },
       "actions": {
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
       },
@@ -7341,13 +7341,26 @@
         "label": "Thanh trạng thái PDF", "page": "Trang {{page}} / {{total}}", "pageInput": "Trang hiện tại",
         "zoomOut": "Thu nhỏ", "zoom": "{{percent}}%", "zoomIn": "Phóng to"
       },
+      "view": {
+        "fitPage": "Vừa trang", "fitWidth": "Vừa chiều rộng", "outline": "Mục lục tài liệu", "thumbnails": "Hình thu nhỏ trang"
+      },
       "edit": {
         "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
         "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
       },
+      "image": {
+        "apply": "Áp dụng thay đổi ảnh", "delete": "Xóa ảnh", "insert": "Chèn ảnh", "layer": "Lớp",
+        "layerAbove": "Trên chữ", "layerBelow": "Dưới chữ", "replaceFile": "Thay tệp ảnh", "rotation": "Góc xoay",
+        "left": "Trái", "top": "Trên", "right": "Phải", "bottom": "Dưới",
+        "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
+      },
       "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
       "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
-      "tabs": { "home": "Trang chính", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
+      "annotations": {
+        "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích",
+        "deleteError": "Không thể xóa chú thích. Thử lại.", "kind": "Chú thích", "readOnly": "Chỉ đọc"
+      },
+      "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {
         "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
         "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.", "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
