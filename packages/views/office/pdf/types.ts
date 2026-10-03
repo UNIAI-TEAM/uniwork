@@ -47,6 +47,13 @@ export interface PdfTextMarkupSelection {
   quads: readonly (readonly number[])[];
 }
 
+export type PdfDrawingType = "rect" | "ellipse" | "line" | "arrow";
+export type PdfDrawingRect = [number, number, number, number];
+export type PdfDrawingGeometry =
+  | { rect: { x: number; y: number; width: number; height: number } }
+  | { start: { x: number; y: number }; end: { x: number; y: number } }
+  | { points: { x: number; y: number }[] };
+
 /** Public browser operations. Images are provider-owned asset references; raw
  * image bytes and codecs never cross into this package. */
 export type PdfEditOperation =
@@ -54,6 +61,7 @@ export type PdfEditOperation =
   | { op: "replace_text"; target: { page: number; objectId: string }; text: string }
   | { op: "replace_image"; target: { page: number; objectId: string }; assetId: string }
   | { op: "add_markup"; target: PdfTextMarkupSelection; type: PdfMarkupType; color: [number, number, number] }
+  | { op: "add_drawing"; target: { page: number; geometry: PdfDrawingGeometry }; kind: PdfDrawingType; color: [number, number, number]; width: number; fill?: [number, number, number] }
   | { op: "insert_page"; target: { index: number } }
   | { op: "delete_page"; target: { page: number } }
   | { op: "rotate_page"; target: { page: number }; degrees: 90 | 180 | 270 }

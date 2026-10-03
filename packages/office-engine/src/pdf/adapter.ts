@@ -109,9 +109,10 @@ export interface PdfEditOutcome {
   report: {
     textEdits: { applied: number; skipped: number };
     textInserts: { applied: number; skipped: number };
-  imageEdits: { applied: number; skipped: number };
-  annotDeletes: { applied: number; skipped: number };
-  markups: { applied: number; skipped: number };
+    imageEdits: { applied: number; skipped: number };
+    annotDeletes: { applied: number; skipped: number };
+    markups: { applied: number; skipped: number };
+    drawings: { applied: number; skipped: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
   };
 }
@@ -127,6 +128,8 @@ export interface PdfProbe {
     imageEdit: true;
     pageOps: true;
     annotationDelete: true;
+    drawing: true;
+    ink: true;
     ocr: false;
     ocrReason: string;
   };
@@ -187,6 +190,8 @@ export async function probePdf(input: Uint8Array): Promise<PdfProbe> {
         imageEdit: true,
         pageOps: true,
         annotationDelete: true,
+        drawing: true,
+        ink: true,
         ocr: false,
         ocrReason: OCR_REASON,
       },
@@ -220,6 +225,7 @@ export async function applyPdfEditBytes(
     pushSkips("image", applied.skips.skippedImageEdits);
     pushSkips("annot", applied.skips.skippedAnnotDeletes);
     pushSkips("markup", applied.skips.skippedMarkups);
+    pushSkips("drawing", applied.skips.skippedDrawings);
     return {
       bytes: applied.bytes,
       warnings,
@@ -238,6 +244,7 @@ export async function applyPdfEditBytes(
         },
         annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
         markups: { applied: (request.markups?.length ?? 0) - applied.skips.skippedMarkups.length, skipped: applied.skips.skippedMarkups.length },
+        drawings: { applied: (request.drawings?.length ?? 0) - applied.skips.skippedDrawings.length, skipped: applied.skips.skippedDrawings.length },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,

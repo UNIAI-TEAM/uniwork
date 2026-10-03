@@ -313,7 +313,7 @@ describe("pdf edit — typed refusals", () => {
 
   it("refuses an unknown op as unsupported", async () => {
     await expect(
-      applyPdfEditBytes(TEXT_PDF(), [{ op: "addDrawing", attributes: {} }]),
+      applyPdfEditBytes(TEXT_PDF(), [{ op: "addUnknownThing", attributes: {} }]),
     ).rejects.toMatchObject({ code: "unsupported_operation" });
   });
 

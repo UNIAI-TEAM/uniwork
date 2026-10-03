@@ -34,6 +34,7 @@ export interface PdfOpsBridgeOptions {
 export type PdfEngineOperation =
   | { op: "putTextEdit"; attributes: { pageIndex: number; rect: [number, number, number, number]; oldText: string; newText: string; fontSize: number } }
   | { op: "addMarkup"; attributes: { markup: { pageIndex: number; type: "highlight" | "underline" | "strikeout"; color: [number, number, number]; quads: number[][] } } }
+  | { op: "addDrawing"; attributes: { drawing: { pageIndex: number; kind: "rect" | "ellipse" | "line" | "arrow" | "ink"; geometry: { rect: { x: number; y: number; width: number; height: number } } | { start: { x: number; y: number }; end: { x: number; y: number } } | { points: { x: number; y: number }[] }; color: [number, number, number]; width: number; fill?: [number, number, number] } } }
   | { op: "addImageEdit"; attributes: { kind: "replaceImage"; pageIndex: number; oldRect: [number, number, number, number]; rect: [number, number, number, number]; image: string; layer?: "belowText" | "aboveText" } }
   | { op: "deletePage"; attributes: { pageIndex: number } }
   | { op: "rotatePages"; attributes: { pages: number[]; dir: 90 | -90 | 180 } }
@@ -160,6 +161,19 @@ function markupOperation(
   return { op: "addMarkup", attributes: { markup: { pageIndex: page, type: operation.type, color: operation.color, quads } } };
 }
 
+function drawingOperation(operation: Extract<PdfEditOperation, { op: "add_drawing" }>, order?: readonly number[]): PdfEngineOperation {
+  if (!Number.isSafeInteger(operation.target.page) || operation.target.page < 1) throw new PdfOpsBridgeError("invalid_target", operation.op, "page must be a positive integer");
+  if (!Number.isFinite(operation.width) || operation.width <= 0) throw new PdfOpsBridgeError("invalid_target", operation.op, "drawing width must be positive");
+  const geometry = operation.target.geometry;
+  const finitePoint = (point: { x: number; y: number }) => Number.isFinite(point.x) && Number.isFinite(point.y);
+  if ("rect" in geometry) {
+    if (![geometry.rect.x, geometry.rect.y, geometry.rect.width, geometry.rect.height].every(Number.isFinite) || geometry.rect.width <= 0 || geometry.rect.height <= 0) throw new PdfOpsBridgeError("invalid_target", operation.op, "drawing rect requires finite positive bounds");
+  } else if ("start" in geometry) {
+    if (!finitePoint(geometry.start) || !finitePoint(geometry.end)) throw new PdfOpsBridgeError("invalid_target", operation.op, "line endpoints require finite coordinates");
+  } else if (geometry.points.length < 2 || geometry.points.some((point) => !finitePoint(point))) throw new PdfOpsBridgeError("invalid_target", operation.op, "ink points require at least two finite points");
+  return { op: "addDrawing", attributes: { drawing: { pageIndex: pageIndex(operation.target.page, operation.op, order), kind: operation.kind, geometry: operation.target.geometry, color: [...operation.color] as [number, number, number], width: operation.width, ...(operation.fill ? { fill: [...operation.fill] as [number, number, number] } : {}) } } };
+}
+
 function reorderPage(
   operation: Extract<PdfEditOperation, { op: "reorder_page" }>,
   order: readonly number[],
@@ -188,6 +202,9 @@ export async function bridgePdfOperations(
     switch (operation.op) {
       case "add_markup":
         bridged.push(markupOperation(operation, order));
+        break;
+      case "add_drawing":
+        bridged.push(drawingOperation(operation, order));
         break;
       case "replace_text":
         bridged.push(await textOperation(operation, options, order));

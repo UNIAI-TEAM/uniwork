@@ -1,5 +1,6 @@
 // PDF op input types — ported from office-upstream apps/pdf/src/shared/ipc.ts,
-// trimmed to the G2-05 scope (text/image/page edits, annot deletes, metadata).
+// trimmed to the G2-05 scope (text/image/page edits, markups, drawings, ink,
+// annot deletes, metadata).
 // Coordinates are PDF user space points (y up); page indices are 0-based.
 
 /** Stroke width of a synthetic-bold run as a fraction of the em. Bold on the
@@ -15,6 +16,26 @@ export const EDIT_FONTS = [
 ] as const;
 
 export type MarkupType = "highlight" | "underline" | "strikeout";
+
+/** Authoring primitives kept as PDF annotations so content streams are never rewritten. */
+export type DrawingKind = "rect" | "ellipse" | "line" | "arrow" | "ink";
+export type DrawingType = Exclude<DrawingKind, "ink">;
+export type DrawingGeometry =
+  | { rect: { x: number; y: number; width: number; height: number } }
+  | { start: { x: number; y: number }; end: { x: number; y: number } }
+  | { points: { x: number; y: number }[] };
+
+export interface DrawingInput {
+  pageIndex: number;
+  kind: DrawingKind;
+  geometry: DrawingGeometry;
+  color: [number, number, number];
+  width: number;
+  fill?: [number, number, number];
+}
+
+/** Freehand ink is one or more open paths, each flattened as [x,y,...]. */
+export type InkInput = DrawingInput;
 
 /** A text selection annotation. Quads are PDF user-space points (y up), in
  * [x1,yTop,x2,yTop,x1,yBottom,x2,yBottom] groups. RGB channels are normalized. */
@@ -213,9 +234,10 @@ export interface PageRenderRequest {
 }
 
 /** The batch an edit job carries — the G2-05-scoped subset of upstream
-    SavePdfRequest. Annotation/form authoring ops are out of this lane. */
+    SavePdfRequest. Notes/forms remain outside this lane. */
 export interface PdfEditRequest {
   markups?: MarkupInput[];
+  drawings?: DrawingInput[];
   /** Saved markup annotations to remove (applied before every other stage) */
   annotDeletes?: AnnotDeleteInput[];
   textEdits?: TextEditInput[];

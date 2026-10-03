@@ -32,6 +32,16 @@ describe("bridgePdfOperations", () => {
     ]);
   });
 
+  it("maps shape and freehand operations through displayed page order", async () => {
+    await expect(bridgePdfOperations([
+      { op: "add_drawing", target: { page: 2, geometry: { start: { x: 1, y: 2 }, end: { x: 30, y: 40 } } }, kind: "arrow", color: [0, 0, 1], width: 2 },
+      { op: "add_drawing", target: { page: 1, geometry: { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] } }, kind: "ink", color: [1, 0, 0], width: 3 },
+    ], { pageOrder: [2, 0] })).resolves.toEqual([
+      { op: "addDrawing", attributes: { drawing: { pageIndex: 0, kind: "arrow", geometry: { start: { x: 1, y: 2 }, end: { x: 30, y: 40 } }, color: [0, 0, 1], width: 2 } } },
+      { op: "addDrawing", attributes: { drawing: { pageIndex: 2, kind: "ink", geometry: { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] }, color: [1, 0, 0], width: 3 } } },
+    ]);
+  });
+
   it("resolves asset ids and encodes bytes without importing the Node engine", async () => {
     const read = vi.fn(async () => new Uint8Array([0, 1, 255]));
     await expect(bridgePdfOperations([{ op: "replace_image", target: imageTarget, assetId: "asset-1" }], {

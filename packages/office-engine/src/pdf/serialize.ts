@@ -1,16 +1,17 @@
 // The save pipeline — ported from office-upstream apps/pdf/src/main/save-pdf.ts
 // (applySaveRequest + verifyContentEdits + finalPageIndex + applyMetadata),
 // trimmed to the G2-05 scope: annot deletes, text edits/inserts, image ops,
-// page rotation/deletion/reorder, metadata. Annotation/form authoring stages
-// (markups, drawings, note edits, form values, stamps, static fills) are not
-// part of this lane and were dropped rather than carried dead.
+// page rotation/deletion/reorder, metadata. Markup, drawing and ink annotations
+// are kept separate from content streams; note/form authoring remains outside
+// this lane.
 //
 // Ordering contract (upstream, kept exactly):
 //   1. annotDeletes first — their object numbers address the on-disk bytes and
 //      later pdfium rewrites may renumber objects.
 //   2. Content-stream rewrites (textEdits, textInserts, imageEdits) land before
 //      pdf-lib touches the bytes.
-//   3. pdf-lib stage: rotations, metadata, then deletions (descending), then
+//   3. pdf-lib stage: rotations, metadata, annotations (markup/drawing/ink),
+//      then deletions (descending), then
 //      reorder — earlier ops all address original page indices.
 //   4. Read-back verification against the final bytes BEFORE the caller sees
 //      them: a verify failure means the output is thrown away and the original
@@ -30,6 +31,7 @@ import { verifyImageEdits } from "./render.ts";
 import { applyTextEdits, verifyTextEdits } from "./text.ts";
 import { applyTextInserts } from "./text-insert.ts";
 import { addMarkup } from "./markups.ts";
+import { addDrawing } from "./drawings.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -38,6 +40,7 @@ export interface PdfEditSkips {
   /** annotDeletes that matched nothing — requested minus removed, honestly. */
   skippedAnnotDeletes: { pageIndex: number; reason: string }[];
   skippedMarkups: { pageIndex: number; reason: string }[];
+  skippedDrawings: { pageIndex: number; reason: string }[];
 }
 
 export interface AppliedPdfEdit {
@@ -149,6 +152,7 @@ export async function applyPdfEdits(
   let skippedImageEdits: ImageEditFailure[] = [];
   let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
   const skippedMarkups: { pageIndex: number; reason: string }[] = [];
+  const skippedDrawings: { pageIndex: number; reason: string }[] = [];
   let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
     const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
@@ -186,6 +190,14 @@ export async function applyPdfEdits(
     }
     addMarkup(pdfDoc, page, markup);
   }
+  for (const drawing of request.drawings ?? []) {
+    const page = pages[drawing.pageIndex];
+    if (!page) {
+      skippedDrawings.push({ pageIndex: drawing.pageIndex, reason: "page out of range" });
+      continue;
+    }
+    addDrawing(pdfDoc, page, drawing);
+  }
   // Deletions go last, in descending order; earlier ops all address original
   // page indices.
   for (const idx of [...(request.deletedPages ?? [])].sort((a, b) => b - a)) {
@@ -214,10 +226,11 @@ export async function applyPdfEdits(
     skippedImageEdits,
     skippedAnnotDeletes,
     skippedMarkups,
+    skippedDrawings,
   });
   return {
     bytes: out,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings },
     annotDeletesApplied,
   };
 }

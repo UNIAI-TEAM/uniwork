@@ -26,6 +26,10 @@ export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type Pdf
 export { PdfCanvas, PdfPageCanvas, hitTestPdfBox } from "./canvas";
 export { PdfTextMarkupTools } from "./markups";
 export type { PdfTextMarkupToolsProps } from "./markups";
+export { PdfDrawingTools, createPdfDrawingOperationProvider } from "./drawings";
+export type { PdfDrawingToolsProps } from "./drawings";
+export { PdfInkTools, createPdfInkOperationProvider } from "./ink";
+export type { PdfInkToolsProps } from "./ink";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,

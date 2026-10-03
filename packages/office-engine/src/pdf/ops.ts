@@ -7,6 +7,8 @@ import type {
   ImageEditInput,
   ImageLayer,
   MetadataInput,
+  DrawingInput,
+  DrawingGeometry,
   MarkupInput,
   PdfEditRequest,
   TextEditInput,
@@ -281,6 +283,42 @@ function parseMarkup(a: Dict, op: string): MarkupInput {
   };
 }
 
+function parseDrawing(a: Dict, op: string): DrawingInput {
+  const kind = str(a.kind ?? a.type, op, "kind");
+  if (kind !== "rect" && kind !== "ellipse" && kind !== "line" && kind !== "arrow" && kind !== "ink") throw new PdfOpError(op, "kind", "rect|ellipse|line|arrow|ink");
+  let geometry: DrawingGeometry;
+  if (isDict(a.geometry)) {
+    if (isDict(a.geometry.rect)) {
+      const r = a.geometry.rect;
+      geometry = { rect: { x: num(r.x, op, "geometry.rect.x"), y: num(r.y, op, "geometry.rect.y"), width: num(r.width, op, "geometry.rect.width"), height: num(r.height, op, "geometry.rect.height") } };
+    } else if (isDict(a.geometry.start) && isDict(a.geometry.end)) {
+      geometry = { start: { x: num(a.geometry.start.x, op, "geometry.start.x"), y: num(a.geometry.start.y, op, "geometry.start.y") }, end: { x: num(a.geometry.end.x, op, "geometry.end.x"), y: num(a.geometry.end.y, op, "geometry.end.y") } };
+    } else if (Array.isArray(a.geometry.points)) {
+      geometry = { points: capList(a.geometry.points, op, "geometry.points").map((p, i) => { if (!isDict(p)) throw new PdfOpError(op, `geometry.points[${i}]`, "point object required"); return { x: num(p.x, op, `geometry.points[${i}].x`), y: num(p.y, op, `geometry.points[${i}].y`) }; }) };
+    } else throw new PdfOpError(op, "geometry", "rect, start/end, or points required");
+  } else if (a.rect !== undefined) {
+    const r = vec4(a.rect, op, "rect");
+    geometry = { rect: { x: r[0], y: r[1], width: r[2] - r[0], height: r[3] - r[1] } };
+  } else if (a.start !== undefined && a.end !== undefined) {
+    const s = vec2(a.start, op, "start"); const e = vec2(a.end, op, "end"); geometry = { start: { x: s[0], y: s[1] }, end: { x: e[0], y: e[1] } };
+  } else throw new PdfOpError(op, "geometry", "required");
+  const color = rgbNormalized(a.color ?? a.strokeColor, op, "color");
+  const width = num(a.width ?? a.strokeWidth, op, "width");
+  if (width <= 0) throw new PdfOpError(op, "width", "positive number required");
+  if (kind === "rect" || kind === "ellipse") if (!("rect" in geometry) || geometry.rect.width <= 0 || geometry.rect.height <= 0) throw new PdfOpError(op, "geometry.rect", "shape bounds must have positive dimensions");
+  if (kind === "ink" && !("points" in geometry)) throw new PdfOpError(op, "geometry.points", "ink requires points");
+  if (kind !== "ink" && "points" in geometry) throw new PdfOpError(op, "geometry", "points only valid for ink");
+  if (kind === "ink" && "points" in geometry && geometry.points.length < 2) throw new PdfOpError(op, "geometry.points", "at least two points required");
+  return {
+    pageIndex: int(a.pageIndex, op, "pageIndex"),
+    kind,
+    geometry,
+    color,
+    width,
+    fill: opt(a.fill ?? a.fillColor, rgbNormalized, op, "fill"),
+  };
+}
+
 /**
  * Fold a validated envelope edits array into the engine's PdfEditRequest.
  * Unknown op names are a typed error (the caller learns the vocabulary is
@@ -302,6 +340,9 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
     switch (op) {
       case "addMarkup":
         push("markups", parseMarkup(isDict(a.markup) ? a.markup : a, op));
+        break;
+      case "addDrawing":
+        push("drawings", parseDrawing(isDict(a.drawing) ? a.drawing : a, op));
         break;
       case "putTextEdit":
         push("textEdits", parseTextEdit(a, op));
@@ -343,7 +384,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         req.metadata = parseMetadata(isDict(a.metadata) ? a.metadata : a, op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
-      // annotation/form authoring (markups, drawings, notes, form values,
+      // annotation/form authoring (notes, form values,
       // stamps, signatures) and OCR.
       case "ocrPage":
       case "ocr":
