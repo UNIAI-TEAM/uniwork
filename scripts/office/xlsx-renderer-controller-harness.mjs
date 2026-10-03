@@ -91,6 +91,7 @@ export function mountController(options = {}, environment = {}) {
             const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
             return {
               getRange: () => range,
+              activate() { workbook.setActiveRange(this); return this; },
               setValue(text) {
                 const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
                 const event = { id: 'sheet.mutation.set-range-values', params: {

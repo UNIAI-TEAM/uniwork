@@ -1,4 +1,3 @@
-import { Direction } from "@univerjs/core";
 import type { LazyWorkbookState, UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { canEditRange } from "./command-policy";
 
@@ -51,14 +50,19 @@ export function installShiftedNavigation(
         workbook.getActiveSheet()?.getSheetId() !== sheet.getSheetId() || !workbook.getActiveRange() ||
         !container.contains(container.ownerDocument.activeElement)) return;
       // endEditingAsync(true) uses plain Enter and may move down. Restore its
-      // captured selection before invoking the existing reverse command.
+      // captured selection before activating the reverse target.
       if (editing) workbook.setActiveRange(range);
-      // Pinned enter-tab indexes the preceding selection at -1 when there
-      // is only one selection, clearing its primary. The existing directional
-      // move command retains the primary and handles merges/worksheet edges.
-      await runtime.univerAPI.executeCommand("sheet.command.move-selection", {
-        direction: key === "Tab" ? Direction.LEFT : Direction.UP,
-      });
+      // The enter/tab command indexes the preceding selection at -1 when
+      // there is only one selection. The directional command has the same
+      // failure mode when the native editor owns focus: it clears the
+      // primary selection before the facade can observe the move. Activate
+      // the preceding cell through the worksheet facade instead. Besides
+      // retaining the primary selection, this uses the normal facade path for
+      // merge-aware and edge-safe selection activation.
+      const current = range.getRange();
+      const row = key === "Enter" ? Math.max(0, current.startRow - 1) : current.startRow;
+      const column = key === "Tab" ? Math.max(0, current.startColumn - 1) : current.startColumn;
+      sheet.getRange(row, column).activate();
       if (!disposed && ports.getState() === state && container.contains(container.ownerDocument.activeElement)) {
         target.focus({ preventScroll: true });
       }

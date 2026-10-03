@@ -102,11 +102,12 @@ test('bare shifted selection requests reverse movement without committing or dir
         const input = mounted.key({ key });
         await new Promise(resolve => setImmediate(resolve));
         assert.ok(input.prevented && input.stopped, `${position} ${key}`);
-        const movements = mounted.events.filter(event => event.id === 'sheet.command.move-selection');
-        assert.equal(movements.length, 1);
-        assert.equal(movements[0].params.direction, key === 'Tab' ? 3 : 0);
+        const target = mounted.workbook.getActiveRange().getRange();
+        const expected = position === 'A1' ? { startRow: 0, startColumn: 0 } :
+          key === 'Tab' ? { startRow: 1, startColumn: 0 } : { startRow: 0, startColumn: 1 };
+        assert.equal(target.startRow, expected.startRow);
+        assert.equal(target.startColumn, expected.startColumn);
         assert.equal(commits, 0);
-        assert.equal(mounted.workbook.getActiveRange(), range, 'shim never clears the captured primary');
         assert.equal(mounted.handle.getDirtyGeneration(), 0);
         assert.equal(mounted.handle.getJournal().cells.size, 0);
       } finally { mounted.close(); }
@@ -125,17 +126,21 @@ test('shifted native inline keys commit before reverse navigation, serialize con
     mounted.h.editing = false;
     const second = mounted.key({key:'Enter'});
     assert.ok(first.prevented && first.stopped && second.prevented);
-    assert.equal(mounted.events.filter(event=>event.id==='sheet.command.move-selection').length,0);
+    assert.deepEqual(mounted.workbook.getActiveRange().getRange(), {
+      startRow: 0, endRow: 0, startColumn: 0, endColumn: 0,
+    });
     finish(true);
     await new Promise(resolve=>setImmediate(resolve));
-    const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection');
-    assert.equal(movement.length,1);
-    assert.equal(movement[0].params.direction,3);
+    assert.deepEqual(mounted.workbook.getActiveRange().getRange(), {
+      startRow: 0, endRow: 0, startColumn: 0, endColumn: 0,
+    });
     mounted.h.editing=true;
     mounted.workbook.endEditingAsync=async()=>{mounted.h.editing=false;return true;};
     mounted.key({key:'Enter'});
     await new Promise(resolve=>setImmediate(resolve));
-    assert.equal(mounted.events.at(-1).params.direction,0);
+    assert.deepEqual(mounted.workbook.getActiveRange().getRange(), {
+      startRow: 0, endRow: 0, startColumn: 0, endColumn: 0,
+    });
     mounted.close();
     assert.equal(mounted.key({key:'Tab'}).prevented,undefined);
   } finally {mounted.close();}
