@@ -5,6 +5,7 @@ import { EditorSlot, type OfficeEditorLoader } from "@uniwork/views/office/edito
 import { DocxEditor, type DocxOpenFailure } from "@uniwork/views/office/docx";
 import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
+import { LockedAiEntry } from "../ai-entry";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
@@ -12,7 +13,7 @@ import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 import { DOCX_DESKTOP_ENGINE_BUILD } from "./docx-surface";
 
-export function OpenByteDocument({ bridge, identity, session, title, onBack, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
+export function OpenByteDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
@@ -66,15 +67,15 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, onL
       setLocalFile(rebound); onLocalFileRebound?.(rebound);
     } catch { setActionFailed(true); }
   };
-  return <>{offer ? <DraftRecoveryPrompt open metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
+  return <>{offer ? <DraftRecoveryPrompt open={active} metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
     onOpenChange={(open) => { if (!open) setOffer(null); }}
-    onRecover={async () => { const applied = await session.recoverDraft(offer.metadata); setRecovered(applied); if (applied) { setOffer(null); setSurfaceVersion((value) => value + 1); } return applied; }}
+    onRecover={async () => { const outcome = await session.recoverDraft(offer.metadata); if (outcome === "locked") { setNotice("locked"); setOffer(null); return true; } const applied = outcome === "recovered"; setRecovered(applied); if (applied) { setOffer(null); setSurfaceVersion((value) => value + 1); } return applied; }}
     onKeep={async () => { setOffer(null); return true; }}
     onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
-    <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t("title") }]} saveCoordinator={session.coordinator} editorReady={ready && session.canSave}
+    <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && ready && session.canSave}
       saveLabel={session.localHandle ? t("saveLocal") : undefined}
       saveDestination={session.localHandle ? "local" : "cloud"}
-      actions={<>{ready && session.canSave && session.localHandle ? <Button type="button" variant="outline" disabled={saveState === "saving"} onClick={() => { void saveAs(); }}>{t("saveAs")}</Button> : null}<Button type="button" variant="outline" onClick={onBack}>{t("back")}</Button></>}
+      actions={<>{kind === "local" ? <LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /> : null}{ready && session.canSave && session.localHandle ? <Button type="button" variant="outline" disabled={saveState === "saving"} onClick={() => { void saveAs(); }}>{t("saveAs")}</Button> : null}<Button type="button" variant="outline" onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}

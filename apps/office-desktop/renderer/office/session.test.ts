@@ -64,7 +64,7 @@ const draft = { draftId: "doc:v2:2", identity: { deploymentId: "lane", accountId
 
 function bridgeWith(handler: (channel: string, payload: unknown) => Promise<unknown>) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
-  return { calls, bridge: { call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as never } };
+  return { calls, bridge: { call: async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); } } };
 }
 
 it("keeps a draft through the typed checkpoint and raises the generation floor", async () => {
@@ -76,7 +76,8 @@ it("keeps a draft through the typed checkpoint and raises the generation floor",
   const session = await openSession(bridge, identity, opened);
   session.coordinator.markDirty(2);
   await expect(session.keepDraft()).resolves.toBe(true);
-  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ draftId: "doc:v2:2", generation: 4, dataBase64: "aGVsbG8=" });
+  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ documentId: identity.documentId, draftId: "doc:v2:2", generation: 4, dataBase64: "aGVsbG8=" });
+  expect(calls.find((call) => call.channel === "desktop:draft-list")?.payload).toMatchObject({ documentId: identity.documentId });
 });
 
 it("reports a failed keep and refuses recovery when the store refuses", async () => {
@@ -89,7 +90,7 @@ it("reports a failed keep and refuses recovery when the store refuses", async ()
   await expect(session.keepDraft()).resolves.toBe(true);
   session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(false);
-  await expect(session.recoverDraft(draft)).resolves.toBe(false);
+  await expect(session.recoverDraft(draft)).resolves.toBe("failed");
   await expect(session.discardDraft()).resolves.toBe(true);
 });
 
@@ -108,6 +109,20 @@ it("lists drafts and distinguishes conflict, locked, blocked and unavailable sto
   await expect(createByteDocumentSession(unavailable.bridge, identity, opened).listDrafts()).resolves.toEqual({ status: "unavailable" });
 });
 
+it("reports a locked store as its own recover outcome instead of a generic failure", async () => {
+  const refused = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [draft] };
+    if (channel === "desktop:draft-recover") return { status: "locked", metadata: draft, code: "draft_recovery_locked" };
+    return {};
+  });
+  await expect(createByteDocumentSession(refused.bridge, identity, opened).recoverDraft(draft)).resolves.toBe("locked");
+  const thrown = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [draft] };
+    throw Object.assign(new Error("draft operation refused"), { code: "draft_recovery_locked" });
+  });
+  await expect(createByteDocumentSession(thrown.bridge, identity, opened).recoverDraft(draft)).resolves.toBe("locked");
+});
+
 it("recovers the chosen draft into the editor bytes and discards only that row", async () => {
   const { bridge, calls } = bridgeWith(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [draft] };
@@ -116,7 +131,7 @@ it("recovers the chosen draft into the editor bytes and discards only that row",
     return {};
   });
   const session = await openSession(bridge, identity, opened);
-  await expect(session.recoverDraft(draft)).resolves.toBe(true);
+  await expect(session.recoverDraft(draft)).resolves.toBe("recovered");
   expect((await session.editor.captureSnapshot()).value).toEqual(Uint8Array.from([119, 111, 114, 108, 100]));
   expect(session.coordinator.getState().state).toBe("dirty");
   await expect(session.discardDraft()).resolves.toBe(true);
@@ -141,7 +156,7 @@ it("checkpoints unsaved local work before Save and recovers it in a new session"
   expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ dataBase64: opened.dataBase64 });
   expect(calls.some((call) => /file-save|office-save/.test(call.channel))).toBe(false);
   const restarted = await openSession(bridge, localIdentity, { ...opened, localHandle: handle });
-  await expect(restarted.recoverDraft(localRow)).resolves.toBe(true);
+  await expect(restarted.recoverDraft(localRow)).resolves.toBe("recovered");
   expect((await restarted.editor.captureSnapshot()).value).toEqual(Uint8Array.from([119, 111, 114, 108, 100]));
 
   // A refused checkpoint must not claim that unsaved local work is protected.
@@ -149,4 +164,24 @@ it("checkpoints unsaved local work before Save and recovers it in a new session"
   const bare = await openSession(empty.bridge, localIdentity, { ...opened, localHandle: handle });
   bare.coordinator.markDirty(1);
   await expect(bare.keepDraft()).resolves.toBe(false);
+});
+
+it("FE-R1-03 accepts Keep once the editor-owned local checkpoint seam supplies a durable row", async () => {
+  // UNI-835 / G4-06b 526c3f44 owns the edit-to-checkpoint call. This test pins
+  // the tab session seam; actual editor creation of that row awaits root merge.
+  const handle = `file_${"q".repeat(40)}`;
+  const localIdentity = { ...identity, documentId: handle, baseRevision: "10", baseVersionId: checksum };
+  const row = { draftId: `${handle}:10`, identity: { deploymentId: "lane", accountId: "account", organizationId: "local", workspaceId: "local", documentId: handle, base: { revision: "10", version: checksum } }, generation: 1, checksum, byteLength: 5, updatedAt: 3 };
+  let stored = false;
+  const { bridge, calls } = bridgeWith(async (channel) => {
+    if (channel === "desktop:draft-checkpoint") { stored = true; return { stored: true, generation: 1 }; }
+    if (channel === "desktop:draft-list") return { drafts: stored ? [row] : [] };
+    return {};
+  });
+  const session = createByteDocumentSession(bridge, localIdentity, { ...opened, localHandle: handle });
+  session.coordinator.markDirty(1);
+  await expect(session.keepDraft()).resolves.toBe(false);
+  await bridge.call("desktop:draft-checkpoint", { sessionGeneration: "desktop-dev-session", documentId: handle, draftId: row.draftId, generation: 1, dataBase64: opened.dataBase64 });
+  await expect(session.keepDraft()).resolves.toBe(true);
+  expect(calls.filter((call) => call.channel === "desktop:draft-checkpoint")).toHaveLength(1);
 });

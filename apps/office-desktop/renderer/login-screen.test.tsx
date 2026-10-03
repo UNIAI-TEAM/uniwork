@@ -36,4 +36,14 @@ describe("LoginScreen", () => {
     const { container } = render(<LoginScreen state="locked" onStart={() => undefined} onCancel={() => undefined} />);
     expect(container.querySelector("[data-login-state='locked']")).not.toBeNull();
   });
+
+  it("shows the keyring fix hint when the locked store names that cause", () => {
+    render(<LoginScreen state="locked" lockedReason="keyring" onStart={() => undefined} onCancel={() => undefined} />);
+    expect(screen.getByText("UniWork Office cần gnome-keyring (libsecret) để lưu đăng nhập. Hãy cài đặt và mở khóa rồi thử lại.")).toBeInTheDocument();
+  });
+
+  it("keeps the generic locked copy when the reason is unknown", () => {
+    render(<LoginScreen state="locked" onStart={() => undefined} onCancel={() => undefined} />);
+    expect(screen.getByText("Kho lưu trữ thông tin đăng nhập đang bị khóa. Mở khóa và thử lại.")).toBeInTheDocument();
+  });
 });

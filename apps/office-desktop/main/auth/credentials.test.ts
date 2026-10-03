@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CredentialStoreError, createSecureCredentialStore, type CredentialSession, type SafeStorageAdapter } from "./credentials";
+import { CredentialStoreError, KEYRING_REFUSAL_MESSAGE, createSecureCredentialStore, type CredentialSession, type SafeStorageAdapter } from "./credentials";
 
 const session: CredentialSession = { accountId: "account-a", deviceSessionId: "device-a", sessionId: "session-a", accessToken: "access-secret", refreshToken: "refresh-secret", expiresIn: 900, refreshExpiresIn: 2_592_000 };
 function fakeSafeStorage(available = true): SafeStorageAdapter {
@@ -29,6 +29,26 @@ describe("OS-backed credential store", () => {
       expect(() => store.get()).toThrowError(new CredentialStoreError("locked", "secure credential store is locked"));
       expect(() => store.save(session)).toThrowError(CredentialStoreError);
       expect(readdirSync(root)).toHaveLength(0);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("refuses the Linux basic_text backend with the keyring reason and fix hint", () => {
+    const root = temp();
+    try {
+      const store = createSecureCredentialStore({ userDataDirectory: root, channel: "dev", deploymentId: "deployment-a", safeStorage: { ...fakeSafeStorage(), getSelectedStorageBackend: () => "basic_text" } });
+      expect(() => store.get()).toThrowError(new CredentialStoreError("keyring_required", KEYRING_REFUSAL_MESSAGE));
+      expect(() => store.save(session)).toThrowError(CredentialStoreError);
+      expect(() => store.clear()).toThrowError(CredentialStoreError);
+      expect(readdirSync(root)).toHaveLength(0);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("accepts a Secret Service backend and treats a failing probe as unknown", async () => {
+    const root = temp();
+    try {
+      const store = createSecureCredentialStore({ userDataDirectory: root, channel: "dev", deploymentId: "deployment-a", safeStorage: { ...fakeSafeStorage(), getSelectedStorageBackend: () => "gnome_libsecret" } });
+      await store.save(session);
+      expect(store.get()).toEqual(session);
+      const probeFails = createSecureCredentialStore({ userDataDirectory: root, channel: "dev", deploymentId: "deployment-a", safeStorage: { ...fakeSafeStorage(), getSelectedStorageBackend: () => { throw new Error("unsupported on this platform"); } } });
+      expect(probeFails.get()).toEqual(session);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
   it("keeps the previous pair if replacing the encrypted file tears", async () => {

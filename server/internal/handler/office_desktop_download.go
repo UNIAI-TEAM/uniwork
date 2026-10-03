@@ -15,8 +15,11 @@ func (h *handlers) officeDesktopDownload(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusServiceUnavailable, "office_download_unavailable", "desktop download profile is not configured")
 		return
 	}
-	in := sdi.OfficeDesktopDownloadSDI{OrganizationID: strings.TrimSpace(r.URL.Query().Get("organization_id")), Channel: r.URL.Query().Get("channel"), Bundle: r.URL.Query().Get("bundle") == "true"}
-	out, err := h.OfficeDesktopDownload.Get(r.Context(), middleware.UserID(r.Context()), in.OrganizationID, in.Channel)
+	in := sdi.OfficeDesktopDownloadSDI{OrganizationID: strings.TrimSpace(r.URL.Query().Get("organization_id")), Channel: r.URL.Query().Get("channel"), Bundle: r.URL.Query().Get("bundle") == "true", Platform: r.URL.Query().Get("platform")}
+	if in.Bundle && in.Platform == "" {
+		in.Platform = "win32-x64"
+	}
+	out, err := h.OfficeDesktopDownload.Get(r.Context(), middleware.UserID(r.Context()), in.OrganizationID, in.Channel, in.Platform)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -40,5 +43,5 @@ func (h *handlers) officeDesktopDownload(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.OfficeDesktopDownloadSDO{InstallerURL: out.InstallerURL, ServerOrigin: out.ServerOrigin, Channel: out.Channel, ClientID: out.ClientID, DeploymentID: out.DeploymentID})
+	respondJSON(w, http.StatusOK, sdo.OfficeDesktopDownloadSDO{InstallerURL: out.InstallerURL, Installers: out.Installers, SupportedPlatforms: out.SupportedPlatforms, ServerOrigin: out.ServerOrigin, Channel: out.Channel, ClientID: out.ClientID, DeploymentID: out.DeploymentID})
 }

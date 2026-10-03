@@ -124,7 +124,14 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
     this.assertSessionLookup(request.session, request.lookup);
     this.assertReadable();
     const rows = await this.readAllRows();
-    return rows.filter((row) => matchesLookup(row, request.lookup)).map(rowMetadata).sort((a, b) => b.updatedAt - a.updatedAt);
+    // A lookup-free list is still session-scoped: an account session can never
+    // observe a local-device row and the local session can never observe an
+    // account row, even before the IPC layer applies its own filter.
+    return rows
+      .filter((row) => row.identity.accountId === request.session.accountId && row.identity.deploymentId === request.session.deploymentId)
+      .filter((row) => matchesLookup(row, request.lookup))
+      .map(rowMetadata)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async recover(request: DraftRecoveryRequest): Promise<RecoveryResult> {

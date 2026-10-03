@@ -62,8 +62,10 @@ uninstall keeps data). Beta and stable use the same app id/executable/install
 directory/GUID, so a stable setup replaces a beta setup and its shortcut rather
 than creating a second installation.
 
-The macOS arm64/x64 matrix is config-only on Windows and uses `identity: null`,
-`codesign -s -` semantics, and `hardenedRuntime: false`. An ad-hoc beta-to-
+The macOS arm64/x64 matrix builds one unsigned `.dmg` per architecture on a macOS host
+(`identity: null`, `hardenedRuntime: false`, `LSMinimumSystemVersion` 13.0); the Linux x64 targets
+are a `.deb` and an AppImage (UNI-920). Their build commands, install steps, wrong-machine guards
+and limits are in `desktop-install-macos-ubuntu.md`. An ad-hoc beta-to-
 signed-stable upgrade may lose keychain draft-key access, so 07c must migrate
 keys or instruct users to save before upgrading.
 

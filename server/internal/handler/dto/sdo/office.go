@@ -1,13 +1,23 @@
 package sdo
 
+import "github.com/unicomhub/uniwork/server/internal/config"
+
 // OfficeDesktopDownloadSDO is the non-secret deployment profile returned by
 // GET /api/v1/office/desktop/download.
 type OfficeDesktopDownloadSDO struct {
-	InstallerURL string `json:"installer_url" description:"URL bộ cài đã cấu hình" example:"https://downloads.example/uniwork-office-beta.exe"`
-	ServerOrigin string `json:"server_origin" description:"Địa chỉ gốc API cho ứng dụng desktop" example:"https://app.example.com"`
-	Channel      string `json:"channel" description:"Kênh triển khai" example:"stable"`
-	ClientID     string `json:"client_id" description:"Mã OAuth client công khai của desktop" example:"uniwork-office"`
-	DeploymentID string `json:"deployment_id" description:"Mã triển khai công khai" example:"default"`
+	InstallerURL       string                   `json:"installer_url" description:"URL bộ cài đã cấu hình" example:"https://downloads.example/uniwork-office-beta.exe"`
+	Installers         []config.OfficeInstaller `json:"installers" description:"Các artifact đã cấu hình cho đúng kênh"`
+	SupportedPlatforms []string                 `json:"supported_platforms" description:"Khóa nền tảng app hỗ trợ, gồm bản chưa có URL ở kênh này"`
+	ServerOrigin       string                   `json:"server_origin" description:"Địa chỉ gốc API cho ứng dụng desktop" example:"https://app.example.com"`
+	Channel            string                   `json:"channel" description:"Kênh triển khai" example:"stable"`
+	ClientID           string                   `json:"client_id" description:"Mã OAuth client công khai của desktop" example:"uniwork-office"`
+	DeploymentID       string                   `json:"deployment_id" description:"Mã triển khai công khai" example:"default"`
+}
+
+type OfficeInstallerChannelsSDO struct {
+	Dev    []config.OfficeInstaller `json:"dev" description:"Bản cài ở kênh test/dev"`
+	Beta   []config.OfficeInstaller `json:"beta" description:"Bản cài ở kênh beta"`
+	Stable []config.OfficeInstaller `json:"stable" description:"Bản cài ở kênh stable"`
 }
 
 // SDO types for the Office surface (plan G2-07 / UNI-690). Revision stays a

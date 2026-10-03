@@ -11,11 +11,13 @@ import (
 )
 
 type OfficeDesktopDownload struct {
-	InstallerURL string
-	ServerOrigin string
-	Channel      string
-	ClientID     string
-	DeploymentID string
+	InstallerURL       string
+	Installers         []config.OfficeInstaller
+	SupportedPlatforms []string
+	ServerOrigin       string
+	Channel            string
+	ClientID           string
+	DeploymentID       string
 }
 
 // Download policy belongs here, not in HTTP or in the audit-query service.
@@ -28,7 +30,7 @@ func NewOfficeDesktopDownloadService(orgs *OrganizationService, cfg config.Confi
 	return &OfficeDesktopDownloadService{orgs: orgs, cfg: cfg}
 }
 
-func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organizationID, channel string) (OfficeDesktopDownload, error) {
+func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organizationID, channel string, selectedPlatform ...string) (OfficeDesktopDownload, error) {
 	var out OfficeDesktopDownload
 	if organizationID == "" {
 		return out, Invalid("organization_id is required")
@@ -46,21 +48,54 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 	if channel == "" {
 		channel = "stable"
 	}
-	var installer string
-	switch channel {
-	case "dev":
-		installer = s.cfg.OfficeInstallerDevURL
-	case "beta":
-		installer = s.cfg.OfficeInstallerBetaURL
-	case "stable":
-		installer = s.cfg.OfficeInstallerStableURL
-	default:
+	if channel != "dev" && channel != "beta" && channel != "stable" {
 		return out, Invalid("channel must be stable, beta, or dev")
 	}
-	if installer == "" {
+	platform := ""
+	if len(selectedPlatform) > 0 {
+		platform = selectedPlatform[0]
+	}
+	if platform != "" {
+		known := false
+		for _, key := range config.OfficeInstallerPlatforms {
+			if key == platform {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return out, Invalid("unsupported installer platform")
+		}
+	}
+	installers, err := s.cfg.OfficeInstallers(channel)
+	if err != nil {
+		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop installer URLs are not configured safely")
+	}
+	if len(installers) == 0 {
 		return out, coded(http.StatusNotFound, "installer_unavailable", "installer is not configured for this channel")
 	}
-	if !validDesktopURL(installer, channel, false) || !validDesktopURL(s.cfg.APIPublicURL, channel, true) {
+	// Old clients only understand Windows. Do not point their singular URL at
+	// a Mac/Linux artifact when this channel has no Windows installer.
+	installer := ""
+	for _, item := range installers {
+		if item.Platform == "win32-x64" {
+			installer = item.URL
+			break
+		}
+	}
+	if platform != "" {
+		installer = ""
+		for _, item := range installers {
+			if item.Platform == platform {
+				installer = item.URL
+				break
+			}
+		}
+		if installer == "" {
+			return out, coded(http.StatusNotFound, "installer_unavailable", "installer is not configured for this platform and channel")
+		}
+	}
+	if !validDesktopURL(s.cfg.APIPublicURL, channel, true) {
 		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop download URLs are not configured safely")
 	}
 	clientID := "uniwork-office"
@@ -76,7 +111,7 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 	}) >= 0 {
 		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop deployment binding is invalid")
 	}
-	out = OfficeDesktopDownload{InstallerURL: installer, ServerOrigin: strings.TrimRight(s.cfg.APIPublicURL, "/"), Channel: channel, ClientID: clientID, DeploymentID: deploymentID}
+	out = OfficeDesktopDownload{InstallerURL: installer, Installers: installers, SupportedPlatforms: append([]string(nil), config.OfficeInstallerPlatforms...), ServerOrigin: strings.TrimRight(s.cfg.APIPublicURL, "/"), Channel: channel, ClientID: clientID, DeploymentID: deploymentID}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: organizationID, Actor: audit.User(userID), Action: audit.ActionOfficeDesktopDownloaded,
 		ResourceType: "office_desktop_download", ResourceID: deploymentID,

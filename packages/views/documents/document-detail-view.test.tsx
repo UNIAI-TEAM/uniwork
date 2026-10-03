@@ -56,7 +56,7 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
 
 /** The editor arrives through React.lazy; the first TipTap import is slow. */
 function findEditor() {
-  return screen.findByRole("textbox", {}, { timeout: 15_000 });
+  return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }
 
 function renderView(
@@ -141,7 +141,7 @@ describe("DocumentDetailView", () => {
     requestMock.mockResolvedValue({ document: pageDocument() });
     renderView();
 
-    expect(await screen.findByText("Kế hoạch Q3")).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") })).toHaveValue("Kế hoạch Q3");
     const surface = await findEditor();
     expect(surface).toHaveAttribute("contenteditable", "true");
     expect(surface).toHaveTextContent("Nội dung A");
@@ -271,13 +271,13 @@ describe("DocumentDetailView", () => {
         />,
       ),
     );
-    const next = await screen.findByText("Tài liệu B");
-    expect(next).toBeInTheDocument();
+    const next = await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
+    await waitFor(() => expect(next).toHaveValue("Tài liệu B"));
 
     // The answer to the abandoned save arrives late; it must not be written
     // anywhere, and nothing may be sent for the new document.
     pendingPatch.resolve?.({ document: pageDocument({ revision: "4" }) });
-    await waitFor(() => expect(screen.getByRole("textbox")).toHaveTextContent("Nội dung B"), {
+    await waitFor(() => expect(screen.getByRole("textbox", { name: t("documents.editor.aria_label") })).toHaveTextContent("Nội dung B"), {
       timeout: 8_000,
     });
     expect(patches).toEqual(["/api/v1/documents/d1"]);
@@ -289,7 +289,7 @@ describe("DocumentDetailView", () => {
     window.innerWidth = 1400;
     requestMock.mockResolvedValue({ document: pageDocument() });
     renderView();
-    await screen.findByText("Kế hoạch Q3");
+    await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
 
     // The header owns the trigger; the panel is closed until it is used.
     const trigger = screen.getByRole("button", { name: t("documents.comments.open") });

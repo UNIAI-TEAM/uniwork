@@ -52,7 +52,7 @@ func TestOfficeDesktopBundleContainsInstallerAndProfile(t *testing.T) {
 		}
 		files[file.Name] = data
 	}
-	if len(files) != 2 || !bytes.Equal(files["UniWork-Office-Setup.exe"], installer) {
+	if len(files) != 2 || !bytes.Equal(files["setup.exe"], installer) {
 		t.Fatalf("wrong bundle entries: %v", files)
 	}
 	var installed map[string]string
@@ -82,5 +82,35 @@ func TestOfficeDesktopBundleRefusesRedirectEmptyAndOversize(t *testing.T) {
 				t.Fatal("unsafe response accepted")
 			}
 		})
+	}
+}
+
+func TestOfficeDesktopBundlePlatformExtensions(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("unsigned installer fixture")) }))
+	defer provider.Close()
+	for _, ext := range []string{".exe", ".zip", ".dmg", ".deb", ".AppImage"} {
+		t.Run(ext, func(t *testing.T) {
+			filename := "Office_0.1.0_unsigned" + ext
+			bundle, err := (&OfficeDesktopDownloadService{}).Bundle(context.Background(), OfficeDesktopDownload{InstallerURL: provider.URL + "/" + filename, Channel: "dev"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := bundle.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			var data bytes.Buffer
+			if err := bundle.WriteZipTo(&data); err != nil {
+				t.Fatal(err)
+			}
+			archive, err := zip.NewReader(bytes.NewReader(data.Bytes()), int64(data.Len()))
+			if err != nil || len(archive.File) != 2 || archive.File[0].Name != filename {
+				t.Fatalf("platform bundle: %+v %v", archive, err)
+			}
+		})
+	}
+	if _, err := (&OfficeDesktopDownloadService{}).Bundle(context.Background(), OfficeDesktopDownload{InstallerURL: provider.URL + "/bad.rpm", Channel: "dev"}); err == nil {
+		t.Fatal("unsupported installer format accepted")
 	}
 }

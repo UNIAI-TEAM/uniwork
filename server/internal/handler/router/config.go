@@ -30,7 +30,7 @@ func registerConfig(r api, h Routes, rumLimit func(http.Handler) http.Handler) {
 func registerOfficeDesktopDownload(r api, h Routes, limit func(http.Handler) http.Handler) {
 	r.With(limit).Get("/office/desktop/download", h.OfficeDesktopDownload, apiOp{
 		summary:     "Tải UniWork Office",
-		description: "Yêu cầu thành viên tổ chức. Trả bộ cài đúng kênh cùng hồ sơ triển khai không chứa bí mật; bundle=true trả ZIP để cài đặt.",
+		description: "Yêu cầu thành viên tổ chức. Trả installers và supported_platforms đúng kênh cùng hồ sơ triển khai không chứa bí mật; bundle=true&platform=<key> trả ZIP của nền tảng đã chọn.",
 		tags:        []string{"meta"}, sdi: sdi.OfficeDesktopDownloadSDI{}, sdo: sdo.OfficeDesktopDownloadSDO{}, auth: true,
 	})
 }

@@ -23,7 +23,7 @@ describe("config endpoints", () => {
       flags: { rum_sampling: true },
       rum_sample_rate: 0.2,
       work_management_capabilities: {},
-      office_installer_urls: { dev: "", beta: "", stable: "" },
+      office_installers: { dev: [], beta: [], stable: [] },
     });
     expect(cfg.office_deployment_id).toBeUndefined();
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/api/v1/config?organization_id=org1");
@@ -31,9 +31,9 @@ describe("config endpoints", () => {
 
   it("getPublicConfig degrades a malformed response to no flags and no sampling", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: "nope", rum_sample_rate: 7 }));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installer_urls: { dev: "", beta: "", stable: "" } });
+    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installers: { dev: [], beta: [], stable: [] } });
     vi.mocked(fetch).mockResolvedValueOnce(json([1, 2]));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installer_urls: { dev: "", beta: "", stable: "" } });
+    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installers: { dev: [], beta: [], stable: [] } });
   });
 
   it("getPublicConfig carries the default-config deployment id through unchanged", async () => {
@@ -54,7 +54,23 @@ describe("config endpoints", () => {
       office_installer_urls: { dev: "https://downloads.test/dev.exe", beta: "https://downloads.test/beta.exe", stable: "javascript:alert(1)" },
     }));
     const cfg = await getPublicConfig();
-    expect(cfg.office_installer_urls).toEqual({ dev: "https://downloads.test/dev.exe", beta: "https://downloads.test/beta.exe", stable: "" });
+    expect(cfg.office_installers).toEqual({
+      dev: [{ platform: "win32-x64", kind: ".exe", channel: "dev", url: "https://downloads.test/dev.exe" }],
+      beta: [{ platform: "win32-x64", kind: ".exe", channel: "beta", url: "https://downloads.test/beta.exe" }], stable: [],
+    });
+  });
+  it("uses platform catalogues per channel and ignores unknown, unsafe or malformed rows", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_installers: {
+      dev: [{ platform: "linux-x64-deb", url: "http://localhost:18584/office.deb", kind: ".deb" }, { platform: "unknown", url: "javascript:alert(1)", kind: ".future" }],
+      beta: [{ platform: "darwin-arm64", url: "https://downloads.test/office.dmg", kind: ".dmg" }],
+      stable: [{ platform: "win32-x64", url: "javascript:alert(1)", kind: ".exe" }],
+    }}));
+    expect((await getPublicConfig()).office_installers).toEqual({
+      dev: [{ platform: "linux-x64-deb", url: "http://localhost:18584/office.deb", kind: ".deb", channel: "dev" }],
+      beta: [{ platform: "darwin-arm64", url: "https://downloads.test/office.dmg", kind: ".dmg", channel: "beta" }], stable: [],
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_installers: { dev: [{ platform: "win32-x64", kind: 42 }], stable: [] } }));
+    expect((await getPublicConfig()).office_installers).toEqual({ dev: [], beta: [], stable: [] });
   });
 
   it("degrades malformed capability entries to the unavailable fallback", async () => {

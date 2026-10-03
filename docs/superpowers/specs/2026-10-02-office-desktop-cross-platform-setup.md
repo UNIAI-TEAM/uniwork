@@ -223,7 +223,7 @@ mọi caller (không giữ hai đường song song trong code nội bộ).
 - **Header:** logo mark UniWork (`Logo variant="mark"` từ `@uniwork/ui/brand`, 36px, bo 10px), `DialogTitle`
   `text-title`, `DialogDescription` `text-body text-muted-foreground`, nút đóng của Dialog (32px, aria-label "Đóng").
 - **Hệ điều hành:** `RadioGroup` 1 cột cho mỗi hệ điều hành được hỗ trợ (§6.0; hiện là 3) (gap 10px; dưới 480px gap 8px), mỗi thẻ là radio item cao tối thiểu
-  88px: icon hệ điều hành 30px + tên (`font-medium`). Không chọn: `border-border bg-background`, hover
+  88px: icon hệ điều hành 30px + tên (`font-medium`). Không chọn: `border-input bg-background` (Advisor 2026-10-02: `border-border` chỉ đạt 1,27:1 / 1,39:1, cần ≥ 3:1), hover
   `border-muted-foreground`. Đang chọn: `border-primary bg-primary/10` (hoặc token `accent` nếu tương phản tốt hơn,
   kiểm cả hai theme). Tag "Phù hợp": `Badge` nhỏ `bg-primary text-primary-foreground`, nằm đè mép trên giữa thẻ.
   Icon hệ điều hành: glyph đơn sắc Windows / Apple / Tux như mockup, vẽ bằng inline SVG `fill-current` trong
@@ -289,7 +289,8 @@ bản phù hợp nhất với hđh của client. nếu bấm cài đặt bản k
 
 - Windows `.exe`: 1. Giải nén tệp ZIP. 2. Chạy tệp `…-setup.exe`. 3. Nếu Windows báo "Windows protected your PC",
   chọn **More info** → **Run anyway** (bản nội bộ chưa ký).
-- Windows ZIP portable: 1. Giải nén. 2. Chạy `uniwork-office*.exe` trong thư mục vừa giải nén.
+- Windows ZIP portable: 1. Giải nén tệp ZIP đã tải. 2. Giải nén tiếp tệp ZIP portable bên trong (gói tải về bọc bản portable cùng hồ sơ
+  triển khai). 3. Chạy `uniwork-office*.exe` trong thư mục vừa giải nén. (Advisor 2026-10-02, câu hỏi UNI-919.)
 - macOS: 1. Giải nén ZIP, mở tệp `.dmg`. 2. Kéo UniWork Office vào Applications. 3. Lần đầu mở: chuột phải vào app
   → **Open** → **Open** (bản nội bộ chưa ký).
 - Linux `.deb`: 1. Giải nén ZIP. 2. Mở tệp `.deb` bằng App Center, hoặc chạy `sudo apt install ./<tệp>.deb`.
@@ -328,7 +329,8 @@ bản phù hợp nhất với hđh của client. nếu bấm cài đặt bản k
 | `after_download` | Sau khi tải | After downloading |
 | `not_in_channel` | Chưa có bản cho {{os}} ở kênh này. | No {{os}} build in this channel yet. |
 | `unsupported` | UniWork Office chưa hỗ trợ thiết bị này. Bạn vẫn có thể tải cho máy khác. | UniWork Office doesn't support this device yet. You can still download it for another computer. |
-| `started` | Đã bắt đầu tải {{file}}. | Download started: {{file}}. |
+| `started` | Đã bắt đầu tải {{file}}. ({{file}} = tên tệp trình duyệt lưu, vd. UniWork-Office.zip) | Download started: {{file}}. |
+| `description_unavailable` | Kênh này chưa có bản cài đặt. Bạn có thể thử lại sau. | This channel has no installer yet. Try again later. |
 | `retry` | Thử lại | Try again |
 | `copy_command` | Sao chép lệnh | Copy command |
 | `copied` | Đã sao chép | Copied |

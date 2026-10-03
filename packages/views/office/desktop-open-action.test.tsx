@@ -22,19 +22,19 @@ describe("DesktopOpenAction", () => {
   it("reuses the install prompt for Download without saving or minting a launch ticket", async () => {
     const createSession = vi.fn();
     const downloadInstaller = vi.fn(async () => undefined);
-    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty createSession={createSession} downloadInstaller={downloadInstaller} loadInstallerURLs={async () => ({ dev: "", beta: "", stable: "https://downloads.test/installer.exe" })} />);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty createSession={createSession} downloadInstaller={downloadInstaller} loadInstallers={async () => ({ installers: [{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }] })} />);
     fireEvent.click(screen.getByRole("button", { name: "Download UniWork Office" }));
     await screen.findByRole("dialog");
-    fireEvent.click(screen.getByRole("button", { name: "Install UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download for Windows" }));
     await waitFor(() => expect(downloadInstaller).toHaveBeenCalledOnce());
     expect(createSession).not.toHaveBeenCalled();
   });
   it("shows a localized download failure while keeping the prompt available", async () => {
-    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} downloadInstaller={async () => { throw new Error("network"); }} installerURLs={{ dev: "", beta: "", stable: "https://downloads.test/installer.exe" }} />);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} downloadInstaller={async () => { throw new Error("network"); }} installers={[{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }]} />);
     fireEvent.click(screen.getByRole("button", { name: "Download UniWork Office" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Install UniWork Office" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Download for Windows" }));
     await screen.findByText("Download failed. Please try again.");
-    expect(screen.getByRole("button", { name: "Install UniWork Office" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
   });
   it("opens the committed version without leaking document metadata", async () => {
     const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body).toEqual(expect.objectContaining({ version: 2 })); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
@@ -125,9 +125,9 @@ describe("DesktopOpenAction", () => {
     const launch = vi.fn(async () => "not-installed" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
-    expect(await screen.findByText("UniWork Office is not available")).toBeInTheDocument();
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Install UniWork Office" })).not.toBeInTheDocument();
   });
 
@@ -136,7 +136,7 @@ describe("DesktopOpenAction", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
     expect(await screen.findByText("The desktop handoff did not complete. Your editor and draft are unchanged.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
   });
 
   it("fails closed and never mints a ticket when no deployment id was advertised", async () => {

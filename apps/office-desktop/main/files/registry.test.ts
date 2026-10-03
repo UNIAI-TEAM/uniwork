@@ -6,7 +6,7 @@ import type { Stats } from "node:fs";
 import { FileHandleRegistry, LocalFileError, atomicReplace, type FileSystemPort } from "./registry";
 
 const tempRoots: string[] = [];
-async function tempRoot(): Promise<string> { const root = resolve(".test-artifacts", "files", `files-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(root, { recursive: true }); tempRoots.push(root); return root; }
+async function tempRoot(): Promise<string> { const root = resolve("../../.uniwork-dev-run/files", `files-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(root, { recursive: true }); tempRoots.push(root); return root; }
 afterEach(async () => { while (tempRoots.length) await fs.rm(tempRoots.pop()!, { recursive: true, force: true }); });
 
 describe("desktop local file handles", () => {

@@ -82,3 +82,30 @@ func TestOfficeDesktopDownloadUnsafeOrUnavailableConfig(t *testing.T) {
 		t.Fatalf("loopback dev profile: %v", err)
 	}
 }
+
+func TestOfficeDesktopDownloadMultiplePlatforms(t *testing.T) {
+	f := newAuditServiceFixture(t)
+	cfg := desktopDownloadConfig()
+	cfg.OfficeInstallerStableURLs = `{"linux-x64-deb":"https://downloads.example.test/office.deb","darwin-arm64":"https://downloads.example.test/office.dmg"}`
+	svc := NewOfficeDesktopDownloadService(f.svc.orgs, cfg)
+	out, err := svc.Get(f.ctx, f.ownerA.ID, f.orgA, "stable", "linux-x64-deb")
+	if err != nil || len(out.Installers) != 3 || len(out.SupportedPlatforms) != 6 || out.InstallerURL != "https://downloads.example.test/office.deb" {
+		t.Fatalf("platform profile: %+v %v", out, err)
+	}
+	for _, platform := range []string{"darwin-x64", "unknown", "../win32-x64"} {
+		if _, err := svc.Get(f.ctx, f.ownerA.ID, f.orgA, "stable", platform); err == nil {
+			t.Fatalf("unavailable/invalid platform accepted: %s", platform)
+		}
+		if _, err := svc.Get(f.ctx, f.ownerB.ID, f.orgA, "stable", platform); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("platform availability leaked to non-member: %v", err)
+		}
+	}
+	cfg.OfficeInstallerStableURL = ""
+	out, err = NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.ownerA.ID, f.orgA, "stable")
+	if err != nil || out.InstallerURL != "" || len(out.Installers) != 2 {
+		t.Fatalf("singular Windows URL fell back to another OS: %+v %v", out, err)
+	}
+	if _, err := svc.Get(f.ctx, f.ownerA.ID, f.orgA, "beta", "linux-x64-deb"); err == nil {
+		t.Fatal("beta inherited stable installers")
+	}
+}

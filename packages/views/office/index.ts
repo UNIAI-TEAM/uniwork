@@ -14,7 +14,7 @@ export {
 } from "./editor-slot";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
 export { DesktopOpenAction, type DesktopOpenActionProps, type OfficeLaunchSessionFactory, type OfficeSaveOutcome } from "./desktop-open-action";
-export { OfficeInstallPrompt, type OfficeInstallPromptProps, type OfficeInstallChannel, type OfficeInstallerURLs } from "./install-prompt";
+export { OfficeInstallPrompt, type OfficeInstallPromptProps, type OfficeInstallChannel } from "./install-prompt";
 export type { OfficeChannel } from "@uniwork/core/office";
 export {
   DraftRecoveryPrompt,

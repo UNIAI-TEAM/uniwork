@@ -5,7 +5,7 @@ import type { DesktopDocxSurface } from "./docx-surface";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
-export type OpenedBytes = { dataBase64: string; checksum: string; localHandle?: string; canSave?: boolean };
+export type OpenedBytes = { dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -25,13 +25,26 @@ export type DraftRecoveryView =
   | { readonly status: "found"; readonly metadata: DesktopDraftMetadata; readonly conflict: boolean }
   | { readonly status: "blocked" | "locked" | "unavailable" };
 
+export type DraftRecoverOutcome = "recovered" | "locked" | "failed";
+
+export type LocalFileRebind = Readonly<{
+  previousId: string;
+  documentId: string;
+  title: string;
+  identity: OfficeIdentity;
+  bytes: OpenedBytes;
+}>;
+
 /** Bind the shared DOCX surface to the accepted byte transport. This adapter
  * owns the renderer half of the ONE 04b draft store: every checkpoint crosses
  * the typed IPC seam, a confirmed save consumes exactly the committed draft,
  * and a crash recovers only the last confirmed row. */
-export function createByteDocumentSession(bridge: LibraryBridge, identity: OfficeIdentity, opened: OpenedBytes, options: {
+export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: OfficeIdentity, openedBytes: OpenedBytes, options: {
   createEditor?: (options: { documentId: string; readBytes(): Promise<Uint8Array>; generation: number; readOnly: boolean }) => Promise<DesktopDocxSurface>;
+  onLocalRebind?: (next: LocalFileRebind) => void;
 } = {}) {
+  const identity = { ...inputIdentity };
+  const opened = { ...openedBytes };
   let generation = 0;
   let bytes = decode(opened.dataBase64);
   let surface: DesktopDocxSurface | null = null;
@@ -69,12 +82,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   let recoveredRow: { draftId: string; generation: number } | undefined;
 
   const listRows = async (): Promise<readonly DesktopDraftMetadata[] | null> => {
-    try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION })).drafts; }
+    try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId })).drafts; }
     catch { return null; }
   };
   const recoverView = async (): Promise<DraftRecoveryView> => {
     try {
-      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId }));
+      if (listed.locked) return { status: "locked" };
       const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
       const newest = rows[0];
       if (!newest) return { status: "none" };
@@ -92,7 +106,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   };
   const discardRow = async (draftId: string, generation: number): Promise<boolean> => {
     try {
-      desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId, generation: Math.max(1, generation) }));
+      desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: Math.max(1, generation) }));
       durableRows.delete(draftId);
       return true;
     } catch { return false; }
@@ -165,7 +179,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       const rows = await listRows();
       generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
       const next = Math.max(1, generationFloor + 1, snapshot.generation);
-      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, draftId, generation: next, dataBase64: encode(snapshot.value) }));
+      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: encode(snapshot.value) }));
       checkpoint = snapshot;
       generationFloor = Math.max(generationFloor, result.generation);
       durableRows.set(draftId, result.generation);
@@ -206,8 +220,9 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (!output) throw new Error("snapshot_missing");
       let versionId: string, revision: string, checksum: string;
       if (localHandle) {
-        const result = desktopFileResponseSchema.parse(await bridge.call(output.saveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
-        if (!result.opened && output.saveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
+        const useSaveAs = output.saveAs || opened.localUntitled === true;
+        const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
         if (result.metadata.checksum !== output.checksum) throw Object.assign(new Error("local_save_checksum_mismatch"), { code: "local_save_checksum_mismatch" });
         // Local revisions are decimal strings; never feed a non-integer value
@@ -218,7 +233,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
         // requires an advancing receipt; immediately restore the actual file
         // base after accepting it so draft recovery compares the real mtime.
         revision = String(BigInt(output.localBase.revision) > BigInt(intent.identity.baseRevision) ? BigInt(output.localBase.revision) : BigInt(intent.identity.baseRevision) + 1n);
-        if (output.saveAs) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
+        if (useSaveAs && result.metadata.handle !== localHandle) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
       } else {
         const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
@@ -282,8 +297,17 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
         if (output?.rebound) {
           // Re-open only the new opaque handle to update main's local draft
           // context. No path or new file write is sent by this rebind.
+          const previousId = identity.documentId;
           localHandle = output.rebound.handle; localName = output.rebound.name;
-          resetCoordinator({ ...rawCoordinator.getState().identity, documentId: localHandle, baseVersionId: output.localBase!.versionId, baseRevision: output.localBase!.revision }, rawCoordinator.getState().lastSavedGeneration);
+          identity.documentId = localHandle;
+          identity.baseVersionId = output.localBase!.versionId;
+          identity.baseRevision = output.localBase!.revision;
+          opened.localHandle = localHandle;
+          opened.localUntitled = false;
+          opened.checksum = output.localBase!.versionId;
+          const nextIdentity = { ...rawCoordinator.getState().identity, documentId: localHandle, baseVersionId: output.localBase!.versionId, baseRevision: output.localBase!.revision };
+          resetCoordinator(nextIdentity, rawCoordinator.getState().lastSavedGeneration);
+          options.onLocalRebind?.({ previousId, documentId: localHandle, title: output.rebound.name, identity: nextIdentity, bytes: { ...opened, localHandle, localUntitled: false, checksum: output.localBase!.versionId } });
           // The file is already confirmed: retain that receipt and descriptor
           // even if the read-only context refresh fails. Draft writes then
           // refuse until a subsequent refresh succeeds.
@@ -358,12 +382,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     /** Lists this document's drafts and reports the newest one for its base. */
     listDrafts: recoverView,
     /** Recover applies the chosen durable draft into the editor bytes. */
-    async recoverDraft(metadata: DesktopDraftMetadata): Promise<boolean> {
+    async recoverDraft(metadata: DesktopDraftMetadata): Promise<DraftRecoverOutcome> {
       try {
-        if (opened.canSave === false) return false;
+        if (opened.canSave === false) return "failed";
         const current = currentIdentity();
-        const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, draftId: metadata.draftId, currentBase: { revision: current.baseRevision, version: current.baseVersionId } }));
-        if (result.status !== "recovered") return false;
+        const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId: metadata.draftId, currentBase: { revision: current.baseRevision, version: current.baseVersionId } }));
+        if (result.status === "locked") return "locked";
+        if (result.status !== "recovered") return "failed";
         await openEditor();
         const recovered = decode(result.dataBase64);
         const next = await createSurface(recovered, generation + 1);
@@ -375,13 +400,14 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
         recoveredRow = { draftId: result.metadata.draftId, generation: result.metadata.generation };
         checkpoint = null;
         coordinator.markDirty(generation);
-        return true;
-      } catch { return false; }
+        return "recovered";
+      } catch (error) { return (error as { code?: string }).code === "draft_recovery_locked" ? "locked" : "failed"; }
     },
     dispose: () => { unsubscribeCoordinator?.(); listeners.clear(); outputs.clear(); void coordinator.cancel(); void editor.dispose(); },
     get snapshotChecksum(): string { return opened.checksum; },
     get localHandle(): string | undefined { return localHandle; },
     get localName(): string | undefined { return localName; },
+    get localUntitled(): boolean { return opened.localUntitled === true; },
     get canSave(): boolean { return opened.canSave !== false; },
     get isDisposed(): boolean { return disposed; },
   };

@@ -19,7 +19,7 @@ export type CredentialStore = Readonly<{
   clear(): Promise<void> | void;
 }>;
 
-export type CredentialStoreErrorCode = "locked" | "unavailable" | "corrupt" | "login_required";
+export type CredentialStoreErrorCode = "locked" | "unavailable" | "corrupt" | "login_required" | "keyring_required";
 
 /** Errors from the OS-backed store deliberately carry a coarse code only.
  * Paths, ciphertext and token-shaped values are never included in errors. */
@@ -36,7 +36,18 @@ export type SafeStorageAdapter = Readonly<{
   isEncryptionAvailable(): boolean;
   encryptString(value: string): Uint8Array;
   decryptString(value: Uint8Array): string;
+  /** Linux exposes `basic_text` when no Secret Service keyring is reachable;
+   * that backend must never store a session (no plaintext fallback). */
+  getSelectedStorageBackend?(): string;
 }>;
+
+/** The user-facing reason and fix for a keyring-less Linux host. The store
+ * refuses with this message instead of falling back to the plaintext backend. */
+export const KEYRING_REFUSAL_MESSAGE = "Secure credential storage needs a Secret Service keyring (gnome-keyring or KWallet with libsecret). Install and unlock one, then sign in again. / Cần gnome-keyring hoặc KWallet (libsecret) để lưu đăng nhập. Hãy cài và mở khoá rồi đăng nhập lại.";
+
+function selectedStorageBackend(safeStorage: SafeStorageAdapter): string | undefined {
+  try { return safeStorage.getSelectedStorageBackend?.(); } catch { return undefined; }
+}
 
 export type CredentialStoreFileSystem = Readonly<{
   mkdirSync(path: string, options: { recursive: true; mode: number }): void;
@@ -75,6 +86,7 @@ export function createSecureCredentialStore(options: Readonly<{
   let lastPath: string | undefined;
   const ensureAvailable = () => {
     try {
+      if (selectedStorageBackend(options.safeStorage) === "basic_text") throw new CredentialStoreError("keyring_required", KEYRING_REFUSAL_MESSAGE);
       if (!options.safeStorage.isEncryptionAvailable()) throw new CredentialStoreError("locked", "secure credential store is locked");
       fs.mkdirSync(root, { recursive: true, mode: 0o700 });
       fs.chmodSync(root, 0o700);
