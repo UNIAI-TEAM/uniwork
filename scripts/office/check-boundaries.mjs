@@ -62,6 +62,7 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/views/office/office-shell",
   "@uniwork/views/office/editor-slot",
   "@uniwork/views/office/docx",
+  "@uniwork/views/office/pdf",
   "@uniwork/views/documents/document-type-icon",
   "lucide-react",
   "@uniwork/ui/lib/utils",

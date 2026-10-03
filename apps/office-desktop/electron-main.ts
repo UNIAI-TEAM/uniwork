@@ -456,8 +456,6 @@ async function startElectronHost(): Promise<void> {
     });
   });
   const host = createDesktopHost({
-    // The PDF lane runs in main: the renderer sends bounded bytes and the
-    // validated envelope only, never a path or a pdfium handle.
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall(request as never), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };

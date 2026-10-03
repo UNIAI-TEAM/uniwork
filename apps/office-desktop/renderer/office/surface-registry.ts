@@ -6,6 +6,7 @@ import type { DesktopSurfaceFactory } from "./surface";
  * Adding a format means adding its entry here; no caller branches on format. */
 const SURFACE_FACTORIES: Partial<Record<DesktopDocumentFormat, DesktopSurfaceFactory>> = {
   docx: async (settings) => (await import("./docx-surface")).createDesktopDocxSurface(settings),
+  pdf: async (settings) => (await import("./pdf-surface")).createDesktopPdfSurface(settings),
 };
 
 export function desktopSurfaceFactory(format: DesktopDocumentFormat): DesktopSurfaceFactory | undefined {
