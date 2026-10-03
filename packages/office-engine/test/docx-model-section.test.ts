@@ -198,7 +198,7 @@ describe("set_section_properties — CT_SectPr slots and change records", () => 
     const margins = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
     margins.setSectionProperties(0, { marginTop: 720 });
     expect(margins.savePlan().options.trailingSectPr).toContain('<w:sectPr><w:pgMar w:top="720"');
-    expect(margins.savePlan().options.trailingSectPr).toContain("</w:pgMar></w:sectPr>");
+    expect(margins.savePlan().options.trailingSectPr).toContain('w:gutter="0"/></w:sectPr>');
 
     const columns = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
     columns.setSectionProperties(0, { columns: 2 });
