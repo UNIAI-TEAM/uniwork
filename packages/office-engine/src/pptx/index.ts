@@ -11,3 +11,4 @@ export * from "./edits/section-edits";
 export * from "./edits/theme-edits";
 export * from "./edits/transition-edits";
 export * from "./edits/chart-edits";
+export * from "./edits/animation-edits";
