@@ -447,11 +447,11 @@ func TestValidateOfficeJobEdits(t *testing.T) {
 		{"set_cell styleReset without style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"styleReset":false}`) })}, true},
 		{"set_cell attributes style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"style":{"bold":true}}`) })}, true},
 		{"clear_cell", office.OperationEdit, []office.EditOp{edit("clear_cell", nil)}, true},
-		{"set_cells A1 range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:B2"`); e.Text = "x" })}, true},
-		{"set_cells bounds range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) {
-			e.Range = json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1,"endColumn":1}`)
-			e.Attributes = json.RawMessage(`{"value":0}`)
-		})}, true},
+		// set_cells reads its target only for the sheet (parseRange); the
+		// fixture the engine grammar accepts is sheet-only.
+		{"set_cells sheet-only target with A1 range", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Text: "x"}}, true},
+		{"set_cells bounds range", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1,"endColumn":1}`), Attributes: json.RawMessage(`{"value":0}`)}}, true},
+		{"set_cells ignores a target cell address", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S","cell":"XFE99999"}`), Range: json.RawMessage(`"A1:B2"`), Text: "x"}}, true},
 		{"serialize without edits", office.OperationSerialize, nil, true},
 
 		{"unknown op", office.OperationEdit, []office.EditOp{edit("drop_sheet", func(e *office.EditOp) { e.Text = "x" })}, false},

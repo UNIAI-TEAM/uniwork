@@ -621,6 +621,12 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 // bound vocabulary and pass its per-op-kind validator. A name outside the
 // table is refused outright: the engine parser would answer unsupported, but
 // a job row is never created for a vocabulary this service does not bind.
+//
+// The bound vocabulary is the xlsx bind set. Edits are the shared,
+// format-agnostic envelope field and this gate keys on op name alone, so a
+// future non-xlsx edit lane (pdf/docx) that carries its own op names through
+// the same jobs API must add a format dimension (the resolved format is in
+// scope at both call sites) before those names are accepted.
 func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) error {
 	if operation != office.OperationEdit && len(edits) > 0 {
 		return ErrOfficeJobInvalid
@@ -652,6 +658,14 @@ func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) e
 // real — target shape and OOXML grid, content/attribute/style shapes, text
 // and range bounds — before a job row exists. A later op kind adds one entry
 // here (beside its TS parser); nothing else in the gate changes.
+//
+// Deliberate strictness: these validators are stricter than parseXlsxOps on
+// malformed shapes that would otherwise reach the engine verbatim — a
+// non-object attributes/style value, a non-boolean styleReset, a malformed
+// attributes.style beside a valid top-level style, an A1 range with more than
+// one ":", and out-of-grid integer range bounds are refused here even where
+// the engine's parser would ignore or coerce them. Nothing valid is refused;
+// only malformed input fails earlier.
 var officeEditValidators = map[string]func(office.EditOp) bool{
 	"set_cell":   officeSetCellValid,
 	"clear_cell": officeClearCellValid,
@@ -717,23 +731,36 @@ func officeSheetRefOK(raw json.RawMessage) bool {
 	return strings.TrimSpace(name) != ""
 }
 
-// officeCellTargetOK checks the bound cell target shape: a sheet name (or
-// gateway sheet id) plus exactly one cell reference — A1 or 0-based
-// row/column — inside the OOXML grid.
-func officeCellTargetOK(raw json.RawMessage) bool {
+// officeTargetOf decodes a target object; nil when the shape is not one.
+func officeTargetOf(raw json.RawMessage) map[string]json.RawMessage {
 	if len(raw) == 0 {
-		return false
+		return nil
 	}
 	var target map[string]json.RawMessage
 	if json.Unmarshal(raw, &target) != nil {
+		return nil
+	}
+	return target
+}
+
+// officeTargetSheetOK checks the sheet ref of a decoded target: sheet wins
+// over sheetId when both spellings are present, as parseXlsxOps reads it.
+func officeTargetSheetOK(target map[string]json.RawMessage) bool {
+	if target == nil {
 		return false
 	}
-	// sheet wins when both spellings are present, as parseXlsxOps reads it.
 	if sheet, ok := target["sheet"]; ok {
-		if !officeSheetRefOK(sheet) {
-			return false
-		}
-	} else if !officeSheetRefOK(target["sheetId"]) {
+		return officeSheetRefOK(sheet)
+	}
+	return officeSheetRefOK(target["sheetId"])
+}
+
+// officeCellTargetOK checks the bound cell target shape: a sheet ref plus
+// exactly one cell reference — A1 or 0-based row/column — inside the OOXML
+// grid.
+func officeCellTargetOK(raw json.RawMessage) bool {
+	target := officeTargetOf(raw)
+	if !officeTargetSheetOK(target) {
 		return false
 	}
 	if cell, ok := target["cell"]; ok {
@@ -749,6 +776,13 @@ func officeCellTargetOK(raw json.RawMessage) bool {
 	}
 	_, ok := officeGridIndex(target["column"], maxOfficeEditColumns)
 	return ok
+}
+
+// officeRangeTargetOK is the set_cells target bound: parseRange reads the
+// target only for its sheet, so a cell/row/column spelling there is ignored
+// by the engine rather than required.
+func officeRangeTargetOK(raw json.RawMessage) bool {
+	return officeTargetSheetOK(officeTargetOf(raw))
 }
 
 // officeEditAttributes is the bound attributes object; RawMessage keeps
@@ -908,10 +942,11 @@ func officeClearCellValid(edit office.EditOp) bool {
 	return officeCellTargetOK(edit.Target)
 }
 
-// officeSetCellsValid: a cell target, a bounded range, and content (style is
-// optional, exactly as parseXlsxOps reads a range fill).
+// officeSetCellsValid: the set_cells grammar as parseRange reads it — a
+// sheet-ref target (a cell address on the target is never read), a bounded
+// range, and content (style is optional for a range fill).
 func officeSetCellsValid(edit office.EditOp) bool {
-	if !officeCellTargetOK(edit.Target) || !officeRangeOK(edit.Range) {
+	if !officeRangeTargetOK(edit.Target) || !officeRangeOK(edit.Range) {
 		return false
 	}
 	attributes, ok := officeAttributesOf(edit.Attributes)
