@@ -64,7 +64,7 @@ describe("pdf jobs through the service", () => {
     const reply = await submit(h, job);
     expect(reply.status).toBe(202);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     // Original preserved, output carries the new text.
     const uploaded = h.target.uploads.at(-1)!.body;
     const text = await readPdfText(new Uint8Array(uploaded));
@@ -81,7 +81,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     expect(new Uint8Array(h.target.uploads.at(-1)!.body)).toEqual(input);
   });
 
@@ -94,7 +94,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     const probe = JSON.parse(h.target.uploads.at(-1)!.body.toString("utf8")) as {
       document_model: { pageCount: number; hasTextLayer: boolean; features: { ocr: boolean } };
     };
@@ -168,7 +168,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     const warnings = (done.body.warnings ?? []) as { code: string }[];
     expect(warnings.some((w) => w.code === "edit_skipped")).toBe(true);
   });
