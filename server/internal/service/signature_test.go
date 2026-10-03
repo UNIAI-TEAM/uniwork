@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +135,53 @@ func TestSavedSignatureValidatesInput(t *testing.T) {
 	}
 	if list, err := f.svc.ListSavedSignatures(f.ctx, actor, f.orgID); err != nil || len(list) != 0 {
 		t.Fatalf("nothing may be stored: %+v, %v", list, err)
+	}
+}
+
+// TestSavedSignaturePerUserCap pins the per-user cap: a full list refuses the
+// next create with a typed validation error and stores nothing, and freeing a
+// slot lets the same person save again. The count is per (organization, user),
+// so it never blocks a second member.
+func TestSavedSignaturePerUserCap(t *testing.T) {
+	f := newSignatureFixture(t)
+	actor := Human(f.owner.ID)
+	save := func(label string) (db.CreateSavedSignatureRow, error) {
+		return f.svc.SaveSignature(f.ctx, actor, f.orgID, SaveSignatureInput{
+			Label: label, ContentType: "image/png", Image: pngBody(t, 2, 2),
+		})
+	}
+
+	for i := 0; i < MaxSavedSignaturesPerUser; i++ {
+		if _, err := save(fmt.Sprintf("Chữ ký %d", i)); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
+	}
+
+	_, err := save("Vượt hạn mức")
+	var ve ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("over-cap save = %v, want ValidationError", err)
+	}
+	list, err := f.svc.ListSavedSignatures(f.ctx, actor, f.orgID)
+	if err != nil || len(list) != MaxSavedSignaturesPerUser {
+		t.Fatalf("list at the cap = %d, %v; want %d", len(list), err, MaxSavedSignaturesPerUser)
+	}
+
+	// Freeing one slot lets the next create through, so the cap is a live
+	// bound rather than a one-way lockout.
+	if err := f.svc.DeleteSavedSignature(f.ctx, actor, f.orgID, list[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := save("Sau khi xóa"); err != nil {
+		t.Fatalf("save after freeing a slot: %v", err)
+	}
+
+	// A second member of the same organization has their own count.
+	addOrgMember(t, f.q, f.orgID, f.second.ID)
+	if _, err := f.svc.SaveSignature(f.ctx, Human(f.second.ID), f.orgID, SaveSignatureInput{
+		Label: "Chữ ký thành viên", ContentType: "image/png", Image: pngBody(t, 2, 2),
+	}); err != nil {
+		t.Fatalf("second member save: %v", err)
 	}
 }
 

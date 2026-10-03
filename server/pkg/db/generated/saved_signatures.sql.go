@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countSavedSignaturesByOwner = `-- name: CountSavedSignaturesByOwner :one
+SELECT COUNT(*) FROM saved_signatures
+WHERE organization_id = $1
+  AND user_id = $2
+`
+
+type CountSavedSignaturesByOwnerParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+func (q *Queries) CountSavedSignaturesByOwner(ctx context.Context, arg CountSavedSignaturesByOwnerParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSavedSignaturesByOwner, arg.OrganizationID, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSavedSignature = `-- name: CreateSavedSignature :one
 INSERT INTO saved_signatures (
   id, organization_id, user_id, label, content_type, image, created_by, created_by_kind
@@ -132,4 +150,22 @@ func (q *Queries) ListSavedSignatures(ctx context.Context, arg ListSavedSignatur
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSavedSignaturesForUser = `-- name: LockSavedSignaturesForUser :exec
+SELECT pg_advisory_xact_lock(hashtextextended('saved_signatures:' || $1::text || ':' || $2::text, 0))
+`
+
+type LockSavedSignaturesForUserParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Serializes the per-user cap check against a concurrent create: taken in the
+// same transaction as the count + insert below, so two creates for one person
+// cannot both read the same under-cap count. Transaction-scoped, released on
+// commit or rollback.
+func (q *Queries) LockSavedSignaturesForUser(ctx context.Context, arg LockSavedSignaturesForUserParams) error {
+	_, err := q.db.Exec(ctx, lockSavedSignaturesForUser, arg.OrganizationID, arg.UserID)
+	return err
 }

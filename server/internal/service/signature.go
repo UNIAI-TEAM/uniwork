@@ -32,6 +32,11 @@ const (
 	// maxSignatureLabel bounds the picker label; it names the signature,
 	// it is not a document.
 	maxSignatureLabel = 80
+	// MaxSavedSignaturesPerUser caps how many signatures one person keeps in
+	// one organization. The picker is a short list, not an archive; the cap is
+	// enforced inside the create transaction (count + insert under a per-user
+	// advisory lock), so a race cannot push the row count past it.
+	MaxSavedSignaturesPerUser = 50
 )
 
 // signatureContentTypes is the allowlist of image formats the PDF editor
@@ -130,6 +135,24 @@ func (s *SignatureService) SaveSignature(ctx context.Context, actor Actor, organ
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+
+	// Serialize the cap check per (organization, user) so two concurrent
+	// creates cannot both read the same under-cap count, then refuse before
+	// the insert rather than after.
+	if err := q.LockSavedSignaturesForUser(ctx, db.LockSavedSignaturesForUserParams{
+		OrganizationID: organizationID, UserID: actor.ID,
+	}); err != nil {
+		return out, err
+	}
+	owned, err := q.CountSavedSignaturesByOwner(ctx, db.CountSavedSignaturesByOwnerParams{
+		OrganizationID: organizationID, UserID: actor.ID,
+	})
+	if err != nil {
+		return out, err
+	}
+	if owned >= MaxSavedSignaturesPerUser {
+		return out, Invalid(fmt.Sprintf("at most %d saved signatures per user", MaxSavedSignaturesPerUser))
+	}
 
 	row, err := q.CreateSavedSignature(ctx, db.CreateSavedSignatureParams{
 		ID: util.NewID(), OrganizationID: organizationID, UserID: actor.ID,
