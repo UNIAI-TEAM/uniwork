@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Editor } from "@tiptap/core";
+import { Editor } from "@tiptap/core";
+import { docxExtensions } from "../docx-schema";
 import { createDocxCommandRuntime } from "./index";
 import { createExportCommands } from "./export";
 
@@ -80,11 +81,18 @@ describe("createExportCommands", () => {
 
 describe("export command wiring", () => {
   it("composes into the command runtime with its own format state", () => {
-    const runtime = createDocxCommandRuntime(() => stubEditor(), { areas: [createExportCommands] });
-    expect(runtime.getState().docxExportReady).toBe(true);
-    expect(typeof runtime.exportDocxHtml).toBe("function");
-    expect(typeof runtime.downloadDocxHtml).toBe("function");
-    expect(typeof runtime.printDocx).toBe("function");
+    // getState() always reads the base state, which walks the editor's real
+    // ProseMirror state, so the composition needs a mounted editor, not a stub.
+    const editor = new Editor({ extensions: docxExtensions(), content: DOC });
+    try {
+      const runtime = createDocxCommandRuntime(() => editor, { areas: [createExportCommands] });
+      expect(runtime.getState().docxExportReady).toBe(true);
+      expect(typeof runtime.exportDocxHtml).toBe("function");
+      expect(typeof runtime.downloadDocxHtml).toBe("function");
+      expect(typeof runtime.printDocx).toBe("function");
+    } finally {
+      editor.destroy();
+    }
   });
 
   it("reports not ready through the runtime without a document", () => {

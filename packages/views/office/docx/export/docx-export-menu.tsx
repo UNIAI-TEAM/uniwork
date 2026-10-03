@@ -23,7 +23,7 @@ import { installDocxPrintStyles } from "./docx-print";
 export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const [pdfOpen, setPdfOpen] = useState(false);
-  const ready = commands?.docxExportReady ?? format?.docxExportReady ?? false;
+  const ready = format?.docxExportReady ?? false;
   const disabled = !commands || !ready;
 
   // Installing here (the group mounts with the ready toolbar) also arms the

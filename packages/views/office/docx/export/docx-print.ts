@@ -22,7 +22,6 @@ const DOCX_PRINT_HIDE_SELECTORS = [
   '[data-testid="docx-status-bar"]',
   '[data-testid="docx-view-chrome"]',
   '[data-testid="docx-image-layer"]',
-  '[data-testid="docx-comments-panel"]',
   '[data-testid="docx-review-panel"]',
   '[data-testid="docx-notes-panel"]',
 ];

@@ -19,7 +19,8 @@ export interface DocxExportCommands {
   printDocx(): boolean;
   /** The standalone HTML file for the current document; null when none is open. */
   exportDocxHtml(title?: string): string | null;
-  /** Serializes and downloads through a Blob; false when nothing is open or the host refuses. */
+  /** Serializes and downloads through a Blob; false when nothing is open or the host refuses.
+   * The caller's localized strings are used: the command seam exposes no document title. */
   downloadDocxHtml(fileName: string, title?: string): boolean;
 }
 

@@ -11,7 +11,8 @@
 //
 // Deliberate limits are named in the worker report: nested tables
 // (docNestedTable carries a table model, not content), cell borders/shading,
-// paragraph indents/spacing and footnotes' bodies are not serialized.
+// paragraph indents/spacing, footnotes' bodies and rendered math (inline math
+// exports its linearized text; MathML would need sanitizing) are not serialized.
 
 import type { JSONContent } from "@tiptap/core";
 
@@ -70,11 +71,16 @@ const MARK_PRIORITY: Record<string, number> = {
 };
 
 export function escapeDocxHtmlText(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function escapeDocxHtmlAttribute(value: string): string {
-  return escapeDocxHtmlText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return escapeDocxHtmlText(value);
 }
 
 function hexColor(value: unknown): string | null {
@@ -98,7 +104,12 @@ function safeFontFamily(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 200 || !SAFE_FONT_FAMILY.test(trimmed)) return null;
-  return `'${trimmed.replace(/['"]/g, "")}'`;
+  const families = trimmed
+    .split(",")
+    .map((family) => family.replace(/['"]/g, "").trim())
+    .filter((family) => family.length > 0);
+  if (families.length === 0) return null;
+  return families.map((family) => `'${family}'`).join(", ");
 }
 
 function safeCssColor(value: unknown): string | null {

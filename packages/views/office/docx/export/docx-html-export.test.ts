@@ -49,6 +49,16 @@ describe("docxDocumentToHtml", () => {
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
   });
 
+  it("quotes each family of a fallback list separately", () => {
+    const html = docxDocumentToHtml(doc(paragraph("x")), { fontFamily: '"Segoe UI", Arial, sans-serif' });
+    expect(html).toContain("body{font-family:'Segoe UI', 'Arial', 'sans-serif'}");
+  });
+
+  it("drops a font-family the whitelist refuses", () => {
+    const html = docxDocumentToHtml(doc(paragraph("x")), { fontFamily: "Arial;background:url(https://evil.test/i)" });
+    expect(html).not.toContain("font-family");
+  });
+
   it("renders headings with the level clamped to h1..h6", () => {
     const html = docxDocumentToHtml(
       doc(
