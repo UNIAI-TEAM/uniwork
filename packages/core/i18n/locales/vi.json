@@ -7046,7 +7046,8 @@
           "notes": "Chú thích",
           "zoom": "Thu phóng",
           "navigation": "Điều hướng",
-          "compare": "So sánh"
+          "compare": "So sánh",
+          "protect": "Bảo vệ"
         },
         "insert": {
           "symbol": "Ký hiệu",
@@ -7065,6 +7066,60 @@
           "lineSpacingCustomHint": "Hệ số",
           "spaceBefore": "Khoảng cách trước (pt)",
           "spaceAfter": "Khoảng cách sau (pt)"
+        }
+      },
+      "protect": {
+        "open": "Bảo vệ",
+        "unavailable": "Cần mở tài liệu để dùng tùy chọn bảo vệ.",
+        "title": "Bảo vệ và an toàn tài liệu",
+        "description": "Tài liệu yêu cầu người xem làm gì và trình soạn thảo này thực sự thực thi được đến đâu.",
+        "gate": {
+          "readOnly": "Host đang mở tài liệu ở chế độ chỉ đọc nên không thể đổi bảo vệ.",
+          "saving": "Đang lưu; thay đổi bảo vệ phải chờ lưu xong."
+        },
+        "restriction": {
+          "heading": "Giới hạn chỉnh sửa",
+          "none": "Tài liệu không có giới hạn chỉnh sửa.",
+          "active": "Đang bật: {{mode}}",
+          "lifted": "Có nhưng chưa bật: {{mode}}",
+          "passwordSet": "Có mật khẩu bảo vệ trong Word.",
+          "passwordNone": "Không đặt mật khẩu.",
+          "mode": "Kiểu giới hạn",
+          "password": "Mật khẩu (không bắt buộc)",
+          "passwordHint": "Mật khẩu được băm ngay trên trình duyệt, không lưu lại và không gửi đi đâu.",
+          "apply": "Áp dụng giới hạn",
+          "remove": "Gỡ giới hạn",
+          "advisory": "Giới hạn chỉnh sửa DOCX chỉ mang tính khuyến nghị: trình soạn thảo này ghi và tôn trọng chúng, nhưng công cụ khác có thể bỏ qua."
+        },
+        "mode": {
+          "readOnly": "Chỉ đọc",
+          "comments": "Chỉ bình luận",
+          "trackedChanges": "Chỉ theo dõi thay đổi",
+          "forms": "Chỉ biểu mẫu",
+          "custom": "Tùy chỉnh ({{mode}})"
+        },
+        "modify": {
+          "heading": "Mật khẩu để sửa",
+          "none": "Không đặt mật khẩu để sửa.",
+          "recommended": "Word sẽ gợi ý mở ở chế độ chỉ đọc.",
+          "passwordSet": "Cần mật khẩu để sửa trong Word.",
+          "field": "Mật khẩu (không bắt buộc)",
+          "recommend": "Gợi ý mở chỉ đọc",
+          "apply": "Đặt mật khẩu để sửa",
+          "remove": "Gỡ"
+        },
+        "encryption": {
+          "heading": "Mã hóa tệp",
+          "body": "Trình soạn thảo này không đổi mật khẩu mở tệp: tệp mã hóa bị từ chối khi mở, và bản lưu không tự mã hóa tài liệu thường."
+        },
+        "fixed": {
+          "heading": "Vùng cố định",
+          "body": "Bảng, ảnh, biểu đồ, công thức và các khối được giữ nguyên sẽ không sửa được ở đây và được lưu lại nguyên vẹn."
+        },
+        "pending": "Đang chờ áp dụng ở lần lưu tới.",
+        "error": {
+          "hash": "Trình duyệt không thể băm mật khẩu (thiếu WebCrypto); chưa có thay đổi nào.",
+          "generic": "Không thể chuẩn bị thay đổi bảo vệ."
         }
       },
       "pageSetup": {

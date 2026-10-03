@@ -19,6 +19,7 @@ import type { DocxNotesSnapshot } from "./commands/notes";
 import type { DocxNumberingSnapshot } from "./commands/numbering";
 import type { DocxPageDecorEdit } from "./commands/page-decor";
 import type { DocxPageSetupEdit } from "./commands/page-setup";
+import type { DocxProtectionEdit } from "./commands/protect";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
 import { prepareDocxHeadingStyles } from "./docx-heading-styles";
@@ -127,6 +128,11 @@ export interface DocxTiptapSnapshot {
    * so serializeSnapshot replays them onto the save session after the block
    * plan and restoreSnapshot re-seeds them. */
   pageDecor?: DocxPageDecorEdit[];
+  /** The pending protection edit at capture (C3): w:documentProtection /
+   * w:writeProtection live in word/settings.xml, so serializeSnapshot replays
+   * the edit as set_protection / set_write_protection ops after the block plan
+   * and restoreSnapshot re-seeds it. */
+  protection?: DocxProtectionEdit;
 }
 
 export interface DocxOpenError extends Error {
@@ -273,6 +279,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.seedDocxPageSetup(parsed);
       // B6: the page-decoration dialog's read state, from the same parse.
       commandRuntime.seedDocxPageDecor(parsed);
+      // C3: the protect panel's state — the document's own restriction and
+      // password-to-modify tags, from the same parse.
+      commandRuntime.seedDocxProtection(parsed);
       commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
@@ -295,6 +304,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         pageSetup: commandRuntime.listDocxPageSetupEdits(),
         numbering: commandRuntime.listDocxNumberingEdits(),
         pageDecor: commandRuntime.listDocxPageDecorEdits(),
+        protection: commandRuntime.snapshotDocxProtection(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -346,6 +356,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // B6: page decoration — colour/watermark/theme ride SaveOptions, the
         // border boxes rewrite their sections' sectPr slices.
         commandRuntime.applyDocxPageDecorEdits(options.adapter, saveRef);
+        // C3: the protection edit — set_protection / set_write_protection
+        // rewrite word/settings.xml on the same save session.
+        commandRuntime.applyDocxProtectionEdit(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -371,6 +384,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.restoreDocxPageSetupEdits(snapshot.value.pageSetup);
       commandRuntime.restoreDocxNumberingEdits(snapshot.value.numbering);
       commandRuntime.restoreDocxPageDecorEdits(snapshot.value.pageDecor);
+      commandRuntime.restoreDocxProtection(snapshot.value.protection);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },

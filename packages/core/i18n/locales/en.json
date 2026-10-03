@@ -7052,7 +7052,8 @@
           "notes": "Notes",
           "zoom": "Zoom",
           "navigation": "Navigation",
-          "compare": "Compare"
+          "compare": "Compare",
+          "protect": "Protect"
         },
         "insert": {
           "symbol": "Symbol",
@@ -7071,6 +7072,60 @@
           "lineSpacingCustomHint": "Multiple",
           "spaceBefore": "Space before (pt)",
           "spaceAfter": "Space after (pt)"
+        }
+      },
+      "protect": {
+        "open": "Protect",
+        "unavailable": "Protection needs an open document.",
+        "title": "Protection and security",
+        "description": "What this document asks viewers to do, and what this editor can honestly enforce.",
+        "gate": {
+          "readOnly": "The host opened this document read-only, so protection changes are blocked.",
+          "saving": "A save is in progress; protection changes wait for it to finish."
+        },
+        "restriction": {
+          "heading": "Editing restriction",
+          "none": "The document carries no editing restriction.",
+          "active": "Active: {{mode}}",
+          "lifted": "Present but not enforced: {{mode}}",
+          "passwordSet": "A password protects it in Word.",
+          "passwordNone": "No password on it.",
+          "mode": "Restriction type",
+          "password": "Password (optional)",
+          "passwordHint": "The password is hashed in this browser and is never stored or sent.",
+          "apply": "Apply restriction",
+          "remove": "Remove restriction",
+          "advisory": "DOCX editing restrictions are advisory: this editor writes and honors them, but nothing stops another tool from ignoring them."
+        },
+        "mode": {
+          "readOnly": "Read only",
+          "comments": "Comments only",
+          "trackedChanges": "Tracked changes only",
+          "forms": "Forms only",
+          "custom": "Custom ({{mode}})"
+        },
+        "modify": {
+          "heading": "Password to modify",
+          "none": "No password to modify.",
+          "recommended": "Word is asked to suggest read-only when opening.",
+          "passwordSet": "A password is required to edit in Word.",
+          "field": "Password (optional)",
+          "recommend": "Suggest read-only on open",
+          "apply": "Set password to modify",
+          "remove": "Remove"
+        },
+        "encryption": {
+          "heading": "File encryption",
+          "body": "This editor does not change a file-open password: encrypted files are refused at open, and saving never encrypts a plain document."
+        },
+        "fixed": {
+          "heading": "Fixed regions",
+          "body": "Tables, images, charts, equations and other preserved blocks stay non-editable and are saved back byte-identical."
+        },
+        "pending": "Pending: applied on the next save.",
+        "error": {
+          "hash": "This browser cannot hash passwords (WebCrypto is unavailable); nothing was changed.",
+          "generic": "The protection change could not be prepared."
         }
       },
       "pageSetup": {

@@ -13,6 +13,7 @@ import { createNumberingCommands, type DocxNumberingCommands, type DocxNumbering
 import { createPageDecorCommands, type DocxPageDecorCommands, type DocxPageDecorFormatState } from "./page-decor";
 import { createPageSetupCommands, type DocxPageSetupCommands, type DocxPageSetupFormatState } from "./page-setup";
 import { createParagraphCommands, type DocxParagraphCommands, type DocxParagraphFormatState } from "./paragraph";
+import { createProtectCommands, type DocxProtectCommands, type DocxProtectFormatState } from "./protect";
 import { createReviewCommands, type DocxReviewCommands, type DocxReviewFormatState } from "./review";
 import { createTableCommands, type DocxTableCommands, type DocxTableFormatState } from "./table";
 
@@ -32,8 +33,9 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxNotesFormatState &
   DocxNumberingFormatState &
   DocxPageSetupFormatState &
+  DocxPageDecorFormatState &
   DocxCompareFormatState &
-  DocxPageDecorFormatState;
+  DocxProtectFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
 
@@ -55,7 +57,8 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxNumberingCommands &
   DocxPageSetupCommands &
   DocxPageDecorCommands &
-  DocxCompareCommands & {
+  DocxCompareCommands &
+  DocxProtectCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
     /** Re-reads the composed state and notifies every subscriber. */
@@ -84,6 +87,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createPageSetupCommands,
   createPageDecorCommands,
   createCompareCommands,
+  createProtectCommands,
 ];
 
 export interface DocxCommandRuntimeOptions {
