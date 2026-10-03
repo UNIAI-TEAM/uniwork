@@ -132,6 +132,18 @@ afterEach(() => {
 });
 
 describe("HomeListsGroup", () => {
+  it("opens the multilevel menu in the real Base UI tree without throwing (B-1)", async () => {
+    // Regression for visual B-1: the group label used to render outside any
+    // Menu.Group, so opening the menu in real Chrome threw
+    // `MenuGroupContext is missing` and unmounted the page. This exercises the
+    // real @uniwork/ui dropdown primitive (no mock) and asserts the labelled
+    // radio rows are reachable.
+    renderGroup({ content: [listItem("one")], defs: [DEF7], caret: (e) => caretInBlock(e) });
+    fireEvent.click(screen.getByTestId("docx-list-multilevel"));
+    expect(await screen.findByTestId("docx-list-level-0")).toBeInTheDocument();
+    expect(screen.getByText("Cấp danh sách")).toBeInTheDocument();
+  });
+
   it("names both triggers", () => {
     renderGroup();
     expect(screen.getByTestId("docx-list-gallery")).toHaveAccessibleName("Kiểu danh sách");
@@ -196,9 +208,11 @@ describe("HomeListsGroup", () => {
   it("disables the list-only rows outside a list item", async () => {
     renderGroup({ content: [paragraph("hello")] });
     await openMultilevel();
-    expect(screen.getByTestId("docx-list-level-0")).toBeDisabled();
-    expect(screen.getByTestId("docx-list-level-increase")).toBeDisabled();
-    expect(screen.getByTestId("docx-list-restart")).toBeDisabled();
-    expect(screen.getByTestId("docx-list-continue")).toBeDisabled();
+    // Base UI's menu rows are role=menuitem/menuitemradio divs: they signal
+    // unavailability with aria-disabled, not the disabled attribute.
+    expect(screen.getByTestId("docx-list-level-0")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-list-level-increase")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-list-restart")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-list-continue")).toHaveAttribute("aria-disabled", "true");
   });
 });

@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -60,7 +61,12 @@ export function MultilevelMenu({ list, disabled = false, onSetLevel, onStepLevel
         <ListTree aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>{t("office.docx.lists.levelLabel")}</DropdownMenuLabel>
+        {/* Base UI's GroupLabel must sit inside a Menu.Group: a bare label
+            directly under the popup throws `MenuGroupContext is missing` and
+            unmounts the page (visual B-1). */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("office.docx.lists.levelLabel")}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         {/* A level pick is single-select, so the group is a radio: Base UI
             dismisses the menu on pick and the indicator marks the active level. */}
         <DropdownMenuRadioGroup

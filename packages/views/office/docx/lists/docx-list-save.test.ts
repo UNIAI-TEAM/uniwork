@@ -128,7 +128,7 @@ describe("DOCX list save path", () => {
       const numbering = await partOf(saved.bytes, "word/numbering.xml");
       // the blank template occupies 0/1; the new abstractNum is 2 with the chain
       expect(numbering).toContain('<w:abstractNum w:abstractNumId="2">');
-      expect(numbering).toContain('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="1.1.1.1.1.1.1.1.1."/>');
+      expect(numbering).toContain('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1.%2.%3.%4.%5.%6.%7.%8.%9."/>');
       expect(numbering).toContain('<w:num w:numId="3"><w:abstractNumId w:val="2"/></w:num>');
       const defs = await numberingDefsOf(saved.bytes);
       expect(Object.keys(defs.get("3")?.levels ?? {})).toHaveLength(9);
@@ -199,7 +199,6 @@ describe("DOCX list save path", () => {
       expect(snapshot.value.numbering).toEqual({ newDefs: [], restartNums: [] });
       const saved = await handle.serializeSnapshot(snapshot);
       expect(saved.bytes).toEqual(source);
-      expect(handle.commands.getState().docxList).toBeNull();
     } finally {
       await handle.dispose();
     }

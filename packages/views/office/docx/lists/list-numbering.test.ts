@@ -54,9 +54,12 @@ describe("list style presets", () => {
   });
 
   it("builds the decimal multilevel chain and the Chinese hierarchy", () => {
+    // w:lvlText carries the OOXML placeholder tokens (%n = level n's counter),
+    // exactly as genoffice's MULTILEVEL_LIBRARY and Word's numbering.xml do;
+    // only levelPreviewText interpolates them for the picker.
     const chain = listPresetById("multilevel-decimal")!.levels.map((level) => level.lvlText);
-    expect(chain.slice(0, 3)).toEqual(["1.", "1.1.", "1.1.1."]);
-    expect(chain[8]).toBe("1.1.1.1.1.1.1.1.1.");
+    expect(chain.slice(0, 3)).toEqual(["%1.", "%1.%2.", "%1.%2.%3."]);
+    expect(chain[8]).toBe("%1.%2.%3.%4.%5.%6.%7.%8.%9.");
     expect(listPresetById("multilevel-decimal")!.levels[0]!.hanging).toBe(432);
     const chinese = listPresetById("multilevel-chinese")!.levels;
     expect(chinese[0]).toMatchObject({ numFmt: "chineseCountingThousand", lvlText: "%1、", hanging: 425 });

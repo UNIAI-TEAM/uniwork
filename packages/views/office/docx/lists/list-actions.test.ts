@@ -139,7 +139,7 @@ describe("applyDocxListPreset", () => {
     expect(pending.newDefs).toHaveLength(1);
     expect(pending.newDefs[0]!.numId).toBe("3");
     expect(pending.newDefs[0]!.levels).toHaveLength(9);
-    expect(pending.newDefs[0]!.levels?.[8]?.lvlText).toBe("1.1.1.1.1.1.1.1.1.");
+    expect(pending.newDefs[0]!.levels?.[8]?.lvlText).toBe("%1.%2.%3.%4.%5.%6.%7.%8.%9.");
     expect(attrsAt(editor, 0)).toMatchObject({ kind: "ordered", numId: "3", ilvl: 0 });
     expect(attrsAt(editor, 1).numId).toBe("3");
     expect(listDefsOf(editor).get("3")).toMatchObject({ abstractNumId: "pending-3" });
@@ -216,7 +216,7 @@ describe("restart and continue", () => {
     const clone = pending.newDefs[1]!;
     expect(clone.numId).toBe("4");
     expect(clone.levels).toHaveLength(9);
-    expect(clone.levels?.[8]?.lvlText).toBe("1.1.1.1.1.1.1.1.1.");
+    expect(clone.levels?.[8]?.lvlText).toBe("%1.%2.%3.%4.%5.%6.%7.%8.%9.");
     expect(attrsAt(editor, 0).numId).toBe("4");
     expect(attrsAt(editor, 1).numId).toBe("4");
   });
