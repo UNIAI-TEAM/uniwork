@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentFileView } from "./document-file-view";
 
@@ -140,6 +142,35 @@ describe("DocumentFileView", () => {
     expect(officeHost).toHaveBeenCalled();
     expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true }));
     expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
+  });
+
+  it("keeps download and upload reachable from the page menu while the editor is mounted", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockReturnValue(true);
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    const pageMenu = (
+      <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+    );
+    const view = render(wrap(
+      <HeaderActionsSlotProvider>
+        {pageMenu}
+        <DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />
+      </HeaderActionsSlotProvider>,
+    ));
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.download_original") })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.upload_version") }));
+    expect(await screen.findByText(t("documents.upload.version_title"))).toBeInTheDocument();
+    view.unmount();
+
+    render(wrap(
+      <HeaderActionsSlotProvider>
+        {pageMenu}
+        <DocumentFileView wsId={WS} doc={fileDocument({ my_level: "view" })} readonly officeEditorHost={officeHost} />
+      </HeaderActionsSlotProvider>,
+    ));
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.download_original") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.upload_version") })).toBeNull();
   });
 
   it("stages a new version and commits it on the base it started from", async () => {

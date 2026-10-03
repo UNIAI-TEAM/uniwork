@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DesktopOpenAction } from "./desktop-open-action";
 
 initI18n();
@@ -18,22 +20,54 @@ function coordinator(overrides: Partial<ReturnType<OfficeSaveCoordinatorLike["ge
 
 beforeEach(async () => { await setLocale("en"); });
 
+async function openDownload() {
+  fireEvent.click(screen.getByRole("button", { name: "UniWork Office options" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Download UniWork Office" }));
+}
+
 describe("DesktopOpenAction", () => {
-  it("keeps compact header actions fully accessible below lg", () => {
+  it("renders one split button whose label stays accessible below lg", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
-    const edit = screen.getByRole("button", { name: "Edit in UniWork Office" });
-    const download = screen.getByRole("button", { name: "Download UniWork Office" });
-    expect(edit).toHaveAttribute("title", "Edit in UniWork Office");
+    const edit = screen.getByRole("button", { name: "Open in UniWork Office" });
+    expect(edit).toHaveAttribute("title", "Open in UniWork Office");
     expect(edit.querySelector("span")).toHaveClass("sr-only", "lg:not-sr-only");
-    expect(download).toHaveAttribute("title", "Download UniWork Office");
-    expect(download.querySelector("span")).toHaveClass("sr-only", "lg:not-sr-only");
+    const group = edit.closest("[data-slot=button-group]")!;
+    expect(group).toContainElement(screen.getByRole("button", { name: "UniWork Office options" }));
+    expect(screen.queryByRole("button", { name: "Download UniWork Office" })).not.toBeInTheDocument();
+  });
+
+  it("lists Open and Download for the detected platform in the split menu", async () => {
+    const createSession = vi.fn(async () => session);
+    const launch = vi.fn(async () => "launched" as const);
+    const loadPlatformHint = vi.fn(async () => ({ platform: "win32-x64" as const, confidence: "certain" as const }));
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={createSession} launch={launch} loadPlatformHint={loadPlatformHint} />);
+    fireEvent.click(screen.getByRole("button", { name: "UniWork Office options" }));
+    expect(await screen.findByRole("menuitem", { name: "Open in UniWork Office" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Download UniWork Office for Windows" })).toBeInTheDocument();
+    expect(loadPlatformHint).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+  });
+
+  it("folds into the page overflow menu on phones when rendered in a page header", async () => {
+    render(
+      <HeaderActionsSlotProvider>
+        <DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />
+        <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+      </HeaderActionsSlotProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Open in UniWork Office" }).closest("[data-slot=button-group]")).toHaveClass("hidden", "sm:flex");
+    await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(2));
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual(["Open in UniWork Office", "Download UniWork Office"]);
+    items.forEach((item) => expect(item).toHaveClass("sm:hidden"));
   });
 
   it("reuses the install prompt for Download without saving or minting a launch ticket", async () => {
     const createSession = vi.fn();
     const downloadInstaller = vi.fn(async () => undefined);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty createSession={createSession} downloadInstaller={downloadInstaller} loadInstallers={async () => ({ installers: [{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }] })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Download UniWork Office" }));
+    await openDownload();
     await screen.findByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Download for Windows" }));
     await waitFor(() => expect(downloadInstaller).toHaveBeenCalledOnce());
@@ -41,7 +75,7 @@ describe("DesktopOpenAction", () => {
   });
   it("shows a localized download failure while keeping the prompt available", async () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} downloadInstaller={async () => { throw new Error("network"); }} installers={[{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Download UniWork Office" }));
+    await openDownload();
     fireEvent.click(await screen.findByRole("button", { name: "Download for Windows" }));
     await screen.findByText("Download failed. Please try again.");
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
@@ -50,7 +84,7 @@ describe("DesktopOpenAction", () => {
     const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body).toEqual(expect.objectContaining({ version: 2 })); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
     const launch = vi.fn(async () => "launched" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={createSession} launch={launch} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     await waitFor(() => expect(createSession).toHaveBeenCalled());
     expect(launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`);
   });
@@ -64,7 +98,7 @@ describe("DesktopOpenAction", () => {
       getState: () => ({ state: saved ? "saved" : "dirty", identity: {} as never, dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1, activeIntentId: null, error: null }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={() => 3} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     expect(screen.getByRole("button", { name: "Save then open" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open last saved version" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
@@ -88,7 +122,7 @@ describe("DesktopOpenAction", () => {
       getState: () => ({ state: "saved", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 2, activeIntentId: null, error: null }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={async (outcome) => outcome.receipt?.versionId === "version-3" ? 3 : null} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Save then open" }));
     await waitFor(() => expect(createSession).toHaveBeenCalled());
   });
@@ -98,7 +132,7 @@ describe("DesktopOpenAction", () => {
     const save = vi.fn(async () => ({ accepted: true, receipt: { version: 3 } }));
     const saveCoordinator = coordinator({ save });
     const { unmount } = render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={saveCoordinator} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Open last saved version" }));
     await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ version: 2 })));
     expect(save).not.toHaveBeenCalled();
@@ -106,7 +140,7 @@ describe("DesktopOpenAction", () => {
 
     const secondSession = vi.fn();
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={coordinator()} createSession={secondSession} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(secondSession).not.toHaveBeenCalled();
   });
@@ -115,7 +149,7 @@ describe("DesktopOpenAction", () => {
     const createSession = vi.fn();
     const failed = coordinator({ save: vi.fn(async () => ({ accepted: false, reason: "error" })) });
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={failed} createSession={createSession} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Save then open" }));
     await waitFor(() => expect(screen.getByText("Save failed. Your changes remain in this editor.")).toBeInTheDocument());
     expect(createSession).not.toHaveBeenCalled();
@@ -125,7 +159,7 @@ describe("DesktopOpenAction", () => {
     const newer = coordinator({ save: vi.fn(async () => ({ accepted: true, receipt: { version: 3 } })), dirtyGeneration: 3, lastSavedGeneration: 1, state: "dirty" });
     const createSession = vi.fn();
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={newer} versionAfterSave={() => 3} createSession={createSession} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Save then open" }));
     expect(await screen.findByText("New unsaved changes remain. Save again before opening UniWork Office.")).toBeInTheDocument();
     expect(createSession).not.toHaveBeenCalled();
@@ -134,7 +168,7 @@ describe("DesktopOpenAction", () => {
   it("keeps the editor intact and shows an install-unavailable prompt", async () => {
     const launch = vi.fn(async () => "not-installed" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
@@ -144,7 +178,7 @@ describe("DesktopOpenAction", () => {
   it("keeps the editor intact when the ticket callback reports an error", async () => {
     const launch = vi.fn(async () => "error" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     expect(await screen.findByText("The desktop handoff did not complete. Your editor and draft are unchanged.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
   });
@@ -152,7 +186,7 @@ describe("DesktopOpenAction", () => {
   it("fails closed and never mints a ticket when no deployment id was advertised", async () => {
     const createSession = vi.fn();
     render(<DesktopOpenAction documentId="doc-1" deploymentId={undefined} savedVersion={2} createSession={createSession} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     expect(await screen.findByText("UniWork Office could not prepare this document. Your editor and draft are unchanged.")).toBeInTheDocument();
     expect(createSession).not.toHaveBeenCalled();
   });

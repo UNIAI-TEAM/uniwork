@@ -19,6 +19,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
@@ -60,7 +61,7 @@ export interface DocumentWorkspaceProps {
   ownerHref?: (ownerId: string) => string;
   /**
    * Actions the detail host adds to the header (G1-08's menu). Rendered
-   * before the save indicator so the menu is the last, stable control.
+   * last, so the menu is the last, stable control.
    */
   headerActions?: ReactNode;
   /**
@@ -444,6 +445,7 @@ export function DocumentWorkspace({
   );
 
   return (
+    <HeaderActionsSlotProvider>
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
@@ -468,7 +470,8 @@ export function DocumentWorkspace({
         }
         actions={
           <>
-            {headerActions}
+            {/* An embedded Office editor's save + desktop cluster comes first. */}
+            <HeaderActionsSlot />
             {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
             {!canEdit ? (
               <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground"
@@ -478,6 +481,7 @@ export function DocumentWorkspace({
               </span>
             ) : null}
             <DocumentCommentsHeaderActions />
+            {headerActions}
           </>
         }
       />
@@ -590,5 +594,6 @@ export function DocumentWorkspace({
         </DialogContent>
       </Dialog>
     </div>
+    </HeaderActionsSlotProvider>
   );
 }

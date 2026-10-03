@@ -7,6 +7,7 @@ import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../layout/breadcrumb-header";
+import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../layout/header-actions-slot";
 import { PAGE_TOOLBAR } from "../layout/page-header";
 import { SaveStatus, type OfficeSaveStatusKind } from "./save-status";
 
@@ -47,6 +48,13 @@ export interface OfficeShellProps {
   /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
   saveDestination?: "cloud" | "local";
   editorReady?: boolean;
+  /**
+   * The host page already renders a header (web document page). The shell
+   * then renders no header of its own and hands its action cluster to the
+   * page header through `HeaderActionsSlotProvider`. Without a provider above
+   * it the shell falls back to its own header, so Save is never lost.
+   */
+  embedded?: boolean;
   className?: string;
 }
 
@@ -123,9 +131,12 @@ export function OfficeShell({
   saveLabel: providedSaveLabel,
   saveDestination = "cloud",
   editorReady = false,
+  embedded = false,
   className,
 }: OfficeShellProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office" });
+  const slotAvailable = useHeaderActionsSlotAvailable();
+  const inPageHeader = embedded && slotAvailable;
   const shellRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const coordinatorState = useCoordinatorState(saveCoordinator, saveState);
@@ -135,7 +146,7 @@ export function OfficeShell({
   const isWideViewport = useMediaQuery("(min-width: 1024px)");
   const isDarkTheme = useDarkTheme();
   const effectiveSaving = coordinatorState?.state === "saving";
-  const saveLabel = providedSaveLabel ?? t("save.action.save_to_cloud");
+  const saveLabel = providedSaveLabel ?? t(saveDestination === "local" ? "shell.save_to_device" : "shell.save_to_cloud");
   // Keep the control in the tab order while an intent is running so its
   // disabled state communicates the single coordinator guard.
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
@@ -184,13 +195,20 @@ export function OfficeShell({
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
+  // One row, never wrapping: status (hidden on phones, where the alert row
+  // below the header still carries a failure) · Save · panel · desktop · host.
   const headerActions = (
-    <div className="flex min-w-0 flex-wrap items-center gap-1">
-      {showSaveStatus ? <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} compact /> : null}
+    <div className="flex min-w-0 flex-nowrap items-center gap-1" data-office-header-actions>
+      {showSaveStatus ? (
+        <SaveStatus
+          status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} compact
+          className="hidden whitespace-nowrap px-1 sm:flex"
+        />
+      ) : null}
       {canSave ? (
-        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
+        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel} title={saveLabel} data-office-save>
           <Save aria-hidden />
-          {effectiveSaving ? t("saving") : saveLabel}
+          {effectiveSaving ? t("saving") : t("shell.save")}
         </Button>
       ) : null}
       {rightPanel ? (
@@ -216,10 +234,9 @@ export function OfficeShell({
       data-fullscreen={fullscreen}
       data-theme={isDarkTheme ? "dark" : "light"}
     >
-      <BreadcrumbHeader
-        segments={breadcrumbs} leaf={title} actions={headerActions}
-        className="h-auto min-h-12 flex-wrap gap-y-2 py-2 sm:flex-nowrap sm:py-0 [&>div:last-child]:w-full sm:[&>div:last-child]:w-auto [&>div:last-child]:max-w-none [&>div:last-child]:flex-wrap [&>div:last-child]:overflow-visible"
-      />
+      {inPageHeader ? <HeaderActionsFill actions={headerActions} /> : (
+        <BreadcrumbHeader segments={breadcrumbs} leaf={title} actions={headerActions} actionsClassName="max-w-none" />
+      )}
       {showSaveAlert ? (
         <SaveStatus
           status={saveStatus}

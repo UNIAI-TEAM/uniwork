@@ -14,7 +14,7 @@ it("mounts the app onto #root once i18n and the bridge are ready", async () => {
     onSessionChanged: () => () => undefined,
   };
   await import("./index");
-  await waitFor(() => expect(document.getElementById("root")?.textContent).toContain("Đăng nhập bằng trình duyệt"));
+  await waitFor(() => expect(document.getElementById("root")?.textContent).toContain("Đăng nhập"));
   expect(document.documentElement.lang).toBe("vi");
   expect(document.getElementById("root")?.textContent).not.toBe("");
 });
