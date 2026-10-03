@@ -17,6 +17,7 @@ import { createPageSetupCommands, type DocxPageSetupCommands, type DocxPageSetup
 import { createParagraphCommands, type DocxParagraphCommands, type DocxParagraphFormatState } from "./paragraph";
 import { createProtectCommands, type DocxProtectCommands, type DocxProtectFormatState } from "./protect";
 import { createReviewCommands, type DocxReviewCommands, type DocxReviewFormatState } from "./review";
+import { createShapesCommands, type DocxShapeCommands, type DocxShapeFormatState } from "./shapes";
 import { createTableCommands, type DocxTableCommands, type DocxTableFormatState } from "./table";
 import { createTocCommands, type DocxTocCommands, type DocxTocFormatState } from "./toc";
 
@@ -40,6 +41,7 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxCompareFormatState &
   DocxExportFormatState &
   DocxTocFormatState &
+  DocxShapeFormatState &
   DocxChartFormatState &
   DocxProtectFormatState;
 
@@ -66,6 +68,7 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxCompareCommands &
   DocxExportCommands &
   DocxTocCommands &
+  DocxShapeCommands &
   DocxChartCommands &
   DocxProtectCommands & {
     getState(): DocxRuntimeFormatState;
@@ -98,6 +101,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createCompareCommands,
   createExportCommands,
   createTocCommands,
+  createShapesCommands,
   createChartCommands,
   createProtectCommands,
 ];
