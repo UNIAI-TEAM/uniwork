@@ -46,7 +46,7 @@ describe("pdf page ops — insert blank page", () => {
       { op: "insertBlankPage", attributes: { afterPageIndex: -1, width: 200, height: 300 } } satisfies Op,
     ]);
     const doc = await PDFDocument.load(out.bytes);
-    expect(doc.getPageCount()).toBe(3);
+    expect(doc.getPageCount()).toBe((await pageCount(TEXT_PDF())) + 1);
     expect(doc.getPage(0).getWidth()).toBeCloseTo(200, 2);
     expect(doc.getPage(0).getHeight()).toBeCloseTo(300, 2);
   });
@@ -58,11 +58,12 @@ describe("pdf page ops — insert blank page", () => {
     ]);
     expect(out.report.blankPages).toEqual({ applied: 1, skipped: 0 });
     expect(out.report.insertedPdfs).toEqual({ applied: 1, skipped: 0 });
-    expect(await pageCount(out.bytes)).toBe(5);
+    const inserted = await pageCount(TEXT_PDF());
+    expect(await pageCount(out.bytes)).toBe((await pageCount(TEXT_PDF())) + inserted + 1);
     const doc = await PDFDocument.load(out.bytes);
-    // order: page 0, inserted pages 1-2, blank page 3 (300x400), original page 4
+    // order: page 0, inserted pages 1..N, blank page (300x400), original tail
     expect(doc.getPage(1).getWidth()).toBeCloseTo(doc.getPage(0).getWidth(), 2);
-    expect(doc.getPage(3).getWidth()).toBeCloseTo(300, 2);
+    expect(doc.getPage(1 + inserted).getWidth()).toBeCloseTo(300, 2);
   });
 
   it("skips an insert whose anchor page is out of range, with a warning", async () => {
@@ -71,28 +72,33 @@ describe("pdf page ops — insert blank page", () => {
     ]);
     expect(out.report.blankPages).toEqual({ applied: 0, skipped: 1 });
     expect(out.warnings.some((w) => w.code === "edit_skipped" && w.detail?.includes("insertBlankPage"))).toBe(true);
-    expect(await pageCount(out.bytes)).toBe(2);
+    expect(await pageCount(out.bytes)).toBe(await pageCount(TEXT_PDF()));
   });
 });
 
 describe("pdf page ops — insert pages from another PDF", () => {
   it("inserts the source's pages at the requested index", async () => {
-    const out = await applyPdfEditBytes(IMAGE_PDF(), [
-      { op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: b64(TEXT_PDF()) } } satisfies Op,
+    const host = IMAGE_PDF();
+    const source = TEXT_PDF();
+    const [hostCount, sourceCount] = [await pageCount(host), await pageCount(source)];
+    const out = await applyPdfEditBytes(host, [
+      { op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: b64(source) } } satisfies Op,
     ]);
     expect(out.report.insertedPdfs).toEqual({ applied: 1, skipped: 0 });
-    expect(await pageCount(out.bytes)).toBe(3);
+    expect(await pageCount(out.bytes)).toBe(hostCount + sourceCount);
     const text = await readPdfText(out.bytes);
-    expect(text.pages[1]!.text).toContain("Bao cao tong hop nam 2026");
-    expect(text.pages[2]!.text).toContain("Bao cao tong hop nam 2026");
+    for (let i = 1; i <= sourceCount; i++) {
+      expect(text.pages[i]!.text).toContain("Bao cao tong hop nam 2026");
+    }
   });
 
   it("honors a source page subset", async () => {
-    const subset = await applyPdfEditBytes(IMAGE_PDF(), [
+    const host = IMAGE_PDF();
+    const subset = await applyPdfEditBytes(host, [
       { op: "insertPdfPages", attributes: { afterPageIndex: -1, pdf: b64(TEXT_PDF()), pages: [1] } } satisfies Op,
     ]);
     expect(subset.report.insertedPdfs).toEqual({ applied: 1, skipped: 0 });
-    expect(await pageCount(subset.bytes)).toBe(2);
+    expect(await pageCount(subset.bytes)).toBe((await pageCount(host)) + 1);
   });
 
   it("refuses an unusable source PDF as a typed error, not a silent skip", async () => {
@@ -136,16 +142,18 @@ describe("pdf page ops — documents for a Documents commit (F2)", () => {
     ]);
     expect(out.report.newDocuments.merged).toBe(1);
     const doc = out.documents[0]!;
-    expect(doc).toMatchObject({ op: "mergePdfs", name: "gop", pageCount: 3 });
+    expect(doc).toMatchObject({ op: "mergePdfs", name: "gop" });
+    expect(doc.pageCount).toBe((await pageCount(TEXT_PDF())) + (await pageCount(IMAGE_PDF())));
   });
 
   it("splits into one document per chunk with part ordinals", async () => {
     const out = await applyPdfEditBytes(TEXT_PDF(), [
       { op: "splitPdf", attributes: { chunkSize: 1, name: "tach" } } satisfies Op,
     ]);
-    expect(out.report.newDocuments.splitParts).toBe(2);
-    expect(out.documents.map((doc) => doc.name)).toEqual(["tach-1", "tach-2"]);
-    expect(out.documents.map((doc) => doc.part)).toEqual([1, 2]);
+    const total = await pageCount(TEXT_PDF());
+    expect(out.report.newDocuments.splitParts).toBe(total);
+    expect(out.documents.map((doc) => doc.name)).toEqual(Array.from({ length: total }, (_value, i) => `tach-${i + 1}`));
+    expect(out.documents.map((doc) => doc.part)).toEqual(Array.from({ length: total }, (_value, i) => i + 1));
     expect(out.documents.every((doc) => doc.pageCount === 1)).toBe(true);
   });
 
@@ -154,7 +162,7 @@ describe("pdf page ops — documents for a Documents commit (F2)", () => {
     const out = await applyPdfEditBytes(input, [
       { op: "splitPdf", attributes: { chunkSize: 1 } } satisfies Op,
     ]);
-    expect(await pageCount(out.bytes)).toBe(2);
+    expect(await pageCount(out.bytes)).toBe(await pageCount(input));
   });
 });
 
@@ -211,28 +219,29 @@ describe("pdf page ops — typed parse errors", () => {
     const out = await applyPdfEditBytes(TEXT_PDF(), [
       { op: "splitPdf", attributes: { chunkSize: 1, name: "  " } } satisfies Op,
     ]);
-    expect(out.documents.map((doc) => doc.name)).toEqual(["split-1", "split-2"]);
+    expect(out.documents.map((doc) => doc.name)).toEqual(Array.from({ length: out.documents.length }, (_value, i) => `split-${i + 1}`));
   });
 });
 
 describe("pdf page ops — accumulation and annotation safety (F1)", () => {
   it("accumulates a page insert and an annotation across two saves", async () => {
+    const base = await pageCount(TEXT_PDF());
     const first = await applyPdfEditBytes(TEXT_PDF(), [
       { op: "insertBlankPage", attributes: { afterPageIndex: 1, width: 300, height: 400 } } satisfies Op,
     ]);
-    expect(await pageCount(first.bytes)).toBe(3);
+    expect(await pageCount(first.bytes)).toBe(base + 1);
 
     const second = await applyPdfEditBytes(first.bytes, [
       { op: "addMarkup", attributes: { markup: { pageIndex: 0, type: "highlight", color: [1, 0.8, 0], quads: [[10, 700, 80, 700, 10, 688, 80, 688]] } } } satisfies Op,
       { op: "extractPages", attributes: { pages: [0, 1] } } satisfies Op,
     ]);
     expect(second.report.markups).toEqual({ applied: 1, skipped: 0 });
-    expect(await pageCount(second.bytes)).toBe(3);
+    expect(await pageCount(second.bytes)).toBe(base + 1);
     expect(second.documents[0]!.pageCount).toBe(2);
 
     // Fresh reopen proves both saves survive: the blank page and the markup.
     const doc = await PDFDocument.load(second.bytes);
-    expect(doc.getPage(2).getWidth()).toBeCloseTo(300, 2);
+    expect(doc.getPage(base).getWidth()).toBeCloseTo(300, 2);
     const annots = doc.context.lookup(doc.getPage(0)!.node.get(PDFName.of("Annots"))!, PDFArray);
     const subtypes: string[] = [];
     for (let i = 0; i < annots.size(); i++) {
