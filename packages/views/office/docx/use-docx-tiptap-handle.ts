@@ -22,6 +22,9 @@ import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
+// B1 (UNI-924): the image layer rides inside the editing surface — the insert
+// entry and the inspector for the selected picture.
+import { DocxImageLayer } from "./image/docx-image-layer";
 import type { DocxEditorHandle, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
 
 /**
@@ -46,7 +49,7 @@ function useDarkSurface(): boolean {
   return dark;
 }
 
-function DocxRendererSurface({ editor, pagination }: { editor: Editor; pagination: DocxPaginationSpec | null }): ReactNode {
+function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor; pagination: DocxPaginationSpec | null; readOnly: boolean }): ReactNode {
   const dark = useDarkSurface();
   // T-02: attach the pagination driver once the surface (and therefore the
   // editor DOM inside .doc-zoom) is mounted; Strict Mode replays are safe.
@@ -57,32 +60,39 @@ function DocxRendererSurface({ editor, pagination }: { editor: Editor; paginatio
   }, [editor, pagination]);
   return createElement(
     "div",
-    { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
+    { className: "relative flex min-h-0 min-w-0 flex-1" },
     createElement(
       "div",
-      { className: dark ? "workspace page-dark" : "workspace" },
+      { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
       createElement(
         "div",
-        { className: "editor-scroll min-h-0 min-w-0 flex-1", "data-testid": "docx-document-surface" },
+        { className: dark ? "workspace page-dark" : "workspace" },
         createElement(
           "div",
-          { className: "doc-zoom view-print" },
+          { className: "editor-scroll min-h-0 min-w-0 flex-1", "data-testid": "docx-document-surface" },
           createElement(
             "div",
-            { className: "page-wrap" },
-            createElement(EditorContent, { editor }),
-            pagination && createElement(DocxNoteAreas, { editor, parsed: pagination.parsedDoc as RendererParsed }),
-            // First page's header/footer strips land here (no page gap above
-            // page 1); React owns the host, the paginator only its children.
-            createElement("div", {
-              className: "docx-page-hf-host",
-              "data-testid": "docx-page-hf-host",
-              style: { position: "absolute", inset: 0, pointerEvents: "none" },
-            }),
+            { className: "doc-zoom view-print" },
+            createElement(
+              "div",
+              { className: "page-wrap" },
+              createElement(EditorContent, { editor }),
+              pagination && createElement(DocxNoteAreas, { editor, parsed: pagination.parsedDoc as RendererParsed }),
+              // First page's header/footer strips land here (no page gap above
+              // page 1); React owns the host, the paginator only its children.
+              createElement("div", {
+                className: "docx-page-hf-host",
+                "data-testid": "docx-page-hf-host",
+                style: { position: "absolute", inset: 0, pointerEvents: "none" },
+              }),
+            ),
           ),
         ),
       ),
     ),
+    // B1 (UNI-924): sibling of the scope root on purpose — the vendored
+    // renderer sheet is scoped to .docx-surface and must not restyle chrome.
+    createElement(DocxImageLayer, { editor, readOnly }),
   );
 }
 
@@ -240,7 +250,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
     renderSurface(): ReactNode {
       if (!tiptapEditor) return null;
-      return createElement(DocxRendererSurface, { editor: tiptapEditor, pagination: paginationSpec });
+      return createElement(DocxRendererSurface, { editor: tiptapEditor, pagination: paginationSpec, readOnly: options.readOnly === true });
     },
     modelRef: () => ref,
     openOutcome: () => openedOutcome,
