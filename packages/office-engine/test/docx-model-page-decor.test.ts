@@ -199,6 +199,19 @@ describe("set_page_borders", () => {
     expect(trailing).toContain('<w:bottom w:val="single" w:sz="4" w:space="24" w:color="auto"/>');
   });
 
+  it("inserts the box before w:sectPrChange and expands a self-closing sectPr", () => {
+    const changed = new DocxSessionModel(singleSectionParsed(SECT_PR('<w:sectPrChange w:id="1"/>')));
+    changed.setPageBorders(0, { style: "double", widthEighths: 8 });
+    const withChange = changed.savePlan().options.trailingSectPr ?? "";
+    expect(withChange).toContain('</w:pgBorders><w:sectPrChange w:id="1"/>');
+
+    const bare = new DocxSessionModel(singleSectionParsed("<w:sectPr/>"));
+    bare.setPageBorders(0, { style: "single", widthEighths: 4 });
+    const expanded = bare.savePlan().options.trailingSectPr ?? "";
+    expect(expanded).toContain("<w:sectPr><w:pgBorders>");
+    expect(expanded).toContain("</w:pgBorders></w:sectPr>");
+  });
+
   it("refuses a bad section index, a section without sectPr and bad border values", () => {
     const model = new DocxSessionModel(twoSectionParsed());
     expect(errCode(() => model.setPageBorders(-1, { style: "single" }))).toBe("bad_section_index");

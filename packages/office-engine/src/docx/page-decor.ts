@@ -50,7 +50,7 @@ const PG_BORDERS_RE = /<w:pgBorders[^>]*\/>|<w:pgBorders[\s\S]*?<\/w:pgBorders>/
 const PG_BORDER_SIDE_RE = /<w:(?:top|left|bottom|right)\b[^>]*\/?>/g;
 /** CT_SectPr children that follow w:pgBorders (the insert anchor). */
 const AFTER_PG_BORDERS_RE =
-  /<w:(?:lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings)[\s/>]/;
+  /<w:(?:lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)[\s/>]/;
 const BORDER_SIDES = ["top", "left", "bottom", "right"] as const;
 
 /** ST_Border line styles (upstream section.ts:53); anything else is an art
@@ -141,6 +141,8 @@ export function applyPageBorders(sectPrXml: string, borders: DocxPageBorders | n
   const tag = `<w:pgBorders${borders.offsetFrom ? ` w:offsetFrom="${borders.offsetFrom}"` : ""}>${sides}</w:pgBorders>`;
   const anchor = AFTER_PG_BORDERS_RE.exec(xml);
   if (anchor) return xml.slice(0, anchor.index) + tag + xml.slice(anchor.index);
+  const selfClosing = /^<w:sectPr(\s[^>]*)?\/>$/.exec(xml);
+  if (selfClosing) return `<w:sectPr${selfClosing[1] ?? ""}>${tag}</w:sectPr>`;
   return xml.replace(/<\/w:sectPr>/, `${tag}</w:sectPr>`);
 }
 
