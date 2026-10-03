@@ -7335,7 +7335,7 @@
         "mergePages": "Merge pages",
         "annotations": "Annotations (separate from content editing)"
       },
-      "selection": { "none": "No page selected", "page": "Page {{page}}" },
+      "selection": { "none": "No page selected", "page": "Page {{page}}", "background": "Page {{page}} background" },
       "capabilityPending": "This PDF capability is not available in this engine build.",
       "state": { "opening": "Opening PDF…", "error": "Could not open PDF" },
       "saveState": {
