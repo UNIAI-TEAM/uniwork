@@ -6,9 +6,10 @@ import { resolveGalleryStyle, type DocxGalleryStyleId } from "./styles-gallery";
 export type ParagraphAlign = "left" | "center" | "right" | "justify";
 
 export interface DocxParagraphFormatState {
-  /** Effective alignment; a missing w:jc reads as left, so one button is always
-   * the active one. */
-  align: ParagraphAlign;
+  /** Effective alignment; a missing w:jc reads as left while a value outside
+   * the four buttons (the parser's "distribute") reads as null so no button is
+   * falsely pressed. */
+  align: ParagraphAlign | null;
   /** Direct w:ind w:left in twips; null = inherit from the style/numbering. */
   indentLeftTwips: number | null;
   /** w:spacing w:line multiple; null = inherit. */
@@ -49,19 +50,22 @@ export function isParagraphBlock(node: PmNode): boolean {
   return PARAGRAPH_BLOCK_TYPES.has(node.type.name);
 }
 
-export function readParagraphAlign(value: unknown): ParagraphAlign {
-  return typeof value === "string" && ALIGNMENTS.has(value) ? (value as ParagraphAlign) : "left";
+export function readParagraphAlign(value: unknown): ParagraphAlign | null {
+  if (typeof value === "string" && ALIGNMENTS.has(value)) return value as ParagraphAlign;
+  // A missing w:jc is Word's left default; any other string (e.g. the
+  // parser's "distribute") has no button, so none may read as pressed.
+  return value === null || value === undefined ? "left" : null;
 }
 
-function readTwips(value: unknown): number | null {
+export function readTwips(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function readLevel(value: unknown): number | null {
+export function readLevel(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
-function readStyleId(value: unknown): string | null {
+export function readStyleId(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 

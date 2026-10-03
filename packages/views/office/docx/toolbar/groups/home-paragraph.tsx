@@ -3,6 +3,7 @@
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, IndentDecrease, IndentIncrease } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { ptFromTwips, type ParagraphAlign } from "../../paragraph/paragraph-format";
 import { ParagraphSpacingPicker } from "../../paragraph/spacing-controls";
 import type { DocxToolbarGroupContext } from "../types";
@@ -24,24 +25,24 @@ const ALIGNMENTS: readonly { align: ParagraphAlign; icon: typeof AlignLeft; labe
 export function HomeParagraphGroup({ format, commands, readOnly, saving }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const blocked = readOnly || saving || !commands || !format;
-  const align = format?.align ?? "left";
+  const align = format?.align ?? null;
 
   return (
     <div className="flex flex-wrap items-center gap-1">
       {ALIGNMENTS.map(({ align: value, icon: Icon, labelKey }) => (
-        <Button
+        <Toggle
           key={value}
           type="button"
           variant="toolbar"
-          size="icon-sm"
-          aria-label={t(labelKey)}
-          aria-pressed={align === value}
+          size="sm"
+          pressed={align === value}
+          onPressedChange={() => commands?.setParagraphAlign(value)}
           disabled={blocked}
-          onClick={() => commands?.setParagraphAlign(value)}
+          aria-label={t(labelKey)}
           data-testid={`docx-align-${value}`}
         >
           <Icon aria-hidden />
-        </Button>
+        </Toggle>
       ))}
       <Button
         type="button"

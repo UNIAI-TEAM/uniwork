@@ -25,17 +25,22 @@ function draftOf(value: number | null): string {
   return value === null ? "" : String(value);
 }
 
-function parsePt(raw: string): number | null {
-  if (raw.trim() === "") return null;
-  const parsed = Number.parseFloat(raw.replace(",", "."));
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+/** A field reading: a number, null for blank ("inherit") or undefined for an
+ * entry that is not a usable number. */
+function parsePt(raw: string): number | null | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const parsed = Number.parseFloat(trimmed.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
   return Math.min(MAX_SPACING_PT, parsed);
 }
 
-function parseMultiple(raw: string): number | null {
-  if (raw.trim() === "") return null;
-  const parsed = Number.parseFloat(raw.replace(",", "."));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+function parseMultiple(raw: string): number | null | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const parsed = Number.parseFloat(trimmed.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+  return parsed;
 }
 
 /** The Home tab's line + paragraph spacing popover (task A3): Word's line
@@ -66,11 +71,21 @@ export function ParagraphSpacingPicker({
 
   const commitLine = (raw: string): void => {
     const parsed = parseMultiple(raw);
-    if (parsed === null && raw.trim() !== "") {
+    if (parsed === undefined) {
       setLineDraft(draftOf(lineSpacing));
       return;
     }
-    if (parsed !== null && lineSpacing !== null && Math.round(parsed * 100) === Math.round(lineSpacing * 100)) {
+    // Blank or 0 clears the multiple back to inherit, matching the command
+    // layer's null handling.
+    if (parsed === null || parsed === 0) {
+      if (lineSpacing === null) {
+        setLineDraft(draftOf(lineSpacing));
+        return;
+      }
+      onLineSpacing(null);
+      return;
+    }
+    if (lineSpacing !== null && Math.round(parsed * 100) === Math.round(lineSpacing * 100)) {
       setLineDraft(draftOf(lineSpacing));
       return;
     }
@@ -79,11 +94,21 @@ export function ParagraphSpacingPicker({
 
   const commitSpace = (raw: string, value: number | null, onSet: (pt: number | null) => void, restore: (draft: string) => void): void => {
     const parsed = parsePt(raw);
-    if (parsed === null && raw.trim() !== "") {
+    if (parsed === undefined) {
       restore(draftOf(value));
       return;
     }
-    if (parsed !== null && value !== null && Math.round(parsed * 2) === Math.round(value * 2)) {
+    // Blank or 0 clears the spacing back to inherit; the OOXML writer only
+    // emits positive w:before/w:after, so an explicit 0 is not representable.
+    if (parsed === null || parsed === 0) {
+      if (value === null) {
+        restore(draftOf(value));
+        return;
+      }
+      onSet(null);
+      return;
+    }
+    if (value !== null && Math.round(parsed * 2) === Math.round(value * 2)) {
       restore(draftOf(value));
       return;
     }

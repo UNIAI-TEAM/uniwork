@@ -1,12 +1,15 @@
 import type { Editor } from "@tiptap/core";
-import type { Node as PmNode } from "@tiptap/pm/model";
+import type { Node as PmNode, NodeType } from "@tiptap/pm/model";
 import {
   INDENT_STEP_TWIPS,
   MAX_LINE_SPACING,
   MAX_SPACING_PT,
   MIN_LINE_SPACING,
   isParagraphBlock,
+  readLevel,
   readParagraphAlign,
+  readStyleId,
+  readTwips,
   type ParagraphAlign,
 } from "./paragraph-format";
 import { galleryStyleId, headingLevelFor, type DocxGalleryStyleId } from "./styles-gallery";
@@ -41,12 +44,21 @@ function editable(editor: Editor | null): Editor | null {
   return editor && !editor.isDestroyed && editor.isEditable ? editor : null;
 }
 
-function readTwips(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+/** A block type may only be swapped where the parent's content expression
+ * accepts the new type at that index. `setNodeMarkup` validates the node's own
+ * content, not the parent's, so without this check a heading would land inside
+ * a docTableCell/docTableHeader — schema-invalid, and the cell save path
+ * (convert.ts cellParas) would drop the block's text. */
+function canHostBlock(parent: PmNode | null, index: number, type: NodeType): boolean {
+  return parent !== null && parent.canReplaceWith(index, index, type);
 }
 
-function readLevel(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+/** The cell save path (convert.ts cellParas/richParas) reads neither styleId
+ * nor a block type swap, so a gallery style applied inside a cell would look
+ * applied and revert on save. Refuse there instead of faking it. */
+function inTableCell(parent: PmNode | null): boolean {
+  if (!parent) return false;
+  return parent.type.name === "docTableCell" || parent.type.name === "docTableHeader";
 }
 
 /**
@@ -54,16 +66,19 @@ function readLevel(value: unknown): number {
  * walk TipTap's updateAttributes does — extended so a gallery entry can also
  * swap the block type. A collapsed caret still visits its own block.
  */
-function updateSelectedBlocks(editor: Editor | null, change: (node: PmNode) => BlockChange | null): void {
+function updateSelectedBlocks(
+  editor: Editor | null,
+  change: (node: PmNode, parent: PmNode | null, index: number) => BlockChange | null,
+): void {
   const current = editable(editor);
   if (!current) return;
   const { state } = current;
   const { from, to } = state.selection;
   const tr = state.tr;
   let changed = false;
-  state.doc.nodesBetween(from, to, (node, pos) => {
+  state.doc.nodesBetween(from, to, (node, pos, parent, index) => {
     if (!isParagraphBlock(node)) return true;
-    const patch = change(node);
+    const patch = change(node, parent, index);
     if (patch !== null) {
       tr.setNodeMarkup(pos, patch.type, { ...node.attrs, ...patch.attrs });
       changed = true;
@@ -97,16 +112,20 @@ export function setParagraphAlign(editor: Editor | null, align: ParagraphAlign):
 export function stepParagraphIndent(editor: Editor | null, direction: 1 | -1): void {
   updateSelectedBlocks(editor, (node) => {
     if (node.type.name === "docListItem") {
-      const level = readLevel(node.attrs.ilvl);
+      const level = readLevel(node.attrs.ilvl) ?? 0;
       const next = clamp(level + direction, 0, LIST_MAX_LEVEL);
       return next === level ? null : { attrs: { ilvl: next } };
     }
+    // Word snaps to the half-inch stops instead of adding 720 to whatever a
+    // foreign file carried, and outdenting past the first stop clears the
+    // direct indent to inherit (genoffice runStepIndent).
     const indent = readTwips(node.attrs.indentLeft) ?? 0;
-    const next = indent + direction * INDENT_STEP_TWIPS;
-    // Outdenting at the left margin is a no-op: an explicit 0 would only add a
-    // phantom edit that cancels nothing the UI can see.
-    if (next < 0 || next === indent) return null;
-    return { attrs: { indentLeft: next } };
+    const next =
+      direction > 0
+        ? Math.floor(indent / INDENT_STEP_TWIPS) * INDENT_STEP_TWIPS + INDENT_STEP_TWIPS
+        : Math.max(Math.ceil(indent / INDENT_STEP_TWIPS) * INDENT_STEP_TWIPS - INDENT_STEP_TWIPS, 0);
+    if (next === indent) return null;
+    return { attrs: { indentLeft: next === 0 ? null : next } };
   });
 }
 
@@ -141,10 +160,6 @@ export function setSpaceAfterPt(editor: Editor | null, pt: number | null): void 
   setSpaceSide(editor, "spaceAfter", pt);
 }
 
-function readStyleId(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
-}
-
 export function applyParagraphStyle(editor: Editor | null, style: DocxGalleryStyleId): void {
   const current = editable(editor);
   if (!current) return;
@@ -152,7 +167,8 @@ export function applyParagraphStyle(editor: Editor | null, style: DocxGallerySty
   if (headingLevel !== null) {
     const headingType = current.schema.nodes.docHeading;
     if (!headingType) return;
-    updateSelectedBlocks(current, (node) => {
+    updateSelectedBlocks(current, (node, parent, index) => {
+      if (!canHostBlock(parent, index, headingType)) return null;
       if (
         node.type.name === "docHeading" &&
         readLevel(node.attrs.level) === headingLevel &&
@@ -169,7 +185,8 @@ export function applyParagraphStyle(editor: Editor | null, style: DocxGallerySty
   }
   const paragraphType = current.schema.nodes.docParagraph;
   const styleId = galleryStyleId(style);
-  updateSelectedBlocks(current, (node) => {
+  updateSelectedBlocks(current, (node, parent) => {
+    if (inTableCell(parent)) return null;
     if (node.type.name === "docHeading") {
       if (!paragraphType) return null;
       return { type: paragraphType, attrs: { styleId } };

@@ -8,8 +8,8 @@ import type { DocxToolbarGroupContext } from "../toolbar/types";
 
 const editors: Editor[] = [];
 
-function paragraph(text: string): JSONContent {
-  return { type: "docParagraph", attrs: { docxIndex: 0 }, content: [{ type: "text", text }] };
+function paragraph(text: string, attrs: Record<string, unknown> = {}): JSONContent {
+  return { type: "docParagraph", attrs: { docxIndex: 0, ...attrs }, content: [{ type: "text", text }] };
 }
 
 function editorWith(content: JSONContent[]): Editor {
@@ -73,9 +73,10 @@ function renderGroup(
     saving?: boolean;
     commands?: DocxCommandRuntime;
     formatOverride?: Partial<NonNullable<DocxToolbarGroupContext["format"]>>;
+    attrs?: Record<string, unknown>;
   } = {},
 ) {
-  const editor = editorWith([paragraph("hello world")]);
+  const editor = editorWith([paragraph("hello world", options.attrs)]);
   const runtime = createDocxCommandRuntime(() => editor);
   editor.commands.setTextSelection(2);
   const format = { ...runtime.getState(), ...(options.formatOverride ?? {}) } as DocxToolbarGroupContext["format"];
@@ -102,6 +103,13 @@ describe("HomeParagraphGroup", () => {
     expect(screen.getByTestId("docx-align-left")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("shows no pressed button for an alignment outside the four (distribute)", () => {
+    renderGroup({ attrs: { align: "distribute" } });
+    for (const value of ["left", "center", "right", "justify"]) {
+      expect(screen.getByTestId(`docx-align-${value}`)).toHaveAttribute("aria-pressed", "false");
+    }
+  });
+
   it("labels every control through i18n", () => {
     renderGroup();
     expect(screen.getByRole("button", { name: "Căn trái" })).toBeInTheDocument();
@@ -121,7 +129,7 @@ describe("HomeParagraphGroup", () => {
     expect(attrsOf(editor).align).toBe("right");
   });
 
-  it("steps the indent by one stop and clamps the outdent at the margin", () => {
+  it("steps the indent by one stop and clears the direct indent at the margin", () => {
     const { editor } = renderGroup();
     fireEvent.click(screen.getByTestId("docx-indent-increase"));
     expect(attrsOf(editor).indentLeft).toBe(720);
@@ -130,9 +138,26 @@ describe("HomeParagraphGroup", () => {
     fireEvent.click(screen.getByTestId("docx-indent-decrease"));
     expect(attrsOf(editor).indentLeft).toBe(720);
     fireEvent.click(screen.getByTestId("docx-indent-decrease"));
-    expect(attrsOf(editor).indentLeft).toBe(0);
+    expect(attrsOf(editor).indentLeft ?? null).toBeNull();
+    const before = editor.getJSON();
     fireEvent.click(screen.getByTestId("docx-indent-decrease"));
-    expect(attrsOf(editor).indentLeft).toBe(0);
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("snaps an outdent from between stops down to the stop below", () => {
+    const { editor } = renderGroup({ attrs: { indentLeft: 820 } });
+    fireEvent.click(screen.getByTestId("docx-indent-decrease"));
+    expect(attrsOf(editor).indentLeft).toBe(720);
+    fireEvent.click(screen.getByTestId("docx-indent-increase"));
+    expect(attrsOf(editor).indentLeft).toBe(1440);
+  });
+
+  it("snaps a non-stop indent up to the next stop before stepping back home", () => {
+    const { editor } = renderGroup({ attrs: { indentLeft: 100 } });
+    fireEvent.click(screen.getByTestId("docx-indent-increase"));
+    expect(attrsOf(editor).indentLeft).toBe(720);
+    fireEvent.click(screen.getByTestId("docx-indent-decrease"));
+    expect(attrsOf(editor).indentLeft ?? null).toBeNull();
   });
 
   it("sets a line-spacing preset from the spacing popover", async () => {
@@ -163,6 +188,26 @@ describe("HomeParagraphGroup", () => {
     fireEvent.change(after, { target: { value: "6" } });
     fireEvent.keyDown(after, { key: "Enter" });
     expect(attrsOf(editor).spaceAfter).toBe(120);
+  });
+
+  it("clears line and paragraph spacing back to inherit when 0 is entered", async () => {
+    const { editor } = renderGroup({ attrs: { lineSpacing: 1.5, spaceBefore: 240, spaceAfter: 240 } });
+    fireEvent.click(screen.getByTestId("docx-paragraph-spacing"));
+
+    const custom = await screen.findByTestId("docx-line-spacing-custom");
+    fireEvent.change(custom, { target: { value: "0" } });
+    fireEvent.keyDown(custom, { key: "Enter" });
+    expect(attrsOf(editor).lineSpacing ?? null).toBeNull();
+
+    const before = screen.getByTestId("docx-space-before");
+    fireEvent.change(before, { target: { value: "0" } });
+    fireEvent.blur(before);
+    expect(attrsOf(editor).spaceBefore ?? null).toBeNull();
+
+    const after = screen.getByTestId("docx-space-after");
+    fireEvent.change(after, { target: { value: "0" } });
+    fireEvent.keyDown(after, { key: "Enter" });
+    expect(attrsOf(editor).spaceAfter ?? null).toBeNull();
   });
 
   it("disables every control while read-only", () => {

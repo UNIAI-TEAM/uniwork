@@ -1,4 +1,5 @@
 import { Editor, type JSONContent } from "@tiptap/core";
+import { CellSelection } from "@tiptap/pm/tables";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
@@ -13,10 +14,52 @@ function paragraph(text: string): JSONContent {
   return { type: "docParagraph", attrs: { docxIndex: 0 }, content: [{ type: "text", text }] };
 }
 
+function cell(text: string): JSONContent {
+  return { type: "docTableCell", content: [paragraph(text)] };
+}
+
+function tableContent(...cells: string[]): JSONContent[] {
+  return [
+    paragraph("outside"),
+    { type: "docTable", content: [{ type: "docTableRow", content: cells.map(cell) }] },
+  ];
+}
+
 function editorWith(content: JSONContent[]): Editor {
   const editor = new Editor({ extensions: docxExtensions(), content: { type: "doc", content } });
   editors.push(editor);
   return editor;
+}
+
+function paragraphPos(editor: Editor, text: string): number {
+  let found = -1;
+  editor.state.doc.descendants((node, pos) => {
+    if (found === -1 && node.type.name === "docParagraph" && node.textContent === text) found = pos;
+    return found === -1;
+  });
+  return found;
+}
+
+function caretInCell(editor: Editor, text: string): void {
+  const pos = paragraphPos(editor, text);
+  if (pos < 0) throw new Error("cell paragraph missing");
+  editor.commands.setTextSelection(pos + 2);
+}
+
+function selectCells(editor: Editor): void {
+  const positions: number[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "docTableCell" || node.type.name === "docTableHeader") positions.push(pos);
+    return true;
+  });
+  const first = positions[0];
+  const last = positions[positions.length - 1];
+  if (first === undefined || last === undefined) throw new Error("table cells missing");
+  editor.view.dispatch(
+    editor.state.tr.setSelection(
+      new CellSelection(editor.state.doc.resolve(first + 1), editor.state.doc.resolve(last + 1)),
+    ),
+  );
 }
 
 function blockAt(editor: Editor) {
@@ -73,11 +116,14 @@ function renderGroup(
     readOnly?: boolean;
     commands?: DocxCommandRuntime;
     paragraphStyle?: DocxGalleryStyleId | null;
+    content?: JSONContent[];
+    caret?: (editor: Editor) => void;
   } = {},
 ) {
-  const editor = editorWith([paragraph("hello world")]);
+  const editor = editorWith(options.content ?? [paragraph("hello world")]);
   const runtime = createDocxCommandRuntime(() => editor);
-  editor.commands.setTextSelection(2);
+  if (options.caret) options.caret(editor);
+  else editor.commands.setTextSelection(2);
   const format = {
     ...runtime.getState(),
     paragraphStyle: options.paragraphStyle === undefined ? "normal" : options.paragraphStyle,
@@ -108,6 +154,13 @@ describe("HomeStylesGroup", () => {
   it("shows the heading style the caret sits in", () => {
     renderGroup({ paragraphStyle: "heading-2" });
     expect(screen.getByTestId("docx-styles-gallery")).toHaveTextContent("Tiêu đề 2");
+  });
+
+  it("labels the Title style apart from the numbered heading levels", async () => {
+    renderGroup();
+    await openGallery();
+    expect(screen.getByTestId("docx-style-title")).toHaveTextContent("Tên đề");
+    expect(screen.getByTestId("docx-style-heading-2")).toHaveTextContent("Tiêu đề 2");
   });
 
   it("shows a neutral label for a style outside the gallery", () => {
@@ -149,5 +202,45 @@ describe("HomeStylesGroup", () => {
   it("disables the gallery without a command runtime", () => {
     renderGroup({ commands: undefined });
     expect(screen.getByTestId("docx-styles-gallery")).toBeDisabled();
+  });
+});
+
+describe("HomeStylesGroup: table cells", () => {
+  it("refuses a heading swap for a caret inside a table cell", async () => {
+    const { editor } = renderGroup({
+      content: tableContent("cell text"),
+      caret: (e) => caretInCell(e, "cell text"),
+    });
+    const before = editor.getJSON();
+    await openGallery();
+    fireEvent.click(screen.getByTestId("docx-style-heading-2"));
+    expect(paragraphPos(editor, "cell text")).toBeGreaterThan(-1);
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("refuses a heading swap for a selection spanning table cells", async () => {
+    const { editor } = renderGroup({
+      content: tableContent("cell one", "cell two"),
+      caret: selectCells,
+    });
+    const before = editor.getJSON();
+    await openGallery();
+    fireEvent.click(screen.getByTestId("docx-style-heading-2"));
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("refuses Title and Quote inside a table cell instead of faking the save", async () => {
+    const { editor } = renderGroup({
+      content: tableContent("cell text"),
+      caret: (e) => caretInCell(e, "cell text"),
+    });
+    const before = editor.getJSON();
+    await openGallery();
+    fireEvent.click(screen.getByTestId("docx-style-title"));
+    expect(editor.getJSON()).toEqual(before);
+
+    await openGallery();
+    fireEvent.click(screen.getByTestId("docx-style-quote"));
+    expect(editor.getJSON()).toEqual(before);
   });
 });
