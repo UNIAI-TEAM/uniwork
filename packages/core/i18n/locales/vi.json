@@ -7401,6 +7401,27 @@
         "error": "Không thể áp dụng thao tác ghi chú. Thử lại.",
         "contentNotice": "Ghi chú là chú thích PDF; nội dung trang không bị viết lại."
       },
+      "pageOps": {
+        "title": "Thao tác trang",
+        "anchor": "Chèn sau trang",
+        "anchorPlaceholder": "Đầu tài liệu",
+        "assetsEmpty": "Chưa có PDF nào để chọn.",
+        "insertBlank": { "title": "Chèn trang trắng", "width": "Chiều rộng", "height": "Chiều cao", "submit": "Chèn trang trắng" },
+        "insertPdf": { "title": "Chèn trang từ PDF", "asset": "PDF nguồn", "submit": "Chèn các trang" },
+        "extract": {
+          "title": "Trích xuất trang", "ranges": "Khoảng trang", "rangesPlaceholder": "Ví dụ: 1-3, 5",
+          "submit": "Trích xuất", "submitSelection": "Trích xuất {{count}} trang đã chọn"
+        },
+        "merge": { "title": "Gộp PDF", "submit": "Gộp tài liệu" },
+        "split": { "title": "Tách tài liệu", "chunk": "Số trang mỗi phần", "submit": "Tách" },
+        "results": { "title": "Tài liệu đã tạo", "document": "{{name}} · {{count}} trang" },
+        "errors": {
+          "input": "Trang hoặc khoảng trang không hợp lệ.",
+          "asset": "Không thể đọc tệp PDF.",
+          "commit": "Không thể lưu tài liệu đã tạo.",
+          "failed": "Không thể áp dụng thao tác trang. Thử lại."
+        }
+      },
       "signatures": {
         "title": "Chữ ký đã lưu",
         "loading": "Đang tải chữ ký…",

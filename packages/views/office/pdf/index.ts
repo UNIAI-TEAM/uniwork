@@ -93,6 +93,23 @@ export type {
   PdfSaveCopyButtonProps,
   PdfSaveCopyRequest,
 } from "./export";
+export { PdfPageOpsPanel, parsePageRanges, createPdfPageOpsProvider, decodePdfPageOpsDocuments, PdfPageOpsProviderError, pdfPageOpsErrorMessage, MAX_PDF_SOURCE_BYTES } from "./page-ops";
+export type {
+  PdfBlankPageInsertInput,
+  PdfExtractPagesInput,
+  PdfInsertPdfPagesInput,
+  PdfMergePdfsInput,
+  PdfNewDocument,
+  PdfPageOpsAssetOption,
+  PdfPageOpsEngineOperation,
+  PdfPageOpsOperationProvider,
+  PdfPageOpsOperationSubmitter,
+  PdfPageOpsPanelProps,
+  PdfPageOpsProviderOptions,
+  PdfPageOpsResult,
+  PdfPageSize,
+  PdfSplitPdfInput,
+} from "./page-ops";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,

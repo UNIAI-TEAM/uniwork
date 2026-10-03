@@ -18,100 +18,30 @@ import type {
   TextEditInput,
   TextInsertInput,
 } from "./types.ts";
-
-export class PdfOpError extends Error {
-  readonly opName: string;
-  readonly field: string;
-  /** The op itself is outside the bound vocabulary (not a malformed argument). */
-  readonly unsupported: boolean;
-  constructor(opName: string, field: string, message: string, unsupported = false) {
-    super(`${opName}.${field}: ${message}`);
-    this.name = "PdfOpError";
-    this.opName = opName;
-    this.field = field;
-    this.unsupported = unsupported;
-  }
-}
-
-type Dict = Record<string, unknown>;
-const isDict = (v: unknown): v is Dict =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
-
-/** Cheap count bounds — the HTTP body cap bounds memory, but each parsed edit
-    means a pdfium page pass and a verify row, so a 50k-item batch would burn
-    the whole CPU/deadline budget on one job. Fail fast and typed instead. */
-const MAX_EDITS = 1000;
-const MAX_LIST_ITEMS = 10_000;
-const MAX_TEXT_LEN = 1 << 20;
-const MAX_IMAGE_B64_LEN = 64 << 20;
-
-function capEdits(edits: unknown[]): void {
-  if (edits.length > MAX_EDITS) throw new PdfOpError("<edits>", "", `at most ${MAX_EDITS} ops per job`);
-}
-
-function capList(v: unknown[], op: string, f: string): unknown[] {
-  if (v.length > MAX_LIST_ITEMS) throw new PdfOpError(op, f, `at most ${MAX_LIST_ITEMS} items`);
-  return v;
-}
-
-function capText(s: string, op: string, f: string): string {
-  if (s.length > MAX_TEXT_LEN) throw new PdfOpError(op, f, `text exceeds ${MAX_TEXT_LEN} chars`);
-  return s;
-}
-
-function capImageB64(s: string, op: string, f: string): string {
-  if (s.length > MAX_IMAGE_B64_LEN) throw new PdfOpError(op, f, "image data exceeds the bound");
-  return s;
-}
-
-function num(v: unknown, op: string, f: string): number {
-  if (typeof v !== "number" || !Number.isFinite(v)) throw new PdfOpError(op, f, "number required");
-  return v;
-}
-function int(v: unknown, op: string, f: string): number {
-  const n = num(v, op, f);
-  if (!Number.isSafeInteger(n)) throw new PdfOpError(op, f, "integer required");
-  return n;
-}
-function str(v: unknown, op: string, f: string): string {
-  if (typeof v !== "string") throw new PdfOpError(op, f, "string required");
-  return v;
-}
-function bool(v: unknown, op: string, f: string): boolean {
-  if (typeof v !== "boolean") throw new PdfOpError(op, f, "boolean required");
-  return v;
-}
-function vec4(v: unknown, op: string, f: string): [number, number, number, number] {
-  if (!Array.isArray(v) || v.length !== 4 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
-    throw new PdfOpError(op, f, "[x1,y1,x2,y2] number tuple required");
-  }
-  return [v[0], v[1], v[2], v[3]] as [number, number, number, number];
-}
-function vec2(v: unknown, op: string, f: string): [number, number] {
-  if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
-    throw new PdfOpError(op, f, "[x,y] number tuple required");
-  }
-  return [v[0], v[1]] as [number, number];
-}
-function rgb255(v: unknown, op: string, f: string): [number, number, number] {
-  if (!Array.isArray(v) || v.length !== 3 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) {
-    throw new PdfOpError(op, f, "[r,g,b] 0-255 tuple required");
-  }
-  return [v[0], v[1], v[2]] as [number, number, number];
-}
-function opt<T>(v: unknown, parse: (v: unknown, op: string, f: string) => T, op: string, f: string): T | undefined {
-  return v === undefined ? undefined : parse(v, op, f);
-}
-function attrsOf(item: Dict): Dict {
-  const merged: Dict = {};
-  if (isDict(item.target)) Object.assign(merged, item.target);
-  if (isDict(item.attributes)) Object.assign(merged, item.attributes);
-  // Convenience wire fields ride at the top level when the caller put them there.
-  for (const k of ["text", "style", "range"]) {
-    if (item[k] !== undefined && merged[k] === undefined) merged[k] = item[k];
-  }
-  return merged;
-}
+export { PdfOpError } from "./op-parse.ts";
+import {
+  attrsOf,
+  bool,
+  capEdits,
+  capImageB64,
+  capList,
+  capText,
+  type Dict,
+  int,
+  isDict,
+  num,
+  opt,
+  parseExtractPages,
+  parseInsertBlankPage,
+  parseInsertPdfPages,
+  parseMergePdfs,
+  parseSplitPdf,
+  PdfOpError,
+  rgb255,
+  str,
+  vec2,
+  vec4,
+} from "./op-parse.ts";
 
 const MARKUP_SUBTYPES = new Set(["highlight", "underline", "strikeout", "note"]);
 
@@ -453,6 +383,30 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       case "setMetadata":
         // Wire shape accepts either {metadata:{...}} or the flat fields.
         req.metadata = parseMetadata(isDict(a.metadata) ? a.metadata : a, op);
+        break;
+      // Page-structure ops. `insertBlankPage` and `insertPdfPages` grow the
+      // working document; `extractPages`, `mergePdfs` and `splitPdf` produce
+      // NEW documents the host commits. Each op is unique per request — a
+      // second occurrence is a caller bug, not a merge.
+      case "insertBlankPage":
+        if (req.blankPages) throw new PdfOpError(op, "", "at most one insertBlankPage per request");
+        req.blankPages = [parseInsertBlankPage(a, op)];
+        break;
+      case "insertPdfPages":
+        if (req.insertedPdfs) throw new PdfOpError(op, "", "at most one insertPdfPages per request");
+        req.insertedPdfs = [parseInsertPdfPages(a, op)];
+        break;
+      case "extractPages":
+        if (req.extractPages) throw new PdfOpError(op, "", "at most one extractPages per request");
+        req.extractPages = parseExtractPages(a, op);
+        break;
+      case "mergePdfs":
+        if (req.mergePdfs) throw new PdfOpError(op, "", "at most one mergePdfs per request");
+        req.mergePdfs = parseMergePdfs(a, op);
+        break;
+      case "splitPdf":
+        if (req.splitPdf) throw new PdfOpError(op, "", "at most one splitPdf per request");
+        req.splitPdf = parseSplitPdf(a, op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
       // form authoring (form values, stamps, signatures) and OCR.

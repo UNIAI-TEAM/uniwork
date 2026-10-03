@@ -13,6 +13,7 @@ import { readPdfText, type PdfTextDoc } from "./extract.ts";
 import { parsePdfOps, PdfOpError } from "./ops.ts";
 import { FPDF_ERR_PASSWORD, FPDF_ERR_SECURITY, PdfOpenError } from "./pdfium.ts";
 import { applyPdfEdits, PdfVerifyError } from "./serialize.ts";
+import { PdfPageOpSourceError } from "./page-ops.ts";
 import type { PdfEditRequest } from "./types.ts";
 
 export type PdfFailureCode = "engine_result_invalid" | "unsupported_operation" | "engine_crashed";
@@ -129,6 +130,17 @@ async function preflight(input: Uint8Array): Promise<PDFDocument | null> {
   }
 }
 
+/** One document produced by a page op, base64-encoded so it can cross the
+    worker / IPC boundary unchanged. F2: the host commits each one through
+    Documents — the engine never writes it anywhere. */
+export interface PdfNewDocumentPayload {
+  op: "extractPages" | "mergePdfs" | "splitPdf";
+  name: string;
+  pageCount: number;
+  part?: number;
+  dataBase64: string;
+}
+
 export interface PdfEditOutcome {
   bytes: Uint8Array;
   warnings: { code: string; detail?: string }[];
@@ -144,7 +156,13 @@ export interface PdfEditOutcome {
     noteEdits: { applied: number; skipped: number };
     noteResolves: { applied: number; skipped: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
+    blankPages: { applied: number; skipped: number };
+    insertedPdfs: { applied: number; skipped: number };
+    /** Produced documents by kind, plus every producer that was skipped. */
+    newDocuments: { extracted: number; merged: number; splitParts: number; skipped: number };
   };
+  /** NEW documents for the host to commit (extract / merge / split). */
+  documents: PdfNewDocumentPayload[];
 }
 
 export interface PdfProbe {
@@ -179,6 +197,9 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
     }
     if (error instanceof PdfVerifyError) {
       throw new PdfTypedError("engine_result_invalid", "verify_failed:" + error.message.slice(0, 200));
+    }
+    if (error instanceof PdfPageOpSourceError) {
+      throw new PdfTypedError("engine_result_invalid", `bad_op:${error.op}: ${error.reason}`);
     }
     if (error instanceof ImageTooLargeError) {
       // Fixed-size refusal string — no pixel dims come from a bigger error path.
@@ -302,7 +323,21 @@ export async function applyPdfEditBytes(
     pushSkips("note", applied.skips.skippedNotes);
     pushSkips("note-edit", applied.skips.skippedNoteEdits);
     pushSkips("note-resolve", applied.skips.skippedNoteResolves);
+    for (const s of applied.skips.skippedPageInserts) {
+      warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedNewDocuments) {
+      warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
+    }
+    const documents: PdfNewDocumentPayload[] = applied.documents.map((doc) => ({
+      op: doc.op,
+      name: doc.name,
+      pageCount: doc.pageCount,
+      ...(doc.part === undefined ? {} : { part: doc.part }),
+      dataBase64: Buffer.from(doc.bytes).toString("base64"),
+    }));
     return {
+      documents,
       bytes: applied.bytes,
       warnings,
       report: {
@@ -329,6 +364,20 @@ export async function applyPdfEditBytes(
           deletions: request.deletedPages?.length ?? 0,
           reordered: request.pageOrder !== undefined,
           metadata: request.metadata !== undefined,
+        },
+        blankPages: {
+          applied: (request.blankPages?.length ?? 0) - applied.skips.skippedPageInserts.filter((s) => s.op === "insertBlankPage").length,
+          skipped: applied.skips.skippedPageInserts.filter((s) => s.op === "insertBlankPage").length,
+        },
+        insertedPdfs: {
+          applied: (request.insertedPdfs?.length ?? 0) - applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
+          skipped: applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
+        },
+        newDocuments: {
+          extracted: applied.documents.filter((doc) => doc.op === "extractPages").length,
+          merged: applied.documents.filter((doc) => doc.op === "mergePdfs").length,
+          splitParts: applied.documents.filter((doc) => doc.op === "splitPdf").length,
+          skipped: applied.skips.skippedNewDocuments.length,
         },
       },
     };

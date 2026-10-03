@@ -24,7 +24,9 @@ import type { PDFRef } from "pdf-lib";
 import type {
   ImageEditFailure,
   MetadataInput,
+  PageOpFailure,
   PdfEditRequest,
+  PdfNewDocument,
   TextEditFailure,
   TextInsertFailure,
 } from "./types.ts";
@@ -36,6 +38,14 @@ import { applyTextInserts } from "./text-insert.ts";
 import { addMarkup } from "./markups.ts";
 import { addDrawing } from "./drawings.ts";
 import { addNote, editNote, resolveNote } from "./notes.ts";
+import {
+  extractPagesBytes,
+  insertBlankPageBytes,
+  insertPdfBytes,
+  mergePdfBytes,
+  PdfPageOpSourceError,
+  splitPdfBytes,
+} from "./page-ops.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -48,6 +58,11 @@ export interface PdfEditSkips {
   skippedNotes: { pageIndex: number; reason: string }[];
   skippedNoteEdits: { pageIndex: number; reason: string }[];
   skippedNoteResolves: { pageIndex: number; reason: string }[];
+  /** Page inserts whose anchor page is not in the output (an unusable source
+      PDF is a typed refusal, not a skip). */
+  skippedPageInserts: PageOpFailure[];
+  /** Document producers (extract / merge / split) that produced nothing. */
+  skippedNewDocuments: PageOpFailure[];
 }
 
 export interface AppliedPdfEdit {
@@ -55,6 +70,9 @@ export interface AppliedPdfEdit {
   skips: PdfEditSkips;
   /** Annotations actually removed (differs from requested when skips exist). */
   annotDeletesApplied: number;
+  /** NEW documents produced by extract / merge / split. F2: the caller commits
+      each one through Documents; the engine never writes them anywhere. */
+  documents: PdfNewDocument[];
 }
 
 /** Original page index → index in the saved file (after deletions/reorder);
@@ -144,6 +162,118 @@ export class PdfVerifyError extends Error {
   }
 }
 
+/** Decode a base64 PDF payload. Buffer silently drops invalid characters, so
+    the shape is checked first; a payload that is not valid base64 is a typed
+    caller refusal, never a silent skip — dropping a requested source would
+    hand back a document missing pages the caller asked for. */
+function decodePdfBase64(value: string, op: string): Uint8Array {
+  const compact = value.replace(/\s+/g, "");
+  if (compact.length === 0 || compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
+    throw new PdfPageOpSourceError(op, "source PDF data is not valid base64");
+  }
+  const bytes = Uint8Array.from(Buffer.from(compact, "base64"));
+  if (bytes.length === 0) throw new PdfPageOpSourceError(op, "source PDF data is empty");
+  return bytes;
+}
+
+/** One page insert to run after the pdf-lib stage. `position` is an index in
+    the output document (post deletion/reorder); the plan is executed highest
+    position first so an earlier insert never shifts a later one. */
+interface PageInsertPlan {
+  position: number;
+  /** Tie-break for plans that share a position. A plan run later lands closer
+      to the anchor (its insert pushes the earlier one right), so the blank
+      page runs first and the inserted PDF's pages end up directly after the
+      anchor, with the blank sheet following them. */
+  tie: number;
+  run: (bytes: Uint8Array) => Promise<Uint8Array>;
+}
+
+/** Map an "insert after original page index" (-1 = front) to a position in the
+    saved output, or null when the anchor page is gone from it or was never in
+    the document. */
+function insertAnchorPosition(request: PdfEditRequest, afterPageIndex: number, pageCount: number): number | null {
+  if (afterPageIndex === -1) return 0;
+  const anchor = finalPageIndex(request, afterPageIndex);
+  return anchor === null || anchor >= pageCount ? null : anchor + 1;
+}
+
+/**
+ * Grow the saved output with blank pages / another PDF's pages. Content
+ * streams of every page that already existed are preserved: pdf-lib only
+ * splices the page tree, and copied pages are deep copies of the source.
+ */
+async function applyPageInserts(
+  bytes: Uint8Array,
+  request: PdfEditRequest,
+  pageCount: number,
+  skipped: PageOpFailure[],
+): Promise<Uint8Array> {
+  const plans: PageInsertPlan[] = [];
+  for (const inserted of request.insertedPdfs ?? []) {
+    const position = insertAnchorPosition(request, inserted.afterPageIndex, pageCount);
+    if (position === null) {
+      skipped.push({ op: "insertPdfPages", index: 0, reason: "anchor page is not in the output" });
+      continue;
+    }
+    const source = decodePdfBase64(inserted.pdf, "insertPdfPages");
+    plans.push({
+      position,
+      tie: 1,
+      run: async (current) => (await insertPdfBytes(current, source, position - 1, inserted.pages)).bytes,
+    });
+  }
+  for (const blank of request.blankPages ?? []) {
+    const position = insertAnchorPosition(request, blank.afterPageIndex, pageCount);
+    if (position === null) {
+      skipped.push({ op: "insertBlankPage", index: 0, reason: "anchor page is not in the output" });
+      continue;
+    }
+    const size = blank.width !== undefined && blank.height !== undefined ? ([blank.width, blank.height] as [number, number]) : undefined;
+    plans.push({ position, tie: 0, run: async (current) => (await insertBlankPageBytes(current, position - 1, size)).bytes });
+  }
+  let out = bytes;
+  // Highest position first: an insert at a higher index never shifts a lower
+  // one, so every plan keeps its base-relative position while the bytes
+  // accumulate.
+  for (const plan of plans.sort((a, b) => b.position - a.position || a.tie - b.tie)) out = await plan.run(out);
+  return out;
+}
+
+/** Produce the NEW documents an extract / merge / split request asks for. The
+    working bytes are only read; a producer that has nothing to emit is
+    reported as a skip instead of handing back an empty document. */
+async function applyDocumentProducers(
+  bytes: Uint8Array,
+  request: PdfEditRequest,
+  skipped: PageOpFailure[],
+): Promise<PdfNewDocument[]> {
+  const documents: PdfNewDocument[] = [];
+  if (request.extractPages) {
+    const name = request.extractPages.name ?? "pages";
+    const result = await extractPagesBytes(bytes, request.extractPages.pages);
+    if (result.pageCount === 0) {
+      skipped.push({ op: "extractPages", index: 0, reason: "no selected page exists in the output" });
+    } else {
+      documents.push({ op: "extractPages", name, bytes: result.bytes, pageCount: result.pageCount });
+    }
+  }
+  if (request.mergePdfs) {
+    const name = request.mergePdfs.name ?? "merged";
+    const others = request.mergePdfs.pdfs.map((pdf) => decodePdfBase64(pdf, "mergePdfs"));
+    const result = await mergePdfBytes(bytes, others);
+    documents.push({ op: "mergePdfs", name, bytes: result.bytes, pageCount: result.pageCount });
+  }
+  if (request.splitPdf) {
+    const stem = request.splitPdf.name ?? "split";
+    const result = await splitPdfBytes(bytes, request.splitPdf.chunkSize);
+    result.parts.forEach((part, index) => {
+      documents.push({ op: "splitPdf", name: `${stem}-${index + 1}`, bytes: part.bytes, pageCount: part.pageCount, part: index + 1 });
+    });
+  }
+  return documents;
+}
+
 /**
  * Apply the edit batch to the input bytes and return the verified output.
  * The input buffer is never mutated; a verify failure throws PdfVerifyError
@@ -163,6 +293,8 @@ export async function applyPdfEdits(
   const skippedNotes: { pageIndex: number; reason: string }[] = [];
   const skippedNoteEdits: { pageIndex: number; reason: string }[] = [];
   const skippedNoteResolves: { pageIndex: number; reason: string }[] = [];
+  const skippedPageInserts: PageOpFailure[] = [];
+  const skippedNewDocuments: PageOpFailure[] = [];
   let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
     const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
@@ -268,10 +400,21 @@ export async function applyPdfEdits(
     skippedNotes,
     skippedNoteEdits,
     skippedNoteResolves,
+    skippedPageInserts,
+    skippedNewDocuments,
   });
+  // Page-structure work runs after verification: inserts and producers only
+  // touch the page tree, so a verified content edit can never be invalidated
+  // by an index shift they introduce.
+  let finalBytes = out;
+  if ((request.blankPages?.length ?? 0) > 0 || (request.insertedPdfs?.length ?? 0) > 0) {
+    finalBytes = await applyPageInserts(finalBytes, request, pdfDoc.getPageCount(), skippedPageInserts);
+  }
+  const documents = await applyDocumentProducers(finalBytes, request, skippedNewDocuments);
   return {
-    bytes: out,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves },
+    bytes: finalBytes,
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedPageInserts, skippedNewDocuments },
     annotDeletesApplied,
+    documents,
   };
 }

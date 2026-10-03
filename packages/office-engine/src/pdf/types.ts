@@ -285,6 +285,71 @@ export interface PageRenderRequest {
   rotate?: number;
 }
 
+/** Insert one blank page after `afterPageIndex` in the original document
+    (-1 = front). Absent `width`/`height` copy the neighboring page's size and
+    /Rotate, so the blank sheet matches its neighbor instead of shrinking or
+    displaying sideways. */
+export interface InsertBlankPageInput {
+  /** Original 0-based page index the blank page goes after; -1 = front. */
+  afterPageIndex: number;
+  /** Explicit page size in PDF points; both or neither. */
+  width?: number;
+  height?: number;
+}
+
+/** Insert pages of another PDF after `afterPageIndex` (-1 = front). The bytes
+    arrive base64-encoded because the browser resolves an asset id through
+    `PdfAssetProvider` and never touches a Node codec; the host owns the bytes. */
+export interface InsertPdfPagesInput {
+  afterPageIndex: number;
+  /** Source PDF, base64 without a data: prefix. */
+  pdf: string;
+  /** Source page indices to insert (0-based, in order); absent = every page. */
+  pages?: number[];
+}
+
+/** Extract pages (original 0-based indices, in order) into a NEW document. */
+export interface ExtractPagesInput {
+  pages: number[];
+  /** Suggested output name stem (no extension); the host commits the document. */
+  name?: string;
+}
+
+/** Append the pages of other PDFs (base64, in order) to this document and
+    produce a NEW document. */
+export interface MergePdfsInput {
+  pdfs: string[];
+  name?: string;
+}
+
+/** Split into consecutive chunks of `chunkSize` pages, each a NEW document. */
+export interface SplitPdfInput {
+  chunkSize: number;
+  name?: string;
+}
+
+/** A document produced by a page op (extract / merge / split). The engine never
+    writes it anywhere: F2 requires the host to persist it through a Documents
+    commit, so this carries bytes plus the suggested name and nothing else. */
+export interface PdfNewDocument {
+  op: "extractPages" | "mergePdfs" | "splitPdf";
+  /** Suggested filename stem, extension excluded. */
+  name: string;
+  bytes: Uint8Array;
+  pageCount: number;
+  /** 1-based part ordinal for split output; absent for single-document ops. */
+  part?: number;
+}
+
+/** A page op that produced no document and was skipped, with the reason. */
+export interface PageOpFailure {
+  /** Op name from the wire vocabulary (e.g. "extractPages"). */
+  op: string;
+  /** Index within that op's request list, or 0 for single-item ops. */
+  index: number;
+  reason: string;
+}
+
 /** The batch an edit job carries — the G2-05-scoped subset of upstream
     SavePdfRequest. Forms remain outside this lane. */
 export interface PdfEditRequest {
@@ -307,5 +372,15 @@ export interface PdfEditRequest {
   deletedPages?: number[];
   /** New page order (array of original page indices, excluding deleted) */
   pageOrder?: number[];
+  /** Blank pages to insert, in request order (applied after deletion/reorder). */
+  blankPages?: InsertBlankPageInput[];
+  /** Pages of other PDFs to insert, in request order. */
+  insertedPdfs?: InsertPdfPagesInput[];
+  /** Produce a new document holding just these pages (read from the saved output). */
+  extractPages?: ExtractPagesInput;
+  /** Produce a new document appending other PDFs' pages to the saved output. */
+  mergePdfs?: MergePdfsInput;
+  /** Produce N new documents, one per consecutive chunk of the saved output. */
+  splitPdf?: SplitPdfInput;
   metadata?: MetadataInput;
 }
