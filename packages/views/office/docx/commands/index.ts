@@ -3,6 +3,7 @@ import type { DocxFormatState } from "../types";
 import { createBaseCommands, type DocxBaseCommands } from "./base";
 import { createCharacterCommands, type DocxCharacterCommands, type DocxCharacterFormatState } from "./character";
 import { createCommentsCommands, type DocxCommentsCommands, type DocxCommentsFormatState } from "./comments";
+import { createCompareCommands, type DocxCompareCommands, type DocxCompareFormatState } from "./compare";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 import { createHeaderFooterCommands, type DocxHeaderFooterCommands, type DocxHeaderFooterFormatState } from "./header-footer";
 import { createInsertCommands, type DocxInsertCommands, type DocxInsertFormatState } from "./insert";
@@ -29,7 +30,8 @@ export type DocxAreaFormatState = DocxCharacterFormatState &
   DocxCommentsFormatState &
   DocxNotesFormatState &
   DocxNumberingFormatState &
-  DocxPageSetupFormatState;
+  DocxPageSetupFormatState &
+  DocxCompareFormatState;
 
 export type DocxRuntimeFormatState = DocxFormatState & DocxAreaFormatState;
 
@@ -49,7 +51,8 @@ export type DocxCommandRuntime = DocxBaseCommands &
   DocxCommentsCommands &
   DocxNotesCommands &
   DocxNumberingCommands &
-  DocxPageSetupCommands & {
+  DocxPageSetupCommands &
+  DocxCompareCommands & {
     getState(): DocxRuntimeFormatState;
     subscribe(listener: (state: DocxRuntimeFormatState) => void): () => void;
     /** Re-reads the composed state and notifies every subscriber. */
@@ -76,6 +79,7 @@ const DOCX_COMMAND_AREAS: readonly DocxCommandAreaFactory[] = [
   createNotesCommands,
   createNumberingCommands,
   createPageSetupCommands,
+  createCompareCommands,
 ];
 
 export interface DocxCommandRuntimeOptions {

@@ -7044,7 +7044,8 @@
           "comments": "Bình luận",
           "notes": "Chú thích",
           "zoom": "Thu phóng",
-          "navigation": "Điều hướng"
+          "navigation": "Điều hướng",
+          "compare": "So sánh"
         },
         "insert": {
           "symbol": "Ký hiệu",
@@ -7530,6 +7531,33 @@
         "deleteTitle": "Xóa chú thích này?",
         "deleteDescription": "Chú thích và dấu tham chiếu trong văn bản sẽ bị xóa; các chú thích còn lại được đánh số lại.",
         "deleteConfirm": "Xóa chú thích"
+      },
+      "compare": {
+        "action": "So sánh tài liệu",
+        "title": "So sánh tài liệu",
+        "description": "So sánh văn bản của tài liệu đang mở với một tệp .docx bạn chọn. Kết quả chỉ để xem — tệp được chọn không bao giờ được áp dụng vào tài liệu đang mở.",
+        "limit": "Chỉ so sánh văn bản; định dạng, hình ảnh và các đối tượng khác không được so sánh chi tiết.",
+        "pick": "Chọn tệp .docx",
+        "pickAnother": "Chọn tệp khác",
+        "reading": "Đang đọc {{name}}…",
+        "identical": "Không có khác biệt trong phần văn bản được so sánh.",
+        "summary": "{{added}} đoạn thêm · {{removed}} đoạn bớt · {{changed}} đoạn thay đổi",
+        "against": "So sánh với {{name}}",
+        "sameRun": "{{n}} đoạn giống nhau",
+        "current": "Tài liệu hiện tại",
+        "compared": "Tài liệu so sánh",
+        "empty": "(đoạn trống)",
+        "close": "Đóng so sánh",
+        "kind": {
+          "same": "Giống nhau",
+          "added": "Thêm",
+          "removed": "Bớt",
+          "changed": "Thay đổi"
+        },
+        "errors": {
+          "invalid_docx": "Tệp đã chọn không phải là tài liệu .docx đọc được.",
+          "unreadable": "Không đọc được tệp đã chọn."
+        }
       },
       "review": {
         "title": "Thay đổi được theo dõi",

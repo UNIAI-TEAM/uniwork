@@ -7050,7 +7050,8 @@
           "comments": "Comments",
           "notes": "Notes",
           "zoom": "Zoom",
-          "navigation": "Navigation"
+          "navigation": "Navigation",
+          "compare": "Compare"
         },
         "insert": {
           "symbol": "Symbol",
@@ -7536,6 +7537,33 @@
         "deleteTitle": "Delete this note?",
         "deleteDescription": "The note and its reference in the text will be removed; the remaining notes renumber.",
         "deleteConfirm": "Delete note"
+      },
+      "compare": {
+        "action": "Compare documents",
+        "title": "Compare documents",
+        "description": "Compare the text of the open document with a .docx file you pick. The result is read-only — the chosen file is never applied to the open document.",
+        "limit": "Text only: formatting, images and other objects are not compared in detail.",
+        "pick": "Choose a .docx file",
+        "pickAnother": "Choose another file",
+        "reading": "Reading {{name}}…",
+        "identical": "No differences in the compared text.",
+        "summary": "{{added}} added · {{removed}} removed · {{changed}} changed",
+        "against": "Compared with {{name}}",
+        "sameRun": "{{n}} unchanged paragraphs",
+        "current": "Current document",
+        "compared": "Compared document",
+        "empty": "(empty paragraph)",
+        "close": "Close comparison",
+        "kind": {
+          "same": "Unchanged",
+          "added": "Added",
+          "removed": "Removed",
+          "changed": "Changed"
+        },
+        "errors": {
+          "invalid_docx": "The chosen file is not a readable .docx document.",
+          "unreadable": "The chosen file could not be read."
+        }
       },
       "review": {
         "title": "Tracked changes",
