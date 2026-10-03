@@ -15,13 +15,19 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: 
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
-  // null until a real command runtime exists: the panel then keeps its
-  // loading state instead of claiming the document has no changes.
-  const changes = commands ? format?.reviewChanges ?? [] : null;
+  // null until both the command runtime and the opened document exist: the
+  // panel then keeps its loading state instead of claiming the document has no
+  // changes.
+  const changes = commands && format ? format.reviewChanges : null;
   const count = changes?.length ?? 0;
 
+  const setOpenState = (next: boolean): void => {
+    setOpen(next);
+    if (!next) setActiveId(null);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpenState}>
       <PopoverTrigger
         disabled={!commands}
         render={
@@ -61,7 +67,7 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: 
           onJump={(id) => {
             if (commands?.jumpToReviewChange(id)) setActiveId(id);
           }}
-          onClose={() => setOpen(false)}
+          onClose={() => setOpenState(false)}
         />
       </PopoverContent>
     </Popover>

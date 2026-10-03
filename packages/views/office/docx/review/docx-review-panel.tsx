@@ -122,7 +122,7 @@ export function DocxReviewPanel({
 
       {changes === null ? (
         <div className="flex items-center justify-center gap-2 p-4 text-body text-muted-foreground">
-          <Spinner label={t("office.docx.review.loading")} />
+          <Spinner />
           {t("office.docx.review.loading")}
         </div>
       ) : count === 0 ? (
@@ -170,7 +170,7 @@ export function DocxReviewPanel({
                     variant="ghost"
                     size="sm"
                     disabled={blocked}
-                    aria-label={`${t("office.docx.review.acceptChange")} – ${label}`}
+                    aria-label={t("office.docx.review.acceptChange", { kind: label })}
                     onClick={() => onAccept(change.id)}
                   >
                     <Check aria-hidden />
@@ -181,7 +181,7 @@ export function DocxReviewPanel({
                     variant="ghost"
                     size="sm"
                     disabled={blocked}
-                    aria-label={`${t("office.docx.review.rejectChange")} – ${label}`}
+                    aria-label={t("office.docx.review.rejectChange", { kind: label })}
                     onClick={() => onReject(change.id)}
                   >
                     <X aria-hidden />

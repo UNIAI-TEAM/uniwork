@@ -2,6 +2,7 @@
 // asserted here is the vi.json one. The panel itself is presentational: every
 // action is a callback, so the assertions are call + enabled state only.
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import { DocxReviewPanel, type DocxReviewPanelProps } from "./docx-review-panel";
 import type { DocxReviewChange } from "./revision-model";
@@ -87,6 +88,15 @@ describe("DocxReviewPanel", () => {
     expect(within(dialog).getByText("Từ chối tất cả thay đổi?")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Từ chối tất cả thay đổi" }));
     expect(props.onRejectAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the English singular forms for a one-change document", async () => {
+    await setLocale("en");
+    renderPanel({ changes: [INS] });
+    expect(screen.getByText("1 change")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("docx-review-accept-all"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("The 1 tracked change becomes normal document content.")).toBeInTheDocument();
   });
 
   it("shows the empty state without bulk actions", () => {
