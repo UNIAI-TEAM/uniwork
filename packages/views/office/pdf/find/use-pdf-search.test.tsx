@@ -22,11 +22,11 @@ describe("usePdfSearch", () => {
     act(() => result.current.setQuery("one"));
     expect(result.current.hits).toHaveLength(2);
     expect(result.current.activeHit?.page).toBe(1);
-    act(() => result.current.next());
+    act(() => { result.current.next(); });
     expect(result.current.activeHit?.page).toBe(2);
-    act(() => result.current.next());
+    act(() => { result.current.next(); });
     expect(result.current.activeHit?.page).toBe(1);
-    act(() => result.current.previous());
+    act(() => { result.current.previous(); });
     expect(result.current.activeHit?.page).toBe(2);
     expect(reader).toHaveBeenCalledOnce();
   });

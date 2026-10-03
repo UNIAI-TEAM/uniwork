@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { readPdfText } from "@uniwork/office-engine/pdf";
 import { findPdfTextHits } from "./search-model";
 import type { PdfSearchHit, PdfTextDocument, PdfTextReader } from "./types";
 
@@ -17,7 +16,7 @@ export interface PdfSearchState {
 
 export interface UsePdfSearchOptions {
   bytes: Uint8Array | null;
-  reader?: PdfTextReader;
+  reader: PdfTextReader;
   enabled?: boolean;
 }
 
@@ -29,7 +28,7 @@ export interface UsePdfSearchResult extends PdfSearchState {
   retry: () => void;
 }
 
-export function usePdfSearch({ bytes, reader = readPdfText, enabled = true }: UsePdfSearchOptions): UsePdfSearchResult {
+export function usePdfSearch({ bytes, reader, enabled = true }: UsePdfSearchOptions): UsePdfSearchResult {
   const [document, setDocument] = useState<PdfTextDocument | null>(null);
   const [status, setStatus] = useState<PdfSearchState["status"]>("idle");
   const [error, setError] = useState<unknown>(null);

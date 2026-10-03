@@ -21,9 +21,20 @@ describe("findPdfTextHits", () => {
   });
 
   it("returns no matches for an empty query and supports unicode folding", () => {
-    const unicode: PdfTextDocument = { ...doc, pages: [{ ...doc.pages[0], text: "Café cafe" }] };
+    const firstPage = doc.pages[0]!;
+    const unicode: PdfTextDocument = { ...doc, pages: [{ ...firstPage, text: "Café cafe" }] };
     expect(findPdfTextHits(unicode, "")).toEqual([]);
     expect(findPdfTextHits(unicode, "cafe").map((hit) => hit.start)).toEqual([0, 5]);
+  });
+
+  it("maps folded offsets back to decomposed source text", () => {
+    const decomposed: PdfTextDocument = {
+      ...doc,
+      pages: [{ ...doc.pages[0]!, text: "e\u0301x" }],
+    };
+    expect(findPdfTextHits(decomposed, "x")).toEqual([
+      { id: "1:2:3", page: 1, start: 2, end: 3, text: "x" },
+    ]);
   });
 
   it("exposes stable canvas highlight props", () => {
