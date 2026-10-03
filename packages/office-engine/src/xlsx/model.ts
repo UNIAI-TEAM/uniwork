@@ -9,13 +9,44 @@ import { XlsxEngineError, type XlsxCellEdit, type XlsxCellState, type XlsxRecalc
 import {
   a1ToRowColumn,
   groupXlsxStructuralOps,
+  isXlsxSheetOp,
   isXlsxStructuralOp,
   toA1,
   type XlsxEditOp,
+  type XlsxSheetOp,
   type XlsxSheetResolver,
   type XlsxSheetStructuralOps,
   type XlsxStructuralOp,
 } from "./ops.ts";
+
+/** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
+ *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
+ *  final tab order; renames/additions name final sheets, removals name the
+ *  original file name, hidden changes are keyed by the original name (or the
+ *  added name). */
+export interface XlsxSheetEditPlan {
+  readonly renames: readonly { readonly sheetName: string; readonly newName: string }[];
+  readonly additions: readonly { readonly name: string; readonly sourceSheetName?: string | undefined }[];
+  readonly removals: readonly string[];
+  readonly order: readonly string[];
+  readonly hiddenChanges?: readonly { readonly sheetName: string; readonly hidden: boolean }[] | undefined;
+  readonly orderChanged?: boolean | undefined;
+}
+
+/** One sheet's session state: a stable identity plus the user-visible current
+ *  name. Sheet ops are applied in emission order, so `name` is what every
+ *  later wire op addresses and what the save plan reports; `originalName` is
+ *  the name the package on disk still carries (undefined for a sheet added
+ *  this session). */
+interface ModelSheetState {
+  readonly key: string;
+  readonly originalName?: string | undefined;
+  name: string;
+  hidden: boolean;
+  hiddenTouched: boolean;
+  readonly added: boolean;
+  readonly sourceKey?: string | undefined;
+}
 
 /** One pending cell: content and independent style fields fold separately. */
 interface PendingCell {
@@ -57,8 +88,20 @@ export class XlsxSessionModel {
   /** Structural journal: row/column ops per sheet, in replay order. Cell
    *  entries above are kept in post-operation coordinates (the renderer's
    *  journal applies every shift to its own entries the same way), so the
-   *  gateway replays this list first and then writes the cell edits. */
+   *  gateway replays this list first and then writes the cell edits. The map
+   *  key is the sheet's CURRENT name; a rename rewrites both. */
   private structural = new Map<string, XlsxStructuralOp[]>();
+  /** Ordered sheet registry: file sheets in tab order, plus additions. Ops
+   *  are applied in emission order, so every entry's `name` is current. */
+  private sheetStates: ModelSheetState[] = [];
+  /** Original file names of sheets removed this session (additions removed
+   *  before save leave no trace). */
+  private removedOriginals: string[] = [];
+  /** True once a reorder op applied: calcChain sheet indexes go stale. */
+  private sheetOrderChanged = false;
+  /** Count of applied sheet ops — the save plan exists only when > 0. */
+  private sheetOpsApplied = 0;
+  private addedSheetSequence = 0;
   private touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
@@ -66,26 +109,46 @@ export class XlsxSessionModel {
   constructor(imported: XlsxWorkbookSnapshot, inputSha256: string) {
     this.snapshot = imported;
     this.inputSha256 = inputSha256;
+    this.sheetStates = imported.sheets.map((sheet) => ({
+      key: sheet.name,
+      originalName: sheet.name,
+      name: sheet.name,
+      hidden: false,
+      hiddenTouched: false,
+      added: false,
+    }));
   }
 
   get isDirty(): boolean {
     return this.touched;
   }
 
-  /** Sheet-name resolver the ops parser validates targets against. */
+  /** Sheet-name resolver the ops parser validates targets against. It is a
+   *  LIVE view: the adapter parses and applies in one pass, so an op after a
+   *  rename resolves to the new name and a removed sheet stops resolving.
+   *  `nameForId` maps a grid id to the sheet's current name (undefined once
+   *  that sheet is gone). */
   resolver(sheetNamesById: Readonly<Record<string, string>>): XlsxSheetResolver {
-    const names = this.snapshot.sheets.map((s) => s.name);
     return {
-      sheetNames: () => names,
-      nameForId: (id) => sheetNamesById[id],
+      sheetNames: () => this.sheetStates.map((sheet) => sheet.name),
+      nameForId: (id) => {
+        const original = sheetNamesById[id];
+        if (original === undefined) return undefined;
+        return this.sheetStates.find((sheet) => sheet.originalName === original)?.name;
+      },
     };
   }
 
-  /** Cells of one sheet with pending edits overlaid (the save-plan view). */
+  /** Cells of one sheet with pending edits overlaid (the save-plan view). An
+   *  added sheet has no file cells; a renamed sheet reads its original part. */
   cells(sheetName: string): Record<string, XlsxCellState> {
-    const sheet = this.snapshot.sheets.find((s) => s.name === sheetName);
+    const sheet = this.sheetStates.find((s) => s.name === sheetName);
     if (!sheet) throw new XlsxEngineError("bad_target", "unknown sheet " + JSON.stringify(sheetName));
-    return overlayCells(sheet.cells, this.pendingFor(sheetName));
+    const base =
+      sheet.originalName === undefined
+        ? {}
+        : this.snapshot.sheets.find((s) => s.name === sheet.originalName)?.cells ?? {};
+    return overlayCells(base, this.pendingFor(sheetName));
   }
 
   private pendingFor(sheetName: string): Map<string, PendingCell> {
@@ -97,6 +160,10 @@ export class XlsxSessionModel {
   }
 
   applyEdit(op: XlsxEditOp): void {
+    if (isXlsxSheetOp(op)) {
+      this.applySheetOp(op);
+      return;
+    }
     if (isXlsxStructuralOp(op)) {
       this.applyStructuralOp(op);
       return;
@@ -172,6 +239,187 @@ export class XlsxSessionModel {
     this.pending = shifted;
   }
 
+  // ── sheet ops (add / rename / remove / duplicate / reorder / hide) ───────
+  //
+  // Applied in emission order against the live sheet registry. A rename
+  // rewrites pending cell edits and the structural journal so both keep
+  // addressing the sheet's current name; a removal drops them (nothing may
+  // reach a part the save deletes); a duplicate clones the source's pending
+  // state, mirroring the renderer journal's own copy — the gateway seeds the
+  // clone from the source PART, and the cloned edits bring it to the source's
+  // on-screen state.
+
+  private applySheetOp(op: XlsxSheetOp): void {
+    switch (op.kind) {
+      case "add_sheet":
+        this.sheetStates.splice(this.insertIndex(op.index), 0, this.makeAddedSheet(op.name, undefined));
+        break;
+      case "duplicate_sheet": {
+        const source = this.requireSheet(op.sheetName);
+        const addition = this.makeAddedSheet(op.name, source.key);
+        this.sheetStates.splice(this.insertIndex(op.index), 0, addition);
+        this.cloneSheetEdits(source.name, addition.name);
+        break;
+      }
+      case "rename_sheet": {
+        const sheet = this.requireSheet(op.sheetName);
+        if (sheet.name !== op.newName) {
+          const previous = sheet.name;
+          sheet.name = op.newName;
+          this.renamePendingSheet(previous, op.newName);
+        }
+        break;
+      }
+      case "remove_sheet": {
+        const sheet = this.requireSheet(op.sheetName);
+        if (sheet.originalName !== undefined) this.removedOriginals.push(sheet.originalName);
+        this.dropPendingSheet(sheet.name);
+        this.sheetStates.splice(this.sheetStates.indexOf(sheet), 1);
+        break;
+      }
+      case "reorder_sheet": {
+        const sheet = this.requireSheet(op.sheetName);
+        this.sheetStates.splice(this.sheetStates.indexOf(sheet), 1);
+        this.sheetStates.splice(op.index, 0, sheet);
+        this.sheetOrderChanged = true;
+        break;
+      }
+      case "set_sheet_hidden": {
+        const sheet = this.requireSheet(op.sheetName);
+        sheet.hidden = op.hidden;
+        sheet.hiddenTouched = true;
+        break;
+      }
+    }
+    this.sheetOpsApplied += 1;
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  private requireSheet(name: string): ModelSheetState {
+    const sheet = this.sheetStates.find((candidate) => candidate.name === name);
+    if (!sheet) throw new XlsxEngineError("bad_target", "unknown sheet " + JSON.stringify(name));
+    return sheet;
+  }
+
+  /** Insertion point for an addition: an explicit 0-based position (already
+   *  range-checked by the parser) or the end of the tab strip. */
+  private insertIndex(index: number | undefined): number {
+    return index ?? this.sheetStates.length;
+  }
+
+  private makeAddedSheet(name: string, sourceKey: string | undefined): ModelSheetState {
+    this.addedSheetSequence += 1;
+    return {
+      key: `added:${this.addedSheetSequence}`,
+      name,
+      hidden: false,
+      hiddenTouched: false,
+      added: true,
+      ...(sourceKey === undefined ? {} : { sourceKey }),
+    };
+  }
+
+  private renamePendingSheet(previous: string, next: string): void {
+    const moved = new Map<string, PendingCell>();
+    for (const entry of this.pending.values()) {
+      if (entry.sheetName !== previous) {
+        moved.set(JSON.stringify([entry.sheetName, toA1(entry.row, entry.column)]), entry);
+        continue;
+      }
+      moved.set(JSON.stringify([next, toA1(entry.row, entry.column)]), {
+        ...entry,
+        sheetName: next,
+        edit: { ...entry.edit, sheetName: next },
+      });
+    }
+    this.pending = moved;
+    const ops = this.structural.get(previous);
+    if (ops !== undefined) {
+      this.structural.delete(previous);
+      this.structural.set(next, ops.map((structural) => ({ ...structural, sheetName: next })));
+    }
+  }
+
+  private dropPendingSheet(sheetName: string): void {
+    for (const [key, entry] of this.pending) {
+      if (entry.sheetName === sheetName) this.pending.delete(key);
+    }
+    this.structural.delete(sheetName);
+  }
+
+  private cloneSheetEdits(fromName: string, toName: string): void {
+    for (const entry of [...this.pending.values()]) {
+      if (entry.sheetName !== fromName) continue;
+      this.pending.set(JSON.stringify([toName, toA1(entry.row, entry.column)]), {
+        ...entry,
+        sheetName: toName,
+        edit: { ...entry.edit, sheetName: toName },
+      });
+    }
+    const ops = this.structural.get(fromName);
+    if (ops !== undefined) {
+      this.structural.set(toName, ops.map((structural) => ({ ...structural, sheetName: toName })));
+    }
+  }
+
+  /** The gateway's SheetEditPlan rebuilt from the model's final state. Field
+   *  names follow the vendored interface exactly: renames/addition names are
+   *  final, removals are original file names, `order` is the complete final
+   *  tab order and hidden changes are keyed by the original (or added) name. */
+  pendingSheetPlan(): XlsxSheetEditPlan | undefined {
+    if (this.sheetOpsApplied === 0) return undefined;
+    const live = this.sheetStates;
+    const renames = live.flatMap((sheet) =>
+      !sheet.added && sheet.originalName !== sheet.name
+        ? [{ sheetName: sheet.originalName as string, newName: sheet.name }]
+        : [],
+    );
+    const additions = live.flatMap((sheet) => {
+      if (!sheet.added) return [];
+      const sourceSheetName = this.duplicateSourceOriginal(sheet.sourceKey);
+      return [{ name: sheet.name, ...(sourceSheetName === undefined ? {} : { sourceSheetName }) }];
+    });
+    const hiddenChanges = live.flatMap((sheet) =>
+      sheet.hiddenTouched ? [{ sheetName: sheet.originalName ?? sheet.name, hidden: sheet.hidden }] : [],
+    );
+    return {
+      renames,
+      additions,
+      removals: [...this.removedOriginals],
+      order: live.map((sheet) => sheet.name),
+      ...(hiddenChanges.length === 0 ? {} : { hiddenChanges }),
+      ...(this.sheetOrderChanged ? { orderChanged: true } : {}),
+    };
+  }
+
+  /** Walks a duplicate chain back to a file sheet (its original name is the
+   *  clone base the gateway can resolve). A chain that ends at an added sheet,
+   *  or at one removed before save, has no file part — the clone base is
+   *  blank and the cloned pending edits carry the content. */
+  private duplicateSourceOriginal(sourceKey: string | undefined): string | undefined {
+    let key = sourceKey;
+    const seen = new Set<string>();
+    while (key !== undefined && !seen.has(key)) {
+      seen.add(key);
+      if (!key.startsWith("added:")) return key;
+      const sheet = this.sheetStates.find((candidate) => candidate.key === key);
+      if (sheet === undefined) return undefined;
+      key = sheet.sourceKey;
+    }
+    return undefined;
+  }
+
+  /** The name the package on disk currently holds for a sheet the envelope
+   *  addresses by its current name: the original file name for a pre-existing
+   *  sheet, the (final) name itself for an addition. Cell edits, structural
+   *  ops and recalc reads are translated through this before the gateway call
+   *  — the gateway resolves parts by the CURRENT file names and applies the
+   *  plan's renames last. */
+  gatewaySheetName(name: string): string {
+    return this.sheetStates.find((sheet) => sheet.name === name)?.originalName ?? name;
+  }
+
   /** The structural journal for the gateway's structuralOps argument: ops
    *  grouped per sheet, first-touch sheet order, journal order inside a
    *  sheet. Empty when the session has no structural edits. */
@@ -197,15 +445,19 @@ export class XlsxSessionModel {
 
   /** Every cell that carries a formula AFTER the pending edits apply —
    *  existing <f> cells a literal overwrite drops, plus new formula edits.
-   *  These are exactly the cells whose cached <v> must be refreshed on save. */
+   *  These are exactly the cells whose cached <v> must be refreshed on save.
+   *  Added sheets are skipped: the recalc sidecar reads the ORIGINAL bytes,
+   *  where such a part does not exist, and an identity-changing sheet op skips
+   *  the recalc pass entirely (adapter.serialize). */
   formulaCellsAfterEdits(): { sheetName: string; row: number; column: number; address: string }[] {
     const out: { sheetName: string; row: number; column: number; address: string }[] = [];
-    for (const sheet of this.snapshot.sheets) {
-      const cells = this.cells(sheet.name);
+    for (const state of this.sheetStates) {
+      if (state.added) continue;
+      const cells = this.cells(state.name);
       for (const [address, cell] of Object.entries(cells)) {
         if (cell.formula === undefined) continue;
         const { row, column } = a1ToRowColumn(address, "<model>", "address");
-        out.push({ sheetName: sheet.name, row, column, address });
+        out.push({ sheetName: state.name, row, column, address });
       }
     }
     return out;
@@ -220,12 +472,25 @@ export class XlsxSessionModel {
 
   /** Re-base after a successful serialize: the produced bytes become the new
    *  original (their own parse) and pending edits drain — the xlsx equivalent
-   *  of docx commitSaved. */
+   *  of docx commitSaved. The sheet registry is rebuilt from the new snapshot,
+   *  so final names become the new originals. */
   rebase(newSnapshot: XlsxWorkbookSnapshot, newInputSha256: string): void {
     this.snapshot = newSnapshot;
     this.inputSha256 = newInputSha256;
     this.pending.clear();
     this.structural.clear();
+    this.sheetStates = newSnapshot.sheets.map((sheet) => ({
+      key: sheet.name,
+      originalName: sheet.name,
+      name: sheet.name,
+      hidden: false,
+      hiddenTouched: false,
+      added: false,
+    }));
+    this.removedOriginals = [];
+    this.sheetOrderChanged = false;
+    this.sheetOpsApplied = 0;
+    this.addedSheetSequence = 0;
     this.touched = false;
     this.modelRevision += 1;
   }

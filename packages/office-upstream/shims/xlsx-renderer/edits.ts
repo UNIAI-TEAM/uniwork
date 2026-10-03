@@ -1,6 +1,12 @@
 import {
   recordSetNumfmt,
   recordSetRangeValues,
+  recordSheetDuplicate,
+  recordSheetHidden,
+  recordSheetInsert,
+  recordSheetOrderChange,
+  recordSheetRemove,
+  recordSheetRename,
   recordStructuralOp,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
@@ -28,8 +34,27 @@ export interface XlsxRendererStructuralEdit {
   structural: StructuralJournalOp;
 }
 
+/** One worksheet-level edit (B3): the op plus the sheet's live name at
+ *  emission. Per kind: add/duplicate name the NEW sheet (index = final tab
+ *  position; duplicate also names its source), remove/rename name the target
+ *  (`rename-sheet` carries the PRE-mutation name in `sheetName` and the new
+ *  one in `newName`), reorder/hide name the unchanged sheet. */
+export interface XlsxRendererSheetEdit {
+  sheetId: string;
+  sheetName: string;
+  sheetOp: RendererSheetJournalOp;
+}
+
+export type RendererSheetJournalOp =
+  | { kind: "add-sheet"; index: number }
+  | { kind: "duplicate-sheet"; sourceSheetId: string; sourceName: string; index: number }
+  | { kind: "remove-sheet" }
+  | { kind: "rename-sheet"; newName: string }
+  | { kind: "set-sheet-hidden"; hidden: boolean }
+  | { kind: "reorder-sheet"; index: number };
+
 /** Everything the renderer's edit channel can emit. */
-export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit;
+export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit | XlsxRendererSheetEdit;
 
 export interface RendererCommand {
   id: string;
@@ -58,7 +83,7 @@ export function ingestCellMutation(
   } | undefined;
   const sheetId = params?.subUnitId;
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
-      !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
+      !liveSessionSheets(state).some((sheet) => sheet.id === sheetId)) return [];
   const before = new Map(state.editJournal.cells.get(sheetId));
   let recorded;
   if (event.id === "sheet.mutation.set.numfmt") {
@@ -175,9 +200,10 @@ export function ingestStructuralMutation(
   if (!rowColumn && !axisAttr) return [];
   const params = event.params as StructuralMutationParams | undefined;
   const sheetId = params?.subUnitId;
+  const liveSheets = liveSessionSheets(state);
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
-      !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
-  const sheetName = state.file.sheets.find((sheet) => sheet.id === sheetId)?.name;
+      !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
+  const sheetName = liveSheets.find((sheet) => sheet.id === sheetId)?.name;
   const edits: XlsxRendererStructuralEdit[] = [];
   const record = (structural: StructuralJournalOp): void => {
     recordStructuralOp(state.editJournal, sheetId, structural, sheetName);
@@ -289,11 +315,12 @@ export function ingestMergeMutation(
   if (!kind) return [];
   const params = event.params as StructuralMutationParams | undefined;
   const sheetId = params?.subUnitId;
+  const liveSheets = liveSessionSheets(state);
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
-      !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
+      !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
   const ranges = kind === "unmerge-cells" ? removedMerges ?? [] : params.ranges;
   if (!Array.isArray(ranges)) return [];
-  const sheetName = state.file.sheets.find((sheet) => sheet.id === sheetId)?.name;
+  const sheetName = liveSheets.find((sheet) => sheet.id === sheetId)?.name;
   const edits: XlsxRendererStructuralEdit[] = [];
   for (const range of ranges) {
     if (!mergeRangeOK(range)) continue;
@@ -305,6 +332,156 @@ export function ingestMergeMutation(
     edits.push({ sheetId, structural });
   }
   return edits;
+}
+
+// ── sheet ops (B3: add / rename / remove / duplicate / reorder / hide) ─────
+//
+// Exactly the five sheet mutations the pinned sheets plugin dispatches (their
+// commands are allowlisted in command-policy.ts). The vendored edit-journal
+// already owns a SheetJournal; these records only feed its grid overlay — the
+// save payload is the emitted edit, which the views bridge turns into an
+// envelope sheet op. Duplicating also copies the journal's cell/structural
+// entries onto the new sheet id, but the ENGINE session model clones its own
+// pending state on `duplicate_sheet`, so no cloned cell edit is emitted twice.
+//
+// Sheet names are the live (Univer) names: a rename earlier in the session
+// changes what later mutations must address, and the mutation params do not
+// carry the pre-mutation name, so the controller snapshots it in
+// BeforeCommandExecute and passes it here.
+
+const SHEET_MUTATIONS = new Set([
+  "sheet.mutation.insert-sheet",
+  "sheet.mutation.remove-sheet",
+  "sheet.mutation.set-worksheet-name",
+  "sheet.mutation.set-worksheet-order",
+  "sheet.mutation.set-worksheet-hidden",
+  // The split-copy end marker (very large sheets): a no-op handler the copy
+  // command dispatches; journalled by nothing and emitted not at all.
+  "sheet.mutation.copy-worksheet-end",
+]);
+
+export function isSheetMutation(id: string): boolean {
+  return SHEET_MUTATIONS.has(id);
+}
+
+/** The session's live sheet list — file sheets with removals/renames applied,
+ *  plus sheets added this session — derived from the vendored SheetJournal,
+ *  which every sheet mutation records into as it runs. Read BEFORE a mutation
+ *  records itself (the CommandExecuted handler does), it is the pre-mutation
+ *  state, which is exactly what a rename target needs. */
+export function liveSessionSheets(state: LazyWorkbookState): { id: string; name: string }[] {
+  const { added, removed, renamed } = state.editJournal.sheets;
+  const sheets: { id: string; name: string }[] = [];
+  for (const sheet of state.file.sheets) {
+    if (removed.has(sheet.id) || added.has(sheet.id)) continue;
+    sheets.push({ id: sheet.id, name: renamed.get(sheet.id) ?? sheet.name });
+  }
+  for (const [id, entry] of added) {
+    if (!removed.has(id)) sheets.push({ id, name: entry.name });
+  }
+  return sheets;
+}
+
+export interface XlsxSheetMutationContext {
+  /** Copy provenance when this insert-sheet mutation came from copy-sheet. */
+  copy?: { sourceSheetId: string; sourceName: string } | undefined;
+}
+
+/** Ingest one sheet mutation. Returns the journal edit the bridge maps to an
+ *  envelope sheet op, or [] for a shape the policy/bridge must not see. */
+export function ingestSheetMutation(
+  state: LazyWorkbookState | null,
+  event: RendererCommand,
+  suppressed = false,
+  context: XlsxSheetMutationContext = {},
+): XlsxRendererSheetEdit[] {
+  if (!state || suppressed || event.options?.fromFormula || !isSheetMutation(event.id)) return [];
+  const params = event.params as
+    | {
+        unitId?: unknown;
+        subUnitId?: unknown;
+        subUnitName?: unknown;
+        name?: unknown;
+        hidden?: unknown;
+        fromOrder?: unknown;
+        toOrder?: unknown;
+        index?: unknown;
+        sheet?: { id?: unknown; name?: unknown } | undefined;
+      }
+    | undefined;
+  if (!params || typeof params !== "object" || params.unitId !== `file-${state.file.sha256}`) return [];
+  // The split-copy marker carries no sheet change; the insert mutation it
+  // follows already emitted the duplicate.
+  if (event.id === "sheet.mutation.copy-worksheet-end") return [];
+  const liveSheets = liveSessionSheets(state);
+
+  if (event.id === "sheet.mutation.insert-sheet") {
+    const id = params.sheet?.id;
+    const name = params.sheet?.name;
+    const index = params.index;
+    if (typeof id !== "string" || id.length === 0 || typeof name !== "string" || !sheetNameShapeOK(name)) return [];
+    if (!Number.isInteger(index) || (index as number) < 0 || (index as number) > liveSheets.length) return [];
+    if (context.copy !== undefined && context.copy !== null) {
+      recordSheetDuplicate(state.editJournal, id, name, context.copy.sourceSheetId);
+      return [
+        {
+          sheetId: id,
+          sheetName: name,
+          sheetOp: {
+            kind: "duplicate-sheet",
+            sourceSheetId: context.copy.sourceSheetId,
+            sourceName: context.copy.sourceName,
+            index: index as number,
+          },
+        },
+      ];
+    }
+    recordSheetInsert(state.editJournal, id, name);
+    return [{ sheetId: id, sheetName: name, sheetOp: { kind: "add-sheet", index: index as number } }];
+  }
+
+  const sheetId = params.subUnitId;
+  if (typeof sheetId !== "string" || sheetId.length === 0) return [];
+  const sheetName = liveSheets.find((sheet) => sheet.id === sheetId)?.name;
+  if (sheetName === undefined) return [];
+
+  if (event.id === "sheet.mutation.remove-sheet") {
+    // The mutation carries the removed sheet's live name (subUnitName); the
+    // live lookup is pre-mutation, so either is the same name here.
+    const name = typeof params.subUnitName === "string" && params.subUnitName.length > 0 ? params.subUnitName : sheetName;
+    recordSheetRemove(state.editJournal, sheetId);
+    return [{ sheetId, sheetName: name, sheetOp: { kind: "remove-sheet" } }];
+  }
+
+  if (event.id === "sheet.mutation.set-worksheet-name") {
+    const name = params.name;
+    if (typeof name !== "string" || !sheetNameShapeOK(name)) return [];
+    if (sheetName === name) return [];
+    recordSheetRename(state.editJournal, sheetId, name, state.file.sheets.find((sheet) => sheet.id === sheetId)?.name);
+    return [{ sheetId, sheetName, sheetOp: { kind: "rename-sheet", newName: name } }];
+  }
+
+  if (event.id === "sheet.mutation.set-worksheet-order") {
+    const toOrder = params.toOrder;
+    if (!Number.isInteger(toOrder) || (toOrder as number) < 0 || (toOrder as number) >= liveSheets.length) return [];
+    recordSheetOrderChange(state.editJournal);
+    return [{ sheetId, sheetName, sheetOp: { kind: "reorder-sheet", index: toOrder as number } }];
+  }
+
+  // set-worksheet-hidden: Univer carries BooleanNumber (0/1); normalize.
+  const hidden = params.hidden;
+  if (hidden !== 0 && hidden !== 1 && hidden !== true && hidden !== false) return [];
+  const fileHidden = state.file.sheets.find((sheet) => sheet.id === sheetId)?.hidden === true;
+  recordSheetHidden(state.editJournal, sheetId, hidden === true || hidden === 1, fileHidden);
+  return [{ sheetId, sheetName, sheetOp: { kind: "set-sheet-hidden", hidden: hidden === true || hidden === 1 } }];
+}
+
+/** The upstream validateSheetName shape (1-31 chars, no \ / ? * [ ] :, no
+ *  leading/trailing apostrophe). */
+export function sheetNameShapeOK(name: string): boolean {
+  if (name.length === 0 || name.length > 31) return false;
+  if (/[\\/?*[\]:]/.test(name)) return false;
+  return !name.startsWith("'") && !name.endsWith("'");
 }
 
 export type XlsxOutlineAction = "group" | "ungroup" | "clear";

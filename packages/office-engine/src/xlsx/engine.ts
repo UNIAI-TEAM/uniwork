@@ -42,11 +42,14 @@ export interface XlsxCellState {
 }
 
 /** Upstream WorksheetState (workbook.types.ts:45): `cells` keyed by A1
- *  address; `id` is the gateway's `sheet-<sheetId>` token. */
+ *  address; `id` is the gateway's `sheet-<sheetId>` token. `hidden` is a
+ *  host-side session hint (a `set_sheet_hidden` op the browser model applied);
+ *  the gateway snapshot never sets it, so it stays absent there. */
 export interface XlsxWorksheet {
   readonly id: string;
   readonly name: string;
   readonly cells: Readonly<Record<string, XlsxCellState>>;
+  readonly hidden?: boolean | undefined;
 }
 
 export interface XlsxWorkbookSnapshot {

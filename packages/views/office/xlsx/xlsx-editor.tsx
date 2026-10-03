@@ -7,8 +7,21 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { XlsxErrorState } from "./xlsx-error-state";
-import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
+import { XlsxFindPanel } from "./find/find-panel";
+import { XlsxGridSurface, type XlsxGridHandle, type XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
+import {
+  sheetActionOperation,
+  XLSX_COPY_SHEET_COMMAND,
+  XLSX_HIDE_SHEET_COMMAND,
+  XLSX_INSERT_SHEET_COMMAND,
+  XLSX_ORDER_SHEET_COMMAND,
+  XLSX_REMOVE_SHEET_COMMAND,
+  XLSX_RENAME_SHEET_COMMAND,
+  XLSX_SHOW_SHEET_COMMAND,
+  type XlsxSheetTabAction,
+} from "./sheet-commands";
+import { XlsxSheetTabs } from "./sheet-tabs";
 import { XlsxStatusBar } from "./status-bar";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
@@ -101,6 +114,16 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // One port for the toolbar: it reaches the mounted renderer only, and the
   // renderer's policy gate keeps every command savable or refused.
   const { formatState, refreshFormatState, commands: gridCommands } = useXlsxGridFormat(gridRef);
+  // The find panel needs the renderer host for its bounded cell reads, so the
+  // editor owns its visibility and the Home-tab group only opens it.
+  const [findOpen, setFindOpen] = useState(false);
+  // Live sheet list (tab order, names, hidden) for the sheet-tab strip: the
+  // mounted grid's own state, so a session rename/add/reorder is reflected the
+  // moment it happens. Empty without a grid (the snapshot drives the strip).
+  const [liveSheets, setLiveSheets] = useState<readonly XlsxGridSheetInfo[]>([]);
+  const refreshSheets = useCallback(() => {
+    setLiveSheets(gridRef.current?.getSheets?.() ?? []);
+  }, [gridRef]);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
@@ -233,10 +256,17 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onSelectionChange?.(next);
   }, [editor.selection, onSelectionChange]);
 
+  // The live grid id wins over the host file's id map: a session rename keeps
+  // the id but changes the name, so the file lookup goes stale.
+  const gridSheetId = useCallback((sheetName: string): string | undefined =>
+    gridRef.current?.getSheets?.().find((sheet) => sheet.name === sheetName)?.id ??
+    rendererHost?.file.sheets.find((sheet) => sheet.name === sheetName)?.id,
+  [rendererHost]);
+
   const selectSheet = useCallback((sheetName: string) => {
     setActiveSheet(sheetName);
-    const rendererSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === sheetName);
-    if (gridReady && rendererSheet) { gridRef.current?.selectSheet(rendererSheet.id); return; }
+    const rendererSheetId = gridSheetId(sheetName);
+    if (gridReady && rendererSheetId) { gridRef.current?.selectSheet(rendererSheetId); return; }
     if (selection?.sheet === sheetName) return;
     const sheet = snapshot?.sheets.find((candidate) => candidate.name === sheetName);
     const firstAddress = sheet
@@ -249,12 +279,64 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     setSelection(next);
     onSelectionChange?.(next);
     if (next) editor.selection?.setSelection?.(next);
-  }, [editor.selection, gridReady, onSelectionChange, rendererHost, selection?.sheet, snapshot]);
+  }, [editor.selection, gridReady, gridSheetId, onSelectionChange, selection?.sheet, snapshot]);
 
   const markDirty = useCallback(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
     setRecalcFresh(false);
   }, [coordinator, editor]);
+
+  // Sheet-tab actions: the pinned Univer command path when the grid is live
+  // (its policy gate stays the single savability gate and the mutation is
+  // captured into the same envelope op); the direct op path otherwise, where
+  // the host's runtime model applies it to the snapshot.
+  const runSheetAction = useCallback((action: XlsxSheetTabAction): void => {
+    if (!canEdit) return;
+    const execute = (id: string, params: unknown): boolean => (gridReady ? gridCommands.execute(id, params) : false);
+    const fallback = (): void => {
+      void Promise.resolve(editor.edit?.([sheetActionOperation(action)]))
+        .then(() => { markDirty(); refreshSnapshot(); })
+        .catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
+    };
+    switch (action.kind) {
+      case "add":
+        if (execute(XLSX_INSERT_SHEET_COMMAND, { sheet: { name: action.name } })) break;
+        fallback();
+        break;
+      case "duplicate": {
+        const id = gridSheetId(action.sheet);
+        if (id !== undefined && execute(XLSX_COPY_SHEET_COMMAND, { subUnitId: id })) break;
+        fallback();
+        break;
+      }
+      case "rename": {
+        const id = gridSheetId(action.sheet);
+        if (id !== undefined && execute(XLSX_RENAME_SHEET_COMMAND, { subUnitId: id, name: action.newName })) break;
+        fallback();
+        break;
+      }
+      case "remove": {
+        const id = gridSheetId(action.sheet);
+        if (id !== undefined && execute(XLSX_REMOVE_SHEET_COMMAND, { subUnitId: id })) break;
+        fallback();
+        break;
+      }
+      case "move": {
+        const id = gridSheetId(action.sheet);
+        if (id !== undefined && execute(XLSX_ORDER_SHEET_COMMAND, { subUnitId: id, order: action.index })) break;
+        fallback();
+        break;
+      }
+      case "set-hidden": {
+        const id = gridSheetId(action.sheet);
+        const command = action.hidden ? XLSX_HIDE_SHEET_COMMAND : XLSX_SHOW_SHEET_COMMAND;
+        if (id !== undefined && execute(command, { subUnitId: id })) break;
+        fallback();
+        break;
+      }
+    }
+    refreshSheets();
+  }, [canEdit, editor, gridCommands, gridReady, gridSheetId, markDirty, refreshSheets, refreshSnapshot]);
 
   const commitCell = useCallback(async () => {
     if (!canEdit || !selection || formulaDraft === cellText(activeCell)) return;
@@ -417,6 +499,15 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [captureSave, documentKey, editor]);
 
   const sheets = snapshot?.sheets ?? [];
+  // Tab colours have no write path in the vendored gateway: they are shown
+  // read-only from the render model (the only reader of <tabColor>).
+  const sheetTabInfos = useMemo(() => {
+    const colors = new Map((rendererHost?.file.sheets ?? []).map((sheet) => [sheet.name, sheet.tabColor]));
+    const source = liveSheets.length > 0
+      ? liveSheets.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden }))
+      : sheets.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden ?? false }));
+    return source.map((sheet) => ({ ...sheet, tabColor: colors.get(sheet.name) ?? null }));
+  }, [liveSheets, rendererHost, sheets]);
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
   const visibleAddresses = useMemo(() => Object.keys(cells).map((address) => ({ address, parts: addressParts(address) })).filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null), [cells]);
   const maxRow = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.row), 0);
@@ -456,9 +547,22 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onCopy={() => { void copy().catch(clipboardFailure); }}
             onPaste={() => { void paste().catch(clipboardFailure); }}
             onShowSheets={() => sheetTabsRef.current?.focus()}
+            onOpenFind={rendererHost ? () => setFindOpen(true) : undefined}
             onSave={() => save("button")}
             onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
           />
+          {rendererHost && findOpen ? (
+            <XlsxFindPanel
+              documentKey={documentKey}
+              host={rendererHost}
+              commands={gridCommands}
+              selection={selection}
+              sheetName={selection?.sheet ?? activeSheet}
+              dirtyGeneration={coordinatorState.dirtyGeneration}
+              readOnly={readOnly}
+              onClose={() => setFindOpen(false)}
+            />
+          ) : null}
           {recalcProgress !== null ? (
             <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
               <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>
@@ -470,11 +574,14 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
           {recalcFresh ? <p className="sr-only" role="status">{t("office.xlsx.recalc.fresh")}</p> : null}
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
-            <div ref={sheetTabsRef} tabIndex={-1} className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
-              {sheets.map((sheet) => (
-                <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted pointer-coarse:min-h-11 pointer-coarse:min-w-11" onClick={() => selectSheet(sheet.name)}>{sheet.name}</button>
-              ))}
-              {sheets.length === 0 ? <span className="px-2 text-caption text-muted-foreground">{t("office.xlsx.surface.ready")}</span> : null}
+            <div ref={sheetTabsRef} tabIndex={-1} className="outline-none">
+              <XlsxSheetTabs
+                tabs={sheetTabInfos}
+                activeSheet={activeSheetModel?.name ?? null}
+                canEdit={canEdit}
+                onSelect={selectSheet}
+                onAction={runSheetAction}
+              />
             </div>
             <div className="flex items-center gap-2 border-b border-border bg-muted/10 px-3 py-2">
               <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">{t("office.xlsx.formula.label")}</label>
@@ -487,8 +594,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 host={rendererHost}
                 dark={dark}
                 readOnly={readOnly || !canEdit}
-                onEdits={(edits) => { gridEdits.onEdits(edits); refreshFormatState(); }}
-                onReady={() => { setGridReady(true); refreshFormatState(); }}
+                onEdits={(edits) => { gridEdits.onEdits(edits); refreshFormatState(); refreshSheets(); }}
+                onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                 onFailure={(message) => {
                   const failureValue: XlsxOpenFailure = {
                     outcome: "failed",
@@ -505,9 +612,12 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                     setSelection(null);
                     onSelectionChange?.(null);
                   } else {
-                    const sheet = rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId);
+                    // The live grid sheet list wins: a session rename changed
+                    // the name while the host file's id map kept the old one.
+                    const sheetName = gridRef.current?.getSheets?.().find((sheet) => sheet.id === next.sheetId)?.name
+                      ?? rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId)?.name;
                     const nextSelection: XlsxSelection = {
-                      sheet: sheet?.name ?? next.sheetId,
+                      sheet: sheetName ?? next.sheetId,
                       address: toA1Address(next.range.startRow, next.range.startColumn),
                       ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) } : {}),
                     };
@@ -517,6 +627,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                     onSelectionChange?.(nextSelection);
                   }
                   refreshFormatState();
+                  refreshSheets();
                 }}
               />
             ) : (

@@ -41,8 +41,11 @@ import {
   applyOutlineAction,
   ingestCellMutation,
   ingestMergeMutation,
+  ingestSheetMutation,
   ingestStructuralMutation,
   intersectMergeRanges,
+  isSheetMutation,
+  liveSessionSheets,
   seedColumnOutline,
   type AxisRange,
   type RendererCommand,
@@ -145,6 +148,13 @@ function formatStateFromStyle(style: IStyleData | null | undefined): XlsxRendere
   };
 }
 
+/** One live sheet as the tab strip reads it (order = tab order). */
+export interface XlsxRendererSheetInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
 export interface XlsxRendererHandle {
   /** Install the workbook skeleton and stream the first visible window. */
   loadWorkbook(file: WorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
@@ -165,6 +175,9 @@ export interface XlsxRendererHandle {
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
+  /** The live sheet list in tab order (rename/insert/remove/reorder as they
+   *  happen); read-only mounts still report it. */
+  getSheets(): readonly XlsxRendererSheetInfo[];
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -176,6 +189,24 @@ export interface XlsxRendererHandle {
 
 const RENDERER_ROOT_CLASS = "xlsx-surface";
 const UNIVER_CONTAINER_CLASS = "xlsx-univer-container";
+
+/** Stamp cell/structural/merge edits with the sheet's live name when it
+ *  differs from the file's (a session rename or an added sheet). The views
+ *  bridge otherwise resolves the grid id through the host file, which is
+ *  stale after a rename and has no entry for an addition; an edit without the
+ *  stamp stays byte-identical to the pre-B3 wire. Sheet edits carry their own
+ *  names and are never stamped. */
+function withLiveSheetNames(state: LazyWorkbookState | null, edits: XlsxRendererEdit[]): XlsxRendererEdit[] {
+  if (!state || edits.length === 0) return edits;
+  const live = new Map(liveSessionSheets(state).map((sheet) => [sheet.id, sheet.name]));
+  const file = new Map(state.file.sheets.map((sheet) => [sheet.id, sheet.name]));
+  return edits.map((edit) => {
+    if ("sheetOp" in edit) return edit;
+    const name = live.get(edit.sheetId);
+    if (name === undefined || name === file.get(edit.sheetId)) return edit;
+    return { ...edit, sheetName: name };
+  });
+}
 
 /**
  * A minimal, reversible bridge: the vendored modules read the genoffice host
@@ -466,6 +497,25 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (!Array.isArray(merges)) return;
     pendingMergeRemovals.set(event.params, intersectMergeRanges(merges, params.ranges));
   };
+  // Sheet ops (B3): a copy command dispatches `sheet.mutation.insert-sheet`
+  // with a freshly generated id, indistinguishable from a plain add by the
+  // mutation params alone. The copy source is snapshotted at the command (its
+  // live name included) and consumed by the next insert mutation; a plain
+  // insert-sheet command clears any stale marker (a refused copy never
+  // inserts).
+  let pendingSheetCopy: { sourceSheetId: string; sourceName: string } | null = null;
+  const rememberSheetCommand = (event: RendererCommand): void => {
+    if (event.id === "sheet.command.insert-sheet") {
+      pendingSheetCopy = null;
+      return;
+    }
+    if (event.id !== "sheet.command.copy-sheet") return;
+    const params = event.params as { subUnitId?: string } | undefined;
+    const state = lazyWorkbookRef.current;
+    if (!state || !params?.subUnitId) return;
+    const source = liveSessionSheets(state).find((sheet) => sheet.id === params.subUnitId);
+    if (source) pendingSheetCopy = { sourceSheetId: source.id, sourceName: source.name };
+  };
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
@@ -474,6 +524,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       return;
     }
     rememberMergeRemoval(event);
+    rememberSheetCommand(event);
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -528,9 +579,19 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         : undefined;
       if (typeof event.params === "object" && event.params !== null) pendingMergeRemovals.delete(event.params);
       const mergeEdits = ingestMergeMutation(lazyWorkbookRef.current, event, journalSuppression.active, mergeRanges);
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0) return;
+      // Sheet ops (B3) ride the same channel; the pending copy marker is
+      // consumed by the NEXT sheet mutation — the insert mutation a copy
+      // command dispatches. The copy command's own CommandExecuted is not a
+      // mutation, so the marker survives it; any other sheet mutation clears
+      // a marker that never found its insert (a refused copy).
+      const sheetEdits = ingestSheetMutation(
+        lazyWorkbookRef.current, event, journalSuppression.active,
+        pendingSheetCopy === null ? {} : { copy: pendingSheetCopy },
+      );
+      if (isSheetMutation(event.id)) pendingSheetCopy = null;
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.([...edits, ...structuralEdits, ...mergeEdits]);
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits]));
       options.onDirty?.();
     }),
   );
@@ -611,14 +672,28 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const sheet = workbook?.getActiveSheet();
       const range = workbook?.getActiveRange();
       if (!workbook || !sheet || !range) return false;
-      // The synchronous command service still runs the BeforeCommandExecute
-      // gate, so `canExecuteCommand` decides savability; a cancelled command
-      // comes back as false and never touches the model.
-      return runtime.univerAPI.syncExecuteCommand(id, (params ?? {}) as object) === true;
+      // Toolbar commands address the active render, but the toolbar port only
+      // carries a group's own params; fill the unit/sheet ids when a command
+      // omits them (explicit params win) so `sheet.operation.set-selections`
+      // and the header size commands reach the active unit instead of a
+      // no-op. The synchronous command service still runs the
+      // BeforeCommandExecute gate, so `canExecuteCommand` decides savability;
+      // a cancelled command comes back as false and never touches the model.
+      const base = params && typeof params === "object" ? params as Record<string, unknown> : {};
+      const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base };
+      return runtime.univerAPI.syncExecuteCommand(id, commandParams) === true;
     },
     getActiveFormatState() {
       const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();
       return range ? formatStateFromStyle(range.getCellStyleData()) : null;
+    },
+    getSheets() {
+      const sheets = runtime.univerAPI.getActiveWorkbook()?.getSheets() ?? [];
+      return sheets.map((sheet) => ({
+        id: sheet.getSheetId(),
+        name: sheet.getSheetName(),
+        hidden: sheet.isSheetHidden() === true,
+      }));
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {

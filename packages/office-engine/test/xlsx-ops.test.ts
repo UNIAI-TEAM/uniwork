@@ -104,11 +104,15 @@ describe("op-kind registry", () => {
       "set_cell", "clear_cell", "set_cells",
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
+      "merge_cells", "unmerge_cells",
+      "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
       "cellEdits", "cellEdits", "cellEdits",
       "structuralOps", "structuralOps", "structuralOps", "structuralOps",
       "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps", "structuralOps",
+      "structuralOps", "structuralOps",
+      "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
     ]);
   });
 
@@ -127,6 +131,14 @@ describe("op-kind registry", () => {
       set_cols_hidden: { op: "set_cols_hidden", target: { sheet: "Data" }, attributes: { start: 0, end: 0, hidden: false } },
       set_rows_outline: { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 2 } },
       set_cols_outline: { op: "set_cols_outline", target: { sheet: "Data" }, attributes: { start: 0, end: 0, level: 0 } },
+      merge_cells: { op: "merge_cells", target: { sheet: "Data" }, range: "A1:B2" },
+      unmerge_cells: { op: "unmerge_cells", target: { sheet: "Data" }, range: "A1:B2" },
+      add_sheet: { op: "add_sheet", attributes: { name: "Scratch" } },
+      duplicate_sheet: { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } },
+      rename_sheet: { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Budget" } },
+      remove_sheet: { op: "remove_sheet", target: { sheet: "Report" } },
+      reorder_sheet: { op: "reorder_sheet", target: { sheet: "Data" }, attributes: { index: 1 } },
+      set_sheet_hidden: { op: "set_sheet_hidden", target: { sheet: "Data" }, attributes: { hidden: true } },
     };
     for (const kind of XLSX_OP_KINDS) {
       const item = items[kind.wireName]!;

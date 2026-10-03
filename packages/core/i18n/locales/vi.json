@@ -7295,6 +7295,20 @@
           "painter": {
             "label": "Sao chép định dạng",
             "hint": "Sao chép định dạng của vùng chọn hiện tại rồi chọn nơi áp dụng. Nhấn lần nữa hoặc Esc để hủy."
+          },
+          "find": {
+            "label": "Tìm và thay thế"
+          },
+          "view": {
+            "zoom": {
+              "label": "Thu phóng"
+            },
+            "display": {
+              "label": "Hiển thị"
+            },
+            "goto": {
+              "label": "Đi tới"
+            }
           }
         },
         "overflow": "Thêm lệnh",
@@ -7341,6 +7355,24 @@
         "table": "Trang tính {{sheet}}",
         "grid": "Lưới sổ tính"
       },
+      "view": {
+        "zoom": {
+          "out": "Thu nhỏ",
+          "in": "Phóng to",
+          "value": "{{percent}}%",
+          "preset": "Thu phóng {{percent}}%",
+          "presetShort": "{{percent}}%",
+          "reset": "Đặt lại 100%"
+        },
+        "gridlines": "Đường lưới",
+        "headers": "Tiêu đề hàng và cột",
+        "goto": {
+          "label": "Đi tới ô",
+          "placeholder": "Ví dụ: B5 hoặc A1:C10",
+          "go": "Đi",
+          "invalid": "Nhập một ô hoặc vùng, ví dụ B5 hoặc A1:C10."
+        }
+      },
       "structure": {
         "groups": {
           "insert": "Chèn dòng và cột",
@@ -7374,7 +7406,22 @@
         "unmergeCells": "Bỏ gộp ô"
       },
       "sheets": {
-        "label": "Các trang tính trong sổ"
+        "label": "Các trang tính trong sổ",
+        "actions": "Thao tác trang tính",
+        "add": "Thêm trang tính",
+        "copySuffix": "bản sao",
+        "defaultName": "Trang tính",
+        "duplicate": "Nhân bản trang tính",
+        "hiddenGroup": "Trang tính đang ẩn",
+        "hide": "Ẩn trang tính",
+        "moveLeft": "Di chuyển sang trái",
+        "moveRight": "Di chuyển sang phải",
+        "remove": "Xóa trang tính",
+        "confirmRemove": "Xác nhận xóa trang tính?",
+        "rename": "Đổi tên trang tính",
+        "renameInput": "Tên trang tính",
+        "tabColorReadOnly": "Màu tab (chỉ đọc — chờ gateway)",
+        "unhide": "Hiện trang tính"
       },
       "formula": {
         "label": "Công thức hoặc giá trị"
@@ -7415,6 +7462,36 @@
         "rendererFailed": "Không thể hiển thị sổ tính. Thử mở lại.",
         "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",
         "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại."
+      },
+      "find": {
+        "title": "Tìm và thay thế",
+        "close": "Đóng",
+        "findLabel": "Tìm",
+        "replaceLabel": "Thay bằng",
+        "matchCase": "Phân biệt chữ hoa chữ thường",
+        "options": "Tùy chọn tìm",
+        "scopeSelection": "Vùng chọn",
+        "scopeSheet": "Cả trang tính",
+        "previous": "Kết quả trước",
+        "next": "Kết quả sau",
+        "replace": "Thay thế",
+        "replaceAll": "Thay thế tất cả",
+        "status": {
+          "typeQuery": "Nhập nội dung cần tìm.",
+          "reading": "Đang đọc dữ liệu…",
+          "unavailable": "Không có trang tính nào đang mở.",
+          "error": "Không đọc được trang tính. Hãy thử lại.",
+          "noMatches": "Không tìm thấy kết quả.",
+          "matches": "{{count}} kết quả.",
+          "position": "{{index}}/{{count}}",
+          "partial": "Đã quét {{scanned}}/{{total}} dòng.",
+          "formulaHint": "{{count}} ô công thức chỉ được tìm thấy, không được thay thế.",
+          "limit": "{{count}} ô vượt giới hạn {{limit}} ô mỗi lần lưu. Chưa thay thế ô nào.",
+          "replaced": "Đã thay thế ô hiện tại.",
+          "replacedAll": "Đã thay thế {{count}} ô.",
+          "noChange": "Không có ô nào cần thay thế.",
+          "failed": "Không thay thế được — ô có thể nằm ngoài vùng đã nạp hoặc tài liệu chỉ cho đọc."
+        }
       },
       "editor": {
         "appClosureActive": "{{count}} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",

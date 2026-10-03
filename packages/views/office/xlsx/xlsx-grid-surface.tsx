@@ -44,6 +44,13 @@ export interface XlsxGridFormatState {
   textRotation: number | null;
 }
 
+/** One live sheet as the tab strip reads it (order = tab order). */
+export interface XlsxGridSheetInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
 /** The subset of the artifact handle the surface uses. */
 export interface XlsxGridHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
@@ -58,6 +65,9 @@ export interface XlsxGridHandle {
   executeCommand(id: string, params?: unknown): boolean;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxGridFormatState | null;
+  /** The live sheet list in tab order; optional so test doubles that only
+   *  exercise the cell ports stay valid. */
+  getSheets?(): readonly XlsxGridSheetInfo[];
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -142,6 +152,7 @@ export function XlsxGridSurface({
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
+      getSheets: () => handleRef.current?.getSheets?.() ?? [],
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),

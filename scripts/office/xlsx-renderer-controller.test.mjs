@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { mountController } from './xlsx-renderer-controller-harness.mjs';
 
 const file = { sessionId: 'session', sha256: 'sha', styles: [], sheets: [
-  { id: 's1', name: 'First', rowCount: 20, columnCount: 10, columnWidths: [] },
-  { id: 's2', name: 'Second', rowCount: 20, columnCount: 10, columnWidths: [] },
+  { id: 's1', name: 'First', hidden: false, rowCount: 20, columnCount: 10, columnWidths: [] },
+  { id: 's2', name: 'Second', hidden: false, rowCount: 20, columnCount: 10, columnWidths: [] },
 ] };
 
 test('sheet-dependent render patches wait for a workbook unit and survive reload', async () => {
@@ -307,9 +307,13 @@ test('renderer command port runs allowlisted commands through the policy and ref
     assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no open workbook');
     await mounted.handle.loadWorkbook(file);
     assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), true);
-    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-bold', params: {} });
+    // The port fills the active unit/sheet ids when a command omits them, so a
+    // toolbar group can drive the active render without carrying renderer ids.
+    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-bold', params: { unitId: 'file-sha', subUnitId: 's1' } });
     assert.equal(mounted.handle.executeCommand('sheet.command.set-font-size', { value: 14 }), true);
-    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-font-size', params: { value: 14 } });
+    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-font-size', params: { unitId: 'file-sha', subUnitId: 's1', value: 14 } });
+    assert.equal(mounted.handle.executeCommand('sheet.operation.set-selections', { selections: [] }), true);
+    assert.deepEqual(mounted.events.at(-1), { id: 'sheet.operation.set-selections', params: { unitId: 'file-sha', subUnitId: 's1', selections: [] } });
     assert.equal(mounted.handle.executeCommand('sheet.mutation.insert-row'), false, 'policy refuses the command');
     assert.equal(mounted.events.some((event) => event.id === 'sheet.mutation.insert-row'), false);
     mounted.workbook.setActiveRange(null);
@@ -445,5 +449,114 @@ test('disposing during font preparation prevents a late workbook installation', 
     await loaded;
     assert.equal(mounted.events.length, 0);
     assert.equal(mounted.h.disposed, true);
-  } finally { globalThis.FontFace = previous; }
+  } finally { mounted.close(); globalThis.FontFace = previous; }
+});
+
+test('sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids', async () => {
+  const edits = [];
+  let dirty = 0;
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const generation = mounted.handle.getDirtyGeneration();
+
+    // The live sheet list follows the Univer facade (rename/hide included).
+    assert.deepEqual(mounted.handle.getSheets(), [
+      { id: 's1', name: 'First', hidden: false }, { id: 's2', name: 'Second', hidden: false },
+    ]);
+    mounted.setSheetName('s1', 'Budget');
+    mounted.setSheetHidden('s2', true);
+    assert.deepEqual(mounted.handle.getSheets().map((sheet) => [sheet.name, sheet.hidden]), [['Budget', false], ['Second', true]]);
+    mounted.setSheetName('s1', 'First');
+    mounted.setSheetHidden('s2', false);
+
+    // Rename: the emitted target is the pre-mutation live name.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-name', params: {
+      unitId: 'file-sha', subUnitId: 's1', name: 'Budget',
+    } }), true);
+    assert.deepEqual(edits.at(-1), {
+      sheetId: 's1', sheetName: 'First', sheetOp: { kind: 'rename-sheet', newName: 'Budget' },
+    });
+    // A later cell edit into the renamed sheet carries the live name so the
+    // bridge never resolves it through the stale host file.
+    mounted.handle.setCellText('s1', 0, 0, 'kept');
+    assert.deepEqual(edits.at(-1), {
+      sheetId: 's1', sheetName: 'Budget', row: 0, column: 0, writeValue: true, value: 'kept',
+    });
+
+    // Add: the new sheet id/name/index ride the insert mutation.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.insert-sheet', params: {
+      unitId: 'file-sha', index: 2, sheet: { id: 's3', name: 'Scratch' },
+    } }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's3', sheetName: 'Scratch', sheetOp: { kind: 'add-sheet', index: 2 } });
+    // The stub command service does not model the mutation, so the test adds
+    // the sheet Univer created; cells into it pass the policy (live id set).
+    mounted.addSheet('s3', 'Scratch');
+    mounted.handle.setCellText('s3', 1, 1, 'new');
+    assert.deepEqual(edits.at(-1), {
+      sheetId: 's3', sheetName: 'Scratch', row: 1, column: 1, writeValue: true, value: 'new',
+    });
+
+    // Duplicate: the copy command marks its source, the insert mutation it
+    // dispatches is captured as a duplicate with the live source name.
+    assert.equal(mounted.h.execute({ id: 'sheet.command.copy-sheet', params: { subUnitId: 's1' } }), true);
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.insert-sheet', params: {
+      unitId: 'file-sha', index: 1, sheet: { id: 's4', name: 'Budget copy' },
+    } }), true);
+    assert.deepEqual(edits.at(-1), {
+      sheetId: 's4', sheetName: 'Budget copy',
+      sheetOp: { kind: 'duplicate-sheet', sourceSheetId: 's1', sourceName: 'Budget', index: 1 },
+    });
+    // An explicit add after a copy is NOT a duplicate (the marker was consumed
+    // by the copy's insert mutation).
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.insert-sheet', params: {
+      unitId: 'file-sha', index: 4, sheet: { id: 's5', name: 'Plain' },
+    } }), true);
+    assert.deepEqual(edits.at(-1).sheetOp, { kind: 'add-sheet', index: 4 });
+
+    // Reorder and hide/unhide.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-order', params: {
+      unitId: 'file-sha', subUnitId: 's2', fromOrder: 1, toOrder: 2,
+    } }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's2', sheetName: 'Second', sheetOp: { kind: 'reorder-sheet', index: 2 } });
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-hidden', params: {
+      unitId: 'file-sha', subUnitId: 's2', hidden: 1,
+    } }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's2', sheetName: 'Second', sheetOp: { kind: 'set-sheet-hidden', hidden: true } });
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-hidden', params: {
+      unitId: 'file-sha', subUnitId: 's2', hidden: 0,
+    } }), true);
+    assert.deepEqual(edits.at(-1).sheetOp, { kind: 'set-sheet-hidden', hidden: false });
+
+    // Remove: the removed sheet's live name is captured before the journal mark.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.remove-sheet', params: {
+      unitId: 'file-sha', subUnitId: 's2', subUnitName: 'Second',
+    } }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's2', sheetName: 'Second', sheetOp: { kind: 'remove-sheet' } });
+
+    // Tab colour has no gateway write path: the command stays refused and
+    // never reaches the edit channel.
+    const before = edits.length;
+    assert.equal(mounted.h.execute({ id: 'sheet.command.set-tab-color', params: { subUnitId: 's1' } }), false);
+    assert.equal(edits.length, before);
+    // Unknown sheet / malformed names are refused before the mutation runs.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-name', params: {
+      unitId: 'file-sha', subUnitId: 'ghost', name: 'X',
+    } }), false);
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-name', params: {
+      unitId: 'file-sha', subUnitId: 's1', name: 'a/b',
+    } }), false);
+    assert.equal(edits.length, before);
+    assert.equal(dirty, 10);
+    assert.equal(mounted.handle.getDirtyGeneration(), generation + 10);
+  } finally { mounted.close(); }
+
+  const readonly = mountController({ readOnly: true });
+  try {
+    await readonly.handle.loadWorkbook(file);
+    assert.equal(readonly.h.execute({ id: 'sheet.mutation.set-worksheet-name', params: {
+      unitId: 'file-sha', subUnitId: 's1', name: 'Budget',
+    } }), false);
+    assert.equal(readonly.handle.getJournal().sheets.renamed.size, 0);
+  } finally { readonly.close(); }
 });

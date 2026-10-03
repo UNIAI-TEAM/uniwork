@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -688,6 +689,17 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// merge branch; merges never shift coordinates.
 	"merge_cells":   officeMergeValid,
 	"unmerge_cells": officeMergeValid,
+	// Sheet management (B3): add/duplicate/rename/remove/reorder/hide. The
+	// applied set folds into ONE workbook-wide SheetEditPlan per save; names
+	// follow the upstream validateSheetName and the tab index mirrors the TS
+	// parser. The live sheet set (uniqueness, the last-sheet rule) lives with
+	// the engine, so these rows validate shape only.
+	"add_sheet":        officeAddSheetValid,
+	"duplicate_sheet":  officeDuplicateSheetValid,
+	"rename_sheet":     officeRenameSheetValid,
+	"remove_sheet":     officeRemoveSheetValid,
+	"reorder_sheet":    officeReorderSheetValid,
+	"set_sheet_hidden": officeSheetHiddenValid,
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -1158,6 +1170,131 @@ func officeMergeValid(edit office.EditOp) bool {
 		return false
 	}
 	return endRow > startRow || endColumn > startColumn
+}
+
+// Sheet management (B3). Names mirror the upstream validateSheetName
+// (1-31 characters, no \ / ? * [ ] :, no leading/trailing apostrophe); the tab
+// index mirrors the TS parser's 0-9999 bound (an envelope carries at most
+// maxOfficeEditOps items, so a larger index is unreachable). Uniqueness, the
+// last-sheet rule and the at-least-one-visible rule need the workbook's live
+// sheet set and stay with the engine (a typed refusal at edit/save time), the
+// same split as officeSheetRefOK.
+const (
+	maxOfficeSheetNameLen = 31
+	maxOfficeSheetIndex   = 9_999
+)
+
+// officeSheetNameOK accepts a present, well-formed worksheet name. The rune
+// count keeps the Go gate at least as permissive as the engine's UTF-16 length
+// check: a name the engine would refuse still reaches it as a typed error.
+func officeSheetNameOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil {
+		return false
+	}
+	if count := utf8.RuneCountInString(name); count < 1 || count > maxOfficeSheetNameLen {
+		return false
+	}
+	if strings.ContainsAny(name, `\/?*[]:`) {
+		return false
+	}
+	return !strings.HasPrefix(name, "'") && !strings.HasSuffix(name, "'")
+}
+
+// officeSheetTargetAbsent accepts an absent/JSON-null target or an empty
+// object: add_sheet addresses no existing sheet.
+func officeSheetTargetAbsent(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var target map[string]json.RawMessage
+	return json.Unmarshal(raw, &target) == nil && len(target) == 0
+}
+
+// officeSheetIndexAttr decodes the optional/required tab index, a 0-based
+// position in the final tab order.
+func officeSheetIndexAttr(attributes map[string]json.RawMessage, required bool) bool {
+	if len(attributes["index"]) == 0 {
+		return !required
+	}
+	_, ok := officeStructuralInt(attributes, "index", 0, maxOfficeSheetIndex)
+	return ok
+}
+
+// officeAddSheetValid: add_sheet — no sheet target, attributes {name} and an
+// optional index (omitted = append to the end).
+func officeAddSheetValid(edit office.EditOp) bool {
+	if !officeSheetTargetAbsent(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || !officeSheetNameOK(attributes["name"]) {
+		return false
+	}
+	return officeSheetIndexAttr(attributes, false)
+}
+
+// officeDuplicateSheetValid: duplicate_sheet — the source sheet target plus
+// attributes {name} and an optional index (the clone's final position).
+func officeDuplicateSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || !officeSheetNameOK(attributes["name"]) {
+		return false
+	}
+	return officeSheetIndexAttr(attributes, false)
+}
+
+// officeRenameSheetValid: rename_sheet — the target sheet plus attributes
+// {newName}.
+func officeRenameSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	return ok && officeSheetNameOK(attributes["newName"])
+}
+
+// officeRemoveSheetValid: remove_sheet — the target sheet only; the engine
+// refuses removing the last remaining sheet.
+func officeRemoveSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	if len(edit.Attributes) == 0 || string(edit.Attributes) == "null" {
+		return true
+	}
+	_, ok := officeStructuralAttributes(edit.Attributes)
+	return ok
+}
+
+// officeReorderSheetValid: reorder_sheet — the target sheet plus a required
+// attributes {index}.
+func officeReorderSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	return ok && officeSheetIndexAttr(attributes, true)
+}
+
+// officeSheetHiddenValid: set_sheet_hidden — the target sheet plus attributes
+// {hidden}.
+func officeSheetHiddenValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	_, ok = officeStructuralBool(attributes, "hidden")
+	return ok
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another

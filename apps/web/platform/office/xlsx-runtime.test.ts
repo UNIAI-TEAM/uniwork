@@ -73,6 +73,39 @@ describe("web XLSX save journal", () => {
     expect(editRequests().at(-1)?.edits).toContainEqual(op);
   });
 
+  it("applies sheet ops to the client snapshot in emission order and saves them", async () => {
+    const engine = await opened();
+    const operations = [
+      { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Budget" } },
+      { op: "set_cell", target: { sheet: "Budget", cell: "A2" }, attributes: { value: 9 } },
+      { op: "add_sheet", attributes: { name: "Scratch", index: 0 } },
+      { op: "duplicate_sheet", target: { sheet: "Budget" }, attributes: { name: "Budget copy" } },
+      { op: "set_sheet_hidden", target: { sheet: "Budget copy" }, attributes: { hidden: true } },
+      { op: "reorder_sheet", target: { sheet: "Budget" }, attributes: { index: 1 } },
+    ];
+    await engine.edit("model", operations);
+    const sheets = engine.snapshot("model").sheets;
+    // The tab strip mirrors the renderer: add at index 0, rename, duplicate,
+    // hide and the final reorder all landed in emission order.
+    expect(sheets.map((sheet) => sheet.name)).toEqual(["Scratch", "Budget", "Budget copy"]);
+    expect(sheets[1]!.cells.A2?.value).toBe(9);
+    expect(sheets[2]!.cells.A1?.value).toBe(2);
+    expect(sheets[2]!.hidden).toBe(true);
+    await engine.serialize("model", { intentId: "save-1", snapshot: stable(engine) });
+    expect(editRequests()[0]?.edits).toEqual(operations);
+  });
+
+  it("allows a sheet removal only while another sheet survives", async () => {
+    const engine = await opened();
+    await engine.edit("model", [
+      { op: "add_sheet", attributes: { name: "Temp" } },
+      { op: "remove_sheet", target: { sheet: "Data" } },
+    ]);
+    expect(engine.snapshot("model").sheets.map((sheet) => sheet.name)).toEqual(["Temp"]);
+    await expect(engine.edit("model", [{ op: "remove_sheet", target: { sheet: "Temp" } }]))
+      .rejects.toThrow(/one sheet/);
+  });
+
   it("sends structural ops through the envelope without applying them to the cell snapshot", async () => {
     const engine = await opened();
     const insert = { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } };

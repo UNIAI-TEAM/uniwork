@@ -93,34 +93,7 @@ export function mountController(options = {}, environment = {}) {
     },
     load(input) {
       file = input;
-      for (const meta of input.sheets) {
-        const sheet = {
-          getSheetId: () => meta.id,
-          getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${meta.id}:${row}:${column}`) }),
-          getRange(row, column) {
-            const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
-            return {
-              getRange: () => range,
-              getCellStyleData: () => styles.get(`${meta.id}:${row}:${column}`) ?? null,
-              activate() { workbook.setActiveRange(this); return this; },
-              setValue(text) {
-                const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
-                const event = { id: 'sheet.mutation.set-range-values', params: {
-                  unitId: `file-${file.sha256}`, subUnitId: meta.id, cellValue: { [row]: { [column]: cell } },
-                } };
-                if (h.execute(event)) cells.set(`${meta.id}:${row}:${column}`, cell);
-              },
-              setNumberFormat(pattern) {
-                h.execute({ id: 'sheet.mutation.set.numfmt', params: {
-                  unitId: `file-${file.sha256}`, subUnitId: meta.id,
-                  refMap: { x: { pattern } }, values: { x: { ranges: [range] } },
-                } });
-              },
-            };
-          },
-        };
-        sheets.set(meta.id, sheet);
-      }
+      for (const meta of input.sheets) createFakeSheet(meta.id, meta.name, meta);
       activeSheet = sheets.get(input.sheets[0].id);
       activeRange = activeSheet.getRange(0, 0);
       h.execute({ id: 'sheet.mutation.set-range-values', params: {
@@ -133,9 +106,41 @@ export function mountController(options = {}, environment = {}) {
       ref.current.loadedRanges.set(id, { startRow: 0, endRow: 9, startColumn: 0, endColumn: 9 });
     },
   };
+  function createFakeSheet(id, name, meta = {}) {
+    const sheet = {
+      getSheetId: () => id,
+      getSheetName: () => name,
+      isSheetHidden: () => meta.hidden === true,
+      getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${id}:${row}:${column}`) }),
+      getRange(row, column) {
+        const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
+        return {
+          getRange: () => range,
+          getCellStyleData: () => styles.get(`${id}:${row}:${column}`) ?? null,
+          activate() { workbook.setActiveRange(this); return this; },
+          setValue(text) {
+            const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
+            const event = { id: 'sheet.mutation.set-range-values', params: {
+              unitId: `file-${file.sha256}`, subUnitId: id, cellValue: { [row]: { [column]: cell } },
+            } };
+            if (h.execute(event)) cells.set(`${id}:${row}:${column}`, cell);
+          },
+          setNumberFormat(pattern) {
+            h.execute({ id: 'sheet.mutation.set.numfmt', params: {
+              unitId: `file-${file.sha256}`, subUnitId: id,
+              refMap: { x: { pattern } }, values: { x: { ranges: [range] } },
+            } });
+          },
+        };
+      },
+    };
+    sheets.set(id, sheet);
+    return sheet;
+  }
   const workbook = {
     getId: () => `file-${file.sha256}`, getActiveSheet: () => activeSheet,
     getSheetBySheetId: (id) => sheets.get(id), getActiveRange: () => activeRange,
+    getSheets: () => [...sheets.values()],
     getWorkbook: () => ({ getStyles: () => ({ getStyleByCell: (cell) => cell?.s }) }),
     setEditable(value) { h.editable = value; },
     isCellEditing: () => h.editing,
@@ -186,6 +191,10 @@ export function mountController(options = {}, environment = {}) {
   return {
     handle, h, workbook, events, container,
     setCellStyle(sheetId, row, column, style) { styles.set(`${sheetId}:${row}:${column}`, style); },
+    // Live sheet facade mutations a test drives to model what Univer does.
+    addSheet(sheetId, name) { return createFakeSheet(sheetId, name); },
+    setSheetName(sheetId, name) { const sheet = sheets.get(sheetId); if (sheet) sheet.getSheetName = () => name; },
+    setSheetHidden(sheetId, hidden) { const sheet = sheets.get(sheetId); if (sheet) sheet.isSheetHidden = () => hidden === true; },
     key(event) {
       h.target ??= { id:'__editor___INTERNAL_EDITOR__DOCS_NORMAL', isContentEditable:true,
         getAttribute: () => 'editor', focus() {} };

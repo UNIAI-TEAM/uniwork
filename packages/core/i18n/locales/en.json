@@ -7301,6 +7301,20 @@
           "painter": {
             "label": "Format painter",
             "hint": "Copy the current selection's format, then select where to apply it. Press again or Esc to cancel."
+          },
+          "find": {
+            "label": "Find & replace"
+          },
+          "view": {
+            "zoom": {
+              "label": "Zoom"
+            },
+            "display": {
+              "label": "Display"
+            },
+            "goto": {
+              "label": "Go to"
+            }
           }
         },
         "overflow": "More commands",
@@ -7347,6 +7361,24 @@
         "table": "{{sheet}} worksheet",
         "grid": "Workbook grid"
       },
+      "view": {
+        "zoom": {
+          "out": "Zoom out",
+          "in": "Zoom in",
+          "value": "{{percent}}%",
+          "preset": "Zoom {{percent}}%",
+          "presetShort": "{{percent}}%",
+          "reset": "Reset to 100%"
+        },
+        "gridlines": "Gridlines",
+        "headers": "Row and column headers",
+        "goto": {
+          "label": "Go to cell",
+          "placeholder": "e.g. B5 or A1:C10",
+          "go": "Go",
+          "invalid": "Enter a cell or range, for example B5 or A1:C10."
+        }
+      },
       "structure": {
         "groups": {
           "insert": "Insert rows and columns",
@@ -7380,7 +7412,22 @@
         "unmergeCells": "Unmerge cells"
       },
       "sheets": {
-        "label": "Workbook sheets"
+        "label": "Workbook sheets",
+        "actions": "Sheet actions",
+        "add": "Add sheet",
+        "copySuffix": "copy",
+        "defaultName": "Sheet",
+        "duplicate": "Duplicate sheet",
+        "hiddenGroup": "Hidden sheets",
+        "hide": "Hide sheet",
+        "moveLeft": "Move left",
+        "moveRight": "Move right",
+        "remove": "Delete sheet",
+        "confirmRemove": "Confirm delete sheet?",
+        "rename": "Rename sheet",
+        "renameInput": "Sheet name",
+        "tabColorReadOnly": "Tab colour (read-only — pending gateway)",
+        "unhide": "Show sheet"
       },
       "formula": {
         "label": "Formula or value"
@@ -7421,6 +7468,36 @@
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
         "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again."
+      },
+      "find": {
+        "title": "Find and replace",
+        "close": "Close",
+        "findLabel": "Find",
+        "replaceLabel": "Replace with",
+        "matchCase": "Match case",
+        "options": "Find options",
+        "scopeSelection": "Selection",
+        "scopeSheet": "Whole sheet",
+        "previous": "Find previous",
+        "next": "Find next",
+        "replace": "Replace",
+        "replaceAll": "Replace all",
+        "status": {
+          "typeQuery": "Type something to find.",
+          "reading": "Reading cells…",
+          "unavailable": "No open sheet to search.",
+          "error": "Could not read the sheet. Try again.",
+          "noMatches": "No matches.",
+          "matches": "{{count}} matches.",
+          "position": "{{index}} of {{count}}",
+          "partial": "Scanned {{scanned}} of {{total}} rows.",
+          "formulaHint": "{{count}} formula cells are matched but never replaced.",
+          "limit": "{{count}} cells exceed the {{limit}}-cell save limit. Nothing was replaced.",
+          "replaced": "Replaced the current match.",
+          "replacedAll": "Replaced {{count}} cells.",
+          "noChange": "No cell needed replacing.",
+          "failed": "Could not replace — the cells may be outside the loaded area, or the document is read-only."
+        }
       },
       "editor": {
         "appClosureActive": "{{count}} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",

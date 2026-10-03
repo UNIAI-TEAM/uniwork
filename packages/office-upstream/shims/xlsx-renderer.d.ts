@@ -93,6 +93,9 @@ export interface XlsxRendererOptions {
 
 export interface XlsxRendererCellEdit {
   sheetId: string;
+  /** Live sheet name, stamped only when it differs from the host file's (a
+   *  session rename or an added sheet); absent otherwise. */
+  sheetName?: string;
   row: number;
   column: number;
   writeValue: boolean;
@@ -119,11 +122,32 @@ export type XlsxRendererStructuralJournalOp =
 
 export interface XlsxRendererStructuralEdit {
   sheetId: string;
+  /** Live sheet name (see XlsxRendererCellEdit.sheetName). */
+  sheetName?: string;
   structural: XlsxRendererStructuralJournalOp;
 }
 
+/** One worksheet-level edit (B3). Per kind: add/duplicate name the NEW sheet
+ *  (`index` = final tab position; duplicate also names its source), remove
+ *  names the removed sheet, rename carries the PRE-mutation name in
+ *  `sheetName` and the new one in `newName`, reorder/hide name the unchanged
+ *  sheet. */
+export interface XlsxRendererSheetEdit {
+  sheetId: string;
+  sheetName: string;
+  sheetOp: XlsxRendererSheetJournalOp;
+}
+
+export type XlsxRendererSheetJournalOp =
+  | { kind: "add-sheet"; index: number }
+  | { kind: "duplicate-sheet"; sourceSheetId: string; sourceName: string; index: number }
+  | { kind: "remove-sheet" }
+  | { kind: "rename-sheet"; newName: string }
+  | { kind: "set-sheet-hidden"; hidden: boolean }
+  | { kind: "reorder-sheet"; index: number };
+
 /** Every edit the renderer's onEdits channel can emit. */
-export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit;
+export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit | XlsxRendererSheetEdit;
 
 export interface XlsxRendererFontMapping {
   declared: string;
@@ -155,6 +179,13 @@ export interface XlsxRendererFormatState {
   readonly textRotation: number | null;
 }
 
+/** One live sheet as the tab strip reads it (order = tab order). */
+export interface XlsxRendererSheetInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
 export interface XlsxRendererHandle {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
@@ -169,6 +200,9 @@ export interface XlsxRendererHandle {
   executeCommand(id: string, params?: unknown): boolean;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
+  /** The live sheet list in tab order (rename/insert/remove/reorder as they
+   *  happen). */
+  getSheets(): readonly XlsxRendererSheetInfo[];
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;

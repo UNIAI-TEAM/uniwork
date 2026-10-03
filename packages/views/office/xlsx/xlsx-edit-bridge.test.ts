@@ -54,6 +54,7 @@ describe("rendererEditsToOperations", () => {
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
       "merge_cells", "unmerge_cells",
+      "add_sheet", "duplicate_sheet", "remove_sheet", "rename_sheet", "reorder_sheet", "set_sheet_hidden",
     ]);
     const pick = (edit: XlsxGridEdit): string | undefined =>
       XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit))?.op;
@@ -66,6 +67,12 @@ describe("rendererEditsToOperations", () => {
     expect(pick({ sheetId: "sheet-1", structural: { kind: "set-cols-outline", start: 0, end: 2, level: 1 } })).toBe("set_cols_outline");
     expect(pick({ sheetId: "sheet-1", structural: { kind: "merge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 } } })).toBe("merge_cells");
     expect(pick({ sheetId: "sheet-1", structural: { kind: "unmerge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 } } })).toBe("unmerge_cells");
+    expect(pick({ sheetId: "sheet-1", sheetName: "Sheet3", sheetOp: { kind: "add-sheet", index: 2 } })).toBe("add_sheet");
+    expect(pick({ sheetId: "sheet-1", sheetName: "Copy", sheetOp: { kind: "duplicate-sheet", sourceSheetId: "sheet-1", sourceName: "Data", index: 1 } })).toBe("duplicate_sheet");
+    expect(pick({ sheetId: "sheet-2", sheetName: "Summary", sheetOp: { kind: "remove-sheet" } })).toBe("remove_sheet");
+    expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "rename-sheet", newName: "Budget" } })).toBe("rename_sheet");
+    expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "reorder-sheet", index: 1 } })).toBe("reorder_sheet");
+    expect(pick({ sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "set-sheet-hidden", hidden: true } })).toBe("set_sheet_hidden");
   });
 
   it("maps merge journal edits onto the envelope's own range field", () => {
@@ -117,5 +124,44 @@ describe("rendererEditsToOperations", () => {
     expect(Object.keys(keyOrdered[0]!)).toEqual(["op", "target", "attributes"]);
     expect(Object.keys(keyOrdered[7]!)).toEqual(["op", "target", "attributes"]);
     expect((keyOrdered[7] as { attributes: Record<string, unknown> }).attributes).toEqual({ start: 0, end: 0, level: 0 });
+  });
+
+  it("maps sheet journal edits onto the sheet op vocabulary", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-3", sheetName: "Scratch", sheetOp: { kind: "add-sheet", index: 0 } },
+      { sheetId: "sheet-4", sheetName: "Data copy", sheetOp: { kind: "duplicate-sheet", sourceSheetId: "sheet-1", sourceName: "Data", index: 1 } },
+      { sheetId: "sheet-2", sheetName: "Summary", sheetOp: { kind: "remove-sheet" } },
+      { sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "rename-sheet", newName: "Budget" } },
+      { sheetId: "sheet-1", sheetName: "Budget", sheetOp: { kind: "reorder-sheet", index: 0 } },
+      { sheetId: "sheet-1", sheetName: "Budget", sheetOp: { kind: "set-sheet-hidden", hidden: true } },
+    ])).toEqual([
+      { op: "add_sheet", attributes: { name: "Scratch", index: 0 } },
+      { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy", index: 1 } },
+      { op: "remove_sheet", target: { sheet: "Summary" } },
+      { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Budget" } },
+      { op: "reorder_sheet", target: { sheet: "Budget" }, attributes: { index: 0 } },
+      { op: "set_sheet_hidden", target: { sheet: "Budget" }, attributes: { hidden: true } },
+    ]);
+    // Wire key order: op, [target], attributes; add_sheet has no target.
+    const [addOp, renameOp] = rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-3", sheetName: "Scratch", sheetOp: { kind: "add-sheet", index: 0 } },
+      { sheetId: "sheet-1", sheetName: "Data", sheetOp: { kind: "rename-sheet", newName: "Budget" } },
+    ]);
+    expect(Object.keys(addOp!)).toEqual(["op", "attributes"]);
+    expect(Object.keys(renameOp!)).toEqual(["op", "target", "attributes"]);
+  });
+
+  it("prefers an edit's live sheet name over the host file's stale name", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", sheetName: "Budget", row: 0, column: 0, writeValue: true, value: 1 },
+      { sheetId: "sheet-1", sheetName: "Budget", structural: { kind: "insert-rows", index: 0, count: 1 } },
+    ])).toEqual([
+      { op: "set_cell", target: { sheet: "Budget", cell: "A1" }, attributes: { value: 1 } },
+      { op: "insert_rows", target: { sheet: "Budget" }, attributes: { index: 0, count: 1 } },
+    ]);
+    // An added sheet has no host file entry at all; the live name carries it.
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "added-1", sheetName: "Scratch", row: 2, column: 2, writeValue: true, value: "x" },
+    ])).toEqual([{ op: "set_cell", target: { sheet: "Scratch", cell: "C3" }, attributes: { value: "x" } }]);
   });
 });

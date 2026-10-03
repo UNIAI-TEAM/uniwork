@@ -1,6 +1,12 @@
 import type { IRange } from "@univerjs/core";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
-import { CELL_MUTATIONS, type RendererCommand } from "./edits";
+import {
+  CELL_MUTATIONS,
+  isSheetMutation,
+  liveSessionSheets,
+  sheetNameShapeOK,
+  type RendererCommand,
+} from "./edits";
 
 const VIEW_COMMANDS = new Set([
   "univer.command.copy", "doc.operation.set-selections", "doc.operation.move-cursor",
@@ -13,6 +19,12 @@ const VIEW_COMMANDS = new Set([
   "sheet.command.expand-selection", "sheet.command.select-all", "sheet.command.set-scroll-relative",
   "sheet.command.scroll-view", "sheet.command.scroll-to-cell", "sheet.command.scroll-view-reset",
   "sheet.command.change-zoom-ratio", "sheet.command.set-zoom-ratio",
+  // View tab (A5): display toggles. Gridlines flips the sheet's own render
+  // flag; the pinned build has no header-visibility command, so the header
+  // toggle resizes the two header strips (0 hides, the renderer defaults
+  // restore). All three only move render/view state - nothing to journal.
+  "sheet.command.toggle-gridlines",
+  "sheet.command.set-row-header-width", "sheet.command.set-col-header-height",
 ]);
 
 const EDIT_COMMANDS = new Set([
@@ -155,7 +167,7 @@ function structuralMutationAllowed(
   } | undefined;
   const sheetId = params?.subUnitId;
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
-    !state.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
+    !liveSheetIds(state).has(sheetId)) return false;
   if (shape.kind === "shift") return structuralSpanOK(params.range, shape.axis);
   if (!Array.isArray(params.ranges) || params.ranges.length === 0 ||
     !params.ranges.every((range) => structuralSpanOK(range, shape.axis))) return false;
@@ -173,7 +185,7 @@ function structuralAxisCommandOK(
 ): boolean {
   if (!params) return false;
   return structuralSpanOK({ startRow: params.start, endRow: params.end, startColumn: params.start, endColumn: params.end }, axis) &&
-    (params.subUnitId === undefined || (typeof params.subUnitId === "string" && state.file.sheets.some((sheet) => sheet.id === params.subUnitId)));
+    (params.subUnitId === undefined || (typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId)));
 }
 
 function structuralCommandAllowed(
@@ -270,7 +282,7 @@ function mergeCommandAllowed(event: RendererCommand, state: LazyWorkbookState): 
     return mergeRangesOK(params?.selections);
   }
   if (params?.subUnitId !== undefined &&
-    !state.file.sheets.some((sheet) => sheet.id === params.subUnitId)) return false;
+    !(typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId))) return false;
   // Family and remove commands are selection-driven: an explicit range set is
   // optional and bounded when present.
   if (params?.selections !== undefined && !mergeRangesOK(params.selections)) return false;
@@ -282,13 +294,125 @@ function mergeMutationAllowed(event: RendererCommand, state: LazyWorkbookState):
   const params = event.params as { unitId?: string; subUnitId?: string; ranges?: unknown } | undefined;
   const sheetId = params?.subUnitId;
   return !!params && params.unitId === `file-${state.file.sha256}` && !!sheetId &&
-    state.file.sheets.some((sheet) => sheet.id === sheetId) && mergeRangesOK(params.ranges);
+    liveSheetIds(state).has(sheetId) && mergeRangesOK(params.ranges);
+}
+
+// ── sheets (B3) ────────────────────────────────────────────────────────────
+//
+// Exactly the pinned sheets commands the sheet-tab UI wires, plus the
+// mutations those commands dispatch (undo replays mutations). The tab-colour
+// commands (`sheet.command.set-tab-color` / `sheet.mutation.set-tab-color`)
+// stay OUT on purpose: the vendored gateway has no tabColor write path, so
+// the UI shows existing colours read-only and refusing the command keeps the
+// policy honest about what can be saved. The split-copy marker mutation is a
+// no-op handler the copy command needs for very large sheets.
+//
+// Liveness: sheet ids and names come from the vendored SheetJournal (file
+// sheets with removals/renames applied, plus additions), so a command after a
+// session rename validates against the name the user sees and an id added
+// this session (or already removed) is judged correctly.
+
+const SHEET_COMMANDS = new Set([
+  "sheet.command.insert-sheet",
+  "sheet.command.copy-sheet",
+  "sheet.command.remove-sheet",
+  "sheet.command.set-worksheet-name",
+  "sheet.command.set-worksheet-order",
+  "sheet.command.set-worksheet-hidden",
+  "sheet.command.set-worksheet-show",
+]);
+
+interface SheetMutationParams {
+  unitId?: unknown;
+  subUnitId?: unknown;
+  name?: unknown;
+  hidden?: unknown;
+  /** set-worksheet-order command: the destination index. */
+  order?: unknown;
+  fromOrder?: unknown;
+  toOrder?: unknown;
+  index?: unknown;
+  sheet?: { id?: unknown; name?: unknown } | undefined;
+}
+
+function liveSheetIds(state: LazyWorkbookState): Set<string> {
+  return new Set(liveSessionSheets(state).map((sheet) => sheet.id));
+}
+
+function sheetRefOK(value: unknown, state: LazyWorkbookState): boolean {
+  return typeof value === "string" && liveSheetIds(state).has(value);
+}
+
+/** A 0-based tab position; `allowEnd` admits the append position (count). */
+function sheetIndexOK(value: unknown, count: number, allowEnd: boolean): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < count + (allowEnd ? 1 : 0);
+}
+
+function sheetNameValueOK(value: unknown): boolean {
+  return typeof value === "string" && sheetNameShapeOK(value);
+}
+
+function sheetCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as SheetMutationParams | undefined;
+  const count = liveSessionSheets(state).length;
+  if (params !== undefined && typeof params !== "object") return false;
+  switch (event.id) {
+    case "sheet.command.insert-sheet": {
+      if (params?.index !== undefined && !sheetIndexOK(params.index, count, true)) return false;
+      const name = params?.sheet?.name;
+      if (name !== undefined && !sheetNameValueOK(name)) return false;
+      const id = params?.sheet?.id;
+      return id === undefined || (typeof id === "string" && id.length > 0);
+    }
+    case "sheet.command.copy-sheet":
+    case "sheet.command.remove-sheet":
+    case "sheet.command.set-worksheet-hidden":
+    case "sheet.command.set-worksheet-show":
+      // Selection-driven: an explicit sheet id is optional and must be live.
+      return params?.subUnitId === undefined || sheetRefOK(params.subUnitId, state);
+    case "sheet.command.set-worksheet-name":
+      return sheetNameValueOK(params?.name) &&
+        (params?.subUnitId === undefined || sheetRefOK(params.subUnitId, state));
+    case "sheet.command.set-worksheet-order":
+      return sheetIndexOK(params?.order, count, false) &&
+        (params?.subUnitId === undefined || sheetRefOK(params.subUnitId, state));
+  }
+  return false;
+}
+
+function sheetMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as SheetMutationParams | undefined;
+  if (!params || params.unitId !== `file-${state.file.sha256}`) return false;
+  const count = liveSessionSheets(state).length;
+  switch (event.id) {
+    case "sheet.mutation.insert-sheet": {
+      const id = params.sheet?.id;
+      if (typeof id !== "string" || id.length === 0 || !sheetNameValueOK(params.sheet?.name)) return false;
+      return sheetIndexOK(params.index, count, true);
+    }
+    case "sheet.mutation.remove-sheet":
+      // The command itself refuses the last sheet; the gate refuses it first.
+      return count > 1 && sheetRefOK(params.subUnitId, state);
+    case "sheet.mutation.set-worksheet-name":
+      return sheetRefOK(params.subUnitId, state) && sheetNameValueOK(params.name);
+    case "sheet.mutation.set-worksheet-order":
+      return sheetRefOK(params.subUnitId, state) &&
+        sheetIndexOK(params.fromOrder, count, false) && sheetIndexOK(params.toOrder, count, false);
+    case "sheet.mutation.set-worksheet-hidden":
+      return sheetRefOK(params.subUnitId, state) && (params.hidden === 0 || params.hidden === 1);
+    case "sheet.mutation.copy-worksheet-end":
+      return sheetRefOK(params.subUnitId, state);
+  }
+  return false;
 }
 
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
-  if (!state || !sheet || !validRange(range)) return false;
+  if (!state || !validRange(range)) return false;
+  // A sheet added this session is fully in-memory: no streaming window and no
+  // pivot/frozen metadata bounds it.
+  if (!sheet) return liveSheetIds(state).has(sheetId);
   if (sheet.pivotRanges?.some((pivot) => range.startRow <= pivot.endRow && range.endRow >= pivot.startRow &&
     range.startColumn <= pivot.endColumn && range.endColumn >= pivot.startColumn)) return false;
   if (state.flags.preloadComplete) return true;
@@ -388,8 +512,10 @@ export function canExecuteCommand(
   if (!CELL_MUTATIONS.has(event.id)) {
     if (STRUCTURAL_COMMANDS.has(event.id)) return structuralCommandAllowed(event, state);
     if (MERGE_COMMANDS.has(event.id)) return mergeCommandAllowed(event, state);
+    if (SHEET_COMMANDS.has(event.id)) return sheetCommandAllowed(event, state);
     if (STRUCTURAL_MUTATIONS[event.id]) return structuralMutationAllowed(event, state);
     if (MERGE_MUTATIONS.has(event.id)) return mergeMutationAllowed(event, state);
+    if (isSheetMutation(event.id)) return sheetMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {
@@ -397,7 +523,8 @@ export function canExecuteCommand(
     ranges?: IRange[]; values?: Record<string, { ranges?: IRange[] }>; trigger?: string;
   } | undefined;
   const sheetId = params?.subUnitId;
-  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId) return false;
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+    !liveSheetIds(state).has(sheetId)) return false;
   const restoring = params.trigger === "univer.command.undo" || params.trigger === "univer.command.redo";
   const safeRange = (range: IRange) => canEditRange(state, sheetId, range) ||
     (restoring && canRestoreRange(state, sheetId, range));

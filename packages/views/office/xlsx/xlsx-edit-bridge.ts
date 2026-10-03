@@ -1,8 +1,13 @@
 import { toA1Address } from "./xlsx-render-model-bridge";
 
-/** Serializable user edits emitted by the streamed grid, including undo. */
+/** Serializable user edits emitted by the streamed grid, including undo.
+ *  `sheetName` is the sheet's CURRENT name captured live from the mounted
+ *  workbook (a session rename changes it), so an edit that follows a rename
+ *  addresses the renamed sheet; when absent the bridge falls back to the
+ *  host file's name for the grid id. */
 export interface XlsxGridCellEdit {
   sheetId: string;
+  sheetName?: string;
   row: number;
   column: number;
   writeValue: boolean;
@@ -33,17 +38,46 @@ export interface XlsxStructuralJournalRange {
 }
 
 /** The structural member of the renderer edit channel: a journal op plus the
- *  grid sheet id the envelope target resolves through. */
+ *  grid sheet id the envelope target resolves through. `sheetName` is the live
+ *  name at emission (see XlsxGridCellEdit). */
 export interface XlsxGridStructuralEdit {
   sheetId: string;
+  sheetName?: string;
   structural: XlsxStructuralJournalOp;
 }
 
-/** Every edit the streamed grid can emit: a cell edit or a structural op. */
-export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit;
+/** One worksheet-level edit (B3) the renderer emits: the op plus the live name
+ *  it addresses. Per kind:
+ *   - `add-sheet` / `duplicate-sheet`: `sheetName` is the NEW sheet's name,
+ *     `index` its final tab position (duplicate also names its source);
+ *   - `remove-sheet`: `sheetName` is the removed sheet's name;
+ *   - `rename-sheet`: `sheetName` is the OLD name, `newName` the new one (the
+ *     wire needs both — the target resolves against the pre-mutation name);
+ *   - `reorder-sheet` / `set-sheet-hidden`: `sheetName` is unchanged. */
+export interface XlsxGridSheetEdit {
+  sheetId: string;
+  sheetName: string;
+  sheetOp: XlsxSheetJournalOp;
+}
+
+export type XlsxSheetJournalOp =
+  | { kind: "add-sheet"; index: number }
+  | { kind: "duplicate-sheet"; sourceSheetId: string; sourceName: string; index: number }
+  | { kind: "remove-sheet" }
+  | { kind: "rename-sheet"; newName: string }
+  | { kind: "set-sheet-hidden"; hidden: boolean }
+  | { kind: "reorder-sheet"; index: number };
+
+/** Every edit the streamed grid can emit: a cell edit, a structural op or a
+ *  sheet op. */
+export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit | XlsxGridSheetEdit;
 
 export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStructuralEdit {
   return "structural" in edit;
+}
+
+export function isSheetGridEdit(edit: XlsxGridEdit): edit is XlsxGridSheetEdit {
+  return "sheetOp" in edit;
 }
 
 /** The envelope target a cell operation addresses: the sheet name (not the
@@ -100,10 +134,45 @@ export type StructuralOperation =
       range: XlsxStructuralJournalRange;
     };
 
+/** The worksheet-level vocabulary (B3); each kind maps 1:1 to an engine op
+ *  kind (ops.ts) and the six ops fold into ONE gateway SheetEditPlan per save.
+ *  `index` is a 0-based final tab position; `rename_sheet` names the sheet by
+ *  its pre-mutation name (the wire target is resolved against the live
+ *  resolver before the rename applies). */
+export type SheetOperation =
+  | {
+      op: "add_sheet";
+      attributes: { name: string; index: number };
+    }
+  | {
+      op: "duplicate_sheet";
+      target: XlsxStructuralOperationTarget;
+      attributes: { name: string; index: number };
+    }
+  | {
+      op: "remove_sheet";
+      target: XlsxStructuralOperationTarget;
+    }
+  | {
+      op: "rename_sheet";
+      target: XlsxStructuralOperationTarget;
+      attributes: { newName: string };
+    }
+  | {
+      op: "reorder_sheet";
+      target: XlsxStructuralOperationTarget;
+      attributes: { index: number };
+    }
+  | {
+      op: "set_sheet_hidden";
+      target: XlsxStructuralOperationTarget;
+      attributes: { hidden: boolean };
+    };
+
 /** Every envelope operation a journal edit maps to. A later op kind adds its
  *  union member here and one XLSX_JOURNAL_OP_MAPPINGS entry —
  *  rendererEditsToOperations itself does not change. */
-export type XlsxJournalOperation = CellOperation | StructuralOperation;
+export type XlsxJournalOperation = CellOperation | StructuralOperation | SheetOperation;
 
 /** One named journal-edit → op-kind mapping. Entries are tested in table
  *  order and the first match wins; the structural entries are appended after
@@ -118,7 +187,7 @@ export interface XlsxJournalOpMapping {
 /** A clear is a writeValue edit with no content and no style — the one shape
  *  that must not be written as an empty set_cell. */
 function isClearEdit(edit: XlsxGridEdit): boolean {
-  return !isStructuralGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
+  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
 }
 
 const STRUCTURAL_WIRE_OP = {
@@ -182,6 +251,38 @@ function structuralMapping(
   };
 }
 
+function sheetOperation(op: XlsxGridSheetEdit, sheet: string): SheetOperation {
+  const target = { sheet };
+  const add = op.sheetOp;
+  switch (add.kind) {
+    case "add-sheet":
+      return { op: "add_sheet", attributes: { name: op.sheetName, index: add.index } };
+    case "duplicate-sheet":
+      return { op: "duplicate_sheet", target: { sheet: add.sourceName }, attributes: { name: op.sheetName, index: add.index } };
+    case "remove-sheet":
+      return { op: "remove_sheet", target };
+    case "rename-sheet":
+      return { op: "rename_sheet", target, attributes: { newName: add.newName } };
+    case "reorder-sheet":
+      return { op: "reorder_sheet", target, attributes: { index: add.index } };
+    case "set-sheet-hidden":
+      return { op: "set_sheet_hidden", target, attributes: { hidden: add.hidden } };
+  }
+}
+
+function sheetMapping(
+  op: SheetOperation["op"],
+  journalKind: XlsxSheetJournalOp["kind"],
+): XlsxJournalOpMapping {
+  return {
+    op,
+    matches: (edit) => isSheetGridEdit(edit) && edit.sheetOp.kind === journalKind,
+    // A sheet edit carries its own live name; the second argument is only a
+    // fallback for edits that resolve through the host file's id map.
+    build: (edit, sheet) => sheetOperation(edit as XlsxGridSheetEdit, (edit as XlsxGridSheetEdit).sheetName || sheet),
+  };
+}
+
 /** Journal-edit → op-kind table, in match order. */
 export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   {
@@ -194,7 +295,7 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   },
   {
     op: "set_cell",
-    matches: (edit) => !isStructuralGridEdit(edit),
+    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit),
     build: (edit, sheet) => {
       const cell = edit as XlsxGridCellEdit;
       const attributes: NonNullable<CellOperation["attributes"]> = {
@@ -221,18 +322,27 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   structuralMapping("set_cols_outline", "set-cols-outline"),
   structuralMapping("merge_cells", "merge-cells"),
   structuralMapping("unmerge_cells", "unmerge-cells"),
+  sheetMapping("add_sheet", "add-sheet"),
+  sheetMapping("duplicate_sheet", "duplicate-sheet"),
+  sheetMapping("remove_sheet", "remove-sheet"),
+  sheetMapping("rename_sheet", "rename-sheet"),
+  sheetMapping("reorder_sheet", "reorder-sheet"),
+  sheetMapping("set_sheet_hidden", "set-sheet-hidden"),
 ];
 
-/** Keep the G2 vocabulary: a style-only edit must never overwrite a value. */
+/** Keep the G2 vocabulary: a style-only edit must never overwrite a value.
+ *  Sheet names resolve from the edit's own live name when it carries one
+ *  (cell/structural edits annotate it, sheet edits always do); otherwise from
+ *  the host file's id map. */
 export function rendererEditsToOperations(
   sheets: readonly { id: string; name: string }[],
   edits: readonly XlsxGridEdit[],
 ): XlsxJournalOperation[] {
   const names = new Map(sheets.map((sheet) => [sheet.id, sheet.name]));
   return edits.map((edit) => {
-    const sheet = names.get(edit.sheetId);
+    const sheet = isSheetGridEdit(edit) ? edit.sheetName : edit.sheetName ?? names.get(edit.sheetId);
     if (!sheet) throw new Error("xlsx_edit_unknown_sheet");
-    if (!isStructuralGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
+    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
     const mapping = XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit));
     if (!mapping) throw new Error("xlsx_edit_unmapped");
     return mapping.build(edit, sheet);

@@ -31,17 +31,25 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestCellMutation, ingestStructuralMutation, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, canExecuteCommand, canEditRange, parseCellText } = module.exports;
+const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, applyColumnDefaultWidth,
+  applyOutlineAction, seedColumnOutline, liveSessionSheets, sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
-    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', rowCount: 20, columnCount: 10, pivotRanges: [] }] },
+    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [] }] },
     editJournal: createEditJournal(),
     loadedRanges: new Map([['s1', { startRow: 0, endRow: 9, startColumn: 0, endColumn: 4 }]]),
     flags: { preloadComplete: false },
     closure: { pinned: new Map() },
     outline: new Map(),
   };
+}
+/** Two-sheet state for the sheet-op tests (a removal needs a survivor). */
+function sheetState() {
+  const model = state();
+  model.file.sheets.push({ id: 's2', name: 'PhuLuc', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [] });
+  model.loadedRanges.set('s2', { startRow: 0, endRow: 9, startColumn: 0, endColumn: 4 });
+  return model;
 }
 const mutation = (cellValue, extra = {}) => ({
   id: 'sheet.mutation.set-range-values', type: 2,
@@ -144,11 +152,14 @@ test('readonly gates mutations, editor activation, shortcuts, undo/redo and past
 
 test('structural, sheet, chart, filter and untranslatable command surfaces are refused', () => {
   const model = state();
-  for (const id of ['sheet.command.set-worksheet-name',
-    'sheet.command.set-frozen', 'sheet.command.insert-sheet', 'sheet.mutation.insert-sheet', 'sheet.command.move-range',
+  // Tab colour stays refused on purpose: the vendored gateway has no tabColor
+  // write path, so the colour is shown read-only (B3 report: pending gateway).
+  for (const id of ['sheet.command.set-tab-color', 'sheet.mutation.set-tab-color',
+    'sheet.command.set-frozen', 'sheet.command.move-range',
     'sheet.mutation.move-range', 'sheet.command.paste-col-width', 'sheet.command.set-row-height', 'sheet.mutation.set-worksheet-row-height',
     'sheet.command.set-auto-filter', 'sheet.mutation.set-filter-range', 'drawing.mutation.insert-drawing',
-    'base-ui.operation.toggle-shortcut-panel', 'ui-sheet.command.show-menu-list', 'sheet.operation.rename-sheet']) {
+    'base-ui.operation.toggle-shortcut-panel', 'ui-sheet.command.show-menu-list', 'sheet.operation.rename-sheet',
+    'sheet.command.remove-sheet-confirm']) {
     assert.equal(canExecuteCommand({ id, type: 2 }, model, false), false, id);
     assert.equal(canExecuteCommand({ id, type: 2, options: { fromFormula: true } }, model, false), false, `${id} fromFormula`);
   }
@@ -522,4 +533,156 @@ test('file column outline levels seed the outline map and stay below session edi
   assert.deepEqual(applyOutlineAction(model, 's1', 'cols', 1, 2, 'group'), [
     { sheetId: 's1', structural: { kind: 'set-cols-outline', start: 1, end: 2, level: 4 } },
   ]);
+});
+
+test('liveSessionSheets follows the journal through add, rename and remove', () => {
+  const model = sheetState();
+  assert.deepEqual(liveSessionSheets(model), [
+    { id: 's1', name: 'Data' }, { id: 's2', name: 'PhuLuc' },
+  ]);
+  ingestSheetMutation(model, { id: 'sheet.mutation.insert-sheet', type: 2, params: {
+    unitId: 'file-sha', index: 2, sheet: { id: 's3', name: 'Scratch' },
+  } });
+  assert.deepEqual(liveSessionSheets(model).map((sheet) => sheet.name), ['Data', 'PhuLuc', 'Scratch']);
+  ingestSheetMutation(model, { id: 'sheet.mutation.set-worksheet-name', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's1', name: 'Budget',
+  } });
+  assert.deepEqual(liveSessionSheets(model).map((sheet) => sheet.name), ['Budget', 'PhuLuc', 'Scratch']);
+  ingestSheetMutation(model, { id: 'sheet.mutation.remove-sheet', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's2', subUnitName: 'PhuLuc',
+  } });
+  assert.deepEqual(liveSessionSheets(model), [{ id: 's1', name: 'Budget' }, { id: 's3', name: 'Scratch' }]);
+});
+
+test('sheet mutations journal and emit one typed sheet edit each', () => {
+  const model = sheetState();
+  const event = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', ...params } });
+
+  // Add: the new sheet's id/name/index ride the mutation.
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.insert-sheet', {
+    index: 2, sheet: { id: 's3', name: 'Scratch' },
+  })), [{ sheetId: 's3', sheetName: 'Scratch', sheetOp: { kind: 'add-sheet', index: 2 } }]);
+  assert.equal(model.editJournal.sheets.added.get('s3').name, 'Scratch');
+
+  // Duplicate: a copy context turns the same insert mutation into a copy.
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.insert-sheet', {
+    index: 1, sheet: { id: 's4', name: 'Data copy' },
+  }), false, { copy: { sourceSheetId: 's1', sourceName: 'Data' } }), [
+    { sheetId: 's4', sheetName: 'Data copy', sheetOp: {
+      kind: 'duplicate-sheet', sourceSheetId: 's1', sourceName: 'Data', index: 1,
+    } },
+  ]);
+  assert.equal(model.editJournal.sheets.added.get('s4').sourceSheetId, 's1');
+
+  // Rename: the live (pre-mutation) name is the target, the param the new one.
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.set-worksheet-name', {
+    subUnitId: 's1', name: 'Budget',
+  })), [{ sheetId: 's1', sheetName: 'Data', sheetOp: { kind: 'rename-sheet', newName: 'Budget' } }]);
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.set-worksheet-name', {
+    subUnitId: 's1', name: 'Ngân sách',
+  })), [{ sheetId: 's1', sheetName: 'Budget', sheetOp: { kind: 'rename-sheet', newName: 'Ngân sách' } }]);
+  assert.equal(model.editJournal.sheets.renamed.get('s1'), 'Ngân sách');
+
+  // Reorder and hide/unhide (Univer's BooleanNumber 0/1).
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.set-worksheet-order', {
+    subUnitId: 's1', fromOrder: 0, toOrder: 2,
+  })), [{ sheetId: 's1', sheetName: 'Ngân sách', sheetOp: { kind: 'reorder-sheet', index: 2 } }]);
+  assert.equal(model.editJournal.sheets.orderDirty, true);
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.set-worksheet-hidden', {
+    subUnitId: 's2', hidden: 1,
+  })), [{ sheetId: 's2', sheetName: 'PhuLuc', sheetOp: { kind: 'set-sheet-hidden', hidden: true } }]);
+  assert.equal(model.editJournal.sheets.hidden.get('s2'), true);
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.set-worksheet-hidden', {
+    subUnitId: 's2', hidden: 0,
+  })), [{ sheetId: 's2', sheetName: 'PhuLuc', sheetOp: { kind: 'set-sheet-hidden', hidden: false } }]);
+
+  // Remove: the removed sheet's live name is captured before the journal mark.
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.remove-sheet', {
+    subUnitId: 's2', subUnitName: 'PhuLuc',
+  })), [{ sheetId: 's2', sheetName: 'PhuLuc', sheetOp: { kind: 'remove-sheet' } }]);
+  assert.deepEqual(liveSessionSheets(model).map((sheet) => sheet.name), ['Ngân sách', 'Scratch', 'Data copy']);
+
+  // Malformed shapes never emit: foreign unit, unknown sheet, bad name/index.
+  for (const bad of [
+    event('sheet.mutation.insert-sheet', { index: 9, sheet: { id: 's5', name: 'X' } }),
+    event('sheet.mutation.insert-sheet', { index: 0, sheet: { id: '', name: 'X' } }),
+    event('sheet.mutation.insert-sheet', { index: 0, sheet: { id: 's5', name: 'a/b' } }),
+    event('sheet.mutation.set-worksheet-name', { subUnitId: 's1', name: 'x'.repeat(32) }),
+    event('sheet.mutation.set-worksheet-name', { subUnitId: 's1' }),
+    event('sheet.mutation.set-worksheet-name', { subUnitId: 'ghost', name: 'Y' }),
+    event('sheet.mutation.set-worksheet-order', { subUnitId: 's1', fromOrder: 0, toOrder: 9 }),
+    event('sheet.mutation.set-worksheet-hidden', { subUnitId: 's1', hidden: 2 }),
+    event('sheet.mutation.set-worksheet-hidden', { subUnitId: 'ghost', hidden: 1 }),
+    { id: 'sheet.mutation.set-worksheet-hidden', type: 2, params: { unitId: 'other', subUnitId: 's1', hidden: 1 } },
+  ]) assert.deepEqual(ingestSheetMutation(model, bad), [], JSON.stringify(bad));
+  assert.deepEqual(ingestSheetMutation(model, event('sheet.mutation.insert-sheet', {
+    index: 0, sheet: { id: 's6', name: 'X' },
+  }), true), []);
+  assert.deepEqual(ingestSheetMutation(null, event('sheet.mutation.insert-sheet', {
+    index: 0, sheet: { id: 's6', name: 'X' },
+  })), []);
+});
+
+test('sheet commands and mutations pass the policy only with bound params', () => {
+  const model = sheetState();
+  const command = (id, params) => ({ id, type: 1, params });
+
+  assert.equal(canExecuteCommand(command('sheet.command.insert-sheet', { sheet: { name: 'Scratch' } }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.insert-sheet', { index: 2, sheet: { id: 's3', name: 'Scratch' } }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.insert-sheet', { index: 3 }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.insert-sheet', { sheet: { name: 'a:b' } }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.copy-sheet', { subUnitId: 's1' }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.copy-sheet', { subUnitId: 'ghost' }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.remove-sheet', { subUnitId: 's2' }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-name', { subUnitId: 's1', name: 'Budget' }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-name', { subUnitId: 's1', name: '' }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-name', { subUnitId: 's1', name: "'q'" }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-order', { subUnitId: 's1', order: 1 }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-order', { subUnitId: 's1', order: 2 }), model, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-hidden', { subUnitId: 's1' }), model, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.set-worksheet-show', { subUnitId: 's1' }), model, false), true);
+
+  const mutationEvent = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-sheet', {
+    index: 2, sheet: { id: 's3', name: 'Scratch' },
+  }), model, false), true);
+  assert.equal(canExecuteCommand({ ...mutationEvent('sheet.mutation.insert-sheet', {
+    index: 2, sheet: { id: 's3', name: 'Scratch' },
+  }), params: { unitId: 'other', index: 2, sheet: { id: 's3', name: 'Scratch' } } }, model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-sheet', { subUnitName: 'Data' }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-name', { name: 'Budget' }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-order', { fromOrder: 0, toOrder: 1 }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-order', { fromOrder: 0, toOrder: 1.5 }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-hidden', { hidden: 1 }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-hidden', { hidden: true }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.copy-worksheet-end', {}), model, false), true);
+  // Read-only refuses every sheet command (the generic gate runs first).
+  assert.equal(canExecuteCommand(command('sheet.command.insert-sheet', { sheet: { name: 'X' } }), model, true), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-sheet', { subUnitName: 'Data' }), model, true), false);
+
+  // A removal needs a survivor: the single-sheet state refuses it.
+  const single = state();
+  assert.equal(canExecuteCommand({ id: 'sheet.mutation.remove-sheet', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's1', subUnitName: 'Data',
+  } }, single, false), false);
+
+  // Cells and structural ops on a sheet added this session stay editable.
+  const added = sheetState();
+  ingestSheetMutation(added, { id: 'sheet.mutation.insert-sheet', type: 2, params: {
+    unitId: 'file-sha', index: 2, sheet: { id: 's3', name: 'Scratch' },
+  } });
+  assert.equal(canExecuteCommand({ id: 'sheet.mutation.set-range-values', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's3', cellValue: { 0: { 0: { v: 'x' } } },
+  } }, added, false), true);
+  assert.equal(canEditRange(added, 's3', cellRange()), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.mutation.insert-row', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's3', range: cellRange(),
+  } }, added, false), true);
+});
+
+test('the pinned validateSheetName shape is enforced for names', () => {
+  for (const name of ['Sheet1', 'Ngân sách', 'a'.repeat(31)]) assert.equal(sheetNameShapeOK(name), true, name);
+  for (const name of ['', 'a'.repeat(32), 'a/b', 'a\\b', 'a?b', 'a*b', 'a[b', 'a]b', 'a:b', "'q'", "'a"]) {
+    assert.equal(sheetNameShapeOK(name), false, name);
+  }
 });

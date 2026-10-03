@@ -28,6 +28,7 @@ import {
 import {
   XLSX_SIDECAR_PROTOCOL_VERSION,
   isXlsxWorkbookSnapshot,
+  type XlsxGatewayArguments,
   type XlsxGatewayFunctions,
   type XlsxPackageEntry,
   type XlsxRecalcPort,
@@ -236,14 +237,18 @@ export class XlsxAdapter {
 
   /** Session-bound edit channel: parses + validates the wire ops against the
    *  opened workbook, then records them pending. Nothing mutates the input
-   *  bytes — serialize is the only writer. */
+   *  bytes — serialize is the only writer.
+   *
+   *  Parse and apply interleave (one op at a time, in emission order): a
+   *  sheet op must take effect before the next op parses, or a cell edit into
+   *  a just-renamed sheet could not resolve. The resolver is a live view over
+   *  the model, so later ops see the rename/add/remove the earlier ones made. */
   edit(documentModelRef: string, ops: unknown): { applied: true; revision: number } {
     const session = this.sessionOf(documentModelRef);
     if (!Array.isArray(ops)) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "edit payload must be an ops array" });
     }
-    const parsed = parseXlsxOps(ops, session.model.resolver(session.sheetNamesById));
-    for (const op of parsed) session.model.applyEdit(op);
+    parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
     return { applied: true, revision: session.model.revision };
   }
 
@@ -301,21 +306,49 @@ export class XlsxAdapter {
       });
     }
     const warnings: { code: string; detail: string }[] = [];
-    const edits = session.model.pendingEdits();
-    const structuralOps = session.model.pendingStructuralOps();
+    const sheetPlan = session.model.pendingSheetPlan();
+    // Every argument below resolves sheet names the way the PACKAGE on disk
+    // does: the gateway applies cell edits, structural ops and recalc reads
+    // against the current file names and runs the sheet plan (renames,
+    // additions, removals, order) last. The envelope/model use final names, so
+    // the adapter translates each one back through the model's registry.
+    const gatewayName = (name: string): string => session.model.gatewaySheetName(name);
+    const edits = session.model.pendingEdits().map((edit) => ({ ...edit, sheetName: gatewayName(edit.sheetName) }));
+    const structuralOps = session
+      .model
+      .pendingStructuralOps()
+      .map((group) => ({ ...group, sheetName: gatewayName(group.sheetName) }));
     // A structural save cannot refresh formula caches: the sidecar recalc runs
     // against the ORIGINAL bytes, where a shifted sheet's coordinates are the
     // pre-op ones, and a cross-sheet formula may read cells this envelope also
     // moved (or edited). Genoffice clears its recalc overlay on a structural
     // edit and lets the file's cached values — which shift with their cells —
     // stand; this lane does the same and says so in a warning rather than
-    // shipping a wrong-coordinate refresh.
+    // shipping a wrong-coordinate refresh. The same reasoning covers a sheet
+    // plan that changes sheet identity (rename/add/remove): the sidecar cannot
+    // see the final sheet set. A hidden-only plan keeps identity, so recalc
+    // still runs.
+    const identityChange =
+      sheetPlan !== undefined &&
+      (sheetPlan.renames.length > 0 ||
+        sheetPlan.additions.length > 0 ||
+        sheetPlan.removals.length > 0 ||
+        sheetPlan.orderChanged === true);
     const formulaCellsAfterEdits = session.model.formulaCellsAfterEdits();
-    const formulaCells = structuralOps.length > 0 ? [] : formulaCellsAfterEdits;
+    const formulaCells = (structuralOps.length > 0 || identityChange ? [] : formulaCellsAfterEdits).map((cell) => ({
+      ...cell,
+      sheetName: gatewayName(cell.sheetName),
+    }));
     if (structuralOps.length > 0 && formulaCellsAfterEdits.length > 0) {
       warnings.push({
         code: "structure_formula_cache_kept",
         detail: `${formulaCellsAfterEdits.length} formula cell(s) keep their file-cached values while row/column changes replay`,
+      });
+    }
+    if (identityChange && formulaCellsAfterEdits.length > 0) {
+      warnings.push({
+        code: "sheet_formula_cache_kept",
+        detail: `${formulaCellsAfterEdits.length} formula cell(s) keep their file-cached values while sheet changes replay`,
       });
     }
     let formulaValues: XlsxSheetFormulaValues[] | undefined;
@@ -326,7 +359,7 @@ export class XlsxAdapter {
           formula_cells: formulaCells.length,
         });
       }
-      const recalcEdits = session.model.pendingRecalcEdits();
+      const recalcEdits = session.model.pendingRecalcEdits().map((edit) => ({ ...edit, sheet: gatewayName(edit.sheet) }));
       if (recalcEdits.length > XLSX_MAX_RECALC_EDITS) {
         throw new EngineBoundaryError("unsupported_operation", {
           detail: `${recalcEdits.length} edits exceed the sidecar's ${XLSX_MAX_RECALC_EDITS}-edit request bound`,
@@ -346,13 +379,17 @@ export class XlsxAdapter {
         });
       }
     }
+    const gatewayArguments: XlsxGatewayArguments =
+      structuralOps.length === 0 && sheetPlan === undefined
+        ? {}
+        : { ...(structuralOps.length > 0 ? { structuralOps } : {}), ...(sheetPlan === undefined ? {} : { sheetPlan }) };
     let mutation;
     try {
       mutation = await this.deps.engine.applyCellEdits(
         session.inputBytes,
         edits,
         formulaValues,
-        structuralOps.length > 0 ? { structuralOps } : undefined,
+        Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
       );
       this.deps.engine.assertPreserved(mutation);
     } catch (error) {

@@ -122,6 +122,23 @@ export function isXlsxStructuralOp(op: XlsxEditOp): op is XlsxStructuralOp {
   return STRUCTURAL_KIND_SET.has(op.kind);
 }
 
+/** The bound sheet-op wire vocabulary; the session model's sheet registry
+ *  keys on it. */
+const SHEET_OP_KIND_LIST = [
+  "add_sheet",
+  "duplicate_sheet",
+  "rename_sheet",
+  "remove_sheet",
+  "reorder_sheet",
+  "set_sheet_hidden",
+] as const;
+
+const SHEET_KIND_SET: ReadonlySet<string> = new Set(SHEET_OP_KIND_LIST);
+
+export function isXlsxSheetOp(op: XlsxEditOp): op is XlsxSheetOp {
+  return SHEET_KIND_SET.has(op.kind);
+}
+
 /** The upstream StructuralOp payload the vendored gateway consumes
  *  (kebab-case kinds; xlsx-structure.ts). */
 export type XlsxUpstreamStructuralOp =
@@ -185,6 +202,22 @@ export function groupXlsxStructuralOps(ops: readonly XlsxEditOp[]): XlsxSheetStr
   return [...bySheet].map(([sheetName, sheetOps]) => ({ sheetName, ops: sheetOps }));
 }
 
+/** One worksheet-level op (envelope `sheetPlan` slot): add, duplicate, rename,
+ *  remove, reorder, show/hide. Names are the wire identity and every op
+ *  addresses a sheet by its CURRENT name at emission time — the session model
+ *  applies sheet ops in emission order, so an op after a rename resolves to
+ *  the new name (live `XlsxSheetResolver`). All sheet ops of one session fold
+ *  into ONE gateway SheetEditPlan rebuilt from the final model state at save
+ *  time (model.pendingSheetPlan). `index` is the 0-based final tab position
+ *  (add/duplicate default to the end). */
+export type XlsxSheetOp =
+  | { readonly kind: "add_sheet"; readonly name: string; readonly index?: number | undefined }
+  | { readonly kind: "duplicate_sheet"; readonly sheetName: string; readonly name: string; readonly index?: number | undefined }
+  | { readonly kind: "rename_sheet"; readonly sheetName: string; readonly newName: string }
+  | { readonly kind: "remove_sheet"; readonly sheetName: string }
+  | { readonly kind: "reorder_sheet"; readonly sheetName: string; readonly index: number }
+  | { readonly kind: "set_sheet_hidden"; readonly sheetName: string; readonly hidden: boolean };
+
 export type XlsxEditOp =
   | {
       readonly kind: "set_cell";
@@ -199,7 +232,8 @@ export type XlsxEditOp =
       readonly recalcInput: string;
     }
   | { readonly kind: "clear_cell"; readonly target: XlsxCellTarget; readonly recalcInput: "" }
-  | XlsxStructuralOp;
+  | XlsxStructuralOp
+  | XlsxSheetOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is
  *  applyCellEditsToXlsx's `edits` argument (the cell path the session model
@@ -576,6 +610,124 @@ function mergeParser(kind: "merge_cells" | "unmerge_cells") {
   };
 }
 
+// ── sheet ops (add / rename / remove / duplicate / reorder / hide) ─────────
+//
+// Wire shape mirrors B1/B2: { op, target: { sheet } , attributes: { ... } }.
+// `add_sheet` has no sheet to address (target absent or empty). Names are
+// validated against the upstream rules (validateSheetName, xlsx-sheets.ts):
+// 1-31 characters, no \ / ? * [ ] :, no leading/trailing apostrophe, unique
+// among the live sheets (case-insensitive, as Excel treats names). Every name
+// check runs against the live resolver, so a name freed by an earlier removal
+// in the same envelope is reusable and one taken by an earlier addition is
+// not.
+
+/** OOXML worksheet-name bound (validateSheetName). */
+const MAX_SHEET_NAME_LEN = 31;
+const INVALID_SHEET_NAME_CHARS = /[\\/?*[\]:]/;
+/** Tab-position ceiling: an envelope carries at most max_edit_ops items, so a
+ *  workbook with more sheets than that cannot be addressed in one save. */
+const MAX_SHEET_INDEX = 9_999;
+
+function parseSheetNameValue(raw: unknown, op: string, field: string): string {
+  const name = str(raw, op, field);
+  if (name.length === 0 || name.length > MAX_SHEET_NAME_LEN) {
+    throw new XlsxOpError(op, field, `sheet name must be 1-${MAX_SHEET_NAME_LEN} characters`);
+  }
+  if (INVALID_SHEET_NAME_CHARS.test(name)) {
+    throw new XlsxOpError(op, field, "sheet name cannot contain \\ / ? * [ ] :");
+  }
+  if (name.startsWith("'") || name.endsWith("'")) {
+    throw new XlsxOpError(op, field, "sheet name cannot start or end with an apostrophe");
+  }
+  return name;
+}
+
+/** Refuses a name already taken by a live sheet. `except` exempts the sheet a
+ *  rename is about, so a case-only rewrite stays a legal no-op. */
+function assertSheetNameFree(
+  name: string,
+  op: string,
+  field: string,
+  sheets: XlsxSheetResolver,
+  except?: string,
+): void {
+  const needle = name.toLowerCase();
+  for (const existing of sheets.sheetNames()) {
+    if (except !== undefined && existing === except) continue;
+    if (existing.toLowerCase() === needle) {
+      throw new XlsxOpError(op, field, `sheet name ${JSON.stringify(name)} is already used`);
+    }
+  }
+}
+
+function optionalSheetIndex(item: Dict, op: string): number | undefined {
+  const a = parseStructuralAttributes(item, op);
+  if (a.index === undefined) return undefined;
+  const index = int(a.index, op, "attributes.index");
+  if (index < 0 || index > MAX_SHEET_INDEX) {
+    throw new XlsxOpError(op, "attributes.index", `index must be 0-${MAX_SHEET_INDEX}`);
+  }
+  return index;
+}
+
+function parseAddSheet(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  if (item.target !== undefined && (!isDict(item.target) || Object.keys(item.target).length > 0)) {
+    throw new XlsxOpError(op, "target", "add_sheet addresses no existing sheet");
+  }
+  const name = parseSheetNameValue(parseStructuralAttributes(item, op).name, op, "attributes.name");
+  assertSheetNameFree(name, op, "attributes.name", sheets);
+  const index = optionalSheetIndex(item, op);
+  if (index !== undefined && index > sheets.sheetNames().length) {
+    throw new XlsxOpError(op, "attributes.index", "index outside the tab range");
+  }
+  return [{ kind: "add_sheet", name, ...(index === undefined ? {} : { index }) }];
+}
+
+function parseDuplicateSheet(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const name = parseSheetNameValue(parseStructuralAttributes(item, op).name, op, "attributes.name");
+  assertSheetNameFree(name, op, "attributes.name", sheets);
+  const index = optionalSheetIndex(item, op);
+  if (index !== undefined && index > sheets.sheetNames().length) {
+    throw new XlsxOpError(op, "attributes.index", "index outside the tab range");
+  }
+  return [{ kind: "duplicate_sheet", sheetName, name, ...(index === undefined ? {} : { index }) }];
+}
+
+function parseRenameSheet(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const newName = parseSheetNameValue(parseStructuralAttributes(item, op).newName, op, "attributes.newName");
+  assertSheetNameFree(newName, op, "attributes.newName", sheets, sheetName);
+  return [{ kind: "rename_sheet", sheetName, newName }];
+}
+
+function parseRemoveSheet(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  if (sheets.sheetNames().length <= 1) {
+    throw new XlsxOpError(op, "target.sheet", "a workbook needs at least one sheet");
+  }
+  return [{ kind: "remove_sheet", sheetName }];
+}
+
+function parseReorderSheet(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const attributes = parseStructuralAttributes(item, op);
+  const index = int(attributes.index, op, "attributes.index");
+  if (index < 0 || index >= sheets.sheetNames().length) {
+    throw new XlsxOpError(op, "attributes.index", "index outside the tab range");
+  }
+  return [{ kind: "reorder_sheet", sheetName, index }];
+}
+
+function parseSheetHidden(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
+  const sheetName = parseStructuralTarget(item, op, sheets);
+  const attributes = parseStructuralAttributes(item, op);
+  if (typeof attributes.hidden !== "boolean") {
+    throw new XlsxOpError(op, "attributes.hidden", "boolean required");
+  }
+  return [{ kind: "set_sheet_hidden", sheetName, hidden: attributes.hidden }];
+}
+
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp
  *  and its slot named) — parseXlsxOps itself does not change. */
@@ -595,6 +747,12 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_cols_outline", slot: "structuralOps", parse: outlineParser("set_cols_outline") },
   { wireName: "merge_cells", slot: "structuralOps", parse: mergeParser("merge_cells") },
   { wireName: "unmerge_cells", slot: "structuralOps", parse: mergeParser("unmerge_cells") },
+  { wireName: "add_sheet", slot: "sheetPlan", parse: parseAddSheet },
+  { wireName: "duplicate_sheet", slot: "sheetPlan", parse: parseDuplicateSheet },
+  { wireName: "rename_sheet", slot: "sheetPlan", parse: parseRenameSheet },
+  { wireName: "remove_sheet", slot: "sheetPlan", parse: parseRemoveSheet },
+  { wireName: "reorder_sheet", slot: "sheetPlan", parse: parseReorderSheet },
+  { wireName: "set_sheet_hidden", slot: "sheetPlan", parse: parseSheetHidden },
 ];
 
 const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));
@@ -604,8 +762,18 @@ const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.m
  * registry. Unknown op names are a typed error (unsupported): the caller
  * learns the vocabulary is narrower than upstream's full sheet-op set, not
  * that its op vanished.
+ *
+ * `onOp` is the emission-order seam: when supplied, each op is handed over as
+ * it is produced, BEFORE the next item parses. The session model uses it to
+ * apply sheet ops while parsing — a later op's `target.sheet` must resolve
+ * against a rename that an earlier op just applied (live resolver), and the
+ * alternative (parse everything, then apply everything) cannot see it.
  */
-export function parseXlsxOps(edits: unknown[], sheets: XlsxSheetResolver): XlsxEditOp[] {
+export function parseXlsxOps(
+  edits: unknown[],
+  sheets: XlsxSheetResolver,
+  onOp?: (op: XlsxEditOp) => void,
+): XlsxEditOp[] {
   if (edits.length > ENGINE_LIMITS.max_edit_ops) {
     throw new XlsxOpError("<edits>", "", `at most ${ENGINE_LIMITS.max_edit_ops} ops per job`);
   }
@@ -618,7 +786,10 @@ export function parseXlsxOps(edits: unknown[], sheets: XlsxSheetResolver): XlsxE
       const bound = XLSX_OP_KINDS.map((entry) => entry.wireName).join(", ");
       throw new XlsxOpError(op, "", `unknown op for xlsx (bound: ${bound})`, true);
     }
-    for (const parsed of kind.parse(item, op, sheets)) ops.push(parsed);
+    for (const parsed of kind.parse(item, op, sheets)) {
+      ops.push(parsed);
+      onOp?.(parsed);
+    }
   }
   return ops;
 }
