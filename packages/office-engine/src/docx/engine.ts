@@ -23,6 +23,11 @@ export interface DocxRun {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  /** ids of comments whose range covers this run (upstream types.ts:127); a
+   * regenerated paragraph re-emits commentRangeStart/End + reference around
+   * the first..last covered run. Only set when the whole range sits inside
+   * this paragraph — cross-paragraph endpoints ride on the block instead. */
+  commentIds?: string[];
   [key: string]: unknown;
 }
 
@@ -65,6 +70,27 @@ export interface DocxNumberingDef {
   [key: string]: unknown;
 }
 
+/** CommentInfo — upstream types.ts:253. One comment from word/comments.xml;
+ * the authoritative list a save regenerates the part from. `parentId` marks a
+ * reply (resolved through commentsExtended), `done` the resolved state, and
+ * `paraId` is the commentsExtended link key (assigned on save for new ones). */
+export interface DocxCommentInfo {
+  id: string;
+  author: string;
+  initials?: string;
+  /** ISO timestamp from w:date */
+  date?: string;
+  /** plain text, paragraphs joined with \n */
+  text: string;
+  /** the parent comment's w:id when this entry is a reply */
+  parentId?: string;
+  /** resolved (w15:done); Word resolves a whole thread together */
+  done?: boolean;
+  /** w14:paraId of the comment's last paragraph (commentsExtended link key) */
+  paraId?: string;
+  [key: string]: unknown;
+}
+
 /** ParsedDoc + ParseExtras handle: the adapter treats everything outside
  * `blocks` as opaque and passes the whole object back to saveDocx, exactly
  * like upstream (patch.ts:85 ParsedDocFull). */
@@ -73,6 +99,8 @@ export interface DocxParsed {
   /** numId -> definition, from word/numbering.xml (upstream parse.ts:573);
    * a rendering host needs these to draw the document's real list markers. */
   numbering?: Map<string, DocxNumberingDef>;
+  /** comments from word/comments.xml, in file order (upstream types.ts:2124). */
+  comments?: DocxCommentInfo[];
   internal?: Record<string, unknown>;
   extras?: { chartParts?: Record<string, string>; [key: string]: unknown };
   [key: string]: unknown;
@@ -86,6 +114,12 @@ export interface DocxGeneratedBlock {
   outlineOnly?: boolean;
   styleId?: string;
   list?: { kind: "bullet" | "ordered"; numId: string; ilvl: number };
+  /** cross-paragraph comment range starts re-emitted at paragraph start
+   * (upstream types.ts:1771) — the anchor's opening half. */
+  commentStarts?: string[];
+  /** cross-paragraph range ends, emitted with their reference at paragraph
+   * end (upstream types.ts:1773) — the anchor's closing half. */
+  commentEnds?: string[];
   runs: DocxRun[];
   [key: string]: unknown;
 }
@@ -180,6 +214,10 @@ export interface DocxSaveOptions {
   evenAndOddHeaders?: boolean;
   sectionHf?: Array<{ lastBlockIndex: number; kind: "header" | "footer"; hf: DocxHeaderFooter }>;
   hfAllSections?: boolean;
+  /** Full desired comment list; word/comments.xml is regenerated from it and
+   * body markers for ids no longer present are removed (upstream patch.ts:193).
+   * undefined keeps the part byte-identical. */
+  comments?: DocxCommentInfo[];
   [key: string]: unknown;
 }
 

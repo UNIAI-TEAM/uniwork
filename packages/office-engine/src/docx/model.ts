@@ -11,6 +11,7 @@
 import {
   DocxEngineError,
   type DocxBlock,
+  type DocxCommentInfo,
   type DocxGeneratedBlock,
   type DocxHeaderFooter,
   type DocxNewChart,
@@ -43,6 +44,24 @@ function requireImageBytes(image: { base64: string; mime: string } | undefined, 
   }
 }
 
+/** Comment payload oracle: the save regenerates word/comments.xml from
+ * id/author/text alone, so a malformed entry is refused before it can reach
+ * the part (an id-less or blank comment would corrupt the rebuild). */
+function requireComment(comment: DocxCommentInfo, what: string): void {
+  if (!comment || typeof comment !== "object") {
+    throw new DocxEngineError("bad_comment", what + " needs a comment object");
+  }
+  if (typeof comment.id !== "string" || comment.id.length === 0) {
+    throw new DocxEngineError("bad_comment", what + " comment needs a non-empty id");
+  }
+  if (typeof comment.author !== "string" || comment.author.length === 0) {
+    throw new DocxEngineError("bad_comment", what + " comment " + comment.id + " needs an author");
+  }
+  if (typeof comment.text !== "string" || comment.text.length === 0) {
+    throw new DocxEngineError("empty_comment_text", what + " comment " + comment.id + " needs non-empty text");
+  }
+}
+
 export type DocxEdit =
   | { op: "set_paragraph_text"; docxIndex: number; runs: DocxRun[] }
   | { op: "insert_generated"; index: number; block: DocxGeneratedBlock }
@@ -53,7 +72,8 @@ export type DocxEdit =
   | { op: "remove_block"; docxIndex: number }
   | { op: "set_header_footer"; slot: DocxHfSlot; hf: DocxHeaderFooter | null }
   | { op: "set_title_pg"; value: boolean }
-  | { op: "set_even_odd_headers"; value: boolean };
+  | { op: "set_even_odd_headers"; value: boolean }
+  | { op: "set_comments"; comments: DocxCommentInfo[] };
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
 
@@ -241,6 +261,91 @@ export class DocxSessionModel {
     this.revision += 1;
   }
 
+  /** The authoritative comment list: the parse's own list until an edit
+   * replaces it. An untouched list never reaches SaveOptions, so a save keeps
+   * word/comments.xml byte-identical (the byte-preservation rule). */
+  get comments(): DocxCommentInfo[] {
+    const own = this.options.comments;
+    if (own) return own.map((comment) => ({ ...comment }));
+    const parsed = this.parsed.comments;
+    return Array.isArray(parsed) ? parsed.map((comment) => ({ ...comment })) : [];
+  }
+
+  /** Replace the authoritative list — upstream SaveOptions.comments: the save
+   * regenerates word/comments.xml from it and removes body markers for ids no
+   * longer present. Ids must be unique and every reply must point at a listed
+   * parent; the caller's array is copied, never aliased into the plan. */
+  setComments(comments: DocxCommentInfo[]): void {
+    if (!Array.isArray(comments)) {
+      throw new DocxEngineError("bad_comment", "set_comments needs a comment list");
+    }
+    const ids = new Set<string>();
+    for (const comment of comments) {
+      requireComment(comment, "set_comments");
+      if (ids.has(comment.id)) {
+        throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " appears twice");
+      }
+      ids.add(comment.id);
+    }
+    for (const comment of comments) {
+      if (comment.parentId !== undefined && !ids.has(comment.parentId)) {
+        throw new DocxEngineError("unknown_comment", "reply " + comment.id + " points at missing parent " + comment.parentId);
+      }
+    }
+    this.options.comments = comments.map((comment) => ({ ...comment }));
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Append one comment (the caller allocates the id; the save assigns the
+   * commentsExtended paraId for new entries). */
+  addComment(comment: DocxCommentInfo): void {
+    requireComment(comment, "add_comment");
+    if (this.comments.some((c) => c.id === comment.id)) {
+      throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " already exists");
+    }
+    this.setComments([...this.comments, { ...comment }]);
+  }
+
+  /** Append a reply anchored to `parentId` (Word: a reply shares the parent
+   * comment's document range, so the anchor is the parent's). */
+  replyToComment(parentId: string, reply: DocxCommentInfo): void {
+    requireComment(reply, "reply_to_comment");
+    const list = this.comments;
+    if (!list.some((c) => c.id === parentId)) {
+      throw new DocxEngineError("unknown_comment", "no comment " + parentId + " to reply to");
+    }
+    if (reply.parentId !== undefined && reply.parentId !== parentId) {
+      throw new DocxEngineError("bad_comment", "reply " + reply.id + " carries parentId " + reply.parentId + ", not " + parentId);
+    }
+    if (list.some((c) => c.id === reply.id)) {
+      throw new DocxEngineError("duplicate_comment_id", "comment id " + reply.id + " already exists");
+    }
+    this.setComments([...list, { ...reply, parentId }]);
+  }
+
+  /** Resolve/reopen a thread: the comment and its replies share the flag
+   * (Word resolves a thread as a unit). */
+  setCommentResolved(id: string, done: boolean): void {
+    const list = this.comments;
+    if (!list.some((c) => c.id === id)) {
+      throw new DocxEngineError("unknown_comment", "no comment " + id + " to resolve");
+    }
+    this.setComments(list.map((c) => (c.id === id || c.parentId === id ? { ...c, done } : c)));
+  }
+
+  /** Delete a comment; its replies go with it (Word deletes the thread). The
+   * body markers disappear because the save strips markers for ids no longer
+   * in the list (upstream removeDeletedCommentMarkers). */
+  deleteComment(id: string): void {
+    const list = this.comments;
+    if (!list.some((c) => c.id === id)) {
+      throw new DocxEngineError("unknown_comment", "no comment " + id + " to delete");
+    }
+    const gone = new Set([id, ...list.filter((c) => c.parentId === id).map((c) => c.id)]);
+    this.setComments(list.filter((c) => !gone.has(c.id)));
+  }
+
   /** Typed dispatch so the adapter's edit channel stays a single entry. */
   applyEdit(edit: DocxEdit): void {
     switch (edit.op) {
@@ -264,6 +369,8 @@ export class DocxSessionModel {
         return this.setTitlePg(edit.value);
       case "set_even_odd_headers":
         return this.setEvenOddHeaders(edit.value);
+      case "set_comments":
+        return this.setComments(edit.comments);
     }
   }
 
