@@ -58,7 +58,7 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
     void surfaceVersion;
     return <DocxEditor documentKey={documentKey} title={effectiveTitle} editor={session.editor} coordinator={session.coordinator} capability={capability} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor()).openOutcome()! }} />;
   } }), [capability, documentKey, session, effectiveTitle, surfaceVersion]);
-  useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [bridge, documentKey, ready, session]);
+  useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [active, bridge, documentKey, ready, session]);
   const saveAs = async () => {
     setActionFailed(false);
     try {
