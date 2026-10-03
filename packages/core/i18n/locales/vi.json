@@ -7285,7 +7285,17 @@
             "edgeLeft": "Trái"
           },
           "charts": "Biểu đồ",
-          "calculation": "Tính toán"
+          "calculation": "Tính toán",
+          "clear": {
+            "label": "Xóa",
+            "content": "Xóa nội dung",
+            "format": "Xóa định dạng",
+            "all": "Xóa tất cả"
+          },
+          "painter": {
+            "label": "Sao chép định dạng",
+            "hint": "Sao chép định dạng của vùng chọn hiện tại rồi chọn nơi áp dụng. Nhấn lần nữa hoặc Esc để hủy."
+          }
         },
         "overflow": "Thêm lệnh",
         "emptyTab": "Thẻ này chưa có lệnh nào."

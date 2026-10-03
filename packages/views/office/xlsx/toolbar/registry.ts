@@ -1,3 +1,5 @@
+import { XlsxClearGroup } from "./clear/clear-group";
+import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
 import { XlsxClipboardGroup } from "./groups/clipboard-group";
@@ -50,4 +52,6 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "structure-insert", tab: "insert", order: 20, labelKey: "office.xlsx.structure.groups.insert", Component: XlsxStructureInsertGroup },
   { id: "structure-size", tab: "home", order: 80, labelKey: "office.xlsx.structure.groups.size", Component: XlsxStructureSizeGroup },
   { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
+  { id: "clear", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.clear.label", Component: XlsxClearGroup },
+  { id: "painter", tab: "home", order: 90, labelKey: "office.xlsx.toolbar.groups.painter.label", Component: XlsxFormatPainterGroup },
 ];

@@ -7291,7 +7291,17 @@
             "edgeLeft": "Left"
           },
           "charts": "Charts",
-          "calculation": "Calculation"
+          "calculation": "Calculation",
+          "clear": {
+            "label": "Clear",
+            "content": "Clear content",
+            "format": "Clear format",
+            "all": "Clear all"
+          },
+          "painter": {
+            "label": "Format painter",
+            "hint": "Copy the current selection's format, then select where to apply it. Press again or Esc to cancel."
+          }
         },
         "overflow": "More commands",
         "emptyTab": "No commands on this tab yet."
