@@ -83,7 +83,9 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
     <div className="flex flex-col border-b border-border bg-muted/30" data-testid="docx-toolbar">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DocxToolbarTab["id"])} className="gap-0">
         <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1">
-          <TabsList aria-label={t("office.docx.toolbar.tabsLabel")}>
+          {/* Selection follows focus, the ribbon behaviour Word and the
+              registry's Radix-style tabs use; the panels are cheap to render. */}
+          <TabsList aria-label={t("office.docx.toolbar.tabsLabel")} activateOnFocus>
             {DOCX_TOOLBAR_TABS.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id}>
                 {t(tab.labelKey)}
