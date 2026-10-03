@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
@@ -20,6 +20,7 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
+afterEach(() => { for (const session of sessions.values()) session.dispose(); sessions.clear(); });
 
 function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
