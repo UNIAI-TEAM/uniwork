@@ -7183,7 +7183,26 @@
     "xlsx": {
       "title": "Sổ tính XLSX",
       "toolbar": {
-        "label": "Lệnh chỉnh sửa XLSX"
+        "label": "Lệnh chỉnh sửa XLSX",
+        "tabs": {
+          "label": "Thẻ lệnh XLSX",
+          "home": "Trang chủ",
+          "insert": "Chèn",
+          "formulas": "Công thức",
+          "data": "Dữ liệu",
+          "review": "Xem lại",
+          "view": "Xem"
+        },
+        "groups": {
+          "history": "Lịch sử",
+          "sheets": "Trang tính",
+          "clipboard": "Bảng tạm",
+          "number": "Định dạng số",
+          "charts": "Biểu đồ",
+          "calculation": "Tính toán"
+        },
+        "overflow": "Thêm lệnh",
+        "emptyTab": "Thẻ này chưa có lệnh nào."
       },
       "actions": {
         "undo": "Hoàn tác",

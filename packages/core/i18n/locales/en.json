@@ -7189,7 +7189,26 @@
     "xlsx": {
       "title": "XLSX workbook",
       "toolbar": {
-        "label": "XLSX editing commands"
+        "label": "XLSX editing commands",
+        "tabs": {
+          "label": "XLSX command tabs",
+          "home": "Home",
+          "insert": "Insert",
+          "formulas": "Formulas",
+          "data": "Data",
+          "review": "Review",
+          "view": "View"
+        },
+        "groups": {
+          "history": "History",
+          "sheets": "Sheets",
+          "clipboard": "Clipboard",
+          "number": "Number",
+          "charts": "Charts",
+          "calculation": "Calculation"
+        },
+        "overflow": "More commands",
+        "emptyTab": "No commands on this tab yet."
       },
       "actions": {
         "undo": "Undo",
