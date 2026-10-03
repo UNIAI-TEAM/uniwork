@@ -28,6 +28,11 @@ export interface DocxRun {
    * the first..last covered run. Only set when the whole range sits inside
    * this paragraph — cross-paragraph endpoints ride on the block instead. */
   commentIds?: string[];
+  /** The run is a footnote/endnote reference marker (upstream types.ts:137).
+   * `text` holds the display number; a save emits the marker itself
+   * (w:footnoteReference/w:endnoteReference) and Word renumbers from the part
+   * order. */
+  noteRef?: { kind: DocxNoteKind; id: string };
   [key: string]: unknown;
 }
 
@@ -91,6 +96,56 @@ export interface DocxCommentInfo {
   [key: string]: unknown;
 }
 
+/** The two note parts share one schema; the kind selects which part. */
+export type DocxNoteKind = "footnote" | "endnote";
+
+/** NoteRun — upstream types.ts:897. One display run of note body text; the
+ * save-side rebuild reads these when an entry carries measured rich runs. */
+export interface DocxNoteRun {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  color?: string;
+  sizeHalfPoints?: number;
+  caps?: "all" | "small";
+  fontAscii?: string;
+  font?: string;
+  [key: string]: unknown;
+}
+
+/** Direct w:spacing of a note's first paragraph, in twips (upstream NoteInfo
+ * spacing: they override the style chain). */
+export interface DocxNoteSpacing {
+  beforeTwips?: number;
+  afterTwips?: number;
+  lineRawTwips?: number;
+  lineRule?: "auto" | "atLeast" | "exact";
+  [key: string]: unknown;
+}
+
+/** NoteInfo — upstream types.ts:917. One footnote/endnote from its part. The
+ * list is what a save regenerates word/footnotes.xml / word/endnotes.xml from
+ * (buildNotesXml keeps unchanged entries byte-identical, preserves structural
+ * separator entries, and drops a rich rebuild when `richParas` is absent —
+ * so a plain-text edit drops them on purpose). Note numbers follow list
+ * order: deleting a note renumbers the survivors in the saved part. */
+export interface DocxNoteInfo {
+  /** original w:id, unique within its part */
+  id: string;
+  /** plain text, paragraphs joined with \n */
+  text: string;
+  /** rich display runs (one group per paragraph) */
+  richParas?: DocxNoteRun[][];
+  /** no self-reference mark run in the body: Word renders no number mark */
+  noRefMark?: true;
+  /** w:pStyle of the first note paragraph */
+  styleId?: string;
+  spacing?: DocxNoteSpacing;
+  [key: string]: unknown;
+}
+
 /** ParsedDoc + ParseExtras handle: the adapter treats everything outside
  * `blocks` as opaque and passes the whole object back to saveDocx, exactly
  * like upstream (patch.ts:85 ParsedDocFull). */
@@ -101,6 +156,12 @@ export interface DocxParsed {
   numbering?: Map<string, DocxNumberingDef>;
   /** comments from word/comments.xml, in file order (upstream types.ts:2124). */
   comments?: DocxCommentInfo[];
+  /** notes from word/footnotes.xml / word/endnotes.xml, in part order; the
+   * order is the display number. */
+  footnotes?: DocxNoteInfo[];
+  endnotes?: DocxNoteInfo[];
+  /** `${kind}:${id}` -> display number, derived from part order on parse. */
+  noteNumbers?: Record<string, number>;
   internal?: Record<string, unknown>;
   extras?: { chartParts?: Record<string, string>; [key: string]: unknown };
   [key: string]: unknown;
@@ -218,6 +279,12 @@ export interface DocxSaveOptions {
    * body markers for ids no longer present are removed (upstream patch.ts:193).
    * undefined keeps the part byte-identical. */
   comments?: DocxCommentInfo[];
+  /** Full desired footnote/endnote lists; the part is regenerated in list
+   * order and the separators from the original part are kept byte-identical
+   * (upstream patch.ts:205, notes.ts:307). undefined keeps the part
+   * byte-identical. */
+  footnotes?: DocxNoteInfo[];
+  endnotes?: DocxNoteInfo[];
   [key: string]: unknown;
 }
 

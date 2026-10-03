@@ -16,6 +16,8 @@ import {
   type DocxHeaderFooter,
   type DocxNewChart,
   type DocxNewImage,
+  type DocxNoteInfo,
+  type DocxNoteKind,
   type DocxParsed,
   type DocxRun,
   type DocxSaveBlock,
@@ -62,6 +64,31 @@ function requireComment(comment: DocxCommentInfo, what: string): void {
   }
 }
 
+/** Note payload oracle: the save regenerates the notes part from id/text
+ * alone, so an id-less entry or a non-string body is refused before it can
+ * reach the part. An empty body is legal (a note with no text is a real Word
+ * state); the mutators that author user text refuse blank input instead. */
+function requireNote(note: DocxNoteInfo, what: string): void {
+  if (!note || typeof note !== "object") {
+    throw new DocxEngineError("bad_note", what + " needs a note object");
+  }
+  if (typeof note.id !== "string" || note.id.length === 0) {
+    throw new DocxEngineError("bad_note", what + " note needs a non-empty id");
+  }
+  if (typeof note.text !== "string") {
+    throw new DocxEngineError("bad_note", what + " note " + note.id + " needs text");
+  }
+}
+
+/** Copy a note (and its nested rich rows) so the caller's objects never alias
+ * into the save options. */
+function cloneNote(note: DocxNoteInfo): DocxNoteInfo {
+  const copy = { ...note };
+  if (note.richParas) copy.richParas = note.richParas.map((runs) => runs.map((run) => ({ ...run })));
+  if (note.spacing) copy.spacing = { ...note.spacing };
+  return copy;
+}
+
 export type DocxEdit =
   | { op: "set_paragraph_text"; docxIndex: number; runs: DocxRun[] }
   | { op: "insert_generated"; index: number; block: DocxGeneratedBlock }
@@ -73,7 +100,8 @@ export type DocxEdit =
   | { op: "set_header_footer"; slot: DocxHfSlot; hf: DocxHeaderFooter | null }
   | { op: "set_title_pg"; value: boolean }
   | { op: "set_even_odd_headers"; value: boolean }
-  | { op: "set_comments"; comments: DocxCommentInfo[] };
+  | { op: "set_comments"; comments: DocxCommentInfo[] }
+  | { op: "set_notes"; kind: DocxNoteKind; notes: DocxNoteInfo[] };
 
 export type DocxHfSlot = "header" | "footer" | "headerFirst" | "footerFirst" | "headerEven" | "footerEven";
 
@@ -346,6 +374,91 @@ export class DocxSessionModel {
     this.setComments(list.filter((c) => !gone.has(c.id)));
   }
 
+  private requireNoteKind(kind: DocxNoteKind, what: string): void {
+    if (kind !== "footnote" && kind !== "endnote") {
+      throw new DocxEngineError("bad_note_kind", what + " kind " + String(kind) + " is not footnote/endnote");
+    }
+  }
+
+  /** The authoritative note list of a kind: the edit's own list until one
+   * replaces it, else the parse's list. An untouched list never reaches
+   * SaveOptions, so a save keeps the notes part byte-identical. */
+  notes(kind: DocxNoteKind): DocxNoteInfo[] {
+    this.requireNoteKind(kind, "notes");
+    const own = kind === "footnote" ? this.options.footnotes : this.options.endnotes;
+    if (own) return own.map(cloneNote);
+    const parsed = kind === "footnote" ? this.parsed.footnotes : this.parsed.endnotes;
+    return Array.isArray(parsed) ? parsed.map(cloneNote) : [];
+  }
+
+  /** Replace the authoritative list — upstream SaveOptions.footnotes/endnotes:
+   * the save regenerates the part from it in list order, and numbers follow
+   * that order, so a delete renumbers the survivors. Ids must be unique within
+   * the kind. */
+  setNotes(kind: DocxNoteKind, notes: DocxNoteInfo[]): void {
+    this.requireNoteKind(kind, "set_notes");
+    if (!Array.isArray(notes)) {
+      throw new DocxEngineError("bad_note", "set_notes needs a note list");
+    }
+    const ids = new Set<string>();
+    for (const note of notes) {
+      requireNote(note, "set_notes");
+      if (ids.has(note.id)) {
+        throw new DocxEngineError("duplicate_note_id", "note id " + note.id + " appears twice");
+      }
+      ids.add(note.id);
+    }
+    const copy = notes.map(cloneNote);
+    if (kind === "footnote") this.options.footnotes = copy;
+    else this.options.endnotes = copy;
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Append one note (the caller allocates the id; the display number follows
+   * list order). Blank bodies are refused: an inserted note is user text. */
+  insertNote(kind: DocxNoteKind, note: DocxNoteInfo): void {
+    this.requireNoteKind(kind, "insert_note");
+    requireNote(note, "insert_note");
+    if (note.text.trim().length === 0) {
+      throw new DocxEngineError("empty_note_text", "insert_note note " + note.id + " needs non-blank text");
+    }
+    if (this.notes(kind).some((entry) => entry.id === note.id)) {
+      throw new DocxEngineError("duplicate_note_id", "note id " + note.id + " already exists");
+    }
+    this.setNotes(kind, [...this.notes(kind), note]);
+  }
+
+  /** Edit a note's text. The plain-text edit drops the measured rich runs: the
+   * vendored rebuild prefers richParas over text when it has to rebuild an
+   * entry (notes.ts:265), so keeping stale runs would silently revert the
+   * edit. The save still first tries an in-place w:t patch, which keeps the
+   * entry's inline formatting (notes.ts:329). */
+  setNoteText(kind: DocxNoteKind, id: string, text: string): void {
+    this.requireNoteKind(kind, "set_note_text");
+    if (typeof text !== "string" || text.trim().length === 0) {
+      throw new DocxEngineError("empty_note_text", "set_note_text needs non-blank text");
+    }
+    const list = this.notes(kind);
+    const at = list.findIndex((note) => note.id === id);
+    if (at < 0) throw new DocxEngineError("unknown_note", "no " + kind + " " + id + " to edit");
+    const next: DocxNoteInfo = { ...list[at]!, text };
+    delete next.richParas;
+    list[at] = next;
+    this.setNotes(kind, list);
+  }
+
+  /** Delete a note. The survivors keep their ids and order, so the saved part
+   * numbers them 1..N again (renumbering is part order, Word's own rule). */
+  deleteNote(kind: DocxNoteKind, id: string): void {
+    this.requireNoteKind(kind, "delete_note");
+    const list = this.notes(kind);
+    if (!list.some((note) => note.id === id)) {
+      throw new DocxEngineError("unknown_note", "no " + kind + " " + id + " to delete");
+    }
+    this.setNotes(kind, list.filter((note) => note.id !== id));
+  }
+
   /** Typed dispatch so the adapter's edit channel stays a single entry. */
   applyEdit(edit: DocxEdit): void {
     switch (edit.op) {
@@ -371,6 +484,8 @@ export class DocxSessionModel {
         return this.setEvenOddHeaders(edit.value);
       case "set_comments":
         return this.setComments(edit.comments);
+      case "set_notes":
+        return this.setNotes(edit.kind, edit.notes);
     }
   }
 
