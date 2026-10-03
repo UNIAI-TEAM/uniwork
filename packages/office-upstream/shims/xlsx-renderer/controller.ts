@@ -332,6 +332,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       selection.range.startColumn, selection.range.endColumn, selection.range.rangeType]) : "null";
     const state = lazyWorkbookRef.current;
     if (selection && state) lastSelection = { state, sheetId: selection.sheetId, range: { ...selection.range } };
+    else if (!selection) lastSelection = null;
     if (lastSelectionState === state && lastSelectionKey === key) return;
     lastSelectionState = state;
     lastSelectionKey = key;
