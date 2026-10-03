@@ -313,7 +313,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
           const result = await session.coordinator.save("dialog");
           return result.accepted;
         }}
-        onKeepDraft={async () => (session ? session.keepDraft() : Boolean(accountDraft))}
+        onKeepDraft={async () => (session ? session.keepDraft() : true)}
         onDiscard={async () => {
           if (session) return session.discardDraft();
           if (!accountDraft) return true;
