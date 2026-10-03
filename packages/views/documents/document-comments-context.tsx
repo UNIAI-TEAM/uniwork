@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { DocumentFavoriteToggle } from "./document-favorite-toggle";
 
@@ -73,12 +74,15 @@ export function DocumentCommentsHeaderActions() {
   const workspace = useOptionalWorkspace();
   const enabled = useFlag("documents", false);
   const { t } = useTranslation();
+  // With an embedded editor cluster in the header, a phone keeps title + Save
+  // + ⋯ only; the overflow menu then carries the Comments entry.
+  const folded = useHeaderActionsSlotFilled();
   if (!chrome || !enabled) return null;
   // The document payload carries the organization; the workspace context is
   // the fallback for a server that omitted it.
   const orgId = chrome.doc.organization_id || workspace?.workspace.organization_id || "";
   return (
-    <>
+    <div className={folded ? "hidden shrink-0 items-center gap-1 sm:flex" : "contents"} data-document-comments-actions>
       <DocumentFavoriteToggle documentId={chrome.doc.id} orgId={orgId} />
       <Button
         ref={chrome.triggerRef}
@@ -93,6 +97,6 @@ export function DocumentCommentsHeaderActions() {
         <MessageSquare aria-hidden className="size-4" />
         <span className="hidden sm:inline">{t("documents.comments.open")}</span>
       </Button>
-    </>
+    </div>
   );
 }

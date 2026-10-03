@@ -27,7 +27,7 @@ describe("SaveStatus", () => {
 
   it.each([
     ["dirty", "Changes not sent", "Send now"],
-    ["ready", "Ready to save", null],
+    ["ready", "No changes", null],
     ["saving", "Saving…", null],
     ["saved", "Saved to UniWork", "Done"],
     ["error", "Save could not be confirmed", "Try again"],
@@ -83,9 +83,21 @@ describe("SaveStatus", () => {
     expect(document.getElementById(status.getAttribute("aria-describedby")!)).toHaveTextContent("The document was kept. Try again.");
   });
 
+  it.each([
+    ["saved-cloud", "Saved", "Saved to UniWork"],
+    ["not-sent", "Unsaved", "Changes not sent"],
+    ["saving", "Saving…", "Saving…"],
+    ["ready", "No changes", "No changes"],
+  ] as const)("reads %s in its short header form with the full label as tooltip", (status, short, full) => {
+    render(<SaveStatus status={status} compact />);
+    const element = screen.getByTestId(`office-save-${status}`);
+    expect(element).toHaveTextContent(short);
+    expect(element).toHaveAttribute("title", full);
+  });
+
   it("preserves an explicit ready status instead of treating it as a receipt", () => {
     render(<SaveStatus status="ready" />);
-    expect(screen.getByText("Ready to save")).toBeInTheDocument();
+    expect(screen.getByText("No changes")).toBeInTheDocument();
     expect(screen.getByTestId("office-save-ready")).toBeInTheDocument();
   });
 });
