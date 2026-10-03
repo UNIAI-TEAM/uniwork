@@ -111,6 +111,21 @@ export function rotateHandlePosition(box: PptxBox, offsetPx = 24): PptxPoint {
   return { x: box.x + box.w / 2, y: box.y - offsetPx };
 }
 
+/**
+ * Rotate grip position clamped inside the slide. The slide box clips its
+ * overflow, so a grip drawn above a box that sits at the page top would be
+ * invisible; when that would happen it drops just inside the top edge instead.
+ */
+export function rotateHandlePositionInBounds(
+  box: PptxBox,
+  page: { widthPx: number; heightPx: number },
+  offsetPx = 24,
+  gripPx = 11,
+): PptxPoint {
+  const grip = rotateHandlePosition(box, offsetPx);
+  return grip.y < 0 ? { x: grip.x, y: box.y + gripPx } : grip;
+}
+
 function clampMin(value: number): number {
   return Math.max(PPTX_MIN_BOX_PX, value);
 }

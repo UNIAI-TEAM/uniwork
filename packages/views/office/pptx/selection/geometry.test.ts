@@ -3,6 +3,7 @@ import type { PptxNodeBox } from "../canvas/render-tree";
 import { box } from "../canvas/pptx-render-fixtures";
 import {
   handlePosition,
+  rotateHandlePositionInBounds,
   hitElement,
   hitHandle,
   marqueeSelection,
@@ -59,6 +60,11 @@ describe("handles", () => {
     expect(handlePosition(bounds, "e")).toEqual({ x: 300, y: 100 });
     expect(handlePosition(bounds, "s")).toEqual({ x: 200, y: 150 });
     expect(rotateHandlePosition(bounds, 24)).toEqual({ x: 200, y: 26 });
+  });
+
+  it("keeps the rotate grip inside the slide when the box touches the top edge", () => {
+    expect(rotateHandlePositionInBounds({ x: 100, y: 0, w: 200, h: 100 }, { widthPx: 960, heightPx: 540 })).toEqual({ x: 200, y: 11 });
+    expect(rotateHandlePositionInBounds(bounds, { widthPx: 960, heightPx: 540 })).toEqual({ x: 200, y: 26 });
   });
 
   it("hit-tests a handle within the radius and nothing outside it", () => {

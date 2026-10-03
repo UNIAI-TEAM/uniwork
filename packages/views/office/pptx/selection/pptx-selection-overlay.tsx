@@ -10,7 +10,7 @@
  */
 import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { cn } from "@uniwork/ui/lib/utils";
-import { handlePosition, rotateHandlePosition, PPTX_RESIZE_HANDLES, type PptxBox, type PptxPoint } from "./geometry";
+import { handlePosition, rotateHandlePositionInBounds, PPTX_RESIZE_HANDLES, type PptxBox, type PptxPoint } from "./geometry";
 import type { PptxSelectionController } from "./use-pptx-selection";
 
 export interface PptxSelectionOverlayProps {
@@ -62,7 +62,7 @@ export function PptxSelectionOverlay({
   };
 
   const bounds = controller.bounds;
-  const grip = bounds ? rotateHandlePosition(bounds) : null;
+  const grip = bounds ? rotateHandlePositionInBounds(bounds, page) : null;
 
   return (
     <div
