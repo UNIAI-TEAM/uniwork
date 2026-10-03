@@ -47,7 +47,9 @@ export interface DocxShapeSpec {
  * node view renders and pmDocToSavePlan reads back (upstream types.ts:1622).
  * Kept structural because the binding shim exports no shape types; the literal
  * fields are exactly what genoffice's insert helpers set (ribbon-tabs.tsx:419,
- * :469, :336). */
+ * :469, :336). Like those helpers the display carries no floating/offset fields,
+ * so an inserted shape keeps its anchor slot live and only lands at the anchored
+ * position after the first save+reopen (F4: genoffice parity, not a port gap). */
 export interface DocxShapeDisplay {
   fill?: string;
   borderColor?: string;
@@ -249,7 +251,9 @@ function shapeDisplay(shape: ResolvedShape): DocxShapeDisplay {
       borderColor: shape.borderHex ?? "000000",
       widthPx: shape.widthPx,
       heightPx: shape.heightPx,
-      prst: shape.kind,
+      // the parse names a tail-ended straightConnector1 "lineArrow"
+      // (parse-drawing-geometry.ts:54-57); the XML map keeps the raw prst
+      prst: shape.kind === "arrow" ? "lineArrow" : "line",
       paras: [],
       readOnly: true,
       insetTopPx: 0,
