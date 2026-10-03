@@ -35,4 +35,13 @@ describe("PdfDocumentPropertiesDialog", () => {
     view.rerender(<PdfDocumentPropertiesDialog open metadata={{ title: "First" }} setMetadata={setMetadata} onOpenChange={onOpenChange} />);
     expect(screen.getByLabelText("Title")).toHaveValue("First");
   });
+
+  it("keeps an in-progress draft when metadata identity changes while open", () => {
+    const view = render(<PdfDocumentPropertiesDialog open metadata={{ title: "First" }} setMetadata={vi.fn()} onOpenChange={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Draft" } });
+
+    view.rerender(<PdfDocumentPropertiesDialog open metadata={{ title: "Updated by host" }} setMetadata={vi.fn()} onOpenChange={vi.fn()} />);
+
+    expect(screen.getByLabelText("Title")).toHaveValue("Draft");
+  });
 });
