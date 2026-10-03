@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { OfficeShell } from "@uniwork/views/office/office-shell";
 import type { Document } from "@uniwork/core/types/document";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities } from "@uniwork/core/api/endpoints/office";
@@ -18,8 +21,17 @@ function xlsxDocument(document: Document): boolean {
 export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement {
   const { document, readonly, wsId } = props;
   const { user } = useSession();
-  const [capability, setCapability] = useState<OfficeCapabilityEntry | null>(null);
-  const [capabilityError, setCapabilityError] = useState<string | null>(null);
+  const { t } = useTranslation();
+  const accountId = user?.id;
+  const isXlsx = xlsxDocument(document);
+  const scopeKey = JSON.stringify([accountId, document.organization_id, document.workspace_id, document.id, wsId, readonly, isXlsx]);
+  const [negotiated, setNegotiated] = useState<{ key: string; entry: OfficeCapabilityEntry } | null>(null);
+  const capability = negotiated?.key === scopeKey ? negotiated.entry : null;
+  const [loaded, setLoaded] = useState<{ key: string; capability: OfficeCapabilityEntry; adapter: OfficeFormatAdapter<XlsxWorkbookSnapshot> } | null>(null);
+  const sessionInput = useRef({ document, accountId, readonly, wsId });
+  sessionInput.current = { document, accountId, readonly, wsId };
+  const unavailable = useRef(t("office.xlsx.errors.capabilityUnavailable"));
+  unavailable.current = t("office.xlsx.errors.capabilityUnavailable");
   // Undefined (never guessed) until the server advertises a binding; the
   // desktop open action fails closed on an id it was never given.
   const [officeDeploymentId, setOfficeDeploymentId] = useState<string | undefined>(undefined);
@@ -36,64 +48,80 @@ export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
 
   useEffect(() => {
     let active = true;
-    setCapability(null);
-    setCapabilityError(null);
+    if (!isXlsx) return undefined;
     void getOfficeCapabilities(document.id).then((result) => {
       if (!active) return;
+      const matching = result?.documentId === document.id && result.format === "xlsx";
       const row = result?.operations.find((candidate) => candidate.operation === "edit");
-      const available = Boolean(row?.supported && result?.operations.some((candidate) => candidate.operation === "serialize" && candidate.supported));
-      setCapability({
+      const opens = matching && result.operations.some((candidate) => candidate.operation === "open" && candidate.supported);
+      const available = Boolean(opens && row?.supported && result?.operations.some((candidate) => candidate.operation === "serialize" && candidate.supported));
+      setNegotiated({ key: scopeKey, entry: {
         format: "xlsx",
         operation: "edit",
         host: "web",
         engineBuild: result?.engineVersion || "unknown",
         contractRevision: "office-engine/1",
-        status: available ? "available" : readonly ? "readonly" : "unavailable",
-        reason: available ? null : row?.reason ?? "XLSX editing is unavailable in this deployment",
+        status: readonly && opens ? "readonly" : available ? "available" : "unavailable",
+        reason: available || readonly && opens ? null : unavailable.current,
         fidelityWarnings: [],
-      });
-    }).catch((error: unknown) => {
+      } });
+    }).catch(() => {
       if (!active) return;
-      setCapabilityError(error instanceof Error ? error.message : String(error));
-      setCapability({
+      setNegotiated({ key: scopeKey, entry: {
         format: "xlsx", operation: "open", host: "web", engineBuild: "unknown", contractRevision: "office-engine/1",
-        status: readonly ? "readonly" : "unavailable", reason: "Office capability negotiation failed", fidelityWarnings: [],
-      });
+        status: "unavailable", reason: unavailable.current, fidelityWarnings: [],
+      } });
     });
     return () => { active = false; };
-  }, [document.id, readonly]);
+  }, [document.id, isXlsx, readonly, scopeKey]);
 
-  const identity = useMemo(() => {
-    if (!user || !document.file) return null;
-    return {
+  useEffect(() => {
+    const input = sessionInput.current;
+    if (!input.accountId || !input.document.file || !capability || !["available", "readonly"].includes(capability.status)) return undefined;
+    // Server metadata and our own Save receipts must not replace the live
+    // N+1 model. The coordinator/runtime advance their base from the receipt;
+    // an external revision remains a conflict against that retained base.
+    const identity = {
       deploymentId: "web",
-      accountId: user.id,
-      organizationId: document.organization_id || wsId,
-      workspaceId: document.workspace_id,
-      documentId: document.id,
+      accountId: input.accountId,
+      organizationId: input.document.organization_id || input.wsId,
+      workspaceId: input.document.workspace_id,
+      documentId: input.document.id,
       generation: 1,
-      baseVersionId: document.file.version_id,
-      baseRevision: document.revision,
+      baseVersionId: input.document.file.version_id,
+      baseRevision: input.document.revision,
     };
-  }, [document, user, wsId]);
-
-  const runtime = useMemo(() => identity ? createWebXlsxSessionRuntime({ documentId: document.id, baseRevision: document.revision }) : null, [document.id, document.revision, identity]);
-  const adapter = useMemo(() => {
-    if (!identity || !runtime || !capability || capability.status !== "available") return null;
-    return createXlsxFormatAdapter({
+    const runtime = createWebXlsxSessionRuntime({ documentId: identity.documentId, baseRevision: identity.baseRevision });
+    const adapter = createXlsxFormatAdapter({
       identity,
-      session: { sessionId: user?.id ?? "", deploymentId: "web", accountId: user?.id ?? "", generation: 1 },
+      session: { sessionId: input.accountId, deploymentId: "web", accountId: input.accountId, generation: 1 },
       runtime,
-      documents: createXlsxDocumentsTransport({ documentId: document.id }),
+      documents: createXlsxDocumentsTransport({ documentId: identity.documentId }),
       capability,
-      readonly,
-      title: document.title,
+      readonly: input.readonly,
+      title: input.document.title,
+      embedded: true,
+      clipboard: typeof navigator !== "undefined" && navigator.clipboard ? {
+        readText: () => navigator.clipboard.readText(),
+        writeText: (text) => navigator.clipboard.writeText(text),
+      } : undefined,
     });
-  }, [capability, document.id, document.title, identity, readonly, runtime, user?.id]);
+    setLoaded({ key: scopeKey, capability, adapter });
+    return () => { void adapter.session.dispose(); };
+  }, [capability, scopeKey]);
 
-  useEffect(() => () => { void adapter?.session.dispose(); }, [adapter]);
-
-  if (!xlsxDocument(document)) return <OfficeEditorHost {...props} officeDeploymentId={officeDeploymentId} />;
-  if (capabilityError && !capability) return <OfficeEditorHost {...props} officeDeploymentId={officeDeploymentId} capability={{ format: "xlsx", operation: "open", host: "web", engineBuild: "unknown", contractRevision: "office-engine/1", status: "unavailable", reason: capabilityError, fidelityWarnings: [] }} />;
-  return <OfficeEditorHost<XlsxWorkbookSnapshot> {...(props as OfficeEditorHostProps<XlsxWorkbookSnapshot>)} officeDeploymentId={officeDeploymentId} formatAdapter={adapter as OfficeFormatAdapter<XlsxWorkbookSnapshot> | undefined} capability={capability ?? undefined} />;
+  const adapter = loaded?.key === scopeKey && loaded.capability === capability ? loaded.adapter : undefined;
+  if (!isXlsx) return <OfficeEditorHost {...props} officeDeploymentId={officeDeploymentId} />;
+  const pending = !capability || (["available", "readonly"].includes(capability.status) && !adapter);
+  const loadingView = pending ? <div className="flex min-h-64 flex-col gap-3 rounded-panel border border-border bg-background p-4" role="status" aria-live="polite" aria-busy="true">
+    <p className="text-body text-muted-foreground">{t("office.xlsx.state.opening")}</p>
+    <Skeleton className="h-11 w-full" />
+    <Skeleton className="min-h-48 flex-1" />
+  </div> : undefined;
+  // Negotiation is a distinct, sessionless busy state. Sending a loading
+  // view to the fail-closed Shared host would produce its unbound alert.
+  if (pending) return <div className={props.className} data-office-editor-host>
+    <OfficeShell title={document.title} breadcrumbs={props.breadcrumbs} editor={loadingView} editorReady={false} className="min-h-[20rem]" />
+  </div>;
+  return <OfficeEditorHost<XlsxWorkbookSnapshot> {...(props as OfficeEditorHostProps<XlsxWorkbookSnapshot>)} officeDeploymentId={officeDeploymentId} formatAdapter={adapter} capability={capability ?? undefined} />;
 }

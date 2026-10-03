@@ -18,11 +18,11 @@ const row: DesktopLibraryDocument = {
   downloadAvailable: true,
 };
 
-it("renders open/download actions and an engine-down status", () => {
+it("renders client-side DOCX open/download actions when the server engine is unavailable", () => {
   const onOpen = vi.fn();
   const onDownload = vi.fn();
   render(<LibraryView mode="list" documents={[row]} engineAvailable={false} onOpen={onOpen} onDownload={onDownload} />);
-  expect(screen.getByRole("status")).toHaveTextContent("Trình soạn thảo không khả dụng");
+  expect(screen.queryByText("Trình soạn thảo không khả dụng")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   expect(onOpen).toHaveBeenCalledWith(row);
   fireEvent.click(screen.getByRole("button", { name: "Tải xuống" }));

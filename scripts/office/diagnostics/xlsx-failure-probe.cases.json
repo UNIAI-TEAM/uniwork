@@ -1,0 +1,198 @@
+[
+  {
+    "priorCommand": 5,
+    "file": "platform/office/draft-key-provider.test.ts",
+    "suite": "browser draft key provider",
+    "name": "encrypts with a random per-draft key and recovers through the unwrap port",
+    "fullName": "browser draft key provider encrypts with a random per-draft key and recovers through the unwrap port"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/draft-key-provider.test.ts",
+    "suite": "browser draft key provider",
+    "name": "fails closed for ACL, conflict, malformed responses, and AAD mismatch",
+    "fullName": "browser draft key provider fails closed for ACL, conflict, malformed responses, and AAD mismatch"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/draft-key-provider.test.ts",
+    "suite": "browser draft key provider",
+    "name": "requires live edit access and clears registered memory callbacks",
+    "fullName": "browser draft key provider requires live edit access and clears registered memory callbacks"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/draft-key-provider.test.ts",
+    "suite": "browser draft key provider",
+    "name": "rejects a session without a live generation",
+    "fullName": "browser draft key provider rejects a session without a live generation"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/draft-key-provider.test.ts",
+    "suite": "browser draft key provider",
+    "name": "adopts the first wrapping key across two providers and after clearMemory",
+    "fullName": "browser draft key provider adopts the first wrapping key across two providers and after clearMemory"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "preserves A1 content for a style-only edit and checkpoints its style",
+    "fullName": "web XLSX save journal preserves A1 content for a style-only edit and checkpoints its style"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "preserves B1 content for a style-only edit and checkpoints its style",
+    "fullName": "web XLSX save journal preserves B1 content for a style-only edit and checkpoints its style"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "captures the operation prefix before serialize and retains typing N+1 after commit",
+    "fullName": "web XLSX save journal captures the operation prefix before serialize and retains typing N+1 after commit"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "retries a failed serialization with the same frozen prefix",
+    "fullName": "web XLSX save journal retries a failed serialization with the same frozen prefix"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "retains edits through upload failure and reuses the candidate on retry",
+    "fullName": "web XLSX save journal retains edits through upload failure and reuses the candidate on retry"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "retains edits through commit failure and reuses the candidate on retry",
+    "fullName": "web XLSX save journal retains edits through commit failure and reuses the candidate on retry"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "restores against the committed base while retaining earlier unsaved changes",
+    "fullName": "web XLSX save journal restores against the committed base while retaining earlier unsaved changes"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "keeps caller mutations out of the pending operation journal",
+    "fullName": "web XLSX save journal keeps caller mutations out of the pending operation journal"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "preserves a style reset and clear in protected draft recovery",
+    "fullName": "web XLSX save journal preserves a style reset and clear in protected draft recovery"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "refuses a mismatched snapshot rather than retiring edits that were never serialized",
+    "fullName": "web XLSX save journal refuses a mismatched snapshot rather than retiring edits that were never serialized"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "advances the base after a reconciled commit and retains later edits",
+    "fullName": "web XLSX save journal advances the base after a reconciled commit and retains later edits"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "keeps the immutable candidate through native timeout and checksum failure",
+    "fullName": "web XLSX save journal keeps the immutable candidate through native timeout and checksum failure"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "web XLSX save journal",
+    "name": "cancels native serialization without retiring pending edits and can retry",
+    "fullName": "web XLSX save journal cancels native serialization without retiring pending edits and can retry"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "native XLSX runtime through the real error dispatcher and save coordinator",
+    "name": "exhausts three automatic attempts then explicitly retries the same intent/prefix while N+1 stays live",
+    "fullName": "native XLSX runtime through the real error dispatcher and save coordinator exhausts three automatic attempts then explicitly retries the same intent/prefix while N+1 stays live"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "native XLSX runtime through the real error dispatcher and save coordinator",
+    "name": "routes the real polling deadline to reconcile and retains the same intent for retry",
+    "fullName": "native XLSX runtime through the real error dispatcher and save coordinator routes the real polling deadline to reconcile and retains the same intent for retry"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "native XLSX runtime through the real error dispatcher and save coordinator",
+    "name": "maps native cancellation to AbortError without retiring the candidate",
+    "fullName": "native XLSX runtime through the real error dispatcher and save coordinator maps native cancellation to AbortError without retiring the candidate"
+  },
+  {
+    "priorCommand": 5,
+    "file": "platform/office/xlsx-runtime.test.ts",
+    "suite": "native XLSX runtime through the real error dispatcher and save coordinator",
+    "name": "preserves transport AbortError through coordinator cancel without automatic retries and later reuses the intent",
+    "fullName": "native XLSX runtime through the real error dispatcher and save coordinator preserves transport AbortError through coordinator cancel without automatic retries and later reuses the intent"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "service authentication",
+    "name": "reports ready after the worker self-test",
+    "fullName": "service authentication reports ready after the worker self-test"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "capability and unsupported operations",
+    "name": "converts F-LEGACY-XLS through the real job path and settles its change list",
+    "fullName": "capability and unsupported operations converts F-LEGACY-XLS through the real job path and settles its change list"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "capability and unsupported operations",
+    "name": "converts F-UNSUPPORTED-ODT through the real job path and settles its change list",
+    "fullName": "capability and unsupported operations converts F-UNSUPPORTED-ODT through the real job path and settles its change list"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "submit, status and output hand-off",
+    "name": "runs a job on a real worker and PUTs the exact bytes to the grant's target",
+    "fullName": "submit, status and output hand-off runs a job on a real worker and PUTs the exact bytes to the grant's target"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "submit, status and output hand-off",
+    "name": "fails the job when the write target rejects the output",
+    "fullName": "submit, status and output hand-off fails the job when the write target rejects the output"
+  },
+  {
+    "priorCommand": 9,
+    "file": "src/server.test.ts",
+    "suite": "submit, status and output hand-off",
+    "name": "fails invalid UTF-8 as a typed engine error",
+    "fullName": "submit, status and output hand-off fails invalid UTF-8 as a typed engine error"
+  }
+]

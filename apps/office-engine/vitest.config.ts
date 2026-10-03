@@ -5,6 +5,7 @@ import { vitestPoolOptions } from "../../scripts/vitest-pool";
 export default defineConfig({
   test: {
     environment: "node",
+    globalSetup: ["./test/build-worker.ts"],
     ...vitestPoolOptions(),
     testTimeout: 30_000,
     coverage: {

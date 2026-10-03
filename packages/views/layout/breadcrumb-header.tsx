@@ -25,12 +25,14 @@ interface BreadcrumbHeaderProps {
   /** The current page — a non-clickable leaf. */
   leaf: ReactNode;
   actions?: ReactNode;
+  /** Additional classes for the action wrapper at a specific host breakpoint. */
+  actionsClassName?: string;
   leading?: ReactNode;
   className?: string;
 }
 
 /** Detail-page header: `ancestor › ancestor › leaf  [actions]`. */
-export function BreadcrumbHeader({ segments, leaf, actions, leading, className }: BreadcrumbHeaderProps) {
+export function BreadcrumbHeader({ segments, leaf, actions, actionsClassName, leading, className }: BreadcrumbHeaderProps) {
   return (
     <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
@@ -57,7 +59,7 @@ export function BreadcrumbHeader({ segments, leaf, actions, leading, className }
         <span className="min-w-0 truncate">{leaf}</span>
       </div>
       {actions ? (
-        <div className="flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-none">
+        <div className={cn("flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-none", actionsClassName)}>
           {actions}
         </div>
       ) : null}

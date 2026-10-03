@@ -42,7 +42,7 @@ export const DESKTOP_IPC_CHANNELS = [
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:login-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -195,6 +195,8 @@ export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 export const leaveRequestedEventSchema = z.object({ requestId: opaqueHandleSchema, reason: z.enum(["close", "logout", "update"]) }).strict();
 export type LeaveRequestedEvent = z.infer<typeof leaveRequestedEventSchema>;
+export const leaveExpiredEventSchema = z.object({ requestId: opaqueHandleSchema }).strict();
+export type LeaveExpiredEvent = z.infer<typeof leaveExpiredEventSchema>;
 export const desktopDiagnosticsResponseSchema = z.object({
   name: z.string().min(1).optional(),
   appId: z.string().min(1),

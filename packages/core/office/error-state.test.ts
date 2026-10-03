@@ -3,6 +3,33 @@ import { ApiError } from "../api/http";
 import { dispatchOfficeError } from "./error-state";
 
 describe("office error dispatch", () => {
+  it("reconciles actual DOMException and named Error cancellations", () => {
+    const dom = new DOMException("cancelled", "AbortError");
+    expect(dom).not.toBeInstanceOf(Error);
+    const named = Object.assign(new Error("cancelled"), { name: "AbortError" });
+    for (const error of [dom, named]) {
+      expect(dispatchOfficeError(error)).toMatchObject({
+        code: "request_aborted", action: "reconcile", ambiguous: true, retryable: false,
+      });
+    }
+  });
+
+  it("denies non-Abort DOMExceptions, spoofed names and unknown errors", () => {
+    for (const error of [new DOMException("denied", "SecurityError"), { name: "AbortError" }, new Error("unknown")]) {
+      expect(dispatchOfficeError(error)).toMatchObject({
+        code: "office_unknown_error", action: "stop", ambiguous: false, retryable: false,
+      });
+    }
+  });
+
+  it("keeps explicit string codes ahead of the cancellation fallback", () => {
+    const dom = Object.assign(new DOMException("cancelled", "AbortError"), { error_code: "future_error" });
+    const named = Object.assign(new Error("cancelled"), { name: "AbortError", code: "forbidden" });
+    expect(dispatchOfficeError(dom)).toMatchObject({ code: "future_error", action: "stop", ambiguous: false });
+    expect(dispatchOfficeError(named)).toMatchObject({ code: "forbidden", action: "keep_draft", ambiguous: false });
+    expect(dispatchOfficeError({ code: "forbidden", error_code: "engine_timeout" }).code).toBe("forbidden");
+  });
+
   it("maps conflicts, quota, incompatibility, and auth without parsing messages", () => {
     expect(dispatchOfficeError(new ApiError("irrelevant", "document_version_conflict", 409)).state).toBe("conflict");
     expect(dispatchOfficeError(new ApiError("irrelevant", "quota_exceeded", 403, "corr-quota", undefined, "quota"))).toMatchObject({
@@ -62,4 +89,3 @@ describe("office error dispatch", () => {
     expect(dispatchOfficeError({ code: "stale_generation" })).toMatchObject({ state: "error", action: "keep_draft" });
   });
 });
-

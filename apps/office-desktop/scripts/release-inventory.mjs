@@ -67,6 +67,10 @@ const KNOWN_LICENSE_OVERRIDES = {
   // simply absent from package.json. Pulled in transitively through
   // @uniwork/ui's markdown/diagram rendering.
   khroma: "MIT",
+  // @univerjs/telemetry@0.25.1: Apache-2.0 per the LICENSE file in its
+  // tarball and the registry metadata; package.json has no field. Pulled in
+  // through the vendored Univer XLSX renderer (G3-05c).
+  "@univerjs/telemetry": "Apache-2.0",
 };
 
 function licenseTextFor(packageDirectory, privateWorkspace) {
@@ -90,8 +94,11 @@ function dependencyRowsFromPnpm({ metafile } = {}) {
       encoding: "utf8",
       env: { ...process.env },
       windowsHide: true,
-      maxBuffer: 64 * 1024 * 1024,
+      // The depth-10 graph is already ~64 MiB on Linux; a smaller buffer
+      // truncates stdout and surfaces as a JSON SyntaxError instead.
+      maxBuffer: 512 * 1024 * 1024,
     });
+    if (result.error) throw new Error(`pnpm list failed: ${result.error.message}`);
     if (result.status !== 0 || !String(result.stdout ?? "").trim()) throw new Error(`pnpm list failed (status=${String(result.status)}): ${String(result.stderr ?? result.error?.message ?? "no dependency tree").trim() || "no dependency tree"}`);
     const parsed = JSON.parse(result.stdout);
     return Array.isArray(parsed) ? parsed : [parsed];

@@ -31,6 +31,7 @@ export interface BrowserOfficeDraftOptions<TSnapshot> {
 
 export interface BrowserOfficeDraftAdapter<TSnapshot> extends DraftAdapter<TSnapshot> {
   checkpointDurable(snapshot: StableSnapshot<TSnapshot>): Promise<void>;
+  rebaseDurable(identity: OfficeIdentity, snapshot: StableSnapshot<TSnapshot>, savedGeneration: number): Promise<void>;
   recoverDurable(): Promise<StableSnapshot<TSnapshot> | null>;
   discardDurable(generation?: number): Promise<boolean>;
   clearMemory(): Promise<void>;
@@ -113,7 +114,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
   const draftStore = options.draftStore ?? createDraftStore();
   const keyProvider = options.keyProvider ?? createDraftKeyProvider({});
   const session = toDraftSession(options.session);
-  const identity = toDraftIdentity(options.identity);
+  let identity = toDraftIdentity(options.identity);
   const draftId = options.draftId ?? options.identity.documentId;
   const liveAccess = options.liveAccess ?? "edit";
   const intents = new Map<string, OfficeSaveIntent<TSnapshot>>();
@@ -195,6 +196,18 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     keyProvider,
     checkpoint: checkpointDurable,
     checkpointDurable,
+    rebaseDurable: (next, snapshot, savedGeneration) => enqueueDraftOperation(async () => {
+      const nextIdentity = toDraftIdentity(next);
+      if (identity.base.revision === nextIdentity.base.revision && identity.base.version === nextIdentity.base.version) return;
+      if (snapshot.generation > savedGeneration) {
+        const encrypted = await keyProvider.encrypt({ identity: nextIdentity, draftId, generation: snapshot.generation, plaintext: encodeSnapshot(snapshot) });
+        await draftStore.rebaseEncrypted({
+          session, wrappedKey: encrypted.wrappedKey,
+          snapshot: { draftId, identity: nextIdentity, generation: snapshot.generation, checksum: encrypted.checksum, ciphertext: encrypted.ciphertext },
+        }, identity);
+      }
+      identity = nextIdentity;
+    }),
     recover: async () => recoverDurable(),
     recoverDurable,
     discard: async (_identity, generation) => { await discardDurable(generation); },
@@ -218,9 +231,29 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
   const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport: options.transport });
   const identity = toDraftIdentity(options.identity);
   const { base: _base, ...lookupScope } = identity;
+  const rebaseDraft = async () => {
+    const state = coordinator.getState();
+    const snapshot = await options.editor.captureSnapshot();
+    await draft.rebaseDurable(state.identity, snapshot, state.lastSavedGeneration);
+  };
+  const save: typeof coordinator.save = async (entryPoint) => {
+    const result = await coordinator.save(entryPoint);
+    if (result.accepted) await rebaseDraft();
+    return result;
+  };
+  const sessionCoordinator = {
+    ...coordinator,
+    save,
+    retry: () => save("retry"),
+    reconcile: async () => {
+      const receipt = await coordinator.reconcile();
+      if (receipt) await rebaseDraft();
+      return receipt;
+    },
+  };
   return {
     editor: options.editor,
-    coordinator,
+    coordinator: sessionCoordinator,
     draft,
     async checkpoint() {
       const snapshot = await options.editor.captureSnapshot();
@@ -233,7 +266,7 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
         const result = await draft.draftStore.recoverEncrypted({
           session: options.session,
           lookup: { ...lookupScope, draftId: options.draftId ?? options.identity.documentId },
-          currentBase: identity.base,
+          currentBase: toDraftIdentity(coordinator.getState().identity).base,
           liveAccess: options.liveAccess ?? "edit",
         });
         if (result.status === "missing") return { status: "missing" as const };

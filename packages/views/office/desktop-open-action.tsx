@@ -189,9 +189,9 @@ export function DesktopOpenAction({
 
   return (
     <>
-      <Button type="button" variant="outline" className={className} onClick={onAction} aria-disabled={working || undefined} aria-label={label}>
+      <Button type="button" variant="outline" className={className} onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
         <MonitorUp aria-hidden />
-        {working ? t("working") : label}
+        <span className="sr-only lg:not-sr-only">{working ? t("working") : label}</span>
       </Button>
       {error ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{error}</AlertDescription></Alert> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (!working) setChoiceOpen(open); }}>
@@ -207,7 +207,10 @@ export function DesktopOpenAction({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Button type="button" variant="ghost" onClick={() => void openInstallPrompt("download")}><Download aria-hidden />{t("download")}</Button>
+      <Button type="button" variant="ghost" onClick={() => void openInstallPrompt("download")} aria-label={t("download")} title={t("download")}>
+        <Download aria-hidden />
+        <span className="sr-only lg:not-sr-only">{t("download")}</span>
+      </Button>
       <OfficeInstallPrompt {...installProps} onDownload={downloadInstaller ?? (async () => { throw new Error("download handler unavailable"); })} />
     </>
   );

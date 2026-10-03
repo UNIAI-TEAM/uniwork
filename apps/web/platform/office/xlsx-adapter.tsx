@@ -3,6 +3,8 @@
 import { createElement, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
+import { officeSaveReceiptSchema } from "@uniwork/core/office";
+import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
   OfficeIdentity,
@@ -13,7 +15,8 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { XlsxEditor } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { XlsxEditorView, type XlsxRenderModelRef } from "./xlsx-editor-view";
 import type {
   XlsxEditorHandle,
   XlsxOpenOutcome,
@@ -22,6 +25,7 @@ import type {
 } from "@uniwork/views/office/xlsx";
 import type {
   XlsxRecalcResult,
+  XlsxRenderModel,
   XlsxWorkbookSnapshot,
 } from "@uniwork/office-engine/xlsx";
 
@@ -39,7 +43,7 @@ export interface XlsxSessionRuntime {
    * recovery choice. A runtime that cannot restore must omit this method so
    * the host leaves the recovery action disabled rather than claiming success. */
   restore?(documentModelRef: string, snapshot: XlsxWorkbookSnapshot): Promise<void> | void;
-  serialize(documentModelRef: string): Promise<XlsxRuntimeSerializedOutput>;
+  serialize(documentModelRef: string, input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot>; signal?: AbortSignal }): Promise<XlsxRuntimeSerializedOutput>;
   recalculate?(
     documentModelRef: string,
     signal: AbortSignal,
@@ -47,7 +51,7 @@ export interface XlsxSessionRuntime {
   ): Promise<XlsxRecalcResult>;
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
-  setBaseRevision?(revision: string): void;
+  setBaseRevision?(revision: string, intentId: string): void;
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -56,6 +60,8 @@ export interface XlsxRuntimeOpenResult {
   document_id: string;
   document_model_ref?: string;
   snapshot?: XlsxWorkbookSnapshot;
+  /** G3-05c: the render model the vendored sheets renderer mounts. */
+  renderModel?: XlsxRenderModel;
   warnings?: readonly string[];
   failure_class?: string;
   message?: string;
@@ -138,21 +144,12 @@ export function createXlsxDocumentsTransport(options: { documentId: string; vers
 export interface XlsxSaveTransportOptions {
   documents: XlsxDocumentsTransport;
   documentId: string;
-  serialize?(input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot> }): Promise<XlsxRuntimeSerializedOutput>;
+  serialize?(input: { intentId: string; snapshot: StableSnapshot<XlsxWorkbookSnapshot>; signal?: AbortSignal }): Promise<XlsxRuntimeSerializedOutput>;
   engineName?: string;
   engineVersion?: string;
   contractVersion?: string;
   protocolVersion?: string;
   runtime?: XlsxSessionRuntime;
-}
-
-function bytesOf(value: unknown): Uint8Array {
-  if (value instanceof Uint8Array) return new Uint8Array(value);
-  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
-  if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
-  }
-  throw new Error("xlsx_serialized_output_bytes_invalid");
 }
 
 function toBlob(bytes: Uint8Array): Blob {
@@ -187,14 +184,24 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
   const contractVersion = options.contractVersion ?? "unknown";
   const protocolVersion = options.protocolVersion ?? "unknown";
   const outputs = new Map<string, OfficeSerializedOutput>();
+  const controllers = new Map<string, AbortController>();
 
   return {
     async serialize({ intent, snapshot }) {
       if (!options.serialize) throw new Error(`xlsx_runtime_not_bound:${intent.intentId}`);
-      const out = await options.serialize({ intentId: intent.intentId, snapshot });
-      const bytes = bytesOf(out.bytes);
-      if (bytes.byteLength === 0 || !out.checksum) throw new Error("malformed_serialized_output");
-      return { data: bytes, checksumSha256: out.checksum, sizeBytes: bytes.byteLength, format: "xlsx", ...(out.warnings ? { warnings: out.warnings } : {}) };
+      const existing = outputs.get(intent.intentId);
+      if (existing) return { ...existing, data: bytesOf(existing.data) };
+      const controller = new AbortController();
+      controllers.set(intent.intentId, controller);
+      try {
+        const out = await options.serialize({ intentId: intent.intentId, snapshot, signal: controller.signal });
+        controller.signal.throwIfAborted();
+        const bytes = bytesOf(out.bytes);
+        if (bytes.byteLength === 0 || !out.checksum) throw new Error("malformed_serialized_output");
+        const output: OfficeSerializedOutput = { data: bytes, checksumSha256: out.checksum, sizeBytes: bytes.byteLength, format: "xlsx", ...(out.warnings ? { warnings: out.warnings } : {}) };
+        outputs.set(intent.intentId, output);
+        return { ...output, data: bytesOf(bytes) };
+      } finally { controllers.delete(intent.intentId); }
     },
     async upload({ intent, output }) {
       if (output.format !== "xlsx") throw new Error("serialized_format_mismatch");
@@ -204,7 +211,6 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       if (receipt.sizeBytes !== data.byteLength || receipt.checksumSha256 !== output.checksumSha256) {
         throw new Error("upload_checksum_mismatch");
       }
-      outputs.set(intent.intentId, output);
       return receipt;
     },
     async commit({ intent, upload }) {
@@ -214,7 +220,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         idempotencyKey: intent.idempotencyKey,
       });
       const version = result.version;
-      if (!version?.id || !result.document?.id || !result.document.revision || result.document.id !== options.documentId) {
+      if (!version?.id || !result.document?.id || !/^\d+$/.test(result.document.revision) || result.document.id !== options.documentId || BigInt(result.document.revision) <= BigInt(intent.identity.baseRevision)) {
         throw new Error("malformed_commit_receipt");
       }
       const output = outputs.get(intent.intentId);
@@ -222,9 +228,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       const checksum = version.checksum_sha256 ?? output.checksumSha256;
       const sizeBytes = version.size_bytes ?? output.sizeBytes;
       if (checksum !== output.checksumSha256 || sizeBytes !== output.sizeBytes) throw new Error("commit_checksum_mismatch");
-      outputs.delete(intent.intentId);
-      options.runtime?.setBaseRevision?.(result.document.revision);
-      return {
+      const receipt = officeSaveReceiptSchema.parse({
         intentId: intent.intentId,
         idempotencyKey: intent.idempotencyKey,
         documentId: result.document.id,
@@ -236,32 +240,26 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         engineVersion: version.engine_version ?? engineVersion,
         contractVersion: version.contract_version ?? contractVersion,
         protocolVersion: version.protocol_version ?? protocolVersion,
-      } satisfies OfficeSaveReceipt;
+      } satisfies OfficeSaveReceipt);
+      options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
+      outputs.delete(intent.intentId);
+      return receipt;
     },
     async reconcile({ intent }) {
-      return options.documents.reconcile?.({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: options.documentId }) ?? null;
+      const parsed = officeSaveReceiptSchema.safeParse(await options.documents.reconcile?.({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: options.documentId }));
+      if (!parsed.success) return null;
+      const receipt = parsed.data;
+      if (receipt.intentId !== intent.intentId || receipt.idempotencyKey !== intent.idempotencyKey || receipt.documentId !== options.documentId || BigInt(receipt.revision) <= BigInt(intent.identity.baseRevision)) return null;
+      const output = outputs.get(intent.intentId);
+      if (output && (receipt.checksumSha256 !== output.checksumSha256 || receipt.sizeBytes !== output.sizeBytes)) throw new Error("commit_checksum_mismatch");
+      options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
+      outputs.delete(intent.intentId);
+      return receipt;
     },
     async cancel({ intent }) {
-      outputs.delete(intent.intentId);
+      controllers.get(intent.intentId)?.abort();
     },
   };
-}
-
-function cloneSnapshot(snapshot: XlsxWorkbookSnapshot): XlsxWorkbookSnapshot {
-  return {
-    revision: snapshot.revision,
-    sheets: snapshot.sheets.map((sheet) => ({
-      id: sheet.id,
-      name: sheet.name,
-      cells: Object.fromEntries(Object.entries(sheet.cells).map(([address, cell]) => [address, { ...cell }])),
-    })),
-  };
-}
-
-function stableJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
 }
 
 interface XlsxRuntimeOpenError extends Error {
@@ -276,14 +274,6 @@ function runtimeOpenError(outcome: XlsxRuntimeOpenResult): XlsxRuntimeOpenError 
   return error;
 }
 
-async function fingerprint(snapshot: XlsxWorkbookSnapshot): Promise<string> {
-  const bytes = new TextEncoder().encode(stableJson(snapshot));
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) throw new Error("xlsx_fingerprint_unavailable");
-  const digest = await subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 export interface XlsxFormatAdapterOptions extends BrowserOfficeDraftOptions<XlsxWorkbookSnapshot> {
   identity: OfficeIdentity;
   runtime: XlsxSessionRuntime;
@@ -292,6 +282,8 @@ export interface XlsxFormatAdapterOptions extends BrowserOfficeDraftOptions<Xlsx
   readonly?: boolean;
   title?: string;
   editorClassName?: string;
+  embedded?: boolean;
+  clipboard?: XlsxEditorHandle["clipboard"];
 }
 
 export interface XlsxFormatAdapter {
@@ -301,6 +293,10 @@ export interface XlsxFormatAdapter {
   editorView: ReactNode;
   open: { open(signal?: AbortSignal): Promise<XlsxOpenOutcome> };
   onRecoverSnapshot?: (snapshot: StableSnapshot<XlsxWorkbookSnapshot>) => Promise<void>;
+  viewReadiness: {
+    getSnapshot(): boolean;
+    subscribe(listener: () => void): () => void;
+  };
 }
 
 /**
@@ -312,10 +308,34 @@ export interface XlsxFormatAdapter {
 export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): XlsxFormatAdapter {
   let modelRef: string | null = null;
   let openedBytes: Uint8Array | null = null;
+  let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
+  let viewReady = false;
+  let prepareViewSave: (() => Promise<void>) | null = null;
+  let preparing = false;
+  const registerSavePreparation = (prepare: () => Promise<void>) => {
+    prepareViewSave = prepare;
+    return () => { if (prepareViewSave === prepare) prepareViewSave = null; };
+  };
+  const readinessListeners = new Set<() => void>();
+  const viewReadiness = {
+    getSnapshot: () => viewReady,
+    subscribe(listener: () => void) { readinessListeners.add(listener); return () => readinessListeners.delete(listener); },
+  };
+  const onViewStateChange = (state: "opening" | "ready" | "error") => {
+    const ready = !disposed && state === "ready";
+    if (viewReady === ready) return;
+    viewReady = ready;
+    for (const listener of readinessListeners) listener();
+  };
+  const renderModelRef: XlsxRenderModelRef = { current: null, listeners: new Set() };
+  const publishRenderModel = (host: XlsxModelHost | null) => {
+    renderModelRef.current = host;
+    for (const listener of renderModelRef.listeners) listener(host);
+  };
   const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
   const publishSnapshot = () => {
     if (!currentSnapshot) return;
@@ -325,42 +345,68 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
 
   const editor: XlsxEditorHandle<XlsxWorkbookSnapshot> = {
     format: "xlsx",
+    clipboard: options.clipboard,
     async open() {
       if (disposed) throw new Error("xlsx_editor_disposed");
+      if (opening) return opening;
       if (modelRef) return;
-      const bytes = openedBytes ?? await options.documents.read();
-      if (disposed) throw new Error("xlsx_editor_disposed");
-      openedBytes = bytes;
-      const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
-      if (disposed) {
-        if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
-        throw new Error("xlsx_editor_disposed");
-      }
-      if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
-      if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
-      modelRef = outcome.document_model_ref;
-      currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
-      // Opening a workbook establishes the clean baseline.  The identity
-      // generation is the draft/auth session generation, not a content edit
-      // generation; using it here made the host's checkpoint timer treat an
-      // untouched open as dirty and persist a spurious recovery draft.
-      generation = 0;
-      publishSnapshot();
+      opening = (async () => {
+        const bytes = openedBytes ?? await options.documents.read();
+        if (disposed) throw new Error("xlsx_editor_disposed");
+        openedBytes = bytes;
+        const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
+        if (disposed) {
+          if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
+          throw new Error("xlsx_editor_disposed");
+        }
+        if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
+        if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
+        // Production runtimes require this model; legacy injected test ports
+        // can still exercise the shared snapshot seam without a browser grid.
+        const host = outcome.renderModel
+            ? createXlsxModelHost(outcome.renderModel, {
+                sessionId: outcome.document_model_ref,
+                name: options.title ?? options.identity.documentId,
+                sha256: await digestHex(bytes),
+                fileBytes: bytes.byteLength,
+              })
+            : null;
+        if (disposed) {
+          await options.runtime.release(outcome.document_model_ref);
+          throw new Error("xlsx_editor_disposed");
+        }
+        modelRef = outcome.document_model_ref;
+        publishRenderModel(host);
+        currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
+        // Opening a workbook establishes the clean baseline.  The identity
+        // generation is the draft/auth session generation, not a content edit
+        // generation; using it here made the host's checkpoint timer treat an
+        // untouched open as dirty and persist a spurious recovery draft.
+        generation = 0;
+        publishSnapshot();
+      })();
+      try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
     async captureSnapshot() {
       if (!currentSnapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = cloneSnapshot(currentSnapshot);
-      return { generation, fingerprint: await fingerprint(value), value, ...(serialized ? { checksumSha256: serialized.checksum, sizeBytes: serialized.bytes.byteLength } : {}) };
+      const capturedGeneration = generation;
+      const output = serialized;
+      return { generation: capturedGeneration, fingerprint: await fingerprint(value), value, ...(output ? { checksumSha256: output.checksum, sizeBytes: output.bytes.byteLength } : {}) };
     },
     async dispose() {
       if (disposed) return;
       disposed = true;
+      prepareViewSave = null;
+      onViewStateChange("error");
       if (modelRef) await options.runtime.release(modelRef);
       modelRef = null;
       currentSnapshot = null;
       serialized = null;
+      publishRenderModel(null);
       snapshotListeners.clear();
+      readinessListeners.clear();
     },
     async edit(operations) {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
@@ -417,10 +463,10 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     contractVersion: options.capability.contractRevision,
     protocolVersion: "1",
     runtime: options.runtime,
-    serialize: async () => {
+    serialize: async (input) => {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
-      const out = await options.runtime.serialize(modelRef);
-      serialized = { bytes: bytesOf(out.bytes), checksum: out.checksum, warnings: out.warnings };
+      const out = await options.runtime.serialize(modelRef, input);
+      if (!disposed && generation === input.snapshot.generation) serialized = { bytes: bytesOf(out.bytes), checksum: out.checksum, warnings: out.warnings };
       return out;
     },
   });
@@ -429,6 +475,20 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     serialize: transport.serialize,
   };
   const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
+  const save = session.coordinator.save;
+  session.coordinator.save = async (entryPoint) => {
+    if (preparing) return { accepted: false, reason: "saving" };
+    if (disposed) return { accepted: false, reason: "stale" };
+    if (options.readonly || options.capability.status !== "available" || session.coordinator.getState().state === "saving") return save(entryPoint);
+    preparing = true;
+    try {
+      try { await prepareViewSave?.(); }
+      catch { return { accepted: false, reason: "error" }; }
+      if (disposed) return { accepted: false, reason: "stale" };
+      return await save(entryPoint);
+    } finally { preparing = false; }
+  };
+  session.coordinator.retry = () => session.coordinator.save("retry");
   const open = {
     open: async (signal?: AbortSignal): Promise<XlsxOpenOutcome> => {
       if (signal?.aborted) return { outcome: "failed", document_id: options.identity.documentId, format: "xlsx", failure_class: "engine_error", message: "open cancelled" };
@@ -448,6 +508,19 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       }
     },
   };
-  const editorView = createElement(XlsxEditor, { documentKey: options.identity.documentId, editor, open, coordinator: session.coordinator as XlsxSaveCoordinator, title: options.title, capability: { ...options.capability, operation: "edit" }, permissions: { canEdit: !options.readonly && options.capability.status === "available" }, className: options.editorClassName });
-  return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot };
+  const editorView = createElement(XlsxEditorView, {
+    modelRef: renderModelRef,
+    documentKey: options.identity.documentId,
+    editor,
+    open,
+    coordinator: session.coordinator as XlsxSaveCoordinator,
+    title: options.title,
+    embedded: options.embedded,
+    capability: { ...options.capability, operation: "edit" },
+    permissions: { canEdit: !options.readonly && options.capability.status === "available" },
+    className: options.editorClassName,
+    onViewStateChange,
+    registerSavePreparation,
+  } as never);
+  return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot, viewReadiness };
 }

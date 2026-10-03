@@ -8,8 +8,11 @@ import { blankDocxBytes } from "../files/blank-docx";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+type MainOfficeTransport = DesktopOfficeTransport & Readonly<{
+  readDocumentAccess(scope: { workspaceId: string; documentId: string }): Promise<"edit" | "none">;
+}>;
 
-export function createHttpOfficeTransport(options: { profile: DeploymentProfile; credentials: CredentialStore; fetchImpl?: FetchLike; refreshSession?: () => Promise<void> }): DesktopOfficeTransport {
+export function createHttpOfficeTransport(options: { profile: DeploymentProfile; credentials: CredentialStore; fetchImpl?: FetchLike; refreshSession?: () => Promise<void> }): MainOfficeTransport {
   const fetchImpl = options.fetchImpl ?? fetch;
   assertOrigin(options.profile.apiOrigin, options.profile.channel === "dev");
   const origin = options.profile.apiOrigin.replace(/\/$/, "");
@@ -59,6 +62,19 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: DOCX_MIME, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
   }
   return Object.freeze({
+    async readDocumentAccess(input: { workspaceId: string; documentId: string }): Promise<"edit" | "none"> {
+      try {
+        if (!input.workspaceId || !input.documentId) return "none";
+        // List summaries intentionally omit access. This fresh authenticated
+        // detail read is main-only and never downloads document bytes.
+        const raw = await json(`/documents/${encodeURIComponent(input.documentId)}`);
+        const value = raw && typeof raw === "object" && "document" in raw ? raw.document : raw;
+        if (!value || typeof value !== "object" || Array.isArray(value)) return "none";
+        const row = value as Record<string, unknown>;
+        if (row.id !== input.documentId || row.workspace_id !== input.workspaceId) return "none";
+        return row.my_level === "edit" || row.my_level === "manage" ? "edit" : "none";
+      } catch { return "none"; }
+    },
     async context() {
       const session = await options.credentials.get();
       if (!session) throw new Error("login_required");
