@@ -16,6 +16,7 @@ import type { DocxAdapter, DocxCommentInfo } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import type { DocxNotesSnapshot } from "./commands/notes";
+import type { DocxNumberingSnapshot } from "./commands/numbering";
 import type { DocxPageSetupEdit } from "./commands/page-setup";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
@@ -115,6 +116,11 @@ export interface DocxTiptapSnapshot {
    * set_section_properties ops after the block plan, and restoreSnapshot
    * re-seeds them. */
   pageSetup?: DocxPageSetupEdit[];
+  /** The pending numbering-part edits at capture (B5): new definitions and
+   * restart nums for the list items the doc plan references, replayed as
+   * insert_numbering_def / restart_numbering ops; restoreSnapshot re-overlays
+   * their markers (the editor storage is per-instance). */
+  numbering?: DocxNumberingSnapshot;
 }
 
 export interface DocxOpenError extends Error {
@@ -279,6 +285,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         ...(commentsEdited(comments, baseComments) ? { comments } : {}),
         notes: commandRuntime.snapshotDocxNotes(),
         pageSetup: commandRuntime.listDocxPageSetupEdits(),
+        numbering: commandRuntime.listDocxNumberingEdits(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -324,6 +331,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // B4: page setup is not part of the doc plan; replay the pending
         // per-section edits onto the same save session after the block plan.
         commandRuntime.applyDocxPageSetupEdits(options.adapter, saveRef);
+        // B5: same for the numbering part — the new definitions/restart nums
+        // the block plan's list items point at.
+        commandRuntime.applyDocxNumberingEdits(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -347,6 +357,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         commandRuntime.seedDocxNotes(parsed.footnotes ?? [], parsed.endnotes ?? []);
       }
       commandRuntime.restoreDocxPageSetupEdits(snapshot.value.pageSetup);
+      commandRuntime.restoreDocxNumberingEdits(snapshot.value.numbering);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },
