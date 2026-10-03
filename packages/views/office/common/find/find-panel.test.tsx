@@ -127,6 +127,33 @@ describe("FindReplacePanel", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("replaces the current match on Enter in the replace field (S4-7)", () => {
+    const { type, onReplace, onReplaceAll } = renderPanel("cat cat");
+    type("cat", "find-replace-query");
+    type("dog", "find-replace-value");
+    const replaceField = screen.getByTestId("find-replace-value");
+    fireEvent.keyDown(replaceField, { key: "Enter" });
+    expect(onReplace).toHaveBeenCalledWith({ start: 0, end: 3, replacement: "dog" }, 0);
+    expect(onReplaceAll).not.toHaveBeenCalled();
+    // Enter in the replace field never steps to the next match.
+    expect(onReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Escape working from the replace field (S4-7)", () => {
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat" onClose={onClose} />);
+    fireEvent.keyDown(screen.getByTestId("find-replace-value"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps autofill and spellcheck off both fields (S4-9)", () => {
+    renderPanel("abc");
+    expect(screen.getByTestId("find-replace-query")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByTestId("find-replace-value")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByTestId("find-replace-query")).toHaveAttribute("spellcheck", "false");
+    expect(screen.getByTestId("find-replace-value")).toHaveAttribute("spellcheck", "false");
+  });
+
   it("ignores Enter while an IME is composing", () => {
     const onActiveMatchChange = vi.fn();
     render(<FindReplacePanel text="a a" onActiveMatchChange={onActiveMatchChange} />);

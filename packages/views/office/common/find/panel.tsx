@@ -110,17 +110,34 @@ export function FindReplacePanel({
     onReplaceAll?.(result.matches.map((match) => ({ start: match.start, end: match.end, replacement: replace })));
   }, [count, onReplaceAll, replace, result.matches]);
 
-  // Enter steps, Shift+Enter steps back and Escape closes - from either field.
-  const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // A Vietnamese IME confirms a syllable with Enter; that is not "next".
+  // Escape closes from either field. A Vietnamese IME confirms a syllable with
+  // Enter, so that Enter is never a command.
+  const closeOnEscape = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(event)) return;
+    if (event.key === "Escape" && onClose) {
+      event.preventDefault();
+      onClose();
+    }
+  };
+  // In the find field Enter steps (Shift+Enter steps back); in the replace field
+  // Enter replaces the current match once, as every editor does.
+  const onFindKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (isImeComposing(event)) return;
     if (event.key === "Enter") {
       event.preventDefault();
       step(event.shiftKey ? -1 : 1);
-    } else if (event.key === "Escape" && onClose) {
-      event.preventDefault();
-      onClose();
+      return;
     }
+    closeOnEscape(event);
+  };
+  const onReplaceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(event)) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      replaceCurrent();
+      return;
+    }
+    closeOnEscape(event);
   };
   const hasQuery = query.length > 0;
   const cannotStep = disabled || invalidPattern || count === 0;
@@ -149,7 +166,9 @@ export function FindReplacePanel({
         aria-label={t("findPlaceholder")}
         aria-invalid={invalidPattern || undefined}
         disabled={disabled}
-        onKeyDown={onFieldKeyDown}
+        autoComplete="off"
+        spellCheck={false}
+        onKeyDown={onFindKeyDown}
         className="h-7 w-40"
         data-testid="find-replace-query"
       />
@@ -194,7 +213,9 @@ export function FindReplacePanel({
         placeholder={t("replacePlaceholder")}
         aria-label={t("replacePlaceholder")}
         disabled={disabled}
-        onKeyDown={onFieldKeyDown}
+        autoComplete="off"
+        spellCheck={false}
+        onKeyDown={onReplaceKeyDown}
         className="h-7 w-40"
         data-testid="find-replace-value"
       />

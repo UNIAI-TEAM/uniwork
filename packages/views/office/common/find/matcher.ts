@@ -64,6 +64,17 @@ interface Folded {
   ends: number[] | null;
 }
 
+/**
+ * Fold for comparison. The mapping is deliberately *simple*, per-unit and
+ * asymmetric, and pinned by tests:
+ *
+ * - Lowercasing unit by unit is what keeps the offset map exact (see above),
+ *   but it means a needle is a prefix match: query "i" finds "\u0130" (folded
+ *   "i\u0307") while query "\u0130" does not find "i".
+ * - Simple folding also misses full-fold pairs such as "\u03c2"/"\u03c3".
+ * Both are Unicode-defensible either way; do not "fix" them without new tests,
+ * because a length-changing fold is exactly what breaks the offset map.
+ */
 function fold(raw: string, lower: boolean): Folded {
   let text = "";
   const starts: number[] = [];
@@ -128,7 +139,16 @@ function findLiteral(input: FindQuery): FindResult {
     if (index === -1) break;
     const end = index + needle.length;
     if (!input.wholeWord || isWholeWord(haystack.text, index, end)) {
-      matches.push(mapRange(haystack, index, end));
+      // Folding is not length-preserving (U+0130 lowers to "i\u0307"), so two
+      // matches that are disjoint in the folded text can map back onto
+      // overlapping ranges in the original. Keep the first and drop the rest
+      // so `matches` stays ordered and non-overlapping - otherwise applyEdits
+      // silently drops the later edit while the counter still counts it.
+      const mapped = mapRange(haystack, index, end);
+      const previous = matches[matches.length - 1];
+      if (previous === undefined || mapped.start >= previous.end) {
+        matches.push(mapped);
+      }
     }
     // `needle` is non-empty here, so `from` always advances.
     from = end;
@@ -143,13 +163,24 @@ function advance(text: string, index: number): number {
   return index + (code !== undefined && code > 0xffff ? 2 : 1);
 }
 
-function findPattern(input: FindQuery): FindResult {
-  let pattern: RegExp;
+/**
+ * Compile `query` as a global pattern, or `null` when it is not a valid one.
+ *
+ * - `u` keeps `.` (and every other atom) from splitting a surrogate pair; a
+ *   half-surrogate match would be written back into the document as a lone
+ *   surrogate.
+ * - `m` anchors `^` and `$` per line, which is what every editor search does
+ *   in a multi-line document.
+ */
+function compilePattern(input: FindQuery): RegExp | null {
   try {
-    pattern = new RegExp(input.query, input.caseSensitive ? "g" : "gi");
+    return new RegExp(input.query, input.caseSensitive ? "gmu" : "gimu");
   } catch {
-    return { matches: [], count: 0, invalidPattern: true };
+    return null;
   }
+}
+
+function findPattern(input: FindQuery, pattern: RegExp): FindResult {
   const matches: FindMatch[] = [];
   let match = pattern.exec(input.text);
   while (match !== null) {
@@ -174,14 +205,20 @@ function findPattern(input: FindQuery): FindResult {
 /**
  * Every occurrence of `query` in `text`, in order, or the typed
  * `invalidPattern` state when `regex` is on and the query cannot compile.
- * A query that cannot match (empty query, or an empty document) yields no
- * matches rather than throwing.
+ * The pattern is validated before the "cannot match" early-outs, so an invalid
+ * pattern reports `invalidPattern` even against an empty query or an empty
+ * document. A query that cannot match (empty query, or an empty document)
+ * otherwise yields no matches rather than throwing.
  */
 export function findMatches(input: FindQuery): FindResult {
+  const pattern = input.regex ? compilePattern(input) : null;
+  if (input.regex && pattern === null) {
+    return { matches: [], count: 0, invalidPattern: true };
+  }
   if (input.query.length === 0 || input.text.length === 0) {
     return { matches: [], count: 0, invalidPattern: false };
   }
-  return input.regex ? findPattern(input) : findLiteral(input);
+  return pattern === null ? findLiteral(input) : findPattern(input, pattern);
 }
 
 /**

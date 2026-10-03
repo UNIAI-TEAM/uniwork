@@ -123,6 +123,32 @@ describe("findMatches wholeWord", () => {
 });
 
 describe("findMatches regex", () => {
+  it("matches code points, not surrogate halves (S4-1)", () => {
+    const result = findMatches(query({ text: "a\u{1F600}b", query: ".", regex: true, caseSensitive: true }));
+    expect(result.matches).toEqual([
+      { start: 0, end: 1 },
+      { start: 1, end: 3 },
+      { start: 3, end: 4 },
+    ]);
+    // Replace-all must not write a lone surrogate back into the document.
+    const replaced = applyEdits(
+      "a\u{1F600}b",
+      result.matches.map((match) => ({ start: match.start, end: match.end, replacement: "x" })),
+    );
+    expect(replaced).toBe("xxx");
+    expect(replaced).not.toMatch(/[\uD800-\uDFFF]/u);
+  });
+
+  it("anchors ^ and $ per line (S4-4)", () => {
+    expect(findMatches(query({ text: "a\nfoo", query: "^foo", regex: true })).matches).toEqual([
+      { start: 2, end: 5 },
+    ]);
+    expect(findMatches(query({ text: "foo\nfoo", query: "^foo", regex: true })).count).toBe(2);
+    expect(findMatches(query({ text: "foo\nbar", query: "foo$", regex: true })).matches).toEqual([
+      { start: 0, end: 3 },
+    ]);
+  });
+
   it("compiles the query as a global pattern", () => {
     const result = findMatches(query({ text: "a1 b22 c333", query: "\\d+", regex: true }));
     expect(result.matches).toEqual([
@@ -142,6 +168,11 @@ describe("findMatches regex", () => {
     expect(result).toEqual({ matches: [], count: 0, invalidPattern: true });
   });
 
+  it("reports an invalid pattern even on an empty query or document (S4-5)", () => {
+    expect(findMatches(query({ text: "", query: "(", regex: true })).invalidPattern).toBe(true);
+    expect(findMatches(query({ text: "abc", query: "", regex: true })).invalidPattern).toBe(false);
+  });
+
   it("guards against zero-length matches looping forever", () => {
     expect(findMatches(query({ text: "abc", query: "^", regex: true })).count).toBe(0);
     expect(findMatches(query({ text: "abc", query: "(?=b)", regex: true })).count).toBe(0);
@@ -152,6 +183,39 @@ describe("findMatches regex", () => {
     const input = query({ text: "a1 a2", query: "a\\d", regex: true });
     expect(findMatches(input)).toEqual(findMatches(input));
     expect(findMatches(input).count).toBe(2);
+  });
+});
+
+describe("findMatches fold semantics (S4-6)", () => {
+  // The fold is simple, per-unit and therefore asymmetric on purpose: it is
+  // what keeps the offset map exact. These pins fail if a future change makes
+  // folding length-changing, so the "fix" cannot land silently.
+  it("folds \u0130 to i\u0307, so a shorter needle matches and a longer one does not", () => {
+    expect(findMatches(query({ text: "\u0130", query: "i" })).matches).toEqual([{ start: 0, end: 1 }]);
+    expect(findMatches(query({ text: "i", query: "\u0130" })).count).toBe(0);
+  });
+
+  it("uses simple folding, so the final sigma is not folded to sigma", () => {
+    expect(findMatches(query({ text: "\u03c2", query: "\u03c3" })).count).toBe(0);
+    expect(findMatches(query({ text: "\u03a3", query: "\u03c3" })).matches).toEqual([{ start: 0, end: 1 }]);
+  });
+});
+
+describe("findMatches literal fold overlap (S4-3)", () => {
+  it("keeps mapped ranges non-overlapping when folding widens a unit", () => {
+    // `İ` folds to the two-unit piece "i\u0307", so the needle "̇i" (U+0307 +
+    // "i") starts a second folded match one unit into the first one's original
+    // range. The mapped ranges must stay non-overlapping.
+    const result = findMatches(query({ text: "\u0130\u0130i", query: "\u0307i" }));
+    expect(result.matches).toEqual([{ start: 0, end: 2 }]);
+    expect(result.count).toBe(1);
+    for (let i = 1; i < result.matches.length; i += 1) {
+      expect(result.matches[i]!.start).toBeGreaterThanOrEqual(result.matches[i - 1]!.end);
+    }
+    // Every counted match is applied, so the counter cannot lie.
+    const edits = result.matches.map((match) => ({ start: match.start, end: match.end, replacement: "X" }));
+    expect(edits).toHaveLength(result.count);
+    expect(applyEdits("\u0130\u0130i", edits)).toBe("Xi");
   });
 });
 
