@@ -23,10 +23,8 @@ export function toggleFirstRowHeader(): Command {
     const row = ctx.table.firstChild;
     const target = next ? state.schema.nodes.docTableHeader : state.schema.nodes.docTableCell;
     if (row && target) {
-      // forEach offsets are relative to the row's content, which starts one
-      // position after the row node itself (ctx.tableStart).
       row.forEach((cell, cellOffset) => {
-        if (cell.type !== target) tr = tr.setNodeMarkup(ctx.tableStart + 1 + cellOffset, target, cell.attrs);
+        if (cell.type !== target) tr = tr.setNodeMarkup(ctx.tableStart + cellOffset, target, cell.attrs);
       });
     }
     dispatch?.(tr);

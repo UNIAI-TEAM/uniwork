@@ -64,14 +64,8 @@ export function readTableFormatState(editor: Editor | null): DocxTableFormatStat
   if (!ctx) return EMPTY_TABLE_FORMAT_STATE;
   const { selection } = editor.state;
   const mergeSize = (ctx.rect.right - ctx.rect.left) * (ctx.rect.bottom - ctx.rect.top);
-  let cell: PmNode | null = null;
-  try {
-    const $cell = selectionCell(editor.state);
-    cell = $cell ? editor.state.doc.nodeAt($cell.pos) : null;
-  } catch {
-    // selectionCell throws when the selection resolves no cell; read it as
-    // "no cell" so the rest of the toolbar state still resolves.
-  }
+  const cell$ = selectionCell(editor.state);
+  const cell = cell$ ? editor.state.doc.nodeAt(cell$.pos) : null;
   const repeat = repeatHeaderState(ctx);
   return {
     inTable: true,

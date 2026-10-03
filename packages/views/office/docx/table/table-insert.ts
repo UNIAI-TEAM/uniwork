@@ -51,14 +51,11 @@ export function buildTableContent(size: DocxTableSize): JSONContent {
   };
 }
 
-/** Moves the caret into the first cell at or after `from` (Word lands in the
- * inserted table's first cell, so the next keystroke types into it instead of
- * after it). `from` bounds the walk so an earlier table in the document cannot
- * steal the caret. */
-export function selectFirstCell(tr: Transaction, from = 0): void {
+/** Moves the caret into the inserted table's first cell (Word lands there, so
+ * the next keystroke types into the table instead of after it). */
+export function selectFirstCell(tr: Transaction): void {
   let cellPos = -1;
-  const start = Math.max(0, Math.min(from, tr.doc.content.size));
-  tr.doc.nodesBetween(start, tr.doc.content.size, (node, pos) => {
+  tr.doc.descendants((node, pos) => {
     if (cellPos >= 0) return false;
     if (node.type.name === "docTableCell" || node.type.name === "docTableHeader") {
       cellPos = pos;
@@ -80,13 +77,12 @@ export function insertDocxTable(editor: Editor, rows: number, cols: number): boo
   if (editor.isDestroyed || !editor.isEditable) return false;
   if (docxTableContext(editor.state)) return false;
   const size = clampTableSize(rows, cols);
-  const insertAt = editor.state.selection.from;
   return editor
     .chain()
     .focus()
     .insertContent(buildTableContent(size))
     .command(({ tr }) => {
-      selectFirstCell(tr, insertAt);
+      selectFirstCell(tr);
       return true;
     })
     .run();

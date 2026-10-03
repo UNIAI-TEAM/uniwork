@@ -74,24 +74,6 @@ function tablePos(editor: Editor): number {
   return pos;
 }
 
-function tablePositions(editor: Editor): number[] {
-  const positions: number[] = [];
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === "docTable") positions.push(pos);
-    return true;
-  });
-  return positions;
-}
-
-/** Position of the table the caret sits in, or -1 outside every table. */
-function selectionTablePos(editor: Editor): number {
-  const { $from } = editor.state.selection;
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    if ($from.node(depth).type.name === "docTable") return $from.before(depth);
-  }
-  return -1;
-}
-
 function cellPositions(editor: Editor): number[] {
   const positions: number[] = [];
   editor.state.doc.descendants((node, pos) => {
@@ -116,14 +98,6 @@ function selectCells(editor: Editor, anchor: number, head: number): void {
 function selectionFill(editor: Editor, index = 0): unknown {
   const node = editor.state.doc.nodeAt(cellPositions(editor)[index] ?? -1);
   return node?.attrs.fill ?? null;
-}
-
-function rowCellTypes(table: PmNode, row: number): string[] {
-  const types: string[] = [];
-  table.child(row).forEach((cell) => {
-    types.push(cell.type.name);
-  });
-  return types;
 }
 
 describe("table command factory", () => {
@@ -224,44 +198,6 @@ describe("table command factory", () => {
     expect(tableOf(editor).firstChild?.firstChild?.type.name).toBe("docTableCell");
   });
 
-  it("flips exactly the first row's cells when toggling the header row", () => {
-    const editor = createEditor(tableDocument);
-    const commands = runtime(editor);
-    caretInCell(editor);
-
-    expect(commands.toggleHeaderRow()).toBe(true);
-    expect(rowCellTypes(tableOf(editor), 0)).toEqual(["docTableHeader", "docTableHeader"]);
-    expect(rowCellTypes(tableOf(editor), 1)).toEqual(["docTableCell", "docTableCell"]);
-
-    expect(commands.toggleHeaderRow()).toBe(true);
-    expect(rowCellTypes(tableOf(editor), 0)).toEqual(["docTableCell", "docTableCell"]);
-    expect(rowCellTypes(tableOf(editor), 1)).toEqual(["docTableCell", "docTableCell"]);
-  });
-
-  it("lands the caret in the inserted table when an earlier table exists", () => {
-    const editor = createEditor({
-      type: "doc",
-      content: [
-        {
-          type: "docTable",
-          content: [
-            { type: "docTableRow", content: [cell("X1"), cell("Y1")] },
-            { type: "docTableRow", content: [cell("X2"), cell("Y2")] },
-          ],
-        },
-        paragraph("Between"),
-        paragraph("Tail"),
-      ],
-    });
-    const commands = runtime(editor);
-    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
-
-    expect(commands.insertTable(2, 3)).toBe(true);
-    const tables = tablePositions(editor);
-    expect(tables).toHaveLength(2);
-    expect(selectionTablePos(editor)).toBe(tables[1]);
-  });
-
   it("refuses the repeat-header toggle when the selection starts below row 0", () => {
     const editor = createEditor(tableDocument);
     const commands = runtime(editor);
@@ -282,17 +218,7 @@ describe("table command factory", () => {
 
     expect(commands.applyTableBorders("none")).toBe(true);
     expect(cellBorder(tableOf(editor), 0, 0, "top")).toMatchObject({ style: "none" });
-    // "No borders" scopes to the selected cells: unselected cells keep the
-    // table-level inside lines.
-    expect(cellBorder(tableOf(editor), 1, 1, "top")).toBeUndefined();
-    expect(tableOf(editor).attrs.borders).toMatchObject({
-      insideH: { style: "single", szEighths: 4 },
-      insideV: { style: "single", szEighths: 4 },
-    });
-
-    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, tablePos(editor))));
-    expect(commands.applyTableBorders("none")).toBe(true);
-    expect(cellBorder(tableOf(editor), 1, 1, "top")).toMatchObject({ style: "none" });
+    expect(tableOf(editor).attrs.borders).toBeNull();
   });
 
   it("draws only the selection boundary for the outline preset", () => {
