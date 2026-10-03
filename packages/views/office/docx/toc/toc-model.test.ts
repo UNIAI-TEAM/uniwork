@@ -11,6 +11,7 @@ import {
   findDocxTocRange,
   readDocxTocHeadings,
   tocNodesForLines,
+  tocPageBreakNode,
 } from "./toc-model";
 
 const editors: Editor[] = [];
@@ -87,7 +88,27 @@ describe("findDocxTocRange", () => {
     const before = editor.state.doc.child(0);
     const from = before.nodeSize;
     const to = from + editor.state.doc.child(1).nodeSize + editor.state.doc.child(2).nodeSize + editor.state.doc.child(3).nodeSize;
-    expect(range).toEqual({ from, to, childIndex: 1 });
+    expect(range).toEqual({ from, to, childIndex: 1, pageBreak: false });
+  });
+
+  it("flags the absorbed field-end paragraph that carries a page break", () => {
+    const editor = editorWith([
+      tocEntryNode("One", 1),
+      {
+        type: "docProtected",
+        attrs: {
+          docxIndex: 4,
+          blockType: "passthrough",
+          label: "Field end marker + page break",
+          previewText: "",
+          genXml: '<w:p><w:r><w:br w:type="page"/></w:r></w:p>',
+        },
+      },
+      paragraph("after"),
+    ]);
+    const range = findDocxTocRange(editor.state.doc);
+    const to = editor.state.doc.child(0).nodeSize + editor.state.doc.child(1).nodeSize;
+    expect(range).toEqual({ from: 0, to, childIndex: 0, pageBreak: true });
   });
 
   it("returns null without a TOC node and stops at a non-TOC node between runs", () => {
@@ -116,6 +137,16 @@ describe("tocNodesForLines", () => {
     });
     expect(String(nodes[0]?.attrs?.genXml)).toContain('w:fldCharType="begin" w:dirty="true"');
     expect(nodes[1]?.attrs?.fieldDisplay).toMatchObject({ left: "Two", right: "", level: 2 });
+  });
+});
+
+describe("tocPageBreakNode", () => {
+  it("builds the generated page-break paragraph an update re-emits", () => {
+    const node = tocPageBreakNode();
+    expect(node.type).toBe("docProtected");
+    expect(node.attrs?.label).toBe("Field end marker + page break");
+    expect(String(node.attrs?.genXml)).toContain('w:br w:type="page"');
+    expect(node.attrs?.docxIndex).toBeNull();
   });
 });
 
@@ -152,6 +183,26 @@ describe("caption helpers", () => {
     expect(countDocxCaptions(editor.state.doc, "Equation")).toBe(0);
   });
 
+  it("counts quoted instructions and Word switches like the engine scan", () => {
+    const caption = (instr: string): JSONContent => ({
+      type: "docParagraph",
+      attrs: { docxIndex: 1 },
+      content: [
+        { type: "text", text: "label " },
+        { type: "text", text: "1", marks: [{ type: "instrField", attrs: { instr, dirty: true } }] },
+      ],
+    });
+    const editor = editorWith([
+      caption(' SEQ "Figure" \\* ARABIC '),
+      caption("  SEQ Figure  \\* ARABIC \\s 1 "),
+      caption(' SEQ "Công thức" \\* ARABIC '),
+      caption(" SEQ Figures \\* ARABIC "),
+      caption(' SEQ "Figure C" \\* ARABIC '),
+    ]);
+    expect(countDocxCaptions(editor.state.doc, "Figure")).toBe(2);
+    expect(countDocxCaptions(editor.state.doc, "Công thức")).toBe(1);
+  });
+
   it("builds caption content whose number run carries the SEQ instruction", () => {
     expect(docxCaptionContent("Figure", 2, "Architecture")).toEqual([
       { type: "text", text: "Figure " },
@@ -161,12 +212,18 @@ describe("caption helpers", () => {
         marks: [
           {
             type: "instrField",
-            attrs: { instr: " SEQ Figure \\* ARABIC ", beginXml: null, dirty: true, fieldId: null, fieldPart: null },
+            attrs: { instr: ' SEQ "Figure" \\* ARABIC ', beginXml: null, dirty: true, fieldId: null, fieldPart: null },
           },
         ],
       },
       { type: "text", text: " Architecture" },
     ]);
+  });
+
+  it("quotes a multi-word label and trims the label it shows", () => {
+    const content = docxCaptionContent("  Công thức  ", 3, "");
+    expect(content[0]).toEqual({ type: "text", text: "Công thức " });
+    expect(content[1]?.marks?.[0]?.attrs?.instr).toBe(' SEQ "Công thức" \\* ARABIC ');
   });
 
   it("formats the bracketed reference from the parts it has", () => {

@@ -10,7 +10,7 @@
 // the shape a parsed TOC already has. Update replaces that run with freshly
 // generated nodes; a parse-loaded TOC is therefore refreshable too.
 import type { JSONContent } from "@tiptap/core";
-import { docxCaptionInstr, type DocxTocLine } from "@uniwork/office-engine/docx";
+import { docxCaptionInstr, docxCaptionLabel, isDocxCaptionInstr, type DocxTocLine } from "@uniwork/office-engine/docx";
 
 /** Word's label the vendored field parser writes for a TOC paragraph
  * (`fieldLabel`): a parse-loaded TOC's boundary nodes carry it, and the
@@ -19,6 +19,9 @@ export const DOCX_TOC_FIELD_LABEL = "Auto TOC (updates when opened in Word)";
 
 /** The vendored parser's label for a lone field-end paragraph. */
 export const DOCX_TOC_END_LABEL = "Field end marker";
+
+/** …and its variant that also carries a page break. */
+export const DOCX_TOC_END_BREAK_LABEL = DOCX_TOC_END_LABEL + " + page break";
 
 /** Level selector the dialog offers; the engine accepts 1-9. */
 export const DOCX_TOC_MAX_UI_LEVEL = 3;
@@ -93,6 +96,8 @@ export interface DocxTocRange {
   to: number;
   /** Top-level child index of the first TOC node (tests/debugging). */
   childIndex: number;
+  /** the absorbed field-end paragraph carried a page break */
+  pageBreak: boolean;
 }
 
 function fieldKindOf(node: DocxTocDocNode): unknown {
@@ -113,6 +118,14 @@ function isTocEndNode(node: DocxTocDocNode): boolean {
   return node.type.name === "docProtected" && String(node.attrs?.label ?? "").startsWith(DOCX_TOC_END_LABEL);
 }
 
+/** True when the absorbed field-end paragraph carried a page break: the
+ * parser's label says so, and a generated node's own XML is checked too. */
+function endNodeHasPageBreak(node: DocxTocDocNode): boolean {
+  if (String(node.attrs?.label ?? "") === DOCX_TOC_END_BREAK_LABEL) return true;
+  const genXml = node.attrs?.genXml;
+  return typeof genXml === "string" && genXml.includes('w:type="page"');
+}
+
 /** The first contiguous top-level TOC node run, or null when the document has
  * none. The run ends at the first other node; a later TOC is not swallowed. */
 export function findDocxTocRange(doc: DocxTocDocNode | null | undefined): DocxTocRange | null {
@@ -120,6 +133,7 @@ export function findDocxTocRange(doc: DocxTocDocNode | null | undefined): DocxTo
   let from = -1;
   let to = -1;
   let childIndex = -1;
+  let pageBreak = false;
   let index = 0;
   let closed = false;
   doc.forEach((node, offset) => {
@@ -132,12 +146,13 @@ export function findDocxTocRange(doc: DocxTocDocNode | null | undefined): DocxTo
         childIndex = index;
       }
       to = offset + node.nodeSize;
+      if (started && isTocEndNode(node) && endNodeHasPageBreak(node)) pageBreak = true;
     } else if (started) {
       closed = true;
     }
     index += 1;
   });
-  return from >= 0 ? { from, to, childIndex } : null;
+  return from >= 0 ? { from, to, childIndex, pageBreak } : null;
 }
 
 /** The JSONContent nodes one built TOC line becomes in the editor: the field
@@ -164,18 +179,35 @@ export function tocNodesForLines(lines: readonly DocxTocLine[]): JSONContent[] {
   }));
 }
 
+/** One generated paragraph carrying the page break a Word-authored TOC leaves
+ * after its field-end marker: an update absorbs that paragraph, and this keeps
+ * the break so the first body paragraph does not pull up a page. */
+export function tocPageBreakNode(): JSONContent {
+  return {
+    type: "docProtected",
+    attrs: {
+      docxIndex: null,
+      blockType: "passthrough",
+      label: DOCX_TOC_END_BREAK_LABEL,
+      previewText: "",
+      genXml: '<w:p><w:r><w:br w:type="page"/></w:r></w:p>',
+    },
+  };
+}
+
 /** The inline content of a caption paragraph: `<label> <SEQ field> <text>`.
  * The number run carries the vendored inline-field mark, so the save plan
  * writes a real SEQ field (the same instruction the engine op emits). */
 export function docxCaptionContent(label: string, number: number, text: string): JSONContent[] {
-  const content: JSONContent[] = [{ type: "text", text: `${label} ` }];
+  const clean = docxCaptionLabel(label);
+  const content: JSONContent[] = [{ type: "text", text: `${clean} ` }];
   content.push({
     type: "text",
     text: String(number),
     marks: [
       {
         type: "instrField",
-        attrs: { instr: docxCaptionInstr(label), beginXml: null, dirty: true, fieldId: null, fieldPart: null },
+        attrs: { instr: docxCaptionInstr(clean), beginXml: null, dirty: true, fieldId: null, fieldPart: null },
       },
     ],
   });
@@ -185,15 +217,16 @@ export function docxCaptionContent(label: string, number: number, text: string):
 
 /** How many captions of one label the live document already carries (parsed
  * ones keep their inline-field marks through the block conversion, so one scan
- * covers both). The next caption's number is this count + 1. */
+ * covers both). The next caption's number is this count + 1. The matcher is
+ * the engine's, so a Word-authored instruction with extra switches or stray
+ * whitespace counts exactly as the engine's own XML scan counts it. */
 export function countDocxCaptions(doc: DocxTocDocNode | null | undefined, label: string): number {
   if (!doc) return 0;
-  const instr = docxCaptionInstr(label).trim();
   let count = 0;
   doc.descendants((node) => {
     for (const mark of node.marks ?? []) {
       if (mark.type.name !== "instrField") continue;
-      if (String(mark.attrs?.instr ?? "").trim() === instr) count += 1;
+      if (isDocxCaptionInstr(mark.attrs?.instr, label)) count += 1;
     }
   });
   return count;

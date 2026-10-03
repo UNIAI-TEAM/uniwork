@@ -30,11 +30,25 @@ const CAPTION_PARA = (label: string, number: number, text: string) =>
   '<w:r><w:fldChar w:fldCharType="end"/></w:r>' +
   `<w:r><w:t xml:space="preserve"> ${text}</w:t></w:r></w:p>`;
 
-async function fixture(options: { withCaption?: boolean } = {}): Promise<Uint8Array> {
+const TOC_BEGIN_PARA =
+  '<w:p><w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>' +
+  '<w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText></w:r>' +
+  '<w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p>';
+
+const TOC_ENTRY_PARA = (text: string, level: number) =>
+  `<w:p><w:pPr><w:pStyle w:val="TOC${level}"/></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+
+const TOC_END_BREAK_PARA =
+  '<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:br w:type="page"/></w:r></w:p>';
+
+async function fixture(options: { withCaption?: boolean; withToc?: boolean } = {}): Promise<Uint8Array> {
   const body = [
     HEADING_PARA("Introduction", 1, "_Toc100"),
     HEADING_PARA("Details", 2),
     ...(options.withCaption ? [CAPTION_PARA("Figure", 1, "Existing chart")] : []),
+    ...(options.withToc
+      ? [TOC_BEGIN_PARA, TOC_ENTRY_PARA("Introduction", 1), TOC_ENTRY_PARA("Details", 2), TOC_END_BREAK_PARA]
+      : []),
     "<w:p/>",
   ];
   const zip = new JSZip();
@@ -144,6 +158,28 @@ describe("DOCX TOC save path", () => {
     }
   });
 
+  it("keeps the page break of a Word-authored TOC when updating it", async () => {
+    const source = await fixture({ withToc: true });
+    const handle = handleFor(source);
+    try {
+      await handle.open();
+      expect(handle.commands.updateDocxToc({ maxLevel: 3, pageNumbers: true, hyperlinks: true })).toEqual({
+        outcome: "updated",
+        entries: 2,
+      });
+      const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
+      const document = await partOf(saved.bytes, "word/document.xml");
+      expect(document).toContain('<w:pStyle w:val="TOC1"/>');
+      expect(document).toContain('<w:pStyle w:val="TOC2"/>');
+      expect(document).toContain('<w:br w:type="page"/>');
+      expect(document.match(/fldCharType="begin"/g)).toHaveLength(1);
+      expect(document.match(/fldCharType="end"/g)).toHaveLength(1);
+      await assertDocxPartsPreserved(source, saved.bytes, false);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
   it("updates the TOC in place and keeps a single field pair", async () => {
     const source = await fixture();
     const handle = handleFor(source);
@@ -175,10 +211,26 @@ describe("DOCX caption save path", () => {
       expect(handle.commands.insertDocxCaption("Figure", "Second chart")).toBe(true);
       const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
       const document = await partOf(saved.bytes, "word/document.xml");
-      expect(document).toContain(" SEQ Figure \\* ARABIC ");
+      expect(document).toContain(' SEQ "Figure" \\* ARABIC ');
       expect(document).toContain('<w:t>2</w:t>');
       expect(document).toContain("Second chart");
-      expect(document.match(/SEQ Figure/g)).toHaveLength(2);
+      expect(document.match(/SEQ "?Figure"?/g)).toHaveLength(2);
+      await assertDocxPartsPreserved(source, saved.bytes, false);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("quotes a multi-word label so Word reads one SEQ identifier", async () => {
+    const source = await fixture();
+    const handle = handleFor(source);
+    try {
+      await handle.open();
+      expect(handle.commands.insertDocxCaption("Công thức", "Định luật")).toBe(true);
+      const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
+      const document = await partOf(saved.bytes, "word/document.xml");
+      expect(document).toContain(' SEQ "Công thức" \\* ARABIC ');
+      expect(document).not.toContain(" SEQ Công thức");
       await assertDocxPartsPreserved(source, saved.bytes, false);
     } finally {
       await handle.dispose();

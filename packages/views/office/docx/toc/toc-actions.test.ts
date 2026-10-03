@@ -120,6 +120,44 @@ describe("updateDocxToc", () => {
     const editor = editorWith([heading("One", 1)]);
     expect(updateDocxToc(editor, OPTIONS)).toEqual({ outcome: "read_only", entries: 0 });
   });
+
+  const parsedRun = (endLabel: string): JSONContent[] => [
+    heading("One", 1),
+    {
+      type: "docProtected",
+      attrs: { docxIndex: 2, blockType: "passthrough", label: "Auto TOC (updates when opened in Word)", previewText: "" },
+    },
+    {
+      type: "docProtected",
+      attrs: {
+        docxIndex: 3,
+        blockType: "passthrough",
+        label: "Auto TOC (updates when opened in Word)",
+        previewText: "",
+        fieldDisplay: { kind: "tocLine", left: "One", right: "1", level: 1 },
+      },
+    },
+    { type: "docProtected", attrs: { docxIndex: 4, blockType: "passthrough", label: endLabel, previewText: "" } },
+    paragraph("after"),
+  ];
+
+  it("re-emits the page break a Word field-end paragraph carried", () => {
+    const editor = editorWith(parsedRun("Field end marker + page break"));
+    expect(updateDocxToc(editor, OPTIONS)).toEqual({ outcome: "updated", entries: 1 });
+    expect(editor.state.doc.childCount).toBe(4);
+    const kept = editor.state.doc.child(2);
+    expect(kept.type.name).toBe("docProtected");
+    expect(String(kept.attrs.label)).toBe("Field end marker + page break");
+    expect(String(kept.attrs.genXml)).toContain('w:br w:type="page"');
+  });
+
+  it("adds no page break when the field-end paragraph had none", () => {
+    const editor = editorWith(parsedRun("Field end marker"));
+    expect(updateDocxToc(editor, OPTIONS)).toEqual({ outcome: "updated", entries: 1 });
+    expect(editor.state.doc.childCount).toBe(3);
+    const last = editor.state.doc.child(editor.state.doc.childCount - 1);
+    expect(last.type.name).toBe("docParagraph");
+  });
 });
 
 describe("captions and citations", () => {
@@ -134,7 +172,7 @@ describe("captions and citations", () => {
     expect(captions).toHaveLength(1);
     expect(captions[0]?.content?.[1]?.marks?.[0]).toMatchObject({
       type: "instrField",
-      attrs: { instr: " SEQ Hình \\* ARABIC ", dirty: true },
+      attrs: { instr: ' SEQ "Hình" \\* ARABIC ', dirty: true },
     });
   });
 

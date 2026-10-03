@@ -17,6 +17,7 @@ import {
   findDocxTocRange,
   readDocxTocHeadings,
   tocNodesForLines,
+  tocPageBreakNode,
   type DocxTocDocNode,
   type DocxTocFieldOptions,
   type DocxTocHeading,
@@ -83,11 +84,9 @@ export function updateDocxToc(editor: Editor | null, options: DocxTocFieldOption
   if (!range) return { outcome: "missing", entries: 0 };
   const nodes = tocNodes(live, options);
   if (!nodes) return { outcome: "empty", entries: 0 };
-  const tr = live.state.tr.replaceWith(
-    range.from,
-    range.to,
-    nodes.map((node) => live.schema.nodeFromJSON(node)),
-  );
+  const content = nodes.map((node) => live.schema.nodeFromJSON(node));
+  if (range.pageBreak) content.push(live.schema.nodeFromJSON(tocPageBreakNode()));
+  const tr = live.state.tr.replaceWith(range.from, range.to, content);
   live.view.dispatch(tr);
   return { outcome: "updated", entries: nodes.length };
 }
