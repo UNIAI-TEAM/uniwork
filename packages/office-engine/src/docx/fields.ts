@@ -14,8 +14,10 @@
 // vendored source untouched — so the fragments are built here, mirroring that
 // shape byte-for-byte where it matters: the dirty begin fldChar (Word rebuilds
 // entries and page numbers on open), the ` TOC \o "1-N" \h \z \u ` instruction,
-// TOCn paragraph styles, and the ` SEQ <label> \* ARABIC ` instruction whose
-// cached result is the visible number.
+// TOCn paragraph styles, and the ` SEQ "<label>" \* ARABIC ` instruction whose
+// cached result is the visible number. The SEQ identifier is always quoted:
+// labels are localized ("Công thức"), and an unquoted multi-word identifier
+// makes Word read the second word as a bookmark name and fail the field.
 import { DocxEngineError, type DocxParsed, type DocxRun } from "./engine";
 
 /** One heading the caller resolved from the document (level 1-9). */
@@ -150,41 +152,71 @@ export function buildDocxTocLines(entries: DocxTocEntry[], options: DocxTocOptio
  * same string into the editor's inline-field mark, so a caption created in the
  * browser and one inserted through the model op save the same field. */
 export function docxCaptionInstr(label: string): string {
-  return " SEQ " + label + " \\* ARABIC ";
+  return ' SEQ "' + docxCaptionLabel(label) + '" \\* ARABIC ';
 }
 
-function requireCaptionLabel(label: string): void {
+/** The trimmed label a caption instruction carries. Quotes, backslashes and
+ * control characters cannot be embedded in a quoted SEQ identifier and are
+ * refused; a blank label is refused too. */
+export function docxCaptionLabel(label: string): string {
   if (typeof label !== "string" || label.trim().length === 0) {
     throw new DocxEngineError("empty_caption_label", "a caption needs a non-blank label");
   }
+  const clean = label.trim();
+  if (/["\\\r\n\t]/.test(clean)) {
+    throw new DocxEngineError(
+      "bad_caption_label",
+      "a caption label cannot carry quotes, backslashes or control characters: " + clean,
+    );
+  }
+  return clean;
 }
 
-/** Runs of one caption paragraph: `<label> <SEQ label> <text>`. The number run
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The identifier part of a SEQ field: the quoted form this module writes and
+ * the bare form a Word document carries, each open to the switches that may
+ * follow (`\* ARABIC`, `\s 1`, `\* MERGEFORMAT`). */
+function seqIdentifierPattern(label: string): string {
+  const esc = escapeRegExp(label);
+  return '(?:(?:&quot;|")' + esc + '(?:&quot;|")|' + esc + '(?![\\w-]))';
+}
+
+/** True when one instruction is this label's SEQ field. The engine's document
+ * scan, the editor counter and the session counter all route through it, so
+ * stored and freshly written captions number from the same grammar. */
+export function isDocxCaptionInstr(instr: unknown, label: string): boolean {
+  if (typeof instr !== "string") return false;
+  return new RegExp("^\\s*SEQ\\s+" + seqIdentifierPattern(docxCaptionLabel(label))).test(instr);
+}
+
+/** Runs of one caption paragraph: `<label> <SEQ field> <text>`. The number run
  * carries the inline field (cached result text + dirty begin), so the vendored
  * writer emits a real SEQ field and Word renumbers all captions on open. */
 export function docxCaptionRuns(label: string, number: number, text: string): DocxRun[] {
-  requireCaptionLabel(label);
+  const clean = docxCaptionLabel(label);
   if (!Number.isInteger(number) || number < 1) {
     throw new DocxEngineError("bad_caption_number", "a caption number must be a positive integer, got " + String(number));
   }
   const runs: DocxRun[] = [
-    { text: label + " " },
-    { text: String(number), instrField: docxCaptionInstr(label), fldDirty: true },
+    { text: clean + " " },
+    { text: String(number), instrField: docxCaptionInstr(clean), fldDirty: true },
   ];
   if (typeof text === "string" && text.length > 0) runs.push({ text: " " + text });
   return runs;
 }
 
-const SEQ_FIELD_RE = (label: string): RegExp =>
-  // field code in a run-level instrText or a w:fldSimple/@w:instr attribute
-  new RegExp('(?:<w:instrText[^>]*>|w:instr=")\\s*SEQ\\s+' + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w-])");
-
 /** Count the SEQ fields of one label in a block's XML (cached results and
  * unresolved fields alike count — the next number depends on both). */
 function countDocxCaptionFields(xml: string, label: string): number {
-  requireCaptionLabel(label);
+  // field code in a run-level instrText or a w:fldSimple/@w:instr attribute
+  const re = new RegExp(
+    '(?:<w:instrText[^>]*>|w:instr=")\\s*SEQ\\s+' + seqIdentifierPattern(docxCaptionLabel(label)),
+    "g",
+  );
   let count = 0;
-  const re = new RegExp(SEQ_FIELD_RE(label).source, "g");
   while (re.exec(xml) !== null) count += 1;
   return count;
 }
@@ -192,9 +224,10 @@ function countDocxCaptionFields(xml: string, label: string): number {
 /** The document's own caption count for a label: every parsed block that can
  * be regenerated (hidden blocks included — they are saved back) is scanned. */
 export function nextDocxCaptionNumber(parsed: DocxParsed, label: string): number {
+  const clean = docxCaptionLabel(label);
   let count = 0;
   for (const block of parsed.blocks) {
-    if (typeof block.originalXml === "string") count += countDocxCaptionFields(block.originalXml, label);
+    if (typeof block.originalXml === "string") count += countDocxCaptionFields(block.originalXml, clean);
   }
   return count + 1;
 }
@@ -261,8 +294,9 @@ export class DocxFieldEdits {
    * the next one for the label — the parsed document's own captions plus the
    * captions this session already inserted. */
   insertCaption(parsed: DocxParsed, index: number, label: string, text: string): void {
-    const number = nextDocxCaptionNumber(parsed, label) + this.sessionCaptionCount(label);
-    this.plan.insertParagraph(index, docxCaptionRuns(label, number, text));
+    const clean = docxCaptionLabel(label);
+    const number = nextDocxCaptionNumber(parsed, clean) + this.sessionCaptionCount(clean);
+    this.plan.insertParagraph(index, docxCaptionRuns(clean, number, text));
   }
 
   /** Apply one field op; the model dispatches here from its edit channel. */
@@ -278,12 +312,11 @@ export class DocxFieldEdits {
   }
 
   private sessionCaptionCount(label: string): number {
-    const instr = docxCaptionInstr(label);
     let count = 0;
     for (const row of this.plan.rows()) {
       if (row.source !== "generated") continue;
       for (const run of row.block?.runs ?? []) {
-        if (run.instrField === instr) count += 1;
+        if (isDocxCaptionInstr(run.instrField, label)) count += 1;
       }
     }
     return count;

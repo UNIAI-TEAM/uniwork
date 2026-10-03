@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDocxAdapter,
   DocxSessionModel,
+  isDocxCaptionInstr,
   type DocxSaveOptions,
   type DocxTocEntry,
   type DocxTocOptions,
@@ -226,7 +227,7 @@ describe("docx TOC update", () => {
 });
 
 describe("docx caption model", () => {
-  const labelRun = (label: string, number: number) => ({ text: String(number), instrField: " SEQ " + label + " \\* ARABIC ", fldDirty: true });
+  const labelRun = (label: string, number: number) => ({ text: String(number), instrField: ' SEQ "' + label + '" \\* ARABIC ', fldDirty: true });
 
   it("inserts a generated caption paragraph with a dirty SEQ field", async () => {
     const { model } = await openModel();
@@ -249,9 +250,11 @@ describe("docx caption model", () => {
       originalXml: '<w:p><w:r><w:instrText xml:space="preserve"> SEQ ' + label + ' \\* ARABIC </w:instrText></w:r></w:p>',
     });
     const { model } = await openModel([seqParagraph("Figure"), seqParagraph("Table")]);
+    // each insert goes at the plan position it is given, so appending three
+    // captions in document order takes the growing end index each time
     insertCaption(model, 2, "Figure", "one");
-    insertCaption(model, 2, "Figure", "two");
-    insertCaption(model, 2, "Table", "t");
+    insertCaption(model, 3, "Figure", "two");
+    insertCaption(model, 4, "Table", "t");
     const runs = model
       .savePlan()
       .finalBlocks.filter((block) => block.kind === "generated")
@@ -261,6 +264,60 @@ describe("docx caption model", () => {
       labelRun("Figure", 3),
       labelRun("Table", 2),
     ]);
+  });
+
+  it("quotes a multi-word label so Word keeps one SEQ identifier", async () => {
+    const { model } = await openModel();
+    insertCaption(model, 0, "Công thức", "Định luật");
+    insertCaption(model, 1, "Công thức", "Hệ quả");
+    const runs = model
+      .savePlan()
+      .finalBlocks.filter((block) => block.kind === "generated")
+      .map((block) => (block.kind === "generated" ? block.block.runs : []));
+    expect(runs).toEqual([
+      [{ text: "Công thức " }, labelRun("Công thức", 1), { text: " Định luật" }],
+      [{ text: "Công thức " }, labelRun("Công thức", 2), { text: " Hệ quả" }],
+    ]);
+  });
+
+  it("counts quoted and switch-bearing Word instructions in parsed XML", async () => {
+    const wordInstr = (instr: string) => ({
+      type: "paragraph",
+      runs: [{ text: "caption" }],
+      originalXml: '<w:p><w:r><w:instrText xml:space="preserve">' + instr + "</w:instrText></w:r></w:p>",
+    });
+    const { model } = await openModel([
+      wordInstr(" SEQ Figure \\* ARABIC \\s 1 "),
+      wordInstr('  SEQ "Figure" \\* MERGEFORMAT  '),
+      wordInstr(' SEQ "Công thức" \\* ARABIC '),
+    ]);
+    insertCaption(model, 3, "Figure", "next");
+    insertCaption(model, 4, "Công thức", "next");
+    const runs = model
+      .savePlan()
+      .finalBlocks.filter((block) => block.kind === "generated")
+      .map((block) => (block.kind === "generated" ? block.block.runs : []));
+    expect(runs).toEqual([
+      [{ text: "Figure " }, labelRun("Figure", 3), { text: " next" }],
+      [{ text: "Công thức " }, labelRun("Công thức", 2), { text: " next" }],
+    ]);
+  });
+
+  it("trims a padded label before it reaches the instruction", async () => {
+    const { model } = await openModel();
+    insertCaption(model, 0, "  Figure  ", "");
+    const block = model.savePlan().finalBlocks[0];
+    if (block?.kind !== "generated") throw new Error("not generated");
+    expect(block.block.runs).toEqual([{ text: "Figure " }, labelRun("Figure", 1)]);
+  });
+
+  it("refuses labels that cannot be quoted and leaves the plan untouched", async () => {
+    const { model } = await openModel();
+    expect(errCode(() => insertCaption(model, 0, 'Fi"gure', "x"))).toBe("bad_caption_label");
+    expect(errCode(() => insertCaption(model, 0, "Fig\\ure", "x"))).toBe("bad_caption_label");
+    expect(errCode(() => insertCaption(model, 0, "Fig\nure", "x"))).toBe("bad_caption_label");
+    expect(model.isDirty).toBe(false);
+    expect(model.savePlan().finalBlocks.map((block) => block.kind)).toEqual(["original", "original"]);
   });
 
   it("inserts a label-only caption when the text is empty", async () => {
@@ -285,5 +342,18 @@ describe("docx caption model", () => {
     const options: DocxSaveOptions = plan.options;
     expect(options).toEqual({});
     expect(model.isDirty).toBe(false);
+  });
+});
+
+describe("docx caption instruction matcher", () => {
+  it("accepts the quoted and bare forms and rejects near misses", () => {
+    expect(isDocxCaptionInstr(' SEQ "Figure" \\* ARABIC ', "Figure")).toBe(true);
+    expect(isDocxCaptionInstr(" SEQ Figure \\* ARABIC \\s 1 ", "Figure")).toBe(true);
+    expect(isDocxCaptionInstr("   SEQ   Figure   \\* MERGEFORMAT ", "Figure")).toBe(true);
+    expect(isDocxCaptionInstr(' SEQ "Công thức" \\* ARABIC ', "Công thức")).toBe(true);
+    expect(isDocxCaptionInstr(' SEQ "Figure C" \\* ARABIC ', "Figure")).toBe(false);
+    expect(isDocxCaptionInstr(" SEQ Figures \\* ARABIC ", "Figure")).toBe(false);
+    expect(isDocxCaptionInstr(" SEQ Table \\* ARABIC ", "Figure")).toBe(false);
+    expect(isDocxCaptionInstr(undefined, "Figure")).toBe(false);
   });
 });
