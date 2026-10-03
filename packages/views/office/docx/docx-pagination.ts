@@ -46,6 +46,9 @@ import {
 import { colGeomsFor, docxColumnCss, docxColumnMode, docxDocumentVars, type DocxColumnMode } from "./docx-columns";
 import { docxBlockMeta } from "./docx-block-meta";
 import { createDocxFootnotes } from "./docx-footnotes";
+// The wired zoom (view/**) scales the measured rects through the CSS `zoom`
+// property; the driver must divide that scale back out of its own math.
+import { docxZoomFactorOf } from "./view/zoom-controller";
 
 // The driver's public surface, so call sites and tests keep one import path:
 // the frame layer (./docx-frame), the canvas column layout (./docx-columns) and
@@ -180,7 +183,9 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
     const rect = pm.getBoundingClientRect();
     if (rect.width <= 0) return;
 
-    const factor = 1;
+    // Read on every pass, never captured: the zoom is a view setting the
+    // controller may change at any time, and this same pass re-paginates.
+    const factor = docxZoomFactorOf(docZoom);
     const origin = rect.top + (parseFloat(getComputedStyle(pm).paddingTop) || 0);
     const measured = measureSingleFlow(pm, () => {
       const measuredBlocks = measureBlocks(pm, origin, factor);
@@ -202,7 +207,7 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
     }
     const { blocks, live, hfHeights, slices, out } = measured;
     if (slices.length === 0) return;
-    const frame = buildPaginationFrame({ spec, live, blocks, hfHeights, slices, view: editor.view, pageNotes: footnotes.pageItems(blocks, slices) });
+    const frame = buildPaginationFrame({ spec, live, blocks, hfHeights, slices, view: editor.view, zoomFactor: factor, pageNotes: footnotes.pageItems(blocks, slices) });
     pages = frame.pages;
     if (frame.edgeHf) {
       const { header, footer, pageTotal } = frame.edgeHf;
