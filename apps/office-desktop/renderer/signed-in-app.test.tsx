@@ -20,7 +20,14 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
-afterEach(() => { for (const session of sessions.values()) session.dispose(); sessions.clear(); });
+afterEach(async () => {
+  for (const session of sessions.values()) session.dispose();
+  sessions.clear();
+  // The vendored docx reader parses on setImmediate ticks that dispose() does
+  // not cancel; drain them while the environment is alive, or a tick that
+  // lands after teardown throws "reading 'uint8array'" as an unhandled error.
+  for (let tick = 0; tick < 200; tick += 1) await new Promise<void>((resolve) => setImmediate(resolve));
+});
 
 function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
