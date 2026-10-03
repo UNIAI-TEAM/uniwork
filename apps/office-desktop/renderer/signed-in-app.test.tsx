@@ -4,6 +4,11 @@ import i18n from "i18next";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
+import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+
+installDocxGeometry();
+const fixtureBase64 = Buffer.from(docxSource).toString("base64");
+const fixtureChecksum = bytesChecksum(docxSource);
 
 const sessions = vi.hoisted(() => new Map<string, import("./office/session").ByteDocumentSession>());
 vi.mock("./office/session", async (importOriginal) => {
@@ -17,7 +22,7 @@ vi.mock("./office/session", async (importOriginal) => {
 beforeEach(() => sessions.clear());
 
 function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
-  const checksum = `sha256:${"a".repeat(64)}`;
+  const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
   let sessionListener: ((value: DesktopSessionMetadata) => void) | undefined;
@@ -30,13 +35,13 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: "aGVsbG8=", checksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
     if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
     if (channel === "desktop:draft-checkpoint") {
       const parts = request.draftId!.split(":");
       drafts.set(request.draftId!, {
-        draftId: request.draftId!, generation: request.generation!, checksum, byteLength: 5, updatedAt: Date.now(),
+        draftId: request.draftId!, generation: request.generation!, checksum, byteLength: docxSource.length, updatedAt: Date.now(),
         identity: { deploymentId: "lane", accountId: account, organizationId: "org", workspaceId: "ws", documentId: request.documentId!, base: { version: parts.at(-2)!, revision: parts.at(-1)! } },
       });
       return { stored: true, generation: request.generation };

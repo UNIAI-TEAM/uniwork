@@ -4,6 +4,10 @@ import i18n from "i18next";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
+import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+
+installDocxGeometry();
+const fixtureBase64 = Buffer.from(docxSource).toString("base64");
 
 const sessions = vi.hoisted(() => new Map<string, import("./office/session").ByteDocumentSession>());
 vi.mock("./office/session", async (importOriginal) => {
@@ -20,8 +24,8 @@ beforeEach(() => sessions.clear());
  * local-mode test is a network path and fails the test. */
 const LOCAL_CHANNELS = new Set(["desktop:auth-config", "desktop:auth-session", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:draft-checkpoint", "desktop:tabs-update"]);
 
-const checksum = `sha256:${"a".repeat(64)}`;
-const fileMeta = (handle: string, name = "Local.docx", extra: Record<string, unknown> = {}) => ({ handle, name, byteLength: 5, modifiedAtMs: 1_000, checksum, ...extra });
+const checksum = bytesChecksum(docxSource);
+const fileMeta = (handle: string, name = "Local.docx", extra: Record<string, unknown> = {}) => ({ handle, name, byteLength: docxSource.length, modifiedAtMs: 1_000, checksum, ...extra });
 const recent = (id: string, name: string, missing = false, directory = "…\\Docs"): RecentFile => ({ id, name, directory, modifiedAtMs: 1, updatedAt: 2, missing });
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
@@ -43,10 +47,10 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:library-list": return { documents: [], nextCursor: null, engineAvailable: true };
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
-      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: "aGVsbG8=" };
-      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: "aGVsbG8=" };
+      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
       case "desktop:tabs-update": return { updated: true };

@@ -9,6 +9,7 @@ import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
 
 installDocxGeometry();
+const fixtureBase64 = Buffer.from(docxSource).toString("base64");
 
 function makeBridge(call: RendererBridge["call"]): { bridge: RendererBridge; emit: (metadata: DesktopSessionMetadata) => void } {
   let listener: ((metadata: DesktopSessionMetadata) => void) | undefined;
@@ -145,8 +146,8 @@ it("opens an OS file in a new tab while another document remains mounted", async
     if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "Me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}`, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document };
-    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF", name: "Local plan.docx", byteLength: 5, modifiedAtMs: 1, checksum: `sha256:${"b".repeat(64)}` }, dataBase64: "aGVsbG8=" };
+    if (channel === "desktop:office-open") return { dataBase64: fixtureBase64, checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document };
+    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF", name: "Local plan.docx", byteLength: docxSource.length, modifiedAtMs: 1, checksum: bytesChecksum(docxSource) }, dataBase64: fixtureBase64 };
     return {};
   }) as RendererBridge["call"]);
   const liveBridge: RendererBridge = { ...bridge, onFileOpenRequested: (listener) => { fileOpen = listener; return () => { fileOpen = undefined; }; } };
