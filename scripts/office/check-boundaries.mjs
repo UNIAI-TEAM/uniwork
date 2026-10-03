@@ -92,8 +92,14 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "next/dynamic",
   "@uniwork/views/office/docx",
   "@uniwork/office-upstream/docs-renderer-editor",
+  // UNI-927 P0-1: the PPTX host binds the generated pptx browser artifact in
+  // the browser. Its build rejects any non-browser external, and the engine
+  // closure it bundles (pptx-engine/pptx-ops/pptx-render) carries no
+  // Node/Electron import — node:crypto/node:zlib/Buffer are shimmed at build
+  // time (scripts/office/build-pptx-browser.mjs).
+  "@uniwork/office-upstream/pptx-renderer",
 ]);
-const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx"]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */
