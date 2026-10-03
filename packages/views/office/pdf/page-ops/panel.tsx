@@ -7,7 +7,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { pdfPageOpsErrorMessage } from "./error";
-import type { PdfNewDocument, PdfPageOpsPanelProps } from "./types";
+import type { PdfNewDocument, PdfPageOpsOutcome, PdfPageOpsPanelProps } from "./types";
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
@@ -84,7 +84,7 @@ export function PdfPageOpsPanel({ pages, provider, assetOptions = [], selectedPa
     return Number.isSafeInteger(page) && position >= 0 ? position : null;
   };
 
-  const run = async (action: () => Promise<{ documents: readonly PdfNewDocument[]; warnings: readonly string[] }>, changed: boolean) => {
+  const run = async (action: () => Promise<PdfPageOpsOutcome>, changed: boolean) => {
     if (disabled || pending) return;
     setPending(true);
     setError(null);
@@ -215,7 +215,7 @@ export function PdfPageOpsPanel({ pages, provider, assetOptions = [], selectedPa
         {assetOptions.length === 0 ? (
           <p className="text-caption text-muted-foreground">{t("office.pdf.pageOps.assetsEmpty")}</p>
         ) : (
-          <ul className="space-y-1" role="list">
+          <ul className="space-y-1">
             {assetOptions.map((asset) => (
               <li key={asset.id} className="flex items-center gap-2">
                 <Checkbox id={`pdf-page-ops-merge-${asset.id}`} aria-label={asset.label} checked={mergeAssets.includes(asset.id)} onCheckedChange={() => toggleMerge(asset.id)} disabled={disabled || pending} />

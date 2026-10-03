@@ -308,7 +308,8 @@ export interface InsertPdfPagesInput {
   pages?: number[];
 }
 
-/** Extract pages (original 0-based indices, in order) into a NEW document. */
+/** Extract pages (0-based positions in the saved output, in order) into a NEW
+    document; the producer reads the output, not the opened file. */
 export interface ExtractPagesInput {
   pages: number[];
   /** Suggested output name stem (no extension); the host commits the document. */

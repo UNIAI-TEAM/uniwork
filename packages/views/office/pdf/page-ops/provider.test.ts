@@ -16,7 +16,7 @@ describe("PDF page-ops provider — insert", () => {
     const provider = createPdfPageOpsProvider({ pageOrder: [2, 0, 1] }, submit);
 
     await provider.insertBlankPage({ afterPageIndex: 1, size: { width: 200, height: 300 } });
-    expect(submit).toHaveBeenCalledWith([
+    expect(submit.submit).toHaveBeenCalledWith([
       { op: "insertBlankPage", attributes: { afterPageIndex: 0, width: 200, height: 300 } },
     ]);
   });
@@ -26,11 +26,11 @@ describe("PDF page-ops provider — insert", () => {
     const provider = createPdfPageOpsProvider({ pageOrder: [2, 0, 1] }, submit);
 
     await provider.insertBlankPage({ afterPageIndex: -1 });
-    expect(submit).toHaveBeenLastCalledWith([{ op: "insertBlankPage", attributes: { afterPageIndex: -1 } }]);
+    expect(submit.submit).toHaveBeenLastCalledWith([{ op: "insertBlankPage", attributes: { afterPageIndex: -1 } }]);
 
     await expect(provider.insertBlankPage({ afterPageIndex: 3 })).rejects.toThrow("outside the current page order");
     await expect(provider.insertBlankPage({ afterPageIndex: 0, size: { width: 0, height: 10 } })).rejects.toThrow("positive width and height");
-    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit.submit).toHaveBeenCalledTimes(1);
   });
 
   it("resolves an insert asset through the PdfAssetProvider seam", async () => {
@@ -40,7 +40,7 @@ describe("PDF page-ops provider — insert", () => {
 
     await provider.insertPdfPages({ afterPageIndex: 0, assetId: "asset-1", pages: [0, 2] });
     expect(read).toHaveBeenCalledWith("asset-1");
-    expect(submit).toHaveBeenCalledWith([
+    expect(submit.submit).toHaveBeenCalledWith([
       { op: "insertPdfPages", attributes: { afterPageIndex: 0, pdf: "AAH/", pages: [0, 2] } },
     ]);
   });
@@ -62,7 +62,7 @@ describe("PDF page-ops provider — documents", () => {
     const submit = submitter();
     const provider = createPdfPageOpsProvider({ pageOrder: [2, 0, 1] }, submit);
     await provider.extractPages({ pages: [0, 2], name: "  trich-xuat  " });
-    expect(submit).toHaveBeenCalledWith([{ op: "extractPages", attributes: { pages: [0, 2], name: "trich-xuat" } }]);
+    expect(submit.submit).toHaveBeenCalledWith([{ op: "extractPages", attributes: { pages: [0, 2], name: "trich-xuat" } }]);
   });
 
   it("merges several assets in order and rejects an empty set", async () => {
@@ -71,7 +71,7 @@ describe("PDF page-ops provider — documents", () => {
     const provider = createPdfPageOpsProvider({ assets: { read } }, submit);
 
     await provider.mergePdfs({ assetIds: ["a", "b"] });
-    expect(submit).toHaveBeenCalledWith([{ op: "mergePdfs", attributes: { pdfs: ["AQ==", "Ag=="] } }]);
+    expect(submit.submit).toHaveBeenCalledWith([{ op: "mergePdfs", attributes: { pdfs: ["AQ==", "Ag=="] } }]);
     await expect(provider.mergePdfs({ assetIds: [] })).rejects.toThrow("at least one assetId");
   });
 
@@ -79,7 +79,7 @@ describe("PDF page-ops provider — documents", () => {
     const submit = submitter();
     const provider = createPdfPageOpsProvider({}, submit);
     await provider.splitPdf({ chunkSize: 2 });
-    expect(submit).toHaveBeenCalledWith([{ op: "splitPdf", attributes: { chunkSize: 2 } }]);
+    expect(submit.submit).toHaveBeenCalledWith([{ op: "splitPdf", attributes: { chunkSize: 2 } }]);
     await expect(provider.splitPdf({ chunkSize: 0 })).rejects.toThrow("chunkSize");
     await expect(provider.splitPdf({ chunkSize: 1.5 })).rejects.toThrow("chunkSize");
   });

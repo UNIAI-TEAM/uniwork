@@ -8,6 +8,7 @@ import type {
   PdfPageOpsOperationProvider,
   PdfPageOpsDocumentPayload,
   PdfPageOpsOperationSubmitter,
+  PdfPageOpsOutcome,
   PdfPageOpsProviderOptions,
   PdfPageOpsResult,
   PdfSplitPdfInput,
@@ -125,7 +126,7 @@ async function commitDocuments(
     mutation stay in the Node engine. Documents come back from the host, are
     committed through the F2 seam, and are returned for the panel to report. */
 export function createPdfPageOpsProvider(options: PdfPageOpsProviderOptions, submitter: PdfPageOpsOperationSubmitter): PdfPageOpsOperationProvider {
-  const apply = async (operation: PdfPageOpsEngineOperation): Promise<PdfPageOpsResult> => {
+  const apply = async (operation: PdfPageOpsEngineOperation): Promise<PdfPageOpsOutcome> => {
     const result = await submitter.submit([operation]);
     const documents = decodePdfPageOpsDocuments(result.documents);
     await commitDocuments(documents, options);

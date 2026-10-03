@@ -385,16 +385,14 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         req.metadata = parseMetadata(isDict(a.metadata) ? a.metadata : a, op);
         break;
       // Page-structure ops. `insertBlankPage` and `insertPdfPages` grow the
-      // working document; `extractPages`, `mergePdfs` and `splitPdf` produce
-      // NEW documents the host commits. Each op is unique per request — a
-      // second occurrence is a caller bug, not a merge.
+      // working document and may repeat, applied in request order;
+      // `extractPages`, `mergePdfs` and `splitPdf` produce the NEW documents
+      // the host commits and each occur at most once per request.
       case "insertBlankPage":
-        if (req.blankPages) throw new PdfOpError(op, "", "at most one insertBlankPage per request");
-        req.blankPages = [parseInsertBlankPage(a, op)];
+        push("blankPages", parseInsertBlankPage(a, op));
         break;
       case "insertPdfPages":
-        if (req.insertedPdfs) throw new PdfOpError(op, "", "at most one insertPdfPages per request");
-        req.insertedPdfs = [parseInsertPdfPages(a, op)];
+        push("insertedPdfs", parseInsertPdfPages(a, op));
         break;
       case "extractPages":
         if (req.extractPages) throw new PdfOpError(op, "", "at most one extractPages per request");

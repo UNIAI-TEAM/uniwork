@@ -78,9 +78,18 @@ export interface PdfPageOpsDocumentPayload {
 }
 
 /** What the host answers after applying a page-op batch: the engine's produced
-    documents and any honest per-op skip warnings. */
+    documents still base64-encoded and any honest per-op skip warnings. This is
+    the submitter's wire shape; the provider decodes it into PdfPageOpsOutcome. */
 export interface PdfPageOpsResult {
   documents: readonly PdfPageOpsDocumentPayload[];
+  warnings: readonly string[];
+}
+
+/** What a caller receives from the provider: the produced documents already
+    decoded to bytes and the batch's skip warnings. Same seam as
+    PdfPageOpsResult, one decode later. */
+export interface PdfPageOpsOutcome {
+  documents: readonly PdfNewDocument[];
   warnings: readonly string[];
 }
 
@@ -91,11 +100,11 @@ export interface PdfPageOpsOperationSubmitter {
 }
 
 export interface PdfPageOpsOperationProvider {
-  insertBlankPage(input: PdfBlankPageInsertInput): Promise<PdfPageOpsResult>;
-  insertPdfPages(input: PdfInsertPdfPagesInput): Promise<PdfPageOpsResult>;
-  extractPages(input: PdfExtractPagesInput): Promise<PdfPageOpsResult>;
-  mergePdfs(input: PdfMergePdfsInput): Promise<PdfPageOpsResult>;
-  splitPdf(input: PdfSplitPdfInput): Promise<PdfPageOpsResult>;
+  insertBlankPage(input: PdfBlankPageInsertInput): Promise<PdfPageOpsOutcome>;
+  insertPdfPages(input: PdfInsertPdfPagesInput): Promise<PdfPageOpsOutcome>;
+  extractPages(input: PdfExtractPagesInput): Promise<PdfPageOpsOutcome>;
+  mergePdfs(input: PdfMergePdfsInput): Promise<PdfPageOpsOutcome>;
+  splitPdf(input: PdfSplitPdfInput): Promise<PdfPageOpsOutcome>;
 }
 
 export type PdfPageOpsProviderOptions = Pick<PdfOpsBridgeOptions, "assets" | "pageOrder"> & {

@@ -13,6 +13,7 @@ export type {
   PdfPageOpsEngineOperation,
   PdfPageOpsOperationProvider,
   PdfPageOpsOperationSubmitter,
+  PdfPageOpsOutcome,
   PdfPageOpsProviderOptions,
   PdfPageOpsResult,
   PdfPageSize,

@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PdfPageOpsPanel, parsePageRanges } from "./panel";
-import type { PdfNewDocument, PdfPageOpsOperationProvider, PdfPageOpsResult } from "./types";
+import type { PdfNewDocument, PdfPageOpsOperationProvider, PdfPageOpsOutcome } from "./types";
 
-const EMPTY: PdfPageOpsResult = { documents: [], warnings: [] };
+const EMPTY: PdfPageOpsOutcome = { documents: [], warnings: [] };
 
 function provider(overrides: Partial<PdfPageOpsOperationProvider> = {}): PdfPageOpsOperationProvider {
   return {

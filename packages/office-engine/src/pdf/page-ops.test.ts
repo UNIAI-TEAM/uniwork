@@ -194,12 +194,10 @@ describe("pdf page ops — typed parse errors", () => {
     expect((error as PdfTypedError).reason).toContain(`bad_op:${op.op}.${field}`);
   });
 
-  it("rejects a repeated page-structure op instead of merging it", async () => {
-    for (const op of ["insertBlankPage", "insertPdfPages", "extractPages", "mergePdfs", "splitPdf"] as const) {
+  it("rejects a repeated new-document producer instead of merging it", async () => {
+    for (const op of ["extractPages", "mergePdfs", "splitPdf"] as const) {
       const attributes =
-        op === "insertBlankPage" ? { afterPageIndex: 0 }
-        : op === "insertPdfPages" ? { afterPageIndex: 0, pdf: b64(TEXT_PDF()) }
-        : op === "extractPages" ? { pages: [0] }
+        op === "extractPages" ? { pages: [0] }
         : op === "mergePdfs" ? { pdfs: [b64(TEXT_PDF())] }
         : { chunkSize: 1 };
       const error = await applyPdfEditBytes(TEXT_PDF(), [
@@ -208,6 +206,16 @@ describe("pdf page ops — typed parse errors", () => {
       ]).catch((reason: unknown) => reason);
       expect((error as PdfTypedError).reason).toContain(`at most one ${op}`);
     }
+  });
+
+  it("applies a repeated page insert in request order", async () => {
+    const base = await pageCount(TEXT_PDF());
+    const out = await applyPdfEditBytes(TEXT_PDF(), [
+      { op: "insertBlankPage", attributes: { afterPageIndex: 0 } } satisfies Op,
+      { op: "insertBlankPage", attributes: { afterPageIndex: 0 } } satisfies Op,
+    ]);
+    expect(out.report.blankPages).toEqual({ applied: 2, skipped: 0 });
+    expect(await pageCount(out.bytes)).toBe(base + 2);
   });
 
   it("rejects a negative anchor, non-numeric sizes, bad page entries and blank names", async () => {
