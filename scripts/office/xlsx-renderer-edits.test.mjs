@@ -31,7 +31,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestCellMutation, canExecuteCommand, canEditRange, parseCellText } = module.exports;
+const { createEditJournal, ingestCellMutation, ingestStructuralMutation, applyOutlineAction, canExecuteCommand, canEditRange, parseCellText } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -40,6 +40,7 @@ function state() {
     loadedRanges: new Map([['s1', { startRow: 0, endRow: 9, startColumn: 0, endColumn: 4 }]]),
     flags: { preloadComplete: false },
     closure: { pinned: new Map() },
+    outline: new Map(),
   };
 }
 const mutation = (cellValue, extra = {}) => ({
@@ -143,7 +144,7 @@ test('readonly gates mutations, editor activation, shortcuts, undo/redo and past
 
 test('structural, sheet, chart, filter and untranslatable command surfaces are refused', () => {
   const model = state();
-  for (const id of ['sheet.command.insert-row-before', 'sheet.mutation.insert-row', 'sheet.command.set-worksheet-name',
+  for (const id of ['sheet.command.set-worksheet-name',
     'sheet.command.set-frozen', 'sheet.command.insert-sheet', 'sheet.mutation.insert-sheet', 'sheet.command.move-range',
     'sheet.mutation.move-range', 'sheet.command.paste-col-width', 'sheet.command.set-row-height', 'sheet.mutation.set-worksheet-row-height',
     'sheet.command.set-auto-filter', 'sheet.mutation.set-filter-range', 'drawing.mutation.insert-drawing',
@@ -158,6 +159,70 @@ test('structural, sheet, chart, filter and untranslatable command surfaces are r
   assert.equal(canExecuteCommand({ ...paste, params: { ...paste.params, htmlContent: '<table></table>' } }, model, false), false);
   assert.equal(canExecuteCommand({ ...paste, params: { ...paste.params, files: [{}] } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'formula.mutation.insert-worksheet' }, model, false), false);
+});
+
+test('row/column structure commands and mutations pass only with a bounded span', () => {
+  const model = state();
+  const range = (startRow, endRow, startColumn = 0, endColumn = 0) => ({ startRow, endRow, startColumn, endColumn });
+  const mutationEvent = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+
+  // Commands the toolbar wires.
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-before', params: { value: 2 } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-before', params: { value: 0 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-before', params: { value: 1.5 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-after' }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-before', params: { value: 3 } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-after' }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(1, 2) } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(2, 1) } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.remove-col' }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-row-height', params: { value: 20 } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-row-height', params: { value: 0 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-row-height' }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-worksheet-col-width', params: { value: 84 } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-worksheet-col-width', params: { value: 5000 } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-row-is-auto-height' }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-is-auto-width', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-rows-hidden', params: { ranges: [range(1, 3)] } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-rows-hidden', params: { ranges: [] } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-hidden', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-specific-rows-visible', params: { ranges: [range(1, 3)] } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'sheet.command.set-col-visible-on-cols', params: { ranges: [range(0, 0, 1, 2)] } }, model, false), true);
+
+  // The registered outline commands.
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group' } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'ungroup' } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-outline', params: { start: 1, end: 1, action: 'clear', subUnitId: 's1' } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'nope' } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 3, end: 2, action: 'group' } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group', subUnitId: 'ghost' } }, model, false), false);
+
+  // The mutations the commands dispatch (undo replays them too).
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(2, 4) }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-rows', { range: range(0, 1) }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-col', { range: range(0, 0, 2, 4) }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-col', { range: range(0, 0, 0, 0) }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', {}), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(3, 2) }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0, 0, 99999) }), model, false), false);
+  assert.equal(canExecuteCommand({ ...mutationEvent('sheet.mutation.insert-row', { range: range(0, 0) }), params: { unitId: 'other', subUnitId: 's1', range: range(0, 0) } }, model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0), subUnitId: 'ghost' }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-height', { ranges: [range(1, 2)], rowHeight: 30 }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-height', { ranges: [range(1, 2)], rowHeight: 9000 }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-height', { ranges: [range(1, 2)], rowHeight: { 1: 30, 2: 40 } }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-col-width', { ranges: [range(0, 0, 1, 2)], colWidth: 84 }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-is-auto-height', { ranges: [range(1, 2)], autoHeightInfo: 1 }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-is-auto-height', { ranges: [range(1, 2)], autoHeightInfo: 2 }), model, false), false);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-row-hidden', { ranges: [range(1, 2)] }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-row-visible', { ranges: [range(1, 2)] }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-col-hidden', { ranges: [range(0, 0, 1, 2)] }), model, false), true);
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-col-visible', { ranges: [range(0, 0, 1, 2)] }), model, false), true);
+
+  for (const id of ['sheet.command.insert-row-before', 'sheet.command.remove-row', 'sheet.command.set-rows-hidden', 'uniwork.command.set-rows-outline']) {
+    assert.equal(canExecuteCommand({ id, type: id.startsWith('uniwork') ? 0 : 1, params: { value: 1, start: 0, end: 0, action: 'group' } }, model, true), false, `${id} readOnly`);
+  }
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0) }), model, true), false);
 });
 
 test('editing guards refuse unseen and pivot cells but permit loaded or genuinely empty cells', () => {
@@ -295,4 +360,120 @@ test('real Univer commands and undo/redo emit journal restorations and obey the 
     autoHeight.dispose();
     univer.dispose();
   }
+});
+
+test('structural mutations journal their op and emit it on the edit channel', () => {
+  const model = state();
+  const structural = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.insert-row', {
+    range: { startRow: 2, endRow: 4, startColumn: 0, endColumn: 0 },
+  })), [{ sheetId: 's1', structural: { kind: 'insert-rows', index: 2, count: 3 } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.remove-rows', {
+    range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+  })), [{ sheetId: 's1', structural: { kind: 'remove-rows', index: 0, count: 1 } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.insert-col', {
+    range: { startRow: 0, endRow: 0, startColumn: 1, endColumn: 3 },
+  })), [{ sheetId: 's1', structural: { kind: 'insert-cols', index: 1, count: 3 } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.remove-col', {
+    range: { startRow: 0, endRow: 0, startColumn: 2, endColumn: 2 },
+  })), [{ sheetId: 's1', structural: { kind: "remove-cols", index: 2, count: 1 } }]);
+  assert.deepEqual(model.editJournal.structuralOps.get('s1'), [
+    { kind: 'insert-rows', index: 2, count: 3 },
+    { kind: 'remove-rows', index: 0, count: 1 },
+    { kind: 'insert-cols', index: 1, count: 3 },
+    { kind: "remove-cols", index: 2, count: 1 },
+  ]);
+
+  // A cell edit recorded before a shift is moved into post-operation space.
+  const cell = state();
+  ingestCellMutation(cell, mutation({ 0: { 0: { v: 'kept' } } }));
+  ingestStructuralMutation(cell, structural('sheet.mutation.insert-row', {
+    range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 0 },
+  }));
+  assert.deepEqual([...cell.editJournal.cells.get('s1').values()].map((entry) => [entry.row, entry.value]), [[2, 'kept']]);
+
+  // Ignored shapes emit nothing.
+  for (const event of [
+    structural('sheet.mutation.insert-row', {}),
+    structural('sheet.mutation.insert-row', { range: { startRow: 3, endRow: 2, startColumn: 0, endColumn: 0 } }),
+    structural('sheet.mutation.insert-row', { range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }, subUnitId: 'ghost' }),
+    { id: 'sheet.mutation.insert-row', type: 2, params: { unitId: 'other', subUnitId: 's1', range: cellRange() } },
+    { id: 'sheet.mutation.set-range-values', type: 2, params: { unitId: 'file-sha', subUnitId: 's1' } },
+  ]) {
+    assert.deepEqual(ingestStructuralMutation(model, event), [], JSON.stringify(event));
+  }
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.insert-row', { range: cellRange() }), true), []);
+  assert.deepEqual(ingestStructuralMutation(model, { ...structural('sheet.mutation.insert-row', { range: cellRange() }), options: { fromFormula: true } }), []);
+  assert.deepEqual(ingestStructuralMutation(null, structural('sheet.mutation.insert-row', { range: cellRange() })), []);
+});
+
+test('size, hidden and auto-size mutations convert to file units before journalling', () => {
+  const model = state();
+  const structural = (id, params) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-worksheet-row-height', {
+    ranges: [{ startRow: 1, endRow: 1, startColumn: 0, endColumn: 0 }], rowHeight: 40,
+  })), [{ sheetId: 's1', structural: { kind: 'set-row-size', start: 1, end: 1, size: 30 } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-worksheet-row-height', {
+    ranges: [{ startRow: 2, endRow: 3, startColumn: 0, endColumn: 0 }], rowHeight: { 2: 30, 3: 45 },
+  })), [
+    { sheetId: 's1', structural: { kind: 'set-row-size', start: 2, end: 2, size: 22.5 } },
+    { sheetId: 's1', structural: { kind: 'set-row-size', start: 3, end: 3, size: 33.75 } },
+  ]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-worksheet-col-width', {
+    ranges: [{ startRow: 0, endRow: 0, startColumn: 1, endColumn: 2 }], colWidth: 84,
+  })), [{ sheetId: 's1', structural: { kind: 'set-col-size', start: 1, end: 2, size: 12 } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-worksheet-row-is-auto-height', {
+    ranges: [{ startRow: 4, endRow: 4, startColumn: 0, endColumn: 0 }], autoHeightInfo: 1,
+  })), [{ sheetId: 's1', structural: { kind: 'set-row-size', start: 4, end: 4, size: null } }]);
+  // Auto OFF (0) is the echo of an explicit height, never a reset.
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-worksheet-row-is-auto-height', {
+    ranges: [{ startRow: 4, endRow: 4, startColumn: 0, endColumn: 0 }], autoHeightInfo: 0,
+  })), []);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-row-hidden', {
+    ranges: [{ startRow: 5, endRow: 5, startColumn: 0, endColumn: 0 }],
+  })), [{ sheetId: 's1', structural: { kind: 'set-rows-hidden', start: 5, end: 5, hidden: true } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-row-visible', {
+    ranges: [{ startRow: 5, endRow: 5, startColumn: 0, endColumn: 0 }],
+  })), [{ sheetId: 's1', structural: { kind: 'set-rows-hidden', start: 5, end: 5, hidden: false } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-col-hidden', {
+    ranges: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 1 }],
+  })), [{ sheetId: 's1', structural: { kind: 'set-cols-hidden', start: 0, end: 1, hidden: true } }]);
+  assert.deepEqual(ingestStructuralMutation(model, structural('sheet.mutation.set-col-visible', {
+    ranges: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 1 }],
+  })), [{ sheetId: 's1', structural: { kind: 'set-cols-hidden', start: 0, end: 1, hidden: false } }]);
+});
+
+test('outline actions shift runs of levels, clamp at the bounds and clear', () => {
+  const model = state();
+  const rows = (action, from, to) => applyOutlineAction(model, 's1', 'rows', from, to, action);
+
+  assert.deepEqual(rows('group', 2, 4), [{ sheetId: 's1', structural: { kind: 'set-rows-outline', start: 2, end: 4, level: 1 } }]);
+  assert.deepEqual(rows('group', 6, 7), [{ sheetId: 's1', structural: { kind: 'set-rows-outline', start: 6, end: 7, level: 1 } }]);
+  // One op per contiguous run of equal levels: rows 2-4 and 6-7 sit at level
+  // 1, row 5 at 0, so the whole span raises in three runs.
+  assert.deepEqual(rows('group', 2, 7), [
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 2, end: 4, level: 2 } },
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 5, end: 5, level: 1 } },
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 6, end: 7, level: 2 } },
+  ]);
+  assert.deepEqual(rows('ungroup', 2, 7), [
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 2, end: 4, level: 1 } },
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 5, end: 5, level: 0 } },
+    { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 6, end: 7, level: 1 } },
+  ]);
+  // The same run keeps rising one level at a time, clamped at 7.
+  for (let level = 2; level <= 7; level += 1) {
+    assert.deepEqual(rows('group', 2, 4), [{ sheetId: 's1', structural: { kind: 'set-rows-outline', start: 2, end: 4, level } }]);
+  }
+  assert.deepEqual(rows('group', 2, 4), []);
+  assert.deepEqual(rows('clear', 0, 1), [{ sheetId: 's1', structural: { kind: 'set-rows-outline', start: 0, end: 1, level: 0 } }]);
+  assert.deepEqual(applyOutlineAction(model, 's1', 'cols', 1, 2, 'group'), [
+    { sheetId: 's1', structural: { kind: 'set-cols-outline', start: 1, end: 2, level: 1 } },
+  ]);
+  // Out-of-grid or unknown-sheet spans are refused with no journal entry.
+  assert.deepEqual(applyOutlineAction(model, 's1', 'rows', 3, 2, 'group'), []);
+  assert.deepEqual(applyOutlineAction(model, 'ghost', 'rows', 0, 1, 'group'), []);
+  assert.deepEqual(applyOutlineAction(null, 's1', 'rows', 0, 1, 'group'), []);
 });

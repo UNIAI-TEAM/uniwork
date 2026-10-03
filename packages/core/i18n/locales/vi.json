@@ -7331,6 +7331,34 @@
         "table": "Trang tính {{sheet}}",
         "grid": "Lưới sổ tính"
       },
+      "structure": {
+        "groups": {
+          "insert": "Chèn dòng và cột",
+          "size": "Kích thước dòng, cột",
+          "outline": "Nhóm theo cấp"
+        },
+        "rowCount": "Số dòng",
+        "colCount": "Số cột",
+        "insertRowsAbove": "Chèn {{count}} dòng phía trên",
+        "insertRowsBelow": "Chèn dòng phía dưới",
+        "deleteRows": "Xóa các dòng đã chọn",
+        "insertColsLeft": "Chèn {{count}} cột bên trái",
+        "insertColsRight": "Chèn cột bên phải",
+        "deleteCols": "Xóa các cột đã chọn",
+        "rowHeight": "Chiều cao dòng (điểm)",
+        "resetRowHeight": "Dùng chiều cao dòng tự động",
+        "hideRows": "Ẩn các dòng đã chọn",
+        "showRows": "Hiện các dòng đã chọn",
+        "colWidth": "Chiều rộng cột (ký tự)",
+        "resetColWidth": "Dùng chiều rộng cột mặc định",
+        "hideCols": "Ẩn các cột đã chọn",
+        "showCols": "Hiện các cột đã chọn",
+        "groupRows": "Nhóm dòng",
+        "ungroupRows": "Bỏ nhóm dòng",
+        "groupCols": "Nhóm cột",
+        "ungroupCols": "Bỏ nhóm cột",
+        "clearOutline": "Xóa phân cấp nhóm"
+      },
       "sheets": {
         "label": "Các trang tính trong sổ"
       },

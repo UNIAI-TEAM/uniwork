@@ -73,6 +73,18 @@ describe("web XLSX save journal", () => {
     expect(editRequests().at(-1)?.edits).toContainEqual(op);
   });
 
+  it("sends structural ops through the envelope without applying them to the cell snapshot", async () => {
+    const engine = await opened();
+    const insert = { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } };
+    await engine.edit("model", [insert]);
+    // The cell snapshot keeps its coordinates: the row shift reaches the
+    // server's structuralOps pass, which replays before any cell edit; the
+    // local snapshot models content only.
+    expect(engine.snapshot("model").sheets[0]!.cells.A1?.value).toBe(2);
+    await engine.serialize("model", { intentId: "save-1", snapshot: stable(engine) });
+    expect(editRequests()[0]?.edits).toEqual([insert]);
+  });
+
   it("captures the operation prefix before serialize and retains typing N+1 after commit", async () => {
     const engine = await opened();
     await engine.edit("model", [valueEdit(7), styleEdit]);

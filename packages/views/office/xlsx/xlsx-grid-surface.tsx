@@ -9,7 +9,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { RendererRangeResult, RendererWorkbookFile } from "./xlsx-render-model-bridge";
-import type { XlsxGridCellEdit } from "./xlsx-edit-bridge";
+import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -73,7 +73,7 @@ export interface XlsxRendererModule {
     readOnly?: boolean;
     onMessage?: (message: string) => void;
     onDirty?: () => void;
-    onEdits?: (edits: XlsxGridCellEdit[]) => void;
+    onEdits?: (edits: XlsxGridEdit[]) => void;
     onSelectionChange?: (selection: XlsxGridSelection | null) => void;
   }): XlsxGridHandle;
   installXlsxRendererStyles(doc?: Document): void;
@@ -91,7 +91,7 @@ export interface XlsxGridSurfaceProps {
   readOnly?: boolean;
   className?: string;
   onDirty?: () => void;
-  onEdits?: (edits: XlsxGridCellEdit[]) => void;
+  onEdits?: (edits: XlsxGridEdit[]) => void;
   onMessage?: (message: string) => void;
   onSelectionChange?: (selection: XlsxGridSelection | null) => void;
   onReady?: () => void;

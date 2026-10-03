@@ -87,7 +87,7 @@ export interface XlsxRendererOptions {
   readOnly?: boolean;
   onMessage?: (message: string) => void;
   onDirty?: () => void;
-  onEdits?: (edits: XlsxRendererCellEdit[]) => void;
+  onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: XlsxRendererSelection | null) => void;
 }
 
@@ -101,6 +101,24 @@ export interface XlsxRendererCellEdit {
   style?: Record<string, unknown>;
   styleReset?: boolean;
 }
+
+/** One row/column journal op the renderer's structural journal emits. The
+ *  vendored StructuralJournalOp subset this lane binds: no move-rows, no
+ *  merges, no set-col-style. Positions are 0-based; row sizes are points,
+ *  column sizes character width; a null size resets the sheet default. */
+export type XlsxRendererStructuralJournalOp =
+  | { kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols"; index: number; count: number }
+  | { kind: "set-row-size" | "set-col-size"; start: number; end: number; size: number | null }
+  | { kind: "set-rows-hidden" | "set-cols-hidden"; start: number; end: number; hidden: boolean }
+  | { kind: "set-rows-outline" | "set-cols-outline"; start: number; end: number; level: number; collapsed?: boolean };
+
+export interface XlsxRendererStructuralEdit {
+  sheetId: string;
+  structural: XlsxRendererStructuralJournalOp;
+}
+
+/** Every edit the renderer's onEdits channel can emit. */
+export type XlsxRendererEdit = XlsxRendererCellEdit | XlsxRendererStructuralEdit;
 
 export interface XlsxRendererFontMapping {
   declared: string;

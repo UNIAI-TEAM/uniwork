@@ -27,6 +27,15 @@ const EDIT_COMMANDS = new Set([
   "sheet.command.set-text-wrap", "sheet.command.set-text-rotation",
   "sheet.command.set-border", "sheet.command.set-border-position", "sheet.command.set-border-style",
   "sheet.command.set-border-color", "sheet.command.set-border-basic",
+  // Format painter: the toolbar arms/cancels the one-shot mode through the
+  // synchronous `set-format-painter` operation; the sheets-ui render controller
+  // applies the captured format on the next selection end with
+  // `apply-format-painter` and toggles the mode off with
+  // `set-once-format-painter`. The style writes ride the allowlisted
+  // `sheet.mutation.set-range-values` path; the merge mutations the painter
+  // would also emit stay refused (no merge op exists to save them).
+  "sheet.operation.set-format-painter", "sheet.command.apply-format-painter",
+  "sheet.command.set-once-format-painter",
   "sheet.command.set-range-bold", "sheet.command.set-range-italic", "sheet.command.set-range-underline",
   "sheet.command.set-range-stroke", "sheet.command.set-range-fontsize",
   "sheet.command.set-range-font-increase", "sheet.command.set-range-font-decrease",
@@ -156,7 +165,7 @@ function structuralCommandAllowed(
   state: LazyWorkbookState,
 ): boolean {
   const params = event.params as {
-    value?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
+    value?: unknown; range?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
   } | undefined;
   if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
     const axis = event.id.includes("rows") ? "row" : "column";
@@ -181,10 +190,12 @@ function structuralCommandAllowed(
     return Array.isArray(params.ranges) && params.ranges.length > 0 && params.ranges.every((range) => structuralSpanOK(range, axis));
   }
   // Remove row/col and the reveal commands: selection-driven, an explicit
-  // range is optional and bounded when present.
+  // range/ranges is optional and bounded when present.
+  const axis = event.id.includes("col") ? "column" : "row";
+  if (params?.range !== undefined && !structuralSpanOK(params.range, axis)) return false;
   if (params?.ranges !== undefined) {
-    const axis = event.id.includes("col") ? "column" : "row";
-    if (!Array.isArray(params.ranges) || params.ranges.length === 0 || !params.ranges.every((range) => structuralSpanOK(range, axis))) return false;
+    if (!Array.isArray(params.ranges) || params.ranges.length === 0 ||
+      !params.ranges.every((range) => structuralSpanOK(range, axis))) return false;
   }
   return true;
 }

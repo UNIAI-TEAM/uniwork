@@ -5,6 +5,8 @@
 // the shared XlsxEditor mounts. No vendored file is edited here.
 import {
   BooleanNumber,
+  CommandType,
+  ICommandService,
   LocaleType,
   ThemeService,
   WrapStrategy,
@@ -34,7 +36,7 @@ import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { ingestCellMutation, type XlsxRendererCellEdit } from "./edits";
+import { applyOutlineAction, ingestCellMutation, ingestStructuralMutation, type XlsxRendererEdit } from "./edits";
 import { t } from "./locale";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
@@ -90,7 +92,7 @@ export interface XlsxRendererOptions {
   readOnly?: boolean;
   onMessage?: (message: string) => void;
   onDirty?: () => void;
-  onEdits?: (edits: XlsxRendererCellEdit[]) => void;
+  onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
 }
 
@@ -386,6 +388,36 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
+
+  // UniWork outline commands (B1): the pinned Univer has no outline model and
+  // journals no levels, so these two commands record the level change
+  // straight into the renderer's structural journal (one op per contiguous
+  // run) and emit it on the same edit channel as cell edits. They carry no
+  // undo entry — there is no Univer state to undo (genoffice parity).
+  const commandService = runtime.univer.__getInjector().get(ICommandService);
+  const runOutline = (axis: "rows" | "cols", params: unknown): boolean => {
+    const p = params as { subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear" } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.end !== "number") return false;
+    if (p.action !== "group" && p.action !== "ungroup" && p.action !== "clear") return false;
+    const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    if (!sheetId) return false;
+    const edits = applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action);
+    if (edits.length === 0) return false;
+    dirtyGeneration += 1;
+    options.onEdits?.(edits);
+    options.onDirty?.();
+    return true;
+  };
+  for (const [id, axis] of [
+    ["uniwork.command.set-rows-outline", "rows"],
+    ["uniwork.command.set-cols-outline", "cols"],
+  ] as const) {
+    disposables.push(commandService.registerCommand({
+      id,
+      type: CommandType.COMMAND,
+      handler: (_accessor, params) => runOutline(axis, params),
+    }));
+  }
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
@@ -435,9 +467,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
           return style ? { ...style } : undefined;
         },
       );
-      if (edits.length === 0) return;
+      // Row/column structure rides the same channel: insert/remove, sizes,
+      // hidden flags and auto-height resets journal here (outline levels are
+      // recorded by the two commands above, outside Univer's mutation set).
+      const structuralEdits = ingestStructuralMutation(lazyWorkbookRef.current, event, journalSuppression.active);
+      if (edits.length === 0 && structuralEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(edits);
+      options.onEdits?.([...edits, ...structuralEdits]);
       options.onDirty?.();
     }),
   );

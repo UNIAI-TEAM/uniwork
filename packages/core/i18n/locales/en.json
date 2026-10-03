@@ -7337,6 +7337,34 @@
         "table": "{{sheet}} worksheet",
         "grid": "Workbook grid"
       },
+      "structure": {
+        "groups": {
+          "insert": "Insert rows and columns",
+          "size": "Row and column size",
+          "outline": "Outline"
+        },
+        "rowCount": "Row count",
+        "colCount": "Column count",
+        "insertRowsAbove": "Insert {{count}} rows above",
+        "insertRowsBelow": "Insert rows below",
+        "deleteRows": "Delete rows",
+        "insertColsLeft": "Insert {{count}} columns to the left",
+        "insertColsRight": "Insert columns to the right",
+        "deleteCols": "Delete columns",
+        "rowHeight": "Row height (points)",
+        "resetRowHeight": "Use automatic row height",
+        "hideRows": "Hide rows",
+        "showRows": "Show rows",
+        "colWidth": "Column width (characters)",
+        "resetColWidth": "Use default column width",
+        "hideCols": "Hide columns",
+        "showCols": "Show columns",
+        "groupRows": "Group rows",
+        "ungroupRows": "Ungroup rows",
+        "groupCols": "Group columns",
+        "ungroupCols": "Ungroup columns",
+        "clearOutline": "Clear outline"
+      },
       "sheets": {
         "label": "Workbook sheets"
       },

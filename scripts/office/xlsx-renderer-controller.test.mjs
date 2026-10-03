@@ -352,6 +352,59 @@ test('renderer format state mirrors the active range composed style and stays re
   } finally { readonly.close(); }
 });
 
+test('row/column mutations journal through the controller and emit on the edit channel', async () => {
+  const edits = [];
+  let dirty = 0;
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const generation = mounted.handle.getDirtyGeneration();
+    // A cell edit queued before the shift must move into post-operation space.
+    mounted.handle.setCellText('s1', 0, 0, 'kept');
+    mounted.h.execute({ id: 'sheet.mutation.insert-row', params: {
+      unitId: 'file-sha', subUnitId: 's1', range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 0 },
+    } });
+    assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'insert-rows', index: 0, count: 2 } });
+    assert.equal(mounted.handle.getDirtyGeneration(), generation + 2);
+    assert.equal(dirty, 2);
+    const journal = mounted.handle.getJournal();
+    assert.deepEqual(journal.structuralOps.get('s1'), [{ kind: 'insert-rows', index: 0, count: 2 }]);
+    assert.deepEqual([...journal.cells.get('s1').values()].map((entry) => [entry.row, entry.value]), [[2, 'kept']]);
+    // Structurally ignored shapes emit nothing.
+    const before = edits.length;
+    mounted.h.execute({ id: 'sheet.mutation.insert-row', params: { unitId: 'file-sha', subUnitId: 's1' } });
+    assert.equal(edits.length, before);
+  } finally { mounted.close(); }
+});
+
+test('outline commands run through the registered command service and journal level runs', async () => {
+  const edits = [];
+  let dirty = 0;
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
+    assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 1, end: 3, level: 1 } });
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
+    assert.deepEqual(edits.at(-1).structural, { kind: 'set-rows-outline', start: 1, end: 3, level: 2 });
+    // A run already at the boundary is a no-op; malformed params never run.
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 2, end: 2, action: 'ungroup' }), false);
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 3, end: 1, action: 'group' }), false);
+    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'nope' }), false);
+    assert.deepEqual(mounted.handle.getJournal().structuralOps.get('s1'), [
+      { kind: 'set-rows-outline', start: 1, end: 3, level: 1 },
+      { kind: 'set-rows-outline', start: 1, end: 3, level: 2 },
+    ]);
+    assert.equal(dirty, 2);
+  } finally { mounted.close(); }
+  const readonly = mountController({ readOnly: true });
+  try {
+    await readonly.handle.loadWorkbook(file);
+    assert.equal(readonly.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'group' }), false);
+    assert.equal(readonly.handle.getJournal().structuralOps.size, 0);
+  } finally { readonly.close(); }
+});
+
 test('disposing during font preparation prevents a late workbook installation', async () => {
   const previous = globalThis.FontFace;
   let resolveProbe;

@@ -7,6 +7,9 @@ import { XlsxSheetsGroup } from "./groups/sheets-group";
 import { XlsxAlignmentGroup } from "./home-alignment";
 import { XlsxBordersGroup } from "./home-borders";
 import { XlsxFontGroup } from "./home-font";
+import { XlsxStructureInsertGroup } from "./structure-insert";
+import { XlsxStructureOutlineGroup } from "./structure-outline";
+import { XlsxStructureSizeGroup } from "./structure-size";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
 /** The extension seam for Wave A tasks (A1-A9): add ONE group to ONE tab by
@@ -44,4 +47,7 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
     Component: XlsxCalculationGroup,
     isAvailable: ({ canRecalculate }) => canRecalculate,
   },
+  { id: "structure-insert", tab: "insert", order: 20, labelKey: "office.xlsx.structure.groups.insert", Component: XlsxStructureInsertGroup },
+  { id: "structure-size", tab: "home", order: 80, labelKey: "office.xlsx.structure.groups.size", Component: XlsxStructureSizeGroup },
+  { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
 ];

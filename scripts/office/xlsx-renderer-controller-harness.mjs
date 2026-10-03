@@ -40,6 +40,8 @@ const result = await build({
         else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
         else if (name === 'WrapStrategy') lines.push('export const WrapStrategy={UNSPECIFIED:0,OVERFLOW:1,CLIP:2,WRAP:3};');
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS"};');
+        else if (name === 'CommandType') lines.push('export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};');
+        else if (name === 'ICommandService') lines.push('export const ICommandService="ICommandService";');
         else if (name === 'ThemeService' || name === 'SheetInterceptorService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
         else if (name === 'journalSuppression' || name === 'loadAutoHeightSuppression') lines.push(`export const ${name}={active:false};`);
@@ -75,10 +77,16 @@ export function mountController(options = {}, environment = {}) {
   const h = {
     dark: [], disposed: false, editable: true,
     editing: false,
+    commands: new Map(),
     emit(id, event = {}) { for (const handler of handlers.get(id) ?? []) handler(event); return event; },
     execute(event) {
       const before = h.emit('BeforeCommandExecute', { ...event });
       if (before.cancel) return false;
+      // The real command service runs a registered command's handler; the two
+      // UniWork outline commands live here (insert/size mutations are emitted
+      // by the sheet plugins, which the stubs do not model).
+      const registered = h.commands.get(event.id);
+      if (registered && registered.handler({}, event.params) !== true) return false;
       events.push(event);
       h.emit('CommandExecuted', event);
       return true;
@@ -141,6 +149,9 @@ export function mountController(options = {}, environment = {}) {
         if (token === 'SheetInterceptorService') {
           if (environment.requireWorkbookServices && !file) throw new Error('sheet services require a workbook unit');
           h.sheetInterceptorLookups = (h.sheetInterceptorLookups ?? 0) + 1;
+        }
+        if (token === 'ICommandService') {
+          return { registerCommand: (command) => { h.commands.set(command.id, command); return { dispose: () => h.commands.delete(command.id) }; } };
         }
         return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
       } }),
