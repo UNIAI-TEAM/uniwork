@@ -7386,6 +7386,12 @@
         "truncated": "PDF bị cắt ngắn hoặc chưa đầy đủ.", "unsupported_encryption": "PDF dùng cơ chế mã hóa chưa được hỗ trợ.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
         "objectUnavailable": "Nội dung đã chọn không còn khả dụng. Chọn lại."
+      },
+      "password": {
+        "title": "Cần mật khẩu", "description": "Tài liệu này được bảo vệ bằng mật khẩu. Nhập mật khẩu để mở.",
+        "label": "Mật khẩu", "placeholder": "Nhập mật khẩu tài liệu",
+        "submit": "Mở tài liệu", "checking": "Đang kiểm tra…", "cancel": "Hủy", "close": "Đóng",
+        "wrong": "Mật khẩu không mở được tài liệu này. Thử lại."
       }
     }
   },

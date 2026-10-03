@@ -7406,6 +7406,12 @@
         "truncated": "The PDF is truncated or incomplete.", "unsupported_encryption": "This PDF uses unsupported encryption.",
         "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again.",
         "objectUnavailable": "The selected content is no longer available. Select it again."
+      },
+      "password": {
+        "title": "Password required", "description": "This document is password-protected. Enter its password to open it.",
+        "label": "Password", "placeholder": "Enter the document password",
+        "submit": "Open document", "checking": "Checking…", "cancel": "Cancel", "close": "Close",
+        "wrong": "That password did not open this document. Try again."
       }
     }
   },
