@@ -16,6 +16,15 @@ export const EDIT_FONTS = [
 
 export type MarkupType = "highlight" | "underline" | "strikeout";
 
+/** A text selection annotation. Quads are PDF user-space points (y up), in
+ * [x1,yTop,x2,yTop,x1,yBottom,x2,yBottom] groups. RGB channels are normalized. */
+export interface MarkupInput {
+  pageIndex: number;
+  type: MarkupType;
+  color: [number, number, number];
+  quads: number[][];
+}
+
 /** Delete an annotation already saved in the file. Object number is only a lookup
     hint; subtype + rect guard against (and recover from) object renumbering by a
     rewrite. 'note' targets Text (comment) annotations. */
@@ -206,6 +215,7 @@ export interface PageRenderRequest {
 /** The batch an edit job carries — the G2-05-scoped subset of upstream
     SavePdfRequest. Annotation/form authoring ops are out of this lane. */
 export interface PdfEditRequest {
+  markups?: MarkupInput[];
   /** Saved markup annotations to remove (applied before every other stage) */
   annotDeletes?: AnnotDeleteInput[];
   textEdits?: TextEditInput[];

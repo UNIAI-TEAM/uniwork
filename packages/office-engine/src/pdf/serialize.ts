@@ -29,6 +29,7 @@ import { applyImageEdits } from "./image.ts";
 import { verifyImageEdits } from "./render.ts";
 import { applyTextEdits, verifyTextEdits } from "./text.ts";
 import { applyTextInserts } from "./text-insert.ts";
+import { addMarkup } from "./markups.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -36,6 +37,7 @@ export interface PdfEditSkips {
   skippedImageEdits: ImageEditFailure[];
   /** annotDeletes that matched nothing — requested minus removed, honestly. */
   skippedAnnotDeletes: { pageIndex: number; reason: string }[];
+  skippedMarkups: { pageIndex: number; reason: string }[];
 }
 
 export interface AppliedPdfEdit {
@@ -146,6 +148,7 @@ export async function applyPdfEdits(
   let skippedTextInserts: TextInsertFailure[] = [];
   let skippedImageEdits: ImageEditFailure[] = [];
   let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
+  const skippedMarkups: { pageIndex: number; reason: string }[] = [];
   let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
     const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
@@ -175,6 +178,14 @@ export async function applyPdfEdits(
     if (page) page.setRotation(degrees((page.getRotation().angle + r.delta) % 360));
   }
   if (request.metadata) applyMetadata(pdfDoc, request.metadata);
+  for (const markup of request.markups ?? []) {
+    const page = pages[markup.pageIndex];
+    if (!page) {
+      skippedMarkups.push({ pageIndex: markup.pageIndex, reason: "page out of range" });
+      continue;
+    }
+    addMarkup(pdfDoc, page, markup);
+  }
   // Deletions go last, in descending order; earlier ops all address original
   // page indices.
   for (const idx of [...(request.deletedPages ?? [])].sort((a, b) => b - a)) {
@@ -202,10 +213,11 @@ export async function applyPdfEdits(
     skippedTextInserts,
     skippedImageEdits,
     skippedAnnotDeletes,
+    skippedMarkups,
   });
   return {
     bytes: out,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups },
     annotDeletesApplied,
   };
 }

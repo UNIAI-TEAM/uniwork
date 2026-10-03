@@ -33,6 +33,7 @@ export interface PdfOpsBridgeOptions {
  * browser bundle never imports the Node PDF implementation. */
 export type PdfEngineOperation =
   | { op: "putTextEdit"; attributes: { pageIndex: number; rect: [number, number, number, number]; oldText: string; newText: string; fontSize: number } }
+  | { op: "addMarkup"; attributes: { markup: { pageIndex: number; type: "highlight" | "underline" | "strikeout"; color: [number, number, number]; quads: number[][] } } }
   | { op: "addImageEdit"; attributes: { kind: "replaceImage"; pageIndex: number; oldRect: [number, number, number, number]; rect: [number, number, number, number]; image: string; layer?: "belowText" | "aboveText" } }
   | { op: "deletePage"; attributes: { pageIndex: number } }
   | { op: "rotatePages"; attributes: { pages: number[]; dir: 90 | -90 | 180 } }
@@ -144,6 +145,21 @@ async function textOperation(
   };
 }
 
+function markupOperation(
+  operation: Extract<PdfEditOperation, { op: "add_markup" }>,
+  order?: readonly number[],
+): PdfEngineOperation {
+  const page = pageIndex(operation.target.page, operation.op, order);
+  const quads = operation.target.quads.map((quad) => {
+    if (quad.length !== 8 || !quad.every((value) => Number.isFinite(value))) {
+      throw new PdfOpsBridgeError("invalid_target", operation.op, "markup quads require eight finite coordinates");
+    }
+    return [...quad];
+  });
+  if (quads.length === 0) throw new PdfOpsBridgeError("invalid_target", operation.op, "at least one markup quad is required");
+  return { op: "addMarkup", attributes: { markup: { pageIndex: page, type: operation.type, color: operation.color, quads } } };
+}
+
 function reorderPage(
   operation: Extract<PdfEditOperation, { op: "reorder_page" }>,
   order: readonly number[],
@@ -170,6 +186,9 @@ export async function bridgePdfOperations(
   let reordered = false;
   for (const operation of operations) {
     switch (operation.op) {
+      case "add_markup":
+        bridged.push(markupOperation(operation, order));
+        break;
       case "replace_text":
         bridged.push(await textOperation(operation, options, order));
         break;

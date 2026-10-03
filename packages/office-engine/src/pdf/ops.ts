@@ -7,6 +7,7 @@ import type {
   ImageEditInput,
   ImageLayer,
   MetadataInput,
+  MarkupInput,
   PdfEditRequest,
   TextEditInput,
   TextInsertInput,
@@ -252,6 +253,34 @@ function parseMetadata(a: Dict, op: string): MetadataInput {
   };
 }
 
+function rgbNormalized(v: unknown, op: string, f: string): [number, number, number] {
+  if (!Array.isArray(v) || v.length !== 3 || !v.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1)) {
+    throw new PdfOpError(op, f, "[r,g,b] normalized tuple required");
+  }
+  return [v[0], v[1], v[2]] as [number, number, number];
+}
+
+function parseMarkup(a: Dict, op: string): MarkupInput {
+  const type = str(a.type, op, "type");
+  if (type !== "highlight" && type !== "underline" && type !== "strikeout") {
+    throw new PdfOpError(op, "type", "highlight|underline|strikeout");
+  }
+  const quads = a.quads;
+  if (!Array.isArray(quads) || quads.length === 0) throw new PdfOpError(op, "quads", "at least one quad required");
+  const parsed = capList(quads, op, "quads").map((quad, index) => {
+    if (!Array.isArray(quad) || quad.length !== 8 || !quad.every((n) => typeof n === "number" && Number.isFinite(n))) {
+      throw new PdfOpError(op, `quads[${index}]`, "eight finite coordinates required");
+    }
+    return quad as number[];
+  });
+  return {
+    pageIndex: int(a.pageIndex, op, "pageIndex"),
+    type,
+    color: rgbNormalized(a.color, op, "color"),
+    quads: parsed,
+  };
+}
+
 /**
  * Fold a validated envelope edits array into the engine's PdfEditRequest.
  * Unknown op names are a typed error (the caller learns the vocabulary is
@@ -271,6 +300,9 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
     const op = str(item.op, "<item>", "op");
     const a = attrsOf(item);
     switch (op) {
+      case "addMarkup":
+        push("markups", parseMarkup(isDict(a.markup) ? a.markup : a, op));
+        break;
       case "putTextEdit":
         push("textEdits", parseTextEdit(a, op));
         break;

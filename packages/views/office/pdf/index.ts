@@ -24,6 +24,8 @@ export type {
 } from "./types";
 export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type PdfEngineOperation, type PdfObjectMetadata, type PdfOpsBridgeOptions } from "./ops-bridge";
 export { PdfCanvas, PdfPageCanvas, hitTestPdfBox } from "./canvas";
+export { PdfTextMarkupTools } from "./markups";
+export type { PdfTextMarkupToolsProps } from "./markups";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,

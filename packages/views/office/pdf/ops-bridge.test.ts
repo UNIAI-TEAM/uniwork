@@ -19,6 +19,19 @@ describe("bridgePdfOperations", () => {
     ]);
   });
 
+  it("maps selected text quads to each markup subtype without touching object metadata", async () => {
+    const selection = { page: 2, quads: [[10, 20, 80, 20, 10, 8, 80, 8]] } as const;
+    await expect(bridgePdfOperations([
+      { op: "add_markup", target: selection, type: "highlight", color: [1, 0.8, 0] },
+      { op: "add_markup", target: selection, type: "underline", color: [0, 0, 0] },
+      { op: "add_markup", target: selection, type: "strikeout", color: [0, 0, 0] },
+    ])).resolves.toEqual([
+      { op: "addMarkup", attributes: { markup: { pageIndex: 1, type: "highlight", color: [1, 0.8, 0], quads: [[10, 20, 80, 20, 10, 8, 80, 8]] } } },
+      { op: "addMarkup", attributes: { markup: { pageIndex: 1, type: "underline", color: [0, 0, 0], quads: [[10, 20, 80, 20, 10, 8, 80, 8]] } } },
+      { op: "addMarkup", attributes: { markup: { pageIndex: 1, type: "strikeout", color: [0, 0, 0], quads: [[10, 20, 80, 20, 10, 8, 80, 8]] } } },
+    ]);
+  });
+
   it("resolves asset ids and encodes bytes without importing the Node engine", async () => {
     const read = vi.fn(async () => new Uint8Array([0, 1, 255]));
     await expect(bridgePdfOperations([{ op: "replace_image", target: imageTarget, assetId: "asset-1" }], {

@@ -39,12 +39,21 @@ export interface PdfFontReport {
   embedded: readonly string[];
 }
 
+export type PdfMarkupType = "highlight" | "underline" | "strikeout";
+
+export interface PdfTextMarkupSelection {
+  page: number;
+  /** PDF user-space quads: [x1,yTop,x2,yTop,x1,yBottom,x2,yBottom]. */
+  quads: readonly (readonly number[])[];
+}
+
 /** Public browser operations. Images are provider-owned asset references; raw
  * image bytes and codecs never cross into this package. */
 export type PdfEditOperation =
   /** target.page is the 1-based displayed position at the time of the operation. */
   | { op: "replace_text"; target: { page: number; objectId: string }; text: string }
   | { op: "replace_image"; target: { page: number; objectId: string }; assetId: string }
+  | { op: "add_markup"; target: PdfTextMarkupSelection; type: PdfMarkupType; color: [number, number, number] }
   | { op: "insert_page"; target: { index: number } }
   | { op: "delete_page"; target: { page: number } }
   | { op: "rotate_page"; target: { page: number }; degrees: 90 | 180 | 270 }

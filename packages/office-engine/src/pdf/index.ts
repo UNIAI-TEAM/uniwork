@@ -8,5 +8,6 @@ export { applyPdfEdits, PdfVerifyError, type AppliedPdfEdit, type PdfEditSkips }
 export { readPdfText, type PdfTextDoc, type PdfPageText, type ReadPdfTextOptions } from "./extract.ts";
 export { renderImagePng, renderPageRegionPng, verifyImageEdits } from "./render.ts";
 export { validateTextEdits } from "./text.ts";
+export { addMarkup } from "./markups.ts";
 export { listPageImages } from "./image.ts";
 export { decodeImageToBgra, encodeBgraToPng, type DecodedImage } from "./codec.ts";

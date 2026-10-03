@@ -109,8 +109,9 @@ export interface PdfEditOutcome {
   report: {
     textEdits: { applied: number; skipped: number };
     textInserts: { applied: number; skipped: number };
-    imageEdits: { applied: number; skipped: number };
-    annotDeletes: { applied: number; skipped: number };
+  imageEdits: { applied: number; skipped: number };
+  annotDeletes: { applied: number; skipped: number };
+  markups: { applied: number; skipped: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
   };
 }
@@ -218,6 +219,7 @@ export async function applyPdfEditBytes(
     pushSkips("insert", applied.skips.skippedTextInserts);
     pushSkips("image", applied.skips.skippedImageEdits);
     pushSkips("annot", applied.skips.skippedAnnotDeletes);
+    pushSkips("markup", applied.skips.skippedMarkups);
     return {
       bytes: applied.bytes,
       warnings,
@@ -235,6 +237,7 @@ export async function applyPdfEditBytes(
           skipped: applied.skips.skippedImageEdits.length,
         },
         annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
+        markups: { applied: (request.markups?.length ?? 0) - applied.skips.skippedMarkups.length, skipped: applied.skips.skippedMarkups.length },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,
