@@ -20,7 +20,9 @@ export interface TextRange {
   end: number;
 }
 
-const WORD_CHAR = /[\p{L}\p{N}_]/u;
+/** Letters, digits, underscore and combining marks (a decomposed Vietnamese
+ * "e" + U+0301 still counts as one word character at a boundary). */
+const WORD_CHAR = /[\p{L}\p{N}\p{M}_]/u;
 
 /** Inline leaves that are not text (a hard break, an inline image, a note
  * reference) occupy one character that can never match a query. */
@@ -64,7 +66,13 @@ export function findTextRanges(text: string, query: string, options: FindOptions
 
 /** Every hit of `query` inside the editor's textblocks, in document order.
  * Each block is flattened first so a query can span the inline nodes of one
- * paragraph (a run split by a mark) but never two blocks. */
+ * paragraph (a run split by a mark) but never two blocks.
+ *
+ * Cost: one walk of the whole document per call (O(doc chars)); the panel calls
+ * it on each query keystroke and each document update, which is the same shape
+ * as the vendored upstream search and fine for realistic DOCX sizes. If it ever
+ * janks on very large documents, debounce the update listener in the panel
+ * rather than shrinking the scanned range. */
 export function findMatches(editor: Editor, query: string, options: FindOptions): FindMatch[] {
   const matches: FindMatch[] = [];
   if (query.length === 0) return matches;
@@ -107,6 +115,10 @@ export function clampMatchIndex(index: number, count: number): number {
   return Math.min(Math.max(index, 0), count - 1);
 }
 
+/** Marks the replace transaction so the panel's doc-update listener can skip
+ * its rescan: the handler immediately re-runs the search itself. */
+export const DOCX_FIND_REPLACE_META = "uniwork-docx-find-replace";
+
 /** Replace every hit in one transaction, last-to-first so earlier offsets stay
  * valid while the document changes under them. Returns how many were replaced.
  * A read-only editor is left untouched. */
@@ -114,6 +126,7 @@ export function replaceMatches(editor: Editor, matches: readonly FindMatch[], re
   if (matches.length === 0 || !editor.isEditable) return 0;
   const ordered = [...matches].sort((left, right) => right.from - left.from);
   editor.commands.command(({ tr }) => {
+    tr.setMeta(DOCX_FIND_REPLACE_META, true);
     for (const match of ordered) tr.insertText(replacement, match.from, match.to);
     return true;
   });

@@ -72,10 +72,11 @@ describe("foldCase / isFindWordChar", () => {
     expect(foldCase("İ")).toHaveLength(1);
   });
 
-  it("treats unicode letters, digits and underscore as word characters", () => {
+  it("treats unicode letters, digits, combining marks and underscore as word characters", () => {
     expect(isFindWordChar("a")).toBe(true);
     expect(isFindWordChar("3")).toBe(true);
     expect(isFindWordChar("_")).toBe(true);
+    expect(isFindWordChar("\u0301")).toBe(true);
     expect(isFindWordChar(" ")).toBe(false);
     expect(isFindWordChar(undefined)).toBe(false);
   });

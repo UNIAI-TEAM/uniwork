@@ -117,6 +117,54 @@ describe("DocxFindPanel", () => {
     expect(screen.getByTestId("docx-find-count")).toHaveTextContent("Không có kết quả");
   });
 
+  it("clears the replaced status when the replacement text changes", () => {
+    const editor = createEditor(["alpha"]);
+    renderPanel(editor);
+    search("alpha");
+    fireEvent.change(screen.getByTestId("docx-find-replace-input"), { target: { value: "omega" } });
+    fireEvent.click(screen.getByTestId("docx-find-replace"));
+    expect(screen.getByTestId("docx-find-status")).toHaveTextContent("Đã thay thế 1 kết quả");
+
+    fireEvent.change(screen.getByTestId("docx-find-replace-input"), { target: { value: "omega!" } });
+    expect(screen.getByTestId("docx-find-status")).toBeEmptyDOMElement();
+  });
+
+  it("clears the replaced status when the document changes", () => {
+    const editor = createEditor(["alpha"]);
+    renderPanel(editor);
+    search("alpha");
+    fireEvent.change(screen.getByTestId("docx-find-replace-input"), { target: { value: "omega" } });
+    fireEvent.click(screen.getByTestId("docx-find-replace-all"));
+    expect(screen.getByTestId("docx-find-status")).toHaveTextContent("Đã thay thế 1 kết quả");
+
+    act(() => {
+      editor.commands.insertContentAt(editor.state.doc.content.size, { type: "paragraph", content: [{ type: "text", text: "alpha again" }] });
+    });
+    expect(screen.getByTestId("docx-find-status")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("docx-find-count")).toHaveTextContent("1 / 1");
+  });
+
+  it("returns focus to the editor when it closes", async () => {
+    const editor = createEditor(["alpha"]);
+    const focus = vi.spyOn(editor.view, "focus");
+    renderPanel(editor);
+    search("alpha");
+
+    fireEvent.keyDown(screen.getByTestId("docx-find-input"), { key: "Escape" });
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it("disables the controls while no editor is mounted yet", () => {
+    render(<DocxFindPanel editor={null} onClose={vi.fn()} />);
+    expect(screen.getByTestId("docx-find-input")).toBeDisabled();
+    expect(screen.getByTestId("docx-find-match-case")).toBeDisabled();
+    expect(screen.getByTestId("docx-find-whole-word")).toBeDisabled();
+    expect(screen.getByTestId("docx-find-replace-input")).toBeDisabled();
+  });
+
   it("disables replace on a read-only document", () => {
     const editor = createEditor(["alpha"], false);
     renderPanel(editor);

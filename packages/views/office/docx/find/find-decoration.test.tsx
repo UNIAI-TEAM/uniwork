@@ -7,6 +7,7 @@ import {
   applyDocxFindHighlight,
   buildFindDecorations,
   clearDocxFindHighlight,
+  createDocxFindPlugin,
   docxFindPluginKey,
   mountDocxFindHighlight,
 } from "./find-decoration";
@@ -38,7 +39,7 @@ describe("find decorations", () => {
     applyDocxFindHighlight(editor, matches, 1);
     expect(docxFindPluginKey.getState(editor.state)?.find().map((decoration) => [decoration.from, decoration.to])).toEqual([
       [1, 6],
-      [11, 16],
+      [12, 17],
     ]);
     const hits = Array.from(editor.view.dom.querySelectorAll(".search-hit"));
     expect(hits.map((hit) => hit.getAttribute("data-docx-find"))).toEqual(["match", "active"]);
@@ -57,12 +58,20 @@ describe("find decorations", () => {
     const decorations = docxFindPluginKey.getState(editor.state)?.find() ?? [];
     expect(decorations.map((decoration) => [decoration.from, decoration.to])).toEqual([
       [4, 9],
-      [14, 19],
+      [15, 20],
     ]);
 
     clearDocxFindHighlight(editor);
     expect(docxFindPluginKey.getState(editor.state)?.find() ?? []).toHaveLength(0);
     unmount();
+  });
+
+  it("keeps a plugin the schema extension already mounted", () => {
+    const editor = editorWith(["alpha"]);
+    editor.registerPlugin(createDocxFindPlugin());
+    const unmount = mountDocxFindHighlight(editor);
+    unmount();
+    expect(docxFindPluginKey.getState(editor.state)).toBeDefined();
   });
 
   it("builds an empty set when nothing matched", () => {

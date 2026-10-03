@@ -1,24 +1,8 @@
-export { DocxFindPanel } from "./find-panel";
+// The find feature's public surface: the chrome-slot adapter the shell mounts,
+// the schema extension that publishes the live editor, and the open/close
+// commands (A9's Ctrl+F binding calls `toggleDocxFind`). Engine internals stay
+// in their modules; only tests import them directly.
+export { DocxFindPanel } from "./docx-find-panel";
 export type { DocxFindPanelProps } from "./find-panel";
-export {
-  applyDocxFindHighlight,
-  buildFindDecorations,
-  clearDocxFindHighlight,
-  createDocxFindPlugin,
-  docxFindPluginKey,
-  mountDocxFindHighlight,
-} from "./find-decoration";
-export type { FindHighlight } from "./find-decoration";
-export {
-  clampMatchIndex,
-  DEFAULT_FIND_OPTIONS,
-  findMatches,
-  findTextRanges,
-  foldCase,
-  isFindWordChar,
-  matchElement,
-  replaceMatches,
-  revealMatch,
-  stepMatchIndex,
-} from "./find-state";
-export type { FindMatch, FindOptions, TextRange } from "./find-state";
+export { DocxFindExtension, getDocxFindEditor, subscribeDocxFindEditor } from "./find-extension";
+export { closeDocxFind, isDocxFindOpen, subscribeDocxFind, toggleDocxFind } from "./find-store";

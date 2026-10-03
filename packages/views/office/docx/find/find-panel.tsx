@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import { CaseSensitive, ChevronDown, ChevronUp, WholeWord, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -12,6 +13,7 @@ import { applyDocxFindHighlight, clearDocxFindHighlight, mountDocxFindHighlight 
 import {
   clampMatchIndex,
   DEFAULT_FIND_OPTIONS,
+  DOCX_FIND_REPLACE_META,
   findMatches,
   replaceMatches,
   revealMatch,
@@ -32,8 +34,10 @@ export interface DocxFindPanelProps {
 }
 
 /**
- * Find & replace over the DOCX TipTap surface. The panel owns only the search
- * UI and the highlight lifetime; it never touches the save path or the schema.
+ * Find & replace over the DOCX TipTap surface: search UI, match state and the
+ * highlight updates. A document editor already carries the plugin from the
+ * schema extension (the mount below is a no-op there); a bare editor gets it
+ * from the panel. It never touches the save path.
  */
 export function DocxFindPanel({ editor, onClose, readOnly = false, className }: DocxFindPanelProps) {
   const { t } = useTranslation();
@@ -46,7 +50,9 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
   const searchRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const latest = useRef({ query, options, activeIndex });
-  latest.current = { query, options, activeIndex };
+  useEffect(() => {
+    latest.current = { query, options, activeIndex };
+  });
 
   const canReplace = Boolean(editor && !editor.isDestroyed && editor.isEditable && !readOnly);
 
@@ -80,7 +86,12 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return undefined;
-    const onUpdate = () => {
+    const onUpdate = (event: { transaction: Transaction }) => {
+      // A replace dispatch re-runs the search in the click handler itself;
+      // skipping its rescan here keeps one scan per replace instead of two.
+      if (event.transaction.getMeta(DOCX_FIND_REPLACE_META)) return;
+      // Any other document edit invalidates both the match set and the status.
+      setReplacedCount(null);
       const current = latest.current;
       runSearch(current.query, current.options, current.activeIndex);
     };
@@ -96,7 +107,11 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
   }, []);
 
   const close = useCallback(() => {
-    if (editor && !editor.isDestroyed) clearDocxFindHighlight(editor);
+    if (editor && !editor.isDestroyed) {
+      clearDocxFindHighlight(editor);
+      // Word hands focus back to the document when Find closes.
+      editor.commands.focus();
+    }
     onClose();
   }, [editor, onClose]);
 
@@ -193,6 +208,7 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
           }}
           variant="toolbar"
           size="sm"
+          disabled={!editor}
           aria-label={t("office.docx.find.matchCase")}
           data-testid="docx-find-match-case"
         >
@@ -207,6 +223,7 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
           }}
           variant="toolbar"
           size="sm"
+          disabled={!editor}
           aria-label={t("office.docx.find.wholeWord")}
           data-testid="docx-find-whole-word"
         >
@@ -255,7 +272,10 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
       <div className="mt-1.5 flex items-center gap-1">
         <Input
           value={replacement}
-          onChange={(event) => setReplacement(event.target.value)}
+          onChange={(event) => {
+            setReplacement(event.target.value);
+            setReplacedCount(null);
+          }}
           onKeyDown={(event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
@@ -291,7 +311,6 @@ export function DocxFindPanel({ editor, onClose, readOnly = false, className }: 
       <p
         className="mt-1 min-h-4 text-caption text-muted-foreground"
         role="status"
-        aria-live="polite"
         data-testid="docx-find-status"
       >
         {status}

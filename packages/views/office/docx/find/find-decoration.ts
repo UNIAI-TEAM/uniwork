@@ -56,8 +56,11 @@ export function createDocxFindPlugin(): Plugin<DecorationSet> {
 }
 
 /** Register the highlight plugin on a live editor. Returns the cleanup that
- * unregisters it (the host or the panel owns the lifetime). */
+ * unregisters it (the host or the panel owns the lifetime). A document editor
+ * already carries the plugin from the schema extension (find-extension.ts), so
+ * there this is a no-op; a bare editor (tests, standalone use) registers it. */
 export function mountDocxFindHighlight(editor: Editor): () => void {
+  if (docxFindPluginKey.get(editor.state)) return () => {};
   editor.registerPlugin(createDocxFindPlugin());
   return () => {
     if (editor.isDestroyed) return;
