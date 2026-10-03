@@ -35,6 +35,9 @@ export type PdfEngineOperation =
   | { op: "putTextEdit"; attributes: { pageIndex: number; rect: [number, number, number, number]; oldText: string; newText: string; fontSize: number } }
   | { op: "addMarkup"; attributes: { markup: { pageIndex: number; type: "highlight" | "underline" | "strikeout"; color: [number, number, number]; quads: number[][] } } }
   | { op: "addDrawing"; attributes: { drawing: { pageIndex: number; kind: "rect" | "ellipse" | "line" | "arrow" | "ink"; geometry: { rect: { x: number; y: number; width: number; height: number } } | { start: { x: number; y: number }; end: { x: number; y: number } } | { points: { x: number; y: number }[] }; color: [number, number, number]; width: number; fill?: [number, number, number] } } }
+  | { op: "addNote"; attributes: { note: { pageIndex: number; rect: [number, number, number, number]; contents: string; author?: string; replyTo?: { objNum: number; rect: [number, number, number, number]; contents: string } } } }
+  | { op: "editSavedNote"; attributes: { pageIndex: number; objNum: number; rect: [number, number, number, number]; oldContents: string; contents: string } }
+  | { op: "resolveNote"; attributes: { pageIndex: number; objNum: number; rect: [number, number, number, number]; contents: string; resolved: boolean } }
   | { op: "addImageEdit"; attributes: { kind: "replaceImage"; pageIndex: number; oldRect: [number, number, number, number]; rect: [number, number, number, number]; image: string; layer?: "belowText" | "aboveText" } }
   | { op: "deletePage"; attributes: { pageIndex: number } }
   | { op: "rotatePages"; attributes: { pages: number[]; dir: 90 | -90 | 180 } }
@@ -62,6 +65,23 @@ function pageIndex(page: number, operation: string, order?: readonly number[]): 
     throw new PdfOpsBridgeError("invalid_target", operation, "page is outside the current page order");
   }
   return original;
+}
+
+function noteRect(rect: readonly number[], operation: string): [number, number, number, number] {
+  if (rect.length !== 4 || !rect.every(Number.isFinite) || rect[2]! <= rect[0]! || rect[3]! <= rect[1]!) {
+    throw new PdfOpsBridgeError("invalid_target", operation, "note rect must have finite positive bounds");
+  }
+  return [rect[0]!, rect[1]!, rect[2]!, rect[3]!];
+}
+
+function noteText(value: string, operation: string): string {
+  if (typeof value !== "string" || value.trim() === "") throw new PdfOpsBridgeError("invalid_target", operation, "note contents must be non-empty");
+  return value;
+}
+
+function noteIdentity(target: { page: number; objNum: number; rect: [number, number, number, number]; contents: string }, operation: string, order?: readonly number[]) {
+  if (!Number.isSafeInteger(target.objNum) || target.objNum < 0) throw new PdfOpsBridgeError("invalid_target", operation, "note object id must be a non-negative integer");
+  return { pageIndex: pageIndex(target.page, operation, order), objNum: target.objNum, rect: noteRect(target.rect, operation), contents: noteText(target.contents, operation) };
 }
 
 function objectMetadata(
@@ -206,6 +226,23 @@ export async function bridgePdfOperations(
       case "add_drawing":
         bridged.push(drawingOperation(operation, order));
         break;
+      case "add_note": {
+        const note = operation.target;
+        const parent = note.replyTo ? noteIdentity({ page: note.page, ...note.replyTo }, operation.op, order) : undefined;
+        bridged.push({ op: "addNote", attributes: { note: { pageIndex: pageIndex(note.page, operation.op, order), rect: noteRect(note.rect, operation.op), contents: noteText(note.contents, operation.op), ...(note.author === undefined ? {} : { author: note.author }), ...(parent ? { replyTo: { objNum: parent.objNum, rect: parent.rect, contents: parent.contents } } : {}) } } });
+        break;
+      }
+      case "edit_note": {
+        const target = noteIdentity(operation.target, operation.op, order);
+        bridged.push({ op: "editSavedNote", attributes: { pageIndex: target.pageIndex, objNum: target.objNum, rect: target.rect, oldContents: target.contents, contents: noteText(operation.contents, operation.op) } });
+        break;
+      }
+      case "resolve_note": {
+        const target = noteIdentity(operation.target, operation.op, order);
+        if (typeof operation.resolved !== "boolean") throw new PdfOpsBridgeError("invalid_target", operation.op, "resolved must be boolean");
+        bridged.push({ op: "resolveNote", attributes: { ...target, resolved: operation.resolved } });
+        break;
+      }
       case "replace_text":
         bridged.push(await textOperation(operation, options, order));
         break;

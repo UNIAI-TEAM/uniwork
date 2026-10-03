@@ -23,7 +23,7 @@ describe("createPdfNoteOperationProvider", () => {
     });
     await provider.replyToNote({ replyTo: identity, contents: "Trả lời" });
     expect(submitted).toEqual([
-      [{ op: "addNote", attributes: { note: { pageIndex: 2, rect: [10, 20, 30, 40], contents: "Trả lời", replyTo: identity } } }],
+      [{ op: "addNote", attributes: { note: { pageIndex: 2, rect: [10, 20, 30, 40], contents: "Trả lời", replyTo: { objNum: 7, rect: [10, 20, 30, 40], contents: "Gốc" } } } }],
     ]);
   });
 

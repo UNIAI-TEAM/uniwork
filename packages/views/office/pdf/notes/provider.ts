@@ -9,6 +9,7 @@ import type {
   PdfNoteReplyInput,
   PdfNoteResolveInput,
 } from "./types";
+import { bridgePdfOperations } from "../ops-bridge";
 
 export class PdfNoteProviderError extends Error {
   readonly code = "invalid_input" as const;
@@ -48,46 +49,32 @@ function identity(value: PdfNoteIdentity): PdfNoteIdentity {
  * providers this one never resolves `pageOrder` — a reordered display must map
  * back to the original index before calling. */
 export function createPdfNoteOperationProvider(submitter: PdfNoteOperationSubmitter): PdfNoteOperationProvider {
-  const submit = (operation: PdfNoteEngineOperation): Promise<void> | void => submitter.submit([operation]);
+  const submit = async (operation: Parameters<typeof bridgePdfOperations>[0][number]): Promise<void> => {
+    const bridged = await bridgePdfOperations([operation]);
+    await submitter.submit(bridged as readonly PdfNoteEngineOperation[]);
+  };
   return {
     async addNote(input: PdfNoteAddInput) {
       const note = {
-        pageIndex: pageIndex(input.pageIndex),
+        page: pageIndex(input.pageIndex) + 1,
         rect: rect(input.rect),
         contents: contents(input.contents, "contents"),
         ...(input.author === undefined ? {} : { author: input.author }),
       };
-      await submit({ op: "addNote", attributes: { note } });
+      await submit({ op: "add_note", target: note });
     },
     async replyToNote(input: PdfNoteReplyInput) {
       const parent = identity(input.replyTo);
-      await submit({
-        op: "addNote",
-        attributes: {
-          note: {
-            pageIndex: parent.pageIndex,
-            rect: parent.rect,
-            contents: contents(input.contents, "contents"),
-            replyTo: parent,
-            ...(input.author === undefined ? {} : { author: input.author }),
-          },
-        },
-      });
+      await submit({ op: "add_note", target: { page: parent.pageIndex + 1, rect: parent.rect, contents: contents(input.contents, "contents"), replyTo: { objNum: parent.objNum, rect: parent.rect, contents: parent.contents }, ...(input.author === undefined ? {} : { author: input.author }) } });
     },
     async editNote(input: PdfNoteEditInput) {
       const target = identity(input.identity);
-      await submit({
-        op: "editSavedNote",
-        attributes: { pageIndex: target.pageIndex, objNum: target.objNum, rect: target.rect, oldContents: target.contents, contents: contents(input.contents, "contents") },
-      });
+      await submit({ op: "edit_note", target: { page: target.pageIndex + 1, objNum: target.objNum, rect: target.rect, contents: target.contents }, contents: contents(input.contents, "contents") });
     },
     async resolveNote(input: PdfNoteResolveInput) {
       const target = identity(input.identity);
       if (typeof input.resolved !== "boolean") throw new PdfNoteProviderError("resolved must be a boolean");
-      await submit({
-        op: "resolveNote",
-        attributes: { pageIndex: target.pageIndex, objNum: target.objNum, rect: target.rect, contents: target.contents, resolved: input.resolved },
-      });
+      await submit({ op: "resolve_note", target: { page: target.pageIndex + 1, objNum: target.objNum, rect: target.rect, contents: target.contents }, resolved: input.resolved });
     },
   };
 }
