@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
 import type { RendererBridge } from "../app";
+import { createByteTestEditor } from "../../test/byte-editor";
 
 const identity = { deploymentId: "lane", accountId: "account-1", organizationId: "org-1", workspaceId: "ws-1", documentId: "doc-1", generation: 1, baseRevision: "1", baseVersionId: "v1" };
 const checksum = `sha256:${"a".repeat(64)}`;
@@ -18,7 +19,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
     call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as RendererBridge["call"],
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum });
+  const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} kind="cloud" signedIn onBack={() => undefined} />);
   return { calls, session };
 }

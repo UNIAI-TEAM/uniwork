@@ -85,11 +85,6 @@ export function LibraryView({
           <Button type="submit">{t("search")}</Button>
         </form>
       ) : null}
-      {!engineAvailable && documents.length > 0 ? (
-        <p role="status" className="text-body text-muted-foreground">
-          {t("engineDown")}
-        </p>
-      ) : null}
       {error ? (
         <div className="flex flex-col gap-3" role="alert">
           <p className="text-body text-muted-foreground">{t("error")}</p>

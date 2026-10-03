@@ -3,7 +3,7 @@
 // packaged runtime.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { fileOpenRequestedSchema, loginRequestedEventSchema } from "../shared/ipc";
+import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, type LeaveExpiredEvent } from "../shared/ipc";
 import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type LoginRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
@@ -20,6 +20,7 @@ export type DesktopRendererBridge = {
   onOfficeSaveRequested(listener: (event: OfficeSaveRequestedEvent) => void): () => void;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
   onLeaveRequested(listener: (event: LeaveRequestedEvent) => void): () => void;
+  onLeaveExpired(listener: (event: LeaveExpiredEvent) => void): () => void;
   openDroppedFile(file: File): Promise<unknown>;
   onFileOpenRequested(listener: (event: { handle: string }) => void): () => void;
   onLoginRequested(listener: (event: LoginRequestedEvent) => void): () => void;
@@ -32,6 +33,7 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
   let launchListener: ((event: LaunchRequestedEvent) => void) | undefined;
   let pendingLeave: LeaveRequestedEvent | undefined;
   let leaveListener: ((event: LeaveRequestedEvent) => void) | undefined;
+  let leaveExpiredListener: ((event: LeaveExpiredEvent) => void) | undefined;
   let pendingLogin: LoginRequestedEvent | undefined;
   let loginListener: ((event: LoginRequestedEvent) => void) | undefined;
   ipcRenderer.on?.("desktop:login-requested", (...args: unknown[]) => {
@@ -45,6 +47,12 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     if (!parsed.success) return;
     if (leaveListener) leaveListener(parsed.data);
     else pendingLeave = parsed.data;
+  });
+  ipcRenderer.on?.("desktop:leave-expired", (...args: unknown[]) => {
+    const parsed = leaveExpiredEventSchema.safeParse(args.at(-1));
+    if (!parsed.success) return;
+    if (pendingLeave?.requestId === parsed.data.requestId) pendingLeave = undefined;
+    leaveExpiredListener?.(parsed.data);
   });
   ipcRenderer.on?.("desktop:file-open-requested", (...args: unknown[]) => {
     const parsed = fileOpenRequestedSchema.safeParse(args.at(-1));
@@ -94,6 +102,10 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
       leaveListener = listener;
       if (pendingLeave) { const event = pendingLeave; pendingLeave = undefined; listener(event); }
       return () => { if (leaveListener === listener) leaveListener = undefined; };
+    },
+    onLeaveExpired(listener) {
+      leaveExpiredListener = listener;
+      return () => { if (leaveExpiredListener === listener) leaveExpiredListener = undefined; };
     },
     onLoginRequested(listener) {
       loginListener = listener;

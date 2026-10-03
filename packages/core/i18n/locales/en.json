@@ -7149,7 +7149,8 @@
       "discard": "Discard changes",
       "stay": "Stay",
       "working": "Working…",
-      "write_failed": "The action could not be confirmed. The document stays open."
+      "write_failed": "The action could not be confirmed. The document stays open.",
+      "timeout": "The leave request expired. The document stays open."
     },
     "recovery": {
       "title": "Draft found",
@@ -7739,6 +7740,7 @@
       "back": "Back to library",
       "untitled": "Untitled.docx",
       "saveLocal": "Save file",
+      "saveAs": "Save As…",
       "unsupported": "This format is not supported on desktop yet.",
       "local": "Local file",
       "ownerUnknown": "Workspace member",

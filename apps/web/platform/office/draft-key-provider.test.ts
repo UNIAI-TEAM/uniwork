@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeDraftKeyUnwrapPort } from "@uniwork/core/office/draft-key-port";
 import { createDraftKeyProvider } from "./draft-key-provider";
 
@@ -107,6 +107,24 @@ async function wrappingKey(): Promise<CryptoKey> {
 }
 
 const originalIndexedDb = globalThis.indexedDB;
+
+// Temporary cloud diagnostic: retain the real crypto call and its rejection.
+// Never emit arguments, exception messages, keys, bytes or draft identities.
+beforeEach(() => {
+  for (const operation of ["generateKey", "encrypt", "wrapKey", "unwrapKey", "decrypt", "digest"] as const) {
+    const original = crypto.subtle[operation];
+    vi.spyOn(crypto.subtle, operation).mockImplementation((async (...args: unknown[]) => {
+      try { return await Reflect.apply(original, crypto.subtle, args); }
+      catch (error) {
+        const failure = error as { name?: unknown; code?: unknown };
+        const name = typeof failure?.name === "string" && /^(Error|TypeError|DOMException|OperationError|DataError|InvalidAccessError|NotSupportedError|SyntaxError)$/.test(failure.name) ? failure.name : "unknown";
+        const code = typeof failure?.code === "number" ? failure.code : typeof failure?.code === "string" && /^[A-Z0-9_]{1,64}$/.test(failure.code) ? failure.code : "unknown";
+        console.info("draft-crypto-diagnostic", { operation, name, code });
+        throw error;
+      }
+    }) as typeof original);
+  }
+});
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -79,6 +79,9 @@ describe("DOCX renderer stylesheet (T-01)", () => {
       expect(root).not.toBeNull();
       const pageWrap = root?.querySelector(":scope > .workspace > .editor-scroll > .doc-zoom.view-print > .page-wrap");
       expect(pageWrap).not.toBeNull();
+      const scroll = root?.querySelector<HTMLElement>(":scope > .workspace > .editor-scroll");
+      expect(scroll?.style.backgroundColor).toBe("var(--canvas)");
+      expect(scroll?.style.backgroundAttachment).toBe("local");
       // TipTap's EditorContent renders one wrapper div around the ProseMirror
       // root (upstream mounts it the same way: <EditorContent editor={editor} />)
       // and .doc-page comes from editorProps on the ProseMirror element.

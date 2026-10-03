@@ -20,12 +20,13 @@ import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
+import { createLiveDraftAccess } from "./main/drafts/live-access";
 import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
 import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
-import { leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
+import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
 import { createOpenedDocuments, sameDocumentSession } from "./main/opened-documents";
 import { createDocumentLeaveEvidence } from "./main/document-leave";
 import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
@@ -402,26 +403,16 @@ async function startElectronHost(): Promise<void> {
     return { deploymentId: deploymentProfile.deploymentId, accountId: metadata.accountId, organizationId, workspaceId: document.workspaceId, documentId: document.id, base: { version: String(document.version), revision: document.revision } };
   };
   const liveDraftContext = (documentId: string): { session: DraftSession; identity: DraftIdentity } | undefined => documents.context(documentId);
-  /** A recovery is never granted from cached access: for a cloud document the
-   * live workspace list is re-read (bounded pagination) and the document's edit
-   * ACL re-checked, so a document beyond the first page is not failed closed. */
-  const liveDraftAccess = async (documentId: string): Promise<"edit" | "none"> => {
-    const active = documents.context(documentId);
-    if (!active) return "none";
-    if (active.kind === "local") return "edit";
-    if (!officeTransport) return "none";
-    try {
-      let cursor: string | undefined;
-      for (let page = 0; page < 5; page += 1) {
-        const result = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list", ...(cursor ? { cursor } : {}) });
-        const document = result.documents.find((row) => row.id === active.identity.documentId);
-        if (document) return document.canEdit ? "edit" : "none";
-        if (!result.nextCursor) break;
-        cursor = result.nextCursor;
-      }
-      return "none";
-    } catch { return "none"; }
-  };
+  /** Cloud draft recovery must use a fresh detail ACL, because list summaries
+   * deliberately omit my_level. The helper also rejects a tab/session switch
+   * while the authenticated detail request is in flight. */
+  const liveDraftAccess = (documentId: string): Promise<"edit" | "none"> => createLiveDraftAccess({
+    context: () => {
+      const active = documents.context(documentId);
+      return active ? { kind: active.kind, session: active.session, identity: active.identity } : undefined;
+    },
+    readAccess: officeTransport?.readDocumentAccess,
+  })();
   const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => {
     // A normal Save keeps the existing draft base until its matching durable
     // row is consumed by the renderer.
@@ -449,7 +440,8 @@ async function startElectronHost(): Promise<void> {
   const leave = createDesktopLeaveCoordinator({
     send: (request) => { leaveEvidence.capture(request.reason); window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
     ...leaveEvidence,
-    timeoutMs: 60_000,
+    timeoutMs: 30_000,
+    onTimeout: (requestId) => { window.webContents.send("desktop:leave-expired", leaveExpiredEventSchema.parse({ requestId })); },
   });
   let closeApproved = false;
   window.on("close", (event) => {
