@@ -165,6 +165,21 @@ describe("adaptive collapse", () => {
     fireEvent.click(within(inPanel).getByRole("button", { name: "Cut" }));
     expect(actions.cut).toHaveBeenCalledOnce();
   });
+
+  it("keeps the folded group caption inside its button instead of shrinking it below its line box", () => {
+    // jsdom has no layout, so this pins the classes that stop the flex column
+    // from shrinking the caption below its line box (visual r5 M-2).
+    stubRibbonWidth(120);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    const button = within(group("Clipboard")).getByRole("button", { name: /Clipboard/ });
+    expect(button).toHaveAttribute("data-ribbon-group-button", "clipboard");
+    expect(button.className).toContain("justify-center");
+    const label = button.querySelector("span") as HTMLElement;
+    expect(label).toHaveTextContent("Clipboard");
+    expect(label).toHaveAttribute("title", "Clipboard");
+    expect(label.className).toContain("shrink-0");
+    expect(label.className).not.toContain("line-clamp");
+  });
 });
 
 describe("collapse to tabs only", () => {

@@ -115,14 +115,14 @@ export function RibbonGroupButton({ group, variant }: { group: RibbonGroup; vari
             data-ribbon-group-button={group.id}
             className={
               variant === "large"
-                ? "h-full min-w-15 flex-col justify-start gap-1 px-1.5 py-1.5 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6"
+                ? "h-full min-w-15 flex-col justify-center gap-0.5 px-1.5 py-0.5 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6"
                 : "h-9 shrink-0 gap-1.5 px-2.5 text-label font-normal"
             }
           />
         }
       >
         <Icon aria-hidden />
-        <span className={variant === "large" ? "line-clamp-2 max-w-20 text-center leading-tight" : undefined}>{caption}</span>
+        <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-20 text-center leading-tight" : undefined}>{caption}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
       <GroupPanel group={group} />
