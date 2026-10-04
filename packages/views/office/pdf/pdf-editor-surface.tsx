@@ -12,7 +12,7 @@ import type { PdfSearchHit } from "./find/types";
 import { createPdfFormOperationProvider } from "./forms";
 import type { PdfFormField } from "./forms";
 import { createPdfNoteOperationProvider } from "./notes";
-import type { PdfNoteAddTarget } from "./notes";
+import type { PdfNoteAddTarget, PdfNoteThread } from "./notes";
 import { PdfPages } from "./pages/pdf-pages";
 import { PdfEditorPanels, type PdfEditorPanelId, type PdfEditorPanelSlots } from "./pdf-editor-panels";
 import { createPdfStampOperationProvider } from "./stamps/provider";
@@ -23,7 +23,7 @@ import type { PdfEditOperation, PdfEditorHandle, PdfFontReport, PdfPage, PdfSele
 export type PdfSurfacePanelId = PdfEditorPanelId | "pages";
 
 /** The handle members the surface uses; no snapshot type, so any host's handle fits. */
-export type PdfSurfaceEditor = Pick<PdfEditorHandle, "edit" | "renderer" | "getCanvasPages" | "submitEngineOperations" | "readFormFields" | "searchText">;
+export type PdfSurfaceEditor = Pick<PdfEditorHandle, "edit" | "renderer" | "getCanvasPages" | "submitEngineOperations" | "readFormFields" | "searchText" | "readSavedNotes">;
 
 /** Runs one document change: the shell serialises it, marks the save coordinator
  * dirty on success and records a translated failure on error (then rethrows so a
@@ -101,6 +101,8 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
   const [stampPlacement, setStampPlacement] = useState<PdfStampPlacement | null>(null);
   const [formFields, setFormFields] = useState<readonly PdfFormField[] | undefined>(undefined);
   const [formsError, setFormsError] = useState<string | null>(null);
+  const [noteThreads, setNoteThreads] = useState<readonly PdfNoteThread[] | undefined>(undefined);
+  const [notesError, setNotesError] = useState<string | null>(null);
   // The translation key of the last partial-apply warning, or null.
   const [skipped, setSkipped] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -153,6 +155,18 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
     return () => { cancelled = true; };
   }, [editor, formsOpen, revision, t]);
 
+  const notesOpen = activePanel === "notes";
+  useEffect(() => {
+    const read = editor.readSavedNotes;
+    if (!notesOpen || !read) return;
+    let cancelled = false;
+    setNotesError(null);
+    read().then((threads) => { if (!cancelled) setNoteThreads(threads); }).catch(() => {
+      if (!cancelled) { setNoteThreads([]); setNotesError(t("office.pdf.notes.error")); }
+    });
+    return () => { cancelled = true; };
+  }, [editor, notesOpen, revision, t]);
+
   useEffect(() => {
     const search = editor.searchText;
     if (!findOpen || !search || query.trim() === "") { setHits([]); setFinding(false); return; }
@@ -197,10 +211,10 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
       disabled: !canEdit,
       onMarkup: (operation) => { editOps([operation]).then(() => setMarkupSelection(null)).catch(noop); },
     },
-    notes: { threads: [], provider: noteProvider, addTarget, disabled: !canEngine, onApplied: () => setAddTarget(null) },
+    notes: { threads: noteThreads ?? [], provider: noteProvider, addTarget, loading: notesOpen && noteThreads === undefined && notesError === null, error: notesError, disabled: !canEngine, onApplied: () => setAddTarget(null) },
     stamps: { placement: stampPlacement, provider: stampProvider, disabled: !canEngine },
     forms: { fields: formFields, provider: formProvider, loading: formsOpen && formFields === undefined && formsError === null, error: formsError, disabled: !canEngine },
-  }), [addTarget, canEdit, canEngine, editOps, formFields, formProvider, formsError, formsOpen, markupSelection, noteProvider, stampPlacement, stampProvider]);
+  }), [addTarget, canEdit, canEngine, editOps, formFields, formProvider, formsError, formsOpen, markupSelection, noteProvider, noteThreads, notesError, notesOpen, stampPlacement, stampProvider]);
 
   const hint = activePanel === "markups" ? (markupSelection ? t("office.pdf.surface.areaSelected", { page: markupSelection.page }) : t("office.pdf.surface.hintRegion"))
     : activePanel === "notes" ? t("office.pdf.surface.hintNote")

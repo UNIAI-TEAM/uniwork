@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PdfEditor } from "./pdf-editor";
 import type { PdfCanvasPage, PdfPageRenderService } from "./canvas";
+import type { PdfNoteThread } from "./notes";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
 
 initI18n();
@@ -61,6 +62,12 @@ function pageBackground(page: number) {
   return within(screen.getByTestId(`pdf-page-${page}`)).getByRole("button", { name: `Page ${page} background` });
 }
 
+const SAVED_NOTE: PdfNoteThread = {
+  id: "t1",
+  root: { id: "n1", page: 2, pageIndex: 1, objNum: 7, rect: [10, 20, 30, 40], contents: "Saved note", author: "An" },
+  replies: [],
+};
+
 describe("PdfEditorSurface", () => {
   it("draws the pages through the host renderer instead of the empty box", async () => {
     const { handle, renderer } = host();
@@ -96,6 +103,38 @@ describe("PdfEditorSurface", () => {
     await waitFor(() => expect(handle.submitEngineOperations).toHaveBeenCalledTimes(1));
     expect(handle.submitEngineOperations).toHaveBeenCalledWith([{ op: "addNote", attributes: { note: { pageIndex: 1, rect: [30, 226, 54, 250], contents: "Check this" } } }]);
     await waitFor(() => expect(save.markDirty).toHaveBeenCalledWith(7));
+  });
+
+  it("shows the saved note threads the host reads from the file", async () => {
+    const readSavedNotes = vi.fn(async () => [SAVED_NOTE]);
+    const { handle } = host({ readSavedNotes });
+    await mount(handle);
+    openAnnotate("Note");
+    expect(await screen.findByText("Saved note")).toBeInTheDocument();
+    expect(readSavedNotes).toHaveBeenCalled();
+    expect(screen.queryByText("No notes in this document.")).not.toBeInTheDocument();
+  });
+
+  it("shows the loading state, never a false empty state, until the note reader resolves", async () => {
+    let resolve: (threads: readonly PdfNoteThread[]) => void = () => undefined;
+    const pending = new Promise<readonly PdfNoteThread[]>((done) => { resolve = done; });
+    const { handle } = host({ readSavedNotes: vi.fn(() => pending) });
+    await mount(handle);
+    openAnnotate("Note");
+    expect(screen.getByTestId("pdf-notes-loading")).toBeInTheDocument();
+    expect(screen.queryByText("No notes in this document.")).not.toBeInTheDocument();
+    await act(async () => { resolve([SAVED_NOTE]); });
+    expect(await screen.findByText("Saved note")).toBeInTheDocument();
+  });
+
+  it("keeps the editor alive and shows a translated message when reading saved notes fails", async () => {
+    const { handle } = host({ readSavedNotes: vi.fn(async () => { throw new Error("engine down"); }) });
+    await mount(handle);
+    openAnnotate("Note");
+    await waitFor(() => expect(screen.getAllByRole("alert").some((node) => node.textContent?.includes("could not be applied"))).toBe(true));
+    expect(screen.queryByText(/engine down/)).not.toBeInTheDocument();
+    expect(screen.queryByText("No notes in this document.")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument();
   });
 
   it("switches the page tool to point for stamps", async () => {

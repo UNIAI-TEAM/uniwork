@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { PdfNoteIdentity, PdfNoteRow, PdfNoteThread, PdfNotesPanelProps } from "./types";
@@ -17,7 +18,7 @@ function identityOf(row: PdfNoteRow): PdfNoteIdentity {
  * cannot act on stays visible as read-only, so users are not misled into
  * thinking the host dropped it.
  */
-export function PdfNotesPanel({ threads, provider, addTarget, disabled = false, className, onApplied }: PdfNotesPanelProps) {
+export function PdfNotesPanel({ threads, provider, addTarget, loading = false, error = null, disabled = false, className, onApplied }: PdfNotesPanelProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [replyingId, setReplyingId] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export function PdfNotesPanel({ threads, provider, addTarget, disabled = false, 
   return (
     <section className={cn("grid gap-2", className)} data-testid="pdf-notes-panel" aria-label={t("office.pdf.notes.title")}>
       <h2 className="text-label font-medium">{t("office.pdf.notes.title")}</h2>
+      {error !== null ? <p role="alert" className="text-caption text-destructive">{error === "" ? t("office.pdf.notes.error") : error}</p> : null}
       {canCompose ? (
         <div className="grid gap-1" data-testid="pdf-note-add">
           <label className="sr-only" htmlFor="pdf-note-add-draft">{t("office.pdf.notes.add")}</label>
@@ -78,7 +80,14 @@ export function PdfNotesPanel({ threads, provider, addTarget, disabled = false, 
           </div>
         </div>
       ) : null}
-      {threads.length === 0 ? <p className="text-caption text-muted-foreground">{t("office.pdf.notes.empty")}</p> : (
+      {loading ? (
+        <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground" data-testid="pdf-notes-loading">
+          <Spinner aria-hidden className="size-3.5" />
+          {t("common.loading")}
+        </p>
+      ) : null}
+      {!loading && error === null && threads.length === 0 ? <p className="text-caption text-muted-foreground">{t("office.pdf.notes.empty")}</p> : null}
+      {!loading && threads.length > 0 ? (
         <ul className="grid gap-2" aria-label={t("office.pdf.notes.title")}>
           {threads.map((thread) => (
             <li key={thread.id} className="grid gap-1 rounded-md border border-border px-2 py-1.5" data-testid={`pdf-note-thread-${thread.id}`}>
@@ -139,7 +148,7 @@ export function PdfNotesPanel({ threads, provider, addTarget, disabled = false, 
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
       <p className="text-caption text-muted-foreground">{t("office.pdf.notes.contentNotice")}</p>
     </section>
   );

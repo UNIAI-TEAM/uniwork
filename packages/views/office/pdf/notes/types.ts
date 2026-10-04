@@ -111,6 +111,10 @@ export interface PdfNotesPanelProps {
   provider?: PdfNoteOperationProvider;
   /** Shows the compose form for a new root note at this anchor. */
   addTarget?: PdfNoteAddTarget | null;
+  /** The host is still reading saved threads; the panel must not claim "no notes". */
+  loading?: boolean;
+  /** Host read failure, shown as an alert instead of a fabricated thread list. */
+  error?: string | null;
   disabled?: boolean;
   className?: string;
   onApplied?: () => void;

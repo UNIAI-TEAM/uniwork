@@ -10,6 +10,7 @@ import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
 import type { PdfCanvasPage, PdfPageRenderService } from "./canvas/types";
 import type { PdfSearchHit } from "./find/types";
 import type { PdfFormField } from "./forms/types";
+import type { PdfNoteThread } from "./notes/types";
 
 /** A selection is an adapter identity, never a DOM range or a decoded PDF object. */
 export interface PdfSelection {
@@ -92,6 +93,8 @@ export type PdfEditorHandle<TSnapshot = PdfSnapshot> = EditorHandle<TSnapshot> &
     /** Engine-envelope operations (camelCase) from the panel providers. */
     submitEngineOperations?(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] } | void>;
     readFormFields?(): Promise<readonly PdfFormField[]>;
+    /** Saved note threads read from the file; absent when the host cannot read them. */
+    readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
     searchText?(query: string): Promise<readonly PdfSearchHit[]>;
     /** Fires when the document bytes changed (edit, undo, redo). */
     subscribe?(listener: () => void): () => void;
