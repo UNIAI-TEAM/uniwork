@@ -18,6 +18,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["platform/**/*.test.{ts,tsx}"],
+    // The pptx view graph registers i18n bundles at import time; initialize the
+    // shared instance before each test module so that registration is a no-op
+    // instead of a TypeError (see test/setup.ts).
+    setupFiles: ["./test/setup.ts"],
     ...vitestPoolOptions(),
     // The 20k-document DOM fuzz tests sit near 30 s under v8 coverage with
     // other files in parallel on this Windows checkout (measured 25-29 s in

@@ -48,9 +48,16 @@ export function pptxShowResources(locale: "en" | "vi"): Record<string, unknown> 
   return out;
 }
 
-/** Register the show keys for every locale whose bundle is already loaded. */
+/**
+ * Register the show keys for every locale whose bundle is already loaded.
+ *
+ * Guarded so registration can never break an import: a host that never
+ * initialized the shared instance (or a test that stubs react-i18next) makes
+ * getI18n() return undefined, and there is then simply nothing to register.
+ */
 export function registerPptxShowI18n(): void {
   const i18n = getI18n();
+  if (!i18n) return;
   for (const locale of ["en", "vi"] as const) {
     if (!i18n.hasResourceBundle(locale, "translation")) continue;
     i18n.addResourceBundle(locale, "translation", pptxShowResources(locale), true, false);
@@ -60,6 +67,8 @@ export function registerPptxShowI18n(): void {
 registerPptxShowI18n();
 {
   const i18n = getI18n();
-  i18n.on("initialized", () => { registerPptxShowI18n(); });
-  i18n.on("languageChanged", () => { registerPptxShowI18n(); });
+  if (i18n) {
+    i18n.on("initialized", () => { registerPptxShowI18n(); });
+    i18n.on("languageChanged", () => { registerPptxShowI18n(); });
+  }
 }

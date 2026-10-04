@@ -9,10 +9,21 @@ import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import type { PptxSessionRuntime } from "./pptx-runtime";
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+  // The adapter's import graph registers the per-panel i18n bundles at module
+  // load (charts/animations/transitions/show). A mock without getI18n makes
+  // that registration throw before any test can run, so it returns a minimal
+  // no-op instance: nothing is registered and nothing throws.
+  getI18n: () => ({ hasResourceBundle: () => false, addResourceBundle: () => undefined, on: () => undefined }),
+}));
 vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   buildRenderSlide: () => ({ nodes: [], widthPx: 960, heightPx: 540 }),
   makeViewport: (size: { cx: number; cy: number }, fitWidthPx: number) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+  // pptx-runtime reads getSlideNotes off the artifact namespace at module load
+  // (an optional member); the mock must carry it or the import throws before
+  // any test runs. The suite drives a fake runtime, so it is never called.
+  getSlideNotes: () => "",
 }));
 import { createPptxFormatAdapter, makePptxEditorHost, type PptxEditorHandle } from "./pptx-adapter";
 import type { PptxDocumentsTransport } from "./pptx-save-transport";

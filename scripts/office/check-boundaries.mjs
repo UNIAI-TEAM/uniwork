@@ -105,6 +105,13 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // mounts @uniwork/views/office/docx. The view graph is browser code (it binds
   // the pptx artifact and office-engine/pptx, both already allowlisted).
   "@uniwork/views/office/pptx",
+  // UNI-927 F9: the web adapter imports PptxEditor and the slide-rail types
+  // directly. They are the same browser-safe pptx view graph as the barrel
+  // above - only the subpath entry differs - so both subpaths are allowlisted
+  // rather than routed through the barrel (PptxEditor is not barrel-exported;
+  // only PptxEditorView is).
+  "@uniwork/views/office/pptx/editor-view",
+  "@uniwork/views/office/pptx/slide-rail",
 ]);
 const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 
