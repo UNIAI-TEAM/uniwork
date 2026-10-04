@@ -96,6 +96,21 @@ it("shows the typed locked notice when recovery is refused by a locked store", a
 
 it("shows no recovery prompt when the store holds no draft for this document", async () => {
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
-  await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("office.ribbon.more") })).toBeInTheDocument());
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
+});
+
+it("keeps ONE primary Save in the header and moves Save As and back into the document menu", async () => {
+  mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
+  await waitFor(() => expect(screen.getByTestId("office-save-ready")).toBeInTheDocument());
+
+  // The header cluster is Save + the overflow trigger only: no Save As or
+  // back-to-library outline buttons sit beside it.
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.library.saveAs") })).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeNull();
+  expect(screen.getAllByRole("button", { name: i18n.t("office.shell.save_to_cloud") })).toHaveLength(1);
+
+  // Save As and back-to-library stay reachable through the "..." menu.
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.ribbon.more") }));
+  expect(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument();
 });

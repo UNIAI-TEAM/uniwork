@@ -80,7 +80,8 @@ it("rebinds Save As to the confirmed new file and routes later Save and drafts t
   }, { ...original, localHandle: handle });
   await screen.findByTestId("docx-document-surface");
   act(() => session.editor.commands?.setHeading(2));
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.library.saveAs") }));
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.ribbon.more") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.saveAs") }));
   await waitFor(() => expect(rebound).toHaveBeenCalledWith({ handleId: newHandle, displayName: "Copy.docx" }));
   expect(session.localHandle).toBe(newHandle);
   expect(session.coordinator.getState()).toMatchObject({ dirtyGeneration: 1, lastSavedGeneration: 1, identity: { documentId: newHandle, baseRevision: "20" } });
