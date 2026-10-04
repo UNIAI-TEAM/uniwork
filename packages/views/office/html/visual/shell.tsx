@@ -24,8 +24,12 @@
  *     mounts `HtmlSelectionOverlay` in the overlay slot; the committed
  *     selection is published through `onPreviewSelection`. The whole surface
  *     is behind the selection flag and is inert (read-only) when it is on.
- *   H6 float toolbar / H7 style panel / H8 inline edit -> the `overlay` slot,
- *     rendered above the canvas in every mode.
+ *   H6 float toolbar -> mounted by the shell in the overlay slot, anchored to
+ *     the committed selection H5 publishes and gated by the same flag. Every
+ *     action is an injected `HtmlFloatToolbarCommands` callback; the shell
+ *     never applies an op itself (H3/H8 own the edit paths).
+ *   H7 style panel / H8 inline edit -> the `overlay` slot, rendered above the
+ *     canvas in every mode.
  *
  * The overlay contract (F5): the canvas is `relative`, so an `absolute` overlay
  * child positions against the canvas and not the viewport, in every mode. The
@@ -46,6 +50,7 @@ import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
 import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
 import { HtmlSelectionOverlay } from "./selection/bridge";
+import { HtmlFloatToolbar, type HtmlFloatToolbarCommands } from "./float-toolbar";
 import {
   clampZoom,
   HTML_ZOOM_DEFAULT,
@@ -91,8 +96,16 @@ export interface HtmlVisualShellProps {
   /** Selection in source offsets, or null; owned by the caller (H5-H8). */
   selection?: { from: number; to: number } | null;
   /**
-   * Overlay slot rendered last inside the `relative` canvas: H6 float toolbar,
-   * H7 style panel, H8 inline edit. Children self-position (absolute) or portal.
+   * H6 float toolbar actions, injected by the caller. Every one is optional:
+   * an absent callback renders its control disabled. The shell only forwards
+   * them - it never applies an op, so the toolbar stays reviewable without the
+   * H3/H8 edit wiring.
+   */
+  floatCommands?: HtmlFloatToolbarCommands;
+  /**
+   * Overlay slot rendered last inside the `relative` canvas: H7 style panel,
+   * H8 inline edit. Children self-position (absolute) or portal. The H6 float
+   * toolbar is mounted by the shell itself, ahead of these children.
    */
   overlay?: ReactNode;
   className?: string;
@@ -304,6 +317,7 @@ export function HtmlVisualShell({
   zoom,
   onZoomChange,
   selection = null,
+  floatCommands,
   overlay,
   className,
 }: HtmlVisualShellProps) {
@@ -322,6 +336,10 @@ export function HtmlVisualShell({
   // preview pane or the source editor. `useState` holds the instance so it
   // survives every render without a ref that could be re-created.
   const [previewEvents] = useState<PreviewEventSink>(createPreviewEventSink);
+  // The committed selection, held so the H6 float toolbar re-renders with it.
+  // Only a committed `select` reaches this state (never a hover), so it is a
+  // low-frequency update - the hover stream stays inside the bridge.
+  const [previewSelection, setPreviewSelection] = useState<HtmlSelection | null>(null);
   const onPreviewEventRef = useRef(onPreviewEvent);
   onPreviewEventRef.current = onPreviewEvent;
   const onPreviewSelectionRef = useRef(onPreviewSelection);
@@ -332,8 +350,9 @@ export function HtmlVisualShell({
     previewEvents.emit(event);
     onPreviewEventRef.current?.(event);
   }, [previewEvents]);
-  const handlePreviewSelection = useCallback((selection: HtmlSelection | null) => {
-    onPreviewSelectionRef.current?.(selection);
+  const handlePreviewSelection = useCallback((next: HtmlSelection | null) => {
+    setPreviewSelection(next);
+    onPreviewSelectionRef.current?.(next);
   }, []);
 
   // Escape leaves present mode. Bound only while presenting.
@@ -428,6 +447,20 @@ export function HtmlVisualShell({
             zoom={clampedZoom}
             scrollRef={previewScrollRef}
             onSelectionChange={handlePreviewSelection}
+          />
+        ) : null}
+        {/*
+          H6 float toolbar: the first consumer that acts on H5's selection. It
+          is flag-gated and renders nothing without a renderable rect, so it is
+          inert when the selection surface is off.
+        */}
+        {showPreview ? (
+          <HtmlFloatToolbar
+            selection={previewSelection}
+            canvasRef={canvasRef}
+            scrollRef={previewScrollRef}
+            zoom={clampedZoom}
+            commands={floatCommands}
           />
         ) : null}
         {overlay}
