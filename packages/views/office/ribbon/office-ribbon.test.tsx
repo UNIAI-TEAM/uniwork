@@ -89,6 +89,24 @@ describe("OfficeRibbon rendering", () => {
     render(<OfficeRibbon tabs={tabs} scope="docx" />);
     expect(within(group("Font")).getByRole("combobox", { name: "Font family" })).toHaveTextContent("Calibri");
   });
+
+  it("keeps a large item's face label on one non-shrinking line with the full text on hover", () => {
+    // jsdom has no layout, so this pins the classes that stop the large face's
+    // flex column from shrinking the label below its line box (visual r6 M-2:
+    // clientHeight 6px vs scrollHeight 15-30px, so the caption was clipped
+    // mid-glyph). The label is a single truncated line and carries the full
+    // text in `title` instead.
+    const { tabs } = ribbonFixture();
+    render(<OfficeRibbon tabs={tabs} scope="docx" />);
+    const paste = within(group("Clipboard")).getByRole("button", { name: "Paste" });
+    expect(paste).toHaveAttribute("data-ribbon-size", "large");
+    const label = paste.querySelector("span") as HTMLElement;
+    expect(label).toHaveTextContent("Paste");
+    expect(label.className).toContain("shrink-0");
+    expect(label.className).toContain("truncate");
+    expect(label.className).not.toContain("line-clamp");
+    expect(label).toHaveAttribute("title", "Paste");
+  });
 });
 
 describe("contextual tabs", () => {
@@ -164,6 +182,54 @@ describe("adaptive collapse", () => {
     expect(within(inPanel).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
     fireEvent.click(within(inPanel).getByRole("button", { name: "Cut" }));
     expect(actions.cut).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the folded group caption inside its button instead of shrinking it below its line box", () => {
+    // jsdom has no layout, so this pins the classes that stop the flex column
+    // from shrinking the caption below its line box (visual r5 M-2).
+    stubRibbonWidth(120);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    const button = within(group("Clipboard")).getByRole("button", { name: /Clipboard/ });
+    expect(button).toHaveAttribute("data-ribbon-group-button", "clipboard");
+    expect(button.className).toContain("justify-center");
+    const label = button.querySelector("span") as HTMLElement;
+    expect(label).toHaveTextContent("Clipboard");
+    expect(label).toHaveAttribute("title", "Clipboard");
+    expect(label.className).toContain("shrink-0");
+    expect(label.className).not.toContain("line-clamp");
+  });
+
+  it("lets an in-panel gallery wrap instead of keeping its max-content width", async () => {
+    // jsdom has no layout, so this pins the classes that let the in-panel
+    // gallery row shrink and wrap inside the GroupPanel cap (visual r6 M-4:
+    // the row kept ~max-content width and spilled off a narrow window). The
+    // off-panel row keeps `h-full shrink-0` so the ribbon body does not
+    // reflow it.
+    stubRibbonWidth(120);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    fireEvent.click(within(group("Styles")).getByRole("button", { name: /Styles/ }));
+    const inPanel = (await screen.findByRole("dialog", { name: "Lệnh Styles" })).querySelector("[data-ribbon-panel='styles']") as HTMLElement;
+    const row = inPanel.querySelector("[data-ribbon-item='style-gallery']") as HTMLElement;
+    expect(row.className).toContain("min-w-0");
+    expect(row.className).toContain("flex-wrap");
+    expect(row.className).not.toContain("shrink-0");
+
+    // The panel sizes to the wrapped rows: a viewport max-height plus internal
+    // scroll keeps the frame inside the window instead of spilling below its
+    // border (visual r6b M-4). jsdom has no layout, so this pins the classes.
+    const panel = screen.getByRole("dialog", { name: "Lệnh Styles" });
+    expect(panel.className).toContain("max-h-[calc(100dvh-4rem)]");
+    expect(panel.className).toContain("overflow-y-auto");
+
+    // In a wrapping row `h-full` is degenerate, so the card carries a definite
+    // height and renders its preview line instead of collapsing to nothing.
+    const card = row.querySelector("button") as HTMLElement;
+    expect(card.className).toContain("h-14");
+    expect(card.className).not.toContain("h-full");
+    expect(card.querySelector("span")).toHaveTextContent("normal");
+
+    // The caption row stays the last child, below the cards, not overlapped.
+    expect(inPanel.lastElementChild).toHaveTextContent("Styles");
   });
 });
 

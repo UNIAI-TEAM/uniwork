@@ -1,0 +1,415 @@
+import { Editor } from "@tiptap/core";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useEffect, useMemo, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
+import { docxExtensions } from "../docx-schema";
+import { HomeFontGroup } from "../toolbar/groups/home-font";
+import type { DocxToolbarGroupContext } from "../toolbar/types";
+import type { DocxEditorHandle, DocxSelection } from "../types";
+
+initI18n();
+
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+const editors: Editor[] = [];
+
+function editorWith(text: string): Editor {
+  const editor = new Editor({
+    extensions: docxExtensions(),
+    content: { type: "doc", content: [{ type: "docParagraph", content: [{ type: "text", text }] }] },
+  });
+  editors.push(editor);
+  return editor;
+}
+
+afterEach(() => {
+  for (const editor of editors.splice(0)) editor.destroy();
+});
+
+function coordinator(): DocxToolbarGroupContext["coordinator"] {
+  const state = {
+    state: "dirty" as const,
+    identity: {
+      deploymentId: "dep",
+      accountId: "account",
+      organizationId: "org",
+      workspaceId: "workspace",
+      documentId: "doc",
+      generation: 1,
+      baseVersionId: "version",
+      baseRevision: "1",
+    },
+    dirtyGeneration: 1,
+    lastSavedGeneration: 0,
+    activeIntentId: null,
+    error: null,
+  };
+  return {
+    getState: () => state,
+    subscribe: () => () => undefined,
+    save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })),
+  };
+}
+
+function makeHandle(editor: Editor): DocxEditorHandle {
+  const listeners = new Set<(selection: DocxSelection | null) => void>();
+  const readSelection = (): DocxSelection | null => {
+    const { from, to } = editor.state.selection;
+    return { blockId: null, from, to };
+  };
+  editor.on("selectionUpdate", () => {
+    const next = readSelection();
+    for (const listener of listeners) listener(next);
+  });
+  return {
+    format: "docx",
+    open: vi.fn(async () => undefined),
+    getDirtyGeneration: () => 0,
+    captureSnapshot: vi.fn(async () => ({ generation: 0, fingerprint: "fp", value: {} })),
+    dispose: vi.fn(),
+    selection: {
+      getSelection: readSelection,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    },
+  };
+}
+
+/** The real handle calls emitState() on every transaction; the harness wires
+ * the same path so the controls mirror the editor without a save session. */
+function Harness({ editor, readOnly = false }: { editor: Editor; readOnly?: boolean }) {
+  const runtime: DocxCommandRuntime = useMemo(() => createDocxCommandRuntime(() => editor), [editor]);
+  const handle = useMemo(() => makeHandle(editor), [editor]);
+  const [format, setFormat] = useState(() => runtime.getState());
+
+  useEffect(() => runtime.subscribe(setFormat), [runtime]);
+  useEffect(() => {
+    const onTransaction = () => runtime.emitState();
+    editor.on("transaction", onTransaction);
+    return () => {
+      editor.off("transaction", onTransaction);
+    };
+  }, [editor, runtime]);
+
+  const context: DocxToolbarGroupContext = {
+    editor: handle,
+    coordinator: coordinator(),
+    format,
+    commands: runtime,
+    selection: null,
+    readOnly,
+    saving: false,
+    dirty: false,
+    canUndo: true,
+    canRedo: true,
+    onUndo: vi.fn(),
+    onRedo: vi.fn(),
+  };
+  return <HomeFontGroup {...context} />;
+}
+
+function attrs(editor: Editor): Record<string, unknown> {
+  return editor.getAttributes("docTextStyle") as Record<string, unknown>;
+}
+
+describe("HomeFontGroup", () => {
+  it("renders the character controls and mirrors the format state", () => {
+    const editor = editorWith("hello world");
+    editor.chain().setTextSelection({ from: 1, to: 6 }).toggleMark("strike").setMark("docTextStyle", { fontAscii: "Arial", sizeHalfPoints: 29 }).run();
+    editor.commands.setTextSelection(3);
+    render(<Harness editor={editor} />);
+
+    expect(screen.getByTestId("docx-font-family")).toHaveTextContent("Arial");
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("14.5");
+    expect(screen.getByTestId("docx-strike")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("docx-superscript")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("docx-subscript")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("docx-text-color")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-highlight")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-change-case")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-clear-formatting")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-format-painter")).toBeInTheDocument();
+  });
+
+  it("applies and reflects strike-through", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-strike"));
+    expect(editor.isActive("strike")).toBe(true);
+    await waitFor(() => expect(screen.getByTestId("docx-strike")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByTestId("docx-strike"));
+    expect(editor.isActive("strike")).toBe(false);
+    await waitFor(() => expect(screen.getByTestId("docx-strike")).toHaveAttribute("aria-pressed", "false"));
+  });
+
+  it("sets superscript and subscript as a mutual choice", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-superscript"));
+    expect(attrs(editor).vertAlign).toBe("superscript");
+    await waitFor(() => expect(screen.getByTestId("docx-superscript")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByTestId("docx-subscript"));
+    expect(attrs(editor).vertAlign).toBe("subscript");
+    await waitFor(() => expect(screen.getByTestId("docx-superscript")).toHaveAttribute("aria-pressed", "false"));
+    await waitFor(() => expect(screen.getByTestId("docx-subscript")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByTestId("docx-subscript"));
+    expect(attrs(editor).vertAlign ?? null).toBeNull();
+  });
+
+  it("offers the built-in and the document's own fonts and applies a pick", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 7, to: 12 });
+    editor.chain().setMark("docTextStyle", { fontAscii: "Aptos" }).run();
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    const list = await screen.findByTestId("docx-font-family-list");
+    expect(within(list).getByRole("button", { name: "Arial" })).toBeInTheDocument();
+    expect(within(list).getByRole("button", { name: "Aptos" })).toBeInTheDocument();
+
+    fireEvent.click(within(list).getByRole("button", { name: "Arial" }));
+    expect(attrs(editor).fontAscii).toBe("Arial");
+    await waitFor(() => expect(screen.queryByTestId("docx-font-family-list")).toBeNull());
+  });
+
+  it("accepts a typed font name", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    const search = await screen.findByTestId("docx-font-family-search");
+    fireEvent.change(search, { target: { value: "Aptos Display" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(attrs(editor).fontAscii).toBe("Aptos Display");
+  });
+
+  it("shows the document default size for plain unstyled text (M-8)", () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection(3);
+    render(<Harness editor={editor} />);
+    // No docTextStyle size mark anywhere: Word shows the document default (11),
+    // never the picker's "-" placeholder.
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("11");
+  });
+
+  it("shows the mixed placeholder when a selection spans two sizes (M-8)", () => {
+    const editor = editorWith("hello world");
+    // First run 14pt, the rest unstyled (the document default 11pt).
+    editor.chain().setTextSelection({ from: 1, to: 6 }).setMark("docTextStyle", { sizeHalfPoints: 28 }).run();
+    editor.commands.setTextSelection({ from: 1, to: 12 });
+    render(<Harness editor={editor} />);
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("");
+    expect(screen.getByTestId("docx-font-size")).toHaveAttribute("aria-placeholder", "-");
+  });
+
+  it("commits a typed size and steps with the -/+ pair (no extra chevron, C8)", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    const input = screen.getByTestId("docx-font-size");
+    fireEvent.change(input, { target: { value: "18" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(attrs(editor).sizeHalfPoints).toBe(36);
+    await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue("18"));
+
+    fireEvent.click(screen.getByTestId("docx-font-size-increase"));
+    expect(attrs(editor).sizeHalfPoints).toBe(40);
+    await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue("20"));
+
+    // C8: the size box is the field only; the old preset chevron is gone.
+    expect(screen.queryByTestId("docx-font-size-presets")).not.toBeInTheDocument();
+    expect(screen.getByTestId("docx-font-size-decrease")).toBeInTheDocument();
+  });
+
+  it("applies a text colour and resets it to automatic", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-text-color"));
+    fireEvent.click(await screen.findByTestId("docx-text-color-swatch-FF0000"));
+    expect(attrs(editor).color).toBe("FF0000");
+
+    fireEvent.click(screen.getByTestId("docx-text-color"));
+    fireEvent.click(await screen.findByTestId("docx-text-color-swatch-none"));
+    expect(attrs(editor).color ?? null).toBeNull();
+  });
+
+  it("applies a highlight and resets it", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    fireEvent.click(await screen.findByTestId("docx-highlight-swatch-yellow"));
+    expect(attrs(editor).highlight).toBe("yellow");
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    fireEvent.click(await screen.findByTestId("docx-highlight-swatch-none"));
+    expect(attrs(editor).highlight ?? null).toBeNull();
+  });
+
+  it("offers the full OOXML highlight set, white included", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    const white = await screen.findByTestId("docx-highlight-swatch-white");
+    fireEvent.click(white);
+    expect(attrs(editor).highlight).toBe("white");
+
+    fireEvent.click(screen.getByTestId("docx-highlight"));
+    expect(await screen.findByTestId("docx-highlight-swatch-white")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("walks the colour swatches with the arrow keys", async () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-text-color"));
+    const first = await screen.findByTestId("docx-text-color-swatch-FFFFFF");
+    fireEvent.focus(first);
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-000000"));
+    // Down moves a full row of the 5-column grid.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-196B24"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "End" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-7030A0"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-text-color-swatch-7030A0"));
+  });
+
+  it("walks the font family list with the arrow keys", async () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    const list = await screen.findByTestId("docx-font-family-list");
+    const search = screen.getByTestId("docx-font-family-search");
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-font-family-default"));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "Calibri" }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "End" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "PMingLiU" }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(within(list).getByRole("button", { name: "Microsoft JhengHei" }));
+  });
+
+  it("changes case from the menu", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-change-case"));
+    fireEvent.click(await screen.findByTestId("docx-change-case-upper"));
+    expect(editor.state.doc.textBetween(1, 6)).toBe("HELLO");
+  });
+
+  it("clears the character marks", () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.chain().toggleMark("strike").toggleMark("bold").run();
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-clear-formatting"));
+    expect(editor.isActive("strike")).toBe(false);
+    expect(editor.isActive("bold")).toBe(false);
+  });
+
+  it("disables every control while read-only", () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} readOnly />);
+
+    for (const testId of [
+      "docx-font-family",
+      "docx-font-size",
+      "docx-font-size-decrease",
+      "docx-font-size-increase",
+      "docx-bold",
+      "docx-italic",
+      "docx-underline",
+      "docx-strike",
+      "docx-superscript",
+      "docx-subscript",
+      "docx-text-color",
+      "docx-highlight",
+      "docx-change-case",
+      "docx-clear-formatting",
+      "docx-format-painter",
+    ]) {
+      expect(screen.getByTestId(testId)).toBeDisabled();
+    }
+  });
+
+  it("keeps the picker trigger focusable and closes the panel on Escape", async () => {
+    const editor = editorWith("hello world");
+    render(<Harness editor={editor} />);
+
+    const trigger = screen.getByTestId("docx-font-family");
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.click(trigger);
+    const search = await screen.findByTestId("docx-font-family-search");
+    fireEvent.keyDown(search, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("docx-font-family-search")).toBeNull());
+  });
+});
+
+describe("HomeFontGroup: format painter", () => {
+  function boldEditor(): Editor {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.chain().toggleMark("bold").run();
+    editor.commands.setTextSelection(3);
+    return editor;
+  }
+
+  it("arms the painter and applies the copied formatting to the next selection", async () => {
+    const editor = boldEditor();
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-format-painter"));
+    await waitFor(() => expect(screen.getByTestId("docx-format-painter")).toHaveAttribute("aria-pressed", "true"));
+
+    editor.commands.setTextSelection({ from: 7, to: 12 });
+    await waitFor(() => expect(screen.getByTestId("docx-format-painter")).toHaveAttribute("aria-pressed", "false"));
+    expect((editor.state.doc.nodeAt(7)?.marks ?? []).map((mark) => mark.type.name)).toContain("bold");
+  });
+
+  it("cancels an armed painter on Escape without applying", async () => {
+    const editor = boldEditor();
+    render(<Harness editor={editor} />);
+
+    fireEvent.click(screen.getByTestId("docx-format-painter"));
+    await waitFor(() => expect(screen.getByTestId("docx-format-painter")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("docx-format-painter")).toHaveAttribute("aria-pressed", "false"));
+
+    editor.commands.setTextSelection({ from: 7, to: 12 });
+    expect(editor.isActive("bold")).toBe(false);
+  });
+});

@@ -29,7 +29,7 @@ export const RIBBON_PORTAL_ATTR = { "data-ribbon-portal": "" } as const;
 
 const SIZE_CLASS: Record<RibbonSize, string> = {
   large:
-    "h-16 min-w-13 flex-col justify-start gap-1 px-1.5 py-1.5 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6",
+    "h-16 min-w-13 flex-col justify-start gap-0.5 px-1.5 py-1 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6",
   small: "h-[22px] justify-start gap-1.5 px-1.5 text-caption font-normal",
   icon: "size-7 p-0",
 };
@@ -49,7 +49,12 @@ function ItemFace({ icon: Icon, label, size }: { icon?: RibbonIcon; label: strin
   return (
     <>
       {Icon ? <Icon aria-hidden /> : null}
-      <span className={size === "large" ? "line-clamp-2 max-w-20 text-center leading-tight" : "truncate"}>{label}</span>
+      <span
+        title={size === "large" ? label : undefined}
+        className={size === "large" ? "shrink-0 max-w-20 truncate text-center leading-tight" : "truncate"}
+      >
+        {label}
+      </span>
     </>
   );
 }
@@ -111,7 +116,7 @@ function GalleryControl({ item, stage, inPanel }: { item: RibbonGalleryItem; sta
   const optionLabel = (option: RibbonGalleryItem["options"][number]) =>
     option.labelKey ? t(option.labelKey) : (option.label ?? option.id);
   return (
-    <div className={cn("flex shrink-0 items-stretch gap-0.5", inPanel ? "flex-wrap" : "h-full")} data-ribbon-item={item.id} data-ribbon-gallery-visible={visible.length}>
+    <div className={cn("flex items-stretch gap-0.5", inPanel ? "min-w-0 flex-wrap" : "h-full shrink-0")} data-ribbon-item={item.id} data-ribbon-gallery-visible={visible.length}>
       {visible.map((option) => (
         <Button
           key={option.id}
@@ -121,7 +126,8 @@ function GalleryControl({ item, stage, inPanel }: { item: RibbonGalleryItem; sta
           aria-pressed={item.selectedId === option.id}
           aria-disabled={item.disabled || undefined}
           className={cn(
-            "h-full min-h-14 flex-col items-start justify-end overflow-hidden border border-border bg-background px-1.5 py-1 text-caption font-normal",
+            inPanel ? "h-14" : "h-full",
+            "min-h-14 flex-col items-start justify-end overflow-hidden border border-border bg-background px-1.5 py-1 text-caption font-normal",
             PRESSED_CLASS,
           )}
           style={{ width: item.cardWidth ?? 76 }}
