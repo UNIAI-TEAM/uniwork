@@ -13,14 +13,18 @@ import type { FormFieldInput } from "./types.ts";
 
 const OP = "setFormValue";
 
-const WINANSI_UNDEFINED = new Set([0x81, 0x8d, 0x8f, 0x90, 0x9d]);
-/** A WinAnsi standard font (the AcroForm norm) cannot encode code points
-    above 0xFF or the WinAnsi-undefined slots, so such a value would crash
-    pdf-lib's appearance update inside save(); refuse it as a typed error. */
+// The code points CP1252/WinAnsi can encode that sit above 0xFF.
+const WINANSI_HIGH = new Set([0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178]);
+/** A WinAnsi standard font (the AcroForm norm) encodes code points below 0xFF
+    except the control slots and the five C1 gaps, plus the 27 high code points
+    in WINANSI_HIGH. Anything else would crash pdf-lib's appearance update
+    inside save(); refuse it as a typed error. */
 function isWinAnsiEncodable(value: string): boolean {
   for (const ch of value) {
     const cp = ch.codePointAt(0) ?? 0;
-    if (cp > 0xff || WINANSI_UNDEFINED.has(cp)) return false;
+    if (cp > 0xff) { if (!WINANSI_HIGH.has(cp)) return false; continue; }
+    if (cp < 0x20 && cp !== 0x08 && cp !== 0x09 && cp !== 0x0a && cp !== 0x0c && cp !== 0x0d) return false;
+    if (cp === 0x7f || (cp >= 0x80 && cp <= 0x9f && cp !== 0x85)) return false;
   }
   return true;
 }
@@ -150,11 +154,34 @@ export function flattenForms(doc: PDFDocument): boolean {
   const form = doc.getForm();
   if (form.getFields().length === 0) return false;
   for (const field of form.getFields()) {
+    const name = field.getName();
     const getText = (field as { getText?: () => string }).getText;
-    if (typeof getText !== "function") continue;
-    const value = getText.call(field);
-    if (typeof value === "string" && !isWinAnsiEncodable(value)) {
-      throw new PdfOpError(OP, "value", `field "${field.getName()}" cannot encode its value with its WinAnsi font`, true);
+    if (typeof getText === "function") {
+      const value = getText.call(field);
+      if (typeof value === "string" && !isWinAnsiEncodable(value)) {
+        throw new PdfOpError(OP, "value", `field "${name}" cannot encode its value with its WinAnsi font`);
+      }
+    }
+    // Choice fields carry their text in the selected value, so an unencodable
+    // selection would crash flatten() the same way a text value does.
+    const getSelected = (field as { getSelected?: () => unknown }).getSelected;
+    if (typeof getSelected === "function") {
+      const selected = getSelected.call(field);
+      const values = Array.isArray(selected) ? selected : [selected];
+      for (const value of values) {
+        if (typeof value === "string" && !isWinAnsiEncodable(value)) {
+          throw new PdfOpError(OP, "value", `field "${name}" cannot encode its selected value with its WinAnsi font`);
+        }
+      }
+    }
+    // An option list lays out every offered option at appearance time, so a
+    // hostile option crashes the flatten even when the selection is fine.
+    if (field instanceof PDFOptionList) {
+      for (const option of field.getOptions()) {
+        if (!isWinAnsiEncodable(option)) {
+          throw new PdfOpError(OP, "value", `field "${name}" offers an option its WinAnsi font cannot encode`);
+        }
+      }
     }
   }
   form.flatten();

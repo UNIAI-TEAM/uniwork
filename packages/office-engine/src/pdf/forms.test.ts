@@ -20,7 +20,7 @@ async function formFixture(): Promise<Uint8Array> {
   radio.addOptionToPage("basic", page, { x: 24, y: 180, width: 16, height: 16 });
   radio.addOptionToPage("pro", page, { x: 24, y: 160, width: 16, height: 16 });
   const dropdown = form.createDropdown("city");
-  dropdown.addOptions(["Hà Nội", "Đà Nẵng"]);
+  dropdown.addOptions(["Hà Nội", "Đà Nẵng", "Hue"]);
   dropdown.addToPage(page, { x: 24, y: 130, width: 160, height: 20 });
   const optionList = form.createOptionList("tags");
   optionList.addOptions(["alpha", "beta"]);
@@ -64,8 +64,9 @@ describe("pdf form fill", () => {
       setFormValue("agree", "checkbox", true),
       setFormValue("tier", "radio", "pro"),
       setFormValue("tags", "choice", "beta"),
+      setFormValue("city", "choice", "Hue"),
     ]);
-    expect(out.report.formValues).toEqual({ applied: 4, skipped: 0 });
+    expect(out.report.formValues).toEqual({ applied: 5, skipped: 0 });
     expect(out.warnings).toEqual([]);
 
     const doc = await PDFDocument.load(out.bytes);
@@ -74,6 +75,7 @@ describe("pdf form fill", () => {
     expect(form.getCheckBox("agree").isChecked()).toBe(true);
     expect(form.getRadioGroup("tier").getSelected()).toBe("pro");
     expect(form.getOptionList("tags").getSelected()).toEqual(["beta"]);
+    expect(form.getDropdown("city").getSelected()).toEqual(["Hue"]);
     expect(doc.getPageCount()).toBe(1);
   });
 

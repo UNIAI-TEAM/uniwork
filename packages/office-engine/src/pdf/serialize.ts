@@ -490,7 +490,18 @@ export async function applyPdfEdits(
       for (const p of target) pdfDoc.addPage(p);
     }
   }
-  const out = await pdfDoc.save({ useObjectStreams: false });
+  let out: Uint8Array;
+  try {
+    out = await pdfDoc.save({ useObjectStreams: false });
+  } catch (error) {
+    // A field the engine did not write can carry a value pdf-lib's WinAnsi
+    // appearance update cannot encode; contain that as a typed refusal rather
+    // than letting a bare Error escape as an engine crash.
+    if (error instanceof Error && /cannot encode/i.test(error.message)) {
+      throw new PdfOpError("setFormValue", "value", error.message, false);
+    }
+    throw error;
+  }
   await verifyContentEdits(out, request, {
     skippedTextEdits,
     skippedTextInserts,
