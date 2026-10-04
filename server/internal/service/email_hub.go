@@ -45,6 +45,10 @@ type EmailHubService struct {
 	// AI and Tasks are wired from main after construction; nil disables summarize → task.
 	AI    *ai.Gateway
 	Tasks *TaskService
+
+	// scheduleWorkerOwnerFn and testHookScheduledSend are set only in tests.
+	scheduleWorkerOwnerFn func() string
+	testHookScheduledSend func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {

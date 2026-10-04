@@ -587,6 +587,8 @@ type EmailHubScheduledSend struct {
 	LastError      pgtype.Text        `json:"last_error"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
 }
 
 type EmailHubThread struct {
