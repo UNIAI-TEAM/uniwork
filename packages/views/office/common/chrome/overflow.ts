@@ -59,8 +59,11 @@ export function fittingGroupCount({
   // group must imply the room. Spending the row's own gap on the control would
   // then hand the menu a group the row still keeps, and the row would clip it.
   if (overflowButtonWidth <= 0) return count;
-  // `countFitting` already counts the gap between the last visible group and
-  // "»" as a separator, so the control's own width is all that is subtracted.
+  // `countFitting` charges only the k-1 separators BETWEEN the groups it keeps,
+  // never one after the last, so the 4px `gap-1` before "»" is not in its count.
+  // The caller's `overflowButtonWidth` carries that gap: it is the control's
+  // footprint plus the gap, and the slack in it absorbs a tight budget. A caller
+  // that passes the control's exact width must add the gap itself.
   return countFitting(groupWidths, containerWidth - overflowButtonWidth, separatorWidth);
 }
 

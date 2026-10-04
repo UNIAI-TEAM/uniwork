@@ -30,7 +30,7 @@ import type { EditorChromeCommandGroup, EditorChromeCommandItem, EditorChromePro
 /* C12 geometry at 1440: tabs 40, commands 44, status 28. `min-h-*` rather than
    `h-*` so a coarse pointer can grow a row to its 44px targets. */
 const TAB_ROW = "flex min-h-10 shrink-0 items-center gap-1 border-b border-border px-2";
-const COMMAND_ROW = "flex min-h-11 shrink-0 items-center gap-1 border-b border-border px-2";
+const COMMAND_ROW = "flex min-h-11 items-center gap-1 border-b border-border px-2";
 const STATUS_ROW = "flex h-7 shrink-0 items-center justify-between gap-2 border-t border-border px-2 text-caption text-muted-foreground";
 const GROUP = "flex shrink-0 items-center gap-0.5";
 const CONTROL = "pointer-coarse:min-h-11 pointer-coarse:min-w-11";
@@ -38,7 +38,9 @@ const CONTROL = "pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 const COMPACT_QUERY = "(max-width: 767px)";
 /** The command row's own horizontal padding (`px-2`), excluded from the fit. */
 const ROW_PADDING = 16;
-/** Footprint of the trailing "»" control (the gap before it is a group separator). */
+/** Footprint of the trailing "»" control: the 28px `size-7` button, the 4px
+ *  `gap-1` before it and 4px of slack - `countFitting` never charges the gap
+ *  after the last visible group, so this reservation carries it. */
 const OVERFLOW_BUTTON_WIDTH = 36;
 /** What one group costs beyond its own width: two `gap-1` (4px) plus the 1px rule. */
 const GROUP_SEPARATOR_WIDTH = 9;
