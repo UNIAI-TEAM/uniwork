@@ -1,7 +1,7 @@
-import type { PdfDrawingRect, PdfDrawingType } from "../types";
+import type { PdfDrawingType } from "../types";
 import type { PdfOpsBridgeOptions } from "../ops-bridge";
 
-export type { PdfDrawingRect, PdfDrawingType };
+export type { PdfDrawingType };
 
 export interface PdfDrawingInput {
   pageIndex: number;

@@ -5,7 +5,7 @@ import { MAX_PDF_IMAGE_BYTES } from "./provider";
 import type { PdfImageOperationProvider } from "./types";
 
 function provider(): PdfImageOperationProvider { return { insertImage: vi.fn(), transformImage: vi.fn(), replaceImage: vi.fn(), deleteImage: vi.fn() }; }
-function choose(file: File): void { fireEvent.change(screen.getByLabelText("Chèn ảnh"), { target: { files: [file] } }); }
+function choose(file: File): void { fireEvent.change(screen.getByLabelText("Chọn ảnh"), { target: { files: [file] } }); }
 
 describe("PdfImageInsertPanel", () => {
   it("reads a selected file and submits a typed insert image request", async () => {

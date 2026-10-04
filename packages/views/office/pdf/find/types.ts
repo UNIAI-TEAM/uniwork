@@ -1,7 +1,6 @@
-import type { PdfPageText, PdfTextDoc, ReadPdfTextOptions } from "@uniwork/office-engine/pdf";
+import type { PdfTextDoc, ReadPdfTextOptions } from "@uniwork/office-engine/pdf";
 
 export type PdfTextDocument = PdfTextDoc;
-export type PdfTextPage = PdfPageText;
 export type PdfTextReader = (bytes: Uint8Array, options?: ReadPdfTextOptions) => Promise<PdfTextDoc>;
 
 export interface PdfSearchHit {
