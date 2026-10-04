@@ -95,6 +95,17 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
   PDF_COMMANDS.mergePages,
 ];
 
+/** Commands whose engine work needs a Buffer-based page producer: insert from
+ * another PDF, extract and merge. The browser host routes engine envelopes to
+ * `applyPdfOpsInBrowser`, which refuses them with `BrowserPdfUnsupportedError`,
+ * so a handle that renders pages in-process (`renderer`) cannot run them.
+ * Delete, rotate and reorder need no such producer and stay available. */
+const BUFFER_PAGE_COMMANDS: ReadonlySet<PdfCommandId> = new Set([
+  PDF_COMMANDS.insertPage,
+  PDF_COMMANDS.extractPage,
+  PDF_COMMANDS.mergePages,
+]);
+
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
@@ -334,24 +345,32 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canReplaceImage = canEditText;
   const canPageOps = canEditText;
   const canAnnotate = capability?.operation === "serialize" && capability.status === "available";
+  /** The browser host owns an in-process page renderer and sends every engine
+   * envelope to `applyPdfOpsInBrowser`, which has no Buffer-based page producer
+   * for insert-from-PDF, extract or merge. A handle with no `renderer` is the
+   * desktop/Node lane, where those producers exist. */
+  const canBufferPageOps = canEditText && editor.renderer === undefined;
   const promptMode = failure ? passwordMode(failure) : null;
 
   // One row per command the ribbon can render; the chrome decides which rows a
   // tab shows and falls back to the catalogue label for each id.
   const commands = useMemo<readonly PdfToolbarCommand[]>(() => {
+    // Delete, rotate and reorder share the page-ops capability row and stay on
+    // the capability gate; the Buffer-based commands below are overridden per id
+    // because the browser host cannot run them even when the row is available.
     const availableByCapability: Readonly<Record<string, boolean>> = {
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.save]]: !readOnly && viewState === "ready",
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.editText]]: canEditText,
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.replaceImage]]: canReplaceImage,
-      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.insertPage]]: canPageOps,
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.deletePage]]: canPageOps,
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.annotations]]: canAnnotate,
     };
     return COMMAND_ORDER.map((id) => ({
       id,
-      disabled: availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true,
+      disabled: BUFFER_PAGE_COMMANDS.has(id) ? !canBufferPageOps : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true,
       onExecute: () => executeCommand(id),
     }));
-  }, [canAnnotate, canEditText, canPageOps, canReplaceImage, executeCommand, readOnly, viewState]);
+  }, [canAnnotate, canBufferPageOps, canEditText, canPageOps, canReplaceImage, executeCommand, readOnly, viewState]);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
