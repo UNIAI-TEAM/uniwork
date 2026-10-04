@@ -50,6 +50,11 @@ export function PptxSelectionOverlay({
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
+    // F3: preventDefault suppresses the compatibility mousedown, which is the event
+    // that moves focus to the nearest focusable ancestor -- so the canvas could never
+    // take focus and Delete/Escape/arrow keys were dead in the click-first flow. Focus
+    // it explicitly here instead, then keep the pointer capture.
+    event.currentTarget.closest<HTMLElement>("[data-pptx-canvas]")?.focus();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     controller.onPointerDown(toPage(event), event.shiftKey);
   };
@@ -63,6 +68,9 @@ export function PptxSelectionOverlay({
 
   const bounds = controller.bounds;
   const grip = bounds ? rotateHandlePositionInBounds(bounds, page) : null;
+  // `touch-none` on the overlay stops a drag from scrolling the page under a touch
+  // pointer, at the cost of a scroll gesture that starts on the slide (the p-4 gutter
+  // still scrolls); an accepted desktop-first trade-off.
 
   return (
     <div

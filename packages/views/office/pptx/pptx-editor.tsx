@@ -120,23 +120,51 @@ export function PptxEditor({
   const patternGrid = rendererState.status === "ready" ? rendererState.module.patternGrid : undefined;
   const presetPath = rendererState.status === "ready" ? rendererState.module.presetPath : undefined;
   const presetPolygon = rendererState.status === "ready" ? rendererState.module.presetPolygon : undefined;
+  // F10: an inline `imageSize` prop must not rebuild the whole SvgNode tree on every
+  // parent render, so it is ref-stabilized the same way the deck renderer stabilizes
+  // its own seam. A host that swaps the resolver mid-session bumps `deck.revision`.
   const imageSize = deck?.imageSize;
+  const imageSizeRef = useRef(imageSize);
+  useEffect(() => { imageSizeRef.current = imageSize; }, [imageSize]);
   const thumbnailRevision = deck?.revision;
-  const svgDocument = useMemo<SlideSvgDocument | null>(() => {
-    if (!rendition) return null;
-    return buildSlideSvg(rendition, {
-      idPrefix: railIdPrefix,
-      palette,
-      ...(imageSize ? { imageSize } : {}),
-      ...(patternGrid ? { patternGrid } : {}),
-      ...(presetPath ? { presetPath } : {}),
-      ...(presetPolygon ? { presetPolygon } : {}),
-    });
-  }, [imageSize, palette, patternGrid, presetPath, presetPolygon, railIdPrefix, rendition]);
+  const svgBuild = useMemo<{ document: SlideSvgDocument | null; error: string | null }>(() => {
+    if (!rendition) return { document: null, error: null };
+    const resolveImageSize = imageSizeRef.current;
+    try {
+      return {
+        document: buildSlideSvg(rendition, {
+          idPrefix: railIdPrefix,
+          palette,
+          ...(resolveImageSize ? { imageSize: resolveImageSize } : {}),
+          ...(patternGrid ? { patternGrid } : {}),
+          ...(presetPath ? { presetPath } : {}),
+          ...(presetPolygon ? { presetPolygon } : {}),
+        }),
+        error: null,
+      };
+    } catch (error) {
+      // F18: a render tree that builds but cannot be converted to SVG must not crash
+      // the editor surface; degrade to the same alert as a failed rendition build.
+      return { document: null, error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [palette, patternGrid, presetPath, presetPolygon, railIdPrefix, rendition]);
+  const svgDocument = svgBuild.document;
+  const deckBound = deck != null;
   const thumbnails = usePptxThumbnails({ renderer: deckRenderer, slides, ...(thumbnailRevision !== undefined ? { revision: thumbnailRevision } : {}) });
   const railSlides = useMemo<readonly PptxSlideView[]>(
     () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
     [slides, thumbnails],
+  );
+  // P0-2 F6: the presenter used to upscale the 160px rail thumbnail fullscreen. Until
+  // C2 owns a real presenter rendition, hand it the label only (no thumbnailUrl) so it
+  // never shows a blurry 10x upscale.
+  const presenterSlides = useMemo<readonly PptxSlideView[]>(
+    () => slides.map((slide) => ({
+      id: slide.id,
+      ...(slide.label !== undefined ? { label: slide.label } : {}),
+      ...(slide.hidden ? { hidden: true } : {}),
+    })),
+    [slides],
   );
   const effectiveCapabilities = useMemo(() => ({
     ...capabilities,
@@ -296,6 +324,7 @@ export function PptxEditor({
     if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); requestHistory(event.shiftKey ? "redo" : "undo"); }
     if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); requestHistory("redo"); }
     if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); save(); }
+    if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); selection.selectAll(); }
     if (event.key === "Escape") { selection.clear(); }
     if ((event.key === "Delete" || event.key === "Backspace") && selection.canDelete) {
       event.preventDefault();
@@ -306,7 +335,7 @@ export function PptxEditor({
   return (
     <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
       <PptxToolbar
-        commands={commands.filter((command) => command.id !== "save" || includeSave)}
+        commands={commands}
         onCommand={onCommand}
         {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
       />
@@ -315,6 +344,12 @@ export function PptxEditor({
         <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error">
           <AlertTitle>{t("render_failed")}</AlertTitle>
           <AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription>
+        </Alert>
+      ) : null}
+      {svgBuild.error ? (
+        <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-svg-error">
+          <AlertTitle>{t("render_failed")}</AlertTitle>
+          <AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription>
         </Alert>
       ) : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -327,10 +362,13 @@ export function PptxEditor({
               <PptxCanvasZoom zoom={zoom} onZoomChange={setZoom} />
             </span>
           </div>
+          {/* P0-2 F16: a bound deck that is still building reads as "building", not as
+              "rendering is not connected to this application". */}
           <PptxCanvasSurface
             content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
             slideIndex={selectedIndex}
             slideCount={slides.length}
+            building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))}
             zoom={zoom}
             onFitWidthChange={setFitWidthPx}
             onKeyDown={onCanvasKeyDown}
@@ -346,7 +384,7 @@ export function PptxEditor({
         </div>
       </div>
       <PptxPresenter
-        slides={railSlides}
+        slides={presenterSlides}
         selectedIndex={selectedIndex}
         open={presenterOpen}
         onClose={() => {

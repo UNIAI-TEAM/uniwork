@@ -74,11 +74,16 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
    *  collapses the selection onto it on pointer-up. */
   const clickTarget = useRef<string | null>(null);
   const commitRef = useRef(options.commitTransform);
-  commitRef.current = options.commitTransform;
   const fitWidthRef = useRef(options.fitWidthPx);
-  fitWidthRef.current = options.fitWidthPx;
   const scaleRef = useRef(options.scale);
-  scaleRef.current = options.scale;
+  // Keep the latest callbacks/measurements in refs without writing them during
+  // render (a render-unsafe pattern under concurrent React); an effect runs
+  // before any pointer event the browser can deliver after commit.
+  useEffect(() => {
+    commitRef.current = options.commitTransform;
+    fitWidthRef.current = options.fitWidthPx;
+    scaleRef.current = options.scale;
+  }, [options.commitTransform, options.fitWidthPx, options.scale]);
 
   // A slide change or a shrinking element set prunes ids that no longer exist;
   // the selection itself is per slide, so switching slides clears it.
@@ -114,7 +119,7 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
 
   const onPointerDown = useCallback((point: PptxPoint, additive: boolean) => {
     if (!interactive) return;
-    const handle = gestureHandleAt(bounds, point, HANDLE_HIT_RADIUS_PX / Math.max(scaleRef.current, 0.01));
+    const handle = gestureHandleAt(bounds, point, HANDLE_HIT_RADIUS_PX / Math.max(scaleRef.current, 0.01), page);
     if (handle && bounds) {
       const opened = beginGesture({ boxes, selectedIds: selection.ids, page }, point, handle);
       if (opened) setGesture(opened);

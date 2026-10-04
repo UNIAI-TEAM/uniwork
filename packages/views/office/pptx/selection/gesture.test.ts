@@ -52,6 +52,22 @@ describe("selection gestures", () => {
     expect(requests[1]).toMatchObject({ sourceId: "b", xPx: 310, yPx: 90 });
   });
 
+  it("preserves an element's existing rotation across a move, a resize and a rotate", () => {
+    const rotated: PptxNodeBox[] = [
+      { sourceId: "a", type: "shape", box: box({ x: 100, y: 100, w: 100, h: 100, rotationDeg: 45 }) },
+    ];
+    const moved = applyGesture(beginGesture({ boxes: rotated, selectedIds: ["a"], page }, { x: 150, y: 150 }, null)!, { x: 160, y: 140 }, page);
+    expect(gestureCommitRequests(moved, 0, 960)[0]).toMatchObject({ xPx: 110, yPx: 90, rotationDeg: 45 });
+
+    const resized = applyGesture(beginGesture({ boxes: rotated, selectedIds: ["a"], page }, { x: 200, y: 200 }, "se")!, { x: 250, y: 250 }, page);
+    expect(gestureCommitRequests(resized, 0, 960)[0]).toMatchObject({ wPx: 150, hPx: 150, rotationDeg: 45 });
+
+    // A rotate adds the gesture delta to the element's own angle instead of replacing it.
+    const spun = applyGesture(beginGesture({ boxes: rotated, selectedIds: ["a"], page }, { x: 150, y: 76 }, "rotate")!, { x: 250, y: 150 }, page);
+    expect(spun.rotationDeltaDeg).toBe(90);
+    expect(gestureCommitRequests(spun, 0, 960)[0]).toMatchObject({ rotationDeg: 135 });
+  });
+
   it("flags an unmoved gesture as a no-op so a click never commits", () => {
     const click = beginGesture({ boxes: boxes(), selectedIds: ["a"], page }, { x: 150, y: 150 }, null)!;
     expect(gestureIsNoop(click)).toBe(true);

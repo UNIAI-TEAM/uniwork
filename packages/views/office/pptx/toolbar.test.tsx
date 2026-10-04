@@ -20,7 +20,10 @@ describe("PptxToolbar", () => {
     expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Insert" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tablist", { name: "PowerPoint commands" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    // F1: the command map marks Save available (the host binds the save coordinator),
+    // so the honest assertion is on a command the map really disables.
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Export PDF" })).toBeDisabled();
   });
 
   it("shows the active tab's command groups and switches on click", () => {
@@ -73,16 +76,20 @@ describe("PptxToolbar", () => {
     render(<PptxToolbar commands={commands} onCommand={onCommand} canUndo canRedo />);
     const undo = screen.getByRole("button", { name: "Undo" });
     expect(undo).toBeEnabled();
+    // A momentary action is not a toggle: no aria-pressed.
+    expect(undo).not.toHaveAttribute("aria-pressed");
     fireEvent.click(undo);
     expect(onCommand).toHaveBeenCalledWith("undo");
   });
 
-  it("gives the tab panels aria wiring back to their tab", () => {
+  it("gives the active tab panel aria wiring and leaves the inactive tabs unpointed", () => {
     render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
     const home = screen.getByRole("tab", { name: "Home" });
     const panel = document.getElementById(home.getAttribute("aria-controls")!);
     expect(panel).not.toBeNull();
     expect(panel).toHaveAttribute("aria-labelledby", home.id);
+    // Only the mounted panel is referenced; an inactive tab would dangle otherwise.
+    expect(screen.getByRole("tab", { name: "Insert" })).not.toHaveAttribute("aria-controls");
     expect(PPTX_TOOLBAR_TABS).toHaveLength(8);
   });
 });

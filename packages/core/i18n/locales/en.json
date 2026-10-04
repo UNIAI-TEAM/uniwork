@@ -7323,6 +7323,7 @@
       "canvas_label": "PowerPoint slide canvas",
       "slide_hidden": "Hidden slide",
       "render_pending": "Slide rendering is not connected to this application yet.",
+      "render_building": "Building the slide rendition…",
       "render_failed": "Slide rendering could not start",
       "render_failed_hint": "The document is unchanged. {{message}}",
       "zoom_controls_label": "Zoom and fit",

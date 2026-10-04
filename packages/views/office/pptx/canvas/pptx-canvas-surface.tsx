@@ -44,6 +44,9 @@ export interface PptxCanvasSurfaceProps {
   zoom: number;
   /** Build width used until the container measures one (and in layout-less DOMs). */
   fallbackFitWidthPx?: number;
+  /** A deck is bound and its rendition is still being built (P0-2 F16): the pending
+   *  state then says "building" instead of "not connected to this application". */
+  building?: boolean;
   /** Measured container width, so the caller can rebuild the tree at fit scale. */
   onFitWidthChange?: (widthPx: number) => void;
   /** Keyboard slide navigation owned by the editor. */
@@ -59,6 +62,7 @@ export function PptxCanvasSurface({
   slideCount,
   zoom,
   fallbackFitWidthPx = PPTX_FALLBACK_FIT_WIDTH,
+  building = false,
   onFitWidthChange,
   onKeyDown,
   overlay,
@@ -113,7 +117,7 @@ export function PptxCanvasSurface({
             ) : null}
           </div>
         ) : null}
-        {slideCount > 0 && !content ? <p className="self-center text-sm text-muted-foreground" data-testid="pptx-render-pending" data-pptx-render-pending>{t("render_pending")}</p> : null}
+        {slideCount > 0 && !content ? <p className="self-center text-sm text-muted-foreground" data-testid="pptx-render-pending" data-pptx-render-pending>{t(building ? "render_building" : "render_pending")}</p> : null}
       </div>
     </div>
   );

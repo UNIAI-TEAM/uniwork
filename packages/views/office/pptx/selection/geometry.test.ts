@@ -74,6 +74,17 @@ describe("handles", () => {
     expect(hitHandle(bounds, { x: 200, y: 100 })).toBeNull();
   });
 
+  it("hit-tests the rotate grip at the same clamped position the overlay draws", () => {
+    const page = { widthPx: 960, heightPx: 540 };
+    const topBox = { x: 100, y: 0, w: 200, h: 100 };
+    // The grip is drawn at y = 11 (clamped inside the top edge), so the hit zone follows it.
+    expect(hitHandle(topBox, { x: 200, y: 11 }, 6, 24, page)).toBe("rotate");
+    // The phantom zone at the unclamped y = -24 is no longer reachable.
+    expect(hitHandle(topBox, { x: 200, y: -24 }, 6, 24, page)).toBeNull();
+    // Without a page the legacy unclamped position still answers (back-compat callers).
+    expect(hitHandle(topBox, { x: 200, y: -24 })).toBe("rotate");
+  });
+
   it("picks the topmost element under a point", () => {
     const boxes = [nodeBox("under", { x: 0, y: 0, w: 100, h: 100 }), nodeBox("over", { x: 10, y: 10, w: 50, h: 50 })];
     expect(hitElement(boxes, { x: 20, y: 20 })).toBe("over");

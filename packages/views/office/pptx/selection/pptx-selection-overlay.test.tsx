@@ -1,3 +1,5 @@
+/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- the test wrapper mirrors the
+   real canvas surface's role=application tab stop so focus can be asserted. */
 import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -65,6 +67,17 @@ describe("PptxSelectionOverlay", () => {
     expect(c.onPointerUp).toHaveBeenCalled();
     fireEvent.pointerCancel(overlay);
     expect(c.onPointerCancel).toHaveBeenCalled();
+  });
+
+  it("focuses the canvas on pointer-down so the keyboard bindings stay live (F3)", () => {
+    const { container } = render(
+      <div data-pptx-canvas role="application" aria-label="Slide canvas" tabIndex={0}>
+        <PptxSelectionOverlay page={{ widthPx: 960, heightPx: 540 }} displayWidthPx={960} displayHeightPx={540} controller={controller()} />
+      </div>,
+    );
+    const overlay = container.querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    fireEvent.pointerDown(overlay, { button: 0, clientX: 10, clientY: 10 });
+    expect(document.activeElement).toBe(container.querySelector("[data-pptx-canvas]"));
   });
 
   it("renders no outline when nothing is selected", () => {

@@ -47,6 +47,8 @@ export function PptxTabStrip({ tabs, activeTab, onSelect, className }: PptxTabSt
     >
       {tabs.map((tab, index) => {
         const selected = tab.id === activeTab;
+        // Only the selected tab has a mounted panel to point at; the other seven would
+        // dangle, so they carry no aria-controls at all.
         return (
           <button
             key={tab.id}
@@ -54,7 +56,7 @@ export function PptxTabStrip({ tabs, activeTab, onSelect, className }: PptxTabSt
             type="button"
             role="tab"
             id={pptxTabDomId(tab.id)}
-            aria-controls={pptxTabPanelId(tab.id)}
+            aria-controls={selected ? pptxTabPanelId(tab.id) : undefined}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             data-pptx-tab={tab.id}

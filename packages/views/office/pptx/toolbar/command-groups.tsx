@@ -12,8 +12,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { findPptxCommand, type PptxCommand, type PptxCommandId } from "../command-map";
 import { PptxCommandButton } from "./command-button";
@@ -58,6 +58,9 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
 
   useEffect(() => {
     const measure = () => {
+      // F5: the group nodes measured here live in a hidden, full-width measure row
+      // that always renders EVERY group at its natural width, so a collapsed group
+      // never reports 0 and can never pop back inline into a clipped, menu-less row.
       setSizes({
         container: containerRef.current?.getBoundingClientRect().width ?? 0,
         groups: groups.map((_entry, index) => groupRefs.current[index]?.getBoundingClientRect().width ?? 0),
@@ -106,54 +109,87 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
   };
   let flatIndex = -1;
   return (
-    <div
-      ref={containerRef}
-      role="tabpanel"
-      id={pptxTabPanelId(tab.id)}
-      aria-labelledby={pptxTabDomId(tab.id)}
-      className={cn("flex min-h-9 items-stretch gap-1 overflow-hidden px-2 py-1.5", className)}
-      data-pptx-tab-panel={tab.id}
-    >
-      {inline.map((entry, groupIndex) => (
-        <div key={entry.group.id} ref={(element) => { groupRefs.current[groupIndex] = element; }} className="flex shrink-0 items-center gap-1" data-pptx-group={entry.group.id}>
-          {groupIndex > 0 ? <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-border" /> : null}
-          <span className="sr-only">{t(entry.group.labelKey)}</span>
-          {entry.items.map((command) => {
-            flatIndex += 1;
-            const index = flatIndex;
-            return (
-              <PptxCommandButton
-                key={command.id}
-                command={command}
-                active={activeCommand === command.id}
-                onCommand={onCommand}
-                tabIndex={activeIndex === index ? 0 : -1}
-                onKeyDown={(event) => moveFocus(event, index)}
-                buttonRef={(element) => { buttonRefs.current[index] = element; }}
-              />
-            );
-          })}
-        </div>
-      ))}
-      {overflow.length > 0 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" size="sm" variant="ghost" aria-label={t("overflow_label")} data-pptx-overflow-trigger />}
-          >
-            <MoreHorizontal aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-auto min-w-44">
-            {overflow.map((entry) => (
-              <div key={entry.group.id} className="flex flex-col gap-0.5 p-0.5" data-pptx-overflow-group={entry.group.id}>
-                <span className="px-1.5 py-0.5 text-caption text-muted-foreground">{t(entry.group.labelKey)}</span>
-                {entry.items.map((command) => (
-                  <PptxCommandButton key={command.id} command={command} active={activeCommand === command.id} onCommand={onCommand} compact />
-                ))}
-              </div>
+    <div className="relative">
+      <div
+        ref={containerRef}
+        role="tabpanel"
+        id={pptxTabPanelId(tab.id)}
+        aria-labelledby={pptxTabDomId(tab.id)}
+        className={cn("flex min-h-9 items-stretch gap-1 overflow-hidden px-2 py-1.5", className)}
+        data-pptx-tab-panel={tab.id}
+      >
+        {inline.map((entry, groupIndex) => (
+          <div key={entry.group.id} className="flex shrink-0 items-center gap-1" data-pptx-group={entry.group.id}>
+            {groupIndex > 0 ? <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-border" /> : null}
+            <span className="sr-only">{t(entry.group.labelKey)}</span>
+            {entry.items.map((command) => {
+              flatIndex += 1;
+              const index = flatIndex;
+              return (
+                <PptxCommandButton
+                  key={command.id}
+                  command={command}
+                  active={activeCommand === command.id}
+                  onCommand={onCommand}
+                  tabIndex={activeIndex === index ? 0 : -1}
+                  onKeyDown={(event) => moveFocus(event, index)}
+                  buttonRef={(element) => { buttonRefs.current[index] = element; }}
+                />
+              );
+            })}
+          </div>
+        ))}
+        {overflow.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button type="button" size="sm" variant="ghost" aria-label={t("overflow_label")} data-pptx-overflow-trigger />}
+            >
+              <MoreHorizontal aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-auto min-w-44">
+              {overflow.map((entry) => (
+                <DropdownMenuGroup key={entry.group.id} data-pptx-overflow-group={entry.group.id}>
+                  <DropdownMenuLabel>{t(entry.group.labelKey)}</DropdownMenuLabel>
+                  {entry.items.map((command) => {
+                    const enabledCommand = command.capability.status === "available";
+                    return (
+                      <DropdownMenuItem
+                        key={command.id}
+                        disabled={!enabledCommand}
+                        onClick={() => enabledCommand && onCommand(command.id)}
+                        data-command={command.id}
+                        data-capability={command.capability.status}
+                        {...(command.capability.reason ? { title: command.capability.reason } : {})}
+                      >
+                        {t(command.labelKey)}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuGroup>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+      {/* F5: hidden, full-width measure row holding EVERY group at its natural width so
+          the overflow math never reads a collapsed group as 0. `inert` + `aria-hidden`
+          keep it out of the a11y tree and the tab order; spans (not buttons) avoid a
+          duplicate accessible control, and `buttonVariants` gives them the exact size
+          of the real command buttons. */}
+      <div
+        aria-hidden="true"
+        inert
+        className="pointer-events-none absolute left-0 top-0 -z-10 flex w-max items-stretch gap-1 px-2 py-1.5 opacity-0"
+      >
+        {groups.map((entry, index) => (
+          <div key={entry.group.id} ref={(element) => { groupRefs.current[index] = element; }} className="flex shrink-0 items-center gap-1" data-pptx-group-measure={entry.group.id}>
+            {index > 0 ? <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-border" /> : null}
+            {entry.items.map((command) => (
+              <span key={command.id} className={cn(buttonVariants({ size: "sm", variant: "ghost" }))}>{t(command.labelKey)}</span>
             ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

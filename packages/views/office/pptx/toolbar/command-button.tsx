@@ -21,7 +21,6 @@ export interface PptxCommandButtonProps {
   /** Arrow-key handling for the roving focus inside one panel. */
   onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
   buttonRef?: (element: HTMLButtonElement | null) => void;
-  compact?: boolean;
   className?: string;
 }
 
@@ -32,25 +31,26 @@ export function PptxCommandButton({
   tabIndex,
   onKeyDown,
   buttonRef,
-  compact = false,
   className,
 }: PptxCommandButtonProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const enabled = command.capability.status === "available";
   const label = t(command.labelKey);
+  // Only a real toggle gets aria-pressed; undo/redo/save/open are momentary actions,
+  // so they must not advertise a pressed state they cannot hold.
   return (
     <span className="group relative inline-flex">
       <Button
         ref={buttonRef}
         type="button"
-        size={compact ? "xs" : "sm"}
+        size="sm"
         variant={active ? "secondary" : "ghost"}
         disabled={!enabled}
         aria-label={label}
-        aria-pressed={active}
+        aria-pressed={active ? true : undefined}
         data-command={command.id}
         data-capability={command.capability.status}
-        className={cn(compact && "w-full justify-start", className)}
+        className={cn(className)}
         onClick={() => enabled && onCommand(command.id)}
         onKeyDown={onKeyDown}
         tabIndex={tabIndex}

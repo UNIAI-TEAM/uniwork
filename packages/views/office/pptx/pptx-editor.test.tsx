@@ -111,10 +111,14 @@ describe("PptxEditor", () => {
 
   it("rebuilds the rendition for the selected slide only", async () => {
     const { buildRenderSlide } = renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
-    await waitFor(() => expect(buildRenderSlide).toHaveBeenCalledTimes(1));
+    // P0-2 F3: the rail builds every slide at 160 px through the same artifact spy, so
+    // isolate the on-screen rendition (960 px) instead of counting every call.
+    const renditions = () => (buildRenderSlide.mock.calls as Array<[unknown, unknown, { fitWidthPx?: number; slideNo?: number }]>)
+      .filter((call) => call[2]?.fitWidthPx === 960);
+    await waitFor(() => expect(renditions()).toHaveLength(1));
     fireEvent.click(screen.getByRole("button", { name: "Slide 2" }));
-    await waitFor(() => expect(buildRenderSlide).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ slideNo: 2 })));
-    expect(buildRenderSlide).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(renditions().some((call) => call[2]?.slideNo === 2)).toBe(true));
+    expect(renditions()).toHaveLength(2);
   });
 
   it("fills the rail with generated thumbnails", async () => {
@@ -176,10 +180,41 @@ describe("PptxEditor", () => {
     const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
     vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
     fireEvent.pointerDown(overlay, { button: 0, clientX: 150, clientY: 100 });
+    // F3: the overlay no longer preventDefaults away the browser's focus move; it focuses
+    // the canvas itself, so the keyboard bindings are live in the click-first flow.
+    const canvas = screen.getByRole("application", { name: "PowerPoint slide canvas" });
+    expect(document.activeElement).toBe(canvas);
     fireEvent.pointerUp(overlay, { button: 0, clientX: 150, clientY: 100 });
     await waitFor(() => expect(overlay.querySelector("[data-pptx-selection-outline]")).not.toBeNull());
-    fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "Delete" });
+    fireEvent.keyDown(canvas, { key: "Delete" });
     await waitFor(() => expect(edit).toHaveBeenCalledWith([{ op: "delete_element", slideIndex: 0, elementId: "shape-1" }]));
+  });
+
+  it("binds Ctrl+A to select every element on the canvas", async () => {
+    renderEditor({ slides: [{ id: "s1" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const canvas = screen.getByRole("application", { name: "PowerPoint slide canvas" });
+    fireEvent.keyDown(canvas, { key: "a", ctrlKey: true });
+    await waitFor(() => expect(canvas.querySelector("[data-pptx-selection-outline]")).not.toBeNull());
+  });
+
+  it("does not upscale the 160px rail thumbnail fullscreen in the presenter", async () => {
+    renderEditor({ slides: [{ id: "s1", label: "Intro" }], deck });
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "Slides" }).querySelector("img")).not.toBeNull());
+    fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    const dialog = screen.getByRole("dialog", { name: "Presenter view" });
+    expect(dialog.querySelector("img")).toBeNull();
+    expect(dialog).toHaveTextContent("Intro");
+  });
+
+  it("labels a bound deck that is still building instead of claiming rendering is unbound", async () => {
+    let resolveModule!: (module: PptxRendererModule) => void;
+    const load = () => new Promise<PptxRendererModule>((resolve) => { resolveModule = resolve; });
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} loadRendererModule={load} slides={[{ id: "s1" }]} deck={deck} />);
+    expect(screen.getByTestId("pptx-render-pending")).toHaveTextContent("Building the slide rendition");
+    resolveModule(fakeRendererModule().module);
+    await waitFor(() => expect(screen.queryByTestId("pptx-render-pending")).toBeNull());
   });
 
   it("disposes the one editor handle when the view unmounts", async () => {

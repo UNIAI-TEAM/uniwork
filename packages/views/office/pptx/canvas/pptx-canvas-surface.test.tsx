@@ -63,6 +63,11 @@ describe("PptxCanvasSurface", () => {
     expect(screen.getByTestId("pptx-render-pending")).toHaveTextContent("Slide rendering is not connected");
     expect(screen.queryByRole("application")?.querySelector("[data-slide-canvas]")).toBeNull();
   });
+
+  it("distinguishes a still-building deck from an unbound renderer (P0-2 F16)", () => {
+    render(<PptxCanvasSurface content={null} slideIndex={0} slideCount={2} zoom={1} building />);
+    expect(screen.getByTestId("pptx-render-pending")).toHaveTextContent("Building the slide rendition");
+  });
 });
 
 describe("PptxCanvasZoom", () => {

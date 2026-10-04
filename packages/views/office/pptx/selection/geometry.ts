@@ -197,14 +197,19 @@ export function transformWithinBounds(
   };
 }
 
-/** Handle under a pointer, page px, with a square hit radius. */
+/** Handle under a pointer, page px, with a square hit radius. When `page` is given the
+ *  rotate grip is hit-tested at the SAME clamped position the overlay draws it at, so a
+ *  box near the slide top does not hide the grip from the hit test. */
 export function hitHandle(
   bounds: PptxBox,
   pointer: PptxPoint,
   radiusPx = 6,
   rotateOffsetPx = 24,
+  page?: { widthPx: number; heightPx: number },
 ): PptxHandleId | null {
-  const rotate = rotateHandlePosition(bounds, rotateOffsetPx);
+  const rotate = page
+    ? rotateHandlePositionInBounds(bounds, page, rotateOffsetPx)
+    : rotateHandlePosition(bounds, rotateOffsetPx);
   if (Math.abs(pointer.x - rotate.x) <= radiusPx && Math.abs(pointer.y - rotate.y) <= radiusPx) return "rotate";
   for (const handle of PPTX_RESIZE_HANDLES) {
     const point = handlePosition(bounds, handle);
