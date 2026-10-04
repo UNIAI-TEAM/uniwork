@@ -7,9 +7,15 @@ import type { DocxToolbarGroup, DocxToolbarGroupContext } from "./types";
 /**
  * R8 (chrome amendment R): the DOCX command row is the shared Office ribbon.
  * This module re-mounts the existing per-tab registry (./tabs/tabs.ts) 1:1 -
- * every tab keeps its id and labelKey, every group keeps its id, labelKey and
- * component and becomes ONE custom ribbon item, so no command can disappear in
- * the migration. `DOCX_TOOLBAR_TABS` stays the single source of truth.
+ * every tab keeps its id and labelKey and every group keeps its id and
+ * labelKey, so no command can disappear in the migration.
+ * `DOCX_TOOLBAR_TABS` stays the single source of truth.
+ *
+ * A group either declares typed `ribbonItems(context)` - rendered as real
+ * large/small/icon buttons, toggles, splits, combos and galleries (R7) - or
+ * falls back to ONE custom ribbon item wrapping its `component`, which is how
+ * every group was mounted in the first migration pass. The typed path is opt-in
+ * per group, so a group can move over without the others changing.
  */
 
 /**
@@ -73,18 +79,23 @@ function renderGroup(group: DocxToolbarGroup, context: DocxToolbarGroupContext):
 }
 
 function toRibbonGroup(group: DocxToolbarGroup, context: DocxToolbarGroupContext): RibbonGroup {
-  const item: RibbonCustomItem = {
+  return {
+    id: group.id,
+    labelKey: group.labelKey,
+    priority: docxGroupPriority(group.collapseAt),
+    items: group.ribbonItems ? group.ribbonItems(context) : [customItemFor(group, context)],
+  };
+}
+
+/** Fallback mount for a group that has not migrated to typed items: the whole
+ * component renders inside one custom item, sized by the GROUP_WIDTHS estimate. */
+function customItemFor(group: DocxToolbarGroup, context: DocxToolbarGroupContext): RibbonCustomItem {
+  return {
     kind: "custom",
     id: group.id,
     labelKey: group.labelKey,
     width: GROUP_WIDTHS[group.id] ?? GROUP_WIDTH_DEFAULT,
     render: () => renderGroup(group, context),
-  };
-  return {
-    id: group.id,
-    labelKey: group.labelKey,
-    priority: docxGroupPriority(group.collapseAt),
-    items: [item],
   };
 }
 

@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { RibbonItem } from "../../ribbon";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "../commands";
 import type { DocxEditorHandle, DocxSaveCoordinator, DocxSelection } from "../types";
 
@@ -37,6 +38,14 @@ export interface DocxToolbarGroup {
   /** i18next key used as the group's accessible name. */
   labelKey: string;
   component: ComponentType<DocxToolbarGroupContext>;
+  /**
+   * Typed ribbon items for this group (R7). When present the ribbon renders
+   * these items directly - large/small/icon buttons, toggles, splits, combos,
+   * galleries - instead of the single custom item that wraps `component`.
+   * When absent the shell keeps today's one-custom-item-per-group path, so a
+   * group can migrate to the typed model without losing any command.
+   */
+  ribbonItems?: (context: DocxToolbarGroupContext) => readonly RibbonItem[];
   /** Container width (px) below which the group collapses into the overflow
    * menu; 0 (or absent) keeps the group inline at every width. */
   collapseAt?: number;
