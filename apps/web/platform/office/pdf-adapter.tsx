@@ -37,6 +37,9 @@ type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>
 type FailureClass = "password_required" | "wrong_password" | "engine_error";
 
 interface PdfEditorSurface extends PdfEditorHandle<PdfSnapshot> {
+  /** The web lane opens with an optional password (C3); the base handle's
+   * `open()` takes none, so the surface widens it here. */
+  open(password?: string): Promise<void>;
   openOutcome(): PdfOpenOutcome | null;
   serializeSnapshot(snapshot: StableSnapshot<PdfSnapshot>): Promise<{ bytes: Uint8Array; checksum: string }>;
   /** Final teardown, called when the host session is disposed. dispose() alone stays reopenable. */
