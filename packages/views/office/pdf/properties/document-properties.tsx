@@ -81,5 +81,3 @@ export function PdfDocumentPropertiesDialog({ open, metadata, setMetadata, onOpe
     </Dialog>
   );
 }
-
-export const PdfPropertiesDialog = PdfDocumentPropertiesDialog;

@@ -1,2 +1,2 @@
-export { PdfDocumentPropertiesDialog, PdfPropertiesDialog } from "./document-properties";
-export type { PdfDocumentMetadata, PdfDocumentPropertiesDialogProps, PdfSetMetadata } from "./document-properties";
+export { PdfDocumentPropertiesDialog } from "./document-properties";
+export type { PdfDocumentPropertiesDialogProps } from "./document-properties";
