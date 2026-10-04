@@ -56,11 +56,6 @@ export function EquationDialog({ open, onOpenChange, readOnly = false, onInsert 
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onOpenChange(false);
-      return;
-    }
     // Enter submits from the text field; buttons keep their own activation.
     if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
       event.preventDefault();
@@ -69,7 +64,7 @@ export function EquationDialog({ open, onOpenChange, readOnly = false, onInsert 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => onOpenChange(next)}>
       <DialogContent data-testid="docx-equation-dialog" className="gap-3" closeLabel={t("common.close")} onKeyDown={onKeyDown}>
         <DialogHeader className="gap-1">
           <DialogTitle>{t("office.docx.equation.title")}</DialogTitle>

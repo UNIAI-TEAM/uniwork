@@ -78,7 +78,7 @@ export function DocxCitationDialog({ open, onOpenChange, onInsert }: DocxCitatio
             onClick={() => onInsert(author, year)}
             data-testid="docx-citation-apply"
           >
-            {t("office.docx.captions.insert")}
+            {t("office.docx.captions.apply")}
           </Button>
         </DialogFooter>
       </DialogContent>

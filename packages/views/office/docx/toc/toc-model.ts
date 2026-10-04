@@ -215,11 +215,29 @@ export function docxCaptionContent(label: string, number: number, text: string):
   return content;
 }
 
-/** How many captions of one label the live document already carries (parsed
- * ones keep their inline-field marks through the block conversion, so one scan
- * covers both). The next caption's number is this count + 1. The matcher is
- * the engine's, so a Word-authored instruction with extra switches or stray
- * whitespace counts exactly as the engine's own XML scan counts it. */
+/** The vendored parser's label for a paragraph holding a SEQ field: a caption
+ * that came from the parse is a protected block, not an editable paragraph, so
+ * its SEQ instruction never reaches an inline-field mark. */
+export const DOCX_CAPTION_FIELD_LABEL = "Caption number field";
+
+/** True when a parse-loaded caption block belongs to `label`: its visible
+ * field result is `<label> <number> <text>`, the shape a SEQ caption has. */
+function isParsedCaptionOf(node: DocxTocDocNode, label: string): boolean {
+  if (node.type.name !== "docProtected") return false;
+  if (String(node.attrs?.label ?? "") !== DOCX_CAPTION_FIELD_LABEL) return false;
+  const display = node.attrs?.fieldDisplay as { kind?: unknown; left?: unknown } | undefined;
+  if (display?.kind !== "text" || typeof display.left !== "string") return false;
+  const pattern = new RegExp("^\\s*" + docxCaptionLabel(label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+\\d+(?:\\s|$)");
+  return pattern.test(display.left);
+}
+
+/** How many captions of one label the live document already carries. Two shapes
+ * count: an inserted caption is an editable paragraph whose number run carries
+ * the inline-field mark, while a Word-authored caption survives the parse as a
+ * protected "Caption number field" block whose SEQ instruction lives only in
+ * the original XML. The next caption's number is this count + 1. The mark
+ * matcher is the engine's, so a Word-authored instruction with extra switches
+ * or stray whitespace counts exactly as the engine's own XML scan counts it. */
 export function countDocxCaptions(doc: DocxTocDocNode | null | undefined, label: string): number {
   if (!doc) return 0;
   let count = 0;
@@ -228,6 +246,9 @@ export function countDocxCaptions(doc: DocxTocDocNode | null | undefined, label:
       if (mark.type.name !== "instrField") continue;
       if (isDocxCaptionInstr(mark.attrs?.instr, label)) count += 1;
     }
+  });
+  doc.forEach((node) => {
+    if (isParsedCaptionOf(node, label)) count += 1;
   });
   return count;
 }

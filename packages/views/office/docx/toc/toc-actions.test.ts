@@ -117,7 +117,7 @@ describe("updateDocxToc", () => {
   });
 
   it("refuses a read-only document before touching the run", () => {
-    const editor = editorWith([heading("One", 1)]);
+    const editor = editorWith([heading("One", 1)], false);
     expect(updateDocxToc(editor, OPTIONS)).toEqual({ outcome: "read_only", entries: 0 });
   });
 

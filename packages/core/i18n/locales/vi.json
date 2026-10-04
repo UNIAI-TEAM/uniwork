@@ -7844,6 +7844,7 @@
       },
       "captions": {
         "insert": "Chèn chú thích",
+        "apply": "Chèn",
         "citation": "Chèn trích dẫn",
         "citationTitle": "Chèn trích dẫn",
         "citationDescription": "Chèn một trích dẫn trong ngoặc dưới dạng văn bản. Trình soạn thảo không ghi trường CITATION: trường trích dẫn cần một phần thư mục mà engine không tạo được, nên văn bản hiển thị là dạng trung thực nhất.",

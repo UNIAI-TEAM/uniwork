@@ -76,7 +76,7 @@ export function DocxCaptionDialog({ open, onOpenChange, onInsert }: DocxCaptionD
             onClick={() => onInsert(t(`office.docx.captions.labels.${label}`), text)}
             data-testid="docx-caption-apply"
           >
-            {t("office.docx.captions.insert")}
+            {t("office.docx.captions.apply")}
           </Button>
         </DialogFooter>
       </DialogContent>

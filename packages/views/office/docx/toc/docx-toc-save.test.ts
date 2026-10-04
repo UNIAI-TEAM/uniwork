@@ -212,7 +212,7 @@ describe("DOCX caption save path", () => {
       const saved = await handle.serializeSnapshot(await handle.captureSnapshot());
       const document = await partOf(saved.bytes, "word/document.xml");
       expect(document).toContain(' SEQ "Figure" \\* ARABIC ');
-      expect(document).toContain('<w:t>2</w:t>');
+      expect(document).toContain('<w:t xml:space="preserve">2</w:t>');
       expect(document).toContain("Second chart");
       expect(document.match(/SEQ "?Figure"?/g)).toHaveLength(2);
       await assertDocxPartsPreserved(source, saved.bytes, false);

@@ -63,11 +63,6 @@ export function LinkDialog({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onOpenChange(false);
-      return;
-    }
     // Enter submits from a text field; buttons keep their own activation.
     if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
       event.preventDefault();
@@ -76,7 +71,7 @@ export function LinkDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => onOpenChange(next)}>
       <DialogContent data-testid="docx-link-dialog" className="gap-3" closeLabel={t("common.close")} onKeyDown={onKeyDown}>
         <DialogHeader className="gap-1">
           <DialogTitle>{editing ? t("office.docx.links.edit") : t("office.docx.links.insertTitle")}</DialogTitle>

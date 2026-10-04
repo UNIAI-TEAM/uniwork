@@ -7851,6 +7851,7 @@
       },
       "captions": {
         "insert": "Insert caption",
+        "apply": "Insert",
         "citation": "Insert citation",
         "citationTitle": "Insert citation",
         "citationDescription": "Inserts a bracketed reference as text. This editor writes no CITATION field: a citation field resolves against a bibliography part the engine cannot author, so the visible reference is the honest carrier.",
