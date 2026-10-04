@@ -1,4 +1,4 @@
-﻿import { DocxExportGroup, docxExportRibbonItems } from "../../export/docx-export-menu";
+import { DocxExportGroup, docxExportRibbonItems } from "../../export/docx-export-menu";
 import { ViewNavigationGroup, viewNavigationRibbonItems } from "../groups/view-navigation";
 import { ViewZoomGroup, viewZoomRibbonItems } from "../groups/view-zoom";
 import type { DocxToolbarTab } from "../types";

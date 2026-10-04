@@ -42,12 +42,12 @@ async function openMenu() {
 describe("DocxExportGroup", () => {
   it("disables the entry without a command runtime", () => {
     renderGroup({ commands: undefined });
-    expect(screen.getByRole("button", { name: "Xuất và in" })).toBeDisabled();
+    expect(screen.getByTestId("docx-export-menu")).toBeDisabled();
   });
 
   it("disables the entry while no document is open", () => {
     renderGroup({ ready: false });
-    expect(screen.getByRole("button", { name: "Xuất và in" })).toBeDisabled();
+    expect(screen.getByTestId("docx-export-menu")).toBeDisabled();
   });
 
   it("prints from the menu", async () => {

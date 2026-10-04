@@ -1,12 +1,10 @@
-﻿"use client";
+"use client";
 
-// A6-wire (UNI-924): the View tab's navigation group. W-H adds a typed ribbon
-// toggle for the navigation pane; the pane itself (view/navigation-host.tsx)
-// reads the live document outline and scrolls the clicked heading, so no engine
-// accessor is needed here. A zero-width host item keeps this component (which
-// mounts the pane) mounted next to the typed toggle. The ruler toggle stays out
-// of the typed model: the ruler is mounted by the view chrome with no toggle
-// seam (noted in the W-H report).
+// A6-wire (UNI-924): the View tab's navigation group. W-H typed the toggle but
+// it snapshotted `navigationPane.get()` at build time, so its `pressed` value
+// went stale (F6). The toggle is mounted as a live `custom` item that subscribes
+// to the pane store. The pane itself is mounted by the toolbar-level
+// `RibbonDialogHosts` (F7), so folding the group cannot destroy it.
 import { ListTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -14,30 +12,47 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import type { RibbonItem } from "../../../ribbon";
 import { DocxNavigationHost } from "../../view";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
+import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen, useRibbonOpenLive } from "./ribbon-open-store";
 
 /** Shared open state of the navigation pane. */
 const navigationPane = createRibbonOpenStore();
 
+/** The live navigation toggle: subscribes to the pane store so `aria-pressed`
+ * tracks the current state instead of a build-time snapshot (F6). */
+function NavigationToggle() {
+  const { t } = useTranslation();
+  const open = useRibbonOpenLive(navigationPane);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={t("office.docx.view.navigation.label")}
+      aria-pressed={open}
+      data-ribbon-item="view-navigation"
+      data-testid="docx-navigation-ribbon-toggle"
+      onClick={() => navigationPane.set(!open)}
+    >
+      <ListTree aria-hidden />
+    </Button>
+  );
+}
+
 /** The typed ribbon items for the View > navigation group. */
-export function viewNavigationRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function viewNavigationRibbonItems(_context: DocxToolbarGroupContext): readonly RibbonItem[] {
   return [
     {
-      kind: "toggle",
+      kind: "custom",
       id: "view-navigation",
       labelKey: "office.docx.view.navigation.label",
-      icon: ListTree,
-      size: "large",
-      collapseAs: "small",
-      pressed: navigationPane.get(),
-      onExecute: () => navigationPane.set(!navigationPane.get()),
+      width: 96,
+      render: () => <NavigationToggle />,
     },
-    ribbonHostItem("view-navigation-host", "office.docx.toolbar.groups.navigation", ViewNavigationGroup, context),
+    ribbonHostItem("view-navigation-host", "office.docx.toolbar.groups.navigation"),
   ];
 }
 
-/** View > navigation: the typed items live on the registry entry; this
- * component keeps the pane mount and stays exported for direct use. */
+/** View > navigation: this component owns the pane and is mounted by
+ * `RibbonDialogHosts`. */
 export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const [open] = useRibbonOpen(navigationPane);
@@ -51,6 +66,8 @@ export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
             size="icon-sm"
             aria-label={t("office.docx.view.navigation.label")}
             data-testid="docx-navigation-toggle"
+            tabIndex={-1}
+            aria-hidden
             className="sr-only"
           />
         }
@@ -64,9 +81,4 @@ export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
   );
 }
 
-ViewNavigationGroup.ribbonItems = viewNavigationRibbonItems;
-
-
-
-
-
+registerRibbonDialogHost("view-navigation-host", ViewNavigationGroup);

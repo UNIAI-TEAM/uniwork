@@ -1,6 +1,7 @@
-﻿// UNI-924 W-H: the Layout / Review / View groups now publish typed ribbon items.
+// UNI-924 W-H: the Layout / Review / View groups now publish typed ribbon items.
 // These tests read each typed item and prove its action still runs the same
 // command the pre-typed toolbar entry ran (no command lost in the migration).
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RibbonItem } from "../../../ribbon";
 import type { DocxCommandRuntime } from "../../commands";
@@ -8,6 +9,7 @@ import type { DocxToolbarGroupContext } from "../types";
 import { docxExportRibbonItems } from "../../export/docx-export-menu";
 import { layoutPageDecorRibbonItems } from "./layout-page-decor";
 import { layoutPageSetupRibbonItems } from "./layout-page-setup";
+import { RibbonDialogHosts } from "./ribbon-open-store";
 import { reviewCommentsRibbonItems } from "./review-comments";
 import { reviewCompareRibbonItems } from "./review-compare";
 import { reviewTrackChangesRibbonItems } from "./review-track-changes";
@@ -97,16 +99,15 @@ describe("Review tab typed ribbon items", () => {
 });
 
 describe("View tab typed ribbon items", () => {
-  it("toggles the navigation pane from the typed toggle", () => {
-    const first = itemById(viewNavigationRibbonItems(context()), "view-navigation");
-    if (first.kind !== "toggle") throw new Error("expected toggle");
-    expect(first.size).toBe("large");
-    const before = first.pressed;
-    first.onExecute();
-    const after = itemById(viewNavigationRibbonItems(context()), "view-navigation");
-    if (after.kind !== "toggle") throw new Error("expected toggle");
-    expect(after.pressed).toBe(!before);
-    after.onExecute();
+  it("renders the navigation toggle as a live custom control (F6)", () => {
+    const item = itemById(viewNavigationRibbonItems(context()), "view-navigation");
+    expect(item.kind).toBe("custom");
+    render(<div>{item.kind === "custom" ? item.render({ size: "large", inPanel: false }) : null}</div>);
+    const toggle = screen.getByTestId("docx-navigation-ribbon-toggle");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("docx-navigation-ribbon-toggle")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("docx-navigation-ribbon-toggle"));
   });
 
   it("runs print / HTML / PDF from the export dropdown", () => {
@@ -122,5 +123,58 @@ describe("View tab typed ribbon items", () => {
     dropdown.menu[1]!.onSelect();
     expect(commands.printDocx).toHaveBeenCalledTimes(1);
     expect(commands.downloadDocxHtml).toHaveBeenCalledTimes(1);
+    // F2: the command takes LITERAL strings, so the typed path must pass the
+    // translated file name/title, not the raw i18n keys.
+    expect(commands.downloadDocxHtml).toHaveBeenCalledWith("tài liệu", "Tài liệu");
+  });
+});
+
+describe("F7: typed-group dialogs mount in the fold-proof host", () => {
+  it("keeps a dialog alive when the group's item tree folds away", () => {
+    // RibbonDialogHosts mounts EVERY registered group's dialog owner, so the
+    // context needs a command runtime that answers every area's render probes.
+    const commands = new Proxy(
+      { setDocxSectionProperties: vi.fn(() => true) },
+      { get: (target, prop) => (prop in target ? target[prop as keyof typeof target] : vi.fn()) },
+    ) as unknown as DocxCommandRuntime;
+    const section = {
+      index: 0,
+      firstBlockIndex: 0,
+      lastBlockIndex: 0,
+      pageWidth: 11906,
+      pageHeight: 16838,
+      orientation: "portrait",
+      marginTop: 1440,
+      marginRight: 1440,
+      marginBottom: 1440,
+      marginLeft: 1440,
+      columns: 1,
+      columnSpace: 720,
+      startType: "nextPage",
+    };
+    const ctx = context({ commands, format: { docxPageSetup: { sections: [section], activeIndex: 0 } } as never });
+    const items = layoutPageSetupRibbonItems(ctx);
+
+    // The foldable item tree renders only the zero-width marker, never the
+    // dialog: at stage 3 / in the simplified layout the ribbon mounts these
+    // items inside a TRANSIENT popover, so a dialog rendered here would die.
+    const tree = render(
+      <div data-testid="foldable-items">
+        {items.map((item) => (item.kind === "custom" ? item.render({ size: "large", inPanel: false }) : null))}
+      </div>,
+    );
+    expect(screen.queryByTestId("docx-page-setup-dialog")).not.toBeInTheDocument();
+
+    // The toolbar-level host is the stable mount point and owns the dialog.
+    render(<RibbonDialogHosts {...ctx} />);
+    const split = itemById(items, "layout-page-setup");
+    if (split.kind !== "split") throw new Error("expected split");
+    act(() => split.onExecute());
+    expect(screen.getByTestId("docx-page-setup-dialog")).toBeInTheDocument();
+
+    // Fold: the group's popover closes and its item tree unmounts - the dialog
+    // must survive, because it lives outside that tree.
+    tree.unmount();
+    expect(screen.getByTestId("docx-page-setup-dialog")).toBeInTheDocument();
   });
 });

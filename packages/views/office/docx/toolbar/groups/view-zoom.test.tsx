@@ -60,11 +60,11 @@ describe("ViewZoomGroup", () => {
   it("renders the zoom control inert until a document is open", () => {
     render(<ViewZoomGroup {...context(null)} />);
     expect(screen.getByTestId("docx-zoom-control")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Phóng to" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Phóng to", hidden: true })).toBeDisabled();
   });
 
   it("enables the control once the format state is available", () => {
     render(<ViewZoomGroup {...context(READY_FORMAT)} />);
-    expect(screen.getByRole("button", { name: "Phóng to" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Phóng to", hidden: true })).toBeEnabled();
   });
 });

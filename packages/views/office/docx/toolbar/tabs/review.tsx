@@ -1,4 +1,4 @@
-﻿import { ReviewProtectGroup, reviewProtectRibbonItems } from "../../protect/review-protect";
+import { ReviewProtectGroup, reviewProtectRibbonItems } from "../../protect/review-protect";
 import { ReviewCommentsGroup, reviewCommentsRibbonItems } from "../groups/review-comments";
 import { ReviewCompareGroup, reviewCompareRibbonItems } from "../groups/review-compare";
 import { ReviewTrackChangesGroup, reviewTrackChangesRibbonItems } from "../groups/review-track-changes";

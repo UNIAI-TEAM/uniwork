@@ -77,7 +77,7 @@ function renderGroup(options: { commands?: DocxCommandRuntime; readOnly?: boolea
 describe("ReviewCommentsGroup", () => {
   it("shows the thread count, not the entry count, and opens the pane from the toolbar entry", () => {
     renderGroup();
-    const trigger = screen.getByRole("button", { name: "Bình luận" });
+    const trigger = screen.getByTestId("docx-comments-toggle");
     // one thread with a reply: the badge counts 1, not 2 entries
     expect(trigger).toHaveTextContent("1");
     fireEvent.click(trigger);
@@ -87,21 +87,21 @@ describe("ReviewCommentsGroup", () => {
 
   it("adds a comment on the current selection through the runtime", () => {
     const { commands } = renderGroup();
-    fireEvent.click(screen.getByRole("button", { name: "Bình luận" }));
-    fireEvent.click(screen.getByRole("button", { name: "Thêm bình luận" }));
+    fireEvent.click(screen.getByTestId("docx-comments-toggle"));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm bình luận", hidden: true }));
     fireEvent.change(screen.getByLabelText("Nhập nội dung bình luận…"), { target: { value: "ghi chú mới" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi", hidden: true }));
     expect(commands?.addDocxComment).toHaveBeenCalledWith("ghi chú mới", "UniWork", "UN");
   });
 
   it("disables the entry without a command runtime", () => {
     renderGroup({ commands: undefined });
-    expect(screen.getByRole("button", { name: "Bình luận" })).toBeDisabled();
+    expect(screen.getByTestId("docx-comments-toggle")).toBeDisabled();
   });
 
   it("keeps comments readable but not editable on a read-only document", () => {
     renderGroup({ readOnly: true });
-    fireEvent.click(screen.getByRole("button", { name: "Bình luận" }));
+    fireEvent.click(screen.getByTestId("docx-comments-toggle"));
     expect(screen.getByText("xin chào")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Thêm bình luận" })).not.toBeInTheDocument();
   });

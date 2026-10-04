@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocxToolbarGroupContext } from "../types";
-import { ViewNavigationGroup } from "./view-navigation";
+import { ViewNavigationGroup, viewNavigationRibbonItems } from "./view-navigation";
 
 function context(): DocxToolbarGroupContext {
   const coordinatorState = {
@@ -72,6 +72,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** The ribbon's live nav toggle (the typed custom item) plus the pane group,
+ * mounted together the way the toolbar mounts them (F6). */
+function RibbonFixture() {
+  const item = viewNavigationRibbonItems(context()).find((entry) => entry.id === "view-navigation");
+  if (!item || item.kind !== "custom") throw new Error("expected a custom nav item");
+  return (
+    <div data-testid="docx-editor">
+      <div data-testid="docx-canvas">
+        <div data-testid="docx-document-surface">
+          <div className="doc-zoom">
+            <div className="page-wrap">
+              <div className="doc-page">
+                <h1>One</h1>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {item.render({ size: "large", inPanel: false })}
+      <ViewNavigationGroup {...context()} />
+    </div>
+  );
+}
+
 describe("ViewNavigationGroup", () => {
   it("opens the pane, lists the rendered headings and scrolls the clicked one", async () => {
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
@@ -89,7 +113,17 @@ describe("ViewNavigationGroup", () => {
     fireEvent.click(toggle);
     await screen.findByTestId("docx-navigation-pane");
 
-    fireEvent.click(screen.getByRole("button", { name: "Đóng ngăn điều hướng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đóng ngăn điều hướng", hidden: true }));
     await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+  });
+  it("opens the pane from the live ribbon toggle (F6)", async () => {
+    render(<RibbonFixture />);
+    const toggle = screen.getByTestId("docx-navigation-ribbon-toggle");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    // The store the toggle wrote is the same one the pane reads, so the pane
+    // opens and the toggle's pressed state tracks it live.
+    expect(await screen.findByTestId("docx-navigation-pane")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-navigation-ribbon-toggle")).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 // A12 (UNI-924): review > tracked changes. W-H adds typed ribbon items: the
 // primary split opens the change pane and its menu carries Accept all / Reject
-// all, the same commands the old toolbar entry exposed. A zero-width host item
-// keeps this component (which mounts the pane) mounted next to the typed split,
-// so the typed items stay plain data (no hooks) and every command path is kept.
+// all, the same commands the old toolbar entry exposed. The pane is mounted by
+// the toolbar-level `RibbonDialogHosts` (F7) so folding the group cannot destroy
+// it; the kept sr-only trigger is an anchor only (F9).
 import { CheckCheck, History, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,14 +13,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import type { RibbonItem } from "../../../ribbon";
 import { DocxReviewPanel } from "../../review/docx-review-panel";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
+import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
 /** Shared open state of the tracked-changes pane. */
 const reviewPane = createRibbonOpenStore();
 
 /** The typed ribbon items for the Review > track changes group. */
-export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
-  const { format, commands } = context;
+export function reviewTrackChangesRibbonItems({ format, commands }: DocxToolbarGroupContext): readonly RibbonItem[] {
   const disabled = !commands;
   const hasChanges = (format?.reviewChanges.length ?? 0) > 0;
   return [
@@ -50,12 +49,12 @@ export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext):
         },
       ],
     },
-    ribbonHostItem("review-track-changes-host", "office.docx.toolbar.groups.trackChanges", ReviewTrackChangesGroup, context),
+    ribbonHostItem("review-track-changes-host", "office.docx.toolbar.groups.trackChanges"),
   ];
 }
 
 /** Review > track changes: the typed items live on the registry entry; this
- * component keeps the pane mount and stays exported for direct use. */
+ * component owns the pane and is mounted by `RibbonDialogHosts`. */
 export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const [open] = useRibbonOpen(reviewPane);
@@ -82,6 +81,8 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: 
             size="icon-sm"
             aria-label={t("office.docx.toolbar.groups.trackChanges")}
             aria-pressed={open}
+            tabIndex={-1}
+            aria-hidden
             data-testid="docx-review-toggle"
             className="sr-only"
           />
@@ -120,8 +121,4 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: 
   );
 }
 
-ReviewTrackChangesGroup.ribbonItems = reviewTrackChangesRibbonItems;
-
-
-
-
+registerRibbonDialogHost("review-track-changes-host", ReviewTrackChangesGroup);

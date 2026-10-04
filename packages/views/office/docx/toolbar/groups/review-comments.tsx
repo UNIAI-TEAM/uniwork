@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 // B2 (UNI-924): review > comments. W-H adds typed ribbon items: the primary
 // split opens the comments pane and its menu starts the compose flow, the same
-// commands the old toolbar entry exposed. A zero-width host item keeps this
-// component (which mounts the pane) mounted next to the typed split, so the
-// typed items stay plain data and every command path is kept.
+// commands the old toolbar entry exposed. The pane is mounted by the
+// toolbar-level `RibbonDialogHosts` (F7) so folding the group cannot destroy it;
+// the kept sr-only trigger is an anchor only (F9).
 import { MessageSquare, MessageSquarePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
@@ -14,7 +14,7 @@ import type { RibbonItem } from "../../../ribbon";
 import { groupCommentThreads } from "../../comments/docx-comment-model";
 import { DocxCommentsPanel } from "../../comments/docx-comments-panel";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonController, createRibbonOpenStore, ribbonHostItem, useRibbonBound, useRibbonOpen } from "./ribbon-open-store";
+import { createRibbonController, createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonBound, useRibbonOpen } from "./ribbon-open-store";
 
 /** Author stored when no session name is available (identity in the file, not
  * UI copy - the panel still renders names through the normal flow). */
@@ -34,12 +34,9 @@ function openComposer(): void {
 }
 
 /** The typed ribbon items for the Review > comments group. */
-export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
-  const { format, commands, readOnly } = context;
+export function reviewCommentsRibbonItems({ format, commands, readOnly }: DocxToolbarGroupContext): readonly RibbonItem[] {
   const editable = !readOnly && !!commands;
   const canComment = editable && (commands?.canAddDocxComment() ?? false);
-  const threads = groupCommentThreads(format?.docxComments ?? []);
-  const threadCount = threads.open.length + threads.resolved.length;
   return [
     {
       kind: "split",
@@ -67,12 +64,12 @@ export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): rea
         },
       ],
     },
-    ribbonHostItem("review-comments-host", "office.docx.toolbar.groups.comments", ReviewCommentsGroup, context),
+    ribbonHostItem("review-comments-host", "office.docx.toolbar.groups.comments"),
   ];
 }
 
 /** Review > comments: the typed items live on the registry entry; this
- * component keeps the pane mount and stays exported for direct use. */
+ * component owns the pane and is mounted by `RibbonDialogHosts`. */
 export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const { user } = useSession();
@@ -111,7 +108,10 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
             size="icon-sm"
             aria-label={t("office.docx.toolbar.groups.comments")}
             aria-pressed={open}
+            tabIndex={-1}
+            aria-hidden
             className="sr-only"
+            data-testid="docx-comments-toggle"
           />
         }
       >
@@ -150,8 +150,5 @@ export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarG
     </Popover>
   );
 }
-ReviewCommentsGroup.ribbonItems = reviewCommentsRibbonItems;
 
-
-
-
+registerRibbonDialogHost("review-comments-host", ReviewCommentsGroup);

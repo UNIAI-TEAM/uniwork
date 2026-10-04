@@ -1,6 +1,6 @@
-// The popover is mocked the way the repo's other popover tests do it: jsdom
+// The popover is mocked the way the repo’s other popover tests do it: jsdom
 // has no layout, so the real Base UI positioner never opens; the stand-in
-// forwards open state/props so the group's wiring stays under test.
+// forwards open state/props so the group’s wiring stays under test.
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -73,7 +73,8 @@ function renderGroup(options: { commands?: DocxCommandRuntime; format?: DocxTool
 describe("ReviewTrackChangesGroup", () => {
   it("shows the change count and opens the pane from the toolbar entry", () => {
     renderGroup();
-    const trigger = screen.getByRole("button", { name: "Theo dõi thay đổi" });
+    // F9: the kept trigger is an sr-only anchor (aria-hidden), so query by testid.
+    const trigger = screen.getByTestId("docx-review-toggle");
     expect(trigger).toHaveTextContent("2");
     fireEvent.click(trigger);
     expect(screen.getByText("đoạn được chèn")).toBeInTheDocument();
@@ -81,23 +82,23 @@ describe("ReviewTrackChangesGroup", () => {
 
   it("keeps the loading state while the document is still opening", () => {
     renderGroup({ format: null });
-    fireEvent.click(screen.getByRole("button", { name: "Theo dõi thay đổi" }));
+    fireEvent.click(screen.getByTestId("docx-review-toggle"));
     expect(screen.getByText("Đang tải thay đổi…")).toBeInTheDocument();
     expect(screen.queryByText("Không có thay đổi được theo dõi")).not.toBeInTheDocument();
   });
 
   it("clears the jumped-to highlight when the pane closes", () => {
     renderGroup();
-    fireEvent.click(screen.getByRole("button", { name: "Theo dõi thay đổi" }));
+    fireEvent.click(screen.getByTestId("docx-review-toggle"));
     fireEvent.click(screen.getByRole("button", { name: "Đến thay đổi: đoạn được chèn" }));
     expect(screen.getByText("đoạn được chèn").closest("li")).toHaveClass("bg-surface-hover");
     fireEvent.click(screen.getByRole("button", { name: "Đóng danh sách thay đổi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Theo dõi thay đổi" }));
+    fireEvent.click(screen.getByTestId("docx-review-toggle"));
     expect(screen.getByText("đoạn được chèn").closest("li")).not.toHaveClass("bg-surface-hover");
   });
 
   it("disables the entry without a command runtime", () => {
     renderGroup({ commands: undefined });
-    expect(screen.getByRole("button", { name: "Theo dõi thay đổi" })).toBeDisabled();
+    expect(screen.getByTestId("docx-review-toggle")).toBeDisabled();
   });
 });

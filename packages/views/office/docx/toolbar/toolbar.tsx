@@ -4,6 +4,7 @@ import { Save, Undo2, Redo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeRibbon } from "../../ribbon";
+import { RibbonDialogHosts } from "./groups/ribbon-open-store";
 import { HomeFindGroup } from "./groups/home-find";
 import { buildDocxContextualTabs } from "./contextual-tabs";
 import { buildDocxRibbonTabs } from "./ribbon-tabs";
@@ -75,6 +76,8 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
           </>
         }
       />
+      {/* F7: one persistent, fold-proof mount for every typed group's dialog/panel. */}
+      <RibbonDialogHosts {...context} />
       {onSave ? (
         <span className="sr-only" role="status" aria-live="polite">
           {t(`office.docx.saveState.${coordinator.getState().state}`)}

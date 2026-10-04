@@ -1,4 +1,4 @@
-﻿import { LayoutPageDecorGroup, layoutPageDecorRibbonItems } from "../groups/layout-page-decor";
+import { LayoutPageDecorGroup, layoutPageDecorRibbonItems } from "../groups/layout-page-decor";
 import { LayoutPageSetupGroup, layoutPageSetupRibbonItems } from "../groups/layout-page-setup";
 import type { DocxToolbarTab } from "../types";
 

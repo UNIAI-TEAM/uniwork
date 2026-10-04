@@ -50,7 +50,8 @@ function renderGroup(options: { commands?: DocxCommandRuntime; state?: DocxPageS
 describe("LayoutPageSetupGroup", () => {
   it("opens the page-setup dialog and records the edit on the runtime", () => {
     const { commands } = renderGroup();
-    const trigger = screen.getByRole("button", { name: "Thiết lập trang" });
+    // F9: the kept trigger is an sr-only anchor (aria-hidden), so query by testid.
+    const trigger = screen.getByTestId("docx-page-setup-open");
     expect(trigger).toBeEnabled();
     fireEvent.click(trigger);
     expect(screen.getByTestId("docx-page-setup-dialog")).toBeInTheDocument();
@@ -62,16 +63,16 @@ describe("LayoutPageSetupGroup", () => {
 
   it("disables the entry without a command runtime", () => {
     renderGroup({ commands: undefined });
-    expect(screen.getByRole("button", { name: "Thiết lập trang" })).toBeDisabled();
+    expect(screen.getByTestId("docx-page-setup-open")).toBeDisabled();
   });
 
   it("disables the entry while no document is open (no sections)", () => {
     renderGroup({ state: null });
-    expect(screen.getByRole("button", { name: "Thiết lập trang" })).toBeDisabled();
+    expect(screen.getByTestId("docx-page-setup-open")).toBeDisabled();
   });
 
   it("disables the entry on a read-only document", () => {
     renderGroup({ readOnly: true });
-    expect(screen.getByRole("button", { name: "Thiết lập trang" })).toBeDisabled();
+    expect(screen.getByTestId("docx-page-setup-open")).toBeDisabled();
   });
 });

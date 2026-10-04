@@ -39,7 +39,7 @@ function renderGroup(options: { commands?: DocxCommandRuntime; ready?: boolean; 
 describe("ReviewCompareGroup", () => {
   it("opens the compare dialog and reads the live document through the runtime", async () => {
     const { commands } = renderGroup();
-    fireEvent.click(screen.getByRole("button", { name: "So sánh tài liệu" }));
+    fireEvent.click(screen.getByTestId("docx-compare-toggle"));
     expect(screen.getByText(/Chỉ so sánh văn bản/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("docx-compare-file-input"), {
@@ -53,16 +53,16 @@ describe("ReviewCompareGroup", () => {
 
   it("disables the entry before a document is open", () => {
     renderGroup({ ready: false });
-    expect(screen.getByRole("button", { name: "So sánh tài liệu" })).toBeDisabled();
+    expect(screen.getByTestId("docx-compare-toggle")).toBeDisabled();
   });
 
   it("disables the entry without a command runtime", () => {
     renderGroup({ commands: undefined });
-    expect(screen.getByRole("button", { name: "So sánh tài liệu" })).toBeDisabled();
+    expect(screen.getByTestId("docx-compare-toggle")).toBeDisabled();
   });
 
   it("stays available on a read-only document — comparison only reads", () => {
     renderGroup({ readOnly: true });
-    expect(screen.getByRole("button", { name: "So sánh tài liệu" })).toBeEnabled();
+    expect(screen.getByTestId("docx-compare-toggle")).toBeEnabled();
   });
 });

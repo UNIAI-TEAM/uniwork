@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // C1 (UNI-924): the toolbar entry for print/export. W-H adds a typed ribbon
 // dropdown: Print (browser dialog on the paginated surface), Export HTML
@@ -6,15 +6,15 @@
 // docx->pdf engine op is bound, see worker-C1 report). The same commands the
 // old dropdown ran. The group is disabled until the command runtime reports an
 // open document. A zero-width host item keeps this component (which mounts the
-// PDF dialog) mounted next to the typed dropdown.
+// PDF dialog) registered with the fold-proof `RibbonDialogHosts`.
 
 import { FileDown, FileOutput, FileText, Printer } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { getI18n, useTranslation } from "react-i18next";
 import type { RibbonItem } from "../../ribbon";
-import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
+import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportPdfDialog } from "./docx-export-pdf-dialog";
 import { installDocxPrintStyles } from "./docx-print";
@@ -25,6 +25,7 @@ const pdfDialog = createRibbonOpenStore();
 /** The typed ribbon items for the View > export group. */
 export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { commands, format } = context;
+  const { t } = getI18n();
   const disabled = !commands || !(format?.docxExportReady ?? false);
   return [
     {
@@ -51,7 +52,9 @@ export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonl
           icon: FileDown,
           disabled,
           onSelect: () => {
-            commands?.downloadDocxHtml("office.docx.export.fileName", "office.docx.export.documentTitle");
+            // `downloadDocxHtml` takes literal strings, not keys: the legacy
+            // path passed `t(...)` and the typed path must do the same.
+            commands?.downloadDocxHtml(t("office.docx.export.fileName"), t("office.docx.export.documentTitle"));
           },
         },
         {
@@ -63,7 +66,7 @@ export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonl
         },
       ],
     },
-    ribbonHostItem("export-host", "office.docx.toolbar.groups.export", DocxExportGroup, context),
+    ribbonHostItem("export-host", "office.docx.toolbar.groups.export"),
   ];
 }
 
@@ -92,6 +95,8 @@ export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
               disabled={disabled}
               aria-label={t("office.docx.export.menuLabel")}
               aria-haspopup="menu"
+              tabIndex={-1}
+              aria-hidden
               className="sr-only"
               data-testid="docx-export-menu"
             />
@@ -125,21 +130,17 @@ export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
         </DropdownMenuContent>
       </DropdownMenu>
       {pdfOpen ? (
-    <DocxExportPdfDialog
-      open
-      onOpenChange={pdfDialog.set}
-      onPrint={() => {
-        pdfDialog.close();
-        commands?.printDocx();
-      }}
-    />
+        <DocxExportPdfDialog
+          open
+          onOpenChange={pdfDialog.set}
+          onPrint={() => {
+            pdfDialog.close();
+            commands?.printDocx();
+          }}
+        />
       ) : null}
     </>
   );
 }
 
-DocxExportGroup.ribbonItems = docxExportRibbonItems;
-
-
-
-
+registerRibbonDialogHost("export-host", DocxExportGroup);

@@ -1,24 +1,23 @@
-﻿"use client";
+"use client";
 
 // B6 (UNI-924): Layout > page decoration. W-H adds typed ribbon items: the
 // primary dropdown opens the watermark / page colour / borders / theme dialog
-// (the same command the old toolbar button ran). The trigger button and a
-// zero-width host item keep this component mounted next to the typed dropdown,
-// so the typed items stay plain data and every command path is kept.
+// (the same command the old toolbar button ran). The dialog is mounted by the
+// toolbar-level `RibbonDialogHosts` (F7) so folding the group cannot destroy it;
+// the kept sr-only trigger is an anchor only (F9).
 import { Palette } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxPageDecorDialog } from "../../page-decor/docx-page-decor-dialog";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
+import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
 /** Shared open state of the page-decoration dialog. */
 const pageDecorDialog = createRibbonOpenStore();
 
 /** The typed ribbon items for the Layout > page decoration group. */
-export function layoutPageDecorRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
-  const { format, commands, readOnly } = context;
+export function layoutPageDecorRibbonItems({ format, commands, readOnly }: DocxToolbarGroupContext): readonly RibbonItem[] {
   const disabled = readOnly || !commands || !format?.docxPageDecor;
   const open = () => pageDecorDialog.open();
   return [
@@ -40,12 +39,12 @@ export function layoutPageDecorRibbonItems(context: DocxToolbarGroupContext): re
         },
       ],
     },
-    ribbonHostItem("layout-page-decor-host", "office.docx.toolbar.groups.pageDecor", LayoutPageDecorGroup, context),
+    ribbonHostItem("layout-page-decor-host", "office.docx.toolbar.groups.pageDecor"),
   ];
 }
 
 /** Layout > page decoration: the typed items live on the registry entry; this
- * component keeps the dialog mount and stays exported for direct use. */
+ * component owns the dialog and is mounted by `RibbonDialogHosts`. */
 export function LayoutPageDecorGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
   const [open] = useRibbonOpen(pageDecorDialog);
@@ -60,6 +59,8 @@ export function LayoutPageDecorGroup({ format, commands, readOnly }: DocxToolbar
         aria-label={t("office.docx.toolbar.groups.pageDecor")}
         aria-haspopup="dialog"
         disabled={disabled}
+        tabIndex={-1}
+        aria-hidden
         className="sr-only"
         onClick={() => pageDecorDialog.open()}
         data-testid="docx-page-decor-open"
@@ -81,7 +82,4 @@ export function LayoutPageDecorGroup({ format, commands, readOnly }: DocxToolbar
   );
 }
 
-LayoutPageDecorGroup.ribbonItems = layoutPageDecorRibbonItems;
-
-
-
+registerRibbonDialogHost("layout-page-decor-host", LayoutPageDecorGroup);
