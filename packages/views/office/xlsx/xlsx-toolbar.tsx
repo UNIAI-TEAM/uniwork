@@ -1,16 +1,13 @@
-"use client";
+﻿"use client";
 
 import { Save } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { cn } from "@uniwork/ui/lib/utils";
-import { XlsxToolbarGroupStrip } from "./toolbar/group-strip";
-import { XLSX_TOOLBAR_GROUPS } from "./toolbar/registry";
-import { XlsxToolbarTabStrip } from "./toolbar/tab-strip";
-import { toolbarPanelDomId, toolbarTabDomId, XLSX_TOOLBAR_TABS } from "./toolbar/tabs";
-import type { XlsxToolbarGroupDefinition, XlsxToolbarGroupProps, XlsxToolbarTabId } from "./toolbar/types";
-import type { XlsxEditorPermissions, XlsxSaveCoordinator, XlsxSelection } from "./types";
+import { OfficeRibbon } from "../ribbon";
+import { xlsxRibbonTabs, XLSX_RIBBON_SCOPE } from "./toolbar/ribbon-data";
+import type { XlsxToolbarGroupProps, XlsxToolbarTabId } from "./toolbar/types";
+import type { XlsxSaveCoordinator } from "./types";
 
 export interface XlsxToolbarProps extends XlsxToolbarGroupProps {
   coordinator: XlsxSaveCoordinator;
@@ -24,10 +21,14 @@ export interface XlsxToolbarProps extends XlsxToolbarGroupProps {
 /** Commands are callbacks only. The toolbar has no byte, upload, or commit
  * path, which keeps every Save behind the G3-01 coordinator.
  *
- * The shell owns the ARIA tablist, the measured overflow and the persistent
- * right-side cluster (selection label, Save, Save progress/cancel, the recalc
- * and save-state live regions) so a save is never hidden behind a tab.
- * Command groups come from `toolbar/registry.ts` - Wave A tasks append there. */
+ * Chrome amendment R (UNI-926): the shell now renders the SHARED <OfficeRibbon>
+ * in place of the old tab strip + group strip. The ribbon owns the tab row, the
+ * adaptive collapse, the collapse-to-tabs toggle and the simplified phone
+ * layout; the shell keeps the persistent right-side cluster (selection label,
+ * Save, Save progress/cancel, the recalc and save-state live regions) in the
+ * ribbon's trailing slot so a save is never hidden behind a tab. Command groups
+ * still come from `toolbar/registry.ts` via `toolbar/ribbon-data.ts`, so no
+ * command, op or journal path changed. */
 export function XlsxToolbar({
   coordinator,
   dirty,
@@ -72,11 +73,6 @@ export function XlsxToolbar({
   const selectionLabel = selection
     ? t("office.xlsx.selection.range", { sheet: selection.sheet, address: selectedAddress })
     : t("office.xlsx.selection.none");
-  const groupsByTab = useMemo(() => {
-    const map = new Map<XlsxToolbarTabId, XlsxToolbarGroupDefinition[]>(XLSX_TOOLBAR_TABS.map((tab) => [tab.id, []]));
-    for (const group of XLSX_TOOLBAR_GROUPS) map.get(group.tab)?.push(group);
-    return map;
-  }, []);
   const groupProps: XlsxToolbarGroupProps = {
     readOnly,
     permissions,
@@ -110,52 +106,46 @@ export function XlsxToolbar({
 
   return (
     <div className="flex flex-col border-b border-border bg-muted/30" data-testid="xlsx-toolbar" aria-label={t("office.xlsx.toolbar.label")}>
-      <XlsxToolbarTabStrip activeTab={activeTab} onActivate={setActiveTab} />
-      <div className="flex min-h-11 flex-wrap items-center gap-1 px-2 py-1">
-        {XLSX_TOOLBAR_TABS.map((tab) => (
-          <div
-            key={tab.id}
-            id={toolbarPanelDomId(tab.id)}
-            data-testid={toolbarPanelDomId(tab.id)}
-            role="tabpanel"
-            aria-labelledby={toolbarTabDomId(tab.id)}
-            tabIndex={-1}
-            hidden={tab.id !== activeTab}
-            className={cn("min-w-0 flex-1 items-center gap-1", tab.id === activeTab && "flex")}
-          >
-            <XlsxToolbarGroupStrip tab={tab.id} groups={groupsByTab.get(tab.id) ?? []} context={groupProps} />
-          </div>
-        ))}
-        <span className="min-w-0 shrink truncate px-2 text-caption text-muted-foreground" data-testid="xlsx-selection">
-          {selectionLabel}
-        </span>
-        {showSave ? (
-          <Button
-            type="button"
-            variant="brand"
-            size="sm"
-            aria-disabled={blocked || saving || !dirty || undefined}
-            data-testid="xlsx-save"
-            onClick={onSave}
-          >
-            <Save aria-hidden />
-            {saving ? t("office.xlsx.actions.saving") : t("office.xlsx.actions.save")}
-          </Button>
-        ) : null}
-        <span className="sr-only" role="status" aria-live="polite">
-          {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(`office.xlsx.saveState.${state.state}`)}
-        </span>
-        {saving ? (
+      <OfficeRibbon
+        tabs={xlsxRibbonTabs(groupProps)}
+        scope={XLSX_RIBBON_SCOPE}
+        activeTabId={activeTab}
+        onActiveTabChange={(id) => setActiveTab(id as XlsxToolbarTabId)}
+        labelKey="office.ribbon.label"
+        trailing={
           <>
-            <progress className="w-20" aria-label={t("office.xlsx.actions.saving")} data-testid="xlsx-save-progress" />
-            {onCancelSave ? (
-              <Button type="button" variant="toolbar" size="sm" onClick={onCancelSave} data-testid="xlsx-save-cancel">
-                {t("common.cancel")}
+            <span className="min-w-0 shrink truncate px-2 text-caption text-muted-foreground" data-testid="xlsx-selection">
+              {selectionLabel}
+            </span>
+            {showSave ? (
+              <Button
+                type="button"
+                variant="brand"
+                size="sm"
+                aria-disabled={blocked || saving || !dirty || undefined}
+                data-testid="xlsx-save"
+                onClick={onSave}
+              >
+                <Save aria-hidden />
+                {saving ? t("office.xlsx.actions.saving") : t("office.xlsx.actions.save")}
               </Button>
             ) : null}
+            <span className="sr-only" role="status" aria-live="polite">
+              {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(`office.xlsx.saveState.${state.state}`)}
+            </span>
+            {saving ? (
+              <>
+                <progress className="w-20" aria-label={t("office.xlsx.actions.saving")} data-testid="xlsx-save-progress" />
+                {onCancelSave ? (
+                  <Button type="button" variant="toolbar" size="sm" onClick={onCancelSave} data-testid="xlsx-save-cancel">
+                    {t("common.cancel")}
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
           </>
-        ) : null}
-      </div>
+        }
+      />
     </div>
   );
 }

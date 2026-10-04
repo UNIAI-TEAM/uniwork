@@ -1,26 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+﻿import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
+import { useOfficeRibbonPreferencesStore } from "@uniwork/core/office/ribbon-preferences";
+import { XLSX_TOOLBAR_GROUPS } from "./toolbar/registry";
+import { XLSX_TOOLBAR_TABS } from "./toolbar/tabs";
+import { xlsxGroupPriority, xlsxRibbonTabs, XLSX_RIBBON_SCOPE } from "./toolbar/ribbon-data";
+import type { XlsxToolbarGroupProps } from "./toolbar/types";
 import type { XlsxSaveCoordinator } from "./types";
 import { XlsxToolbar, type XlsxToolbarProps } from "./xlsx-toolbar";
-import { selectVisibleGroupCount } from "./toolbar/overflow-model";
-
-/** jsdom has no layout, so the overflow tests own the measurement the real
- *  `useToolbarOverflow` hook reads: the strip's `clientWidth` and every
- *  group's `offsetWidth`. */
-const clientWidthDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth");
-const offsetWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
-
-function stubStripWidths(available: number, group: number) {
-  Object.defineProperty(Element.prototype, "clientWidth", { configurable: true, get: () => available });
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => group });
-}
-
-function restoreStripWidths() {
-  if (clientWidthDescriptor) Object.defineProperty(Element.prototype, "clientWidth", clientWidthDescriptor);
-  if (offsetWidthDescriptor) Object.defineProperty(HTMLElement.prototype, "offsetWidth", offsetWidthDescriptor);
-}
 
 function coordinator(): XlsxSaveCoordinator {
   const state = {
@@ -48,11 +36,8 @@ function coordinator(): XlsxSaveCoordinator {
   };
 }
 
-function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarProps {
-  const props: XlsxToolbarProps = {
-    coordinator: coordinator(),
-    dirty: true,
-    saving: false,
+function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbarGroupProps {
+  return {
     readOnly: false,
     permissions: {},
     selection: { sheet: "Data", address: "C1" },
@@ -60,86 +45,170 @@ function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarPr
     canRedo: true,
     canRecalculate: true,
     canFormat: true,
-    onNumberFormat: vi.fn(),
     recalculating: false,
     onUndo: vi.fn(),
     onRedo: vi.fn(),
+    onNumberFormat: vi.fn(),
     onRecalculate: vi.fn(),
     onCopy: vi.fn(),
     onPaste: vi.fn(),
     onShowSheets: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarProps {
+  const props: XlsxToolbarProps = {
+    coordinator: coordinator(),
+    dirty: true,
+    saving: false,
     onSave: vi.fn(),
     onCancelSave: vi.fn(),
     showSave: true,
+    ...groupProps(),
     ...overrides,
   };
   render(<XlsxToolbar {...props} />);
   return props;
 }
 
-const activateTab = (tab: string) => fireEvent.click(screen.getByTestId(`xlsx-toolbar-tab-${tab}`));
+/** The ribbon region of the XLSX chrome (R7/R8). */
+function ribbon(): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-office-ribbon="${XLSX_RIBBON_SCOPE}"]`)!;
+}
 
-describe("XlsxToolbar tabbed shell", () => {
-  it("renders an ARIA tablist with Home selected and panels wired to their tabs", () => {
-    renderToolbar();
-    expect(screen.getByRole("tablist")).toHaveAccessibleName();
-    expect(screen.getAllByRole("tab")).toHaveLength(6);
-    const home = screen.getByTestId("xlsx-toolbar-tab-home");
-    expect(home).toHaveAttribute("aria-selected", "true");
-    expect(home).toHaveAttribute("tabindex", "0");
-    expect(home).toHaveAttribute("aria-controls", "xlsx-toolbar-panel-home");
-    expect(screen.getByTestId("xlsx-toolbar-tab-view")).toHaveAttribute("tabindex", "-1");
-    const panel = screen.getByRole("tabpanel");
-    expect(panel).toHaveAttribute("id", "xlsx-toolbar-panel-home");
-    expect(panel).toHaveAttribute("aria-labelledby", "xlsx-toolbar-tab-home");
-    expect(screen.getByTestId("xlsx-toolbar-panel-view")).toHaveAttribute("hidden");
+/** A tab button by id, so the assertions do not depend on the locale. */
+function tab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
+
+beforeEach(() => {
+  useOfficeRibbonPreferencesStore.setState({ collapsed: {} });
+});
+
+describe("xlsxRibbonTabs", () => {
+  it("re-mounts every registry tab and group 1:1 as one custom item each", () => {
+    const tabs = xlsxRibbonTabs(groupProps());
+
+    expect(tabs.map((entry) => entry.id)).toEqual(XLSX_TOOLBAR_TABS.map((entry) => entry.id));
+    for (const [index, entry] of tabs.entries()) {
+      const registryTab = XLSX_TOOLBAR_TABS[index]!;
+      expect(entry.labelKey).toBe(registryTab.labelKey);
+
+      const registryGroups = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === registryTab.id)
+        .slice()
+        .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
+      expect(entry.groups.map((group) => group.id)).toEqual(registryGroups.map((group) => group.id));
+      expect(entry.groups.map((group) => group.labelKey)).toEqual(registryGroups.map((group) => group.labelKey));
+
+      for (const [groupIndex, group] of entry.groups.entries()) {
+        const source = registryGroups[groupIndex]!;
+        // Same id/labelKey and priority = -order (the registry's documented
+        // "highest order collapses first" mapping).
+        expect(group.priority).toBe(xlsxGroupPriority(source.order));
+        expect(Number.isFinite(group.priority)).toBe(true);
+        // Every group renders as exactly one custom item: no command lost.
+        expect(group.items).toHaveLength(1);
+        expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
+      }
+    }
   });
 
-  it("switches the visible panel on click and keeps aria-selected in sync", () => {
-    renderToolbar();
-    activateTab("insert");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "xlsx-toolbar-panel-insert");
-    expect(screen.getByTestId("xlsx-toolbar-tab-insert")).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("xlsx-toolbar-tab-home")).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByTestId("xlsx-toolbar-panel-home")).toHaveAttribute("hidden");
+  it("keeps every group exactly once with a monotonic priority per tab", () => {
+    const tabs = xlsxRibbonTabs(groupProps());
+    const mapped = tabs.flatMap((entry) => entry.groups);
+
+    expect(mapped).toHaveLength(XLSX_TOOLBAR_GROUPS.length);
+    expect(new Set(mapped.map((group) => group.id)).size).toBe(mapped.length);
+
+    for (const entry of tabs) {
+      const priorities = entry.groups.map((group) => group.priority);
+      // order ascends inside a tab, so -order strictly descends: the
+      // least-used (highest order) group always collapses first.
+      for (let index = 1; index < priorities.length; index += 1) {
+        expect(priorities[index]!).toBeLessThan(priorities[index - 1]!);
+      }
+    }
   });
 
-  it("moves focus with arrows/Home/End and activates only on Enter/Space", () => {
+  it("omits a group whose isAvailable returns false (no empty labelled box)", () => {
+    const withRecalc = xlsxRibbonTabs(groupProps({ canRecalculate: true }));
+    const withoutRecalc = xlsxRibbonTabs(groupProps({ canRecalculate: false }));
+    const formulas = (tabs: readonly { id: string; groups: readonly { id: string }[] }[]) =>
+      tabs.find((entry) => entry.id === "formulas")!.groups.map((group) => group.id);
+
+    expect(formulas(withRecalc)).toContain("calculation");
+    expect(formulas(withoutRecalc)).not.toContain("calculation");
+    expect(formulas(withoutRecalc)).toEqual(["formula"]);
+  });
+
+  it("keeps the six tabs in the lane's declared order", () => {
+    expect(xlsxRibbonTabs(groupProps()).map((entry) => entry.id)).toEqual([
+      "home",
+      "insert",
+      "formulas",
+      "data",
+      "review",
+      "view",
+    ]);
+  });
+});
+
+describe("XlsxToolbar on the shared ribbon", () => {
+  it("renders the shared ribbon region with the six tabs and Home selected", () => {
     renderToolbar();
-    const home = screen.getByTestId("xlsx-toolbar-tab-home");
-    const insert = screen.getByTestId("xlsx-toolbar-tab-insert");
-    home.focus();
-    fireEvent.keyDown(home, { key: "ArrowRight" });
-    expect(insert).toHaveFocus();
-    expect(home).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "xlsx-toolbar-panel-home");
-    fireEvent.keyDown(insert, { key: "Enter" });
-    expect(insert).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "xlsx-toolbar-panel-insert");
-    fireEvent.keyDown(insert, { key: "ArrowLeft" });
-    expect(home).toHaveFocus();
-    fireEvent.keyDown(home, { key: "End" });
-    const view = screen.getByTestId("xlsx-toolbar-tab-view");
-    expect(view).toHaveFocus();
-    fireEvent.keyDown(view, { key: " " });
-    expect(view).toHaveAttribute("aria-selected", "true");
-    fireEvent.keyDown(view, { key: "Home" });
-    expect(home).toHaveFocus();
-    expect(view).toHaveAttribute("aria-selected", "true");
+    const region = ribbon();
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveAttribute("data-ribbon-collapsed", "false");
+
+    const tablist = within(region).getByRole("tablist");
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(6);
+    expect(tab("home")).toHaveAttribute("aria-selected", "true");
+    expect(tab("view")).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("switches the visible groups when another tab is selected", () => {
+    renderToolbar();
+    expect(document.querySelector("[data-ribbon-group='history']")).toBeInTheDocument();
+
+    fireEvent.click(tab("insert"));
+    expect(document.querySelector("[data-ribbon-group='history']")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='charts']")).toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='structure-insert']")).toBeInTheDocument();
+  });
+
+  it("mounts every Home group once, labelled and hosted as one custom item", () => {
+    renderToolbar();
+    const body = within(ribbon()).getByRole("tabpanel");
+    const homeGroups = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === "home");
+    for (const group of homeGroups) {
+      const node = document.querySelector<HTMLElement>(`[data-ribbon-group='${group.id}']`)!;
+      expect(body).toContainElement(node);
+      expect(node.getAttribute("aria-label")).toBeTruthy();
+      // The group component is hosted verbatim as one custom item.
+      expect(node.querySelector(`[data-ribbon-item='${group.id}']`)).toBeInTheDocument();
+    }
   });
 
   it("keeps the selection label and Save cluster visible on every tab", () => {
     renderToolbar();
-    for (const tab of ["home", "insert", "formulas", "data", "review", "view"]) {
-      activateTab(tab);
+    for (const id of ["home", "insert", "formulas", "data", "review", "view"]) {
+      fireEvent.click(tab(id));
       expect(screen.getByTestId("xlsx-selection")).toBeVisible();
       expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1");
       expect(screen.getByTestId("xlsx-save")).toBeVisible();
     }
   });
 
-  it("fires every migrated command from its tab", () => {
-    const props = renderToolbar();
+  it("dispatches the same command ids through the mocked commands port", () => {
+    const execute = vi.fn(() => true);
+    const props = renderToolbar({ commands: { execute } });
+
+    // Home is the default tab; the Font group routes through the port.
+    fireEvent.click(screen.getByRole("button", { name: "In đậm" }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-bold", undefined);
+
+    // The non-port callbacks still fire from their groups (no path changed).
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Trang tính" }));
@@ -150,13 +219,8 @@ describe("XlsxToolbar tabbed shell", () => {
     expect(props.onShowSheets).toHaveBeenCalledOnce();
     expect(props.onCopy).toHaveBeenCalledOnce();
     expect(props.onPaste).toHaveBeenCalledOnce();
-    // The number-format group drives renderer commands through the toolbar
-    // port (it no longer calls onNumberFormat); this shell harness mounts no
-    // port, so its trigger renders disabled and inert — its own suite covers
-    // the gallery and the decimal steppers.
-    expect(screen.getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
 
-    activateTab("formulas");
+    fireEvent.click(tab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     expect(props.onRecalculate).toHaveBeenCalledOnce();
 
@@ -165,25 +229,15 @@ describe("XlsxToolbar tabbed shell", () => {
     expect(props.coordinator).not.toHaveProperty("writeBytes");
   });
 
-  it("names every group and keeps the chart placeholder capability-gated on Insert", () => {
-    renderToolbar();
-    expect(screen.queryByRole("button", { name: "Biểu đồ" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Lịch sử" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Bảng tạm" })).toBeInTheDocument();
-    activateTab("insert");
-    const chart = screen.getByRole("button", { name: "Biểu đồ" });
-    expect(chart).toHaveAttribute("aria-disabled", "true");
-    expect(chart).toHaveAttribute("title", "Tính năng này chưa được hỗ trợ.");
-    expect(screen.getByRole("group", { name: "Biểu đồ" })).toBeInTheDocument();
+  it("routes the View tab display toggles through the port with their command ids", () => {
+    const execute = vi.fn(() => true);
+    renderToolbar({ commands: { execute } });
+    fireEvent.click(tab("view"));
+    fireEvent.click(screen.getByRole("button", { name: "Đường lưới" }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.toggle-gridlines", { showGridlines: 0 });
   });
 
-  it("keeps an honest empty state on tabs without registered groups", () => {
-    renderToolbar();
-    activateTab("data");
-    expect(screen.getByTestId("xlsx-toolbar-empty-data")).toHaveTextContent("Thẻ này chưa có lệnh nào.");
-  });
-
-  it("keeps read-only and no-selection semantics without dropping controls from the tab order", () => {
+  it("keeps read-only and no-selection semantics without dropping controls", () => {
     const props = renderToolbar({ readOnly: true });
     const undo = screen.getByRole("button", { name: "Hoàn tác" });
     expect(undo).toHaveAttribute("aria-disabled", "true");
@@ -193,7 +247,7 @@ describe("XlsxToolbar tabbed shell", () => {
     expect(screen.getByRole("button", { name: "Sao chép ô đã chọn" })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("button", { name: "Dán vào ô đã chọn" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
-    activateTab("formulas");
+    fireEvent.click(tab("formulas"));
     expect(screen.getByRole("button", { name: "Tính lại công thức" })).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -203,9 +257,21 @@ describe("XlsxToolbar tabbed shell", () => {
     expect(copy).toHaveAttribute("aria-disabled", "true");
     expect(copy).toHaveAttribute("title", "Chưa chọn ô");
     expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Chưa chọn ô");
-    activateTab("formulas");
+    fireEvent.click(tab("formulas"));
     expect(screen.queryByRole("button", { name: "Tính lại công thức" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Tính toán" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='calculation']")).not.toBeInTheDocument();
+  });
+
+  it("names every Home group and keeps the chart placeholder capability-gated on Insert", () => {
+    renderToolbar();
+    expect(screen.queryByRole("button", { name: "Biểu đồ" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Lịch sử" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Bảng tạm" })).toBeInTheDocument();
+    fireEvent.click(tab("insert"));
+    const chart = screen.getByRole("button", { name: "Biểu đồ" });
+    expect(chart).toHaveAttribute("aria-disabled", "true");
+    expect(chart).toHaveAttribute("title", "Tính năng này chưa được hỗ trợ.");
+    expect(screen.getByRole("group", { name: "Biểu đồ" })).toBeInTheDocument();
   });
 
   it("keeps permission-blocked clipboard controls inert with the permission reason", () => {
@@ -233,59 +299,17 @@ describe("XlsxToolbar tabbed shell", () => {
     renderToolbar({ recalculating: true });
     expect(screen.getAllByRole("status")[1]).toHaveTextContent("Đang tính lại (0%)");
   });
-});
 
-describe("XlsxToolbar overflow", () => {
-  afterEach(restoreStripWidths);
-
-  it("collapses the groups that do not fit into the overflow panel", async () => {
-    stubStripWidths(100, 44);
-    const props = renderToolbar();
-    const panel = screen.getByRole("tabpanel");
-    const trigger = screen.getByTestId("xlsx-toolbar-overflow-home");
-    expect(trigger).toHaveAccessibleName("Thêm lệnh");
-    expect(within(panel).getByRole("button", { name: "Hoàn tác" })).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Sao chép ô đã chọn" })).not.toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Định dạng số" })).not.toBeInTheDocument();
-    fireEvent.click(trigger);
-    const overflowPanel = await screen.findByTestId("xlsx-toolbar-overflow-panel");
-    expect(within(overflowPanel).getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(within(overflowPanel).getByRole("button", { name: "Trang tính" }));
-    expect(props.onShowSheets).toHaveBeenCalledOnce();
-  });
-
-  it("keeps the overflow trigger reachable when nothing fits", async () => {
-    stubStripWidths(40, 44);
-    const props = renderToolbar();
-    expect(screen.queryByRole("button", { name: "Hoàn tác" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("xlsx-toolbar-overflow-formulas")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("xlsx-toolbar-overflow-home"));
-    const overflowPanel = await screen.findByTestId("xlsx-toolbar-overflow-panel");
-    fireEvent.click(within(overflowPanel).getByRole("button", { name: "Hoàn tác" }));
-    expect(props.onUndo).toHaveBeenCalledOnce();
-  });
-
-  it("keeps every group inline while the measured width fits", () => {
-    stubStripWidths(600, 44);
+  it("collapses to tabs only and peeks the body back on a tab click", () => {
     renderToolbar();
-    expect(screen.queryByTestId("xlsx-toolbar-overflow-home")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Định dạng số" })).toBeInTheDocument();
-  });
-});
+    const body = screen.getByRole("tabpanel");
+    fireEvent.click(screen.getByRole("button", { name: "Thu gọn dải lệnh" }));
+    expect(body).not.toBeVisible();
+    expect(useOfficeRibbonPreferencesStore.getState().collapsed[XLSX_RIBBON_SCOPE]).toBe(true);
 
-describe("selectVisibleGroupCount", () => {
-  it("keeps every group while the total fits the strip", () => {
-    expect(selectVisibleGroupCount([44, 44, 44], 140, 36)).toBe(3);
-  });
-
-  it("reserves the overflow trigger width when groups must collapse", () => {
-    expect(selectVisibleGroupCount([44, 44, 44], 120, 36)).toBe(1);
-    expect(selectVisibleGroupCount([44, 44, 44], 80, 36)).toBe(1);
-  });
-
-  it("collapses everything but the trigger when not even one group fits", () => {
-    expect(selectVisibleGroupCount([44, 44], 40, 36)).toBe(0);
-    expect(selectVisibleGroupCount([], 100, 36)).toBe(0);
+    fireEvent.click(tab("insert"));
+    expect(body).toBeVisible();
+    expect(body).toHaveAttribute("data-ribbon-peek", "true");
   });
 });
 

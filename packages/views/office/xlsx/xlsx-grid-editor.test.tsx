@@ -23,6 +23,12 @@ vi.mock("./xlsx-grid-surface", async () => {
   } };
 });
 
+/** The shared ribbon tab by id (the ribbon owns its own DOM, so no per-lane
+ *  testid survives the migration). */
+function ribbonTab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
+
 function setup(editDelay?: Promise<void>, readOnly = false, saving = false, embedded = false) {
   let snapshot: XlsxWorkbookSnapshot = { revision: 1, sheets: [
     { id: "sheet-1", name: "Data", cells: { A1: { value: 2 } } },
@@ -319,7 +325,7 @@ describe("XlsxEditor context menu and shortcuts", () => {
   it("opens the shortcuts dialog from the View tab entry", async () => {
     setup();
     await screen.findByTestId("live-grid");
-    fireEvent.click(screen.getByTestId("xlsx-toolbar-tab-view"));
+    fireEvent.click(ribbonTab("view"));
     fireEvent.click(screen.getByTestId("xlsx-shortcuts-open"));
     expect(await screen.findByTestId("xlsx-shortcuts")).toBeInTheDocument();
   });

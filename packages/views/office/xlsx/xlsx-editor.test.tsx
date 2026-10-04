@@ -7,6 +7,12 @@ import type { XlsxCellState, XlsxEditorHandle, XlsxOpenOutcome, XlsxSaveCoordina
 import { XlsxEditor } from "./xlsx-editor";
 import { createXlsxEditorLoader } from "./xlsx-editor-slot";
 
+/** The shared ribbon tab by id (the ribbon owns its own DOM, so no per-lane
+ *  testid survives the migration). */
+function ribbonTab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
+
 function coordinator(overrides: Partial<XlsxSaveCoordinator> = {}): XlsxSaveCoordinator {
   const state = {
     state: "dirty" as const,
@@ -281,7 +287,7 @@ describe("XlsxEditor", () => {
     const handle = editor({ recalculate: { run } });
     renderEditor(opened(), { editor: handle });
     await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("xlsx-toolbar-tab-formulas"));
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByText("Đã làm mới kết quả công thức.")).toBeInTheDocument());
     expect(run).toHaveBeenCalledTimes(1);
@@ -297,7 +303,7 @@ describe("XlsxEditor", () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
     await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("xlsx-toolbar-tab-formulas"));
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByTestId("xlsx-recalc-progress")).toBeInTheDocument());
     expect(screen.getByTestId("xlsx-recalc-progress")).toHaveTextContent("35%");
@@ -314,7 +320,7 @@ describe("XlsxEditor", () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
     await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("xlsx-toolbar-tab-formulas"));
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByTestId("xlsx-recalc-error")).toHaveTextContent("engine timeout"));
     expect(screen.queryByText("Đã làm mới kết quả công thức.")).not.toBeInTheDocument();
