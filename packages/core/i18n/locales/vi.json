@@ -7549,6 +7549,7 @@
           "formula": "Tham chiếu đến",
           "formulaPlaceholder": "ví dụ: Sheet1!$A$1:$B$2",
           "sheetIndex": "Phạm vi trang",
+          "workbookScope": "Toàn bộ sổ làm việc",
           "remove": "Xóa",
           "add": "Thêm tên",
           "apply": "Áp dụng",

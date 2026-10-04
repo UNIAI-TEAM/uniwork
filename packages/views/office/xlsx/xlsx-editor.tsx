@@ -562,6 +562,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     activeSheet: resolvedActiveSheet,
     readOnly,
     canEdit,
+    // F1/F5: the file's own names seed the manager; the live sheet order bounds
+    // the scope dropdown. Both come from the open render model / mounted grid.
+    definedNames: rendererHost?.file.definedNames,
+    sheetNames: (liveSheets.length > 0 ? liveSheets.map((sheet) => sheet.name) : (snapshot?.sheets ?? []).map((sheet) => sheet.name)),
     edit: editor.edit,
     onApplied: () => { markDirty(); refreshSnapshot(); },
     onError: setRecalcError,
@@ -605,18 +609,20 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     return () => root?.removeEventListener("keydown", captureSave, true);
   }, [captureSave, documentKey, editor]);
 
-  const sheets = snapshot?.sheets ?? [];
   // Tab colours have no write path in the vendored gateway: they are shown
   // read-only from the render model (the only reader of <tabColor>).
   const sheetTabInfos = useMemo(() => {
     // F7: tab colour is keyed by the stable sheet id, not the file name, so
     // a renamed sheet keeps its colour chip until the next save reloads it.
+    // `sheets` is derived inside the memo so the snapshot sheet list - not a
+    // per-render logical expression - is the dependency.
+    const sheets = snapshot?.sheets ?? [];
     const colors = new Map((rendererHost?.file.sheets ?? []).map((sheet) => [sheet.id, sheet.tabColor]));
     const source = liveSheets.length > 0
       ? liveSheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden }))
       : sheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden ?? false }));
     return source.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden, tabColor: colors.get(sheet.id) ?? null }));
-  }, [liveSheets, rendererHost, sheets]);
+  }, [liveSheets, rendererHost, snapshot?.sheets]);
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
   // Ctrl+PageUp/Down, and the redo alternate chord Ctrl+Shift+Z - upstream
   // binds only Ctrl+Y).

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import vi from "@uniwork/core/i18n/locales/vi.json";
 import { XLSX_TOOLBAR_GROUPS } from "../toolbar/registry";
-import { buildDefinedNames, definedNameValid, emptyNameRow } from "./protect-names-form";
+import { buildDefinedNames, definedNameValid, emptyNameRow, seedDefinedNames } from "./protect-names-form";
 
 function lookup(dictionary: unknown, key: string): unknown {
   return key.split(".").reduce<unknown>((node, part) => {
@@ -37,6 +37,36 @@ describe("xlsx protect + name manager", () => {
     ])).toEqual({ ok: false, error: "duplicate" });
   });
 
+  it("seeds rows from the file's own names and preserves the unmodelable ones", () => {
+    const seed = seedDefinedNames([
+      { name: "Sales", formula: "Sheet1!$A$1:$B$2" },
+      { name: "Scoped", formula: "Sheet2!$A$1", sheetIndex: 1 },
+      { name: "Hidden", formula: "Sheet1!$A$1", hidden: true },
+      { name: "OutOfRange", formula: "Sheet1!$A$1", sheetIndex: 9 },
+      { name: "_xlnm.Print_Area", formula: "Sheet1!$A$1:$B$2" },
+      { name: "A1", formula: "Sheet1!$A$1" },
+    ], 2);
+    expect(seed.rows).toEqual([
+      { name: "Sales", formula: "Sheet1!$A$1:$B$2", sheetIndex: "" },
+      { name: "Scoped", formula: "Sheet2!$A$1", sheetIndex: "1" },
+    ]);
+    // Hidden and out-of-range-scope names ride preserveNames; the _xlnm
+    // built-in is kept by the gateway and is not listed. A cell-ref name (A1)
+    // is refused by the grammar and also preserved.
+    expect(seed.preserveNames).toEqual(["Hidden", "OutOfRange", "A1"]);
+  });
+
+  it("bounds the sheet scope against the live sheet count (F5)", () => {
+    expect(buildDefinedNames([{ name: "N", formula: "A1", sheetIndex: "1" }], 2)).toEqual({
+      ok: true, names: [{ name: "N", formula: "A1", sheetIndex: 1 }],
+    });
+    expect(buildDefinedNames([{ name: "N", formula: "A1", sheetIndex: "2" }], 2)).toEqual({ ok: false, error: "sheetIndex" });
+    // Without a known sheet count the sanity ceiling still applies.
+    expect(buildDefinedNames([{ name: "N", formula: "A1", sheetIndex: "2" }])).toEqual({
+      ok: true, names: [{ name: "N", formula: "A1", sheetIndex: 2 }],
+    });
+  });
+
   it("registers the Review-tab group with labels in both locales", () => {
     const group = XLSX_TOOLBAR_GROUPS.find((candidate) => candidate.id === "protect");
     if (!group) throw new Error("missing protect group");
@@ -44,6 +74,7 @@ describe("xlsx protect + name manager", () => {
     for (const locale of [en, vi]) {
       expect(typeof lookup(locale, group.labelKey)).toBe("string");
       expect(typeof lookup(locale, "office.xlsx.protect.dialog.title")).toBe("string");
+      expect(typeof lookup(locale, "office.xlsx.protect.dialog.workbookScope")).toBe("string");
     }
   });
 });

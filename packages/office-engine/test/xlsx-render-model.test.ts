@@ -8,6 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bindXlsxGateway, readXlsxRenderModel, renderModelCellCount, type XlsxGatewayFunctions, type XlsxRenderModel } from "../src/xlsx";
 import { parseThemeXml } from "../src/xlsx/render-model";
+import { parseDefinedNamesXml } from "../src/xlsx/render-model-xml";
 import { parseStylesXml } from "../src/xlsx/render-model-styles";
 import { parseConditionalRules } from "../src/xlsx/render-model-conditional";
 
@@ -138,6 +139,34 @@ describe("xlsx render model reader", () => {
     expect(model.date1904).toBe(false);
     const styled = model.sheets.flatMap((sheet) => Object.values(sheet.cells)).filter((cell) => cell.s !== undefined);
     expect(styled.length).toBeGreaterThan(0);
+  });
+
+  it("parses workbook defined names including scope and hidden flags (F1)", () => {
+    const parsed = parseDefinedNamesXml(`<workbook><definedNames>
+      <definedName name="Sales">PhuLuc!$B$2</definedName>
+      <definedName name="Scoped" localSheetId="1">PhuLuc!$A$1</definedName>
+      <definedName name="Hidden" hidden="1">Sheet1!$A$1</definedName>
+      <definedName name="A&amp;B">Sheet1!$A$1</definedName>
+      <definedName name="Empty"/>
+    </definedNames></workbook>`);
+    expect(parsed).toEqual([
+      { name: "Sales", formula: "PhuLuc!$B$2" },
+      { name: "Scoped", formula: "PhuLuc!$A$1", sheetIndex: 1 },
+      { name: "Hidden", formula: "Sheet1!$A$1", hidden: true },
+      { name: "A&B", formula: "Sheet1!$A$1" },
+      { name: "Empty", formula: "" },
+    ]);
+    expect(parseDefinedNamesXml("<workbook><sheets/></workbook>")).toEqual([]);
+  });
+
+  it("surfaces the file's defined names on the render model (F1)", async () => {
+    const { model } = await readFixture("xlsx-kitchen-sink.xlsx");
+    expect(model.definedNames).toEqual([
+      { name: "TongDoanhThu", formula: "PhuLuc!$B$2" },
+      { name: "ChiTieu", formula: "PhuLuc!$A$2" },
+    ]);
+    const { model: vietnamese } = await readFixture("xlsx-vietnamese.xlsx");
+    expect(vietnamese.definedNames).toEqual([{ name: "TongDoanhThu", formula: "PhuLuc!$B$2" }]);
   });
 
   it("counts cells for the payload bound", async () => {

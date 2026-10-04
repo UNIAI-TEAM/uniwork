@@ -12,19 +12,38 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Select } from "@uniwork/ui/components/ui/select";
 import type { XlsxDefinedNameEntry } from "@uniwork/office-engine/xlsx";
-import { buildDefinedNames, emptyNameRow, type XlsxNameRow } from "./protect-names-form";
+import type { RendererWorkbookDefinedName } from "../xlsx-render-model-bridge";
+import { buildDefinedNames, emptyNameRow, seedDefinedNames, type XlsxNameRow } from "./protect-names-form";
 
 export interface XlsxProtectNamesDialogProps {
   readOnly?: boolean;
+  /** B7 F1: the workbook's own names; the dialog seeds its rows from them. */
+  definedNames?: readonly RendererWorkbookDefinedName[] | undefined;
+  /** The live sheet names in tab order, for the scope dropdown (F5). */
+  sheetNames?: readonly string[] | undefined;
   onSetProtection: (protectedFlag: boolean) => void;
-  onApplyNames: (names: readonly XlsxDefinedNameEntry[]) => void;
+  onApplyNames: (names: readonly XlsxDefinedNameEntry[], preserveNames: readonly string[]) => void;
   onClose: () => void;
 }
 
-export function XlsxProtectNamesDialog({ readOnly = false, onSetProtection, onApplyNames, onClose }: XlsxProtectNamesDialogProps) {
+/** The scope dropdown's workbook-scope sentinel. */
+const WORKBOOK_SCOPE = "";
+
+export function XlsxProtectNamesDialog({
+  readOnly = false,
+  definedNames = [],
+  sheetNames = [],
+  onSetProtection,
+  onApplyNames,
+  onClose,
+}: XlsxProtectNamesDialogProps) {
   const { t } = useTranslation();
-  const [rows, setRows] = useState<XlsxNameRow[]>(() => [emptyNameRow()]);
+  // F1: seed the rows from the file's own names once, on first render. The
+  // unmodelable ones ride preserveNames so Apply cannot delete them.
+  const [seed] = useState(() => seedDefinedNames(definedNames, sheetNames.length));
+  const [rows, setRows] = useState<XlsxNameRow[]>(() => (seed.rows.length > 0 ? seed.rows.map((row) => ({ ...row })) : [emptyNameRow()]));
   const [error, setError] = useState<string | null>(null);
 
   const updateRow = (index: number, patch: Partial<XlsxNameRow>) => {
@@ -38,12 +57,12 @@ export function XlsxProtectNamesDialog({ readOnly = false, onSetProtection, onAp
   };
   const applyNames = () => {
     if (readOnly) return;
-    const built = buildDefinedNames(rows);
+    const built = buildDefinedNames(rows, sheetNames.length);
     if (!built.ok) {
       setError(t(`office.xlsx.protect.dialog.invalid.${built.error}`));
       return;
     }
-    onApplyNames(built.names);
+    onApplyNames(built.names, seed.preserveNames);
     onClose();
   };
 
@@ -94,13 +113,26 @@ export function XlsxProtectNamesDialog({ readOnly = false, onSetProtection, onAp
                   value={row.formula}
                   onChange={(event) => updateRow(index, { formula: event.target.value })}
                 />
-                <Input
-                  className="h-8 w-16"
-                  inputMode="numeric"
-                  aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
-                  value={row.sheetIndex}
-                  onChange={(event) => updateRow(index, { sheetIndex: event.target.value })}
-                />
+                {sheetNames.length > 0 ? (
+                  <Select
+                    aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
+                    triggerVariant="subtle"
+                    value={row.sheetIndex === "" ? WORKBOOK_SCOPE : row.sheetIndex}
+                    onValueChange={(value) => { if (value !== null) updateRow(index, { sheetIndex: value }); }}
+                    items={[
+                      { value: WORKBOOK_SCOPE, label: t("office.xlsx.protect.dialog.workbookScope") },
+                      ...sheetNames.map((name, position) => ({ value: String(position), label: name })),
+                    ]}
+                  />
+                ) : (
+                  <Input
+                    className="h-8 w-16"
+                    inputMode="numeric"
+                    aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
+                    value={row.sheetIndex}
+                    onChange={(event) => updateRow(index, { sheetIndex: event.target.value })}
+                  />
+                )}
                 <Button
                   type="button" variant="outline" size="sm"
                   aria-label={t("office.xlsx.protect.dialog.remove")}

@@ -3,7 +3,7 @@
 // engine's XlsxDefinedNameEntry list and validates each name with the same
 // grammar the engine parser and the Go validator use, so an invalid row is
 // refused in the dialog with a localized message instead of a raw op error.
-import type { XlsxDefinedNameEntry } from "@uniwork/office-engine/xlsx";
+import type { XlsxDefinedNameEntry, XlsxRenderDefinedName } from "@uniwork/office-engine/xlsx";
 
 export interface XlsxNameRow {
   name: string;
@@ -29,11 +29,55 @@ export function definedNameValid(name: string): boolean {
   return lower !== "true" && lower !== "false" && !name.startsWith("_xlnm");
 }
 
+/** The dialog's starting state for one workbook: the rows the form can model
+ *  and the names it cannot (they must ride `preserveNames`, or a wholesale
+ *  `set_defined_names` rewrite would delete them). */
+export interface XlsxNamesSeed {
+  readonly rows: XlsxNameRow[];
+  readonly preserveNames: string[];
+}
+
+/**
+ * Seed the name-manager rows from the workbook's own <definedNames>. A name is
+ * modelable only when the form can represent it: not hidden, valid grammar,
+ * a non-empty formula, and a scope inside the live sheet count. Everything
+ * else - plus `_xlnm` built-ins the gateway already keeps - goes to
+ * `preserveNames` (built-ins are skipped entirely; the gateway keeps them
+ * whether or not they are listed).
+ */
+export function seedDefinedNames(
+  definedNames: readonly XlsxRenderDefinedName[],
+  sheetCount: number,
+): XlsxNamesSeed {
+  const rows: XlsxNameRow[] = [];
+  const preserveNames: string[] = [];
+  const seen = new Set<string>();
+  for (const defined of definedNames) {
+    // _xlnm.* built-ins are kept by the gateway unconditionally.
+    if (defined.name.startsWith("_xlnm")) continue;
+    const scopeOK = defined.sheetIndex === undefined ||
+      (Number.isInteger(defined.sheetIndex) && defined.sheetIndex >= 0 && defined.sheetIndex < sheetCount);
+    const modelable = !defined.hidden && definedNameValid(defined.name) && defined.formula.trim() !== "" && scopeOK;
+    const key = defined.name + "\u0000" + (defined.sheetIndex ?? -1);
+    if (!modelable || seen.has(key)) {
+      if (!preserveNames.includes(defined.name)) preserveNames.push(defined.name);
+      continue;
+    }
+    seen.add(key);
+    rows.push({
+      name: defined.name,
+      formula: defined.formula,
+      sheetIndex: defined.sheetIndex === undefined ? "" : String(defined.sheetIndex),
+    });
+  }
+  return { rows, preserveNames };
+}
+
 export type XlsxNamesBuild =
   | { readonly ok: true; readonly names: XlsxDefinedNameEntry[] }
   | { readonly ok: false; readonly error: "name" | "formula" | "sheetIndex" | "duplicate" };
 
-export function buildDefinedNames(rows: readonly XlsxNameRow[]): XlsxNamesBuild {
+export function buildDefinedNames(rows: readonly XlsxNameRow[], sheetCount?: number): XlsxNamesBuild {
   const names: XlsxDefinedNameEntry[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -48,6 +92,9 @@ export function buildDefinedNames(rows: readonly XlsxNameRow[]): XlsxNamesBuild 
       if (!/^\d+$/.test(rawIndex)) return { ok: false, error: "sheetIndex" };
       sheetIndex = Number.parseInt(rawIndex, 10);
       if (sheetIndex > 16_383) return { ok: false, error: "sheetIndex" };
+      // F5: bind the scope to the live sheet list when the caller knows it, so
+      // an index can never point past the sheet count.
+      if (sheetCount !== undefined && sheetCount > 0 && sheetIndex >= sheetCount) return { ok: false, error: "sheetIndex" };
     }
     const key = name + "\u0000" + (sheetIndex ?? -1);
     if (seen.has(key)) return { ok: false, error: "duplicate" };

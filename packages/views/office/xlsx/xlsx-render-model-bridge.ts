@@ -2,7 +2,19 @@
 // by the open:xlsx job) to the shapes the vendored genoffice sheets renderer
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
-import type { XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+
+/** One workbook defined name as the vendored loader consumes it (the
+ *  genoffice `DefinedNameEntry` shape). `sheetIndex` is the 0-based sheet
+ *  position; absent means workbook scope. */
+export interface RendererWorkbookDefinedName {
+  name: string;
+  formula: string;
+  sheetIndex?: number;
+  /** Reader-only: the loader ignores it, the name manager needs it to know the
+   *  name cannot be modelled and must ride preserveNames instead. */
+  hidden?: boolean;
+}
 
 /** The subset of the genoffice WorkbookFile the vendored loader reads. */
 export interface RendererWorkbookFile {
@@ -15,7 +27,7 @@ export interface RendererWorkbookFile {
   styles: RendererWorkbookStyle[];
   dxfStyles: RendererWorkbookStyle[];
   visuals: never[];
-  definedNames: never[];
+  definedNames: RendererWorkbookDefinedName[];
   activeTab: number;
   readOnly: boolean;
   themeColors?: string[];
@@ -117,7 +129,7 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
     styles: model.styles as RendererWorkbookStyle[],
     dxfStyles: model.dxfStyles as RendererWorkbookStyle[],
     visuals: [],
-    definedNames: [],
+    definedNames: (model.definedNames ?? []).map((name) => toRendererDefinedName(name)),
     activeTab: model.activeTab,
     readOnly: false,
     ...(model.theme === undefined ? {} : { themeColors: [...model.theme.colors] }),
@@ -133,6 +145,16 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
     ...(model.normalFontName === undefined ? {} : { normalFontName: model.normalFontName }),
     ...(meta.shortDateFormat === undefined ? {} : { shortDateFormat: meta.shortDateFormat }),
     ...(model.date1904 ? { date1904: true } : {}),
+  };
+}
+
+/** Strip the reader-only fields (hidden) to the loader's entry shape. */
+function toRendererDefinedName(defined: XlsxRenderDefinedName): RendererWorkbookDefinedName {
+  return {
+    name: defined.name,
+    formula: defined.formula,
+    ...(defined.sheetIndex === undefined ? {} : { sheetIndex: defined.sheetIndex }),
+    ...(defined.hidden ? { hidden: true } : {}),
   };
 }
 
