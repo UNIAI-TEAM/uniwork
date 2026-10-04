@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "./asset-manifest";
+import { HtmlSourceEditor } from "./html/source";
 import type {
   IsolatedPreviewPort,
   TextCapability,
@@ -321,12 +322,12 @@ export function SourceEditor<TSnapshot = unknown>({
       save("shortcut");
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+    if (format !== "html" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
       if (permissions.canCopy === false) event.preventDefault();
       else if (editorRef.current.clipboard?.writeText) { event.preventDefault(); void copySelection().catch(() => undefined); }
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
+    if (format !== "html" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
       if (permissions.canPaste === false) event.preventDefault();
       else if (editorRef.current.clipboard?.readText) { event.preventDefault(); void pasteText().catch(() => undefined); }
       return;
@@ -335,7 +336,7 @@ export function SourceEditor<TSnapshot = unknown>({
       event.preventDefault();
       history(event.shiftKey ? "redo" : "undo");
     }
-  }, [copySelection, history, pasteText, permissions.canCopy, permissions.canPaste, save]);
+  }, [copySelection, format, history, pasteText, permissions.canCopy, permissions.canPaste, save]);
 
   return (
     <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid={`${format}-editor`} data-document-key={documentKey} onKeyDown={onKeyDown} role="application" aria-label={title} tabIndex={0}>
@@ -350,8 +351,8 @@ export function SourceEditor<TSnapshot = unknown>({
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid={`${format}-toolbar`} role="toolbar" aria-label={t("toolbar.label")}>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={format === "html" || readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={format === "html" || readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
             <span className="min-w-0 flex-1" />
             <Button type="button" variant="brand" size="sm" data-testid={`${format}-save`} disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
               {saving ? t("actions.saving") : t("actions.save")}
@@ -359,20 +360,40 @@ export function SourceEditor<TSnapshot = unknown>({
           </div>
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-cols-2">
             <div className="flex min-h-64 min-w-0 flex-col gap-2">
-              <label className="text-label font-medium" htmlFor={`${format}-source`}>{t("source.label")}</label>
-              <textarea
-                ref={textAreaRef}
-                id={`${format}-source`}
-                className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                value={text}
-                readOnly={readOnly}
-                spellCheck={false}
-                onChange={onTextChange}
-                onCompositionStart={onCompositionStart}
-                onCompositionEnd={onCompositionEnd}
-                data-testid={`${format}-source`}
-                aria-label={t("source.label")}
-              />
+              {format === "html" ? (
+                <span className="text-label font-medium">{t("source.label")}</span>
+              ) : (
+                <label className="text-label font-medium" htmlFor={`${format}-source`}>{t("source.label")}</label>
+              )}
+              {format === "html" ? (
+                <HtmlSourceEditor
+                  value={text}
+                  readOnly={readOnly}
+                  className="min-h-64 flex-1 overflow-hidden rounded-md border border-border bg-background"
+                  ariaLabel={t("source.label")}
+                  onChange={(next) => {
+                    if (editorRef.current.source) editorRef.current.source.setText(next);
+                    else editorRef.current.setText?.(next);
+                    setText(next);
+                    markDirty();
+                  }}
+                  onCheckpoint={checkpoint}
+                />
+              ) : (
+                <textarea
+                  ref={textAreaRef}
+                  id={`${format}-source`}
+                  className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  value={text}
+                  readOnly={readOnly}
+                  spellCheck={false}
+                  onChange={onTextChange}
+                  onCompositionStart={onCompositionStart}
+                  onCompositionEnd={onCompositionEnd}
+                  data-testid={`${format}-source`}
+                  aria-label={t("source.label")}
+                />
+              )}
             </div>
             <div className="flex min-h-64 min-w-0 flex-col gap-2">
               <span className="text-label font-medium">{t("preview.label")}</span>
