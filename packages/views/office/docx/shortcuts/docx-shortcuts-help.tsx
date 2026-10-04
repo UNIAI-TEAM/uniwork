@@ -84,7 +84,7 @@ export function DocxShortcutsHelp({ readOnly = false }: DocxToolbarGroupContext)
           aria-label={t("office.docx.shortcuts.title")}
           aria-haspopup="dialog"
           data-testid="docx-shortcuts-help-trigger"
-          className="absolute end-2 -top-12 z-20 bg-background shadow-[var(--menu-shadow)]"
+          className="absolute end-14 -top-12 z-20 bg-background shadow-[var(--menu-shadow)]"
           onClick={() => setOpen(true)}
         >
           <CircleHelp aria-hidden />

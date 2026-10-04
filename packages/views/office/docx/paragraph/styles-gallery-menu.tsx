@@ -46,7 +46,7 @@ export function StylesGallery({ value, disabled = false, onPick }: StylesGallery
         </span>
         <ChevronDown aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
+      <DropdownMenuContent align="start" className="w-60 max-w-[calc(100vw-2rem)] overflow-x-auto">
         {/* A style pick is single-select, so the group is a radio: Base UI
             dismisses the menu on pick and the indicator marks the active one. */}
         <DropdownMenuRadioGroup
