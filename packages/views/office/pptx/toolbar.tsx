@@ -1,38 +1,46 @@
 "use client";
 
 /**
- * The PPTX ribbon shell: the tab row (quick access + tabs + view toggle + Find)
- * and the active tab's ONE command row.
+ * The PPTX ribbon shell (UNI-927 chrome amendment R, CHROME-R).
  *
- * Replaces the raw command-id row with the UniWork pattern (packages/ui
- * primitives + semantic tokens). It is still a dumb surface: it has no write
- * port and cannot bypass the save coordinator. Undo/redo are passed in as
- * availability flags so the toolbar shows the engine journal's real state
- * instead of assuming the commands are always usable.
+ * It is now a thin adapter over the SHARED <OfficeRibbon>: this file maps the
+ * lane's command capabilities onto `RibbonTab` data (`pptx-ribbon.ts`), owns
+ * the active tab and renders the two tab-row slots the ribbon exposes -
+ * quick-access undo/redo at the far left (C6) and the presenter view toggle
+ * plus Find at the far right (C6).
  *
- * C6: undo/redo quick access at the far LEFT of the tab row; the presenter view
- * toggle and Find at the far RIGHT. C7: the command row is exactly one row.
- * C12: 40 px tab row, 44 px command row; at <= 767 px the tabs become a
- * horizontally scrollable strip and the command row a single scrollable row.
+ * The public props are unchanged, so `pptx-editor.tsx` keeps compiling and the
+ * command paths stay byte-identical. It is still a dumb surface: it has no
+ * write port and cannot bypass the save coordinator. Undo/redo availability is
+ * passed in so the control shows the engine journal's real state.
+ *
+ * The Find bar body (`PptxFindBar`) and the status bar (C10) stay lane UI and
+ * are untouched here.
  */
 import { useMemo, useState } from "react";
+import { Redo2, Search, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
+import { OfficeRibbon } from "../ribbon";
 import type { PptxCommand, PptxCommandId } from "./command-map";
-import { PptxCommandGroups, PPTX_NARROW_COMMAND_QUERY } from "./toolbar/command-groups";
-import { PptxTabStrip } from "./toolbar/pptx-tab-strip";
-import { PptxQuickAccess, PptxTabRowTrailing } from "./toolbar/tab-row-controls";
-import { PPTX_TOOLBAR_TABS, type PptxTabId } from "./toolbar/tabs";
+import { PptxCommandButton } from "./toolbar/command-button";
+import {
+  PPTX_FIND_COMMAND,
+  PPTX_QUICK_ACCESS_COMMANDS,
+  PPTX_VIEW_TOGGLE_COMMAND,
+  pptxRibbonTabs,
+  type PptxRibbonContextualSelection,
+  type PptxTabId,
+} from "./pptx-ribbon";
 
 export interface PptxToolbarProps {
   commands: readonly PptxCommand[];
   onCommand: (id: PptxCommandId) => void;
   activeCommand?: PptxCommandId | null;
-  /** Default tab on mount; the shell remembers the user's choice afterwards. */
+  /** Default tab on mount; the ribbon remembers the user's choice afterwards. */
   defaultTab?: PptxTabId;
   /** Engine-journal availability, so a toolbar Undo/Redo is disabled with the
-   * rest of the ribbon instead of pretending there is history. */
+   *  rest of the ribbon instead of pretending there is history. */
   canUndo?: boolean;
   canRedo?: boolean;
   /** Presenter open state; drives the tab-row view toggle's aria-pressed (C6). */
@@ -40,6 +48,8 @@ export interface PptxToolbarProps {
   /** F9: element ref for the Find trigger, so closing the find bar can return
    *  focus to the control that opened it. */
   findButtonRef?: (element: HTMLButtonElement | null) => void;
+  /** R4: which contextual tabs the caller says are live. Absent = none. */
+  contextual?: PptxRibbonContextualSelection;
   className?: string;
 }
 
@@ -48,21 +58,21 @@ export interface PptxToolbarProps {
  * available. The reason is the engine's, not a fake capability. */
 const HISTORY_COMMANDS: readonly PptxCommandId[] = ["undo", "redo"];
 
+const QUICK_ACCESS_ICONS: Partial<Record<PptxCommandId, typeof Undo2>> = { undo: Undo2, redo: Redo2 };
+
 export function PptxToolbar({
   commands,
   onCommand,
-  activeCommand,
   defaultTab = "home",
   canUndo,
   canRedo,
   presenterOpen = false,
   findButtonRef,
+  contextual,
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const [tab, setTab] = useState<PptxTabId>(defaultTab);
-  const narrow = useMediaQuery(PPTX_NARROW_COMMAND_QUERY);
-  const active = PPTX_TOOLBAR_TABS.find((entry) => entry.id === tab) ?? PPTX_TOOLBAR_TABS[0]!;
   const resolved = useMemo(
     () =>
       commands.map((command) => {
@@ -73,22 +83,57 @@ export function PptxToolbar({
       }),
     [canRedo, canUndo, commands, t],
   );
+  const tabs = useMemo(
+    () => pptxRibbonTabs(resolved, { onCommand, ...(contextual ? { contextual } : {}) }),
+    [contextual, onCommand, resolved],
+  );
+
+  const quickAccess = (
+    <div className="flex shrink-0 items-center gap-0.5" data-pptx-quick-access>
+      {PPTX_QUICK_ACCESS_COMMANDS.map((id) => {
+        const command = resolved.find((entry) => entry.id === id);
+        if (!command) return null;
+        const Icon = QUICK_ACCESS_ICONS[id];
+        return (
+          <PptxCommandButton
+            key={id}
+            command={command}
+            onCommand={onCommand}
+            icon={Icon ? <Icon aria-hidden /> : undefined}
+            hint={t(command.labelKey)}
+          />
+        );
+      })}
+    </div>
+  );
+
+  const presenter = resolved.find((entry) => entry.id === PPTX_VIEW_TOGGLE_COMMAND);
+  const find = resolved.find((entry) => entry.id === PPTX_FIND_COMMAND);
+  const trailing = (
+    <div className="flex shrink-0 items-center gap-1" data-pptx-tab-row-trailing>
+      {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} /> : null}
+      {find ? (
+        <PptxCommandButton
+          command={find}
+          onCommand={onCommand}
+          icon={<Search aria-hidden />}
+          hint={t("find_hint")}
+          buttonRef={findButtonRef}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
-    <div
-      className={cn("flex min-w-0 shrink-0 flex-col border-b border-border bg-muted/20", className)}
-      data-pptx-toolbar
-      data-pptx-ribbon-width={narrow ? "narrow" : "wide"}
-    >
-      {/* C12 tab row: 40 px. Quick access far left, tabs in the middle, the
-          presenter view toggle and Find far right. */}
-      <div className="flex h-10 min-w-0 items-center gap-1 px-2" data-pptx-tab-row>
-        <PptxQuickAccess commands={resolved} onCommand={onCommand} />
-        <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-border" />
-        <PptxTabStrip tabs={PPTX_TOOLBAR_TABS} activeTab={active.id} onSelect={setTab} className="min-w-0 flex-1" />
-        <PptxTabRowTrailing commands={resolved} onCommand={onCommand} presenterOpen={presenterOpen} findButtonRef={findButtonRef} />
-      </div>
-      {/* C12 command row: 44 px, exactly one row. */}
-      <PptxCommandGroups tab={active} commands={resolved} activeCommand={activeCommand} narrow={narrow} onCommand={onCommand} />
+    <div className={cn("flex min-w-0 shrink-0 flex-col", className)} data-pptx-toolbar>
+      <OfficeRibbon
+        scope="pptx"
+        tabs={tabs}
+        activeTabId={tab}
+        onActiveTabChange={(id) => setTab(id as PptxTabId)}
+        quickAccess={quickAccess}
+        trailing={trailing}
+      />
     </div>
   );
 }
