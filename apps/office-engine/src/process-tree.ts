@@ -84,7 +84,14 @@ function tagged(tag: string): number[] {
  * so this sweep catches descendants that environ can no longer see: other-uids'
  * environ is ptrace-gated, and a hostile handler could exec a scrubbed env.
  * Matching all four Uid fields also catches a setuid binary the worker ran:
- * its real uid stays the slot uid, which is exactly what should be killed. */
+ * its real uid stays the slot uid, which is exactly what should be killed.
+ *
+ * A zombie (State: Z) is skipped: it is already dead, holds no file
+ * descriptors and can never read or write another job's dir, but its /proc
+ * entry keeps the dead uid in its Uid fields until a parent reaps it. Under a
+ * PID 1 that is not a reaper - an init-less container - that never happens, so
+ * counting the corpse as "alive" would quarantine the slot forever and leak
+ * one worker slot per job until the pool is exhausted. */
 export function ownedBy(uid: number | undefined): number[] {
   if (!hasProc || uid === undefined) return [];
   const needle = "Uid:";
@@ -93,6 +100,7 @@ export function ownedBy(uid: number | undefined): number[] {
     if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
     try {
       const status = readFileSync("/proc/" + name + "/status", "utf8");
+      if (/^State:\s*Z/m.test(status)) continue;
       const line = status.split("\n").find((l) => l.startsWith(needle));
       if (line && line.slice(needle.length).trim().split(/\s+/).some((f) => Number(f) === uid)) {
         out.push(Number(name));
