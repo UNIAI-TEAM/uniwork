@@ -21,10 +21,13 @@ import {
   Code,
   Frame,
   Heading1,
+  Heading2,
+  Heading3,
   Image as ImageIcon,
   Italic,
   Link2,
   List,
+  ListOrdered,
   Minus,
   MonitorPlay,
   Pilcrow,
@@ -128,8 +131,8 @@ const MARK_LABEL_KEYS: Record<HtmlInlineMark, string> = {
 const BLOCK_STYLES: readonly { id: HtmlBlockStyle; labelKey: string; icon: RibbonIcon }[] = [
   { id: "paragraph", labelKey: "office.html.ribbon.paragraph", icon: Pilcrow },
   { id: "heading1", labelKey: "office.html.ribbon.heading", icon: Heading1 },
-  { id: "heading2", labelKey: "office.html.ribbon.heading", icon: Heading1 },
-  { id: "heading3", labelKey: "office.html.ribbon.heading", icon: Heading1 },
+  { id: "heading2", labelKey: "office.html.ribbon.heading", icon: Heading2 },
+  { id: "heading3", labelKey: "office.html.ribbon.heading", icon: Heading3 },
   { id: "blockquote", labelKey: HTML_RIBBON_KEYS.blockquote, icon: Minus },
 ];
 
@@ -185,7 +188,7 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
           kind: "toggle",
           id: "list-ordered",
           labelKey: HTML_RIBBON_KEYS.orderedList,
-          icon: List,
+          icon: ListOrdered,
           size: "icon",
           pressed: state.list === "ordered",
           disabled: readOnly || !commands.onInsertList,

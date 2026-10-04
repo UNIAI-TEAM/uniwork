@@ -85,6 +85,26 @@ describe("useHtmlRibbonTabs", () => {
     // property, so pin the value instead: the key itself must not return.
     expect("image" in HTML_RIBBON_KEYS).toBe(false);
   });
+
+  it("gives each heading level and the two list kinds a distinct icon (R2)", () => {
+    let tabs: ReturnType<typeof useHtmlRibbonTabs> = [];
+    function Probe() {
+      tabs = useHtmlRibbonTabs();
+      return null;
+    }
+    render(<Probe />);
+    const byId = Object.fromEntries(tabs.map((tab) => [tab.id, tab]));
+    const paragraph = byId.home!.groups.find((group) => group.id === "paragraph")!;
+    const iconOf = (id: string) => paragraph.items.find((item) => item.id === id)?.icon;
+    // Paragraph + H1/H2/H3 are four commands: one shared glyph would hide
+    // which level a control sets. Same for bullet vs numbered list.
+    const blockIcons = ["block-paragraph", "block-heading1", "block-heading2", "block-heading3"].map(iconOf);
+    expect(blockIcons.every(Boolean)).toBe(true);
+    expect(new Set(blockIcons).size).toBe(4);
+    const listIcons = ["list-unordered", "list-ordered"].map(iconOf);
+    expect(listIcons.every(Boolean)).toBe(true);
+    expect(new Set(listIcons).size).toBe(2);
+  });
 });
 
 describe("HtmlRibbon", () => {
