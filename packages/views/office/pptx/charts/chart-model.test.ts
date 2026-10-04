@@ -282,8 +282,8 @@ describe("parseChartData / formatChartData", () => {
       data: {
         categories: ["Q1", "Q2"],
         series: [
-          { name: "A", values: [1, 2] },
-          { name: "B", values: [3, 4] },
+          { name: "A", values: [1, 3] },
+          { name: "B", values: [2, 4] },
         ],
       },
     });
