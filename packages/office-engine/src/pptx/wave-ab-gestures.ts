@@ -319,12 +319,15 @@ export function ungroupElementGesture(
   model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
 }
 
-/** group_elements -> buildFormatOps.groupElements (element-ops.ts:376). */
+/** group_elements -> buildFormatOps.groupElements (element-ops.ts:376). The
+ * vendored apply mints a group and records it (created:[groupId], :391), so
+ * surface createdId like the table/chart/media create kinds. */
 export function groupElementsGesture(
   model: WaveGestureModel,
   edit: Extract<FormatEdit, { op: "group_elements" }>,
-): void {
-  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+): { applied: true; createdId: string } {
+  const result = model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+  return { applied: true, createdId: requireCreated(result.records, "groupElements") };
 }
 
 /** flip_elements -> buildFormatOps.flipElements (element-ops.ts:228). */

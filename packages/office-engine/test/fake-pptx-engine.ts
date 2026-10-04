@@ -8,6 +8,8 @@
 // runTxn:    executor-faithful — dry-run plan validates without mutating;
 //            atomic isolation snapshots and restores on any apply failure;
 //            result shape {applied, dryRun?, plan?, records?, failures?}
+// Wave A/B + format/notes/header-footer/media op cases live in the sibling
+// ./fake-pptx-op-cases.ts (the max-lines split); the core cases stay here.
 import type {
   OpenedPptxLike,
   PptxElementLike,
@@ -23,6 +25,8 @@ import type {
   PptxTxnResult,
 } from "../src/pptx";
 import { FAKE_PPTX_MAGIC } from "./fake-pptx-fixtures";
+
+import { applyWaveOp, nextSeq, resolveElement, resolveSlide, validateWaveOp } from "./fake-pptx-op-cases";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -67,8 +71,6 @@ function toSlide(raw: Record<string, unknown>, i: number): PptxSlideLike {
     elements: (raw.elements as PptxElementLike[]) ?? [],
   };
 }
-
-let newElementSeq = 100;
 
 export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: number; committedBase?: string } {
   const state = { commitCalls: 0, committedBase: undefined as string | undefined };
@@ -134,33 +136,9 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
 
 // ── fake runTxn ────────────────────────────────────────────────────────────
 
-function resolveSlide(opened: OpenedPptxLike, op: PptxOp): { index: number; slide: PptxSlideLike } {
-  const ref = op.target?.slide;
-  const slides = opened.deck.slides;
-  if (typeof ref === "string") {
-    const index = slides.findIndex((s) => s.id === ref);
-    if (index < 0) throw new Error('op "' + op.op + '": no slide "' + ref + '"');
-    return { index, slide: slides[index] as PptxSlideLike };
-  }
-  if (typeof ref !== "number") {
-    throw new Error('op "' + op.op + '" needs target.slide');
-  }
-  const slide = slides[ref];
-  if (!slide) {
-    throw new Error('op "' + op.op + '": slide index ' + ref + " is out of range");
-  }
-  return { index: ref, slide };
-}
-
-function resolveElement(opened: OpenedPptxLike, op: PptxOp): { slide: PptxSlideLike; el: PptxElementLike } {
-  const { slide } = resolveSlide(opened, op);
-  const id = op.target?.el;
-  const el = slide.elements.find((x) => x.id === id);
-  if (!el) throw new Error('op "' + op.op + '": no element "' + id + '"');
-  return { slide, el };
-}
-
 function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
+  const wave = applyWaveOp(opened, op);
+  if (wave !== undefined) return wave;
   switch (op.op) {
     case "setText": {
       const { el } = resolveElement(opened, op);
@@ -176,7 +154,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     case "addElement": {
       const { slide } = resolveSlide(opened, op);
       const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
+        id: "new_" + nextSeq(),
         type: op.kind === "textbox" ? "text" : "shape",
         transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
       };
@@ -190,7 +168,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
         return { op };
       }
       const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
+        id: "new_" + nextSeq(),
         type: "picture",
         transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
       };
@@ -236,7 +214,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     case "duplicateSlide": {
       const { index, slide } = resolveSlide(opened, op);
       const copy = JSON.parse(JSON.stringify(slide)) as PptxSlideLike;
-      copy.id = "s_dup_" + newElementSeq++;
+      copy.id = "s_dup_" + nextSeq();
       opened.deck.slides.splice(index + 1, 0, copy);
       return { op, created: [copy.id as string] };
     }
@@ -247,293 +225,16 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     }
     case "addBlankSlide": {
       const { index } = resolveSlide(opened, op);
-      const s: PptxSlideLike = { id: "s_" + newElementSeq++, elements: [] };
+      const s: PptxSlideLike = { id: "s_" + nextSeq(), elements: [] };
       opened.deck.slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
     }
     case "addSlideWithLayout": {
       const slides = opened.deck.slides;
       const index = op.target?.slide !== undefined ? resolveSlide(opened, op).index : slides.length - 1;
-      const s: PptxSlideLike = { id: "s_" + newElementSeq++, elements: [], layout: op.layout };
+      const s: PptxSlideLike = { id: "s_" + nextSeq(), elements: [], layout: op.layout };
       slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
-    }
-    // Wave A/B (UNI-927) -- deterministic JSON-convention effects.
-    case "applyTheme":
-      opened.__theme = op.name;
-      return { op, after: op.name };
-    case "setSlideSize":
-      (opened.deck as { size?: unknown }).size = { cx: op.cx, cy: op.cy };
-      return { op, after: { cx: op.cx, cy: op.cy } };
-    case "setSlideLayout": {
-      const { slide } = resolveSlide(opened, op);
-      slide.layout = op.layout;
-      return { op, after: op.layout };
-    }
-    case "setBackground": {
-      const { index } = resolveSlide(opened, op);
-      const backgrounds = (opened.__backgrounds as Record<number, unknown>) ?? {};
-      backgrounds[index] = op;
-      opened.__backgrounds = backgrounds;
-      return { op, after: { slide: index } };
-    }
-    case "setTransition": {
-      const { index } = resolveSlide(opened, op);
-      const transitions = (opened.__transitions as Record<number, unknown>) ?? {};
-      transitions[index] = op.kind;
-      opened.__transitions = transitions;
-      return { op, after: op.kind };
-    }
-    case "setAdvanceTime": {
-      const { index } = resolveSlide(opened, op);
-      const times = (opened.__advanceTimes as Record<number, unknown>) ?? {};
-      times[index] = op.ms;
-      opened.__advanceTimes = times;
-      return { op, after: op.ms };
-    }
-    case "addTable": {
-      const { slide } = resolveSlide(opened, op);
-      const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
-        type: "table",
-        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
-      };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
-    }
-    case "addChart": {
-      const { slide } = resolveSlide(opened, op);
-      const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
-        type: "chart",
-        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
-      };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
-    }
-    case "setTableCell":
-    case "setTableRowHeight":
-    case "setTableColWidth":
-    case "setTableCellAnchor":
-    case "setTableStyle":
-      resolveElement(opened, op);
-      return { op, after: { el: (op.target as { el?: string }).el } };
-    case "setFont":
-    case "setParagraphFormat":
-      resolveElement(opened, op);
-      return { op, after: { el: (op.target as { el?: string }).el } };
-    case "addAnimation":
-      resolveElement(opened, op);
-      return { op, after: { el: (op.target as { el?: string }).el } };
-    case "removeAnimation":
-      if (op.seq !== undefined) resolveSlide(opened, op);
-      else resolveElement(opened, op);
-      return { op };
-    case "reorderAnimation":
-    case "setAnimations":
-      resolveSlide(opened, op);
-      return { op, after: { slide: (op.target as { slide?: number }).slide } };
-    case "tableMerge":
-    case "tableStructure": {
-      const { el } = resolveElement(opened, op);
-      return { op, after: { elementId: el.id } };
-    }
-    case "setChart":
-      resolveElement(opened, op);
-      return { op, after: op.patch };
-    case "setLink":
-      resolveElement(opened, op);
-      return { op, after: op.link };
-    case "findReplace": {
-      const find = String(op.find ?? "");
-      const replace = String(op.replace ?? "");
-      if (find) {
-        for (const slide of opened.deck.slides) {
-          for (const el of slide.elements) {
-            for (const paragraph of el.text?.paragraphs ?? []) {
-              for (const run of paragraph.runs ?? []) {
-                if (typeof run.text === "string") run.text = run.text.split(find).join(replace);
-              }
-            }
-          }
-        }
-      }
-      return { op, after: { find, replace } };
-    }
-    case "addSection": {
-      const sections =
-        (opened.__sections as Array<{ id: string; name: string; slideIndices: number[] }> | undefined) ?? [];
-      const id = "{sec-" + newElementSeq++ + "}";
-      sections.push({ id, name: String(op.name ?? ""), slideIndices: [Number(op.atSlideIndex ?? 0)] });
-      opened.__sections = sections;
-      return { op, after: { id } };
-    }
-    case "renameSection": {
-      const sections = (opened.__sections as Array<{ id: string; name: string }> | undefined) ?? [];
-      const section = sections.find((s) => s.id === op.id);
-      if (section) section.name = String(op.name ?? "");
-      return { op, after: { id: op.id } };
-    }
-    case "removeSection": {
-      const sections = (opened.__sections as Array<{ id: string }> | undefined) ?? [];
-      opened.__sections = sections.filter((s) => s.id !== op.id);
-      return { op };
-    }
-    case "moveSection": {
-      const sections = (opened.__sections as Array<{ id: string }> | undefined) ?? [];
-      const from = sections.findIndex((s) => s.id === op.id);
-      const to = op.dir === "up" ? from - 1 : from + 1;
-      if (from >= 0 && to >= 0 && to < sections.length) {
-        const [moved] = sections.splice(from, 1);
-        sections.splice(to, 0, moved as { id: string });
-      }
-      return { op, after: op.dir };
-    }
-    case "setSections":
-      opened.__sections = JSON.parse(JSON.stringify(op.sections ?? [])) as unknown[];
-      return { op, after: op.sections };
-    // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e),
-    // media (B8e) -- deterministic JSON-convention effects.
-    case "setFill": {
-      const { el } = resolveElement(opened, op);
-      el.fill = op.fill;
-      return { op, after: { el: el.id } };
-    }
-    case "setStroke": {
-      const { el } = resolveElement(opened, op);
-      el.stroke = op.stroke;
-      return { op, after: { el: el.id } };
-    }
-    case "setEffects": {
-      const { el } = resolveElement(opened, op);
-      el.effects = op.effects;
-      return { op, after: { el: el.id } };
-    }
-    case "setShapeGeometry": {
-      const { el } = resolveElement(opened, op);
-      el.prst = op.prst;
-      return { op, after: { el: el.id } };
-    }
-    case "setShapeAdjust": {
-      const { el } = resolveElement(opened, op);
-      el.adjust = op.adjust;
-      return { op, after: { el: el.id } };
-    }
-    case "ungroupElement": {
-      const { el } = resolveElement(opened, op);
-      el.type = "shape";
-      el.ungrouped = true;
-      return { op, after: { el: el.id } };
-    }
-    case "groupElements": {
-      const { slide } = resolveSlide(opened, op);
-      const els = (op.els as string[]) ?? [];
-      const el: PptxElementLike = { id: "grp_" + newElementSeq++, type: "group", members: els };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
-    }
-    case "flipElements": {
-      resolveSlide(opened, op);
-      for (const id of (op.els as string[]) ?? []) {
-        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
-        if (el) el.flip = op.axis;
-      }
-      return { op, after: { axis: op.axis } };
-    }
-    case "setTextAnchor": {
-      const { el } = resolveElement(opened, op);
-      el.anchor = op.anchor;
-      return { op, after: { el: el.id } };
-    }
-    case "setTextBodyProps": {
-      const { el } = resolveElement(opened, op);
-      el.bodyProps = op.props;
-      return { op, after: { el: el.id } };
-    }
-    case "alignElements": {
-      resolveSlide(opened, op);
-      for (const id of (op.els as string[]) ?? []) {
-        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
-        if (el) el.aligned = op.mode;
-      }
-      return { op, after: { mode: op.mode } };
-    }
-    case "distributeElements": {
-      resolveSlide(opened, op);
-      for (const id of (op.els as string[]) ?? []) {
-        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
-        if (el) el.distributed = op.axis;
-      }
-      return { op, after: { axis: op.axis } };
-    }
-    case "setNotes": {
-      const { index } = resolveSlide(opened, op);
-      const notes = (opened.__notes as Record<string, string>) ?? {};
-      notes[String(index)] = String(op.text ?? "");
-      opened.__notes = notes;
-      return { op, after: { slide: index } };
-    }
-    case "addComment": {
-      const { index } = resolveSlide(opened, op);
-      const comments = (opened.__comments as Record<string, Array<Record<string, unknown>>>) ?? {};
-      const list = comments[String(index)] ?? [];
-      const ref = { authorId: 1, idx: list.length, author: op.author, text: op.text };
-      list.push(ref);
-      comments[String(index)] = list;
-      opened.__comments = comments;
-      return { op, after: ref };
-    }
-    case "deleteComment": {
-      const { index } = resolveSlide(opened, op);
-      const comments = (opened.__comments as Record<string, Array<Record<string, unknown>>>) ?? {};
-      const list = comments[String(index)] ?? [];
-      comments[String(index)] = list.filter((c) => !(c.authorId === op.authorId && c.idx === op.idx));
-      opened.__comments = comments;
-      return { op, after: { slide: index } };
-    }
-    case "applyHeaderFooter":
-      opened.__headerFooter = op.settings as Record<string, unknown>;
-      return { op, after: op.settings };
-    case "insertSlidePptx": {
-      const slides = opened.deck.slides;
-      const at = typeof op.at === "number" ? op.at : slides.length;
-      const inserted: PptxSlideLike = { id: "s_ins_" + newElementSeq++, elements: [] };
-      if (op.replace === true && at < slides.length) slides.splice(at, 1, inserted);
-      else slides.splice(Math.max(0, Math.min(slides.length, at)), 0, inserted);
-      return { op, created: [inserted.id as string], after: { index: at } };
-    }
-    case "addMedia": {
-      const { slide } = resolveSlide(opened, op);
-      const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
-        type: "media",
-        mediaKind: op.kind,
-        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
-      };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
-    }
-    case "addSmartArt": {
-      const { slide } = resolveSlide(opened, op);
-      const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
-        type: "smartart",
-        layout: op.layout,
-        items: op.items,
-        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
-      };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
-    }
-    case "addModel3d": {
-      const { slide } = resolveSlide(opened, op);
-      const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
-        type: "model3d",
-        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
-      };
-      slide.elements.push(el);
-      return { op, created: [el.id] };
     }
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');
@@ -541,6 +242,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
 }
 
 function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
+  if (validateWaveOp(opened, op)) return;
   switch (op.op) {
     case "setText":
     case "setTransform":
@@ -567,85 +269,6 @@ function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
       break;
     case "addSlideWithLayout":
       if (!op.layout && op.layout !== 0) throw new Error('op "addSlideWithLayout" needs "layout"');
-      break;
-    // Wave A/B (UNI-927): deck-level + slide-scoped kinds need no target check.
-    case "applyTheme":
-    case "setSlideSize":
-    case "findReplace":
-    case "addSection":
-    case "renameSection":
-    case "removeSection":
-    case "moveSection":
-    case "setSections":
-      break;
-    case "setBackground":
-    case "setTransition":
-    case "setAdvanceTime":
-    case "setSlideLayout":
-      resolveSlide(opened, op);
-      break;
-    case "addTable":
-    case "addChart":
-      resolveSlide(opened, op);
-      if (!op.offset) throw new Error('op "' + op.op + '" needs "offset"');
-      break;
-    case "setTableCell":
-    case "tableMerge":
-    case "tableStructure":
-    case "setTableRowHeight":
-    case "setTableColWidth":
-    case "setTableCellAnchor":
-    case "setTableStyle":
-    case "setChart":
-    case "setLink":
-      resolveElement(opened, op);
-      break;
-    case "setFont":
-    case "setParagraphFormat":
-    case "addAnimation":
-      resolveElement(opened, op);
-      break;
-    case "removeAnimation":
-      if (op.seq !== undefined) resolveSlide(opened, op);
-      else resolveElement(opened, op);
-      break;
-    case "reorderAnimation":
-    case "setAnimations":
-      resolveSlide(opened, op);
-      break;
-    // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e),
-    // media (B8e).
-    case "setFill":
-    case "setStroke":
-    case "setEffects":
-    case "setShapeGeometry":
-    case "setShapeAdjust":
-    case "ungroupElement":
-    case "setTextAnchor":
-    case "setTextBodyProps":
-      resolveElement(opened, op);
-      break;
-    case "groupElements":
-    case "flipElements":
-    case "alignElements":
-    case "distributeElements":
-    case "setNotes":
-    case "addComment":
-    case "deleteComment":
-      resolveSlide(opened, op);
-      break;
-    case "applyHeaderFooter":
-      break;
-    case "insertSlidePptx":
-      if (!op.source || typeof (op.source as { slideXml?: unknown }).slideXml !== "string") {
-        throw new Error('op "insertSlidePptx" needs a source with slideXml');
-      }
-      break;
-    case "addMedia":
-    case "addSmartArt":
-    case "addModel3d":
-      resolveSlide(opened, op);
-      if (!op.offset) throw new Error('op "' + op.op + '" needs "offset"');
       break;
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');
