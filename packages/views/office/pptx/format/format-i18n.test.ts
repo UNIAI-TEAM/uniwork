@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PPTX_FORMAT_I18N, formatPanelDictionary } from "./format-i18n";
-import { PPTX_FORMAT_DASHES } from "./format-model";
+import { PPTX_FORMAT_DASHES, formatAlignKey, formatDashKey } from "./format-model";
 import { PPTX_ALIGN_MODES, PPTX_TEXT_ANCHORS, PPTX_TEXT_AUTOFIT } from "@uniwork/office-engine/pptx";
 
 const ENTRY_RE = /^office\.pptx\.format\.[a-z0-9_.]+$/;
@@ -26,10 +26,10 @@ describe("PPTX_FORMAT_I18N", () => {
 
   it("has a label for every engine vocabulary the panel renders", () => {
     for (const dash of PPTX_FORMAT_DASHES) {
-      expect(PPTX_FORMAT_I18N["office.pptx.format.dash." + dash], dash).toBeDefined();
+      expect(PPTX_FORMAT_I18N[formatDashKey(dash)], dash).toBeDefined();
     }
     for (const mode of PPTX_ALIGN_MODES) {
-      expect(PPTX_FORMAT_I18N["office.pptx.format.align." + mode], mode).toBeDefined();
+      expect(PPTX_FORMAT_I18N[formatAlignKey(mode)], mode).toBeDefined();
     }
     for (const anchor of PPTX_TEXT_ANCHORS) {
       expect(PPTX_FORMAT_I18N["office.pptx.format.anchor." + anchor], anchor).toBeDefined();

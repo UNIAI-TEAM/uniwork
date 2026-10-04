@@ -24,6 +24,7 @@ import {
   buildStrokeEdit,
   emuToPoints,
   formatColorInputValue,
+  formatDashKey,
   isFormatColor,
   parseDegrees,
   parseNonNegative,
@@ -195,7 +196,10 @@ export function PptxFormatLineSection({
   const [color, setColor] = useState("#000000");
   const [width, setWidth] = useState(() => emuToPoints(strokeWidthEmu ?? 12700));
   const [dash, setDash] = useState<PptxFormatDash>("solid");
-  const dashItems = useMemo(() => PPTX_FORMAT_DASHES.map((value) => ({ value, label: t("format.dash." + value) })), [t]);
+  const dashItems = useMemo(
+    () => PPTX_FORMAT_DASHES.map((value) => ({ value, label: t(formatDashKey(value)) })),
+    [t],
+  );
   const inert = blocked || !allowed;
 
   return (
@@ -259,7 +263,7 @@ export function PptxFormatLineSection({
             <SelectContent>
               {PPTX_FORMAT_DASHES.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {t("format.dash." + value)}
+                  {t(formatDashKey(value))}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -317,7 +321,7 @@ export function PptxFormatEffectsSection({ slide, elementId, blocked, allowed, o
           onCheckedChange={(checked) => setShadowOn(checked === true)}
         />
         <Label htmlFor="pptx-format-shadow-on" className="text-body font-normal">
-          {t("format.shadow_label")}
+          {t("format.shadow_on")}
         </Label>
       </div>
       {shadowOn ? (

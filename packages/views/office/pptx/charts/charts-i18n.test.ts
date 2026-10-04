@@ -6,7 +6,7 @@
 // copy, and a label for every chart kind and palette.
 import { describe, expect, it } from "vitest";
 import { CHART_KINDS } from "@uniwork/office-engine/pptx";
-import { PPTX_CHART_LEGEND_POSITIONS, PPTX_CHART_PALETTES } from "./chart-model";
+import { PPTX_CHART_LEGEND_POSITIONS, PPTX_CHART_PALETTES, chartKindLabelKey } from "./chart-model";
 import { PPTX_CHARTS_I18N, PPTX_CHARTS_KIND_KEYS, pptxChartsResources } from "./charts-i18n";
 
 const ENTRY_RE = /^office\.pptx\.charts\.[a-z0-9_.]+$/;
@@ -41,10 +41,10 @@ describe("PPTX_CHARTS_I18N", () => {
 
   it("labels every chart kind the panel renders", () => {
     for (const kind of CHART_KINDS) {
-      const entry = PPTX_CHARTS_I18N["office.pptx.charts.kind." + kind];
+      const entry = PPTX_CHARTS_I18N[chartKindLabelKey(kind)];
       expect(entry, "missing kind key for " + kind).toBeTruthy();
     }
-    expect(PPTX_CHARTS_KIND_KEYS).toEqual(CHART_KINDS.map((kind) => "office.pptx.charts.kind." + kind));
+    expect(PPTX_CHARTS_KIND_KEYS).toEqual(CHART_KINDS.map((kind) => chartKindLabelKey(kind)));
   });
 
   it("labels every palette and legend position", () => {

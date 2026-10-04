@@ -57,6 +57,18 @@ describe("PptxChartsPanel", () => {
     expect(document.querySelector("[data-pptx-charts-style]")).toBeInTheDocument();
   });
 
+  it("renders the Kind and Colour-scheme labels as copy, not a raw key", () => {
+    renderPanel();
+    // The full office.pptx.charts.kind.* / .palette.* keys must be looked up on
+    // the root t(), not the panel's office.pptx prefix - a prefixed call renders
+    // "office.pptx.office.pptx.charts.*" in the trigger and the item list.
+    const typeTriggers = screen.getAllByRole("combobox", { name: "Type" });
+    expect(typeTriggers[0]).toHaveTextContent("Clustered column");
+    expect(typeTriggers[1]).toHaveTextContent("Clustered column");
+    expect(screen.getByRole("combobox", { name: "Colours" })).toHaveTextContent("Office");
+    expect(screen.queryByText(/^office\.pptx\./)).toBeNull();
+  });
+
   it("inserts a chart with one add_chart payload", async () => {
     const { onApplyEdit } = renderPanel();
     fireEvent.click(screen.getByTestId("pptx-charts-insert"));

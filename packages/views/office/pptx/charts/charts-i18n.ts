@@ -13,6 +13,7 @@
  */
 import { getI18n } from "react-i18next";
 import { CHART_KINDS } from "@uniwork/office-engine/pptx";
+import { chartKindLabelKey } from "./chart-model";
 
 /** One key's copy in both supported locales. */
 export interface PptxChartsI18nEntry {
@@ -86,17 +87,17 @@ export const PPTX_CHARTS_I18N: Readonly<Record<string, PptxChartsI18nEntry>> = {
   "office.pptx.charts.palette.cool": { en: "Cool", vi: "Lạnh" },
   "office.pptx.charts.palette.mono": { en: "Monochrome", vi: "Đơn sắc" },
   "office.pptx.charts.kind.bar": { en: "Clustered column", vi: "Cột nhóm" },
-  "office.pptx.charts.kind.barStacked": { en: "Stacked column", vi: "Cột xếp chồng" },
-  "office.pptx.charts.kind.barPercentStacked": { en: "100% stacked column", vi: "Cột xếp chồng 100%" },
+  "office.pptx.charts.kind.bar_stacked": { en: "Stacked column", vi: "Cột xếp chồng" },
+  "office.pptx.charts.kind.bar_percent_stacked": { en: "100% stacked column", vi: "Cột xếp chồng 100%" },
   "office.pptx.charts.kind.line": { en: "Line", vi: "Đường" },
   "office.pptx.charts.kind.area": { en: "Area", vi: "Vùng" },
   "office.pptx.charts.kind.pie": { en: "Pie", vi: "Tròn" },
   "office.pptx.charts.kind.doughnut": { en: "Doughnut", vi: "Vành khuyên" },
   "office.pptx.charts.kind.scatter": { en: "Scatter", vi: "Phân tán" },
   "office.pptx.charts.kind.radar": { en: "Radar", vi: "Radar" },
-  "office.pptx.charts.kind.comboBarLine": { en: "Combo", vi: "Kết hợp" },
-  "office.pptx.charts.kind.pie3D": { en: "3-D pie", vi: "Tròn 3-D" },
-  "office.pptx.charts.kind.bar3D": { en: "3-D column", vi: "Cột 3-D" },
+  "office.pptx.charts.kind.combo_bar_line": { en: "Combo", vi: "Kết hợp" },
+  "office.pptx.charts.kind.pie_3d": { en: "3-D pie", vi: "Tròn 3-D" },
+  "office.pptx.charts.kind.bar_3d": { en: "3-D column", vi: "Cột 3-D" },
 };
 
 /** Locales this panel ships copy for. */
@@ -141,6 +142,4 @@ registerPptxChartsI18n();
 }
 
 /** Every kind must carry a label key; exported so the parity test can pin it. */
-export const PPTX_CHARTS_KIND_KEYS: readonly string[] = CHART_KINDS.map(
-  (kind) => "office.pptx.charts.kind." + kind,
-);
+export const PPTX_CHARTS_KIND_KEYS: readonly string[] = CHART_KINDS.map((kind) => chartKindLabelKey(kind));

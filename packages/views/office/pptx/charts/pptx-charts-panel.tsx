@@ -99,6 +99,10 @@ export function PptxChartsPanel({
   className,
 }: PptxChartsPanelProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // The model stores each kind/palette label's FULL i18n key, so those lookups
+  // must run against the root: a prefixed call would double the namespace and
+  // leave the key untranslated.
+  const { t: tRoot } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [insertKind, setInsertKind] = useState<ChartKind>(() => resolveChartKind(chartKind));
@@ -114,7 +118,7 @@ export function PptxChartsPanel({
 
   // Base UI Select requires an items label map; the SelectContent children below
   // still render the real list, so these only feed the value->label mapping.
-  const kindItems = PPTX_CHART_KINDS.map((kind) => ({ value: kind, label: t(chartKindLabelKey(kind)) }));
+  const kindItems = PPTX_CHART_KINDS.map((kind) => ({ value: kind, label: tRoot(chartKindLabelKey(kind)) }));
   const barDirItems = [
     { value: "col", label: t("charts.bar_dir.col") },
     { value: "bar", label: t("charts.bar_dir.bar") },
@@ -123,7 +127,7 @@ export function PptxChartsPanel({
     value: position,
     label: t("charts.legend." + position),
   }));
-  const paletteItems = PPTX_CHART_PALETTES.map((entry) => ({ value: entry.id, label: t(entry.labelKey) }));
+  const paletteItems = PPTX_CHART_PALETTES.map((entry) => ({ value: entry.id, label: tRoot(entry.labelKey) }));
 
   const bound = typeof onApplyEdit === "function";
   const hasDeck = slideCount > 0;
@@ -284,7 +288,7 @@ export function PptxChartsPanel({
           <SelectContent>
             {PPTX_CHART_KINDS.map((kind) => (
               <SelectItem key={kind} value={kind}>
-                {t(chartKindLabelKey(kind))}
+                {tRoot(chartKindLabelKey(kind))}
               </SelectItem>
             ))}
           </SelectContent>
@@ -347,7 +351,7 @@ export function PptxChartsPanel({
           <SelectContent>
             {PPTX_CHART_KINDS.map((kind) => (
               <SelectItem key={kind} value={kind}>
-                {t(chartKindLabelKey(kind))}
+                {tRoot(chartKindLabelKey(kind))}
               </SelectItem>
             ))}
           </SelectContent>
@@ -453,7 +457,7 @@ export function PptxChartsPanel({
           <SelectContent>
             {PPTX_CHART_PALETTES.map((entry) => (
               <SelectItem key={entry.id} value={entry.id}>
-                {t(entry.labelKey)}
+                {tRoot(entry.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>

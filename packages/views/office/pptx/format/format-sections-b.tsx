@@ -37,6 +37,7 @@ import {
   buildTextAnchorEdit,
   buildUngroupEdit,
   buildWrapEdit,
+  formatAlignKey,
   parseAdjustField,
 } from "./format-model";
 
@@ -230,7 +231,7 @@ export function PptxFormatArrangeSection({
             data-pptx-align={mode}
             onClick={() => onApply(() => buildAlignEdit(slide, ids, mode, alignTo))}
           >
-            {t("format.align." + mode)}
+            {t(formatAlignKey(mode))}
           </Button>
         ))}
       </div>

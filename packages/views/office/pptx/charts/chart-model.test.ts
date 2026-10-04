@@ -37,7 +37,7 @@ describe("chart vocabulary", () => {
     expect(PPTX_CHART_KIND_OPTIONS.map((option) => option.kind)).toEqual([...CHART_KINDS]);
     for (const option of PPTX_CHART_KIND_OPTIONS) {
       expect(option.labelKey).toBe(chartKindLabelKey(option.kind));
-      expect(option.labelKey).toBe("office.pptx.charts.kind." + option.kind);
+      expect(option.labelKey).toMatch(/^office\.pptx\.charts\.kind\.[a-z0-9_.]+$/);
     }
   });
 

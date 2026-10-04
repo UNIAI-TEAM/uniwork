@@ -64,6 +64,42 @@ export const PPTX_FORMAT_DASHES = [
 ] as const;
 export type PptxFormatDash = (typeof PPTX_FORMAT_DASHES)[number];
 
+/**
+ * The i18n key segment for each dash name. The engine names are camelCase
+ * (`lgDash`), but an i18n key must satisfy the panel's lowercase key regex
+ * (`/^office\.pptx\.format\.[a-z0-9_.]+$/`), so the segment is snake_case.
+ */
+const DASH_KEY_SEGMENTS: Record<PptxFormatDash, string> = {
+  solid: "solid",
+  dash: "dash",
+  dot: "dot",
+  lgDash: "lg_dash",
+  lgDashDot: "lg_dash_dot",
+  lgDashDotDot: "lg_dash_dot_dot",
+  sysDash: "sys_dash",
+  sysDot: "sys_dot",
+};
+
+/** The `office.pptx.format.dash.<segment>` key for a dash name. */
+export function formatDashKey(dash: PptxFormatDash): string {
+  return "office.pptx.format.dash." + DASH_KEY_SEGMENTS[dash];
+}
+
+/** i18n key segment for each align mode (engine camelCase -> snake_case). */
+const ALIGN_KEY_SEGMENTS: Record<PptxAlignMode, string> = {
+  left: "left",
+  centerH: "center_h",
+  right: "right",
+  top: "top",
+  centerV: "center_v",
+  bottom: "bottom",
+};
+
+/** The `office.pptx.format.align.<segment>` key for an align mode. */
+export function formatAlignKey(mode: PptxAlignMode): string {
+  return "office.pptx.format.align." + ALIGN_KEY_SEGMENTS[mode];
+}
+
 /** Soft-edge radius presets in points (converted to EMU by the builder). */
 export const PPTX_FORMAT_SOFT_EDGE_PRESETS = [0, 2, 4, 8, 12, 20] as const;
 

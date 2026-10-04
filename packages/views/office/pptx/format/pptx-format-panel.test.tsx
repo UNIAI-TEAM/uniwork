@@ -119,6 +119,14 @@ describe("PptxFormatPanel", () => {
     );
   });
 
+  it("renders the shadow toggle as an accessible Drop shadow checkbox", () => {
+    renderPanel();
+    const shadow = screen.getByRole("checkbox", { name: "Drop shadow" });
+    expect(shadow).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(shadow);
+    expect(shadow).toHaveAttribute("aria-checked", "true");
+  });
+
   it("applies a shadow through set_effects", async () => {
     const { onApplyEdit } = renderPanel();
     fireEvent.click(screen.getByRole("checkbox", { name: "Drop shadow" }));

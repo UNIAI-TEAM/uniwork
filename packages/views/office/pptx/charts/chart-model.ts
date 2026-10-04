@@ -35,9 +35,29 @@ export interface PptxChartKindOption {
   labelKey: string;
 }
 
-/** The i18n key for one kind's label: office.pptx.charts.kind.<kind>. */
+/**
+ * The i18n key segment for one kind. The engine kind names are camelCase
+ * (`barStacked`), but an i18n key must satisfy the panel's lowercase key regex
+ * (`/^office\.pptx\.charts\.[a-z0-9_.]+$/`), so the segment is snake_case.
+ */
+const CHART_KIND_KEY_SEGMENTS: Record<ChartKind, string> = {
+  bar: "bar",
+  barStacked: "bar_stacked",
+  barPercentStacked: "bar_percent_stacked",
+  line: "line",
+  area: "area",
+  pie: "pie",
+  doughnut: "doughnut",
+  scatter: "scatter",
+  radar: "radar",
+  comboBarLine: "combo_bar_line",
+  pie3D: "pie_3d",
+  bar3D: "bar_3d",
+};
+
+/** The i18n key for one kind's label: office.pptx.charts.kind.<snake_case>. */
 export function chartKindLabelKey(kind: ChartKind): string {
-  return "office.pptx.charts.kind." + kind;
+  return "office.pptx.charts.kind." + CHART_KIND_KEY_SEGMENTS[kind];
 }
 
 export const PPTX_CHART_KIND_OPTIONS: readonly PptxChartKindOption[] = CHART_KINDS.map((kind) => ({
