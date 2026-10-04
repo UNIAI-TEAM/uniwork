@@ -194,6 +194,49 @@ describe("XLSX structural journal", () => {
   });
 });
 
+describe("XLSX table journal drain (FIX-B9-1)", () => {
+  it("clears the table journal in rebase alongside the other journals", () => {
+    const model = createXlsxSessionModel(snapshot(), "sha-base");
+    for (const op of parseXlsxOps([
+      { op: "create_table", target: { sheet: "Data" }, range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 }, attributes: { name: "Sales", columnNames: ["Region", "Q1"] } },
+    ], model.resolver({ "sheet-1": "Data" }))) model.applyEdit(op);
+    expect(model.pendingTableAdditions().map((table) => table.name)).toEqual(["Sales"]);
+    model.rebase(snapshot(), "sha-next");
+    expect(model.pendingTableAdditions()).toEqual([]);
+    expect(model.isDirty).toBe(false);
+  });
+
+  it("drains pending table additions so a second save succeeds and carries no stale table ops", async () => {
+    const engine = createFakeXlsxEngine();
+    const recalc = createFakeRecalc();
+    const gatewayArguments: unknown[] = [];
+    const nativeApply = engine.applyCellEdits.bind(engine);
+    engine.applyCellEdits = async (bytes, edits, values, args) => {
+      gatewayArguments.push(args);
+      return nativeApply(bytes, edits, values);
+    };
+    const adapter = createXlsxAdapter({ engine, recalc });
+    const opened = await adapter.open({
+      bytes: makeFakeXlsxBytes({ sheets: [{ name: "Data", cells: { A1: { value: "Region" }, B1: { value: "Q1" }, A2: { value: "North" }, B2: { value: 10 } } }] }),
+      format: "xlsx",
+      document_id: "table-drain",
+    });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    adapter.edit(opened.document_model_ref, [
+      { op: "create_table", target: { sheet: "Data" }, range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 }, attributes: { name: "Sales", columnNames: ["Region", "Q1"] } },
+    ]);
+    await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    expect(gatewayArguments[0]).toEqual({
+      tableAdditions: [{ sheetName: "Data", area: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 }, name: "Sales", columnNames: ["Region", "Q1"], bandedRows: true }],
+    });
+    // The rebase drained the table journal, so the second save with no new ops
+    // succeeds and passes no stale tableAdditions to the gateway (the real
+    // gateway throws TableAddError on the duplicate name).
+    await expect(adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" })).resolves.toBeDefined();
+    expect(gatewayArguments[1]).toBeUndefined();
+  });
+});
+
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const artifact = join(repo, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 describe.skipIf(!existsSync(artifact))("XLSX real gateway cell folding", () => {

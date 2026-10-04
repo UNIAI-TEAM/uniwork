@@ -550,6 +550,7 @@ export class XlsxSessionModel {
     this.structural.clear();
     this.filters.clear();
     this.pageSetups.clear();
+    this.tables = [];
     this.sheetProtections.clear();
     this.definedNames = undefined;
     this.sheetStates = newSnapshot.sheets.map((sheet) => ({
