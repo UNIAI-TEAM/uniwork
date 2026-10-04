@@ -196,9 +196,13 @@ export function PptxFormatLineSection({
   const [color, setColor] = useState("#000000");
   const [width, setWidth] = useState(() => emuToPoints(strokeWidthEmu ?? 12700));
   const [dash, setDash] = useState<PptxFormatDash>("solid");
+  // The dash labels are FULL office.pptx.format.* keys (formatDashKey), so they
+  // must be resolved on the root t(): a prefixed call would render
+  // "office.pptx.office.pptx.format.*" verbatim.
+  const { t: tRoot } = useTranslation();
   const dashItems = useMemo(
-    () => PPTX_FORMAT_DASHES.map((value) => ({ value, label: t(formatDashKey(value)) })),
-    [t],
+    () => PPTX_FORMAT_DASHES.map((value) => ({ value, label: tRoot(formatDashKey(value)) })),
+    [tRoot],
   );
   const inert = blocked || !allowed;
 
@@ -263,7 +267,7 @@ export function PptxFormatLineSection({
             <SelectContent>
               {PPTX_FORMAT_DASHES.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {t(formatDashKey(value))}
+                  {tRoot(formatDashKey(value))}
                 </SelectItem>
               ))}
             </SelectContent>

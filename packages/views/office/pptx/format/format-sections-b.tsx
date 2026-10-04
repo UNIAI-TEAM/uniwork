@@ -145,6 +145,10 @@ export function PptxFormatArrangeSection({
   onApply,
 }: PptxFormatArrangeSectionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // The align button labels are FULL office.pptx.format.* keys (formatAlignKey),
+  // so they must be resolved on the root t(): a prefixed call would render
+  // "office.pptx.office.pptx.format.*" verbatim.
+  const { t: tRoot } = useTranslation();
   const [alignTo, setAlignTo] = useState<PptxAlignTo>("selection");
   const count = ids.length;
   const canGroup = arrangeEnabled("group", count);
@@ -231,7 +235,7 @@ export function PptxFormatArrangeSection({
             data-pptx-align={mode}
             onClick={() => onApply(() => buildAlignEdit(slide, ids, mode, alignTo))}
           >
-            {t(formatAlignKey(mode))}
+            {tRoot(formatAlignKey(mode))}
           </Button>
         ))}
       </div>

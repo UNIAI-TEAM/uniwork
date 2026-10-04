@@ -51,6 +51,15 @@ describe("PptxFormatPanel", () => {
       expect(document.querySelector(`[data-pptx-format-section="${section}"]`)).not.toBeNull();
     }
   });
+  it("renders the Dash-style and Align labels as copy, not a raw key", () => {
+    renderPanel({ selectedIds: ["sh1", "sh2"] });
+    // The dash and align labels are FULL office.pptx.format.* keys, so they must
+    // be resolved on the root t(), not the panel's office.pptx prefix - a
+    // prefixed call renders "office.pptx.office.pptx.format.*" verbatim.
+    expect(screen.getByRole("combobox", { name: "Dash style" })).toHaveTextContent("Solid");
+    expect(screen.getByRole("button", { name: "Align center" })).toHaveTextContent("Align center");
+    expect(screen.queryByText(/^office\.pptx\./)).toBeNull();
+  });
 
   it("applies a solid fill as one set_fill edit", async () => {
     const { onApplyEdit } = renderPanel();
@@ -98,7 +107,13 @@ describe("PptxFormatPanel", () => {
   it("applies an outline as set_stroke with the EMU width and a dash", async () => {
     const { onApplyEdit } = renderPanel();
     fireEvent.change(screen.getByTestId("pptx-format-line-width"), { target: { value: "2" } });
-    fireEvent.change(screen.getByTestId("pptx-format-line-dash"), { target: { value: "dash" } });
+    // The dash control is a Base UI Select (a <button role="combobox">): a
+    // `change` event never reaches it, so open the trigger and press the item the
+    // way a user does (Base UI commits on the click that follows the pointer press).
+    fireEvent.click(screen.getByTestId("pptx-format-line-dash"));
+    const dashOption = screen.getByRole("option", { name: "Dash" });
+    fireEvent.pointerDown(dashOption);
+    fireEvent.click(dashOption);
     fireEvent.click(screen.getByTestId("pptx-format-apply-line"));
     await waitFor(() =>
       expect(onApplyEdit).toHaveBeenCalledWith({
@@ -225,7 +240,12 @@ describe("PptxFormatPanel", () => {
     await waitFor(() =>
       expect(onApplyEdit).toHaveBeenCalledWith({ op: "set_text_anchor", slideIndex: 1, elementId: "t1", anchor: "middle" }),
     );
-    fireEvent.change(screen.getByTestId("pptx-format-autofit"), { target: { value: "shrink" } });
+    // Same Base UI Select interaction as the dash control above.
+    await waitFor(() => expect(screen.getByTestId("pptx-format-autofit")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("pptx-format-autofit"));
+    const shrinkOption = screen.getByRole("option", { name: "Shrink text on overflow" });
+    fireEvent.pointerDown(shrinkOption);
+    fireEvent.click(shrinkOption);
     await waitFor(() =>
       expect(onApplyEdit).toHaveBeenCalledWith({
         op: "set_text_body_props",
