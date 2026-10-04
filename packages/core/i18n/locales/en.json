@@ -7454,7 +7454,7 @@
         "imageLabel": "Provider asset id", "imagePlaceholder": "Enter provider asset id", "applyImage": "Replace image"
       },
       "image": {
-        "apply": "Apply image changes", "delete": "Delete image", "insert": "Insert image", "layer": "Layer",
+        "apply": "Apply image changes", "delete": "Delete image", "insert": "Insert image", "chooseFile": "Choose image", "layer": "Layer",
         "layerAbove": "Above text", "layerBelow": "Below text", "replaceFile": "Replace image file", "rotation": "Rotation",
         "left": "Left", "top": "Top", "right": "Right", "bottom": "Bottom",
         "errors": { "asset": "The image could not be read.", "fileType": "Select a PNG or JPEG image." }

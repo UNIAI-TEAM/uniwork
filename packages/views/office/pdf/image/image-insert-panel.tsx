@@ -39,6 +39,7 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const title = t("office.pdf.image.insert");
+  const chooseLabel = t("office.pdf.image.chooseFile");
 
   const submit = async () => {
     if (!file || !file.type.match(/^image\/(png|jpeg)$/)) {
@@ -66,9 +67,9 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
 
   return (
     <section className="mt-3 grid gap-2" data-testid="pdf-image-insert-panel">
-      <label className="sr-only" htmlFor="pdf-image-insert-file">{title}</label>
+      <label className="sr-only" htmlFor="pdf-image-insert-file">{chooseLabel}</label>
       <input id="pdf-image-insert-file" type="file" accept="image/png,image/jpeg" className="sr-only" ref={inputRef} onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
-      <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={disabled || pending}>{title}</Button>
+      <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={disabled || pending}>{chooseLabel}</Button>
       {file ? <p className="min-w-0 truncate text-caption text-muted-foreground">{file.name}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={t("office.pdf.image.layer")} className="flex flex-wrap items-center gap-2">

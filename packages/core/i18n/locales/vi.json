@@ -7430,7 +7430,7 @@
         "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
       },
       "image": {
-        "apply": "Áp dụng thay đổi ảnh", "delete": "Xóa ảnh", "insert": "Chèn ảnh", "layer": "Lớp",
+        "apply": "Áp dụng thay đổi ảnh", "delete": "Xóa ảnh", "insert": "Chèn ảnh", "chooseFile": "Chọn ảnh", "layer": "Lớp",
         "layerAbove": "Trên chữ", "layerBelow": "Dưới chữ", "replaceFile": "Thay tệp ảnh", "rotation": "Góc xoay",
         "left": "Trái", "top": "Trên", "right": "Phải", "bottom": "Dưới",
         "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
