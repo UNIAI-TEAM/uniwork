@@ -2,7 +2,7 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
@@ -13,51 +13,30 @@ import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { XlsxFormulaBar } from "./formulas/formula-bar";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useXlsxProtectNames } from "./protect/use-protect-names";
-import { XlsxGridSurface, type XlsxGridHandle, type XlsxGridSheetInfo } from "./xlsx-grid-surface";
+import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
-import {
-  sheetActionOperation,
-  XLSX_COPY_SHEET_COMMAND,
-  XLSX_HIDE_SHEET_COMMAND,
-  XLSX_INSERT_SHEET_COMMAND,
-  XLSX_ORDER_SHEET_COMMAND,
-  XLSX_REMOVE_SHEET_COMMAND,
-  XLSX_RENAME_SHEET_COMMAND,
-  XLSX_SHOW_SHEET_COMMAND,
-  type XlsxSheetTabAction,
-} from "./sheet-commands";
 import { XlsxSheetTabs } from "./sheet-tabs";
 import { XlsxStatusBar } from "./status-bar";
-import { XLSX_CONTEXT_CLEAR_CONTENT_COMMAND } from "./context-menu/menu-items";
-import { foldClipboardPermissions, useXlsxContextMenu } from "./context-menu/use-context-menu";
+import { useXlsxContextMenu } from "./context-menu/use-context-menu";
 import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
-import { addressParts, cellEditOperation, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
+import { addressParts, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
-import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
+import { isFailure, unexpectedFailure } from "./xlsx-editor-failure";
+import { useXlsxEditorSelection } from "./use-xlsx-editor-selection";
+import { useXlsxEditorEdits } from "./use-xlsx-editor-edits";
+import { useXlsxEditorSheetCommands } from "./use-xlsx-editor-sheet-commands";
+import { useXlsxEditorClipboard } from "./use-xlsx-editor-clipboard";
+import { useXlsxEditorKeyboard } from "./use-xlsx-editor-keyboard";
+import { useXlsxEditorRibbonData } from "./use-xlsx-editor-ribbon-data";
 import type {
   XlsxEditorProps,
   XlsxOpenFailure,
-  XlsxOpenOutcome,
   XlsxSelection,
   XlsxViewState,
 } from "./types";
-
-function unexpectedFailure(documentId: string, error: unknown): XlsxOpenFailure {
-  return {
-    outcome: "failed",
-    document_id: documentId,
-    format: "xlsx",
-    failure_class: "engine_error",
-    message: error instanceof Error ? error.message : String(error),
-  };
-}
-
-function isFailure(outcome: XlsxOpenOutcome): outcome is XlsxOpenFailure {
-  return outcome.outcome === "failed";
-}
 
 /** XLSX format view. The host supplies the G2 browser adapter through the
  * EditorHandle; this component never imports a Node binding or writes bytes. */
@@ -138,13 +117,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // Same ownership for the Function Library dialog: it inserts into the active
   // cell through the toolbar's command port.
   const [functionLibraryOpen, setFunctionLibraryOpen] = useState(false);
-  // Live sheet list (tab order, names, hidden) for the sheet-tab strip: the
-  // mounted grid's own state, so a session rename/add/reorder is reflected the
-  // moment it happens. Empty without a grid (the snapshot drives the strip).
-  const [liveSheets, setLiveSheets] = useState<readonly XlsxGridSheetInfo[]>([]);
-  const refreshSheets = useCallback(() => {
-    setLiveSheets(gridRef.current?.getSheets?.() ?? []);
-  }, [gridRef]);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
@@ -157,30 +129,23 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     return coordinator.subscribe(setCoordinatorState);
   }, [coordinator, documentKey]);
 
-  useEffect(() => {
-    const selectionPort = editor.selection;
-    if (!selectionPort) {
-      setSelection(null);
-      onSelectionChange?.(null);
-      return undefined;
-    }
-    const emit = (next: XlsxSelection | null) => {
-      setSelection(next);
-      setActiveSheet(next?.sheet ?? null);
-      onSelectionChange?.(next);
-    };
-    emit(selectionPort.getSelection());
-    return selectionPort.subscribe?.(emit);
-  }, [documentKey, editor, onSelectionChange]);
-
-  useEffect(() => {
-    const subscribe = editor.subscribeSnapshot;
-    if (!subscribe) return undefined;
-    return subscribe((next) => {
-      setSnapshot(next);
-      setActiveSheet((current) => next.sheets.some((sheet) => sheet.name === current) ? current : next.sheets[0]?.name ?? null);
-    });
-  }, [editor]);
+  // FIX-EDITOR-SPLIT (UNI-926): the selection / active-sheet wiring - the live
+  // sheet list, the selection-port and snapshot subscriptions and the
+  // cell/sheet selection callbacks - now lives in ./use-xlsx-editor-selection.
+  const { liveSheets, refreshSheets, selectCell, gridSheetId, selectSheet } = useXlsxEditorSelection({
+    documentKey,
+    editor,
+    rendererHost,
+    gridRef,
+    gridReady,
+    snapshot,
+    selection,
+    onSelectionChange,
+    setSnapshot,
+    setActiveSheet,
+    setSelection,
+    setActiveSheetId,
+  });
 
   useEffect(() => {
     const cleanupSession = sessionPropsRef.current;
@@ -270,251 +235,70 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     setFormulaDraft(cellText(activeCell));
   }, [activeCell, selection?.address, selection?.sheet]);
 
-  const selectCell = useCallback((next: XlsxSelection) => {
-    setSelection(next);
-    setActiveSheet(next.sheet);
-    editor.selection?.setSelection?.(next);
-    onSelectionChange?.(next);
-  }, [editor.selection, onSelectionChange]);
+  // FIX-EDITOR-SPLIT (UNI-926): cell commit, undo/redo, save preparation and
+  // recalculation live in ./use-xlsx-editor-edits, which also owns markDirty.
+  const { markDirty, commitCell, undo, redo, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
+    editor,
+    coordinator,
+    rendererHost,
+    gridRef,
+    gridReady,
+    selection,
+    formulaDraft,
+    activeCell,
+    canEdit,
+    readOnly,
+    visibleState,
+    flushGridEdits,
+    refreshSnapshot,
+    recalcController,
+    recalcProgress,
+    recalcAbortRef,
+    disposedRef,
+    registerSavePreparation,
+    setRecalcError,
+    setRecalcFresh,
+    setRecalcProgress,
+  });
 
-  // The live grid id wins over the host file's id map: a session rename keeps
-  // the id but changes the name, so the file lookup goes stale.
-  const gridSheetId = useCallback((sheetName: string): string | undefined =>
-    gridRef.current?.getSheets?.().find((sheet) => sheet.name === sheetName)?.id ??
-    rendererHost?.file.sheets.find((sheet) => sheet.name === sheetName)?.id,
-  [rendererHost]);
 
-  const selectSheet = useCallback((sheetName: string) => {
-    setActiveSheet(sheetName);
-    const rendererSheetId = gridSheetId(sheetName);
-    setActiveSheetId(rendererSheetId ?? null);
-    if (gridReady && rendererSheetId) { gridRef.current?.selectSheet(rendererSheetId); return; }
-    if (selection?.sheet === sheetName) return;
-    const sheet = snapshot?.sheets.find((candidate) => candidate.name === sheetName);
-    const firstAddress = sheet
-      ? Object.keys(sheet.cells)
-        .map((address) => ({ address, parts: addressParts(address) }))
-        .filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null)
-        .sort((left, right) => left.parts.row - right.parts.row || left.parts.column - right.parts.column)[0]?.address
-      : undefined;
-    const next = { sheet: sheetName, address: firstAddress ?? "A1" };
-    setSelection(next);
-    onSelectionChange?.(next);
-    if (next) editor.selection?.setSelection?.(next);
-  }, [editor.selection, gridReady, gridSheetId, onSelectionChange, selection?.sheet, snapshot]);
+  // FIX-EDITOR-SPLIT (UNI-926): the sheet-tab action dispatcher (pinned
+  // command path + direct-op fallback) lives in ./use-xlsx-editor-sheet-commands.
+  const runSheetAction = useXlsxEditorSheetCommands({
+    canEdit,
+    gridReady,
+    gridCommands,
+    gridSheetId,
+    edit: editor.edit,
+    markDirty,
+    refreshSnapshot,
+    refreshSheets,
+    setRecalcError,
+  });
 
-  const markDirty = useCallback(() => {
-    coordinator.markDirty?.(editor.getDirtyGeneration());
-    setRecalcFresh(false);
-  }, [coordinator, editor]);
 
-  // Sheet-tab actions: the pinned Univer command path when the grid is live
-  // (its policy gate stays the single savability gate and the mutation is
-  // captured into the same envelope op); the direct op path otherwise, where
-  // the host's runtime model applies it to the snapshot.
-  const runSheetAction = useCallback((action: XlsxSheetTabAction): void => {
-    if (!canEdit) return;
-    // Chosen semantic (B2 r5): fail-closed. With the renderer mounted the
-    // pinned command path is the single savability gate, so a command that
-    // resolves false surfaces a failure and the direct-op fallback is NOT
-    // retried - the fallback would bypass the policy gate. Only when there is
-    // no mounted renderer (or no live sheet id to address) is there no command
-    // path to gate on, so the fallback applies the op to the snapshot as before.
-    const fallback = (): void => {
-      void Promise.resolve(editor.edit?.([sheetActionOperation(action)]))
-        .then(() => { markDirty(); refreshSnapshot(); })
-        .catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
-    };
-    // The port resolves a real boolean (a rejection resolves false at the
-    // boundary); a resolved false is a refused/failed command, never silence.
-    const dispatch = (id: string, params: unknown): void => {
-      void Promise.resolve(gridCommands.execute(id, params))
-        .then((executed) => { if (!executed) setRecalcError(t("office.xlsx.errors.editFailed")); })
-        .catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
-    };
-    if (!gridReady) {
-      fallback();
-      refreshSheets();
-      return;
-    }
-    switch (action.kind) {
-      case "add":
-        dispatch(XLSX_INSERT_SHEET_COMMAND, { sheet: { name: action.name } });
-        break;
-      case "duplicate": {
-        const id = gridSheetId(action.sheet);
-        if (id === undefined) { fallback(); break; }
-        dispatch(XLSX_COPY_SHEET_COMMAND, { subUnitId: id });
-        break;
-      }
-      case "rename": {
-        const id = gridSheetId(action.sheet);
-        if (id === undefined) { fallback(); break; }
-        dispatch(XLSX_RENAME_SHEET_COMMAND, { subUnitId: id, name: action.newName });
-        break;
-      }
-      case "remove": {
-        const id = gridSheetId(action.sheet);
-        if (id === undefined) { fallback(); break; }
-        dispatch(XLSX_REMOVE_SHEET_COMMAND, { subUnitId: id });
-        break;
-      }
-      case "move": {
-        const id = gridSheetId(action.sheet);
-        if (id === undefined) { fallback(); break; }
-        dispatch(XLSX_ORDER_SHEET_COMMAND, { subUnitId: id, order: action.index });
-        break;
-      }
-      case "set-hidden": {
-        const id = gridSheetId(action.sheet);
-        const command = action.hidden ? XLSX_HIDE_SHEET_COMMAND : XLSX_SHOW_SHEET_COMMAND;
-        if (id === undefined) { fallback(); break; }
-        dispatch(command, { subUnitId: id });
-        break;
-      }
-    }
-    refreshSheets();
-  }, [canEdit, editor, gridCommands, gridReady, gridSheetId, markDirty, refreshSheets, refreshSnapshot, t]);
+  // FIX-EDITOR-SPLIT (UNI-926): copy / paste / cut, the clipboard failure
+  // handler and the folded permissions live in ./use-xlsx-editor-clipboard.
+  const { copy, paste, cut, clipboardFailure, clipboardPermissions } = useXlsxEditorClipboard({
+    editor,
+    permissions,
+    selection,
+    snapshot,
+    canEdit,
+    readOnly,
+    rendererHost,
+    gridReady,
+    gridRef,
+    gridEdits,
+    gridCommands,
+    mountRef,
+    disposedRef,
+    markDirty,
+    refreshSnapshot,
+    setFormulaDraft,
+    setRecalcError,
+  });
 
-  const commitCell = useCallback(async () => {
-    if (!canEdit || !selection || formulaDraft === cellText(activeCell)) return;
-    const text = formulaDraft;
-    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
-    const position = addressParts(selection.address);
-    if (gridReady && gridSheet && position) {
-      gridRef.current?.setCellText(gridSheet.id, position.row, position.column, text);
-      await flushGridEdits();
-      return;
-    }
-    const op = cellEditOperation(selection.sheet, selection.address, text);
-    await editor.edit?.([op]);
-    markDirty();
-    refreshSnapshot();
-  }, [activeCell, canEdit, editor, formulaDraft, flushGridEdits, gridReady, markDirty, refreshSnapshot, rendererHost, selection]);
-
-  const undo = useCallback(() => {
-    if (readOnly) return;
-    // The vendored grid owns the live undo stack once it is mounted; the
-    // adapter handle is the fallback for hosts without a render model.
-    if (gridReady) { gridRef.current?.undo(); return; }
-    editor.undo?.();
-    markDirty();
-    refreshSnapshot();
-  }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
-
-  const redo = useCallback(() => {
-    if (readOnly) return;
-    if (gridReady) { gridRef.current?.redo(); return; }
-    editor.redo?.();
-    markDirty();
-    refreshSnapshot();
-  }, [editor, gridReady, markDirty, readOnly, refreshSnapshot]);
-
-  const prepareSave = useCallback(async () => {
-    try {
-      if (rendererHost) await gridRef.current?.commitEdit();
-      await commitCell();
-      await flushGridEdits();
-    } catch (error) {
-      setRecalcError(t("office.xlsx.errors.editFailed"));
-      throw error;
-    }
-  }, [commitCell, flushGridEdits, rendererHost, t]);
-  useEffect(() => registerSavePreparation?.(prepareSave), [prepareSave, registerSavePreparation]);
-
-  const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
-    if (visibleState !== "ready" || readOnly) return;
-    if (!rendererHost) { void coordinator.save(entryPoint); return; }
-    void (async () => {
-      if (!registerSavePreparation) await prepareSave();
-      await coordinator.save(entryPoint);
-    })().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
-  }, [coordinator, prepareSave, readOnly, registerSavePreparation, rendererHost, visibleState]);
-
-  const recalculate = useCallback(async () => {
-    if (!recalcController || readOnly || recalcProgress !== null) return;
-    const controller = new AbortController();
-    recalcAbortRef.current = controller;
-    setRecalcError(null);
-    setRecalcFresh(false);
-    setRecalcProgress(0);
-    try {
-      await recalcController.run(controller.signal, (progress) => {
-        if (!controller.signal.aborted) setRecalcProgress(Math.max(0, Math.min(100, Math.round(progress))));
-      });
-      if (controller.signal.aborted || disposedRef.current) return;
-      refreshSnapshot();
-      markDirty();
-      setRecalcFresh(true);
-      setRecalcProgress(100);
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setRecalcError(error instanceof Error ? error.message : String(error));
-      setRecalcProgress(null);
-      setRecalcFresh(false);
-    } finally {
-      if (!controller.signal.aborted) {
-        setRecalcProgress(null);
-      }
-      recalcAbortRef.current = null;
-    }
-  }, [markDirty, readOnly, recalcController, recalcProgress, refreshSnapshot]);
-
-  const cancelRecalculate = useCallback(() => {
-    const controller = recalcAbortRef.current;
-    if (!controller) return;
-    controller.abort();
-    void recalcController?.cancel?.();
-    recalcAbortRef.current = null;
-    setRecalcProgress(null);
-    setRecalcFresh(false);
-    setRecalcError(t("office.xlsx.recalc.cancelled"));
-  }, [recalcController, t]);
-
-  const copy = useCallback(async () => {
-    if (!selection || permissions.canCopy === false || !editor.clipboard?.writeText) return;
-    await editor.clipboard.writeText(selectionClipboardText(snapshot, selection));
-  }, [editor.clipboard, permissions.canCopy, selection, snapshot]);
-
-  const paste = useCallback(async () => {
-    if (!selection || !canEdit || permissions.canPaste === false || !editor.clipboard?.readText) return;
-    const session = mountRef.current;
-    const text = await editor.clipboard.readText();
-    if (disposedRef.current || mountRef.current !== session) return;
-    const cells = clipboardCells(selection, text);
-    setFormulaDraft(cells[0]?.text ?? "");
-    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
-    const position = addressParts(selection.address);
-    if (gridReady && gridSheet && position) {
-      for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
-      await gridEdits.flush();
-      return;
-    }
-    await editor.edit?.(cells.map((cell) => cellEditOperation(selection.sheet, toA1Address(cell.row, cell.column), cell.text)));
-    markDirty();
-    refreshSnapshot();
-  }, [canEdit, editor, gridEdits, gridReady, markDirty, permissions.canPaste, refreshSnapshot, rendererHost, selection]);
-  const clipboardFailure = useCallback(() => {
-    if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
-  }, [t]);
-
-  // Cut = copy the selection, then clear its content through the allowlisted
-  // clear command (no new op, no second save path). The clipboard write must
-  // succeed before anything is cleared.
-  const cut = useCallback(async () => {
-    if (!selection || readOnly || !canEdit || permissions.canCopy === false || !editor.clipboard?.writeText) return;
-    await editor.clipboard.writeText(selectionClipboardText(snapshot, selection));
-    // Fire-and-forget clear: the port resolves false on a refusal/rejection, so
-    // there is no unhandled rejection to surface here.
-    void gridCommands.execute(XLSX_CONTEXT_CLEAR_CONTENT_COMMAND);
-  }, [canEdit, editor.clipboard, gridCommands, permissions.canCopy, readOnly, selection, snapshot]);
-
-  // A9: one capability-folded permissions object feeds the toolbar and the
-  // context menu, so Copy/Paste disable on exactly the same condition.
-  const clipboardPermissions = useMemo(
-    () => foldClipboardPermissions(permissions, editor.clipboard),
-    [editor.clipboard, permissions],
-  );
 
   // The grid context menu (A9): the hook owns the anchor point, the disabled
   // state and the focus return; every item dispatches through the same port and
@@ -571,58 +355,28 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onError: setRecalcError,
   });
 
-  const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return;
-    const modifier = event.metaKey || event.ctrlKey;
-    if (!modifier) return;
-    const key = event.key.toLowerCase();
-    if (gridReady && event.target instanceof HTMLElement && event.target.closest(".xlsx-surface")) {
-      // Univer owns its cell-editor and range shortcuts; bubbling must not
-      // execute a second undo or overwrite a multi-cell paste.
-      return;
-    } else if (key === "c" && !gridReady && !(event.target instanceof HTMLInputElement)) {
-      event.preventDefault();
-      void copy().catch(clipboardFailure);
-    } else if (key === "v" && !gridReady && !(event.target instanceof HTMLInputElement)) {
-      event.preventDefault();
-      void paste().catch(clipboardFailure);
-    } else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) {
-      event.preventDefault();
-      undo();
-    } else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) {
-      event.preventDefault();
-      redo();
-    }
-  }, [clipboardFailure, copy, gridReady, paste, redo, undo]);
 
-  const captureSave = useCallback((event: globalThis.KeyboardEvent) => {
-    if (event.isComposing || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
-    // Univer's imperative input has no fiber inside its nested React root,
-    // so JSX capture misses it even though its DOM path crosses this root.
-    event.preventDefault();
-    event.stopPropagation();
-    save("shortcut");
-  }, [save]);
-  useEffect(() => {
-    const root = rootRef.current;
-    root?.addEventListener("keydown", captureSave, true);
-    return () => root?.removeEventListener("keydown", captureSave, true);
-  }, [captureSave, documentKey, editor]);
+  // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
+  // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.
+  const { keyboardHandler } = useXlsxEditorKeyboard({
+    gridReady,
+    copy,
+    paste,
+    undo,
+    redo,
+    clipboardFailure,
+    save,
+    rootRef,
+    documentKey,
+    editor,
+  });
 
-  // Tab colours have no write path in the vendored gateway: they are shown
-  // read-only from the render model (the only reader of <tabColor>).
-  const sheetTabInfos = useMemo(() => {
-    // F7: tab colour is keyed by the stable sheet id, not the file name, so
-    // a renamed sheet keeps its colour chip until the next save reloads it.
-    // `sheets` is derived inside the memo so the snapshot sheet list - not a
-    // per-render logical expression - is the dependency.
-    const sheets = snapshot?.sheets ?? [];
-    const colors = new Map((rendererHost?.file.sheets ?? []).map((sheet) => [sheet.id, sheet.tabColor]));
-    const source = liveSheets.length > 0
-      ? liveSheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden }))
-      : sheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden ?? false }));
-    return source.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden, tabColor: colors.get(sheet.id) ?? null }));
-  }, [liveSheets, rendererHost, snapshot?.sheets]);
+
+  // FIX-EDITOR-SPLIT (UNI-926): the sheet-tab strip's tab infos (live order +
+  // read-only tab colours) live in ./use-xlsx-editor-ribbon-data.
+  const sheetTabInfos = useXlsxEditorRibbonData(liveSheets, rendererHost, snapshot);
+
+
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
   // Ctrl+PageUp/Down, and the redo alternate chord Ctrl+Shift+Z - upstream
   // binds only Ctrl+Y).
