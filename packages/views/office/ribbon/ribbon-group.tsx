@@ -84,11 +84,11 @@ function GroupPanel({ group }: { group: RibbonGroup }) {
   return (
     <PopoverContent
       align="start"
-      className="w-auto max-w-[calc(100vw-2rem)] gap-1.5 p-2"
+      className="w-auto max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-4rem)] overflow-y-auto gap-1.5 p-2"
       aria-label={t("office.ribbon.groupPanel", { label: caption })}
       {...RIBBON_PORTAL_ATTR}
     >
-      <div role="group" aria-label={caption} data-ribbon-panel={group.id} className="flex flex-col gap-1.5">
+      <div role="group" aria-label={caption} data-ribbon-panel={group.id} className="flex min-h-0 flex-col gap-1.5">
         <GroupItems group={group} stage={0} inPanel />
         <div className="flex items-center justify-between gap-2 border-t border-border pt-1 text-caption text-muted-foreground">
           <span>{caption}</span>
