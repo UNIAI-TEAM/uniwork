@@ -137,7 +137,7 @@ describe("XLSX sheet ops in the session model", () => {
     ).toThrowError(XlsxOpError);
   });
 
-  it("drops the pending state of a removed sheet and frees its name", () => {
+  it("cancels a same-name re-add and restores the removed sheet's pending state", () => {
     const model = createXlsxSessionModel(baseSnapshot(), "sha-base");
     applyEnvelope(model, [
       { op: "set_cell", target: { sheet: "PhuLuc", cell: "C3" }, attributes: { value: "gone" } },
@@ -145,13 +145,19 @@ describe("XLSX sheet ops in the session model", () => {
       { op: "remove_sheet", target: { sheet: "PhuLuc" } },
       { op: "add_sheet", attributes: { name: "PhuLuc" } },
     ]);
-    expect(model.pendingEdits()).toEqual([]);
-    expect(model.pendingStructuralOps()).toEqual([]);
-    expect(model.pendingSheetPlan()).toMatchObject({
-      removals: ["PhuLuc"],
-      additions: [{ name: "PhuLuc" }],
-      order: ["Data", "PhuLuc"],
-    });
+    // F3 (c33874e8): the add_sheet matches the removal's tombstone, so it
+    // CANCELS the removal (the undo-of-remove replay Univer sends) and
+    // resurrects the original state with its pending edits, so the save keeps
+    // the file's original part instead of writing a blank one.
+    expect(model.pendingEdits()).toEqual([
+      { sheetName: "PhuLuc", row: 2, column: 2, writeValue: true, cell: { value: "gone" } },
+    ]);
+    expect(model.pendingStructuralOps()).toEqual([
+      { sheetName: "PhuLuc", ops: [{ kind: "merge-cells", range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 } }] },
+    ]);
+    // The plan folds to undefined: the file already holds this state, so the
+    // save is a pure cell/structural edit and emits no sheet op.
+    expect(model.pendingSheetPlan()).toBeUndefined();
   });
 
   it("clones a duplicated sheet's pending edits and resolves a copy chain to the file original", () => {
@@ -209,11 +215,12 @@ describe("XLSX sheet ops in the session model", () => {
     // Removing the last remaining sheet is refused (the gateway would too).
     const single = createXlsxSessionModel({ revision: 0, sheets: [{ id: "sheet-1", name: "Data", cells: {} }] }, "sha");
     expect(() => parseXlsxOps([{ op: "remove_sheet", target: { sheet: "Data" } }], single.resolver({}))).toThrowError(XlsxOpError);
-    // Renaming a sheet to its own name (case-only rewrite) is a legal no-op.
+    // Renaming a sheet to its own name (case-only rewrite) is a legal no-op:
+    // it applies no sheet op, so the plan folds to undefined (F3, c33874e8).
     const model = modelWith([
       { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Data" } },
     ]);
-    expect(model.pendingSheetPlan()?.renames).toEqual([]);
+    expect(model.pendingSheetPlan()).toBeUndefined();
   });
 });
 
