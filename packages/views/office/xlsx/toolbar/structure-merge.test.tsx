@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import {
   XLSX_MERGE_ACROSS_COMMAND,
   XLSX_MERGE_ALL_COMMAND,
@@ -31,6 +32,15 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 }
 
 const executeMock = (props: XlsxToolbarGroupProps) => props.commands!.execute as ReturnType<typeof vi.fn>;
+
+/** The active suite locale is vi (test/setup.ts beforeAll), so the accessible
+ *  names the product renders are the Vietnamese strings. */
+const viText = (key: string): string => {
+  const value = key.split(".").reduce<unknown>((node, part) =>
+    node && typeof node === "object" ? (node as Record<string, unknown>)[part] : undefined, viLocale);
+  if (typeof value !== "string") throw new Error(`missing vi locale key ${key}`);
+  return value;
+};
 const RANGE = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
 
 describe("XlsxStructureMergeGroup", () => {
@@ -38,11 +48,11 @@ describe("XlsxStructureMergeGroup", () => {
     const props = groupProps();
     render(<XlsxStructureMergeGroup {...props} />);
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: "Merge cells" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ALL_COMMAND, { selections: RANGE });
-    fireEvent.click(screen.getByRole("button", { name: "Merge across" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") }));
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ACROSS_COMMAND, { selections: RANGE });
-    fireEvent.click(screen.getByRole("button", { name: "Unmerge cells" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
     expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, { ranges: RANGE });
   });
 
@@ -50,11 +60,11 @@ describe("XlsxStructureMergeGroup", () => {
     const props = groupProps({ selection: { sheet: "Data", address: "B2", endAddress: "D2" } });
     render(<XlsxStructureMergeGroup {...props} />);
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: "Merge across" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") }));
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ACROSS_COMMAND, {
       selections: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }],
     });
-    fireEvent.click(screen.getByRole("button", { name: "Unmerge cells" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
     expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, {
       ranges: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }],
     });
@@ -64,16 +74,16 @@ describe("XlsxStructureMergeGroup", () => {
     const props = groupProps({ selection: { sheet: "Data", address: "B2", endAddress: "B4" } });
     render(<XlsxStructureMergeGroup {...props} />);
     const execute = executeMock(props);
-    const across = screen.getByRole("button", { name: "Merge across" });
+    const across = screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") });
     expect(across).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(across);
     expect(execute).not.toHaveBeenCalled();
     // Merge cells and unmerge still act on the column span.
-    fireEvent.click(screen.getByRole("button", { name: "Merge cells" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ALL_COMMAND, {
       selections: [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 1 }],
     });
-    fireEvent.click(screen.getByRole("button", { name: "Unmerge cells" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
     expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, {
       ranges: [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 1 }],
     });
@@ -82,7 +92,7 @@ describe("XlsxStructureMergeGroup", () => {
   it("refuses clicks in a read-only mount", () => {
     const props = groupProps({ readOnly: true });
     render(<XlsxStructureMergeGroup {...props} />);
-    for (const name of ["Merge cells", "Merge across", "Unmerge cells"]) {
+    for (const name of [viText("office.xlsx.structure.mergeCells"), viText("office.xlsx.structure.mergeAcross"), viText("office.xlsx.structure.unmergeCells")]) {
       const button = screen.getByRole("button", { name });
       expect(button).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(button);
@@ -102,7 +112,7 @@ describe("XlsxStructureMergeGroup", () => {
         expect(button.getAttribute("aria-disabled")).toBe("true");
       }
       if (props.commands) {
-        fireEvent.click(view.getByRole("button", { name: "Merge cells" }));
+        fireEvent.click(view.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
         expect(executeMock(props)).not.toHaveBeenCalled();
       }
       view.unmount();

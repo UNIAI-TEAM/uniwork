@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "./types";
 import { normalizeRowColCount, selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
 import { characterWidthToPixels, parseBoundedNumber, pointsToPixels, XlsxStructureSizeGroup } from "./structure-size";
@@ -28,6 +29,16 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 }
 
 const executeMock = (props: XlsxToolbarGroupProps) => props.commands!.execute as ReturnType<typeof vi.fn>;
+
+/** The active suite locale is vi (test/setup.ts beforeAll), so the accessible
+ *  names the product renders are the Vietnamese strings. */
+const viText = (key: string): string => {
+  const value = key.split(".").reduce<unknown>((node, part) =>
+    node && typeof node === "object" ? (node as Record<string, unknown>)[part] : undefined, viLocale);
+  if (typeof value !== "string") throw new Error(`missing vi locale key ${key}`);
+  return value;
+};
+const viCount = (key: string, count: number) => viText(key).replace("{{count}}", String(count));
 
 describe("structure pure logic", () => {
   it("derives the 0-based span from either selection order", () => {
@@ -83,25 +94,25 @@ describe("XlsxStructureInsertGroup", () => {
     const props = groupProps();
     render(<XlsxStructureInsertGroup {...props} />);
     const execute = executeMock(props);
-    const counts = screen.getAllByLabelText(/count/i);
-    expect(counts).toHaveLength(2);
-    fireEvent.change(counts[0]!, { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: "Insert 4 rows above" }));
+    const rowCount = screen.getByLabelText(viText("office.xlsx.structure.rowCount"));
+    const colCount = screen.getByLabelText(viText("office.xlsx.structure.colCount"));
+    fireEvent.change(rowCount, { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 4) }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 4 });
-    fireEvent.click(screen.getByRole("button", { name: "Insert rows below" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-after");
-    fireEvent.click(screen.getByRole("button", { name: "Delete rows" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertRowsBelow") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-after", undefined);
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteRows") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.remove-row", {
       range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
     });
     // Each input keeps its own draft: the row edit above must not leak.
-    expect(counts[1]).toHaveValue("2");
-    fireEvent.change(counts[1]!, { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Insert 5 columns to the left" }));
+    expect(colCount).toHaveValue("2");
+    fireEvent.change(colCount, { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 5) }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 5 });
-    fireEvent.click(screen.getByRole("button", { name: "Insert columns to the right" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-after");
-    fireEvent.click(screen.getByRole("button", { name: "Delete columns" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertColsRight") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-after", undefined);
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteCols") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.remove-col", {
       range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
     });
@@ -111,14 +122,14 @@ describe("XlsxStructureInsertGroup", () => {
     const props = groupProps();
     render(<XlsxStructureInsertGroup {...props} />);
     const execute = executeMock(props);
-    const rowCount = screen.getAllByLabelText(/count/i)[0]!;
+    const rowCount = screen.getByLabelText(viText("office.xlsx.structure.rowCount"));
     fireEvent.change(rowCount, { target: { value: "99999" } });
     fireEvent.blur(rowCount);
     expect(rowCount).toHaveValue("3");
-    fireEvent.click(screen.getByRole("button", { name: "Insert 3 rows above" }));
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 3) }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 3 });
     // The column input falls back to its own span (2), not the row span.
-    const colCount = screen.getAllByLabelText(/count/i)[1]!;
+    const colCount = screen.getByLabelText(viText("office.xlsx.structure.colCount"));
     fireEvent.change(colCount, { target: { value: "0" } });
     fireEvent.blur(colCount);
     expect(colCount).toHaveValue("2");
@@ -127,7 +138,7 @@ describe("XlsxStructureInsertGroup", () => {
   it("refuses clicks in a read-only mount", () => {
     const props = groupProps({ readOnly: true });
     render(<XlsxStructureInsertGroup {...props} />);
-    const button = screen.getByRole("button", { name: "Delete rows" });
+    const button = screen.getByRole("button", { name: viText("office.xlsx.structure.deleteRows") });
     expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(executeMock(props)).not.toHaveBeenCalled();
@@ -150,11 +161,11 @@ describe("XlsxStructureSizeGroup", () => {
     const props = groupProps();
     render(<XlsxStructureSizeGroup {...props} />);
     const execute = executeMock(props);
-    const height = screen.getByLabelText("Row height (points)");
+    const height = screen.getByLabelText(viText("office.xlsx.structure.rowHeight"));
     fireEvent.change(height, { target: { value: "30" } });
     fireEvent.blur(height);
     expect(execute).toHaveBeenCalledWith("sheet.command.set-row-height", { value: 40 });
-    const width = screen.getByLabelText("Column width (characters)");
+    const width = screen.getByLabelText(viText("office.xlsx.structure.colWidth"));
     fireEvent.change(width, { target: { value: "12" } });
     fireEvent.keyDown(width, { key: "Enter" });
     expect(execute).toHaveBeenCalledWith("sheet.command.set-worksheet-col-width", { value: 84 });
@@ -164,18 +175,18 @@ describe("XlsxStructureSizeGroup", () => {
     const props = groupProps();
     render(<XlsxStructureSizeGroup {...props} />);
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: "Use automatic row height" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-row-is-auto-height");
-    fireEvent.click(screen.getByRole("button", { name: "Use default column width" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.resetRowHeight") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-row-is-auto-height", undefined);
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.resetColWidth") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-default-width", { start: 1, end: 2 });
     const ranges = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
-    fireEvent.click(screen.getByRole("button", { name: "Hide rows" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideRows") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-rows-hidden", { ranges });
-    fireEvent.click(screen.getByRole("button", { name: "Show rows" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showRows") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-specific-rows-visible", { ranges });
-    fireEvent.click(screen.getByRole("button", { name: "Hide columns" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideCols") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-col-hidden", { ranges });
-    fireEvent.click(screen.getByRole("button", { name: "Show columns" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showCols") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-col-visible-on-cols", { ranges });
   });
 
@@ -183,7 +194,7 @@ describe("XlsxStructureSizeGroup", () => {
     const props = groupProps();
     render(<XlsxStructureSizeGroup {...props} />);
     const execute = executeMock(props);
-    const height = screen.getByLabelText("Row height (points)");
+    const height = screen.getByLabelText(viText("office.xlsx.structure.rowHeight"));
     fireEvent.change(height, { target: { value: "900" } });
     fireEvent.blur(height);
     expect(execute).not.toHaveBeenCalled();
@@ -192,7 +203,7 @@ describe("XlsxStructureSizeGroup", () => {
   it("refuses clicks in a read-only mount", () => {
     const props = groupProps({ readOnly: true });
     const view = render(<XlsxStructureSizeGroup {...props} />);
-    const button = view.getByRole("button", { name: "Hide rows" });
+    const button = view.getByRole("button", { name: viText("office.xlsx.structure.hideRows") });
     expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(executeMock(props)).not.toHaveBeenCalled();
@@ -204,15 +215,15 @@ describe("XlsxStructureOutlineGroup", () => {
     const props = groupProps();
     render(<XlsxStructureOutlineGroup {...props} />);
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: "Group rows" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.groupRows") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "group" });
-    fireEvent.click(screen.getByRole("button", { name: "Ungroup rows" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.ungroupRows") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "ungroup" });
-    fireEvent.click(screen.getByRole("button", { name: "Group columns" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.groupCols") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "group" });
-    fireEvent.click(screen.getByRole("button", { name: "Ungroup columns" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.ungroupCols") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "ungroup" });
-    fireEvent.click(screen.getByRole("button", { name: "Clear outline" }));
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.clearOutline") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "clear" });
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "clear" });
   });
@@ -220,7 +231,7 @@ describe("XlsxStructureOutlineGroup", () => {
   it("keeps outline controls disabled without read/write access", () => {
     const props = groupProps({ readOnly: true });
     render(<XlsxStructureOutlineGroup {...props} />);
-    const button = screen.getByRole("button", { name: "Group rows" });
+    const button = screen.getByRole("button", { name: viText("office.xlsx.structure.groupRows") });
     expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(executeMock(props)).not.toHaveBeenCalled();

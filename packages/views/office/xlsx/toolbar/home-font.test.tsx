@@ -89,7 +89,12 @@ describe("XlsxFontGroup", () => {
   it("sets the font family from the picker", async () => {
     const { execute } = renderGroup({ formatState: formatState({ fontFamily: "Calibri" }) });
     fireEvent.click(screen.getByRole("combobox", { name: "Phông chữ" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Verdana" }));
+    // Base UI's Select commits on the pointer sequence; a bare click leaves the
+    // item unselected (the shared control's version drift), so drive both.
+    const verdana = await screen.findByRole("option", { name: "Verdana" });
+    fireEvent.pointerDown(verdana);
+    fireEvent.pointerUp(verdana);
+    fireEvent.click(verdana);
     expect(lastCall(execute)).toEqual(["sheet.command.set-font-family", { value: "Verdana" }]);
   });
 

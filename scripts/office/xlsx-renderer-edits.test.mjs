@@ -230,7 +230,10 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-outline', params: { start: 1, end: 1, action: 'clear', subUnitId: 's1' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'nope' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 3, end: 2, action: 'group' } }, model, false), false);
-  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), false);
+  // The row axis ceiling is the wire's span bound: end - start < 100_000, so
+  // end 99_999 is still inside it and only 100_000 is refused.
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), true);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 100000, action: 'group' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group', subUnitId: 'ghost' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 's1' } }, model, false), true);
@@ -246,7 +249,9 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.remove-col', { range: range(0, 0, 0, 0) }), model, false), true);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', {}), model, false), false);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(3, 2) }), model, false), false);
-  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0, 0, 99999) }), model, false), false);
+  // A shift mutation bounds the axis it shifts; the fixture must put the
+  // over-ceiling value on that axis (endRow), not on the untouched columns.
+  assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 100000) }), model, false), false);
   assert.equal(canExecuteCommand({ ...mutationEvent('sheet.mutation.insert-row', { range: range(0, 0) }), params: { unitId: 'other', subUnitId: 's1', range: range(0, 0) } }, model, false), false);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.insert-row', { range: range(0, 0), subUnitId: 'ghost' }), model, false), false);
   assert.equal(canExecuteCommand(mutationEvent('sheet.mutation.set-worksheet-row-height', { ranges: [range(1, 2)], rowHeight: 30 }), model, false), true);

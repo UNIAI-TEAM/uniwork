@@ -78,7 +78,12 @@ describe("XlsxAlignmentGroup", () => {
   it("sets a rotation angle from the picker", async () => {
     const { execute } = renderGroup({ formatState: formatState({ textRotation: 0 }) });
     fireEvent.click(screen.getByRole("combobox", { name: "Xoay chữ" }));
-    fireEvent.click(await screen.findByRole("option", { name: "45°" }));
+    // Base UI's Select commits on the pointer sequence; a bare click leaves the
+    // item unselected (the shared control's version drift), so drive both.
+    const angle = await screen.findByRole("option", { name: "45°" });
+    fireEvent.pointerDown(angle);
+    fireEvent.pointerUp(angle);
+    fireEvent.click(angle);
     expect(lastCall(execute)).toEqual(["sheet.command.set-text-rotation", { value: 45 }]);
   });
 

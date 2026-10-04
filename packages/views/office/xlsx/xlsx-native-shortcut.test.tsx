@@ -21,7 +21,14 @@ vi.mock("./xlsx-grid-surface", () => ({
     const container = useRef<HTMLDivElement>(null);
     const onReady = useRef(props.onReady);
     onReady.current = props.onReady;
-    useImperativeHandle(props.ref, () => ({ commitEdit: grid.commitEdit }) as never);
+    // The editor reads the active format state (and the live sheet list) off
+    // the grid handle, so the double must expose the whole handle surface the
+    // surface contract declares - not just the commit port.
+    useImperativeHandle(props.ref, () => ({
+      commitEdit: grid.commitEdit,
+      getActiveFormatState: () => null,
+      getSheets: () => [],
+    }) as never);
     useEffect(() => {
       const host = container.current!;
       const root = createRoot(host);

@@ -203,7 +203,7 @@ describe("XlsxFormulaGroup", () => {
 
     for (const overrides of [{ commands: undefined }, { onOpenFunctionLibrary: undefined }] as Partial<XlsxToolbarGroupProps>[]) {
       const onOpenFunctionLibrary = vi.fn();
-      const view = render(<XlsxFormulaGroup {...groupProps({ ...overrides, onOpenFunctionLibrary })} />);
+      const view = render(<XlsxFormulaGroup {...groupProps({ onOpenFunctionLibrary, ...overrides })} />);
       const button = screen.getByTestId("xlsx-function-library-open");
       expect(button).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(button);

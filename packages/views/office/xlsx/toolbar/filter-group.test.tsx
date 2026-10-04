@@ -71,18 +71,25 @@ describe("XlsxFilterGroup", () => {
   });
 
   it("stays in the tab order and inert without a mounted grid, a handler or edit rights", () => {
-    for (const overrides of [
-      { commands: undefined },
-      { onOpenAdvancedFilter: undefined },
-      { readOnly: true },
-    ] as Partial<XlsxToolbarGroupProps>[]) {
+    // The toggle and clear are inert on the commands port / edit rights; the
+    // advanced entry alone also needs the editor's dialog handler. Each control
+    // is asserted against its own gate and stays focusable (never `disabled`).
+    for (const [overrides, disabledIds] of [
+      [{ commands: undefined }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]],
+      [{ onOpenAdvancedFilter: undefined }, ["xlsx-filter-advanced"]],
+      [{ readOnly: true }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]],
+    ] as [Partial<XlsxToolbarGroupProps>, string[]][]) {
       const onOpenAdvancedFilter = vi.fn();
-      const view = render(<XlsxFilterGroup {...groupProps({ ...overrides, onOpenAdvancedFilter })} />);
+      const view = render(<XlsxFilterGroup {...groupProps({ onOpenAdvancedFilter, ...overrides })} />);
       for (const testId of ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]) {
         const button = screen.getByTestId(testId);
-        expect(button).toHaveAttribute("aria-disabled", "true");
         expect(button).not.toBeDisabled();
-        fireEvent.click(button);
+        if (disabledIds.includes(testId)) {
+          expect(button).toHaveAttribute("aria-disabled", "true");
+          fireEvent.click(button);
+        } else {
+          expect(button).not.toHaveAttribute("aria-disabled");
+        }
       }
       expect(onOpenAdvancedFilter).not.toHaveBeenCalled();
       view.unmount();
