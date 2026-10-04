@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { getI18n } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOfficeRibbonPreferencesStore } from "@uniwork/core/office/ribbon-preferences";
 import { createDocxCommandRuntime } from "./commands";
@@ -68,6 +69,12 @@ function tab(id: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
 }
 
+/** The translated accessible name of a ribbon command. The ribbon labels every
+ * item with its i18next key, so this is the name a screen reader announces. */
+function t(key: string): string {
+  return getI18n().t(key);
+}
+
 /** jsdom has no ResizeObserver: report a fixed ribbon body width instead. */
 function stubBodyWidth(width: number) {
   class FixedResizeObserver {
@@ -103,9 +110,18 @@ describe("buildDocxRibbonTabs", () => {
         const source = registry.groups[groupIndex]!;
         expect(group.priority).toBe(docxGroupPriority(source.collapseAt));
         expect(Number.isFinite(group.priority)).toBe(true);
-        // Every group renders as exactly one custom item: no command lost.
-        expect(group.items).toHaveLength(1);
-        expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
+        // The mount rule, not a fixed count: a group that declares typed
+        // `ribbonItems` renders exactly those items (a typed group carries
+        // several items or a gallery), while a group that has not migrated
+        // falls back to one custom item wrapping its whole component - so no
+        // command is lost either way.
+        expect(group.items.length).toBeGreaterThanOrEqual(1);
+        if (source.ribbonItems) {
+          expect(group.items.map((item) => item.id)).toEqual(source.ribbonItems(context()).map((item) => item.id));
+        } else {
+          expect(group.items).toHaveLength(1);
+          expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
+        }
       }
     }
   });
@@ -152,23 +168,26 @@ describe("DocxToolbarShell", () => {
 
   it("switches tabs and mounts that tab's group components", async () => {
     render(<DocxToolbarShell {...context()} />);
-    expect(document.querySelector('[data-ribbon-item="home-font"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-ribbon-group="home-font"]')).toBeInTheDocument();
 
     fireEvent.click(tab("insert"));
-    await waitFor(() => expect(document.querySelector('[data-ribbon-item="insert-links"]')).toBeInTheDocument());
-    await waitFor(() => expect(document.querySelector('[data-ribbon-item="home-font"]')).not.toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector('[data-ribbon-group="insert-links"]')).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector('[data-ribbon-group="home-font"]')).not.toBeInTheDocument());
     expect(tab("insert")).toHaveAttribute("aria-selected", "true");
     // A real command of the Insert tab is reachable through the ribbon item.
     expect(screen.getByTestId("docx-note-insert-footnote")).toBeInTheDocument();
   });
 
-  it("mounts every group of every tab as a ribbon item (no command lost)", async () => {
+  it("mounts every group of every tab (no command lost)", async () => {
     render(<DocxToolbarShell {...context()} />);
 
+    // A typed group no longer emits one item named after the group, so assert
+    // presence at the group level: the ribbon stamps `data-ribbon-group` on
+    // every group it renders, typed or custom.
     for (const entry of DOCX_TOOLBAR_TABS) {
       fireEvent.click(tab(entry.id));
       for (const group of entry.groups) {
-        await waitFor(() => expect(document.querySelector(`[data-ribbon-item="${group.id}"]`)).toBeInTheDocument());
+        await waitFor(() => expect(document.querySelector(`[data-ribbon-group="${group.id}"]`)).toBeInTheDocument());
       }
     }
   });
@@ -176,7 +195,7 @@ describe("DocxToolbarShell", () => {
   it("keeps one roving tab stop in the ribbon body and navigates it with the arrow keys", async () => {
     render(<DocxToolbarShell {...context()} />);
     const body = screen.getByRole("tabpanel");
-    const bold = screen.getByTestId("docx-bold");
+    const bold = screen.getByRole("button", { name: t("office.docx.commands.bold") });
 
     await waitFor(() => expect(body.querySelectorAll('[data-ribbon-current="true"]').length).toBe(1));
     const first = body.querySelector<HTMLElement>('[data-ribbon-current="true"]')!;
@@ -203,9 +222,10 @@ describe("DocxToolbarShell", () => {
       expect(node).not.toBeNull();
       return node!;
     });
-    // The collapsed group still exposes its whole command area.
-    expect(within(panel).getByTestId("docx-bold")).toBeInTheDocument();
-    expect(within(panel).getByTestId("docx-font-family")).toBeInTheDocument();
+    // The collapsed group still exposes its whole command area - the typed
+    // Font items, found by their accessible names.
+    expect(within(panel).getByRole("button", { name: t("office.docx.commands.bold") })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: t("office.docx.character.fontFamily") })).toBeInTheDocument();
   });
 
   it("collapses to tabs only and peeks the body again (Ctrl+F1)", () => {
@@ -218,8 +238,17 @@ describe("DocxToolbarShell", () => {
   });
 
   it("disables formatting, undo/redo and Save while read-only", () => {
-    render(<DocxToolbarShell {...context({ dirty: true, readOnly: true })} />);
-    expect(screen.getByTestId("docx-bold")).toBeDisabled();
+    const runtime = createDocxCommandRuntime(() => null);
+    const toggleBold = vi.spyOn(runtime, "toggleBold");
+    render(<DocxToolbarShell {...context({ commands: runtime, dirty: true, readOnly: true })} />);
+
+    // The ribbon renders commands with aria-disabled so they stay reachable by
+    // keyboard; assert the state the control exposes and that it cannot run.
+    const bold = screen.getByRole("button", { name: t("office.docx.commands.bold") });
+    expect(bold).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(bold);
+    expect(toggleBold).not.toHaveBeenCalled();
+
     expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toBeDisabled();
     expect(screen.getByTestId("docx-save")).toBeDisabled();
   });
@@ -230,7 +259,7 @@ describe("DocxToolbarShell", () => {
     const toggleBold = vi.spyOn(runtime, "toggleBold");
     const { unmount } = render(<DocxToolbarShell {...context({ commands: runtime, dirty: true, onSave })} />);
 
-    fireEvent.click(screen.getByTestId("docx-bold"));
+    fireEvent.click(screen.getByRole("button", { name: t("office.docx.commands.bold") }));
     expect(toggleBold).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("docx-save"));
     expect(onSave).toHaveBeenCalledTimes(1);
