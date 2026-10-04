@@ -60,7 +60,7 @@ function placedCount(doc: PDFDocument, pageIndex: number): number {
 }
 
 /** The XObject names a page's resources declare. */
-function xobjectNames(doc: PDFDocument, pageIndex: number): string[] {
+function xobjectNames(doc: PDFDocument, pageIndex: number): PDFName[] {
   const resources = doc.getPage(pageIndex).node.get(PDFName.of("Resources"));
   if (!resources) return [];
   const xobjects = doc.context.lookup(resources, PDFDict).get(PDFName.of("XObject"));

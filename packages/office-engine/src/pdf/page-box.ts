@@ -105,9 +105,11 @@ export async function setNUp(doc: PDFDocument, input: SetNUpInput): Promise<SetN
   }
   const embedded = await doc.embedPages(copied);
 
+  const firstEmbedded = embedded[0];
+  if (!firstEmbedded) throw new PdfOpError(OP_SET_N_UP, "pages", "no source pages to impose");
   const [sheetWidth, sheetHeight] = input.paper
     ? PAPERS[input.paper]
-    : [embedded[0].width, embedded[0].height];
+    : [firstEmbedded.width, firstEmbedded.height];
   const perSheet = rows * cols;
   const cellWidth = sheetWidth / cols;
   const cellHeight = sheetHeight / rows;
@@ -121,6 +123,7 @@ export async function setNUp(doc: PDFDocument, input: SetNUpInput): Promise<SetN
       const sourceIndex = sheet * perSheet + slot;
       if (sourceIndex >= embedded.length) break;
       const page = embedded[sourceIndex];
+      if (!page) break;
       const row = Math.floor(slot / cols);
       const col = slot % cols;
       const cellLeft = col * cellWidth;
