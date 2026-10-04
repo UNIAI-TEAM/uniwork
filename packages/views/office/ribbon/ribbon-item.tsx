@@ -116,7 +116,7 @@ function GalleryControl({ item, stage, inPanel }: { item: RibbonGalleryItem; sta
   const optionLabel = (option: RibbonGalleryItem["options"][number]) =>
     option.labelKey ? t(option.labelKey) : (option.label ?? option.id);
   return (
-    <div className={cn("flex shrink-0 items-stretch gap-0.5", inPanel ? "flex-wrap" : "h-full")} data-ribbon-item={item.id} data-ribbon-gallery-visible={visible.length}>
+    <div className={cn("flex items-stretch gap-0.5", inPanel ? "min-w-0 flex-wrap" : "h-full shrink-0")} data-ribbon-item={item.id} data-ribbon-gallery-visible={visible.length}>
       {visible.map((option) => (
         <Button
           key={option.id}

@@ -122,7 +122,7 @@ export function RibbonGroupButton({ group, variant }: { group: RibbonGroup; vari
         }
       >
         <Icon aria-hidden />
-        <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-20 text-center leading-tight" : undefined}>{caption}</span>
+        <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-28 text-center leading-tight" : undefined}>{caption}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
       <GroupPanel group={group} />

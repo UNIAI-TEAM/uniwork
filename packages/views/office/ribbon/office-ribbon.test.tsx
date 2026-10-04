@@ -198,6 +198,22 @@ describe("adaptive collapse", () => {
     expect(label.className).toContain("shrink-0");
     expect(label.className).not.toContain("line-clamp");
   });
+
+  it("lets an in-panel gallery wrap instead of keeping its max-content width", async () => {
+    // jsdom has no layout, so this pins the classes that let the in-panel
+    // gallery row shrink and wrap inside the GroupPanel cap (visual r6 M-4:
+    // the row kept ~max-content width and spilled off a narrow window). The
+    // off-panel row keeps `h-full shrink-0` so the ribbon body does not
+    // reflow it.
+    stubRibbonWidth(120);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    fireEvent.click(within(group("Styles")).getByRole("button", { name: /Styles/ }));
+    const inPanel = (await screen.findByRole("dialog", { name: "Lệnh Styles" })).querySelector("[data-ribbon-panel='styles']") as HTMLElement;
+    const row = inPanel.querySelector("[data-ribbon-item='style-gallery']") as HTMLElement;
+    expect(row.className).toContain("min-w-0");
+    expect(row.className).toContain("flex-wrap");
+    expect(row.className).not.toContain("shrink-0");
+  });
 });
 
 describe("collapse to tabs only", () => {
