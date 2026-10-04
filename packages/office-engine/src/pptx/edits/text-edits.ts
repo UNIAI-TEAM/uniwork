@@ -139,9 +139,9 @@ const requireElement = (slide: PptxSlideLike, elementId: string, op: string, sli
   }
 };
 
-const requireBoolean = (value: unknown, op: string, field: string): boolean => {
+const requireBoolean = (value: unknown, op: string, field: string, code: string): boolean => {
   if (typeof value !== "boolean") {
-    throw new PptxEngineError("text_bad_font", op + ': "' + field + '" must be a boolean');
+    throw new PptxEngineError(code, op + ': "' + field + '" must be a boolean');
   }
   return value;
 };
@@ -153,17 +153,24 @@ const requireHexColor = (value: unknown, op: string, field: string): string => {
   return value;
 };
 
-const requireFinite = (value: unknown, op: string, field: string): number => {
+const requireFinite = (value: unknown, op: string, field: string, code: string): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new PptxEngineError("text_bad_paragraph", op + ': "' + field + '" must be a finite number');
+    throw new PptxEngineError(code, op + ': "' + field + '" must be a finite number');
   }
   return value;
 };
 
-const requireRange = (value: unknown, op: string, field: string, min: number, max: number): number => {
-  const n = requireFinite(value, op, field);
+const requireRange = (
+  value: unknown,
+  op: string,
+  field: string,
+  min: number,
+  max: number,
+  code: string,
+): number => {
+  const n = requireFinite(value, op, field, code);
   if (n < min || n > max) {
-    throw new PptxEngineError("text_bad_paragraph", op + ': "' + field + '" must be ' + min + ".." + max);
+    throw new PptxEngineError(code, op + ': "' + field + '" must be ' + min + ".." + max);
   }
   return n;
 };
@@ -189,7 +196,7 @@ const normalizeFont = (font: unknown): PptxFontPatch => {
     out.fontFamily = input.fontFamily;
   }
   if (input.fontSizePt !== undefined) {
-    const size = requireFinite(input.fontSizePt, "set_font", "font.fontSizePt");
+    const size = requireFinite(input.fontSizePt, "set_font", "font.fontSizePt", "text_bad_font");
     if (size < PPTX_FONT_SIZE_PT_MIN || size > PPTX_FONT_SIZE_PT_MAX) {
       throw new PptxEngineError(
         "text_bad_font",
@@ -199,7 +206,7 @@ const normalizeFont = (font: unknown): PptxFontPatch => {
     out.fontSizePt = size;
   }
   for (const key of ["strike", "bold", "italic", "underline"] as const) {
-    if (input[key] !== undefined) out[key] = requireBoolean(input[key], "set_font", "font." + key);
+    if (input[key] !== undefined) out[key] = requireBoolean(input[key], "set_font", "font." + key, "text_bad_font");
   }
   if (input.color !== undefined) out.color = requireHexColor(input.color, "set_font", "font.color");
   if (Object.keys(out).length === 0) {
@@ -244,7 +251,7 @@ const normalizeParagraphFormat = (format: unknown): PptxParagraphFormatPatch => 
     out.bulletFont = requireString(input.bulletFont, "set_paragraph_format", "format.bulletFont");
   }
   if (input.startAt !== undefined) {
-    const startAt = requireFinite(input.startAt, "set_paragraph_format", "format.startAt");
+    const startAt = requireFinite(input.startAt, "set_paragraph_format", "format.startAt", "text_bad_paragraph");
     if (!Number.isInteger(startAt) || startAt < 1) {
       throw new PptxEngineError("text_bad_paragraph", 'set_paragraph_format "format.startAt" must be an integer >= 1');
     }
@@ -253,13 +260,13 @@ const normalizeParagraphFormat = (format: unknown): PptxParagraphFormatPatch => 
   for (const key of ["lineSpacingPct", "spaceBeforePt", "spaceAfterPt", "bulletSizePct", "bulletHangEmu"] as const) {
     if (input[key] !== undefined) {
       const [min, max] = PPTX_PARAGRAPH_RANGES[key];
-      out[key] = requireRange(input[key], "set_paragraph_format", "format." + key, min, max);
+      out[key] = requireRange(input[key], "set_paragraph_format", "format." + key, min, max, "text_bad_paragraph");
     }
   }
   if (input.bulletColor !== undefined) {
     out.bulletColor = requireHexColor(input.bulletColor, "set_paragraph_format", "format.bulletColor");
   }
-  if (input.rtl !== undefined) out.rtl = requireBoolean(input.rtl, "set_paragraph_format", "format.rtl");
+  if (input.rtl !== undefined) out.rtl = requireBoolean(input.rtl, "set_paragraph_format", "format.rtl", "text_bad_paragraph");
   if (input.indentDelta !== undefined) {
     if (!(PPTX_INDENT_DELTAS as readonly unknown[]).includes(input.indentDelta)) {
       throw new PptxEngineError("text_bad_paragraph", 'set_paragraph_format "format.indentDelta" must be 1 or -1');
@@ -294,9 +301,10 @@ const normalizeParagraphFormat = (format: unknown): PptxParagraphFormatPatch => 
 /** One validated edit -> the vendored op(s) the executor runs. Refusals are
  * typed PptxEngineError codes: text_no_slide (slide index absent from the
  * deck), text_no_element (target element missing), text_bad_font (font patch
- * shape / family / size / toggles), text_bad_color (color / bulletColor hex),
- * text_bad_paragraph (paragraph patch shape, align, bullet, indentDelta,
- * ranges, blip image). */
+ * shape / family / size / toggles - every fontSizePt failure, finite or range),
+ * text_bad_color (color / bulletColor hex), text_bad_paragraph (paragraph patch
+ * shape, align, bullet, indentDelta, ranges, rtl, blip image), bad_text_op (a
+ * runtime op outside the TextEdit union, e.g. a JS/cast caller). */
 export function buildTextOps(opened: OpenedPptxLike, fitWidthPx: number, edit: TextEdit): PptxOp[] {
   // Element-scoped wholesale patches: nothing to convert (see the module
   // header). `void` keeps the uniform wire signature honest about the
@@ -314,6 +322,10 @@ export function buildTextOps(opened: OpenedPptxLike, fitWidthPx: number, edit: T
       requireElement(slide, edit.elementId, "set_paragraph_format", edit.slideIndex);
       const format = normalizeParagraphFormat(edit.format);
       return [{ op: "setParagraphFormat", target: { slide: edit.slideIndex, el: edit.elementId }, format }];
+    }
+    default: {
+      const unknown = edit as { op?: unknown };
+      throw new PptxEngineError("bad_text_op", "unsupported text edit " + String(unknown.op));
     }
   }
 }

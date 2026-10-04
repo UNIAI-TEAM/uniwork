@@ -277,6 +277,14 @@ describe("text-formatting refusals", () => {
     }
   });
 
+  it("refuses a non-boolean rtl with text_bad_paragraph", () => {
+    const rtlEdit = (rtl: unknown): TextEdit =>
+      ({ op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { rtl } }) as TextEdit;
+    for (const rtl of ["yes", 1, 0, null]) {
+      expect(errCode(() => build(rtlEdit(rtl)))).toBe("text_bad_paragraph");
+    }
+  });
+
   it("refuses out-of-range paragraph numbers and a non-object format with text_bad_paragraph", () => {
     expect(
       errCode(() => build({ op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { lineSpacingPct: 13201 } })),
@@ -293,6 +301,10 @@ describe("text-formatting refusals", () => {
     expect(errCode(() => build({ op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: {} }))).toBe(
       "text_bad_paragraph",
     );
+  });
+
+  it("refuses an unknown op kind with bad_text_op", () => {
+    expect(errCode(() => build({ op: "nope" } as unknown as TextEdit))).toBe("bad_text_op");
   });
 
   it("throws a typed PptxEngineError, not a bare Error", () => {
