@@ -108,7 +108,6 @@ export interface TextFormatAdapterOptions extends BrowserOfficeDraftOptions<Text
   documents: TextDocumentsTransport;
   capability: OfficeCapabilityEntry;
   title: string;
-  readOnly?: boolean;
   clipboard?: { readText?(): Promise<string>; writeText?(text: string): Promise<void> };
 }
 

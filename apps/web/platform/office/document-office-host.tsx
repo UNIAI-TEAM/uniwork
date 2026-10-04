@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
-import { documentFormat, type OfficeEditorHostProps } from "./editor-host";
+import { detectDocumentFormat, type OfficeEditorHostProps } from "./editor-host";
 
 // The document page's one host entry. It routes by FORMAT, never by
 // elimination: a document whose format no host can open gets a typed
@@ -27,19 +27,19 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
     <div className="p-4" data-office-editor-host data-office-unsupported={format}>
       <Alert variant="destructive" role="alert" data-testid="office-host-unsupported">
         <AlertTitle>{t("office.editor.capability_unavailable")}</AlertTitle>
-        <AlertDescription>{t("office.editor.editor_pending", { format })}: {title}</AlertDescription>
+        <AlertDescription>{t("office.editor.editor_pending", { format })} {title}</AlertDescription>
       </Alert>
     </div>
   );
 }
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
-  const format = documentFormat(props.document);
+  const format = detectDocumentFormat(props.document);
   if (format === "docx") return <DocxHost {...props} />;
   if (format === "xlsx") return <XlsxHost {...props} />;
   if (format === "md") return <MarkdownHost {...props} />;
   if (format === "html") return <HtmlHost {...props} />;
   // pptx, pdf and the conversion-only sources (xls, odt) have no web editor
   // yet. Say so; do not route them to a host for a different format.
-  return <UnsupportedHost format={format} title={props.document.title} />;
+  return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
 }

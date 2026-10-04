@@ -72,9 +72,20 @@ describe("document office host routing", () => {
   it.each([
     ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     ["paper.pdf", "application/pdf"],
+    // The Q7 conversion sources the server detects but never edits in place.
+    ["legacy.xls", "application/vnd.ms-excel"],
+    ["letter.odt", "application/vnd.oasis.opendocument.text"],
+    // A file nothing identifies must not be guessed into DocxHost.
+    ["archive.bin", "application/octet-stream"],
   ])("gives %s a typed unsupported state instead of a silent fallback", async (filename, mime) => {
     await route(documentFor(filename, mime));
     expect(container.querySelector("[data-office-unsupported]")).not.toBeNull();
     expect(container.querySelector('[data-format-host]')).toBeNull();
+  });
+
+  it("never routes an .xls or .odt to the DOCX or XLSX host", async () => {
+    await route(documentFor("legacy.xls", "application/vnd.ms-excel"));
+    expect(container.querySelector('[data-format-host="docx"]')).toBeNull();
+    expect(container.querySelector('[data-format-host="xlsx"]')).toBeNull();
   });
 });

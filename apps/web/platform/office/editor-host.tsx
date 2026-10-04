@@ -54,7 +54,16 @@ function stateIsDirty(state: SaveCoordinatorState): boolean {
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "dirty" || state.state === "saving" || state.state === "error" || state.state === "conflict";
 }
 
-export function documentFormat(document: Document): OfficeCapabilityEntry["format"] {
+/**
+ * The engine format a document routes to, or `"unknown"` when nothing about
+ * its file identifies one. Routing is never by elimination: the router turns
+ * `unknown` - and the formats no web host can open (pptx, pdf, xls, odt) -
+ * into the typed unsupported state instead of guessing a host for a different
+ * format. The server detects the Q7 conversion sources too
+ * (server/internal/service/document_office_capability.go) and never edits them
+ * in place, so a web host must not open an `.xls`/`.odt` as something else.
+ */
+export function detectDocumentFormat(document: Document): OfficeCapabilityEntry["format"] | "unknown" {
   const filename = document.file?.filename.toLowerCase() ?? "";
   const mime = document.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
@@ -63,7 +72,17 @@ export function documentFormat(document: Document): OfficeCapabilityEntry["forma
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
-  return "docx";
+  if (mime === "application/vnd.ms-excel" || filename.endsWith(".xls")) return "xls";
+  if (mime === "application/vnd.oasis.opendocument.text" || filename.endsWith(".odt")) return "odt";
+  return "unknown";
+}
+
+/** The capability-hint default for the coordinator when no adapter is bound.
+ *  Routing never uses this: `detectDocumentFormat` decides the host, so an
+ *  unrecognised file reaches the typed unsupported state, not DocxHost. */
+export function documentFormat(document: Document): OfficeCapabilityEntry["format"] {
+  const detected = detectDocumentFormat(document);
+  return detected === "unknown" ? "docx" : detected;
 }
 
 /** The platform-owned browser host. Consumers inject the engine/editor handle;
