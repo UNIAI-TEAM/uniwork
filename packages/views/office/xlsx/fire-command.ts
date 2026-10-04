@@ -20,7 +20,11 @@ export function fireCommand(
   if (!commands) return;
   const report = onError ?? ((message: string) => console.warn(`[xlsx-command] ${message}`));
   try {
-    void Promise.resolve(commands.execute(id, params))
+    // Preserve the caller's original call arity: a no-params command must be
+    // dispatched as execute(id), not execute(id, undefined), so the
+    // observed command-port call shape is unchanged for every caller.
+    const dispatched = params === undefined ? commands.execute(id) : commands.execute(id, params);
+    void Promise.resolve(dispatched)
       .then((executed) => { if (!executed) report(`${id} was refused`); })
       .catch((error: unknown) => report(error instanceof Error ? error.message : String(error)));
   } catch (error) {
