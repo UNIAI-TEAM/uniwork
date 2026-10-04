@@ -81,8 +81,8 @@ function safeImageSrc(raw: string, documentPath: string): string {
   return BLOCKED_URL;
 }
 
-function renderLink(label: string, target: string): string {
-  return '<a href="' + esc(safeHref(stripAngle(target))) + '">' + renderInline(label) + "</a>";
+function renderLink(label: string, target: string, documentPath: string): string {
+  return '<a href="' + esc(safeHref(stripAngle(target))) + '">' + renderInline(label, documentPath) + "</a>";
 }
 
 function renderImage(alt: string, target: string, documentPath: string): string {
@@ -110,13 +110,13 @@ function renderInline(source: string, documentPath: string): string {
     }
     const link = LINK.exec(rest);
     if (link) {
-      out += renderLink(link[1]!, link[2]!);
+      out += renderLink(link[1]!, link[2]!, documentPath);
       i += link[0].length;
       continue;
     }
     const auto = AUTOLINK.exec(rest);
     if (auto) {
-      out += renderLink(auto[1]!, auto[1]!);
+      out += renderLink(auto[1]!, auto[1]!, documentPath);
       i += auto[0].length;
       continue;
     }
