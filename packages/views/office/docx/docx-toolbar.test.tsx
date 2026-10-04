@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+﻿import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useOfficeRibbonPreferencesStore } from "@uniwork/core/office/ribbon-preferences";
 import { createDocxCommandRuntime } from "./commands";
-import { partitionToolbarGroups } from "./toolbar/overflow";
+import { DOCX_GROUP_PRIORITY_DEFAULT, buildDocxRibbonTabs, docxGroupPriority } from "./toolbar/ribbon-tabs";
+import { DOCX_TOOLBAR_TABS } from "./toolbar/tabs/tabs";
 import { DocxToolbarShell } from "./toolbar/toolbar";
-import type { DocxToolbarGroup, DocxToolbarGroupContext } from "./toolbar/types";
+import type { DocxToolbarGroupContext } from "./toolbar/types";
 
 function coordinator(): DocxToolbarGroupContext["coordinator"] {
   const state = {
@@ -56,104 +58,173 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
   };
 }
 
-const TAB_GROUPS: Array<[string, string[]]> = [
-  ["Trang chủ", ["home-font", "home-lists", "home-paragraph", "home-styles"]],
-  ["Chèn", ["insert-links", "insert-table", "insert-symbols", "insert-header-footer"]],
-  ["Bố cục", ["layout-page-setup"]],
-  ["Xem lại", ["review-track-changes", "review-comments"]],
-  ["Xem", ["view-zoom", "view-navigation"]],
-];
+/** The ribbon region of the DOCX chrome (R7/R8). */
+function ribbon(): HTMLElement {
+  return document.querySelector<HTMLElement>('[data-office-ribbon="docx"]')!;
+}
 
-describe("DocxToolbarShell", () => {
-  it("renders the five tabs and switches the active group strip", async () => {
-    render(<DocxToolbarShell {...context()} />);
+/** A tab button by id, so the assertions do not depend on the locale. */
+function tab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
 
-    expect(screen.getByRole("tab", { name: "Trang chủ" })).toHaveAttribute("aria-selected", "true");
-    expect(document.querySelector('[data-toolbar-group="home-font"]')).toBeInTheDocument();
-    expect(document.querySelector('[data-toolbar-group="insert-links"]')).not.toBeInTheDocument();
+/** jsdom has no ResizeObserver: report a fixed ribbon body width instead. */
+function stubBodyWidth(width: number) {
+  class FixedResizeObserver {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+    observe(target: Element) {
+      this.callback([{ target, contentRect: { width } as DOMRectReadOnly } as ResizeObserverEntry], this as unknown as ResizeObserver);
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", FixedResizeObserver);
+}
 
-    fireEvent.click(screen.getByRole("tab", { name: "Chèn" }));
-    await waitFor(() => expect(document.querySelector('[data-toolbar-group="insert-links"]')).toBeInTheDocument());
-    await waitFor(() => expect(document.querySelector('[data-toolbar-group="home-font"]')).not.toBeInTheDocument());
-  });
+beforeEach(() => {
+  useOfficeRibbonPreferencesStore.setState({ collapsed: {} });
+});
 
-  it("mounts every wave-A placeholder group in its own tab", async () => {
-    render(<DocxToolbarShell {...context()} />);
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-    for (const [tab, groups] of TAB_GROUPS) {
-      fireEvent.click(screen.getByRole("tab", { name: tab }));
-      for (const id of groups) {
-        await waitFor(() => expect(document.querySelector(`[data-toolbar-group="${id}"]`)).toBeInTheDocument());
+describe("buildDocxRibbonTabs", () => {
+  it("re-mounts every registry tab and group 1:1, each with a collapse priority", () => {
+    const tabs = buildDocxRibbonTabs(context());
+
+    expect(tabs.map((entry) => entry.id)).toEqual(DOCX_TOOLBAR_TABS.map((entry) => entry.id));
+    for (const [index, entry] of tabs.entries()) {
+      const registry = DOCX_TOOLBAR_TABS[index]!;
+      expect(entry.labelKey).toBe(registry.labelKey);
+      expect(entry.groups.map((group) => group.id)).toEqual(registry.groups.map((group) => group.id));
+      expect(entry.groups.map((group) => group.labelKey)).toEqual(registry.groups.map((group) => group.labelKey));
+      for (const [groupIndex, group] of entry.groups.entries()) {
+        const source = registry.groups[groupIndex]!;
+        expect(group.priority).toBe(docxGroupPriority(source.collapseAt));
+        expect(Number.isFinite(group.priority)).toBe(true);
+        // Every group renders as exactly one custom item: no command lost.
+        expect(group.items).toHaveLength(1);
+        expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
       }
     }
   });
 
-  it("moves the tab selection with the arrow keys", async () => {
+  it("gives every Insert group a finite priority so the tab can collapse (M-6)", () => {
+    const insert = buildDocxRibbonTabs(context()).find((entry) => entry.id === "insert")!;
+    expect(insert.groups.length).toBeGreaterThan(0);
+    expect(insert.groups.every((group) => Number.isFinite(group.priority))).toBe(true);
+  });
+});
+
+describe("docxGroupPriority", () => {
+  it("flips collapseAt into the ribbon's ascending priority order", () => {
+    expect(docxGroupPriority(560)).toBe(-560);
+    expect(docxGroupPriority(0)).toBe(-0);
+    expect(docxGroupPriority(undefined)).toBe(DOCX_GROUP_PRIORITY_DEFAULT);
+    // Unmeasured groups collapse last, after every group that declares a width.
+    expect(DOCX_GROUP_PRIORITY_DEFAULT).toBeGreaterThan(0);
+    expect(docxGroupPriority(undefined)).toBeGreaterThan(docxGroupPriority(0));
+  });
+});
+
+describe("DocxToolbarShell", () => {
+  it("renders the shared DOCX ribbon with its five tabs", () => {
     render(<DocxToolbarShell {...context()} />);
-    const home = screen.getByRole("tab", { name: "Trang chủ" });
-    home.focus();
-    fireEvent.keyDown(home, { key: "ArrowRight" });
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Chèn" })).toHaveAttribute("aria-selected", "true"));
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Chèn" }), { key: "ArrowRight" });
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Bố cục" })).toHaveAttribute("aria-selected", "true"));
+
+    const region = ribbon();
+    expect(region).toHaveAttribute("data-ribbon-layout", "full");
+    expect(region).toHaveAttribute("data-ribbon-collapsed", "false");
+    expect(region.getAttribute("aria-label")).toBeTruthy();
+    expect(within(region).getByRole("tablist")).toBeInTheDocument();
+
+    expect(screen.getAllByRole("tab").map((entry) => entry.getAttribute("data-ribbon-tab"))).toEqual([
+      "home",
+      "insert",
+      "layout",
+      "review",
+      "view",
+    ]);
+    expect(tab("home")).toHaveAttribute("aria-selected", "true");
+    for (const entry of screen.getAllByRole("tab")) expect(entry.textContent).not.toBe("");
+    expect(within(region).getByRole("tabpanel")).toHaveAttribute("aria-labelledby", tab("home").id);
   });
 
-  it("keeps one roving tab stop and navigates the strip with the arrow keys", () => {
+  it("switches tabs and mounts that tab's group components", async () => {
     render(<DocxToolbarShell {...context()} />);
-    const strip = screen.getByTestId("docx-toolbar-groups");
+    expect(document.querySelector('[data-ribbon-item="home-font"]')).toBeInTheDocument();
+
+    fireEvent.click(tab("insert"));
+    await waitFor(() => expect(document.querySelector('[data-ribbon-item="insert-links"]')).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector('[data-ribbon-item="home-font"]')).not.toBeInTheDocument());
+    expect(tab("insert")).toHaveAttribute("aria-selected", "true");
+    // A real command of the Insert tab is reachable through the ribbon item.
+    expect(screen.getByTestId("docx-note-insert-footnote")).toBeInTheDocument();
+  });
+
+  it("mounts every group of every tab as a ribbon item (no command lost)", async () => {
+    render(<DocxToolbarShell {...context()} />);
+
+    for (const entry of DOCX_TOOLBAR_TABS) {
+      fireEvent.click(tab(entry.id));
+      for (const group of entry.groups) {
+        await waitFor(() => expect(document.querySelector(`[data-ribbon-item="${group.id}"]`)).toBeInTheDocument());
+      }
+    }
+  });
+
+  it("keeps one roving tab stop in the ribbon body and navigates it with the arrow keys", async () => {
+    render(<DocxToolbarShell {...context()} />);
+    const body = screen.getByRole("tabpanel");
     const bold = screen.getByTestId("docx-bold");
-    const italic = screen.getByTestId("docx-italic");
-    // Exactly one roving tab stop in the strip; it starts on the first control.
-    expect(strip.querySelectorAll('[data-toolbar-current="true"]').length).toBe(1);
-    expect(italic.tabIndex).toBe(-1);
+
+    await waitFor(() => expect(body.querySelectorAll('[data-ribbon-current="true"]').length).toBe(1));
+    const first = body.querySelector<HTMLElement>('[data-ribbon-current="true"]')!;
 
     bold.focus();
     fireEvent.keyDown(bold, { key: "ArrowRight" });
-    expect(document.activeElement).toBe(italic);
-    expect(italic.tabIndex).toBe(0);
-    expect(bold.tabIndex).toBe(-1);
+    expect(document.activeElement).not.toBe(bold);
+    expect(body.contains(document.activeElement)).toBe(true);
+    expect(body.querySelectorAll('[data-ribbon-current="true"]').length).toBe(1);
 
-    // End jumps to the strip's last item, Home back to the first.
-    fireEvent.keyDown(italic, { key: "End" });
-    const last = document.activeElement as HTMLElement;
-    expect(last).not.toBe(bold);
-    expect(strip.contains(last)).toBe(true);
-    fireEvent.keyDown(last, { key: "Home" });
-    expect(document.activeElement).toBe(screen.getByTestId("docx-font-family"));
+    fireEvent.keyDown(document.activeElement as Element, { key: "Home" });
+    expect(document.activeElement).toBe(first);
   });
 
-  it("collapses low-priority groups into the overflow popover at narrow widths", async () => {
-    const originalWidth = window.innerWidth;
-    window.innerWidth = 500;
-    try {
-      render(<DocxToolbarShell {...context()} />);
+  it("collapses groups into one button and keeps their commands in the panel", async () => {
+    stubBodyWidth(120);
+    render(<DocxToolbarShell {...context()} />);
 
-      expect(document.querySelector('[data-toolbar-group="home-font"]')).not.toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('[data-ribbon-group="home-font"]')).toHaveAttribute("data-ribbon-stage", "3"));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-ribbon-group-button="home-font"]')!);
 
-      fireEvent.click(screen.getByTestId("docx-toolbar-overflow"));
-      const overflow = await screen.findByTestId("docx-toolbar-overflow-content");
-      expect(overflow.querySelector('[data-toolbar-group="home-font"]')).toBeInTheDocument();
-      expect(overflow.querySelector('[data-toolbar-group="home-styles"]')).toBeInTheDocument();
-    } finally {
-      window.innerWidth = originalWidth;
-    }
+    const panel = await waitFor(() => {
+      const node = document.querySelector<HTMLElement>('[data-ribbon-panel="home-font"]');
+      expect(node).not.toBeNull();
+      return node!;
+    });
+    // The collapsed group still exposes its whole command area.
+    expect(within(panel).getByTestId("docx-bold")).toBeInTheDocument();
+    expect(within(panel).getByTestId("docx-font-family")).toBeInTheDocument();
   });
 
-  it("keeps every group inline at a wide width", () => {
-    const originalWidth = window.innerWidth;
-    window.innerWidth = 1600;
-    try {
-      render(<DocxToolbarShell {...context()} />);
-      expect(screen.queryByTestId("docx-toolbar-overflow")).not.toBeInTheDocument();
-      expect(document.querySelector('[data-toolbar-group="home-styles"]')).toBeInTheDocument();
-      // Find lives in the ribbon tab row, not the command strip (C6).
-      expect(screen.getByTestId("docx-find-toggle")).toBeInTheDocument();
-    } finally {
-      window.innerWidth = originalWidth;
-    }
+  it("collapses to tabs only and peeks the body again (Ctrl+F1)", () => {
+    render(<DocxToolbarShell {...context()} />);
+    const region = ribbon();
+    fireEvent.keyDown(window, { key: "F1", ctrlKey: true });
+    expect(region).toHaveAttribute("data-ribbon-collapsed", "true");
+    fireEvent.keyDown(window, { key: "F1", ctrlKey: true });
+    expect(region).toHaveAttribute("data-ribbon-collapsed", "false");
   });
 
-  it("disables formatting and Save while read-only, and routes Save through onSave", () => {
+  it("disables formatting, undo/redo and Save while read-only", () => {
+    render(<DocxToolbarShell {...context({ dirty: true, readOnly: true })} />);
+    expect(screen.getByTestId("docx-bold")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toBeDisabled();
+    expect(screen.getByTestId("docx-save")).toBeDisabled();
+  });
+
+  it("routes Save through onSave and reports the save state in the live region", () => {
     const onSave = vi.fn();
     const runtime = createDocxCommandRuntime(() => null);
     const toggleBold = vi.spyOn(runtime, "toggleBold");
@@ -163,27 +234,37 @@ describe("DocxToolbarShell", () => {
     expect(toggleBold).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("docx-save"));
     expect(onSave).toHaveBeenCalledTimes(1);
+
+    // The save-state announcement the old shell carried is still there.
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status.textContent).not.toBe("");
+    // The Save label switches to the saving copy while a save is in flight.
+    const label = screen.getByTestId("docx-save").textContent;
     unmount();
 
-    render(<DocxToolbarShell {...context({ dirty: true, onSave, readOnly: true })} />);
-    expect(screen.getByTestId("docx-bold")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Hoàn tác" })).toBeDisabled();
+    render(<DocxToolbarShell {...context({ dirty: true, saving: true, onSave })} />);
+    expect(screen.getByTestId("docx-save").textContent).not.toBe(label);
     expect(screen.getByTestId("docx-save")).toBeDisabled();
   });
 
   it("leaves the Save button and its live region out when the host owns the controls", () => {
     render(<DocxToolbarShell {...context({ onSave: undefined })} />);
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-testid="docx-toolbar"] [role="status"]')).not.toBeInTheDocument();
   });
 
-  it("puts undo/redo far left in the tab row and Find far right, with no selection text (C6)", () => {
+  it("puts undo/redo far left in the ribbon and Find far right, with no selection text (C6)", () => {
     render(<DocxToolbarShell {...context({ selection: { blockId: "p1", from: 2, to: 7 } })} />);
-    const quickAccess = screen.getByTestId("docx-quick-access");
-    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "Hoàn tác" }));
-    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "Làm lại" }));
-    // Find is the ribbon's right-hand entry; the selection text moved to the
-    // status bar (C10), so the ribbon no longer carries it.
-    expect(screen.getByTestId("docx-find-toggle")).toBeInTheDocument();
+    const quickAccess = document.querySelector<HTMLElement>("[data-ribbon-quick-access]")!;
+    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" }));
+    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "L\u00e0m l\u1ea1i" }));
+
+    const trailing = document.querySelector<HTMLElement>("[data-ribbon-trailing]")!;
+    expect(trailing).toContainElement(screen.getByTestId("docx-find-toggle"));
+    expect(trailing).toContainElement(screen.getByTestId("docx-save"));
+    // The selection text moved to the status bar (C10), so the ribbon no longer
+    // carries it.
     expect(screen.queryByTestId("docx-selection")).not.toBeInTheDocument();
   });
 
@@ -191,26 +272,9 @@ describe("DocxToolbarShell", () => {
     const onUndo = vi.fn();
     const onRedo = vi.fn();
     render(<DocxToolbarShell {...context({ onUndo, onRedo })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
-    fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" }));
+    fireEvent.click(screen.getByRole("button", { name: "L\u00e0m l\u1ea1i" }));
     expect(onUndo).toHaveBeenCalledTimes(1);
     expect(onRedo).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("partitionToolbarGroups", () => {
-  const group = (id: string, collapseAt?: number): DocxToolbarGroup => ({ id, labelKey: `label.${id}`, component: () => null, collapseAt });
-
-  it("never collapses a group without a collapseAt width", () => {
-    const { inline, collapsed } = partitionToolbarGroups([group("base", 0), group("font")], 320);
-    expect(inline.map((entry) => entry.id)).toEqual(["base", "font"]);
-    expect(collapsed).toEqual([]);
-  });
-
-  it("collapses a group strictly below its width and keeps it at or above", () => {
-    const groups = [group("font", 560), group("styles", 900)];
-    expect(partitionToolbarGroups(groups, 559).collapsed.map((entry) => entry.id)).toEqual(["font", "styles"]);
-    expect(partitionToolbarGroups(groups, 560).collapsed.map((entry) => entry.id)).toEqual(["styles"]);
-    expect(partitionToolbarGroups(groups, 1024).collapsed).toEqual([]);
   });
 });
