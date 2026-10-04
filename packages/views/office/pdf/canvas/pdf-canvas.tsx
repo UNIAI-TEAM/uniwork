@@ -89,7 +89,7 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
     if (selection === undefined) setLocalSelection(next);
     onSelectionChange?.(next);
   }, [onSelectionChange, selection]);
-  return <div ref={scrollRef} className={cn("min-h-0 flex-1 overflow-auto bg-muted/20", className)} aria-label={t("office.pdf.pages.label")} data-testid="pdf-canvas-scroll" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
+  return <div ref={scrollRef} className={cn("min-h-0 flex-1 overflow-auto", className)} aria-label={t("office.pdf.pages.label")} data-testid="pdf-canvas-scroll" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
     <div className="relative mx-auto" style={{ height: contentHeight, width: contentWidth, minWidth: "100%" }} role="list">
       {pages.slice(firstVisible, lastVisible).map((page, offset) => {
         const index = firstVisible + offset;

@@ -31,6 +31,28 @@ describe("PdfThumbnailsRail", () => {
     expect(onSelect).toHaveBeenCalledWith(3);
   });
 
+  it("marks the active page with the semantic selected surface, not a heavy brand box", () => {
+    // U6: the selected thumbnail uses the subtle --surface-selected wash the
+    // other UniWork rails use, so it stops reading as a heavy blue box.
+    render(<PdfThumbnailsRail pages={pages} activePage={2} />);
+    const active = screen.getByTestId("pdf-thumbnail-2");
+    expect(active.className).toContain("bg-surface-selected");
+    expect(active.className).toContain("text-surface-selected-foreground");
+    expect(active.className).not.toContain("bg-brand");
+    expect(active.className).not.toContain("border-brand");
+    expect(screen.getByTestId("pdf-thumbnail-1").className).not.toContain("bg-surface-selected");
+  });
+
+  it("shows the page number once: the caption never repeats the placeholder number", () => {
+    // U6: the numbered placeholder already shows the page number, so a plain
+    // page must not print it a second time under the thumbnail.
+    render(<PdfThumbnailsRail pages={pages} />);
+    const button = screen.getByTestId("pdf-thumbnail-2");
+    expect(button).toHaveTextContent(/^2$/);
+    // A host-supplied label is still shown once.
+    expect(screen.getByTestId("pdf-thumbnail-3")).toHaveTextContent("Cover");
+  });
+
   it("prefers a host-supplied thumbnail over the placeholder", () => {
     render(<PdfThumbnailsRail pages={[{ pageNumber: 1 }]} renderThumbnail={() => <span data-testid="real-thumb" />} />);
     expect(screen.getByTestId("real-thumb")).toBeInTheDocument();

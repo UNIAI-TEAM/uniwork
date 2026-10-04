@@ -5,6 +5,7 @@ import {
   ImagePlus,
   ListRestart,
   MessageSquareText,
+  Redo2,
   RotateCw,
   Scissors,
   Stamp,
@@ -12,6 +13,7 @@ import {
   TextCursorInput,
   Trash2,
   Type,
+  Undo2,
 } from "lucide-react";
 import type { RibbonIcon, RibbonItem, RibbonTab } from "../../ribbon";
 import { PDF_COMMANDS, type PdfCommandId } from "../pdf-command-map";
@@ -48,6 +50,8 @@ const PDF_RIBBON_COMMAND_LABEL_KEYS: Readonly<Record<PdfCommandId, string>> = {
 };
 
 const PDF_RIBBON_ICONS: Readonly<Partial<Record<PdfCommandId, RibbonIcon>>> = {
+  [PDF_COMMANDS.undo]: Undo2,
+  [PDF_COMMANDS.redo]: Redo2,
   [PDF_COMMANDS.annotations]: MessageSquareText,
   [PDF_COMMANDS.highlight]: Highlighter,
   [PDF_COMMANDS.note]: StickyNote,
@@ -71,12 +75,16 @@ interface PdfRibbonGroupSpec {
 
 /**
  * The PDF command map as ribbon data: the same tabs, groups and items the old
- * command row expressed, grouped like the desktop ribbon. Undo/redo live in the
- * tab row's quick-access pair and Save in the shared header cluster, so neither
- * is repeated here. `home`/`view` carry no groups.
+ * command row expressed, grouped like the desktop ribbon. Undo/redo stay in the
+ * tab row's quick-access pair and Save in the shared header cluster, so Save is
+ * not repeated here; `home` still carries an undo/redo group so its body is
+ * never an empty band (U3). `view` has no command-map entries and stays empty.
  */
 const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRibbonGroupSpec[] }> = [
-  { id: "home", groups: [] },
+  {
+    id: "home",
+    groups: [{ id: "history", labelKey: "office.ribbon.quickAccess", ids: [PDF_COMMANDS.undo, PDF_COMMANDS.redo] }],
+  },
   {
     id: "annotate",
     groups: [

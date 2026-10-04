@@ -147,6 +147,32 @@ describe("adaptive collapse", () => {
     }
   });
 
+  it("renders the full body with groups, captions and items when the width is zero", () => {
+    // Electron can report a 0 body width before the first layout pass. The
+    // ribbon must lay out at declared sizes then, not collapse to an empty body
+    // (U3): a zero (and an unmeasured) width is treated as "no measurement yet".
+    stubRibbonWidth(0);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Clipboard")).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
+    expect(group("Font")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Font")).getByRole("combobox", { name: "Font family" })).toBeInTheDocument();
+  });
+
+  it("renders the full body when no ResizeObserver ever reports a width", () => {
+    // jsdom's default stub never calls back; that is the "unmeasured" case.
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Clipboard")).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
+  });
+
+  it("still collapses when a real width is measured", () => {
+    stubRibbonWidth(560);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Editing")).toHaveAttribute("data-ribbon-stage", "3");
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+  });
+
   it("folds every group into one button at a tiny width and opens it as a panel", async () => {
     stubRibbonWidth(120);
     const { actions } = ((fixture) => {
@@ -164,6 +190,24 @@ describe("adaptive collapse", () => {
     expect(within(inPanel).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
     fireEvent.click(within(inPanel).getByRole("button", { name: "Cut" }));
     expect(actions.cut).toHaveBeenCalledOnce();
+  });
+});
+
+describe("collapse affordance", () => {
+  it("renders a labelled ribbon-panel toggle, never a bare up/down chevron pair", () => {
+    // U5: the collapse control must read as a proper UniWork control. A bare
+    // ChevronUp/ChevronDown next to Find looked like a stray spinner.
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" trailing={<button type="button">Find</button>} />);
+    const toggle = screen.getByRole("button", { name: "Thu gọn dải lệnh" });
+    expect(toggle).toHaveAttribute("data-ribbon-collapse-toggle", "");
+    expect(toggle).toHaveAttribute("aria-controls", screen.getByRole("tabpanel").id);
+    // The trailing slot carries only the caller's controls (Find); the collapse
+    // toggle lives in its own sibling, so no stray icon sits inside the
+    // trailing cluster next to Find.
+    const trailing = document.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(within(trailing).getAllByRole("button").map((node) => node.textContent)).toEqual(["Find"]);
+    expect(trailing.contains(toggle)).toBe(false);
+    expect(trailing.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

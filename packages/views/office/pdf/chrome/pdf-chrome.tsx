@@ -121,7 +121,7 @@ export function PdfRibbonBar({
   });
 
   return (
-    <div data-testid="pdf-ribbon-bar" ref={rootRef}>
+    <div className="min-w-0" data-testid="pdf-ribbon-bar" ref={rootRef}>
       <OfficeRibbon
         tabs={tabs}
         scope={PDF_RIBBON_SCOPE}

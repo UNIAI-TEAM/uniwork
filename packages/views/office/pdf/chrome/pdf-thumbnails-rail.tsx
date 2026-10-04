@@ -21,8 +21,13 @@ export interface PdfThumbnailsRailProps {
 
 /**
  * The left page rail for the PDF chrome (C11). Purely presentational: it lists
- * pages, highlights the active one and reports selection upward. No engine or
- * renderer import — the host injects one through `renderThumbnail`.
+ * pages, marks the active one with the semantic selected surface (a subtle
+ * `--surface-selected` wash, like the other UniWork rails) and reports
+ * selection upward. No engine or renderer import — the host injects one
+ * through `renderThumbnail`.
+ *
+ * The caption never repeats the page number: the placeholder thumbnail already
+ * shows it, and a host-rendered thumbnail is labelled by `page.label` alone.
  */
 export function PdfThumbnailsRail({
   pages,
@@ -40,12 +45,14 @@ export function PdfThumbnailsRail({
     >
       {pages.map((page) => {
         const active = page.pageNumber === activePage;
-        const label = page.label ?? t("office.pdf.chrome.thumbnailPage", { page: page.pageNumber });
+        // The accessible name always carries the page number; the visible
+        // caption only shows it when the host supplies an explicit label.
+        const accessibleLabel = t("office.pdf.chrome.thumbnailPage", { page: page.pageNumber });
         return (
           <button
             key={page.pageNumber}
             type="button"
-            aria-label={label}
+            aria-label={accessibleLabel}
             aria-current={active ? "page" : undefined}
             data-testid={`pdf-thumbnail-${page.pageNumber}`}
             data-active={active ? "true" : undefined}
@@ -53,7 +60,7 @@ export function PdfThumbnailsRail({
             className={cn(
               "flex flex-col items-center gap-1 rounded-control border p-1 text-caption transition-colors pointer-coarse:min-h-11",
               "border-transparent hover:bg-surface-hover",
-              active ? "border-brand bg-surface-selected text-surface-selected-foreground" : "text-muted-foreground",
+              active ? "border-transparent bg-surface-selected text-surface-selected-foreground" : "text-muted-foreground",
             )}
           >
             {renderThumbnail ? (
@@ -67,7 +74,7 @@ export function PdfThumbnailsRail({
                 {page.pageNumber}
               </span>
             )}
-            <span className="tabular-nums">{label}</span>
+            {page.label ? <span className="max-w-full truncate">{page.label}</span> : null}
           </button>
         );
       })}

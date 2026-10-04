@@ -242,7 +242,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
   return (
     <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
       <PdfThumbnailsRail className="hidden sm:flex" pages={pages} activePage={selectedPage ?? undefined} onSelect={navigate} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/20">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-col gap-2 px-3 pt-3 empty:hidden">
           {errorKey ? <Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(errorKey)}</Notice> : null}
           {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t(skipped)}</Notice> : null}
@@ -255,8 +255,8 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
             <PdfCanvas pages={canvasPages} renderer={editor.renderer} zoom={zoom} selection={selection} onSelectionChange={onCanvasSelect} tool={tool} onPageRegion={onPageRegion} focusPage={focus} highlights={highlights} />
           </div>
         ) : (
-          <div className="min-h-64 min-w-0 flex-1 overflow-auto p-4 sm:p-8">
-            <div className="mx-auto min-h-[24rem] w-full max-w-4xl rounded-lg border border-border bg-background p-8 shadow-sm" data-testid="pdf-document-surface" />
+          <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center overflow-auto p-4 text-body text-muted-foreground sm:p-8" data-testid="pdf-document-surface">
+            {t("office.pdf.surface.ready")}
           </div>
         )}
         {selection?.kind === "text" && !readOnly ? <div className="flex gap-2 border-t border-border bg-background p-2"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div> : null}

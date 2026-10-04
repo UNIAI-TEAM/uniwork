@@ -147,7 +147,7 @@ export function OfficeRibbon({
   return (
     <div
       ref={rootRef}
-      className={cn("relative z-20 shrink-0 bg-background", className)}
+      className={cn("relative z-20 min-w-0 shrink-0 bg-background", className)}
       aria-label={t(labelKey)}
       role="region"
       data-office-ribbon={scope}

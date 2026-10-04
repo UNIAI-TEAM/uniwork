@@ -75,8 +75,20 @@ describe("createPdfRibbonTabs", () => {
     expect(pages?.groups.map((group) => group.labelKey)).toEqual(["office.pdf.pages.title", "office.pdf.pageOps.title"]);
     expect(pages?.groups[0]?.items.map((item) => item.id)).toEqual(["insert-page", "delete-page", "rotate-page"]);
     expect(pages?.groups[1]?.items.map((item) => item.id)).toEqual(["reorder-page", "extract-page", "merge-pages"]);
+    // pageCommands carries no undo/redo, so Home's history group is dropped.
     expect(tabs.find((tab) => tab.id === "home")?.groups).toEqual([]);
     expect(tabs.find((tab) => tab.id === "view")?.groups).toEqual([]);
+  });
+
+  it("carries a labelled undo/redo group on Home so its body is never empty", () => {
+    const tabs = createPdfRibbonTabs(undoRedo);
+    const home = tabs.find((tab) => tab.id === "home");
+    expect(home?.groups.map((group) => group.id)).toEqual(["history"]);
+    const group = home?.groups[0];
+    expect(group?.labelKey).toBe("office.ribbon.quickAccess");
+    expect(group?.items.map((item) => item.id)).toEqual(["undo", "redo"]);
+    expect(group?.items.map((item) => item.labelKey)).toEqual(["office.pdf.actions.undo", "office.pdf.actions.redo"]);
+    expect(group?.items.map((item) => item.size)).toEqual(["large", "small"]);
   });
 
   it("renders the first item of a group large and the rest small", () => {
@@ -224,6 +236,48 @@ describe("PdfRibbonBar", () => {
     fireEvent.click(undo);
     expect(onExecute).not.toHaveBeenCalled();
     expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("keeps Find reachable and unoverlapped at 390px: the tabs scroll, the controls do not", () => {
+    // M-C: at 390px the trailing Find must never overlap the 3rd tab, and the
+    // page must not scroll sideways. The tablist is the one flexible, scrollable
+    // region; Find and the collapse toggle are shrink-0 siblings after it, so a
+    // tab can never sit under them at any width.
+    window.innerWidth = 390;
+    render(<PdfRibbonBar {...baseProps} activeTab="home" commands={pageCommands} />);
+    const tabRow = document.querySelector("[data-ribbon-tab-row]") as HTMLElement;
+    const tablist = within(tabRow).getByRole("tablist");
+    expect(tablist.className).toContain("overflow-x-auto");
+    expect(tablist.className).toContain("min-w-0");
+    expect(tablist.className).toContain("flex-1");
+    // Every tab is still reachable (scrolled), not clipped away.
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(5);
+    // Find sits outside the tablist, after it, and is never overlapped.
+    const find = screen.getByTestId("pdf-chrome-find");
+    expect(tablist.contains(find)).toBe(false);
+    expect(tablist.compareDocumentPosition(find) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const trailing = tabRow.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(trailing.className).toContain("shrink-0");
+    const toggle = tabRow.querySelector("[data-ribbon-collapse-toggle]") as HTMLElement;
+    expect(toggle.className).toContain("shrink-0");
+    // Nothing on the row forces the document wider than the viewport: the
+    // wrapper, the ribbon region and the row are all min-w-0, and every
+    // non-scrolling child is shrink-0, so only the tablist can ever scroll.
+    expect(tabRow.className).toContain("min-w-0");
+    expect(screen.getByTestId("pdf-ribbon-bar").className).toContain("min-w-0");
+    expect(screen.getByRole("region").className).toContain("min-w-0");
+    const rowChildren = Array.from(tabRow.children) as HTMLElement[];
+    expect(rowChildren.filter((node) => node.className.includes("flex-1"))).toEqual([tablist]);
+    expect(rowChildren.filter((node) => node.className.includes("shrink-0")).length).toBeGreaterThan(0);
+  });
+
+  it("renders a labelled ribbon-panel toggle, not a bare up/down chevron beside Find", () => {
+    // U5: the shared ribbon's collapse control must read as a UniWork control.
+    render(<PdfRibbonBar {...baseProps} activeTab="home" commands={undoRedo} />);
+    const toggle = screen.getByRole("button", { name: "Collapse the ribbon" });
+    expect(toggle).toHaveAttribute("data-ribbon-collapse-toggle", "");
+    const trailing = document.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(trailing.contains(toggle)).toBe(false);
   });
 
   it("runs an enabled quick undo through onExecute then onCommand", () => {

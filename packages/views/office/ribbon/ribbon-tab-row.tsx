@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Pin } from "lucide-react";
+import { PanelTopClose, PanelTopOpen, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -30,8 +30,17 @@ export interface RibbonTabRowProps {
   onEnterBody: () => void;
 }
 
-/** Tab row: quick access (↶ ↷) left, tabs, contextual tabs after the fixed
- * ones, then the trailing slot (Find, view toggles) and the collapse toggle. */
+/**
+ * Tab row: quick access (↶ ↷) left, tabs, contextual tabs after the fixed
+ * ones, then the trailing slot (Find, view toggles) and the collapse toggle.
+ * The tab list is the one flexible, horizontally scrollable region, so a long
+ * tab set scrolls under the trailing controls instead of pushing them off the
+ * row or overlapping a tab (a 390px phone keeps Find reachable).
+ *
+ * The collapse affordance is a labelled ribbon panel button (PanelTopOpen /
+ * PanelTopClose), never a bare up/down chevron pair: a chevron next to Find
+ * read as a stray spinner. Peeking uses the pin glyph.
+ */
 export function RibbonTabRow({
   tabs,
   activeId,
@@ -69,7 +78,7 @@ export function RibbonTabRow({
 
   const toggleLabel = t(collapsed ? (peek ? "office.ribbon.pin" : "office.ribbon.expand") : "office.ribbon.collapse");
   const toggleTitle = t("office.ribbon.withShortcut", { label: toggleLabel, shortcut: RIBBON_TOGGLE_SHORTCUT });
-  const ToggleIcon = collapsed ? (peek ? Pin : ChevronDown) : ChevronUp;
+  const ToggleIcon = collapsed ? (peek ? Pin : PanelTopOpen) : PanelTopClose;
 
   return (
     <div className="flex h-9 min-w-0 items-stretch gap-1 border-b border-border bg-background px-1.5 pointer-coarse:h-11" data-ribbon-tab-row="">
@@ -87,7 +96,9 @@ export function RibbonTabRow({
         role="tablist"
         aria-label={t("office.ribbon.tabs")}
         // Tabs scroll rather than clip when they outgrow the row (phones, many
-        // contextual tabs); the simplified layout relies on it.
+        // contextual tabs); the simplified layout relies on it. `flex-1
+        // min-w-0` keeps the trailing controls a sibling, so they can never be
+        // overlapped by a tab at any width.
         className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
       >
         {tabs.map((tab, index) => {

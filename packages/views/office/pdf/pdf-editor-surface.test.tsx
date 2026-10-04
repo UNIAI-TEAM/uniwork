@@ -76,6 +76,32 @@ describe("PdfEditorSurface", () => {
     expect(screen.getByTestId("pdf-page-1")).toBeInTheDocument();
   });
 
+  it("fills the shell content area with one frame: no inner bordered card around the pages", async () => {
+    // U4: the editor must not draw a second bordered, rounded card inside the
+    // shell. Neither the document surface nor the canvas scroll region may carry
+    // card chrome (rounded-lg / border / shadow-sm / a muted backdrop).
+    const { handle } = host();
+    await mount(handle);
+    const surface = screen.getByTestId("pdf-document-surface");
+    expect(surface.className).not.toContain("rounded-lg");
+    expect(surface.className).not.toContain("shadow-sm");
+    expect(surface.className).not.toContain("bg-muted/20");
+    const scroller = screen.getByTestId("pdf-canvas-scroll");
+    expect(scroller.className).not.toContain("bg-muted/20");
+    expect(scroller.className).not.toContain("rounded-lg");
+  });
+
+  it("renders the renderer-less placeholder without an inner bordered card", async () => {
+    // The placeholder branch must also fill the shell, not read as an inner card.
+    const { handle } = host({ renderer: undefined, getCanvasPages: undefined });
+    await mount(handle);
+    const surface = screen.getByTestId("pdf-document-surface");
+    expect(surface.className).not.toContain("rounded-lg");
+    expect(surface.className).not.toContain("shadow-sm");
+    expect(surface.className).not.toContain("bg-background");
+    expect(surface.className).not.toContain("border");
+  });
+
   it("highlights a dragged region as a markup edit and marks the document dirty", async () => {
     const { handle } = host();
     const save = await mount(handle);
