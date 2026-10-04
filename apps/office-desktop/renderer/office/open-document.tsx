@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { OfficeShell } from "@uniwork/views/office/office-shell";
 import { EditorSlot, type OfficeEditorLoader } from "@uniwork/views/office/editor-slot";
@@ -12,7 +12,9 @@ import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 import type { PptxDocumentSession } from "./pptx-session";
-import { PptxEditorView } from "@uniwork/views/office/pptx";
+import { PptxEditorView, type PptxDeckModel } from "@uniwork/views/office/pptx";
+import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { DOCX_DESKTOP_ENGINE_BUILD } from "./docx-surface";
 import { PPTX_DESKTOP_ENGINE_BUILD } from "./pptx-surface";
 
@@ -100,19 +102,45 @@ function OpenDocxDocument({ bridge, identity, session, title, onBack, active = t
       </>} /></>;
 }
 
+/** Plain text of every element on every slide of the opaque deck model; the
+ * desktop find port only reads the documented `text.paragraphs[].runs[].text`
+ * shape the render tree already consumes. */
+function deckSlideTexts(deck: PptxDeckModel | null): string[] {
+  if (!deck) return [];
+  return deck.slides.map((slide) => {
+    const elements = (slide as { elements?: unknown }).elements;
+    if (!Array.isArray(elements)) return "";
+    return elements
+      .map((element) => {
+        const paragraphs = (element as { text?: { paragraphs?: unknown } }).text?.paragraphs;
+        if (!Array.isArray(paragraphs)) return "";
+        return paragraphs
+          .map((paragraph) => {
+            const runs = (paragraph as { runs?: unknown }).runs;
+            if (!Array.isArray(runs)) return "";
+            return runs.map((run) => (run as { text?: string }).text ?? "").join("");
+          })
+          .join("\n");
+      })
+      .join("\n");
+  });
+}
+
 /** The PPTX tab shell: the shared PptxEditorView mounts the deck canvas and
  * the same save coordinator that DOCX uses (upload + Documents version
  * commit). The editor handle and the opened deck come from the desktop pptx
- * surface; main still owns every file and cloud write. */
+ * surface; main still owns every file and cloud write. Every edit port the
+ * desktop surface supports is bound here - a port with no implementation stays
+ * unbound so the editor disables it honestly. */
 function OpenPptxDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud" }: {
   bridge: RendererBridge; identity: OfficeIdentity; session: PptxDocumentSession; title: string; onBack: () => void;
   active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
-  const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const [failure, setFailure] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [, setRevision] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [revision, setRevision] = useState(() => session.editor.revision());
   const [openAttempt, setOpenAttempt] = useState(0);
   useEffect(() => () => session.dispose(), [session]);
   useEffect(() => {
@@ -121,7 +149,10 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     void session.openEditor().then(() => { if (alive) setReady(true); }).catch((error: unknown) => { if (alive) setFailure(error instanceof Error ? error.message : String(error)); });
     return () => { alive = false; };
   }, [active, session, openAttempt]);
-  useEffect(() => session.coordinator.subscribe(() => setRevision((value) => value + 1)), [session]);
+  // The desktop adapter publishes a fresh revision on every edit/undo/redo/restore
+  // and reports each one to the shared coordinator, so the coordinator's own
+  // notification is the signal that the model moved.
+  useEffect(() => session.coordinator.subscribe(() => setRevision(session.editor.revision())), [session]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === identity.documentId) void session.coordinator.save("menu"); }), [active, bridge, identity.documentId, ready, session]);
   const capability = useMemo(() => ({ format: "pptx" as const, operation: "serialize", host: "desktop", engineBuild: PPTX_DESKTOP_ENGINE_BUILD, contractRevision: "office-editor-host/1", status: session.canSave ? "available" as const : "readonly" as const, fidelityWarnings: [] }), [session]);
   const host = useMemo<OfficeHost>(() => ({
@@ -130,8 +161,50 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     assets: { resolveFont: async () => null, resolveImage: async () => null, resolveAsset: async () => null },
     ipc: { call: async () => { throw new Error("host_operation_unbound"); }, send: () => undefined, subscribe: () => () => undefined },
   }), [identity.documentId, session]);
-  const deck = useMemo(() => ({ deck: session.editor.deck() ?? undefined, revision: session.editor.revision() }), [session]);
-  const slides = useMemo(() => session.editor.slides().map((slide, index) => ({ id: slide.id, label: String(index + 1), hidden: slide.hidden })), [session]);
+  // `revision` is a dependency so an edit/undo/redo/restore rebuilds the deck the
+  // canvas keys its rendition cache on; the model object identity is stable across
+  // mutations, so a [session]-only memo would never see the change.
+  const deck = useMemo(() => {
+    const model = session.editor.deck();
+    // No deck before the open resolves: an empty object would make the editor
+    // treat the canvas as deck-bound and pull the render artifact early.
+    return model ? { deck: model, revision } : undefined;
+  }, [revision, session]);
+  const slides = useMemo(() => {
+    // A slide-structure edit (add/delete/reorder) must refresh the rail, so the
+    // published revision participates even though the list itself reads the model.
+    void revision;
+    return session.editor.slides().map((slide, index) => ({ id: slide.id, label: String(index + 1), hidden: slide.hidden }));
+  }, [revision, session]);
+
+  // Edit ports -> the adapter's typed edit channel (never a second write path).
+  const commitText = useCallback((commit: { slideIndex: number; elementId: string; paragraphs: PptxParagraphLike[] }) =>
+    session.editor.edit([{ op: "edit_text", slideIndex: commit.slideIndex, elementId: commit.elementId, paragraphs: commit.paragraphs }]), [session]);
+  const transform = useCallback((request: SlidesEditTransformRequest) => {
+    if (!request.sourceId) throw new Error("pptx_transform_needs_element");
+    return session.editor.edit([{
+      op: "edit_transform",
+      slideIndex: request.slideIndex,
+      elementId: request.sourceId,
+      xPx: request.xPx,
+      yPx: request.yPx,
+      wPx: request.wPx,
+      hPx: request.hPx,
+      ...(request.rotationDeg === undefined ? {} : { rotationDeg: request.rotationDeg }),
+      ...(request.fitWidthPx == null ? {} : { fitWidthPx: request.fitWidthPx }),
+    }]);
+  }, [session]);
+  const applyEdit = useCallback((edit: PptxEdit | FormatEdit) => session.editor.edit([edit]), [session]);
+  const deleteElements = useCallback((slideIndex: number, elementIds: readonly string[]) =>
+    session.editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))), [session]);
+  // A real find port: jump to the first slide whose element text carries the query.
+  const find = useCallback((query: string) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return;
+    const index = deckSlideTexts(session.editor.deck()).findIndex((text) => text.toLowerCase().includes(needle));
+    if (index >= 0) setSelected(index);
+  }, [session]);
+
   return <PptxEditorView
     title={title}
     host={host}
@@ -142,6 +215,13 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     onRetry={() => { setFailure(null); setOpenAttempt((value) => value + 1); }}
     deck={deck}
     slides={slides}
+    selectedIndex={selected}
+    onSlideSelect={setSelected}
+    onCommitText={commitText}
+    onTransform={transform}
+    onApplyEdit={applyEdit}
+    onDeleteElements={deleteElements}
+    onFind={find}
     saveCoordinator={session.coordinator}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
     fullscreen={false}

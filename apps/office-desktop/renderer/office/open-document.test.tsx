@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import i18n from "i18next";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
+import { createPptxDocumentSession } from "./pptx-session";
+import type { DesktopPptxAdapter, DesktopPptxEditorHandle } from "./pptx-adapter";
 import type { RendererBridge } from "../app";
 import { createByteTestEditor } from "../../test/byte-editor";
 
@@ -98,4 +100,102 @@ it("shows no recovery prompt when the store holds no draft for this document", a
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
   await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument());
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
+});
+
+// UNI-927 DESKTOP-BIND: the desktop host must bind the pptx edit ports instead
+// of mounting a view-only deck. The shared view is stubbed so the props the host
+// passes and the channel a committed edit travels on are asserted directly.
+// The generated pptx artifact is a heavy browser bundle and is irrelevant to
+// port binding; the runtime imports it, so stub it exactly as the web adapter
+// test does instead of loading it in jsdom.
+vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
+  buildRenderSlide: () => ({ nodes: [], widthPx: 960, heightPx: 540 }),
+  makeViewport: (size: { cx: number; cy: number }, fitWidthPx: number) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+  commitSaved: () => undefined,
+  HeuristicMetrics: class {},
+  listSlideLayouts: () => [],
+  openPptx: async () => ({ deck: { slides: [] } }),
+  reparseDeck: (opened: unknown) => opened,
+  runTxn: () => ({ applied: true, records: [] }),
+  savePptx: async () => new Uint8Array(),
+}));
+
+const pptxProbe = vi.hoisted(() => ({ views: [] as Array<Record<string, unknown>> }));
+vi.mock("@uniwork/views/office/pptx", async () => {
+  const { createElement } = await import("react");
+  return {
+    PptxEditorView: (props: Record<string, unknown>) => {
+      pptxProbe.views.push(props);
+      return createElement("div", { "data-testid": "pptx-editor-view-probe" });
+    },
+  };
+});
+
+/** The desktop surface the session drives: a real edit channel whose revision
+ * advances exactly like the adapter's, and a deck that reads the documented
+ * text shape the find port walks. */
+function createPptxTestSurface(onDirty: (generation: number) => void) {
+  const record = { edits: [] as Array<Array<Record<string, unknown>>>, revision: 0 };
+  const surface = {
+    format: "pptx",
+    open: async () => undefined,
+    getDirtyGeneration: () => record.edits.length,
+    captureSnapshot: async () => ({ generation: record.edits.length, fingerprint: "fp", value: { revision: record.revision, edits: [] } }),
+    undo: () => undefined,
+    redo: () => undefined,
+    dispose: async () => undefined,
+    slides: () => [{ id: "s1", hidden: false, elements: [{ id: "el-1", type: "text" }] }],
+    snapshot: () => ({ revision: record.revision, edits: [] }),
+    deck: () => ({ slides: [{ id: "s1", elements: [{ id: "el-1", type: "text", text: { paragraphs: [{ runs: [{ text: "Title" }] }] } }] }], size: { cx: 12192000, cy: 6858000 } }),
+    revision: () => record.revision,
+    restore: async () => undefined,
+    serialize: async () => ({ bytes: new Uint8Array([1]), checksum: "sha256:x" }),
+    edit: async (batch: readonly Record<string, unknown>[]) => {
+      record.edits.push([...batch]);
+      record.revision += 1;
+      onDirty(record.edits.length);
+      return { revision: record.revision };
+    },
+  };
+  return { surface: surface as unknown as DesktopPptxEditorHandle, record };
+}
+
+it("binds every desktop pptx edit port and advances the revision on a committed text edit", async () => {
+  const bridge = {
+    call: (async (channel: string) => (channel === "desktop:draft-list" ? { drafts: [] } : {})) as RendererBridge["call"],
+    onSessionChanged: () => () => undefined,
+  } as RendererBridge;
+  let created!: ReturnType<typeof createPptxTestSurface>;
+  const session = createPptxDocumentSession(
+    bridge,
+    identity,
+    { dataBase64: "UEsDBA==", checksum },
+    (onDirty) => {
+      created = createPptxTestSurface(onDirty);
+      return {
+        editor: created.surface,
+        capability: { format: "pptx", operation: "serialize", host: "desktop", engineBuild: "test", contractRevision: "office-editor-host/1", status: "available", fidelityWarnings: [] },
+        open: async () => ({ outcome: "opened", document_id: identity.documentId, format: "pptx" }),
+      } as unknown as DesktopPptxAdapter;
+    },
+  );
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Deck.pptx" active kind="cloud" onBack={() => undefined} />);
+
+  // The deck is only bound once the async open resolves; wait for that render.
+  await waitFor(() => expect(pptxProbe.views.at(-1)?.deck).toBeDefined());
+  const props = pptxProbe.views.at(-1)!;
+  // The mounted view receives every edit port the desktop surface supports.
+  for (const port of ["onCommitText", "onTransform", "onApplyEdit", "onDeleteElements", "onFind"]) {
+    expect(typeof props[port], port).toBe("function");
+  }
+  expect(props.deck).toMatchObject({ revision: 0 });
+
+  // A committed text edit reaches the handle's edit channel as edit_text.
+  await act(async () => {
+    await (props.onCommitText as (commit: unknown) => Promise<unknown>)({ slideIndex: 0, elementId: "el-1", paragraphs: [{ runs: [{ text: "Edited" }] }] });
+  });
+  expect(created.record.edits).toEqual([[{ op: "edit_text", slideIndex: 0, elementId: "el-1", paragraphs: [{ runs: [{ text: "Edited" }] }] }]]);
+
+  // The published revision advances, so the deck memo (and the canvas) sees it.
+  await waitFor(() => expect((pptxProbe.views.at(-1)?.deck as { revision: number } | undefined)?.revision).toBe(1));
 });
