@@ -7,6 +7,7 @@ import {
   buildLayoutEdit,
   buildSlideSizeEdit,
   buildThemeEdit,
+  colorInputValue,
   emuToInches,
   imageExtension,
   isFillColor,
@@ -236,6 +237,22 @@ describe("color helpers", () => {
   });
 });
 
+describe("colorInputValue", () => {
+  it("feeds the color input a 6-digit hex", () => {
+    expect(colorInputValue("#ffffff", "#000000")).toBe("#FFFFFF");
+    expect(colorInputValue("ff0000", "#000000")).toBe("#FF0000");
+  });
+
+  it("slices the alpha half of an 8-digit hex so type=color keeps its swatch", () => {
+    expect(colorInputValue("#FFFFFF80", "#000000")).toBe("#FFFFFF");
+  });
+
+  it("falls back for a half-typed value instead of painting a bogus swatch", () => {
+    expect(colorInputValue("#12", "#4472C4")).toBe("#4472C4");
+    expect(colorInputValue("", "#FFFFFF")).toBe("#FFFFFF");
+  });
+});
+
 describe("themeSwatch", () => {
   it("reads the page background, body text and four accents", () => {
     const office = PPTX_DESIGN_THEMES.find((theme) => theme.id === "office") as PptxDesignTheme;
@@ -303,7 +320,7 @@ describe("imageExtension", () => {
 
   it("falls back to the MIME subtype, then to png", () => {
     expect(imageExtension("photo", "image/jpeg")).toBe("jpeg");
-    expect(imageExtension("photo", "image/svg+xml")).toBe("svg+xml");
+    expect(imageExtension("photo", "image/svg+xml")).toBe("svg");
     expect(imageExtension("photo")).toBe("png");
     expect(imageExtension("")).toBe("png");
   });

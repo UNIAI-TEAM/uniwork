@@ -8,8 +8,8 @@
  * Every control edits LOCAL state; nothing reaches the document until Apply is
  * pressed, so a half-typed colour never becomes an edit and Escape/Close always
  * leaves the deck exactly as it was. The dialog is presentational: it reports a
- * `PptxDesignBackgroundRequest` (fill + target slides) and the panel turns that
- * into the single engine edit.
+ * `PptxDesignBackgroundRequest` (fill + target slides + an optional
+ * graphics-hidden change) and the panel turns that into the engine edits.
  *
  * Keyboard/roles: `role="dialog"` + `aria-modal`, the fill modes are a
  * radiogroup (arrows/Home/End move), Escape closes, and focus returns to the
@@ -24,6 +24,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
+  colorInputValue,
   imageExtension,
   isFillColor,
   nextRovingIndex,
@@ -54,7 +55,6 @@ export interface PptxBackgroundDialogProps {
   busy?: boolean;
   disabled?: boolean;
   onApply: (request: PptxDesignBackgroundRequest) => void;
-  onToggleGraphicsHidden?: (hidden: boolean, slideIndexes: readonly number[]) => void;
   className?: string;
 }
 
@@ -69,7 +69,6 @@ export function PptxBackgroundDialog({
   busy = false,
   disabled = false,
   onApply,
-  onToggleGraphicsHidden,
   className,
 }: PptxBackgroundDialogProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -116,10 +115,15 @@ export function PptxBackgroundDialog({
   const gradientValid = isFillColor(from) && isFillColor(to);
   const canSubmit = !blocked && (mode === "solid" ? solidValid : mode === "gradient" ? gradientValid : image !== null);
 
+  // The graphics choice is form state too: it travels with the Apply request
+  // (and only when it actually changed), so ticking the box and pressing Escape
+  // still leaves the deck untouched.
+  const graphicsChange = hidden === graphicsHidden ? {} : { graphics: { hidden } };
+
   const submit = () => {
     if (!canSubmit) return;
     if (mode === "solid") {
-      onApply({ fill: { kind: "solid", color: normalizeHex(solid) }, slideIndexes: targets });
+      onApply({ fill: { kind: "solid", color: normalizeHex(solid) }, slideIndexes: targets, ...graphicsChange });
     } else if (mode === "gradient") {
       const parsed = parseAngleDeg(angle);
       onApply({
@@ -131,9 +135,14 @@ export function PptxBackgroundDialog({
           ...(radial ? { radial: true } : {}),
         },
         slideIndexes: targets,
+        ...graphicsChange,
       });
     } else if (image) {
-      onApply({ fill: { kind: "image", bytes: image.bytes, ext: image.ext, ...(tile ? { tile: true } : {}) }, slideIndexes: targets });
+      onApply({
+        fill: { kind: "image", bytes: image.bytes, ext: image.ext, ...(tile ? { tile: true } : {}) },
+        slideIndexes: targets,
+        ...graphicsChange,
+      });
     }
   };
 
@@ -209,7 +218,7 @@ export function PptxBackgroundDialog({
                 data-testid="pptx-bg-solid"
                 aria-label={t("design.solid_color")}
                 disabled={blocked}
-                value={isFillColor(solid) ? normalizeHex(solid) : "#FFFFFF"}
+                value={colorInputValue(solid, "#FFFFFF")}
                 onChange={(event) => setSolid(event.target.value)}
                 className="size-8 rounded-md border border-border bg-background"
               />
@@ -236,7 +245,7 @@ export function PptxBackgroundDialog({
                   data-testid="pptx-bg-from"
                   aria-label={t("design.gradient_from")}
                   disabled={blocked}
-                  value={isFillColor(from) ? normalizeHex(from) : "#4472C4"}
+                  value={colorInputValue(from, "#4472C4")}
                   onChange={(event) => setFrom(event.target.value)}
                   className="size-8 rounded-md border border-border bg-background"
                 />
@@ -247,7 +256,7 @@ export function PptxBackgroundDialog({
                   data-testid="pptx-bg-to"
                   aria-label={t("design.gradient_to")}
                   disabled={blocked}
-                  value={isFillColor(to) ? normalizeHex(to) : "#FFFFFF"}
+                  value={colorInputValue(to, "#FFFFFF")}
                   onChange={(event) => setTo(event.target.value)}
                   className="size-8 rounded-md border border-border bg-background"
                 />
@@ -316,13 +325,9 @@ export function PptxBackgroundDialog({
             <Checkbox
               id="pptx-bg-hide-graphics"
               checked={hidden}
-              disabled={blocked || !onToggleGraphicsHidden}
+              disabled={blocked}
               aria-label={t("design.hide_graphics")}
-              onCheckedChange={(checked) => {
-                const next = checked === true;
-                setHidden(next);
-                onToggleGraphicsHidden?.(next, targets);
-              }}
+              onCheckedChange={(checked) => setHidden(checked === true)}
             />
             <Label htmlFor="pptx-bg-hide-graphics">{t("design.hide_graphics")}</Label>
           </span>

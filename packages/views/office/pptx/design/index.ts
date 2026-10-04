@@ -33,6 +33,7 @@ export {
   buildLayoutEdit,
   buildSlideSizeEdit,
   buildThemeEdit,
+  colorInputValue,
   emuToInches,
   imageExtension,
   isFillColor,

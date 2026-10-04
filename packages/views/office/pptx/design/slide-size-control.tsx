@@ -10,7 +10,7 @@
  *
  * Keyboard: the presets are one roving group; arrows wrap, Home/End jump.
  */
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -45,6 +45,12 @@ export function PptxSlideSizeControl({
   const activeId = matchSlideSizePreset(size);
   const activeIndex = PPTX_DESIGN_SLIDE_SIZES.findIndex((preset) => preset.id === activeId);
   const [focusIndex, setFocusIndex] = useState(() => rovingEntryIndex(activeIndex, PPTX_DESIGN_SLIDE_SIZES.length));
+  // The deck size can arrive after mount (the host probe is async), so re-seed
+  // the roving stop until the user has moved focus themselves.
+  const focusTouched = useRef(false);
+  useEffect(() => {
+    if (!focusTouched.current) setFocusIndex(rovingEntryIndex(activeIndex, PPTX_DESIGN_SLIDE_SIZES.length));
+  }, [activeIndex]);
   const blocked = disabled || busy;
   const readout = size
     ? activeId
@@ -85,7 +91,10 @@ export function PptxSlideSizeControl({
               tabIndex={index === focusIndex ? 0 : -1}
               data-size-preset={preset.id}
               data-active={active}
-              onFocus={() => setFocusIndex(index)}
+              onFocus={() => {
+                focusTouched.current = true;
+                setFocusIndex(index);
+              }}
               onKeyDown={(event) => move(event, index)}
               onClick={() => !blocked && onSetSlideSize(preset.cxEmu, preset.cyEmu)}
               className={cn(

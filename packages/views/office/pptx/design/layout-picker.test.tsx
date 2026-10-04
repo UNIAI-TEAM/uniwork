@@ -71,6 +71,39 @@ describe("PptxLayoutPicker", () => {
     expect(screen.getByText("Reset to master layout")).toBeDisabled();
   });
 
+  it("moves the tabbable stop to the active layout when the catalog arrives after mount", () => {
+    const view = render(<PptxLayoutPicker layouts={[]} slideIndex={0} onApplyLayout={vi.fn()} onResetLayout={vi.fn()} />);
+    view.rerender(
+      <PptxLayoutPicker
+        layouts={LAYOUTS}
+        activeLayoutPath="ppt/slideLayouts/slideLayout3.xml"
+        slideIndex={0}
+        onApplyLayout={vi.fn()}
+        onResetLayout={vi.fn()}
+      />,
+    );
+    const active = screen.getByRole("radio", { name: "Use layout Blank" });
+    expect(active).toHaveAttribute("aria-checked", "true");
+    expect(active).toHaveAttribute("tabindex", "0");
+    expect(screen.getAllByRole("radio").filter((option) => option.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
+  it("keeps one tabbable option when the catalog shrinks", () => {
+    const view = render(
+      <PptxLayoutPicker
+        layouts={LAYOUTS}
+        activeLayoutPath="ppt/slideLayouts/slideLayout3.xml"
+        slideIndex={0}
+        onApplyLayout={vi.fn()}
+        onResetLayout={vi.fn()}
+      />,
+    );
+    view.rerender(<PptxLayoutPicker layouts={LAYOUTS.slice(0, 1)} slideIndex={0} onApplyLayout={vi.fn()} onResetLayout={vi.fn()} />);
+    const options = screen.getAllByRole("radio");
+    expect(options).toHaveLength(1);
+    expect(options.filter((option) => option.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
   it("moves the roving focus with the arrow keys and wraps", () => {
     render(<PptxLayoutPicker layouts={LAYOUTS} slideIndex={0} onApplyLayout={vi.fn()} onResetLayout={vi.fn()} />);
     const options = screen.getAllByRole("radio");

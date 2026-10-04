@@ -12,7 +12,7 @@
  * arrows move with wrap-around, Home/End jump to the ends, and Tab enters the
  * gallery once instead of walking every card.
  */
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -51,6 +51,12 @@ export function PptxThemeGallery({
   const { t: tRoot } = useTranslation();
   const activeIndex = PPTX_DESIGN_THEMES.findIndex((theme) => theme.id === activeThemeId);
   const [focusIndex, setFocusIndex] = useState(() => rovingEntryIndex(activeIndex, PPTX_DESIGN_THEMES.length));
+  // The checked theme can arrive after mount (the host probe is async), so
+  // re-seed the roving stop until the user has moved focus themselves.
+  const focusTouched = useRef(false);
+  useEffect(() => {
+    if (!focusTouched.current) setFocusIndex(rovingEntryIndex(activeIndex, PPTX_DESIGN_THEMES.length));
+  }, [activeIndex]);
   const blocked = disabled || busy;
 
   // The key event arrives on a card; the roving target is the next card in the
@@ -78,7 +84,10 @@ export function PptxThemeGallery({
         tabIndex={index === focusIndex ? 0 : -1}
         data-theme-card={theme.id}
         data-active={active}
-        onFocus={() => setFocusIndex(index)}
+        onFocus={() => {
+          focusTouched.current = true;
+          setFocusIndex(index);
+        }}
         onKeyDown={(event) => move(event, index)}
         onClick={() => !blocked && onApplyTheme(theme.id)}
         className={cn(

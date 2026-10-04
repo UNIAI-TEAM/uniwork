@@ -11,7 +11,6 @@ beforeEach(async () => { await setLocale("en"); });
 function renderDialog(overrides: Partial<Parameters<typeof PptxBackgroundDialog>[0]> = {}) {
   const onApply = vi.fn();
   const onOpenChange = vi.fn();
-  const onToggleGraphicsHidden = vi.fn();
   const view = render(
     <PptxBackgroundDialog
       open
@@ -20,11 +19,10 @@ function renderDialog(overrides: Partial<Parameters<typeof PptxBackgroundDialog>
       slideCount={4}
       canReset
       onApply={onApply}
-      onToggleGraphicsHidden={onToggleGraphicsHidden}
       {...overrides}
     />,
   );
-  return { view, onApply, onOpenChange, onToggleGraphicsHidden };
+  return { view, onApply, onOpenChange };
 }
 
 describe("PptxBackgroundDialog", () => {
@@ -125,10 +123,44 @@ describe("PptxBackgroundDialog", () => {
     expect(screen.getByRole("button", { name: "Reset background" })).toBeDisabled();
   });
 
-  it("reports the background-graphics toggle for the current targets", () => {
-    const { onToggleGraphicsHidden } = renderDialog();
+  it("keeps the background-graphics choice local until Apply, so Escape leaves the deck unchanged", () => {
+    const { onApply } = renderDialog();
+    const box = screen.getByRole("checkbox", { name: "Hide background graphics" });
+    fireEvent.click(box);
+    // The toggle is form state: nothing reaches the document before Apply.
+    expect(box).toBeChecked();
+    expect(onApply).not.toHaveBeenCalled();
+    // Escape (onOpenChange(false)) closes without dispatching anything.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("carries the changed graphics choice with the fill on Apply", () => {
+    const { onApply } = renderDialog({ graphicsHidden: false });
     fireEvent.click(screen.getByRole("checkbox", { name: "Hide background graphics" }));
-    expect(onToggleGraphicsHidden).toHaveBeenCalledWith(true, [1]);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({
+      fill: { kind: "solid", color: "#FFFFFF" },
+      slideIndexes: [1],
+      graphics: { hidden: true },
+    });
+  });
+
+  it("omits the graphics part of the request when the choice is unchanged", () => {
+    const { onApply } = renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ fill: { kind: "solid", color: "#FFFFFF" }, slideIndexes: [1] });
+  });
+
+  it("sends the graphics change for the apply-to-all targets too", () => {
+    const { onApply } = renderDialog({ graphicsHidden: true });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Apply to all slides" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide background graphics" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({
+      fill: { kind: "solid", color: "#FFFFFF" },
+      slideIndexes: [0, 1, 2, 3],
+      graphics: { hidden: false },
+    });
   });
 
   it("disables every control while busy and reports no apply", () => {

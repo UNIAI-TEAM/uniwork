@@ -21,7 +21,7 @@
  * is applying), error (the last edit was refused; the message is shown and the
  * document is unchanged). The document is only ever mutated by `onApplyEdit`.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -101,16 +101,23 @@ export function PptxDesignPanel({
   const bound = typeof onApplyEdit === "function";
   const hasDeck = slideCount > 0;
   const blocked = disabled || !bound || !hasDeck || busy;
-  const targets = useMemo(() => (slideIndex === null ? [] : [slideIndex]), [slideIndex]);
+
+  // A programmatic deselection (e.g. a realtime deck change) must clear the
+  // open flag too, or the dialog would remount already-open on the next slide.
+  useEffect(() => {
+    if (slideIndex === null) setBackgroundOpen(false);
+  }, [slideIndex]);
 
   const run = useCallback(
-    async (edit: ThemeEdit): Promise<boolean> => {
-      if (!onApplyEdit || busyRef.current) return false;
+    async (edits: readonly ThemeEdit[]): Promise<boolean> => {
+      if (!onApplyEdit || busyRef.current || edits.length === 0) return false;
       busyRef.current = true;
       setBusy(true);
       setErrorMessage(null);
       try {
-        await onApplyEdit(edit);
+        // One engine transaction per edit, sequentially: a refusal stops the
+        // batch with the earlier edits already committed.
+        for (const edit of edits) await onApplyEdit(edit);
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -129,14 +136,14 @@ export function PptxDesignPanel({
     (themeId: string) => {
       const theme = PPTX_DESIGN_THEMES.find((entry) => entry.id === themeId);
       if (!theme) return;
-      void run(buildThemeEdit(theme));
+      void run([buildThemeEdit(theme)]);
     },
     [run],
   );
 
   const setSize = useCallback(
     (cxEmu: number, cyEmu: number) => {
-      void run(buildSlideSizeEdit(cxEmu, cyEmu));
+      void run([buildSlideSizeEdit(cxEmu, cyEmu)]);
     },
     [run],
   );
@@ -144,32 +151,28 @@ export function PptxDesignPanel({
   const applyLayout = useCallback(
     (layoutPath: string) => {
       if (slideIndex === null) return;
-      void run(buildLayoutEdit(slideIndex, layoutPath));
+      void run([buildLayoutEdit(slideIndex, layoutPath)]);
     },
     [run, slideIndex],
   );
 
   const resetLayout = useCallback(() => {
     if (slideIndex === null) return;
-    void run(buildLayoutEdit(slideIndex));
+    void run([buildLayoutEdit(slideIndex)]);
   }, [run, slideIndex]);
 
   const applyBackground = useCallback(
     (request: PptxDesignBackgroundRequest) => {
       if (request.slideIndexes.length === 0) return;
+      // The fill and the (optional) graphics choice travel as two edits in one
+      // call: the dialog is Apply-gated, so nothing reaches the deck before it.
+      const edits: ThemeEdit[] = [buildBackgroundEdit(request)];
+      if (request.graphics) edits.push(buildGraphicsHiddenEdit(request.graphics.hidden, request.slideIndexes));
       // Close only on a successful apply: a refused edit keeps the dialog open
       // with the fields intact so the user can correct them.
-      void run(buildBackgroundEdit(request)).then((applied) => {
+      void run(edits).then((applied) => {
         if (applied) setBackgroundOpen(false);
       });
-    },
-    [run],
-  );
-
-  const toggleGraphicsHidden = useCallback(
-    (hidden: boolean, slideIndexes: readonly number[]) => {
-      if (slideIndexes.length === 0) return;
-      void run(buildGraphicsHiddenEdit(hidden, slideIndexes));
     },
     [run],
   );
@@ -204,7 +207,7 @@ export function PptxDesignPanel({
     );
   }
 
-  const unboundReason = disabled ? null : !bound ? t("design.unbound") : null;
+  const blockedReason = disabled ? t("design.readonly") : !bound ? t("design.unbound") : null;
 
   return (
     <section
@@ -255,13 +258,13 @@ export function PptxDesignPanel({
         onResetLayout={resetLayout}
       />
 
-      {unboundReason ? (
+      {blockedReason ? (
         <p className="text-caption text-muted-foreground" data-testid="pptx-design-unbound">
-          {unboundReason}
+          {blockedReason}
         </p>
       ) : null}
 
-      {slideIndex !== null ? (
+      {backgroundOpen && slideIndex !== null ? (
         <PptxBackgroundDialog
           open={backgroundOpen}
           onOpenChange={setBackgroundOpen}
@@ -273,7 +276,6 @@ export function PptxDesignPanel({
           busy={busy}
           disabled={disabled || !bound}
           onApply={applyBackground}
-          onToggleGraphicsHidden={toggleGraphicsHidden}
         />
       ) : null}
     </section>

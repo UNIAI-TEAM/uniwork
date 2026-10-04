@@ -68,6 +68,17 @@ describe("PptxThemeGallery", () => {
     expect(cards[0]).toHaveFocus();
   });
 
+  it("moves the tabbable stop to the checked theme when it arrives after mount", () => {
+    const view = render(<PptxThemeGallery activeThemeId={null} onApplyTheme={vi.fn()} />);
+    expect(screen.getAllByRole("radio")[0]).toHaveAttribute("tabindex", "0");
+    // The host probe reports the theme only after mount.
+    view.rerender(<PptxThemeGallery activeThemeId="forest" onApplyTheme={vi.fn()} />);
+    const active = screen.getByRole("radio", { name: "Forest (current theme)" });
+    expect(active).toHaveAttribute("aria-checked", "true");
+    expect(active).toHaveAttribute("tabindex", "0");
+    expect(screen.getAllByRole("radio").filter((card) => card.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
   it("starts the roving focus on the deck's current theme", () => {
     render(<PptxThemeGallery activeThemeId="forest" onApplyTheme={vi.fn()} />);
     const active = screen.getByRole("radio", { name: "Forest (current theme)" });

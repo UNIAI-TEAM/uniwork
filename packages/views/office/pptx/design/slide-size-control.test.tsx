@@ -52,6 +52,16 @@ describe("PptxSlideSizeControl", () => {
     expect(screen.getByRole("radiogroup", { name: "Slide size presets" })).toHaveAttribute("aria-busy", "true");
   });
 
+  it("moves the tabbable stop to the matching preset when the deck size arrives after mount", () => {
+    const view = render(<PptxSlideSizeControl size={null} onSetSlideSize={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Widescreen (16:9)" })).toHaveAttribute("tabindex", "0");
+    view.rerender(<PptxSlideSizeControl size={{ cx: 9144000, cy: 6858000 }} onSetSlideSize={vi.fn()} />);
+    const active = screen.getByRole("radio", { name: "Standard (4:3)" });
+    expect(active).toHaveAttribute("aria-checked", "true");
+    expect(active).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("radio", { name: "Widescreen (16:9)" })).toHaveAttribute("tabindex", "-1");
+  });
+
   it("moves the roving focus between the presets with the arrow keys", () => {
     render(<PptxSlideSizeControl onSetSlideSize={vi.fn()} />);
     const presets = screen.getAllByRole("radio");

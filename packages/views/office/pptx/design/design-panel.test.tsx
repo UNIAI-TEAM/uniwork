@@ -18,7 +18,7 @@ const LAYOUTS: PptxDesignLayout[] = [
 function renderPanel(overrides: Partial<PptxDesignPanelProps> = {}) {
   const onApplyEdit = vi.fn(async (_edit: ThemeEdit) => undefined);
   const onError = vi.fn();
-  const view = render(
+  const element = (extra: Partial<PptxDesignPanelProps> = {}) => (
     <PptxDesignPanel
       onApplyEdit={onApplyEdit}
       onError={onError}
@@ -29,9 +29,11 @@ function renderPanel(overrides: Partial<PptxDesignPanelProps> = {}) {
       activeLayoutPath="ppt/slideLayouts/slideLayout1.xml"
       activeThemeId="office"
       {...overrides}
-    />,
+      {...extra}
+    />
   );
-  return { view, onApplyEdit, onError };
+  const view = render(element());
+  return { view, rerender: (extra: Partial<PptxDesignPanelProps> = {}) => view.rerender(element(extra)), onApplyEdit, onError };
 }
 
 const panel = () => document.querySelector("[data-pptx-design-panel]") as HTMLElement;
@@ -97,6 +99,39 @@ describe("PptxDesignPanel", () => {
     expect(onApplyEdit).toHaveBeenCalledTimes(1);
   });
 
+  it("defers the graphics choice to Apply and emits the fill and graphics edits together", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Format background" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide background graphics" }));
+    // Ticking the box is form state: no edit before Apply.
+    expect(onApplyEdit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(2));
+    expect(onApplyEdit.mock.calls[0]![0]).toEqual({ op: "set_background", slideIndex: 1, kind: "solid", color: "#FFFFFF" });
+    expect(onApplyEdit.mock.calls[1]![0]).toEqual({ op: "set_background", slideIndex: 1, kind: "graphics", hidden: true });
+  });
+
+  it("leaves the deck unchanged when the dialog is dismissed without Apply", () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Format background" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide background graphics" }));
+    fireEvent.click(screen.getByTestId("pptx-bg-cancel"));
+    expect(onApplyEdit).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: "Format background" })).not.toBeInTheDocument();
+  });
+
+  it("does not reopen the background dialog by itself after the slide is deselected", () => {
+    const { rerender } = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Format background" }));
+    expect(screen.getByRole("dialog", { name: "Format background" })).toBeInTheDocument();
+    // A programmatic deselection while the dialog is open (realtime deck change).
+    rerender({ slideIndex: null });
+    expect(screen.queryByRole("dialog", { name: "Format background" })).not.toBeInTheDocument();
+    // Selecting a slide again must not resurrect the modal with no user action.
+    rerender({ slideIndex: 1 });
+    expect(screen.queryByRole("dialog", { name: "Format background" })).not.toBeInTheDocument();
+  });
+
   it("shows the busy state while an edit is in flight and refuses a duplicate", async () => {
     let resolve!: () => void;
     const onApplyEdit = vi.fn((_edit: ThemeEdit) => new Promise<void>((done) => { resolve = done; }));
@@ -151,11 +186,12 @@ describe("PptxDesignPanel", () => {
     expect(screen.getByRole("button", { name: "Format background" })).toBeDisabled();
   });
 
-  it("disables every control in read-only mode", () => {
+  it("disables every control in read-only mode and explains why", () => {
     const { onApplyEdit } = renderPanel({ disabled: true });
     fireEvent.click(screen.getByRole("radio", { name: "Apply theme Ember" }));
     expect(onApplyEdit).not.toHaveBeenCalled();
     expect(screen.getByRole("radio", { name: "Apply theme Ember" })).toBeDisabled();
+    expect(screen.getByTestId("pptx-design-unbound")).toHaveTextContent("This presentation is read-only.");
   });
 
   it("disables the background and layout controls when no slide is selected", () => {

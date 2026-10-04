@@ -145,11 +145,14 @@ export type PptxDesignBackgroundFill =
   | { kind: "image"; bytes: Uint8Array; ext: string; tile?: boolean }
   | { kind: "reset" };
 
-/** One background request: the fill plus which slides it targets. Passing more
- * than one index is the engine's "apply to all" fan-out, not a panel loop. */
+/** One background request: the fill, the slides it targets and an optional
+ * graphics-hidden change, all emitted together by Apply. Passing more than one
+ * index is the engine's "apply to all" fan-out, not a panel loop. */
 export interface PptxDesignBackgroundRequest {
   fill: PptxDesignBackgroundFill;
   slideIndexes: readonly number[];
+  /** Present only when the dialog's graphics choice differs from the deck. */
+  graphics?: { hidden: boolean };
 }
 
 /** Vendored `requireHexColor` accepts "#RRGGBB" or "#RRGGBBAA" (registry.ts:39);
@@ -167,6 +170,15 @@ export function normalizeHex(value: string): string {
   const trimmed = value.trim();
   if (!FILL_HEX_RE.test(trimmed)) return trimmed;
   return ("#" + trimmed.replace(/^#/, "")).toUpperCase();
+}
+
+/** The `type="color"` input value for a field: a valid "#RRGGBB" (the 8-digit
+ * alpha form sliced to its RGB half, which the input requires), else the
+ * caller's fallback so a half-typed value never paints a bogus swatch. */
+export function colorInputValue(value: string, fallback: string): string {
+  if (!isFillColor(value)) return fallback;
+  const normalized = normalizeHex(value);
+  return normalized.length > 7 ? normalized.slice(0, 7) : normalized;
 }
 
 /** 0-based indexes of every slide, for the "apply to all" fan-out. */
@@ -318,6 +330,8 @@ export function imageExtension(fileName: string, mimeType?: string): string {
   const fromName = /\.([A-Za-z0-9]+)$/.exec(fileName.trim())?.[1];
   if (fromName) return fromName.toLowerCase();
   const fromMime = mimeType ? /^image\/([A-Za-z0-9.+-]+)$/.exec(mimeType.trim())?.[1] : undefined;
-  if (fromMime) return fromMime.toLowerCase();
+  // "svg+xml" is a MIME subtype, not a file extension: the vendored op uses
+  // `ext` verbatim in the media part name, so drop the "+suffix" half.
+  if (fromMime) return (fromMime.split("+")[0] as string).toLowerCase();
   return "png";
 }

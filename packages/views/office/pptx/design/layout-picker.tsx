@@ -9,7 +9,7 @@
  * selected slide - the panel never guesses a target. Keyboard: roving group with
  * wrap-around arrows and Home/End, matching the other pickers on this tab.
  */
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { nextRovingIndex, rovingEntryIndex, type PptxDesignLayout } from "./design-model";
@@ -40,6 +40,13 @@ export function PptxLayoutPicker({
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const activeIndex = layouts.findIndex((layout) => layout.path === activeLayoutPath);
   const [focusIndex, setFocusIndex] = useState(() => rovingEntryIndex(activeIndex, layouts.length));
+  // The catalog and the active path can arrive after mount (the host read is
+  // async), so re-seed the roving stop until the user has moved focus. The
+  // clamp keeps a tabbable option when the catalog shrinks.
+  const focusTouched = useRef(false);
+  useEffect(() => {
+    if (!focusTouched.current) setFocusIndex(rovingEntryIndex(activeIndex, layouts.length));
+  }, [activeIndex, layouts.length]);
   const blocked = disabled || busy || slideIndex === null;
 
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -78,7 +85,10 @@ export function PptxLayoutPicker({
                 tabIndex={index === focusIndex ? 0 : -1}
                 data-layout-option={layout.path}
                 data-active={active}
-                onFocus={() => setFocusIndex(index)}
+                onFocus={() => {
+                  focusTouched.current = true;
+                  setFocusIndex(index);
+                }}
                 onKeyDown={(event) => move(event, index)}
                 onClick={() => !blocked && onApplyLayout(layout.path)}
                 className={cn(

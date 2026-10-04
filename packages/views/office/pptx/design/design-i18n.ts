@@ -39,7 +39,9 @@ export const PPTX_DESIGN_I18N: Readonly<Record<string, PptxDesignI18nEntry>> = {
   "office.pptx.design.unbound": {
     en: "Design changes are not connected to this editor yet.",
     vi: "Thay đổi thiết kế chưa được kết nối với trình soạn thảo này.",
-  },  "office.pptx.design.themes_label": { en: "Themes", vi: "Chủ đề" },
+  },
+  "office.pptx.design.readonly": { en: "This presentation is read-only.", vi: "Bản trình bày này chỉ đọc." },
+  "office.pptx.design.themes_label": { en: "Themes", vi: "Chủ đề" },
   "office.pptx.design.theme_group_label": { en: "Theme gallery", vi: "Thư viện chủ đề" },
   "office.pptx.design.theme_apply": { en: "Apply theme {{name}}", vi: "Áp dụng chủ đề {{name}}" },
   "office.pptx.design.theme_active": { en: "{{name}} (current theme)", vi: "{{name}} (chủ đề hiện tại)" },

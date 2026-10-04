@@ -40,6 +40,7 @@ describe("PPTX_DESIGN_I18N", () => {
       "office.pptx.design.empty",
       "office.pptx.design.busy",
       "office.pptx.design.unbound",
+      "office.pptx.design.readonly",
       "office.pptx.design.error_title",
       "office.pptx.design.error_hint",
       "office.pptx.design.themes_label",
