@@ -231,6 +231,10 @@ export function XlsxGridSurface({
     return () => container.removeEventListener("contextmenu", onNativeContextMenu, true);
   }, []);
 
+  // The container is focusable only programmatically (tabIndex -1): the
+  // context menu returns focus here on Escape/close, and a plain <div> would
+  // ignore focus(). The grid keeps its own Tab order inside the nested
+  // renderer root.
   return (
     <div
       ref={containerRef}
@@ -239,6 +243,7 @@ export function XlsxGridSurface({
       data-document-key={documentKey}
       role="group"
       aria-label={t("office.xlsx.surface.grid")}
+      tabIndex={-1}
     >
       {failed ? (
         <p className="p-3 text-caption text-destructive" role="alert" data-testid="xlsx-grid-failure">

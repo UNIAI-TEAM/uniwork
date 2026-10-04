@@ -28,7 +28,8 @@ import {
 import { XlsxSheetTabs } from "./sheet-tabs";
 import { XlsxStatusBar } from "./status-bar";
 import { XLSX_CONTEXT_CLEAR_CONTENT_COMMAND } from "./context-menu/menu-items";
-import { useXlsxContextMenu } from "./context-menu/use-context-menu";
+import { foldClipboardPermissions, useXlsxContextMenu } from "./context-menu/use-context-menu";
+import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
@@ -484,6 +485,13 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     gridCommands.execute(XLSX_CONTEXT_CLEAR_CONTENT_COMMAND);
   }, [canEdit, editor.clipboard, gridCommands, permissions.canCopy, readOnly, selection, snapshot]);
 
+  // A9: one capability-folded permissions object feeds the toolbar and the
+  // context menu, so Copy/Paste disable on exactly the same condition.
+  const clipboardPermissions = useMemo(
+    () => foldClipboardPermissions(permissions, editor.clipboard),
+    [editor.clipboard, permissions],
+  );
+
   // The grid context menu (A9): the hook owns the anchor point, the disabled
   // state and the focus return; every item dispatches through the same port and
   // callbacks as the toolbar.
@@ -492,7 +500,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     selection,
     canFormat: gridReady && selection !== null,
     commands: gridCommands,
-    permissions,
+    permissions: clipboardPermissions,
     canCut: canEdit && permissions.canCopy !== false && typeof editor.clipboard?.writeText === "function",
     canFind: rendererHost !== undefined,
     unitId: rendererHost ? `file-${rendererHost.file.sha256}` : null,
@@ -565,6 +573,22 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       : sheets.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden ?? false }));
     return source.map((sheet) => ({ ...sheet, tabColor: colors.get(sheet.name) ?? null }));
   }, [liveSheets, rendererHost, sheets]);
+
+  // A9 r3: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11, Ctrl+PageUp/Down).
+  useXlsxCatalogShortcuts({
+    enabled: viewState === "ready",
+    rootRef,
+    documentKey,
+    canFind: rendererHost !== undefined,
+    canEdit,
+    sheets: sheetTabInfos,
+    activeSheet: activeSheetModel?.name ?? null,
+    defaultSheetName: t("office.xlsx.sheets.defaultName"),
+    onOpenFind: () => setFindOpen(true),
+    onInsertSheet: (name) => runSheetAction({ kind: "add", name }),
+    onSelectSheet: selectSheet,
+  });
+
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
   const visibleAddresses = useMemo(() => Object.keys(cells).map((address) => ({ address, parts: addressParts(address) })).filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null), [cells]);
   const maxRow = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.row), 0);
@@ -588,7 +612,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             dirty={dirty}
             saving={saving}
             readOnly={readOnly || rendererLoading}
-            permissions={{ ...permissions, canCopy: permissions.canCopy !== false && typeof editor.clipboard?.writeText === "function", canPaste: permissions.canPaste !== false && typeof editor.clipboard?.readText === "function" }}
+            permissions={clipboardPermissions}
             selection={selection}
             canUndo={gridReady || typeof editor.undo === "function"}
             canRedo={gridReady || typeof editor.redo === "function"}

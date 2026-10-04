@@ -249,6 +249,34 @@ describe("XlsxEditor context menu and shortcuts", () => {
     await waitFor(() => expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.clear-selection-content", undefined));
   });
 
+  it("opens find, inserts a sheet and switches sheets from the catalog keys", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // Ctrl+F: the pinned find dialog is policy-denied, so the editor panel is
+    // the real target (the help must not promise a dead key).
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "f", ctrlKey: true });
+    expect(await screen.findByTestId("xlsx-find-panel")).toBeInTheDocument();
+    // Shift+F11: insert a sheet through the pinned command.
+    grid.handle.executeCommand.mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "F11", shiftKey: true });
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.insert-sheet", expect.objectContaining({ sheet: expect.any(Object) }));
+    // Ctrl+PageDown: activate the next visible sheet tab.
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "PageDown", ctrlKey: true });
+    expect(grid.handle.selectSheet).toHaveBeenLastCalledWith("sheet-2");
+  });
+
+  it("leaves catalog keys to the cell editor while it owns the keyboard", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // The formula bar is a text control inside the editor root; the pinned
+    // sheets-ui binds its shortcuts with `whenSheetEditorFocused`, so Ctrl+F
+    // must not steal the key there.
+    fireEvent.keyDown(screen.getByTestId("xlsx-formula-bar"), { key: "f", ctrlKey: true, bubbles: true });
+    expect(screen.queryByTestId("xlsx-find-panel")).not.toBeInTheDocument();
+  });
+
   it("opens the shortcuts dialog from the View tab entry", async () => {
     setup();
     await screen.findByTestId("live-grid");

@@ -71,7 +71,9 @@ export const XLSX_SHORTCUTS: readonly XlsxShortcutEntry[] = [
 
   entry("insertSheet", "sheets", [createShortcutChord("F11", { shift: true })]),
 
-  entry("zoomIn", "view", [primary("Plus")]),
+  // The pinned sheets-ui binds zoom in to Ctrl+= (KeyCode.EQUAL), not the
+  // shifted Ctrl+Plus: on most layouts Ctrl+Plus never reaches the page.
+  entry("zoomIn", "view", [primary("Equals")]),
   entry("zoomOut", "view", [primary("Minus")]),
 ];
 

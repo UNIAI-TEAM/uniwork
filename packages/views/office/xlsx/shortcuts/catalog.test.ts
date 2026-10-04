@@ -85,7 +85,7 @@ describe("shortcut platform rendering", () => {
 
   it("renders a bare navigation key with no modifier", () => {
     expect(formatShortcut(byId("moveUp").chords[0]!, "windows")).toBe("↑");
-    expect(formatShortcut(byId("zoomIn").chords[0]!, "macos")).toBe("⌘+");
+    expect(formatShortcut(byId("zoomIn").chords[0]!, "macos")).toBe("⌘=");
   });
 });
 

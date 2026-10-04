@@ -60,6 +60,26 @@ describe("XlsxContextMenu", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("absorbs a throwing async pinned handler so the item click never crashes", async () => {
+    // Eight menu items target handlers that are async in the pinned bundle;
+    // the sync port throws the known TypeError after the edit applied. The
+    // click must still close the menu, not escape the React onClick.
+    const state = makeState({
+      commands: { execute: vi.fn(() => { throw new TypeError("[CommandService]: Command handler should not return a promise."); }) },
+    });
+    const { onClose } = renderMenu(state);
+    const item = await screen.findByTestId("xlsx-context-insert-row-above");
+    expect(() => fireEvent.click(item)).not.toThrow();
+    expect(state.commands?.execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 2 });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("still runs callback items when the command port is absent", async () => {
+    const { onRunCallback } = renderMenu(makeState({ commands: undefined }));
+    fireEvent.click(await screen.findByTestId("xlsx-context-copy"));
+    expect(onRunCallback).toHaveBeenCalledWith("copy");
+  });
+
   it("invokes an editor callback for cut/copy/paste/find instead of a command", async () => {
     const { onClose, onRunCallback, state } = renderMenu();
     fireEvent.click(await screen.findByTestId("xlsx-context-find"));

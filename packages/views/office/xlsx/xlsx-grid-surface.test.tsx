@@ -135,6 +135,15 @@ describe("XlsxGridSurface", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it("makes the surface container focusable so the context menu can return focus", async () => {
+    const { module } = fakeModule();
+    render(<XlsxGridSurface documentKey="focus-doc" host={host} loadModule={async () => module} />);
+    const surface = screen.getByTestId("xlsx-grid-surface");
+    expect(surface).toHaveAttribute("tabindex", "-1");
+    surface.focus();
+    expect(document.activeElement).toBe(surface);
+  });
+
   it("shows a typed failure when the artifact cannot load", async () => {
     const onFailure = vi.fn();
     render(<XlsxGridSurface documentKey="doc-3" host={host} loadModule={async () => { throw new Error("chunk_unavailable"); }} onFailure={onFailure} />);

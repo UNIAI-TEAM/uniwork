@@ -14,6 +14,21 @@ import type { XlsxEditorPermissions, XlsxSelection } from "../types";
 import { XlsxContextMenu } from "./context-menu";
 import type { XlsxContextMenuCallback, XlsxContextMenuState } from "./menu-items";
 
+/** Fold the host's clipboard capability into the permission flags, so the
+ *  toolbar and the context menu disable Copy/Paste on exactly the same
+ *  condition (a host without the clipboard write/read APIs). */
+export function foldClipboardPermissions(
+  permissions: XlsxEditorPermissions,
+  clipboard: { writeText?: unknown; readText?: unknown } | undefined,
+): XlsxEditorPermissions {
+  return {
+    ...permissions,
+    canCopy: permissions.canCopy !== false && typeof clipboard?.writeText === "function",
+    canPaste: permissions.canPaste !== false && typeof clipboard?.readText === "function",
+  };
+}
+
+/** The editor-side inputs the context-menu hook needs. */
 export interface XlsxContextMenuConfig {
   readOnly: boolean;
   selection: XlsxSelection | null;

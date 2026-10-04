@@ -62,8 +62,19 @@ export function XlsxContextMenu({ point, state, focusTarget, onClose, onRunCallb
     (entry: XlsxContextMenuEntry) => {
       if (entry.disabled || !entry.action) return;
       const action = entry.action;
-      if (action.kind === "command") state.commands?.execute(action.id, action.params);
-      else onRunCallback(action.callback);
+      if (action.kind === "command") {
+        try {
+          state.commands?.execute(action.id, action.params);
+        } catch {
+          // Eight of the menu's items target pinned handlers that are async in
+          // the built bundle; the synchronous port throws the known TypeError
+          // after the edit has already applied and journalled. Absorb it here
+          // (mirroring toolbar/sort-group.tsx and toolbar/filter-group.tsx) so
+          // the throw never escapes the item's React onClick.
+        }
+      } else {
+        onRunCallback(action.callback);
+      }
       // Base UI closes the menu on the item press (closeOnClick), which funnels
       // through onOpenChange -> close(), so focus returns exactly once.
     },
