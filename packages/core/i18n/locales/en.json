@@ -7950,6 +7950,20 @@
       "save_to_cloud": "Save to UniWork",
       "save_to_device": "Save to this computer"
     },
+    "ribbon": {
+      "label": "Ribbon",
+      "tabs": "Ribbon tabs",
+      "quickAccess": "Quick access",
+      "collapse": "Collapse the ribbon",
+      "expand": "Show the ribbon",
+      "pin": "Pin the ribbon",
+      "withShortcut": "{{label}} ({{shortcut}})",
+      "options": "{{label}} options",
+      "more": "More",
+      "moreCards": "More {{label}}",
+      "groups": "Command groups",
+      "groupPanel": "{{label}} commands"
+    },
     "desktop": {
       "action": "Open in UniWork Office",
       "menu": "UniWork Office options",
