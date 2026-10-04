@@ -6,7 +6,7 @@ import { HtmlEditor } from "./editor";
 import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
-import type { IsolatedPreviewPort } from "../source-editor-types";
+import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -31,8 +31,10 @@ function cmView(container: HTMLElement): EditorView {
   return found;
 }
 
+const SOURCE = "<!doctype html>\n<!-- preserve -->\n<section data-x=\"1\">Keep</section>";
+
 function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }) {
-  let source = "<!doctype html>\n<!-- preserve -->\n<section data-x=\"1\">Keep</section>";
+  let source = SOURCE;
   const editor: HtmlEditorHandle = {
     format: "html",
     open: vi.fn(async () => undefined),
@@ -51,13 +53,24 @@ function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boo
   return { editor, coordinator, ...rendered };
 }
 
+/** The editor landmark owns the mode shortcut, so keys land on the section. */
+function pressCycle(container: HTMLElement) {
+  fireEvent.keyDown(container.querySelector('[data-testid="html-editor"]')!, { key: "\\", ctrlKey: true });
+}
+
+async function renderReady(preview?: IsolatedPreviewPort) {
+  const rendered = renderHtml(preview);
+  await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+  return rendered;
+}
+
 describe("HtmlEditor", () => {
   it("preserves source while mounting an injected preview and routes Save", async () => {
     const mount = vi.fn(async ({ text }: { text: string }) => {
       expect(text).toContain("<!-- preserve -->");
       return { dispose: vi.fn(), update: vi.fn() };
     });
-    const { editor, coordinator, container } = renderHtml({ mount });
+    const { editor, coordinator, container } = await renderReady({ mount });
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
     expect(cmView(container).state.doc.toString()).toContain("data-x=\"1\"");
@@ -67,7 +80,7 @@ describe("HtmlEditor", () => {
   });
 
   it("renders the CodeMirror source and not the textarea for HTML", async () => {
-    renderHtml();
+    await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     expect(screen.queryByTestId("html-source")).toBeNull();
   });
@@ -93,13 +106,13 @@ describe("HtmlEditor", () => {
   });
 
   it("shows an unavailable preview without an injected runtime", async () => {
-    renderHtml();
+    await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("Preview unavailable")).toBeInTheDocument());
   });
 
   it("does not checkpoint during HTML IME composition and cancels and disposes on unmount", async () => {
-    const { editor, coordinator, container, unmount } = renderHtml();
+    const { editor, coordinator, container, unmount } = await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     const view = cmView(container);
     fireEvent.compositionStart(view.contentDOM);
@@ -114,7 +127,7 @@ describe("HtmlEditor", () => {
   });
 
   it("routes one Ctrl+Z to exactly one undo on the shared snapshot stack", async () => {
-    const { editor, container } = renderHtml();
+    const { editor, container } = await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     const view = cmView(container);
     // CodeMirror owns no history in this pane, so the keydown bubbles to the
@@ -130,20 +143,111 @@ describe("HtmlEditor", () => {
   });
 
   it("blocks Ctrl+C/V on the HTML path when the permission is denied", async () => {
-    const { container } = renderHtml(undefined, { canCopy: false, canPaste: false });
+    renderHtml(undefined, { canCopy: false, canPaste: false });
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
-    const view = cmView(container);
+    const view = cmView(document.body);
     // The pane returns early for html so CodeMirror owns the native clipboard,
     // but a denied permission must still cancel the gesture.
     expect(fireEvent.keyDown(view.contentDOM, { key: "c", ctrlKey: true })).toBe(false);
     expect(fireEvent.keyDown(view.contentDOM, { key: "v", ctrlKey: true })).toBe(false);
   });
 
-  it("hides the dead Copy/Paste toolbar buttons for HTML", async () => {
-    renderHtml();
+  it("leaves Copy/Paste to CodeMirror and keeps Save on the surface", async () => {
+    await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    // The ribbon owns undo/redo; the shell must not draw dead Copy/Paste buttons.
     expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Paste" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(screen.getByTestId("html-save")).toBeInTheDocument();
+  });
+});
+
+describe("HtmlEditor view modes", () => {
+  it("defaults to split: the source pane and the preview pane are both present", async () => {
+    await renderReady();
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "split");
+    expect(screen.getByTestId("html-codemirror")).toBeInTheDocument();
+    expect(screen.getByTestId("html-preview")).toBeInTheDocument();
+  });
+
+  it("cycles source -> split -> preview -> present -> source on Ctrl+\\", async () => {
+    const { container } = await renderReady();
+    const view = () => screen.getByTestId("html-shell").getAttribute("data-html-view");
+    expect(view()).toBe("split");
+    pressCycle(container);
+    expect(view()).toBe("preview");
+    pressCycle(container);
+    expect(view()).toBe("present");
+    pressCycle(container);
+    expect(view()).toBe("source");
+    pressCycle(container);
+    expect(view()).toBe("split");
+  });
+
+  it("renders only the panes each mode asks for", async () => {
+    const { container } = await renderReady();
+    // split -> preview: the source pane goes away.
+    pressCycle(container);
+    expect(screen.queryByTestId("html-codemirror")).toBeNull();
+    expect(screen.getByTestId("html-preview")).toBeInTheDocument();
+    // preview -> present: the preview stays, fullscreen and dialog-labelled.
+    pressCycle(container);
+    expect(screen.getByTestId("html-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("html-codemirror")).toBeNull();
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("role", "dialog");
+    // present -> source: the preview goes away, the source returns.
+    pressCycle(container);
+    expect(screen.getByTestId("html-codemirror")).toBeInTheDocument();
+    expect(screen.queryByTestId("html-preview")).toBeNull();
+  });
+
+  it("exits present mode on Escape", async () => {
+    const { container } = await renderReady();
+    pressCycle(container);
+    pressCycle(container);
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "preview");
+  });
+
+  it("mounts the preview through the injected port in every preview mode", async () => {
+    const mount = vi.fn(async (_options: PreviewMountOptions) => ({ dispose: vi.fn(), update: vi.fn() }));
+    const { container } = await renderReady({ mount });
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    expect(mount.mock.calls[0]?.[0]).toMatchObject({ format: "html" });
+    expect(mount.mock.calls[0]?.[0].text).toContain("<!-- preserve -->");
+    // present keeps the same isolated port; it never asks for a script capability.
+    pressCycle(container);
+    pressCycle(container);
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
+    expect(screen.getByTestId("html-preview")).toBeInTheDocument();
+    expect(mount.mock.calls.every((call) => call[0].format === "html")).toBe(true);
+  });
+});
+
+describe("HtmlEditor zoom and status bar", () => {
+  it("shows the zoom value and changes it with − / + / reset", async () => {
+    await renderReady();
+    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
+    fireEvent.click(screen.getByTestId("html-zoom-in"));
+    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("110");
+    expect(screen.getByTestId("html-preview-scroll")).toHaveAttribute("data-html-zoom", "110");
+    fireEvent.click(screen.getByTestId("html-zoom-out"));
+    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
+    fireEvent.click(screen.getByTestId("html-zoom-in"));
+    fireEvent.click(screen.getByTestId("html-zoom-reset"));
+    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
+  });
+
+  it("shows the source length / line count and the zoom in the status bar", async () => {
+    await renderReady();
+    const figures = screen.getByTestId("html-status-figures");
+    // The source has three lines; the status bar carries the raw length and line
+    // count as data attributes (the copy is a MISSING i18n key until S5 lands it).
+    expect(figures).toHaveAttribute("data-html-length", String(SOURCE.length));
+    expect(figures).toHaveAttribute("data-html-lines", "3");
+    expect(figures).toHaveAttribute("data-html-language", "HTML");
+    expect(screen.getByTestId("html-status-zoom")).toHaveAttribute("data-html-zoom", "100");
   });
 });
