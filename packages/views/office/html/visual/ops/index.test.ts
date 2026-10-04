@@ -52,7 +52,7 @@ const UNIT: ImageSizeUnit = "%";
 const STYLE: ImageStyle = { width: 1 };
 const STYLE_INPUT: ImageStyleInput = { width: 1, aspectRatio: 1 };
 const CODE: HtmlOpErrorCode = "no_op";
-const ATTR: HtmlAttribute = { name: "a", value: "b", nameStart: 0, nameEnd: 1, valueStart: 2, valueEnd: 3, quote: '"' };
+const ATTR: HtmlAttribute = { name: "a", value: "b", nameStart: 0, nameEnd: 1, valueStart: 2, valueEnd: 3, end: 4, quote: '"' };
 const ENTRY: HtmlElementEntry = CONTEXT.map.elements[0]!;
 
 describe("ops barrel surface", () => {

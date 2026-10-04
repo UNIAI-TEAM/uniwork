@@ -143,6 +143,11 @@ export interface HtmlAttribute {
   /** Range of the raw attribute value (without quotes) in the source. */
   valueStart: number;
   valueEnd: number;
+  /** End of the whole attribute in the source: after the closing quote, after
+   * an unquoted value, or `nameEnd` for a valueless attribute. Removing an
+   * attribute replaces `[attributeStart, end]`, so this must cover the quotes
+   * too - `valueEnd` sits INSIDE the closing quote. */
+  end: number;
   quote: '"' | "'" | null;
 }
 
@@ -187,7 +192,11 @@ export function parseStartTagAttributes(text: string, startTag: SourceRange): Ht
     const nameEnd = i;
     while (i < n && /\s/.test(raw[i]!)) i++;
     if (raw[i] !== "=") {
-      const at = startTag[0] + i;
+      // Valueless attribute: the value is empty and its position is the END OF
+      // THE NAME, not the next token after the skipped whitespace. `i` has
+      // already moved past that whitespace, so using it here made a later
+      // insert land inside the next attribute's name.
+      const at = startTag[0] + nameEnd;
       attrs.push({
         name,
         value: "",
@@ -195,6 +204,7 @@ export function parseStartTagAttributes(text: string, startTag: SourceRange): Ht
         nameEnd: startTag[0] + nameEnd,
         valueStart: at,
         valueEnd: at,
+        end: at,
         quote: null,
       });
       continue;
@@ -212,6 +222,7 @@ export function parseStartTagAttributes(text: string, startTag: SourceRange): Ht
         nameEnd: startTag[0] + nameEnd,
         valueStart: startTag[0] + i + 1,
         valueEnd: startTag[0] + end,
+        end: startTag[0] + (close === -1 ? n : close + 1),
         quote,
       });
       i = end + 1;
@@ -225,6 +236,7 @@ export function parseStartTagAttributes(text: string, startTag: SourceRange): Ht
         nameEnd: startTag[0] + nameEnd,
         valueStart: startTag[0] + valueStart,
         valueEnd: startTag[0] + i,
+        end: startTag[0] + i,
         quote: null,
       });
     }

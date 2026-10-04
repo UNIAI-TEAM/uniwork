@@ -101,6 +101,24 @@ describe("match: parse-map target resolution", () => {
     expect(SOURCE.slice(src.nameStart, src.nameEnd)).toBe("src");
   });
 
+  it("gives each attribute a whole-attribute end and a name-end value for valueless attrs", () => {
+    const quoted = buildFixtureParseMap('<img src="a.png" alt="x">', 1);
+    const img = elementByPath(quoted, "img:nth-of-type(1)")!;
+    const [src, alt] = parseStartTagAttributes('<img src="a.png" alt="x">', img.startTag);
+    // `end` covers the closing quote; `valueEnd` stops inside it.
+    expect('<img src="a.png" alt="x">'.slice(src!.end, alt!.nameStart)).toBe(" ");
+    expect(alt!.end).toBe('<img src="a.png" alt="x">'.length - 1);
+
+    const boolean = '<input disabled type="text">';
+    const input = elementByPath(buildFixtureParseMap(boolean, 1), "input:nth-of-type(1)")!;
+    const [disabled, type] = parseStartTagAttributes(boolean, input.startTag);
+    // A valueless attribute's empty value sits at the END OF ITS NAME.
+    expect(disabled!.valueStart).toBe(disabled!.nameEnd);
+    expect(disabled!.valueEnd).toBe(disabled!.nameEnd);
+    expect(disabled!.end).toBe(disabled!.nameEnd);
+    expect(boolean.slice(disabled!.nameEnd, type!.nameStart)).toBe(" ");
+  });
+
   it("finds the attribute insertion point before the tag end", () => {
     const plain = buildFixtureParseMap('<p class="x">t</p>', 1);
     const p = elementByPath(plain, "p:nth-of-type(1)")!;

@@ -213,6 +213,49 @@ describe("html visual ops: one test per op", () => {
     expectByteIdentical(SOURCE, removed, [{ from: at - 1, to: at + "width=10".length, text: "" }], "set_attr:remove");
   });
 
+  // A quoted attribute's `valueEnd` sits INSIDE the closing quote, and a
+  // valueless attribute's value position is the end of its name - not the next
+  // token. Removing a quoted attribute used to stop mid-attribute and setting a
+  // value on a valueless one used to splice into the next attribute's name.
+  describe("set_attr: quoted removal and valueless attributes stay well-formed", () => {
+    async function only(source: string, name: string, value: string | null): Promise<string> {
+      const f = await openFixture(source);
+      const root = f.map.elements.find((element) => element.parentSid === null && element.tag !== "html") ?? f.map.elements[0]!;
+      return applyOp(f, setAttr(context(f), { sid: root.sid }, name, value));
+    }
+
+    it("removes a double-quoted attribute including its quotes", async () => {
+      expect(await only('<img src="a.png" alt="x">', "alt", null)).toBe('<img src="a.png">');
+    });
+
+    it("removes a double-quoted attribute before another attribute", async () => {
+      expect(await only('<div class="x" id="y">', "class", null)).toBe('<div id="y">');
+    });
+
+    it("removes a single-quoted attribute including its quotes", async () => {
+      expect(await only("<img src='a.png' alt='x'>", "alt", null)).toBe("<img src='a.png'>");
+    });
+
+    it("removes a valueless attribute without eating the next one's name", async () => {
+      expect(await only('<input disabled type="text">', "disabled", null)).toBe('<input type="text">');
+    });
+
+    it("adds a value to a valueless attribute", async () => {
+      expect(await only("<div hidden>", "hidden", "yes")).toBe('<div hidden="yes">');
+    });
+
+    it("adds a value to a valueless attribute followed by another", async () => {
+      expect(await only('<div hidden class="c">', "hidden", "yes")).toBe('<div hidden="yes" class="c">');
+    });
+
+    it("sets style on an element whose style attribute is valueless", async () => {
+      const source = '<div style id="x">';
+      const f = await openFixture(source);
+      const div = f.map.elements[0]!;
+      expect(applyOp(f, setStyle(context(f), { sid: div.sid }, { width: 40 }))).toBe('<div style="width:40px" id="x">');
+    });
+  });
+
   it("set_style: merges with the author's style and keeps other declarations", async () => {
     const f = await fixture();
     const img = elementByPath(f.map, IMG)!;

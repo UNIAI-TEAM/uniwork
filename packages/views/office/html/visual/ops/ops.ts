@@ -192,15 +192,26 @@ export function setAttr(context: HtmlOpContext, target: HtmlTarget, name: string
   if (value === null) {
     if (!existing) throw new HtmlOpError("attribute_not_found", "attribute is not present", { name });
     const start = attributeStart(context.text, element.startTag, existing);
-    return replaceRange(context.version, start, existing.valueEnd, "", "inspector", "set_attr");
+    // `end` covers the closing quote too; `valueEnd` stops inside it.
+    return replaceRange(context.version, start, existing.end, "", "inspector", "set_attr");
   }
   if (existing) {
+    if (isValueless(existing)) {
+      // `<input disabled>` -> `<input disabled="…">`: the value has to bring
+      // its own `="…"`, because there is no `=` in the source to replace.
+      return insertAt(context.version, existing.nameEnd, '="' + encodeAttributeValue(value, '"') + '"', "inspector", "set_attr");
+    }
     const quote = existing.quote ?? '"';
     const encoded = encodeAttributeValue(value, quote);
     return replaceRange(context.version, existing.valueStart, existing.valueEnd, encoded, "inspector", "set_attr");
   }
   const at = attributeInsertionPoint(context.text, element.startTag);
   return insertAt(context.version, at, " " + name.toLowerCase() + '="' + encodeAttributeValue(value, '"') + '"', "inspector", "set_attr");
+}
+
+/** True for an attribute written without a value (`disabled`, `hidden`, ...). */
+function isValueless(attribute: HtmlAttribute): boolean {
+  return attribute.quote === null && attribute.valueStart === attribute.nameEnd && attribute.valueEnd === attribute.nameEnd;
 }
 
 /** Start of an attribute including the whitespace that precedes it. */
@@ -227,6 +238,9 @@ export function setStyle(
   const encoded = encodeAttributeValue(merged, existing?.quote ?? '"');
   if (existing) {
     if (existing.value === encoded) throw new HtmlOpError("no_op", "style is already set");
+    if (isValueless(existing)) {
+      return insertAt(context.version, existing.nameEnd, '="' + encoded + '"', "inspector", "set_style");
+    }
     return replaceRange(context.version, existing.valueStart, existing.valueEnd, encoded, "inspector", "set_style");
   }
   const at = attributeInsertionPoint(context.text, element.startTag);
