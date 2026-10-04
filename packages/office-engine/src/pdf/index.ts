@@ -18,6 +18,7 @@ export {
   type MergePdfResult,
   type SplitPdfResult,
 } from "./page-ops.ts";
+export { setNUp, setPageBox } from "./page-box.ts";
 export { readPdfText, type PdfTextDoc, type PdfPageText, type ReadPdfTextOptions } from "./extract.ts";
 export { renderImagePng, renderPageRegionPng, verifyImageEdits } from "./render.ts";
 export { validateTextEdits } from "./text.ts";

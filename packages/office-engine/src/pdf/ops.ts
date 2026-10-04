@@ -38,6 +38,8 @@ import {
   parseInsertBlankPage,
   parseInsertPdfPages,
   parseMergePdfs,
+  parseSetNUp,
+  parseSetPageBox,
   parseSplitPdf,
   PdfOpError,
   rgb255,
@@ -369,6 +371,16 @@ function parseNoteResolve(a: Dict, op: string): NoteResolveInput {
   };
 }
 
+/** The B7 page-box / N-up payload dict. Unlike the other providers these
+    envelopes arrive flat ({op, pages, box, rect}), so when `attrsOf` found no
+    `target`/`attributes` fields the item's own top-level fields are used; a
+    nested `pageBox`/`nUp` object is accepted too. */
+function pageBoxPayload(item: Dict, merged: Dict): Dict {
+  const nested = isDict(item.pageBox) ? item.pageBox : isDict(item.nUp) ? item.nUp : undefined;
+  if (nested) return nested;
+  return Object.keys(merged).length > 0 ? merged : item;
+}
+
 /**
  * Fold a validated envelope edits array into the engine's PdfEditRequest.
  * Unknown op names are a typed error (the caller learns the vocabulary is
@@ -477,6 +489,15 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       case "splitPdf":
         if (req.splitPdf) throw new PdfOpError(op, "", "at most one splitPdf per request");
         req.splitPdf = parseSplitPdf(a, op);
+        break;
+      // B7 page-box / N-up. `setPageBox` may repeat (applied in request order);
+      // `setNUp` replaces the page tree and occurs at most once per request.
+      case "setPageBox":
+        push("pageBoxes", parseSetPageBox(pageBoxPayload(item, a), op));
+        break;
+      case "setNUp":
+        if (req.nUp) throw new PdfOpError(op, "", "at most one setNUp per request");
+        req.nUp = parseSetNUp(pageBoxPayload(item, a), op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
       // OCR (optical engines live outside this service).

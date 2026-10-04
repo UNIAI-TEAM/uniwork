@@ -6,6 +6,9 @@ import type {
   InsertBlankPageInput,
   InsertPdfPagesInput,
   MergePdfsInput,
+  NUpPaper,
+  SetNUpInput,
+  SetPageBoxInput,
   SplitPdfInput,
 } from "./types.ts";
 
@@ -174,4 +177,32 @@ export function parseMergePdfs(a: Dict, op: string): MergePdfsInput {
 
 export function parseSplitPdf(a: Dict, op: string): SplitPdfInput {
   return { chunkSize: positiveInt(a.chunkSize, op, "chunkSize"), name: optName(a.name, op, "name") };
+}
+
+export function parseSetPageBox(a: Dict, op: string): SetPageBoxInput {
+  const box = str(a.box, op, "box");
+  if (box !== "media" && box !== "crop") throw new PdfOpError(op, "box", '"media" or "crop" required');
+  const rect = vec4(a.rect, op, "rect");
+  if (rect[2] - rect[0] <= 0 || rect[3] - rect[1] <= 0) {
+    throw new PdfOpError(op, "rect", "right must exceed left and top must exceed bottom");
+  }
+  return { pages: pageList(a.pages, op, "pages"), box, rect };
+}
+
+export function parseSetNUp(a: Dict, op: string): SetNUpInput {
+  const layout = a.layout;
+  if (!isDict(layout)) throw new PdfOpError(op, "layout", "{rows, cols} required");
+  const paper = opt(a.paper, (v, o, f): NUpPaper => {
+    const s = str(v, o, f);
+    if (s !== "a4" && s !== "letter") throw new PdfOpError(o, f, '"a4" or "letter" required');
+    return s;
+  }, op, "paper");
+  return {
+    pages: pageList(a.pages, op, "pages"),
+    layout: {
+      rows: positiveInt(layout.rows, op, "layout.rows"),
+      cols: positiveInt(layout.cols, op, "layout.cols"),
+    },
+    ...(paper === undefined ? {} : { paper }),
+  };
 }

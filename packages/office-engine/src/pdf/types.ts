@@ -368,6 +368,50 @@ export interface SplitPdfInput {
   name?: string;
 }
 
+/** Paper presets N-up imposition can size a sheet to; absent keeps the source
+    page's own size. */
+export type NUpPaper = "a4" | "letter";
+
+/** Target box of a page in the page tree: `media` is the physical sheet,
+    `crop` the visible window a viewer shows. */
+export type PageBoxKind = "media" | "crop";
+
+/** Set the MediaBox or CropBox of the listed pages (original 0-based indices).
+    `rect` is [left, bottom, right, top] in PDF points with positive extents. */
+export interface SetPageBoxInput {
+  pages: number[];
+  box: PageBoxKind;
+  rect: [number, number, number, number];
+}
+
+export interface SetPageBoxResult {
+  /** Pages whose box was set. */
+  applied: number;
+}
+
+/** N-up grid: `rows` down the sheet, `cols` across it. */
+export interface NUpLayout {
+  rows: number;
+  cols: number;
+}
+
+/** Impose the listed pages (original 0-based indices) onto rows x cols sheets,
+    replacing the document's page tree with the sheets. */
+export interface SetNUpInput {
+  pages: number[];
+  layout: NUpLayout;
+  paper?: NUpPaper;
+}
+
+export interface SetNUpResult {
+  /** Sheets the pages were imposed onto. */
+  sheets: number;
+  /** Source pages placed (one per grid slot, in order). */
+  pages: number;
+  rows: number;
+  cols: number;
+}
+
 /** A document produced by a page op (extract / merge / split). The engine never
     writes it anywhere: F2 requires the host to persist it through a Documents
     commit, so this carries bytes plus the suggested name and nothing else. */
@@ -430,5 +474,10 @@ export interface PdfEditRequest {
   /** Bake every filled field's appearance into its page and drop the
       interactive form, after the formValues stage. */
   flattenForms?: boolean;
+  /** MediaBox / CropBox writes, in request order (original page indices). */
+  pageBoxes?: SetPageBoxInput[];
+  /** N-up imposition; replaces the page tree with the imposed sheets. At most
+      one per request, applied after every index-addressed op. */
+  nUp?: SetNUpInput;
   metadata?: MetadataInput;
 }

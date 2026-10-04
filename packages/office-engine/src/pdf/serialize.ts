@@ -52,6 +52,7 @@ import {
   PdfPageOpSourceError,
   splitPdfBytes,
 } from "./page-ops.ts";
+import { setNUp, setPageBox } from "./page-box.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -73,6 +74,10 @@ export interface PdfEditSkips {
   skippedPageInserts: PageOpFailure[];
   /** Document producers (extract / merge / split) that produced nothing. */
   skippedNewDocuments: PageOpFailure[];
+  /** MediaBox / CropBox writes refused at apply time (page out of range). */
+  skippedPageBoxes: PageOpFailure[];
+  /** An N-up imposition refused at apply time (page out of range). */
+  skippedNUp: PageOpFailure[];
 }
 
 export interface AppliedPdfEdit {
@@ -82,6 +87,10 @@ export interface AppliedPdfEdit {
   annotDeletesApplied: number;
   /** 1 when the interactive form was flattened, 0 when there was none. */
   formsFlattened: number;
+  /** Page boxes actually set (differs from requested when skips exist). */
+  pageBoxesApplied: number;
+  /** 1 when an N-up imposition produced sheets, 0 otherwise. */
+  nUpApplied: number;
   /** NEW documents produced by extract / merge / split. F2: the caller commits
       each one through Documents; the engine never writes them anywhere. */
   documents: PdfNewDocument[];
@@ -303,6 +312,29 @@ async function applyDocumentProducers(
 }
 
 /**
+ * Impose the page tree into N-up sheets. Runs on the verified bytes as a
+ * page-tree-only transform (like the page inserts): it replaces every page, so
+ * it is applied after content verification and after the inserts, and its page
+ * indices address the output document.
+ */
+async function applyNUpStage(
+  bytes: Uint8Array,
+  request: PdfEditRequest,
+  skipped: PageOpFailure[],
+): Promise<{ bytes: Uint8Array; applied: number }> {
+  if (!request.nUp) return { bytes, applied: 0 };
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+  try {
+    const result = await setNUp(doc, request.nUp);
+    return { bytes: await doc.save({ useObjectStreams: false }), applied: result.sheets > 0 ? 1 : 0 };
+  } catch (error) {
+    if (!(error instanceof PdfOpError)) throw error;
+    skipped.push({ op: "setNUp", index: 0, reason: error.message });
+    return { bytes, applied: 0 };
+  }
+}
+
+/**
  * Apply the edit batch to the input bytes and return the verified output.
  * The input buffer is never mutated; a verify failure throws PdfVerifyError
  * and no output exists for the caller to persist.
@@ -324,6 +356,7 @@ export async function applyPdfEdits(
   const skippedNoteResolves: { pageIndex: number; reason: string }[] = [];
   const skippedPageInserts: PageOpFailure[] = [];
   const skippedNewDocuments: PageOpFailure[] = [];
+  const skippedNUp: PageOpFailure[] = [];
   let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
     const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
@@ -353,6 +386,20 @@ export async function applyPdfEdits(
     if (page) page.setRotation(degrees((page.getRotation().angle + r.delta) % 360));
   }
   if (request.metadata) applyMetadata(pdfDoc, request.metadata);
+  // MediaBox / CropBox writes address original page indices, so they run here
+  // beside the other index-addressed ops, before deletion/reorder. A typed
+  // refusal (an index outside the document) is reported as a skip so the rest
+  // of the batch still applies.
+  const skippedPageBoxes: PageOpFailure[] = [];
+  let pageBoxesApplied = 0;
+  for (const box of request.pageBoxes ?? []) {
+    try {
+      pageBoxesApplied += setPageBox(pdfDoc, box).applied;
+    } catch (error) {
+      if (!(error instanceof PdfOpError)) throw error;
+      skippedPageBoxes.push({ op: "setPageBox", index: 0, reason: error.message });
+    }
+  }
   for (const markup of request.markups ?? []) {
     const page = pages[markup.pageIndex];
     if (!page) {
@@ -458,6 +505,8 @@ export async function applyPdfEdits(
     skippedFormValues,
     skippedPageInserts,
     skippedNewDocuments,
+    skippedPageBoxes,
+    skippedNUp,
   });
   // Page-structure work runs after verification: inserts and producers only
   // touch the page tree, so a verified content edit can never be invalidated
@@ -466,12 +515,16 @@ export async function applyPdfEdits(
   if ((request.blankPages?.length ?? 0) > 0 || (request.insertedPdfs?.length ?? 0) > 0) {
     finalBytes = await applyPageInserts(finalBytes, request, pdfDoc.getPageCount(), skippedPageInserts);
   }
+  const nUp = await applyNUpStage(finalBytes, request, skippedNUp);
+  finalBytes = nUp.bytes;
   const documents = await applyDocumentProducers(finalBytes, request, skippedNewDocuments);
   return {
     bytes: finalBytes,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedStamps, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedFormValues, skippedPageInserts, skippedNewDocuments },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedStamps, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedFormValues, skippedPageInserts, skippedNewDocuments, skippedPageBoxes, skippedNUp },
     annotDeletesApplied,
     formsFlattened,
+    pageBoxesApplied,
+    nUpApplied: nUp.applied,
     documents,
   };
 }

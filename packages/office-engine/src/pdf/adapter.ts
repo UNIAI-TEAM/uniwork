@@ -161,6 +161,10 @@ export interface PdfEditOutcome {
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
     blankPages: { applied: number; skipped: number };
     insertedPdfs: { applied: number; skipped: number };
+    /** MediaBox / CropBox writes and their typed refusals. */
+    pageBoxes: { applied: number; skipped: number };
+    /** 1 when an N-up imposition produced sheets, 0 otherwise. */
+    nUp: { applied: number; skipped: number };
     /** Produced documents by kind, plus every producer that was skipped. */
     newDocuments: { extracted: number; merged: number; splitParts: number; skipped: number };
   };
@@ -185,6 +189,8 @@ export interface PdfProbe {
     note: true;
     noteResolve: true;
     formFill: true;
+    pageBox: true;
+    nUp: true;
     ocr: false;
     ocrReason: string;
   };
@@ -246,6 +252,8 @@ function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
       note: true,
       noteResolve: true,
       formFill: true,
+      pageBox: true,
+      nUp: true,
       ocr: false,
       ocrReason: OCR_REASON,
     },
@@ -337,6 +345,12 @@ export async function applyPdfEditBytes(
     for (const s of applied.skips.skippedPageInserts) {
       warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
     }
+    for (const s of applied.skips.skippedPageBoxes) {
+      warnings.push({ code: "edit_skipped", detail: `setPageBox #${s.index + 1}: ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedNUp) {
+      warnings.push({ code: "edit_skipped", detail: `setNUp #${s.index + 1}: ${s.reason}` });
+    }
     for (const s of applied.skips.skippedNewDocuments) {
       warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
     }
@@ -387,6 +401,8 @@ export async function applyPdfEditBytes(
           applied: (request.insertedPdfs?.length ?? 0) - applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
           skipped: applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
         },
+        pageBoxes: { applied: applied.pageBoxesApplied, skipped: applied.skips.skippedPageBoxes.length },
+        nUp: { applied: applied.nUpApplied, skipped: applied.skips.skippedNUp.length },
         newDocuments: {
           extracted: applied.documents.filter((doc) => doc.op === "extractPages").length,
           merged: applied.documents.filter((doc) => doc.op === "mergePdfs").length,
