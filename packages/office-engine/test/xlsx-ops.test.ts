@@ -109,6 +109,7 @@ describe("op-kind registry", () => {
       "set_page_setup",
       "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
       "create_table", "remove_table",
+      "set_hyperlink", "set_notes", "set_sheet_protection", "set_defined_names",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
       "cellEdits", "cellEdits", "cellEdits",
@@ -119,6 +120,7 @@ describe("op-kind registry", () => {
       "pageSetupStates",
       "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
       "tableAdditions", "tableAdditions",
+      "hyperlinkEdits", "noteStates", "sheetProtections", "definedNamesState",
     ]);
   });
 
@@ -171,6 +173,10 @@ describe("op-kind registry", () => {
         attributes: { name: "Sales", columnNames: ["Region", "Q1", "Q2"], style: "TableStyleMedium2", bandedRows: true },
       },
       remove_table: { op: "remove_table", target: { sheet: "Data" }, attributes: { name: "Sales" } },
+      set_hyperlink: { op: "set_hyperlink", target: { sheet: "Data" }, attributes: { cell: "A1", target: "https://example.com" } },
+      set_notes: { op: "set_notes", target: { sheet: "Data" }, attributes: { notes: [{ row: 0, column: 0, author: "Ann", text: "note" }] } },
+      set_sheet_protection: { op: "set_sheet_protection", target: { sheet: "Data" }, attributes: { protected: true } },
+      set_defined_names: { op: "set_defined_names", attributes: { names: [{ name: "Total", formula: "=SUM(A1:A2)" }] } },
     };
     for (const kind of XLSX_OP_KINDS) {
       const item = items[kind.wireName]!;
