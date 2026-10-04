@@ -161,6 +161,20 @@ describe("HtmlEditor", () => {
     expect(screen.queryByRole("button", { name: "Paste" })).toBeNull();
     expect(screen.getByTestId("html-save")).toBeInTheDocument();
   });
+
+  it("mounts the HTML ribbon so the surface has real chrome (RB-1)", async () => {
+    await renderReady();
+    // The regression this pins is the M4 F-01 trap: the ribbon was defined,
+    // exported and unit-tested, but no production file rendered it, so the
+    // demo HTML surface had no ribbon. Assert the real mount by its hook.
+    const ribbon = document.querySelector<HTMLElement>('[data-office-ribbon="html"]');
+    expect(ribbon).not.toBeNull();
+    // Undo/redo ride the ribbon's quick access; the Source | Split | Preview |
+    // Present control rides its trailing slot.
+    expect(ribbon!.querySelector("[data-ribbon-quick-access]")).not.toBeNull();
+    expect(ribbon!.querySelector("[data-ribbon-trailing]")).not.toBeNull();
+    expect(ribbon!.querySelector('[data-ribbon-tab="home"]')).not.toBeNull();
+  });
 });
 
 describe("HtmlEditor view modes", () => {
