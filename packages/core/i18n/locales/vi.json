@@ -7341,7 +7341,19 @@
     },
     "markdown": {
       "title": "Tài liệu Markdown",
-      "toolbar": { "label": "Lệnh chỉnh sửa Markdown" },
+      "toolbar": {
+        "label": "Lệnh chỉnh sửa Markdown",
+        "tab": "Markdown",
+        "notAvailableYet": "Chưa khả dụng",
+        "groups": {
+          "blockStyle": "Kiểu đoạn văn",
+          "inline": "Định dạng trong dòng",
+          "link": "Liên kết",
+          "lists": "Danh sách",
+          "insert": "Chèn",
+          "view": "Chế độ xem"
+        }
+      },
       "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
       "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
       "source": { "label": "Mã nguồn Markdown" },
@@ -7365,6 +7377,7 @@
         "linkApply": "Áp dụng liên kết",
         "linkRemove": "Gỡ liên kết",
         "linkPlaceholder": "Dán URL",
+        "linkTitle": "Tiêu đề liên kết (không bắt buộc)",
         "bulletList": "Danh sách dấu đầu dòng",
         "orderedList": "Danh sách đánh số",
         "taskList": "Danh sách việc cần làm",
@@ -7439,6 +7452,7 @@
       },
       "image": {
         "viewer": "Xem ảnh",
+        "unavailable": "Ảnh này không khả dụng",
         "uploading": "Đang tải ảnh lên…",
         "uploadFailed": "Không tải được ảnh lên. Thử lại.",
         "altLabel": "Chữ thay thế",

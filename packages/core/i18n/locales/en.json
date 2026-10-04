@@ -7347,7 +7347,19 @@
     },
     "markdown": {
       "title": "Markdown document",
-      "toolbar": { "label": "Markdown editing commands" },
+      "toolbar": {
+        "label": "Markdown editing commands",
+        "tab": "Markdown",
+        "notAvailableYet": "Not available yet",
+        "groups": {
+          "blockStyle": "Block style",
+          "inline": "Inline",
+          "link": "Link",
+          "lists": "Lists",
+          "insert": "Insert",
+          "view": "View"
+        }
+      },
       "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving…", "retry": "Try again" },
       "state": { "opening": "Opening document…", "error": "Could not open document" },
       "source": { "label": "Markdown source" },
@@ -7371,6 +7383,7 @@
         "linkApply": "Apply link",
         "linkRemove": "Remove link",
         "linkPlaceholder": "Paste a URL",
+        "linkTitle": "Link title (optional)",
         "bulletList": "Bullet list",
         "orderedList": "Numbered list",
         "taskList": "Task list",
@@ -7445,6 +7458,7 @@
       },
       "image": {
         "viewer": "View image",
+        "unavailable": "This image is unavailable",
         "uploading": "Uploading image…",
         "uploadFailed": "The image could not be uploaded. Try again.",
         "altLabel": "Alt text",
