@@ -36,6 +36,14 @@ describe("overflow: quyết định nhóm nào ở lại hàng lệnh", () => {
     expect(hiddenGroupIndexes(input)).toEqual([]);
   });
 
+  it("ngân sách » bằng 0 vẫn không giấu nhóm nào: không có chỗ thì không dựng menu", () => {
+    // Nếu hàm vẫn đẩy nhóm sang » trong khi component không dựng » (bề rộng 0),
+    // nhóm đó biến mất khỏi hàng mà không có menu nào chứa nó.
+    const input = { groupWidths: [400, 400], containerWidth: 820, overflowButtonWidth: 0, separatorWidth: 8 };
+    expect(fittingGroupCount(input)).toBe(2);
+    expect(hiddenGroupIndexes(input)).toEqual([]);
+  });
+
   it("nhóm đầu tiên rộng hơn hàng thì mọi nhóm vào »", () => {
     const input = { groupWidths: [900, 300], containerWidth: 400, overflowButtonWidth: 36, separatorWidth: 8 };
     expect(visibleGroupIndexes(input)).toEqual([]);

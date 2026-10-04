@@ -38,7 +38,7 @@ const CONTROL = "pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 const COMPACT_QUERY = "(max-width: 767px)";
 /** The command row's own horizontal padding (`px-2`), excluded from the fit. */
 const ROW_PADDING = 16;
-/** Footprint of the trailing "»" control, including the separator before it. */
+/** Footprint of the trailing "»" control (the gap before it is a group separator). */
 const OVERFLOW_BUTTON_WIDTH = 36;
 /** What one group costs beyond its own width: two `gap-1` (4px) plus the 1px rule. */
 const GROUP_SEPARATOR_WIDTH = 9;
@@ -106,11 +106,30 @@ function CommandItemControl({ item }: { item: EditorChromeCommandItem }) {
           />
         }
       >
-        {item.icon}
+        {item.icon ?? <span className="text-caption">{item.label}</span>}
       </TooltipTrigger>
       <TooltipContent side="bottom">{item.label}</TooltipContent>
     </Tooltip>
   );
+}
+
+/**
+ * A `render`-only item cannot be rebuilt inside a menu, so its entry falls back
+ * to `label` + `onSelect`. Without `onSelect` that entry is a dead label the
+ * caller probably did not mean to ship, and only a development build can say
+ * so: production keeps the documented fallback with no extra behaviour.
+ */
+function warnMissingOnSelect(groups: readonly EditorChromeCommandGroup[], indexes: readonly number[]): void {
+  if (process.env.NODE_ENV !== "development") return;
+  for (const index of indexes) {
+    for (const item of groups[index]?.items ?? []) {
+      if (item.render !== undefined && item.onSelect === undefined) {
+        console.warn(
+          `[editor-chrome] command item "${item.id}" has render without onSelect; its overflow menu entry is a no-op.`,
+        );
+      }
+    }
+  }
 }
 
 function OverflowMenu({
@@ -138,7 +157,8 @@ function OverflowMenu({
       >
         <ChevronsRight aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
+      <DropdownMenuContent align="end" className="min-w-52" data-chrome-overflow-menu>
+        {warnMissingOnSelect(groups, indexes)}
         {indexes.map((index, position) => {
           const group = groups[index];
           if (!group) return null;
@@ -256,6 +276,7 @@ export function EditorChrome({
   // Until the row has a real width and every group a real width, show them all:
   // a first pass that guessed would hide a control for a frame. The row never
   // wraps either way, so an unmeasured pass clips instead of going ragged.
+  const showOverflow = overflowButtonWidth > 0;
   const measured =
     !compact && groupWidths.length === groups.length && groupWidths.every((width) => width > 0) && rowWidth > 0;
   const fit = { groupWidths, containerWidth: rowWidth, overflowButtonWidth, separatorWidth: GROUP_SEPARATOR_WIDTH };
@@ -432,7 +453,7 @@ export function EditorChrome({
                 ? renderGroup(groups[groupIndex]!, position > 0 ? visible[position - 1]! : null)
                 : null,
             )}
-            {hidden.length > 0 ? (
+            {hidden.length > 0 && showOverflow ? (
               <OverflowMenu groups={groups} indexes={hidden} label={overflowLabel ?? t("more")} />
             ) : null}
           </div>

@@ -17,7 +17,7 @@ export interface OverflowInput {
   groupWidths: readonly number[];
   /** Width available to the command row, after the row's own padding. */
   containerWidth: number;
-  /** Width of the trailing "»" control, including its separator. */
+  /** Width of the trailing "»" control itself, separator excluded. */
   overflowButtonWidth: number;
   /** Width of one group separator. Defaults to 0. */
   separatorWidth?: number;
@@ -54,8 +54,14 @@ export function fittingGroupCount({
   if (containerWidth <= 0) return count;
   const withoutOverflow = countFitting(groupWidths, containerWidth, separatorWidth);
   if (withoutOverflow >= count) return count;
-  if (overflowButtonWidth <= 0) return withoutOverflow;
-  return countFitting(groupWidths, containerWidth - separatorWidth - overflowButtonWidth, separatorWidth);
+  // A zero (or negative) budget means the component does not reserve room for
+  // "»" at all - it only renders the menu when a group is hidden, so a hidden
+  // group must imply the room. Spending the row's own gap on the control would
+  // then hand the menu a group the row still keeps, and the row would clip it.
+  if (overflowButtonWidth <= 0) return count;
+  // `countFitting` already counts the gap between the last visible group and
+  // "»" as a separator, so the control's own width is all that is subtracted.
+  return countFitting(groupWidths, containerWidth - overflowButtonWidth, separatorWidth);
 }
 
 /** Indexes of the groups that stay in the row, in order. */

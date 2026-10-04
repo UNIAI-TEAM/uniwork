@@ -19,14 +19,14 @@ const MARKDOWN_VIEWS: EditorChromeViewMode[] = [
   { id: "preview", label: "Xem trước" },
 ];
 
-function tabs(): EditorChromeTab[] {
+function tabs(onOverflowSelect: () => void = vi.fn()): EditorChromeTab[] {
   return [
     {
       id: "home",
       label: "Trang chủ",
       groups: [
         { id: "history", label: "Lịch sử", items: [{ id: "undo", label: "Hoàn tác", onSelect: vi.fn() }] },
-        { id: "inline", label: "Định dạng", items: [{ id: "bold", label: "In đậm", pressed: true, onSelect: vi.fn() }] },
+        { id: "inline", label: "Định dạng", items: [{ id: "bold", label: "In đậm", pressed: true, onSelect: onOverflowSelect }] },
       ],
     },
     { id: "insert", label: "Chèn", groups: [{ id: "blocks", label: "Khối", items: [{ id: "table", label: "Bảng", onSelect: vi.fn() }] }] },
@@ -210,6 +210,45 @@ describe("EditorChrome", () => {
     } finally {
       restore();
     }
+  });
+
+  it("gọi onSelect của lệnh khi chọn nó trong menu »", async () => {
+    const onBold = vi.fn();
+    const restore = stubWidths({ history: 300, inline: 300 }, 400);
+    try {
+      render(<EditorChrome tabs={tabs(onBold)} activeTabId="home" />);
+      const row = screen.getByTestId("editor-chrome-commands");
+      fireEvent.click(within(row).getByTestId("editor-chrome-overflow"));
+      const entry = await screen.findByRole("menuitem", { name: "In đậm" });
+      fireEvent.click(entry);
+      // Bấm mục trong » chạy đúng callback mà nút trên hàng vẫn dùng.
+      expect(onBold).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("không dựng » khi ngân sách bề rộng bằng 0, nhóm vẫn nằm trên hàng", () => {
+    const restore = stubWidths({ history: 300, inline: 300 }, 400);
+    try {
+      render(<EditorChrome tabs={tabs()} activeTabId="home" overflowButtonWidth={0} />);
+      expect(screen.queryByTestId("editor-chrome-overflow")).not.toBeInTheDocument();
+      // Không có menu nghĩa là không nhóm nào được phép biến mất khỏi hàng.
+      expect(screen.getByRole("button", { name: "In đậm" })).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("dùng nhãn làm văn bản khi lệnh không có icon lẫn render", () => {
+    render(
+      <EditorChrome
+        tabs={[{ id: "home", label: "Trang chủ", groups: [{ id: "misc", items: [{ id: "plain", label: "Thu gọn", onSelect: vi.fn() }] }] }]}
+      />,
+    );
+    // Không còn nút 28px trống: nhãn hiện thành chữ, tên truy cập vẫn nguyên.
+    const button = screen.getByRole("button", { name: "Thu gọn" });
+    expect(button).toHaveTextContent("Thu gọn");
   });
 
   it("không dựng » khi cả hàng vừa chỗ", () => {
