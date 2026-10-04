@@ -21,9 +21,10 @@
 export const HTML_SELECTION_FLAG = "office_html_visual_selection";
 
 /** Mirrors the inspector's own bounds (preview-inspector.ts): a frame cannot
- * make the parent store an unbounded id or rect. */
-export const HTML_SELECTION_MAX_SID = 2 ** 31 - 1;
-export const HTML_SELECTION_MAX_RECT = 10_000_000;
+ * make the parent store an unbounded id or rect. Module-private: nothing
+ * outside this file decides what a valid bound is. */
+const HTML_SELECTION_MAX_SID = 2 ** 31 - 1;
+const HTML_SELECTION_MAX_RECT = 10_000_000;
 
 /** A tag name is short and shaped like a tag name, or it is dropped. */
 const MAX_NODE_NAME = 32;
