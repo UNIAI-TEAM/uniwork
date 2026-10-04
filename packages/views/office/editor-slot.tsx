@@ -165,7 +165,7 @@ export function EditorSlot<TSnapshot>({
 
   return (
     <section
-      className={cn("flex min-h-48 min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-border bg-background p-3", className)}
+      className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-border bg-background p-3", className)}
       data-office-editor-slot
       data-format={format}
       data-open-state={openState}

@@ -8,6 +8,7 @@ import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, type OfficeChannel } from "@uniwork/views/office";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
@@ -228,7 +229,11 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   };
 
   return (
-    <div className={className} data-office-editor-host data-office-format={document.file?.mime_type ?? "unknown"}>
+    <div
+      className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className)}
+      data-office-editor-host
+      data-office-format={document.file?.mime_type ?? "unknown"}
+    >
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}

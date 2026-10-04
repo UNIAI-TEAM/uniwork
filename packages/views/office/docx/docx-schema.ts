@@ -1,6 +1,8 @@
 import { editorExtensions } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { Extensions } from "@tiptap/core";
 import type { DocxNumberingDef } from "@uniwork/office-engine/docx";
+import { DocxFindExtension } from "./find/find-extension";
+import { createDocxLinkClickExtension } from "./links/link-actions";
 
 export type DocxBlockKind = "paragraph" | "heading" | "listItem" | "other";
 
@@ -30,7 +32,7 @@ export function docxExtensions(numbering?: ReadonlyMap<string, DocxNumberingDef>
   // upstream's App writes the open document's numbering.xml definitions into
   // that storage. UniWork is the App here, so the seeded definitions ride into
   // `addStorage` at editor creation — every editor gets its own Map.
-  return editorExtensions.map((extension) => {
+  const extensions = editorExtensions.map((extension) => {
     if (extension.name === "docProtected") return extension.configure({ formulaLatexEdit: false });
     if (extension.name === "listNumbering") {
       const defs = numbering ? new Map(numbering) : new Map<string, DocxNumberingDef>();
@@ -38,4 +40,10 @@ export function docxExtensions(numbering?: ReadonlyMap<string, DocxNumberingDef>
     }
     return extension;
   });
+  // A4 (UNI-924): Ctrl/Cmd+click opens links from the editing surface; the
+  // extension re-checks the href scheme before window.open because the
+  // vendored link mark renders whatever a[href] the document carries.
+  // A5 (UNI-924): the find layer (highlight plugin + editor store) rides on
+  // every document editor; see find/find-extension.ts.
+  return [...extensions, createDocxLinkClickExtension(), DocxFindExtension];
 }
