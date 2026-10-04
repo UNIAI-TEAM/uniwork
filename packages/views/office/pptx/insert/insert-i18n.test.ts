@@ -43,4 +43,19 @@ describe("pptx insert i18n", () => {
     const viInsert = ((vi.office as Record<string, unknown>).pptx as Record<string, unknown>).insert as Record<string, unknown>;
     expect(viInsert.title).toBe(PPTX_INSERT_I18N["office.pptx.insert.title"]!.vi);
   });
+
+  it("keeps every vi value free of lossy-channel corruption", () => {
+    // A '?' touching a letter, or U+FFFD, means the copy was authored through a
+    // lossy channel (the F1/F11 class): real Vietnamese letters decoded to ASCII
+    // punctuation or the replacement character. Non-ASCII copy must also
+    // round-trip through UTF-8 so a lone surrogate cannot slip in.
+    const suspicious = entries
+      .filter(([, entry]) => /[A-Za-z]\?|\?[A-Za-z]/.test(entry.vi) || entry.vi.includes("\uFFFD"))
+      .map(([key]) => key);
+    expect(suspicious).toEqual([]);
+    const lossy = entries
+      .filter(([, entry]) => entry.vi !== new TextDecoder().decode(new TextEncoder().encode(entry.vi)))
+      .map(([key]) => key);
+    expect(lossy).toEqual([]);
+  });
 });

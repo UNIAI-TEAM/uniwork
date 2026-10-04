@@ -121,7 +121,7 @@ export const PPTX_INSERT_I18N: Readonly<Record<string, PptxInsertI18nEntry>> = {
 
   // WordArt
   "office.pptx.insert.wordart.title": { en: "WordArt", vi: "WordArt" },
-  "office.pptx.insert.wordart.insert": { en: "Insert WordArt", vi: "Ch?n WordArt" },
+  "office.pptx.insert.wordart.insert": { en: "Insert WordArt", vi: "Chèn WordArt" },
   "office.pptx.insert.wordart.description": {
     en: "Insert decorative text with a preset style.",
     vi: "Chèn chữ trang trí theo kiểu dựng sẵn.",
