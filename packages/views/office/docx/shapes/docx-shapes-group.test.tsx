@@ -125,10 +125,10 @@ describe("DocxShapesGroup format panel", () => {
     fireEvent.change(screen.getByTestId("docx-shape-fill"), { target: { value: "#ff0000" } });
     expect(commands?.applyDocxShapeEdit).toHaveBeenCalledWith({ kind: "fill", color: "ff0000" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Không tô" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ tô" }));
     expect(commands?.applyDocxShapeEdit).toHaveBeenCalledWith({ kind: "fill", color: null });
 
-    fireEvent.click(screen.getByRole("button", { name: "Không viền" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ viền" }));
     expect(commands?.applyDocxShapeEdit).toHaveBeenCalledWith({ kind: "outline", color: null });
 
     const width = screen.getByTestId("docx-shape-width");
@@ -147,8 +147,11 @@ describe("DocxShapesGroup format panel", () => {
     renderGroup({ shape: { ...SHAPE, prst: "lineArrow", straight: true, heightPx: 12 } });
     fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
     expect(screen.getByTestId("docx-shape-height")).toBeDisabled();
+    const offsetHint = "Lệch cần một cách bao văn bản nổi; hình nằm trong dòng không có lệch.";
     expect(screen.getByTestId("docx-shape-offset-x")).toBeDisabled();
     expect(screen.getByTestId("docx-shape-offset-y")).toBeDisabled();
+    expect(screen.getByTestId("docx-shape-offset-x")).toHaveAttribute("title", offsetHint);
+    expect(screen.getByTestId("docx-shape-offset-y")).toHaveAttribute("title", offsetHint);
   });
 
   it("rests on the shape-default placeholder instead of a fake inline mode", () => {
@@ -169,6 +172,22 @@ describe("DocxShapesGroup format panel", () => {
       "title",
       "Cách bao văn bản cho hình có sẵn trong tài liệu chỉ được lưu khi vị trí thay đổi.",
     );
+    // m-3: the reason is also visible without hover (keyboard/touch users)
+    expect(
+      screen.getByText(
+        "Cách bao văn bản cho hình có sẵn trong tài liệu chỉ được lưu khi vị trí thay đổi.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the parsed-shape caption out of an inserted shape", () => {
+    renderGroup({ shape: SHAPE });
+    fireEvent.click(screen.getByRole("button", { name: "Định dạng hình" }));
+    expect(
+      screen.queryByText(
+        "Cách bao văn bản cho hình có sẵn trong tài liệu chỉ được lưu khi vị trí thay đổi.",
+      ),
+    ).toBeNull();
   });
 
   it("commits a floating offset pair once the shape wraps", () => {

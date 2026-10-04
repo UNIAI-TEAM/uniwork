@@ -107,6 +107,9 @@ export function DocxShapePanel({
 
   const fillHex = shape?.fill ?? null;
   const borderHex = shape?.borderColor ?? null;
+  // Offsets only persist with a floating wrap mode (an inline shape has no
+  // anchor to offset from), so the disabled inputs carry the reason as a title.
+  const offsetHint = shape && shape.wrap === null ? t("office.docx.shapes.offsetNeedsWrap") : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -249,6 +252,9 @@ export function DocxShapePanel({
                   ))}
                 </SelectContent>
               </Select>
+              {shape.parsed ? (
+                <p className="text-caption text-muted-foreground">{t("office.docx.shapes.wrapParsedHint")}</p>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -261,6 +267,7 @@ export function DocxShapePanel({
                   inputMode="numeric"
                   value={offsetX}
                   disabled={disabled || shape.wrap === null}
+                  title={offsetHint}
                   onChange={(event) => setOffsetX(event.target.value)}
                   onBlur={commitOffset}
                   onKeyDown={(event) => {
@@ -278,6 +285,7 @@ export function DocxShapePanel({
                   inputMode="numeric"
                   value={offsetY}
                   disabled={disabled || shape.wrap === null}
+                  title={offsetHint}
                   onChange={(event) => setOffsetY(event.target.value)}
                   onBlur={commitOffset}
                   onKeyDown={(event) => {
