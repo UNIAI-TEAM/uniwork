@@ -109,14 +109,16 @@ export function PdfSavedSignaturePicker({ orgId, selectedId = null, onSelect, di
         </div>
         <div className="grid gap-1">
           <Label htmlFor={fileId}>{t("office.pdf.signatures.fileLabel")}</Label>
-          <Input
+          <input
             ref={fileRef}
             id={fileId}
             type="file"
             accept="image/png,image/jpeg"
+            className="sr-only"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             disabled={disabled || busy}
           />
+          <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={disabled || busy}>{t("office.pdf.signatures.fileLabel")}</Button>
           <p className="text-caption text-muted-foreground">{t("office.pdf.signatures.fileHint", { limit: byteCap })}</p>
         </div>
         {file ? <p className="min-w-0 truncate text-caption text-muted-foreground">{file.name}</p> : null}

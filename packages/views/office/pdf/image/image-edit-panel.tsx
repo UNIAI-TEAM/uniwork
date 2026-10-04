@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -33,6 +33,7 @@ function rectFields(selection: PdfImageSelection | null): RectFields {
 /** Image-object controls for move/resize/rotate, replacement and deletion. */
 export function PdfImageEditPanel({ selection, provider, disabled = false, onApplied }: PdfImageEditPanelProps) {
   const { t } = useTranslation();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [fields, setFields] = useState<RectFields>(() => rectFields(selection));
   const [quarterTurns, setQuarterTurns] = useState("0");
   const [file, setFile] = useState<File | null>(null);
@@ -131,8 +132,8 @@ export function PdfImageEditPanel({ selection, provider, disabled = false, onApp
         <Button type="button" variant="outline" onClick={transform} disabled={disabled || pending || rectInvalid || turnsInvalid}>{applyLabel}</Button>
         <Button type="button" variant="outline" onClick={remove} disabled={disabled || pending}>{deleteLabel}</Button>
       </div>
-      <label className="sr-only" htmlFor="pdf-image-replace-file">{replaceFileLabel}</label>
-      <Input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      <input id="pdf-image-replace-file" type="file" accept="image/png,image/jpeg" className="sr-only" ref={fileRef} disabled={disabled || pending} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={disabled || pending}>{replaceFileLabel}</Button>
       <Button type="button" variant="outline" onClick={replace} disabled={disabled || pending || !file || rectInvalid}>{replaceLabel}</Button>
       {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
     </section>

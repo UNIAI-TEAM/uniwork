@@ -4,7 +4,6 @@ import { useId, useRef, useState } from "react";
 import { ImagePlus, PenLine, Stamp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -129,7 +128,8 @@ export function PdfStampPalette({
 
       <div className="grid gap-1 rounded-md border border-border px-2.5 py-2">
         <Label htmlFor={fileId}>{t("office.pdf.stamps.imageLabel")}</Label>
-        <Input ref={fileRef} id={fileId} type="file" accept="image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
+        <input ref={fileRef} id={fileId} type="file" accept="image/png,image/jpeg" className="sr-only" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
+        <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={disabled || pending}>{t("office.pdf.stamps.imageLabel")}</Button>
         {file ? <p className="min-w-0 truncate text-caption text-muted-foreground">{file.name}</p> : null}
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => void placeFile()} disabled={blocked || file === null}>
