@@ -27,6 +27,14 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
     if (blocked) return;
     commands?.execute(id, params);
   };
+  // Remove is name-driven: it must not inherit `run`'s `!span` gate, or a
+  // visible-but-enabled control would silently no-op without a selection.
+  const runRemove = () => {
+    if (removeBlocked) return;
+    const name = removeName.trim();
+    if (!name) return;
+    commands?.execute("sheet.command.delete-table", { name });
+  };
   const range = span === null ? undefined : {
     range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },
   };
@@ -59,7 +67,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
         aria-label={t("office.xlsx.table.remove")}
         aria-disabled={!canRemove || undefined}
         data-testid="xlsx-table-remove"
-        onClick={() => { if (canRemove) run("sheet.command.delete-table", { name: removeName.trim() }); }}
+        onClick={runRemove}
       >
         <TableProperties aria-hidden />
       </Button>
