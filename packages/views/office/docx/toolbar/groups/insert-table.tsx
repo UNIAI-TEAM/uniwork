@@ -36,34 +36,38 @@ export function InsertTableGroup({ format, commands, readOnly, saving }: DocxToo
 }
 
 /**
- * Typed ribbon items (R7): the primary Insert table command is a large dropdown
- * over the same `insertTable(rows, cols)` command the grid picker calls; the
- * in-table editing strip rides one custom item (its popovers/menus do not fit
- * the typed model). No command is dropped - the group component keeps the hover
- * grid picker for the mounted path.
+ * Typed ribbon items (R7): the Word hover grid picker stays the primary control
+ * (mounted through the group as one custom item), so the 8 x 10 sizes, the
+ * keyboard grid and the in-table explanation remain reachable. The typed
+ * dropdown keeps the same fixed sizes for a keyboard path; it is disabled inside
+ * a table, where the command refuses and the picker explains instead.
  */
-export function insertTableRibbonItems({ format, commands, readOnly, saving }: DocxToolbarGroupContext): readonly RibbonItem[] {
-  const blocked = readOnly || saving || !commands || !format;
+export function insertTableRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands, readOnly, saving } = context;
   const state = format ?? EMPTY_TABLE_FORMAT_STATE;
+  const blocked = readOnly || saving || !commands || !format;
+  const sizeDisabled = blocked || state.inTable;
   return [
     {
-      kind: "dropdown",
+      kind: "custom",
       id: "insert-table",
       labelKey: "office.docx.table.insert",
+      width: 96,
+      render: () => <InsertTableGroup {...context} />,
+    },
+    {
+      kind: "dropdown",
+      id: "insert-table-sizes",
+      labelKey: "office.docx.table.insert",
       icon: Table2,
-      size: "large",
-      disabled: blocked,
+      size: "small",
+      disabled: sizeDisabled,
       menu: TABLE_GRID_SIZES.map((size) => ({
         id: `insert-table-${size.rows}x${size.cols}`,
         labelKey: size.labelKey,
+        disabled: sizeDisabled,
         onSelect: () => commands?.insertTable(size.rows, size.cols),
       })),
-    },
-    {
-      kind: "custom",
-      id: "insert-table-tools",
-      labelKey: "office.docx.table.rowsGroup",
-      render: () => <TableTools disabled={blocked} state={state} commands={commands} />,
     },
   ];
 }

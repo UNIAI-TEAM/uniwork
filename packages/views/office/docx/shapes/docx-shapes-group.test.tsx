@@ -213,8 +213,9 @@ describe("DocxShapesGroup format panel", () => {
 });
 
 // W-G (UNI-924): the typed ribbon path for the shapes group. The ribbon renders
-// these items instead of the group component, so every shape the dropdown
-// offers must still call the same insertDocxShape command as the gallery.
+// these items instead of the group component, so every shape the dropdown offers
+// must still call the same insertDocxShape command as the gallery - with the
+// TRANSLATED label, not the raw i18n key.
 describe("docxShapesRibbonItems", () => {
   function typedContext(commands: DocxCommandRuntime): DocxToolbarGroupContext {
     return {
@@ -241,7 +242,7 @@ describe("docxShapesRibbonItems", () => {
       size: "large",
       labelKey: "office.docx.shapes.insert",
     });
-    expect(items[1]).toMatchObject({ kind: "custom", id: "insert-shapes-format" });
+    expect(items[1]).toMatchObject({ kind: "custom", id: "insert-shapes-gallery" });
     const primary = items[0]!;
     if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
     expect(primary.menu.map((entry) => entry.id)).toEqual([
@@ -253,17 +254,17 @@ describe("docxShapesRibbonItems", () => {
     ]);
   });
 
-  it("routes every shape through the same insertDocxShape command", () => {
+  it("routes every shape through the same insertDocxShape command with its translated label", () => {
     const commands = runtime();
     const items = docxShapesRibbonItems(typedContext(commands));
     const primary = items[0]!;
     if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
     for (const entry of primary.menu) entry.onSelect();
-    expect(commands.insertDocxShape).toHaveBeenCalledWith("rect", "office.docx.shapes.kind.rect");
-    expect(commands.insertDocxShape).toHaveBeenCalledWith("ellipse", "office.docx.shapes.kind.ellipse");
-    expect(commands.insertDocxShape).toHaveBeenCalledWith("line", "office.docx.shapes.kind.line");
-    expect(commands.insertDocxShape).toHaveBeenCalledWith("arrow", "office.docx.shapes.kind.arrow");
-    expect(commands.insertDocxShape).toHaveBeenCalledWith("textBox", "office.docx.shapes.kind.textBox");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("rect", "Hình chữ nhật");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("ellipse", "Hình bầu dục");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("line", "Đường thẳng");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("arrow", "Mũi tên");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("textBox", "Hộp văn bản");
     expect(commands.insertDocxShape).toHaveBeenCalledTimes(5);
   });
 

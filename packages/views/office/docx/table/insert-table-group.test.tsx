@@ -332,8 +332,9 @@ describe("InsertTableGroup", () => {
 });
 
 // W-G (UNI-924): the typed ribbon path for the table group. The ribbon renders
-// these items instead of the group component, so every command they expose must
-// still be the same runtime call the mounted picker makes.
+// these items instead of the group component; the primary custom item mounts the
+// real hover grid picker (8x10, keyboard grid, in-table hint) and the typed
+// dropdown mirrors the fixed sizes for a keyboard path.
 describe("insertTableRibbonItems", () => {
   function typedContext(runtime: DocxCommandRuntime): DocxToolbarGroupContext {
     return {
@@ -352,22 +353,21 @@ describe("insertTableRibbonItems", () => {
     };
   }
 
-  it("exposes the primary Insert table command as a large dropdown of grid sizes", () => {
+  it("mounts the hover grid picker as the primary custom item", () => {
     const runtime = createDocxCommandRuntime(() => null);
     const items = insertTableRibbonItems(typedContext(runtime));
     expect(items[0]).toMatchObject({
-      kind: "dropdown",
+      kind: "custom",
       id: "insert-table",
-      size: "large",
       labelKey: "office.docx.table.insert",
     });
-    expect(items[1]).toMatchObject({ kind: "custom", id: "insert-table-tools" });
+    expect(items[1]).toMatchObject({ kind: "dropdown", id: "insert-table-sizes", size: "small" });
   });
 
   it("routes every grid size through the same insertTable command", () => {
     const runtime = createDocxCommandRuntime(() => null);
     const insertTable = vi.spyOn(runtime, "insertTable");
-    const primary = insertTableRibbonItems(typedContext(runtime))[0]!;
+    const primary = insertTableRibbonItems(typedContext(runtime))[1]!;
     if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
     expect(primary.menu.map((entry) => entry.id)).toEqual([
       "insert-table-2x2",
@@ -387,11 +387,18 @@ describe("insertTableRibbonItems", () => {
     expect(insertTable).toHaveBeenCalledTimes(6);
   });
 
-  it("disables the typed items while read-only or without a runtime", () => {
+  it("disables the typed size menu while read-only, without a runtime or inside a table", () => {
     const runtime = createDocxCommandRuntime(() => null);
     const readOnly = insertTableRibbonItems({ ...typedContext(runtime), readOnly: true });
-    expect(readOnly[0]).toMatchObject({ disabled: true });
+    expect(readOnly[1]).toMatchObject({ disabled: true });
     const noRuntime = insertTableRibbonItems({ ...typedContext(runtime), commands: undefined });
-    expect(noRuntime[0]).toMatchObject({ disabled: true });
+    expect(noRuntime[1]).toMatchObject({ disabled: true });
+    // Inside a table the command refuses, so the typed menu is disabled and the
+    // picker explains instead (its in-table hint).
+    const inTable = insertTableRibbonItems({
+      ...typedContext(runtime),
+      format: { ...runtime.getState(), inTable: true },
+    });
+    expect(inTable[1]).toMatchObject({ disabled: true });
   });
 });
