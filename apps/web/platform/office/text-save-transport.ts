@@ -23,6 +23,19 @@ export const TEXT_MEDIA_TYPE: Record<TextFormat, string> = {
   html: "text/html",
 };
 
+/**
+ * Normalise serialized bytes to a Uint8Array in THIS realm. `instanceof
+ * Uint8Array` is realm-bound: bytes produced by a TextEncoder in a jsdom test
+ * realm (or another frame) are a genuine Uint8Array that fails the check, so
+ * the transport reads the view instead of rejecting a valid payload.
+ */
+function bytesOf(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+  throw new Error("text_serialized_output_invalid");
+}
+
 export interface TextDocumentsTransport {
   read(): Promise<Uint8Array>;
   upload(file: Blob, idempotencyKey: string): Promise<{ upload_id: string; checksum_sha256: string; size_bytes: number; claim_expires_at: string } | null>;
@@ -56,8 +69,10 @@ export function createTextSaveTransport(options: {
       return { data: result.bytes, checksumSha256: result.checksum, sizeBytes: result.bytes.length, format: options.format };
     },
     async upload({ intent, output }) {
-      if (output.format !== options.format || !(output.data instanceof Uint8Array) || output.data.length !== output.sizeBytes) throw new Error("text_serialized_output_invalid");
-      const file = new Blob([output.data.slice().buffer], { type: TEXT_MEDIA_TYPE[options.format] });
+      if (output.format !== options.format) throw new Error("text_serialized_output_invalid");
+      const data = bytesOf(output.data);
+      if (data.length !== output.sizeBytes) throw new Error("text_serialized_output_invalid");
+      const file = new Blob([data.slice().buffer], { type: TEXT_MEDIA_TYPE[options.format] });
       const receipt = await options.documents.upload(file, intent.idempotencyKey);
       if (!receipt || receipt.checksum_sha256 !== output.checksumSha256 || receipt.size_bytes !== output.sizeBytes) throw new Error("text_upload_receipt_mismatch");
       return { uploadId: receipt.upload_id, checksumSha256: receipt.checksum_sha256, sizeBytes: receipt.size_bytes, claimExpiresAt: receipt.claim_expires_at };
