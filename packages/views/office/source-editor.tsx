@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "./asset-manifest";
-import { HtmlSourceEditor } from "./html/source";
+import { HtmlSourceEditor, type HtmlSourceEditorProps } from "./html/source";
 import type {
   IsolatedPreviewPort,
   TextCapability,
@@ -282,6 +282,12 @@ export function SourceEditor<TSnapshot = unknown>({
     composingRef.current = false;
     checkpoint();
   }, [checkpoint]);
+  const onHtmlTextChange: HtmlSourceEditorProps["onChange"] = useCallback((next) => {
+    if (editorRef.current.source) editorRef.current.source.setText(next);
+    else editorRef.current.setText?.(next);
+    setText(next);
+    markDirty();
+  }, [markDirty]);
   const save = useCallback((entryPoint: "button" | "shortcut") => {
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
@@ -371,12 +377,7 @@ export function SourceEditor<TSnapshot = unknown>({
                   readOnly={readOnly}
                   className="min-h-64 flex-1 overflow-hidden rounded-md border border-border bg-background"
                   ariaLabel={t("source.label")}
-                  onChange={(next) => {
-                    if (editorRef.current.source) editorRef.current.source.setText(next);
-                    else editorRef.current.setText?.(next);
-                    setText(next);
-                    markDirty();
-                  }}
+                  onChange={onHtmlTextChange}
                   onCheckpoint={checkpoint}
                 />
               ) : (

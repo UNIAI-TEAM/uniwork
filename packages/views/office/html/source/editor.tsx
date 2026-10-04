@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, type ReactElement } from "react";
+import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { html } from "@codemirror/lang-html";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
@@ -64,6 +65,10 @@ const uniworkTheme = EditorView.theme({
 
 const readOnlyCompartment = new Compartment();
 
+// Marks transactions the component itself dispatches to mirror the controlled
+// `value` prop, so they are never echoed back through onChange.
+const externalSync = Annotation.define<boolean>();
+
 function readOnlyExtensions(readOnly: boolean) {
   return [EditorView.editable.of(!readOnly), EditorState.readOnly.of(readOnly)];
 }
@@ -73,8 +78,15 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onCheckpointRef = useRef(onCheckpoint);
+  const composingRef = useRef(false);
+  const composedChangeRef = useRef(false);
   onChangeRef.current = onChange;
   onCheckpointRef.current = onCheckpoint;
+
+  const emitChange = (next: string, withCheckpoint: boolean) => {
+    onChangeRef.current(next);
+    if (withCheckpoint) onCheckpointRef.current?.();
+  };
 
   // Mount once. Every callback is read through a ref so the view is never rebuilt.
   useEffect(() => {
@@ -92,24 +104,39 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
           syntaxHighlighting(uniworkHighlightStyle),
           html(),
           search(),
+          autocompletion(),
           cmPlaceholder(placeholder ?? ""),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
           uniworkTheme,
           readOnlyCompartment.of(readOnlyExtensions(readOnly)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
-            // `composing` is true while an IME composition is live: skip the
-            // edit then, and fire once on the composing -> false transition.
-            if (update.view.composing) return;
-            const next = update.state.doc.toString();
-            onChangeRef.current(next);
-            onCheckpointRef.current?.();
+            if (update.transactions.some((tr) => tr.annotation(externalSync))) return;
+            // Skip edits that land while an IME composition is live; they are
+            // reported once, on the compositionend transition below.
+            if (composingRef.current || update.view.composing) {
+              composedChangeRef.current = true;
+              return;
+            }
+            emitChange(update.state.doc.toString(), true);
           }),
         ],
       }),
     });
     viewRef.current = view;
+    const dom = view.contentDOM;
+    const onCompositionStart = () => { composingRef.current = true; };
+    const onCompositionEnd = () => {
+      composingRef.current = false;
+      if (!composedChangeRef.current) return;
+      composedChangeRef.current = false;
+      emitChange(view.state.doc.toString(), true);
+    };
+    dom.addEventListener("compositionstart", onCompositionStart);
+    dom.addEventListener("compositionend", onCompositionEnd);
     return () => {
+      dom.removeEventListener("compositionstart", onCompositionStart);
+      dom.removeEventListener("compositionend", onCompositionEnd);
       view.destroy();
       viewRef.current = null;
     };
@@ -123,7 +150,7 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
     if (!view) return;
     const current = view.state.doc.toString();
     if (current === value) return;
-    view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+    view.dispatch({ changes: { from: 0, to: current.length, insert: value }, annotations: externalSync.of(true) });
   }, [value]);
 
   useEffect(() => {
