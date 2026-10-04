@@ -6905,6 +6905,16 @@
   },
   "office": {
     "common": {
+      "chrome": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "tabs": "Tab trình soạn thảo",
+        "find": "Tìm",
+        "view": "Chế độ xem",
+        "commands": "Lệnh",
+        "more": "Thêm lệnh",
+        "status": "Trạng thái"
+      },
       "find": {
         "title": "Tìm và thay thế",
         "findPlaceholder": "Tìm trong tài liệu",

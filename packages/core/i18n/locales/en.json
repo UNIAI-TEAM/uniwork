@@ -6911,6 +6911,16 @@
   },
   "office": {
     "common": {
+      "chrome": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "tabs": "Editor tabs",
+        "find": "Find",
+        "view": "View",
+        "commands": "Commands",
+        "more": "More commands",
+        "status": "Status"
+      },
       "find": {
         "title": "Find and replace",
         "findPlaceholder": "Find in document",
