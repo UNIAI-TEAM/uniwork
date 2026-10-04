@@ -88,7 +88,8 @@ export function countFindMatches(deckTexts: readonly string[], find: string, mat
 /** What running find_replace over the given texts would do — pure, no deck
  * model. `total` is what the dialog counts; `replaceCount` is what the op
  * would replace (firstOnly caps it at 1); `hits` lists the inputs that match,
- * in scan order, so the dialog can select/highlight them. */
+ * in scan order, so the dialog can select/highlight them. Each `index` is the
+ * 1-based occurrence position of that input (the first input is 1). */
 export interface FindReplacePlan {
   total: number;
   replaceCount: number;
@@ -105,7 +106,7 @@ export function planFindReplace(
   deckTexts.forEach((text, index) => {
     const count = countFindMatches([text], find, options.matchCase);
     if (count > 0) {
-      hits.push({ index, count });
+      hits.push({ index: index + 1, count });
       total += count;
     }
   });

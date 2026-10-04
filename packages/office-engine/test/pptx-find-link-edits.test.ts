@@ -200,8 +200,8 @@ describe("pure find/replace helpers", () => {
       total: 3,
       replaceCount: 3,
       hits: [
-        { index: 0, count: 2 },
-        { index: 1, count: 1 },
+        { index: 1, count: 2 },
+        { index: 2, count: 1 },
       ],
     });
     expect(planFindReplace(texts, "slide", { matchCase: true })).toStrictEqual({
@@ -213,8 +213,8 @@ describe("pure find/replace helpers", () => {
       total: 3,
       replaceCount: 1,
       hits: [
-        { index: 0, count: 2 },
-        { index: 1, count: 1 },
+        { index: 1, count: 2 },
+        { index: 2, count: 1 },
       ],
     });
     expect(planFindReplace(texts, "")).toStrictEqual({ total: 0, replaceCount: 0, hits: [] });

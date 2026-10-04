@@ -275,15 +275,18 @@ const requireEnum = <T extends readonly string[]>(
   return value as T[number];
 };
 
-const normalizeStops = (raw: unknown, op: string, field: string): PptxGradientStop[] => {
+/** Gradient stops shared by fills and stroke gradients. `code` selects the
+ * refusal the caller owns: a fill reports fmt_bad_gradient, a stroke gradient
+ * reports fmt_bad_stroke (an invalid stroke stays a stroke refusal). */
+const normalizeStops = (raw: unknown, op: string, field: string, code = "fmt_bad_gradient"): PptxGradientStop[] => {
   if (!Array.isArray(raw) || raw.length < 2) {
-    throw new PptxEngineError("fmt_bad_gradient", op + ': "' + field + '" needs at least two { pos, color } entries');
+    throw new PptxEngineError(code, op + ': "' + field + '" needs at least two { pos, color } entries');
   }
   return raw.map((entry, index) => {
     const stop = entry as { pos?: unknown; color?: unknown } | null;
-    const pos = requireNumber(stop?.pos, op, field + "[" + index + "].pos", "fmt_bad_gradient");
+    const pos = requireNumber(stop?.pos, op, field + "[" + index + "].pos", code);
     if (pos < 0 || pos > 1) {
-      throw new PptxEngineError("fmt_bad_gradient", op + ': "' + field + "[" + index + '].pos" must be a fraction 0..1');
+      throw new PptxEngineError(code, op + ': "' + field + "[" + index + '].pos" must be a fraction 0..1');
     }
     return { pos, color: requireHexColor(stop?.color, op, field + "[" + index + "].color") };
   });
@@ -358,7 +361,7 @@ const normalizeStroke = (value: unknown, op: string): PptxStrokePatch | null => 
       throw new PptxEngineError("fmt_bad_stroke", op + ': "stroke.gradient" must be { stops, angle }');
     }
     out.gradient = {
-      stops: normalizeStops(gradient.stops, op, "stroke.gradient.stops"),
+      stops: normalizeStops(gradient.stops, op, "stroke.gradient.stops", "fmt_bad_stroke"),
       angle: requireNumber(gradient.angle, op, "stroke.gradient.angle", "fmt_bad_stroke"),
     };
   }
