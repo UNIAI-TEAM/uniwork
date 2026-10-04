@@ -140,6 +140,40 @@ test("fails on unverifiable module access in browser scope", () => {
   assert.ok(detail.includes("createRequire"), "expected createRequire to be flagged");
 });
 
+test("fails on a bare Node global re-added to a browser-scope file", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      'export const x = Buffer.from("x");\nexport const y = process.env.NODE_ENV;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('references the Node global "Buffer"'), "expected Buffer.from to be flagged");
+  assert.ok(detail.includes('references the Node global "process"'), "expected process.env to be flagged");
+  assert.ok(rules(result).every((rule) => rule === "browser_isolation"));
+});
+
+test("fails on a bare Node global in a transitive browser-scope helper", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts": 'import { x } from "../pdf/helper";\nexport const y = x;\n',
+    "packages/office-engine/src/pdf/helper.ts": 'export const x = Buffer.from("x");\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('references the Node global "Buffer"'), "expected the transitive Buffer to be flagged");
+});
+
+test("ignores Node global names in browser-scope comments and strings", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      "// Buffer.from and process.cwd() are documented here, not used.\n" +
+      'export const note = "Buffer is a Node global";\nexport const tag = `process`;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, true, result.violations.map((v) => v.detail).join("\n"));
+});
+
 test("fails on a template import the checker cannot enumerate", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":

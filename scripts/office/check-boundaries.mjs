@@ -5,7 +5,9 @@
 //   1. Browser isolation: the browser-facing surface of @uniwork/office-engine
 //      (src/index.ts, src/shared/**, src/browser/**) and all of
 //      @uniwork/office-contracts must not resolve Node, Electron, native or
-//      canvas - directly OR transitively through relative imports.
+//      canvas - directly OR transitively through relative imports - and must
+//      not reference a bare Node global (Buffer, process) the import scan
+//      cannot see.
 //   2. No /ee anywhere in the office tree: upstream /ee is separately licensed
 //      enterprise material and must never enter the source package
 //      (docs/office/g0/source-manifest.json).
@@ -120,6 +122,17 @@ export const BROWSER_SCOPE_ROOTS = [
   "apps/web/platform/office",
 ];
 
+/** Browser-facing surface whose BARE identifiers are scanned for Node globals.
+ * Narrower than BROWSER_SCOPE_ROOTS on purpose: the xlsx seam legitimately
+ * feature-detects Buffer and its Node sidecar is out of scope by construction,
+ * so only the code a browser bundle evaluates is held to this rule. */
+export const BROWSER_GLOBAL_SCOPE_ROOTS = [
+  "packages/office-contracts/src",
+  "packages/office-engine/src/index.ts",
+  "packages/office-engine/src/shared",
+  "packages/office-engine/src/browser",
+];
+
 /** Directories the /ee and licence checks scan. */
 export const OFFICE_TREE_ROOTS = [
   "packages/office-contracts",
@@ -215,6 +228,105 @@ export function unverifiableModuleCalls(source) {
   return hits;
 }
 
+/** Node globals a browser bundle does not define. A bare reference such as
+ * `Buffer.from(...)` or `process.cwd()` is invisible to the import scan yet
+ * throws the moment the browser bundle runs, so the browser surface is scanned
+ * for the identifiers too. Node-22 built-ins only. */
+export const BROWSER_FORBIDDEN_GLOBALS = ["Buffer", "process", "__dirname", "__filename", "setImmediate", "clearImmediate"];
+
+/**
+ * Blank comments and string/template-literal contents so an identifier scan
+ * sees only code; a `${...}` expression inside a template stays code, so a
+ * global hidden in an interpolation is still found. A small scanner, not a
+ * parser: enough to keep prose and quoted literals out of the match set.
+ */
+export function stripCommentsAndStrings(source) {
+  const out = source.split("");
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < out.length; k += 1) if (out[k] !== "\n") out[k] = " ";
+  };
+  const skipLineComment = (i) => {
+    let j = i + 2;
+    while (j < source.length && source[j] !== "\n") j += 1;
+    blank(i, j);
+    return j;
+  };
+  const skipBlockComment = (i) => {
+    let j = i + 2;
+    while (j < source.length && !(source[j] === "*" && source[j + 1] === "/")) j += 1;
+    j = Math.min(source.length, j + 2);
+    blank(i, j);
+    return j;
+  };
+  const skipString = (i) => {
+    const quote = source[i];
+    let j = i + 1;
+    while (j < source.length && source[j] !== quote) {
+      if (source[j] === "\\") j += 1;
+      j += 1;
+    }
+    j = Math.min(source.length, j + 1);
+    blank(i, j);
+    return j;
+  };
+  const skipTemplate = (i) => {
+    blank(i, i + 1);
+    let j = i + 1;
+    while (j < source.length) {
+      const c = source[j];
+      if (c === "\\") { blank(j, j + 2); j += 2; continue; }
+      if (c === "`") { blank(j, j + 1); return j + 1; }
+      if (c === "$" && source[j + 1] === "{") { blank(j, j + 2); j = skipExpression(j + 2); continue; }
+      blank(j, j + 1);
+      j += 1;
+    }
+    return j;
+  };
+  const skipExpression = (i) => {
+    let depth = 1;
+    let j = i;
+    while (j < source.length && depth > 0) {
+      const c = source[j];
+      const next = source[j + 1];
+      if (c === "/" && next === "/") { j = skipLineComment(j); continue; }
+      if (c === "/" && next === "*") { j = skipBlockComment(j); continue; }
+      if (c === '"' || c === "'") { j = skipString(j); continue; }
+      if (c === "`") { j = skipTemplate(j); continue; }
+      if (c === "{") depth += 1;
+      else if (c === "}") depth -= 1;
+      j += 1;
+    }
+    return j;
+  };
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    const next = source[i + 1];
+    if (c === "/" && next === "/") { i = skipLineComment(i); continue; }
+    if (c === "/" && next === "*") { i = skipBlockComment(i); continue; }
+    if (c === '"' || c === "'") { i = skipString(i); continue; }
+    if (c === "`") { i = skipTemplate(i); continue; }
+    i += 1;
+  }
+  return out.join("");
+}
+
+/** Bare Node globals referenced in code (comments/strings ignored). A property
+ * key (`{ process: 1 }`, a TS member signature) is not a reference and is
+ * skipped; `foo.Buffer` is a property access, not the global, and the
+ * lookbehind excludes it too. */
+export function bareNodeGlobals(source) {
+  const code = stripCommentsAndStrings(source);
+  const pattern = new RegExp(`(?<![\\w$.])(?:${BROWSER_FORBIDDEN_GLOBALS.join("|")})(?![\\w$])`, "g");
+  const hits = [];
+  for (const match of code.matchAll(pattern)) {
+    const after = code.slice(match.index + match[0].length);
+    if (/^\s*:/.test(after)) continue;
+    hits.push(match[0]);
+  }
+  return hits;
+}
+
 /** Resolve a relative specifier to a file that exists. */
 function resolveRelative(fromFile, specifier) {
   const base = path.resolve(path.dirname(fromFile), specifier);
@@ -224,6 +336,37 @@ function resolveRelative(fromFile, specifier) {
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return path.resolve(candidate);
   }
   return null;
+}
+
+/** Files reachable from a set of relative roots by relative imports (test
+ * files excluded) - the same closure the browser-scope walk follows. Used to
+ * scope the bare-global scan to the browser-facing surface. */
+function collectGraph(root, relRoots) {
+  const files = new Set();
+  const queue = [];
+  for (const rel of relRoots) {
+    const entry = path.join(root, rel);
+    if (!fs.existsSync(entry)) continue;
+    if (fs.statSync(entry).isFile()) {
+      if (!isTestFile(entry)) queue.push(entry);
+    } else {
+      for (const f of walk(entry)) if (!isTestFile(f)) queue.push(f);
+    }
+  }
+  while (queue.length) {
+    const file = path.resolve(queue.shift());
+    if (files.has(file) || !SOURCE_EXT.has(path.extname(file))) continue;
+    files.add(file);
+    const source = fs.readFileSync(file, "utf8");
+    for (const specifier of extractImportSpecifiers(source)) {
+      if (!specifier.startsWith("./") && !specifier.startsWith("../")) continue;
+      const resolved = resolveRelative(file, specifier);
+      if (resolved && !files.has(resolved) && !isTestFile(resolved) && resolved.startsWith(root + path.sep)) {
+        queue.push(resolved);
+      }
+    }
+  }
+  return files;
 }
 
 function isForbiddenSpecifier(specifier) {
@@ -254,6 +397,7 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
 
   // --- 1. Browser isolation -------------------------------------------------
   const browserRoots = BROWSER_SCOPE_ROOTS.map((r) => path.join(root, r));
+  const browserGlobalScope = collectGraph(root, BROWSER_GLOBAL_SCOPE_ROOTS);
   const seen = new Set();
   const queue = [];
   for (const entry of browserRoots) {
@@ -277,6 +421,11 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
     const source = fs.readFileSync(normalized, "utf8");
     for (const hit of unverifiableModuleCalls(source)) {
       report("browser_isolation", normalized, `unverifiable module access: ${hit}`);
+    }
+    if (browserGlobalScope.has(normalized)) {
+      for (const name of bareNodeGlobals(source)) {
+        report("browser_isolation", normalized, `references the Node global ${JSON.stringify(name)}`);
+      }
     }
     for (const specifier of extractImportSpecifiers(source)) {
       if (isForbiddenSpecifier(specifier)) {
