@@ -96,6 +96,10 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "next/dynamic",
   "@uniwork/views/office/docx",
   "@uniwork/office-upstream/docs-renderer-editor",
+  // UNI-925: the browser PDF apply (pdf-lib) and render (embedpdf wasm) are plain JS/wasm
+  // fetched from a host URL; neither touches node:*.
+  "pdf-lib",
+  "@embedpdf/pdfium",
 ]);
 const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx"]);
 

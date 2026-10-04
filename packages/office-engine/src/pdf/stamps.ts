@@ -10,8 +10,17 @@ import type { QuarterTurns, StampInput } from "./types.ts";
 /** Right-angle turns only; a stamp is never drawn at an arbitrary angle. */
 const QUARTER_TURNS: readonly number[] = [0, 90, 180, 270];
 
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_MAGIC = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+const JPEG_MAGIC = Uint8Array.of(0xff, 0xd8, 0xff);
+
+/** atob-based decode: this module also runs in the browser apply path, where
+ * Buffer does not exist. The caller has already checked the base64 shape. */
+function decodeBase64(compact: string): Uint8Array {
+  const binary = atob(compact);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 function refuse(field: string, message: string): never {
   throw new PdfOpError("addStamp", field, message);
@@ -23,7 +32,7 @@ function refuse(field: string, message: string): never {
  * throws a bare Error for bytes that are not really that format — a typed
  * refusal here keeps a broken payload out of the job's crash path.
  */
-function decodeStampImage(contentType: string, image: string): Buffer {
+function decodeStampImage(contentType: string, image: string): Uint8Array {
   if (typeof image !== "string" || image.length === 0) {
     refuse("image", "image must be a non-empty base64 string");
   }
@@ -34,10 +43,10 @@ function decodeStampImage(contentType: string, image: string): Buffer {
   if (compact.length === 0 || compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
     refuse("image", "image is not valid base64");
   }
-  const bytes = Buffer.from(compact, "base64");
+  const bytes = decodeBase64(compact);
   if (bytes.length === 0) refuse("image", "image base64 decodes to zero bytes");
   const magic = contentType === "image/png" ? PNG_MAGIC : JPEG_MAGIC;
-  if (!bytes.subarray(0, magic.length).equals(magic)) {
+  if (!magic.every((value, index) => bytes[index] === value)) {
     refuse("image", `image bytes are not a ${contentType} payload`);
   }
   return bytes;
@@ -48,7 +57,7 @@ function decodeStampImage(contentType: string, image: string): Buffer {
  * so the caller embeds exactly once; every failure is a typed refusal rather
  * than a silent drop, because a missing stamp is a missing signature.
  */
-function validateStamp(doc: PDFDocument, stamp: StampInput): Buffer {
+function validateStamp(doc: PDFDocument, stamp: StampInput): Uint8Array {
   if (stamp.kind !== "image" && stamp.kind !== "signature") {
     refuse("kind", `unknown stamp kind: ${String(stamp.kind)}`);
   }
@@ -83,7 +92,7 @@ function validateStamp(doc: PDFDocument, stamp: StampInput): Buffer {
  * deliberately not persisted: the stamp stays a plain image, and the saved file
  * keeps its original annotation and form semantics.
  */
-async function embedStamp(doc: PDFDocument, stamp: StampInput, bytes: Buffer): Promise<PDFImage> {
+async function embedStamp(doc: PDFDocument, stamp: StampInput, bytes: Uint8Array): Promise<PDFImage> {
   try {
     return stamp.contentType === "image/png" ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
   } catch {

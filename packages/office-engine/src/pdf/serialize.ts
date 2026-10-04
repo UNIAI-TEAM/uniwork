@@ -21,9 +21,6 @@
 //   4. Read-back verification against the final bytes BEFORE the caller sees
 //      them: a verify failure means the output is thrown away and the original
 //      bytes are never replaced.
-import { PDFDocument, PDFName, degrees } from "pdf-lib";
-import type { PDFRef } from "pdf-lib";
-
 import type {
   ImageEditFailure,
   MetadataInput,
@@ -38,12 +35,7 @@ import { applyImageEdits } from "./image.ts";
 import { verifyImageEdits } from "./render.ts";
 import { applyTextEdits, verifyTextEdits } from "./text.ts";
 import { applyTextInserts } from "./text-insert.ts";
-import { addMarkup } from "./markups.ts";
-import { addDrawing } from "./drawings.ts";
-import { applyStamp } from "./stamps.ts";
-import { addNote, editNote, resolveNote } from "./notes.ts";
-import { applyFormValue, flattenForms } from "./forms.ts";
-import { PdfOpError } from "./op-parse.ts";
+import { finalPageIndex, applyNUpStage, applyPdfLibStage, planBlankPageInserts, runPageInsertPlans, insertAnchorPosition, type PageInsertPlan } from "./lib-stage.ts";
 import {
   extractPagesBytes,
   insertBlankPageBytes,
@@ -52,7 +44,6 @@ import {
   PdfPageOpSourceError,
   splitPdfBytes,
 } from "./page-ops.ts";
-import { setNUp, setPageBox } from "./page-box.ts";
 
 export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
@@ -94,33 +85,6 @@ export interface AppliedPdfEdit {
   /** NEW documents produced by extract / merge / split. F2: the caller commits
       each one through Documents; the engine never writes them anywhere. */
   documents: PdfNewDocument[];
-}
-
-/** Original page index → index in the saved file (after deletions/reorder);
-    null = the page is gone from the output */
-function finalPageIndex(request: PdfEditRequest, p: number): number | null {
-  if (request.pageOrder) {
-    const i = request.pageOrder.indexOf(p);
-    return i >= 0 ? i : null;
-  }
-  const del = request.deletedPages ?? [];
-  if (del.includes(p)) return null;
-  return p - del.filter((d) => d < p).length;
-}
-
-function applyMetadata(pdfDoc: PDFDocument, meta: MetadataInput): void {
-  if (meta.title !== undefined) pdfDoc.setTitle(meta.title);
-  if (meta.author !== undefined) pdfDoc.setAuthor(meta.author);
-  if (meta.subject !== undefined) pdfDoc.setSubject(meta.subject);
-  if (meta.keywords !== undefined) {
-    pdfDoc.setKeywords(
-      meta.keywords
-        .split(/[,，;；]/)
-        .map((k) => k.trim())
-        .filter(Boolean),
-    );
-  }
-  pdfDoc.setModificationDate(new Date());
 }
 
 /**
@@ -197,29 +161,6 @@ function decodePdfBase64(value: string, op: string): Uint8Array {
   return bytes;
 }
 
-/** One page insert to run after the pdf-lib stage. `position` is an index in
-    the output document (post deletion/reorder); the plan is executed highest
-    position first so an earlier insert never shifts a later one. */
-interface PageInsertPlan {
-  position: number;
-  /** Tie-break for plans that share a position. A plan run later lands closer
-      to the anchor (its insert pushes the earlier one right), so the blank
-      page runs first and the inserted PDF's pages end up directly after the
-      anchor, with the blank sheet following them. */
-  tie: number;
-  op: string;
-  run: (bytes: Uint8Array) => Promise<{ bytes: Uint8Array; inserted: number }>;
-}
-
-/** Map an "insert after original page index" (-1 = front) to a position in the
-    saved output, or null when the anchor page is gone from it or was never in
-    the document. */
-function insertAnchorPosition(request: PdfEditRequest, afterPageIndex: number, pageCount: number): number | null {
-  if (afterPageIndex === -1) return 0;
-  const anchor = finalPageIndex(request, afterPageIndex);
-  return anchor === null || anchor >= pageCount ? null : anchor + 1;
-}
-
 /**
  * Grow the saved output with blank pages / another PDF's pages. Content
  * streams of every page that already existed are preserved: pdf-lib only
@@ -249,32 +190,8 @@ async function applyPageInserts(
       },
     });
   }
-  for (const blank of request.blankPages ?? []) {
-    const position = insertAnchorPosition(request, blank.afterPageIndex, pageCount);
-    if (position === null) {
-      skipped.push({ op: "insertBlankPage", index: 0, reason: "anchor page is not in the output" });
-      continue;
-    }
-    const size = blank.width !== undefined && blank.height !== undefined ? ([blank.width, blank.height] as [number, number]) : undefined;
-    plans.push({
-      position,
-      tie: 0,
-      op: "insertBlankPage",
-      run: async (current) => ({ bytes: (await insertBlankPageBytes(current, position - 1, size)).bytes, inserted: 1 }),
-    });
-  }
-  let out = bytes;
-  // Highest position first: an insert at a higher index never shifts a lower
-  // one, so every plan keeps its base-relative position while the bytes
-  // accumulate.
-  for (const plan of plans.sort((a, b) => b.position - a.position || a.tie - b.tie)) {
-    const result = await plan.run(out);
-    out = result.bytes;
-    // A source whose page subset matched nothing inserts no page: report it
-    // honestly rather than counting it as applied.
-    if (result.inserted === 0) skipped.push({ op: plan.op, index: 0, reason: "source selected no page to insert" });
-  }
-  return out;
+  plans.push(...planBlankPageInserts(request, pageCount, skipped));
+  return runPageInsertPlans(bytes, plans, skipped);
 }
 
 /** Produce the NEW documents an extract / merge / split request asks for. The
@@ -312,29 +229,6 @@ async function applyDocumentProducers(
 }
 
 /**
- * Impose the page tree into N-up sheets. Runs on the verified bytes as a
- * page-tree-only transform (like the page inserts): it replaces every page, so
- * it is applied after content verification and after the inserts, and its page
- * indices address the output document.
- */
-async function applyNUpStage(
-  bytes: Uint8Array,
-  request: PdfEditRequest,
-  skipped: PageOpFailure[],
-): Promise<{ bytes: Uint8Array; applied: number }> {
-  if (!request.nUp) return { bytes, applied: 0 };
-  const doc = await PDFDocument.load(bytes, { updateMetadata: false });
-  try {
-    const result = await setNUp(doc, request.nUp);
-    return { bytes: await doc.save({ useObjectStreams: false }), applied: result.sheets > 0 ? 1 : 0 };
-  } catch (error) {
-    if (!(error instanceof PdfOpError)) throw error;
-    skipped.push({ op: "setNUp", index: 0, reason: error.message });
-    return { bytes, applied: 0 };
-  }
-}
-
-/**
  * Apply the edit batch to the input bytes and return the verified output.
  * The input buffer is never mutated; a verify failure throws PdfVerifyError
  * and no output exists for the caller to persist.
@@ -348,12 +242,6 @@ export async function applyPdfEdits(
   let skippedTextInserts: TextInsertFailure[] = [];
   let skippedImageEdits: ImageEditFailure[] = [];
   let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
-  const skippedMarkups: { pageIndex: number; reason: string }[] = [];
-  const skippedDrawings: { pageIndex: number; reason: string }[] = [];
-  const skippedStamps: { pageIndex: number; reason: string }[] = [];
-  const skippedNotes: { pageIndex: number; reason: string }[] = [];
-  const skippedNoteEdits: { pageIndex: number; reason: string }[] = [];
-  const skippedNoteResolves: { pageIndex: number; reason: string }[] = [];
   const skippedPageInserts: PageOpFailure[] = [];
   const skippedNewDocuments: PageOpFailure[] = [];
   const skippedNUp: PageOpFailure[] = [];
@@ -379,129 +267,19 @@ export async function applyPdfEdits(
     bytes = applied.bytes;
     skippedImageEdits = applied.skipped;
   }
-  const pdfDoc = await PDFDocument.load(bytes, { updateMetadata: false });
-  const pages = pdfDoc.getPages();
-  for (const r of request.rotations ?? []) {
-    const page = pages[r.pageIndex];
-    if (page) page.setRotation(degrees((page.getRotation().angle + r.delta) % 360));
-  }
-  if (request.metadata) applyMetadata(pdfDoc, request.metadata);
-  // MediaBox / CropBox writes address original page indices, so they run here
-  // beside the other index-addressed ops, before deletion/reorder. A typed
-  // refusal (an index outside the document) is reported as a skip so the rest
-  // of the batch still applies.
-  const skippedPageBoxes: PageOpFailure[] = [];
-  let pageBoxesApplied = 0;
-  for (const box of request.pageBoxes ?? []) {
-    try {
-      pageBoxesApplied += setPageBox(pdfDoc, box).applied;
-    } catch (error) {
-      if (!(error instanceof PdfOpError)) throw error;
-      skippedPageBoxes.push({ op: "setPageBox", index: 0, reason: error.message });
-    }
-  }
-  for (const markup of request.markups ?? []) {
-    const page = pages[markup.pageIndex];
-    if (!page) {
-      skippedMarkups.push({ pageIndex: markup.pageIndex, reason: "page out of range" });
-      continue;
-    }
-    addMarkup(pdfDoc, page, markup);
-  }
-  for (const drawing of request.drawings ?? []) {
-    const page = pages[drawing.pageIndex];
-    if (!page) {
-      skippedDrawings.push({ pageIndex: drawing.pageIndex, reason: "page out of range" });
-      continue;
-    }
-    addDrawing(pdfDoc, page, drawing);
-  }
-  for (const stamp of request.stamps ?? []) {
-    try {
-      await applyStamp(pdfDoc, stamp);
-    } catch (error) {
-      // A typed refusal (bad page, undecodable image, bad rect) is reported as
-      // a skip so the rest of the batch still applies; anything else is an
-      // engine failure and must reach the job's crash path.
-      if (!(error instanceof PdfOpError)) throw error;
-      skippedStamps.push({ pageIndex: stamp.pageIndex, reason: error.message });
-    }
-  }
-  const noteRefs = new Map<string, PDFRef>();
-  for (const note of request.notes ?? []) {
-    const page = pages[note.pageIndex];
-    if (!page) {
-      skippedNotes.push({ pageIndex: note.pageIndex, reason: "page out of range" });
-      continue;
-    }
-    const reason = addNote(pdfDoc, page, note, noteRefs);
-    if (reason) skippedNotes.push({ pageIndex: note.pageIndex, reason });
-  }
-  for (const edit of request.noteEdits ?? []) {
-    const page = pages[edit.pageIndex];
-    if (!page) {
-      skippedNoteEdits.push({ pageIndex: edit.pageIndex, reason: "page out of range" });
-      continue;
-    }
-    const reason = editNote(pdfDoc, page, edit);
-    if (reason) skippedNoteEdits.push({ pageIndex: edit.pageIndex, reason });
-  }
-  for (const resolve of request.noteResolves ?? []) {
-    const page = pages[resolve.pageIndex];
-    if (!page) {
-      skippedNoteResolves.push({ pageIndex: resolve.pageIndex, reason: "page out of range" });
-      continue;
-    }
-    const reason = resolveNote(pdfDoc, page, resolve);
-    if (reason) skippedNoteResolves.push({ pageIndex: resolve.pageIndex, reason });
-  }
-  const skippedFormValues: { name: string; reason: string }[] = [];
-  for (const formValue of request.formValues ?? []) {
-    try {
-      applyFormValue(pdfDoc, formValue);
-    } catch (error) {
-      // A typed refusal (unknown field, kind/value mismatch, unknown option) is
-      // reported as a skip so the rest of the batch still applies; anything
-      // else is an engine failure and must reach the job's crash path.
-      if (!(error instanceof PdfOpError)) throw error;
-      skippedFormValues.push({ name: formValue.name, reason: error.message });
-    }
-  }
-  let formsFlattened = 0;
-  if (request.flattenForms) formsFlattened = flattenForms(pdfDoc) ? 1 : 0;
-  // Deletions go last, in descending order; earlier ops all address original
-  // page indices.
-  for (const idx of [...(request.deletedPages ?? [])].sort((a, b) => b - a)) {
-    if (idx >= 0 && idx < pdfDoc.getPageCount() && pdfDoc.getPageCount() > 1) pdfDoc.removePage(idx);
-  }
-  // Reorder last: pageOrder gives the new order of surviving pages by original
-  // index. pdf-lib's removePage never invalidates its page cache, so getPages()
-  // here would return the stale pre-deletion list — derive survivors from the
-  // pre-deletion snapshot instead.
-  const order = request.pageOrder;
-  if (order && order.length > 0) {
-    const deletedSet = new Set(request.deletedPages ?? []);
-    const target = order
-      .filter((o) => !deletedSet.has(o))
-      .map((o) => pages[o])
-      .filter((p) => p !== undefined);
-    if (target.length === pdfDoc.getPageCount()) {
-      while (pdfDoc.getPageCount() > 0) pdfDoc.removePage(0);
-      for (const p of target) pdfDoc.addPage(p);
-    }
-  }
-  let out: Uint8Array;
-  try {
-    out = await pdfDoc.save({ useObjectStreams: false });
-  } catch (error) {
-    // A field the engine did not write can carry a value pdf-lib's WinAnsi
-    // appearance update cannot encode; contain that as a typed refusal rather
-    // than letting a bare Error escape as an engine crash.
-    if (error instanceof Error && /cannot encode/i.test(error.message)) {
-      throw new PdfOpError("setFormValue", "value", error.message, false);
-    }
-    throw error;
-  }
+  const libStage = await applyPdfLibStage(bytes, request);
+  const out = libStage.bytes;
+  const {
+    skippedMarkups,
+    skippedDrawings,
+    skippedStamps,
+    skippedNotes,
+    skippedNoteEdits,
+    skippedNoteResolves,
+    skippedFormValues,
+    skippedPageBoxes,
+  } = libStage.skips;
+  const { formsFlattened, pageBoxesApplied } = libStage;
   await verifyContentEdits(out, request, {
     skippedTextEdits,
     skippedTextInserts,
@@ -524,7 +302,7 @@ export async function applyPdfEdits(
   // by an index shift they introduce.
   let finalBytes = out;
   if ((request.blankPages?.length ?? 0) > 0 || (request.insertedPdfs?.length ?? 0) > 0) {
-    finalBytes = await applyPageInserts(finalBytes, request, pdfDoc.getPageCount(), skippedPageInserts);
+    finalBytes = await applyPageInserts(finalBytes, request, libStage.pageCount, skippedPageInserts);
   }
   const nUp = await applyNUpStage(finalBytes, request, skippedNUp);
   finalBytes = nUp.bytes;

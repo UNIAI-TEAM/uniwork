@@ -65,3 +65,20 @@ export function createBrowserOfficeEngine(options: BrowserTransportOptions): Off
 }
 
 export type { OfficeEngine };
+
+export {
+  applyPdfOpsInBrowser,
+  BrowserPdfUnsupportedError,
+  PdfOpError,
+  readPdfFormFields,
+  type BrowserPdfApplyResult,
+  type BrowserPdfFormField,
+  type BrowserPdfSkip,
+} from "./pdf";
+export {
+  BrowserPdfOpenError,
+  loadBrowserPdfium,
+  type BrowserPdfDocument,
+  type BrowserPdfium,
+  type BrowserPdfRenderedPage,
+} from "./pdfium";
