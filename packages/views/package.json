@@ -58,7 +58,8 @@
     "./office/docx/*": "./office/docx/*.tsx",
     "./office/pdf": "./office/pdf/index.ts",
     "./office/pdf/types": "./office/pdf/types.ts",
-    "./office/pdf/*": "./office/pdf/*.tsx"
+    "./office/pdf/*": "./office/pdf/*.tsx",
+    "./office/ribbon": "./office/ribbon/index.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
