@@ -38,6 +38,10 @@ export function PptxSlideSizeControl({
   className,
 }: PptxSlideSizeControlProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // The model stores each preset's FULL i18n key (`office.pptx.design.size.*`),
+  // so its lookup must run against the root, not the panel prefix - a prefixed
+  // call would double the namespace and leave the key untranslated.
+  const { t: tRoot } = useTranslation();
   const activeId = matchSlideSizePreset(size);
   const activeIndex = PPTX_DESIGN_SLIDE_SIZES.findIndex((preset) => preset.id === activeId);
   const [focusIndex, setFocusIndex] = useState(() => rovingEntryIndex(activeIndex, PPTX_DESIGN_SLIDE_SIZES.length));
@@ -68,7 +72,7 @@ export function PptxSlideSizeControl({
       >
         {PPTX_DESIGN_SLIDE_SIZES.map((preset, index) => {
           const active = preset.id === activeId;
-          const label = t(preset.labelKey);
+          const label = tRoot(preset.labelKey);
           const dimensions = `${emuToInches(preset.cxEmu)} x ${emuToInches(preset.cyEmu)} in`;
           return (
             <button

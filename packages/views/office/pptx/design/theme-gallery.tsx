@@ -45,6 +45,10 @@ export function PptxThemeGallery({
   className,
 }: PptxThemeGalleryProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // The model stores each theme's FULL i18n key (`office.pptx.design.theme.*`),
+  // so its lookup must run against the root, not the panel prefix - a prefixed
+  // call would double the namespace and leave the key untranslated.
+  const { t: tRoot } = useTranslation();
   const activeIndex = PPTX_DESIGN_THEMES.findIndex((theme) => theme.id === activeThemeId);
   const [focusIndex, setFocusIndex] = useState(() => rovingEntryIndex(activeIndex, PPTX_DESIGN_THEMES.length));
   const blocked = disabled || busy;
@@ -62,7 +66,7 @@ export function PptxThemeGallery({
   const renderCard = (theme: PptxDesignTheme, index: number) => {
     const swatch = themeSwatch(theme);
     const active = theme.id === activeThemeId;
-    const name = t(theme.nameKey);
+    const name = tRoot(theme.nameKey);
     return (
       <button
         key={theme.id}

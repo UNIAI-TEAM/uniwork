@@ -362,7 +362,16 @@ export function PptxBackgroundDialog({
           >
             {t("design.background_close")}
           </Button>
-          <Button type="button" size="sm" disabled={!canSubmit} onClick={submit}>
+          {/* The visible copy flips to "Applying..." while busy, so the
+              accessible name is pinned to the action it performs. */}
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canSubmit}
+            aria-label={t("design.apply")}
+            data-testid="pptx-bg-apply"
+            onClick={submit}
+          >
             {busy ? t("design.busy") : t("design.apply")}
           </Button>
         </div>
