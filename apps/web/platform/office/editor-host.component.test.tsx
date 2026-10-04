@@ -291,6 +291,44 @@ describe("OfficeEditorHost composition", () => {
   });
 });
 
+describe("OfficeEditorHost viewport bound", () => {
+  it("bounds the editor content area so the surface scrolls inside the viewport", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session);
+    await settle();
+    const wrapper = rendered.container.querySelector("[data-office-editor-host]")!;
+    const shell = rendered.container.querySelector("[data-office-shell]")!;
+    // The host wrapper must hand the shell a bounded height, or the shell grows
+    // to content height and its scroll container scrolls the page instead.
+    expect(wrapper.className).toContain("h-full");
+    expect(wrapper.className).toContain("min-h-0");
+    expect(wrapper.className).toContain("overflow-hidden");
+    expect(shell.className).toContain("h-full");
+    // An unbounded min-height is exactly what let the PDF status bar fall below
+    // the fold; the shell must not force one on the content area.
+    expect(rendered.container.innerHTML).not.toContain("min-h-[20rem]");
+    rendered.root.unmount();
+  });
+});
+
+describe("OfficeEditorHost draft recovery", () => {
+  it("closes a live Draft-found offer after a successful Save", async () => {
+    const { session, coordinator } = makeSession();
+    vi.mocked(session.recoverDraft).mockResolvedValue({
+      status: "recovered",
+      snapshot: { generation: 1, fingerprint: "fp", value: { text: "draft" } },
+      metadata: { draftId: "document", generation: 1, checksum: "sha256:1", byteLength: 3, updatedAt: 1, identity: identity as never },
+    } as never);
+    const rendered = renderHost(session, { onRecoverSnapshot: async () => undefined });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Draft found");
+    await act(async () => { await coordinator.save(); });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    rendered.root.unmount();
+  });
+});
+
 describe("OfficeEditorHost page header", () => {
   it("renders no header of its own and puts Save and the desktop action in the page slot", async () => {
     const { session } = makeSession();

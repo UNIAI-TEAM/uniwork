@@ -8,6 +8,7 @@ import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, type OfficeChannel } from "@uniwork/views/office";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
@@ -129,10 +130,23 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     setRecovery(null);
     void activeSession.recoverDraft().then((result) => {
       if (!active) return;
+      // A Save that landed while recovery was reading has already discarded the
+      // durable draft; showing the offer now would resurrect a record the
+      // coordinator deleted. The dialog follows the store, not this late read.
+      if (result.status !== "missing" && activeSession.coordinator.getState().state === "saved") return;
       setRecovery(result.status === "missing" ? null : result);
     });
     return () => { active = false; };
   }, [activeSession]);
+
+  // Save success is the only event that removes the durable draft underneath an
+  // open recovery prompt (the coordinator discards it in the same settle). Once
+  // the coordinator reports `saved`, the offer it was showing no longer exists,
+  // so the "Draft found" dialog closes instead of lingering as a stale prompt.
+  useEffect(() => {
+    if (coordinatorState?.state !== "saved") return;
+    setRecovery(null);
+  }, [coordinatorState?.state]);
 
   const dirty = Boolean(coordinatorState && stateIsDirty(coordinatorState));
   useEffect(() => {
@@ -209,7 +223,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   };
 
   return (
-    <div className={className} data-office-editor-host data-office-format={document.file?.mime_type ?? "unknown"}>
+    <div className={cn("h-full min-h-0 overflow-hidden", className)} data-office-editor-host data-office-format={document.file?.mime_type ?? "unknown"}>
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}
@@ -268,7 +282,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
             launch={launchOfficeDeepLink}
           />
         ) : null}
-        className="min-h-[20rem]"
+        className="h-full min-h-0"
       />
       {activeSession && !readonly && recovery && recovery.status !== "missing" ? (
         <DraftRecoveryPrompt
