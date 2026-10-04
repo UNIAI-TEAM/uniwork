@@ -252,6 +252,13 @@ describe("MarkdownWysiwygEditor", () => {
   });
 });
 
+/** A plugin's `key` is a ProseMirror-internal string not on the public type. */
+function hasImageUploadPlugin(editor: Editor): boolean {
+  return editor.state.plugins.some(
+    (plugin) => ((plugin as { key?: string }).key ?? "").startsWith("markdownImageUpload"),
+  );
+}
+
 describe("MarkdownWysiwygEditor image pipeline", () => {
   it("leaves the extension set untouched when no image option is given", async () => {
     const handle = createHandle(createTextSource(FIXTURE));
@@ -259,7 +266,7 @@ describe("MarkdownWysiwygEditor image pipeline", () => {
     render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
     await waitFor(() => expect(live).not.toBeNull());
     // The upload plugin only exists when a host wires the pipeline.
-    expect(live!.state.plugins.some((plugin) => plugin.key.startsWith("markdownImageUpload"))).toBe(false);
+    expect(hasImageUploadPlugin(live!)).toBe(false);
   });
 
   it("mounts the upload plugin and authors the relative path the host returns", async () => {
@@ -277,7 +284,7 @@ describe("MarkdownWysiwygEditor image pipeline", () => {
       />,
     );
     await waitFor(() => expect(live).not.toBeNull());
-    expect(live!.state.plugins.some((plugin) => plugin.key.startsWith("markdownImageUpload"))).toBe(true);
+    expect(hasImageUploadPlugin(live!)).toBe(true);
 
     const event = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(event, "clipboardData", {
