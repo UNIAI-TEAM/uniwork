@@ -186,6 +186,11 @@ export function MarkdownEditor<TSnapshot = unknown>({
     setPreviewState("idle");
     setText("");
     setManifest(sourceManifest(activeEditor, manifestPropRef.current ?? null));
+    // Per-document UI state: a new document starts back in the visual canvas,
+    // with no stale upload failures and no instance from the previous one.
+    setMode("visual");
+    setInstance(null);
+    setUploadFailures({});
 
     const run = async () => {
       // The gate refuses an engine that cannot serialize, or a handle with no
