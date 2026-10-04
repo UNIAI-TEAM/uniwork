@@ -161,11 +161,15 @@ export function normalizeDocxChartDraft(draft: DocxChartDraft, seriesName: (inde
 export function chartDraftError(draft: DocxChartDraft): DocxChartDraftError | null {
   if (draft.categories.length === 0) return "noCategories";
   if (draft.series.length === 0) return "noSeries";
+  // A grid with no number anywhere is the blank state the dialog opens on: it
+  // reads as noValues even though the seeded series name is also blank, so the
+  // first refusal is the one the user has to act on (enter a value).
+  if (!draft.series.some((series) => series.values.some((value) => value !== null))) return "noValues";
   for (const series of draft.series) {
     if (series.name.trim() === "") return "seriesName";
     if (series.values.length !== draft.categories.length) return "seriesLength";
   }
-  return draft.series.some((series) => series.values.some((value) => value !== null)) ? null : "noValues";
+  return null;
 }
 
 /** The engine's insert_chart payload; null when the draft is not insertable

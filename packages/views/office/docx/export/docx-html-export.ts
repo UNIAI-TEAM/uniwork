@@ -182,8 +182,11 @@ function applyMark(mark: JSONContent, inner: string): string {
 }
 
 function serializeTextNode(node: JSONContent): string {
+  // Apply the strongest mark last so it wraps outermost: Word/genoffice read
+  // the run as <strong><em><u><s>> and the fixed nesting is part of the export
+  // contract, not an accident of mark order.
   const marks = [...(node.marks ?? [])].sort(
-    (left, right) => (MARK_PRIORITY[left.type ?? ""] ?? 90) - (MARK_PRIORITY[right.type ?? ""] ?? 90),
+    (left, right) => (MARK_PRIORITY[right.type ?? ""] ?? 90) - (MARK_PRIORITY[left.type ?? ""] ?? 90),
   );
   let html = escapeDocxHtmlText(node.text ?? "");
   for (const mark of marks) html = applyMark(mark, html);
@@ -320,7 +323,7 @@ function serializeBlockNodes(nodes: readonly JSONContent[]): string {
     // level has no immediate parent, and pushing to `parts` there would put
     // the nested list before its own parent list.
     let parentItem: ListItemNode | null = null;
-    for (let parent = depth - 1; parent >= 0 && !parentItem; parent -= 1) parentItem = currentItems[parent];
+    for (let parent = depth - 1; parent >= 0 && !parentItem; parent -= 1) parentItem = currentItems[parent] ?? null;
     if (parentItem) parentItem.sub.push(level);
     else parts.push(renderLevel(level));
   };

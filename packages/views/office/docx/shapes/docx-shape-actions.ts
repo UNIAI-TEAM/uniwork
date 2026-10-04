@@ -55,7 +55,10 @@ export function insertDocxShape(editor: Editor | null, kind: DocxShapeKind, labe
   // would replace a selected floating node and fails from inside a table cell.
   const { $from } = editor.state.selection;
   const position = $from.depth > 0 ? $from.after(1) : editor.state.selection.to;
-  return editor.chain().focus().insertContentAt(position, node).run();
+  // updateSelection:false keeps the caret where it was; Word does not select a
+  // freshly inserted shape, and the Format panel must stay disabled until the
+  // user clicks it.
+  return editor.chain().focus().insertContentAt(position, node, { updateSelection: false }).run();
 }
 
 /** Apply one panel edit to the selected shape. False without a selected shape,

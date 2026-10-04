@@ -9,27 +9,36 @@ import type { DocxShapeInfo } from "./docx-shape-model";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxShapesGroup } from "./docx-shapes-group";
 
-const popoverState = vi.hoisted(() => ({
-  open: false,
-  onOpenChange: undefined as ((open: boolean) => void) | undefined,
-}));
-
 vi.mock("@uniwork/ui/components/ui/popover", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
+  // One context per Popover instance: the group renders TWO popovers (gallery
+  // and format panel), so shared module state would let the panel's props
+  // overwrite the gallery's and the gallery would never open.
+  const Ctx = React.createContext<{ open: boolean; setOpen: (open: boolean) => void } | null>(null);
   return {
     Popover: ({ children, open, onOpenChange }: { children: ReactNode; open: boolean; onOpenChange: (open: boolean) => void }) => {
-      popoverState.open = open;
-      popoverState.onOpenChange = onOpenChange;
-      return React.createElement(React.Fragment, null, children);
+      const [internal, setInternal] = React.useState(open);
+      React.useEffect(() => {
+        setInternal(open);
+      }, [open]);
+      const setOpen = (next: boolean) => {
+        setInternal(next);
+        onOpenChange?.(next);
+      };
+      return React.createElement(Ctx.Provider, { value: { open: internal, setOpen } }, children);
     },
-    PopoverTrigger: ({ render, children, ...props }: { render: ReactElement; children?: ReactNode } & Record<string, unknown>) =>
-      React.cloneElement(
+    PopoverTrigger: ({ render, children, ...props }: { render: ReactElement; children?: ReactNode } & Record<string, unknown>) => {
+      const ctx = React.useContext(Ctx);
+      return React.cloneElement(
         render as ReactElement<Record<string, unknown>>,
-        { ...props, onClick: () => popoverState.onOpenChange?.(!popoverState.open) },
+        { ...props, onClick: () => ctx?.setOpen(!ctx.open) },
         children,
-      ),
-    PopoverContent: ({ children }: { children: ReactNode }) =>
-      popoverState.open ? React.createElement("div", { role: "dialog" }, children) : null,
+      );
+    },
+    PopoverContent: ({ children }: { children: ReactNode }) => {
+      const ctx = React.useContext(Ctx);
+      return ctx?.open ? React.createElement("div", { role: "dialog" }, children) : null;
+    },
   };
 });
 
@@ -57,7 +66,6 @@ function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntim
 function renderGroup(
   options: { commands?: DocxCommandRuntime; readOnly?: boolean; saving?: boolean; shape?: DocxShapeInfo | null } = {},
 ) {
-  popoverState.open = false;
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
     editor: {} as unknown as DocxToolbarGroupContext["editor"],

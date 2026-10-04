@@ -149,13 +149,14 @@ export interface TextColorPickerProps {
 
 export function TextColorPicker({ value, disabled = false, onPick }: TextColorPickerProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const items = TEXT_COLORS.map((hex) => ({
     value: hex,
     css: `#${hex}`,
     label: t("office.docx.character.colorSwatch", { value: `#${hex}` }),
   }));
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -183,7 +184,10 @@ export function TextColorPicker({ value, disabled = false, onPick }: TextColorPi
           disabled={disabled}
           noneLabel={t("office.docx.character.textColorAuto")}
           testId="docx-text-color-swatch"
-          onPick={onPick}
+          onPick={(color) => {
+            onPick(color);
+            setOpen(false);
+          }}
         />
       </PopoverContent>
     </Popover>
@@ -199,6 +203,7 @@ export interface HighlightPickerProps {
 
 export function HighlightPicker({ value, disabled = false, onPick }: HighlightPickerProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const items = HIGHLIGHTS.map((highlight) => ({
     value: highlight.name,
     css: highlight.css,
@@ -206,7 +211,7 @@ export function HighlightPicker({ value, disabled = false, onPick }: HighlightPi
   }));
   const current = value === null ? null : HIGHLIGHTS.find((highlight) => highlight.name === value);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -234,7 +239,10 @@ export function HighlightPicker({ value, disabled = false, onPick }: HighlightPi
           disabled={disabled}
           noneLabel={t("office.docx.character.highlightNone")}
           testId="docx-highlight-swatch"
-          onPick={onPick}
+          onPick={(name) => {
+            onPick(name);
+            setOpen(false);
+          }}
         />
       </PopoverContent>
     </Popover>

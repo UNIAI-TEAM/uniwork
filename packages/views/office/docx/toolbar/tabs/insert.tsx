@@ -4,7 +4,6 @@ import { InsertChartGroup } from "../../charts/insert-chart-group";
 import { InsertHeaderFooterGroup } from "../groups/insert-header-footer";
 import { InsertLinksGroup } from "../groups/insert-links";
 import { InsertNotesGroup } from "../groups/insert-notes";
-import { InsertPendingGroup } from "../groups/insert-pending";
 import { InsertSymbolsGroup } from "../groups/insert-symbols";
 import { DocxShapesGroup } from "../../shapes/docx-shapes-group";
 import { InsertTableGroup } from "../groups/insert-table";
@@ -14,7 +13,6 @@ export const insertTab: DocxToolbarTab = {
   id: "insert",
   labelKey: "office.docx.toolbar.tabInsert",
   groups: [
-    { id: "insert-pending", labelKey: "office.docx.toolbar.groups.pending", component: InsertPendingGroup, collapseAt: 0 },
     { id: "insert-links", labelKey: "office.docx.toolbar.groups.links", component: InsertLinksGroup, collapseAt: 560 },
     { id: "insert-table", labelKey: "office.docx.toolbar.groups.table", component: InsertTableGroup, collapseAt: 900 },
     { id: "insert-symbols", labelKey: "office.docx.toolbar.groups.symbols", component: InsertSymbolsGroup, collapseAt: 1000 },

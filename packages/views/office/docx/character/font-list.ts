@@ -53,7 +53,7 @@ const EAST_ASIAN_SCRIPT_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Kataka
 // East-Asian name lands in the w:eastAsia slot; the CJK ranges there are the
 // property escapes above instead.
 const EAST_ASIAN_ROMANIZED_RE =
-  /sim(sun|hei)|nsimsun|kaiti|fangsong|dengxian|yahei|songti|heiti|xingkai|lisu|youyuan|st(zhongsong|song|kai|fangsong|xihei|hupo|liti|caiyun)|pingfang|hiragino|meiryo|osaka|kozuka|yu ?(gothic|mincho)|yugoth|ms ?(ui )?p?(gothic|mincho)|biz ud|malgun|batang|gulim|dotum|gungsuh|m(ye|yu)ngjo|nanum|apple (sd )?gothic|applemyungjo|jhenghei|p?mingliu|biaukai|dfkai|kaiu|source han|noto (sans|serif) (cjk|sc|tc|hk|jp|kr)|wenquanyi/i;
+  /sim(sun|hei)|nsimsun|kaiti|fangsong|dengxian|yahei|songti|heiti|xingkai|lisu|youyuan|st(zhongsong|song|kai|fangsong|xihei|hupo|liti|caiyun)|pingfang|hiragino|meiryo|osaka|kozuka|yu ?(gothic|mincho)|yugoth|ms ?(ui )?p?(gothic|mincho)|biz ud|malgun|batang|gulim|dotum|gungsuh|m(ye|yu)ngjo|nanum|apple ?(sd )?gothic|applemyungjo|jhenghei|p?mingliu|biaukai|dfkai|kaiu|source han|noto (sans|serif) (cjk|sc|tc|hk|jp|kr)|wenquanyi/i;
 
 /**
  * Which rFonts slot a pick targets: an East-Asian face goes to w:eastAsia,

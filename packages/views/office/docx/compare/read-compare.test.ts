@@ -8,7 +8,7 @@ import { readCompareFile } from "./read-compare";
 const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-async function docxWithParagraphs(texts: readonly string[]): Promise<Uint8Array> {
+async function docxWithParagraphs(texts: readonly string[]): Promise<ArrayBuffer> {
   const zip = new JSZip();
   zip.file(
     "[Content_Types].xml",
@@ -27,7 +27,7 @@ async function docxWithParagraphs(texts: readonly string[]): Promise<Uint8Array>
     "word/document.xml",
     `<w:document xmlns:w="${w}"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`,
   );
-  return zip.generateAsync({ type: "uint8array" });
+  return zip.generateAsync({ type: "arraybuffer" });
 }
 
 describe("readCompareFile", () => {
@@ -38,7 +38,8 @@ describe("readCompareFile", () => {
   });
 
   it("refuses a file that is not a readable .docx", async () => {
-    const result = await readCompareFile(new File([new Uint8Array([1, 2, 3])], "broken.docx"));
+    const broken = new Uint8Array([1, 2, 3]);
+    const result = await readCompareFile(new File([broken.buffer as ArrayBuffer], "broken.docx"));
     expect(result).toEqual({ ok: false, reason: "invalid_docx" });
   });
 

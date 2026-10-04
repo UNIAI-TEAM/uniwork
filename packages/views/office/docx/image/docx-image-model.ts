@@ -25,10 +25,6 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, DocxImageMime> = {
 
 const IMAGE_MIMES = new Set<string>(["image/png", "image/jpeg", "image/gif"]);
 
-export function isDocxImageMime(value: unknown): value is DocxImageMime {
-  return typeof value === "string" && IMAGE_MIMES.has(value);
-}
-
 export function isDocxImageWrap(value: unknown): value is DocxImageWrap {
   return typeof value === "string" && (DOCX_IMAGE_WRAPS as readonly string[]).includes(value);
 }
@@ -316,16 +312,24 @@ export const FULL_CROP: DocxCropRect = { l: 0, t: 0, r: 1, b: 1 };
 
 const CROP_MIN_FRACTION = 0.05;
 
+const CROP_ROUND = 1e6;
+
+/** Kill float noise (0.9 + 0.05 = 0.9500000000000001) so a clamped region is
+ * stable to compare and to store. */
+function roundCrop(value: number): number {
+  return Math.round(value * CROP_ROUND) / CROP_ROUND;
+}
+
 export function clampCrop(rect: DocxCropRect): DocxCropRect {
   const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
   let l = clamp01(rect.l);
   let t = clamp01(rect.t);
   let r = clamp01(rect.r);
   let b = clamp01(rect.b);
-  if (r - l < CROP_MIN_FRACTION) r = Math.min(1, l + CROP_MIN_FRACTION);
-  if (b - t < CROP_MIN_FRACTION) b = Math.min(1, t + CROP_MIN_FRACTION);
-  if (r - l < CROP_MIN_FRACTION) l = Math.max(0, r - CROP_MIN_FRACTION);
-  if (b - t < CROP_MIN_FRACTION) t = Math.max(0, b - CROP_MIN_FRACTION);
+  if (r - l < CROP_MIN_FRACTION) r = Math.min(1, roundCrop(l + CROP_MIN_FRACTION));
+  if (b - t < CROP_MIN_FRACTION) b = Math.min(1, roundCrop(t + CROP_MIN_FRACTION));
+  if (r - l < CROP_MIN_FRACTION) l = Math.max(0, roundCrop(r - CROP_MIN_FRACTION));
+  if (b - t < CROP_MIN_FRACTION) t = Math.max(0, roundCrop(b - CROP_MIN_FRACTION));
   return { l, t, r, b };
 }
 

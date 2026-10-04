@@ -7073,7 +7073,6 @@
           "lists": "Danh sách",
           "styles": "Kiểu đoạn",
           "find": "Tìm kiếm",
-          "pending": "Bảng và hình ảnh",
           "links": "Liên kết",
           "table": "Bảng",
           "symbols": "Ký hiệu",
@@ -7616,15 +7615,12 @@
         "headingParagraph": "Văn bản thường",
         "headingLevel": "Tiêu đề {{level}}",
         "bulletList": "Danh sách dấu đầu dòng",
-        "orderedList": "Danh sách đánh số",
-        "table": "Bảng (đang chờ)",
-        "image": "Ảnh (đang chờ)"
+        "orderedList": "Danh sách đánh số"
       },
       "selection": {
         "none": "Chưa chọn",
         "range": "Vùng chọn {{from}}–{{to}}"
       },
-      "capabilityPending": "Tính năng DOCX này chưa có trong bản dựng hiện tại.",
       "state": {
         "opening": "Đang mở tài liệu…",
         "error": "Không mở được tài liệu"

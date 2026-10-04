@@ -43,6 +43,28 @@ export async function copySelection(editor: Editor): Promise<boolean> {
   return false;
 }
 
+/** The range a cut should delete. A selection that covers a whole top-level
+ * block deletes the block itself (Word removes the paragraph, not just its
+ * text); a partial selection stays an inline delete. A selection covering the
+ * entire document is left alone so the schema keeps one empty block. */
+function cutDeleteRange(editor: Editor): { from: number; to: number } {
+  const { doc, selection } = editor.state;
+  const { from, to } = selection;
+  let start = from;
+  let end = to;
+  let covered = 0;
+  let total = 0;
+  doc.forEach((node, offset) => {
+    total += 1;
+    if (node.isTextblock && offset + 1 >= from && offset + node.nodeSize - 1 <= to) {
+      covered += 1;
+      start = Math.min(start, offset);
+      end = Math.max(end, offset + node.nodeSize);
+    }
+  });
+  return covered > 0 && covered < total ? { from: start, to: end } : { from, to };
+}
+
 /** Copy, then delete the selection only when the copy actually landed. */
 export async function cutSelection(editor: Editor): Promise<boolean> {
   if (!editor.isEditable) return false;
@@ -50,7 +72,7 @@ export async function cutSelection(editor: Editor): Promise<boolean> {
   if (from === to) return false;
   const copied = await copySelection(editor);
   if (!copied) return false;
-  editor.chain().focus().deleteSelection().run();
+  editor.chain().focus().deleteRange(cutDeleteRange(editor)).run();
   return true;
 }
 

@@ -103,9 +103,20 @@ function docxIndexAtSelection(editor: Editor): number {
   if (doc.childCount === 0) return 0;
   const resolved = doc.resolve(Math.min(selection.from, doc.content.size));
   const top = Math.min(resolved.index(0), doc.childCount - 1);
-  for (let at = top; at >= 0; at -= 1) {
+  const indexOf = (at: number): number | null => {
     const docxIndex = doc.child(at).attrs?.docxIndex as unknown;
-    if (typeof docxIndex === "number") return docxIndex;
+    return typeof docxIndex === "number" ? docxIndex : null;
+  };
+  // An inserted block (shape, chart, â€¦) has no docxIndex. Scan forward first so
+  // the caret in front of real content still resolves to that content's
+  // section, then fall back to the nearest block before it.
+  for (let at = top; at < doc.childCount; at += 1) {
+    const found = indexOf(at);
+    if (found !== null) return found;
+  }
+  for (let at = top - 1; at >= 0; at -= 1) {
+    const found = indexOf(at);
+    if (found !== null) return found;
   }
   return 0;
 }

@@ -3,10 +3,18 @@
 // has no download primitive gets a typed false instead of a silent no-op.
 
 const HTML_EXTENSION = ".html";
-const UNSAFE_FILE_NAME = /[\\/:*?"<>|\u0000-\u001f]/g;
+const UNSAFE_FILE_NAME_CHARS = new Set([...'\\/:*?"<>|']);
+
+/** A file name character the host would reject: a Windows-reserved glyph or any
+ * C0 control character (0x00-0x1f). Checked per code point instead of with a
+ * control-character regex, which the lint rule bans outright. */
+function isUnsafeFileNameChar(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return UNSAFE_FILE_NAME_CHARS.has(char) || code <= 0x1f;
+}
 
 export function docxExportFileName(name: string): string {
-  const cleaned = name.replace(HTML_EXTENSION, "").replace(UNSAFE_FILE_NAME, "-").trim();
+  const cleaned = [...name.replace(HTML_EXTENSION, "")].map((char) => (isUnsafeFileNameChar(char) ? "-" : char)).join("").trim();
   return `${cleaned || "document"}${HTML_EXTENSION}`;
 }
 

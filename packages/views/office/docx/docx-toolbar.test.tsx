@@ -58,7 +58,7 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
 
 const TAB_GROUPS: Array<[string, string[]]> = [
   ["Trang chủ", ["home-base", "home-font", "home-paragraph", "home-styles", "home-find"]],
-  ["Chèn", ["insert-pending", "insert-links", "insert-table", "insert-symbols", "insert-header-footer"]],
+  ["Chèn", ["insert-links", "insert-table", "insert-symbols", "insert-header-footer"]],
   ["Bố cục", ["layout-page-setup"]],
   ["Xem lại", ["review-track-changes", "review-comments"]],
   ["Xem", ["view-zoom", "view-navigation"]],
