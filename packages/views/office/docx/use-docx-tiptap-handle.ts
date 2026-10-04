@@ -12,7 +12,7 @@ import { EditorContent } from "@tiptap/react";
 import type {} from "@tiptap/starter-kit";
 import { createElement, useEffect, useState, type ReactNode } from "react";
 import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
-import type { DocxAdapter, DocxCommentInfo } from "@uniwork/office-engine/docx";
+import type { DocxAdapter, DocxCommentInfo, DocxEdit } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import type { DocxNotesSnapshot } from "./commands/notes";
@@ -140,6 +140,11 @@ export interface DocxTiptapSnapshot {
    * the edit as set_protection / set_write_protection ops after the block plan
    * and restoreSnapshot re-seeds it. */
   protection?: DocxProtectionEdit;
+  /** The pending header/footer edits at capture (A13): the header/footer
+   * parts live outside the document body, so serializeSnapshot replays them as
+   * set_header_footer / set_title_pg / set_even_odd_headers ops after the block
+   * plan and restoreSnapshot re-seeds them. */
+  headerFooter?: DocxEdit[];
 }
 
 export interface DocxOpenError extends Error {
@@ -296,6 +301,8 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       // C3: the protect panel's state â€” the document's own restriction and
       // password-to-modify tags, from the same parse.
       commandRuntime.seedDocxProtection(parsed);
+      // A13: the header/footer dialog's six-slot read state, from the same parse.
+      commandRuntime.seedDocxHeaderFooter(parsed);
       commandRuntime.emitState();
     },
     getDirtyGeneration: () => generation,
@@ -319,6 +326,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         numbering: commandRuntime.listDocxNumberingEdits(),
         pageDecor: commandRuntime.listDocxPageDecorEdits(),
         protection: commandRuntime.snapshotDocxProtection(),
+        headerFooter: commandRuntime.listDocxHeaderFooterEdits(),
       };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
@@ -373,6 +381,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // C3: the protection edit â€” set_protection / set_write_protection
         // rewrite word/settings.xml on the same save session.
         commandRuntime.applyDocxProtectionEdit(options.adapter, saveRef);
+        // A13: header/footer - the parts live outside the body plan, so replay
+        // the pending edits onto the same save session.
+        commandRuntime.applyDocxHeaderFooterEdits(options.adapter, saveRef);
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
         options.adapter.release(saveRef);
@@ -399,6 +410,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       commandRuntime.restoreDocxNumberingEdits(snapshot.value.numbering);
       commandRuntime.restoreDocxPageDecorEdits(snapshot.value.pageDecor);
       commandRuntime.restoreDocxProtection(snapshot.value.protection);
+      commandRuntime.restoreDocxHeaderFooterEdits(snapshot.value.headerFooter);
       generation = Math.max(generation, snapshot.generation);
       for (const listener of dirtyListeners) listener(generation);
     },
