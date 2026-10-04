@@ -6,9 +6,10 @@
 // output bytes. Paths and file handles stay on the host side.
 import { applyPdfEditBytes, probePdf, type PdfEditOutcome, type PdfProbe } from "../pdf/index";
 
-/** Operations the desktop engine host answers. The IPC schema already
- * constrains the caller to this closed set. */
-export type DesktopEngineOperation = "open" | "edit";
+/** Operations the IPC schema lets a caller name. Only `open` and `edit` are
+ * bound; the rest answer `engine_operation_unsupported` before any payload is
+ * read. */
+export type DesktopEngineOperation = "open" | "edit" | "capability" | "serialize" | "cancel";
 
 export interface DesktopEngineCall {
   readonly operation: DesktopEngineOperation;
@@ -54,17 +55,19 @@ function decode(input: unknown): Uint8Array {
   return Uint8Array.from(Buffer.from(input, "base64"));
 }
 
-/** Answer one validated `desktop:engine-call`. Every failure throws a typed
- * error; a partial edit never returns bytes. */
+/** Answer one validated `desktop:engine-call`. The operation is dispatched
+ * first so an unbound one is refused by name rather than as a missing payload.
+ * Every failure throws a typed error; a partial edit never returns bytes. */
 export async function handleDesktopEngineCall(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
-  const bytes = decode(call.args.dataBase64);
   if (call.operation === "open") {
+    const bytes = decode(call.args.dataBase64);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
     return { ok: true, operation: "open", probe: await probePdf(bytes, password) };
   }
   if (call.operation === "edit") {
-    const edits = Array.isArray(call.args.edits) ? call.args.edits : [];
-    const result = await applyPdfEditBytes(bytes, edits);
+    const bytes = decode(call.args.dataBase64);
+    if (!Array.isArray(call.args.edits)) throw new DesktopEngineCallError("engine_input_missing");
+    const result = await applyPdfEditBytes(bytes, call.args.edits);
     return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
   }
   throw new DesktopEngineCallError("engine_operation_unsupported");

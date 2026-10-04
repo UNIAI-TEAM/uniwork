@@ -11,7 +11,7 @@ describe("desktop PDF engine host", () => {
   it("probes a real PDF into a view-safe page summary", async () => {
     const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf") } });
     expect(result).toMatchObject({ ok: true, operation: "open" });
-    if (result.operation !== "open") throw new Error("unreachable");
+    if (!result.ok || result.operation !== "open") throw new Error("unreachable");
     expect(result.probe.pageCount).toBeGreaterThan(0);
     expect(result.probe.features.ocr).toBe(false);
   });
@@ -20,9 +20,18 @@ describe("desktop PDF engine host", () => {
     await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).rejects.toMatchObject({ name: "PdfPasswordError", status: "required" });
   });
 
+  it("refuses an unbound operation by name before reading the payload", async () => {
+    await expect(handleDesktopEngineCall({ operation: "serialize", handle: "doc", args: {} })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_operation_unsupported" });
+    await expect(handleDesktopEngineCall({ operation: "cancel", handle: "doc", args: {} })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_operation_unsupported" });
+  });
+
+  it("refuses a malformed edit payload instead of fabricating an empty batch", async () => {
+    await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), edits: "not-an-array" } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+  });
+
   it("applies one edit batch and returns the verified output bytes", async () => {
     const result = await handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), edits: [{ op: "deletePage", attributes: { pageIndex: 0 } }] } });
-    if (result.operation !== "edit") throw new Error("unreachable");
+    if (!result.ok || result.operation !== "edit") throw new Error("unreachable");
     expect(result.report.pageOps.deletions).toBe(1);
     const reopened = await PDFDocument.load(Buffer.from(result.dataBase64, "base64"));
     expect(reopened.getPageCount()).toBe(1);
