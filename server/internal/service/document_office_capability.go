@@ -717,6 +717,13 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// table-removal write path, so a file-native table stays view-only).
 	"create_table": officeCreateTableValid,
 	"remove_table": officeRemoveTableValid,
+	// Sheet protection (B7): set_sheet_protection toggles the worksheet
+	// <sheetProtection> element. The flag is a raw boolean.
+	"set_sheet_protection": officeSetSheetProtectionValid,
+	// Defined names (B7): set_defined_names rewrites the workbook definedNames
+	// section from the editor model. Names follow Excel's grammar;
+	// preserveNames lists names the editor cannot model and keeps verbatim.
+	"set_defined_names": officeSetDefinedNamesValid,
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -1859,6 +1866,115 @@ var (
 	officeTableCellRefPat   = regexp.MustCompile("^\\$?[A-Za-z]{1,3}\\$?[1-9][0-9]*$")
 	officeTableStylePattern = regexp.MustCompile("^TableStyle(?:Light|Medium|Dark)[1-9][0-9]?$")
 )
+
+// Defined names (B7). set_defined_names has no target: the vendored gateway
+// rewrites the workbook definedNames section wholesale, so the state is
+// workbook-scoped. Names follow the vendored validateName grammar (a letter, _,
+// or backslash; then letters/digits/_/./backslash; at most 255 chars; never an
+// A1/R1C1 cell reference, TRUE/FALSE, or an _xlnm built-in); each name appears
+// once per scope and a name cannot be both modeled and preserved.
+const maxOfficeDefinedNames = 10_000
+
+var (
+	officeDefinedNamePattern    = regexp.MustCompile(`^[\p{L}_\\][\p{L}\p{N}_.\\]*$`)
+	officeDefinedNameCellRefPat = regexp.MustCompile(`^(?:[A-Za-z]{1,3}[0-9]+|[Rr][0-9]*[Cc][0-9]*)$`)
+)
+
+// officeDefinedNameOK mirrors the vendored validateName (xlsx-defined-names.ts).
+func officeDefinedNameOK(name string) bool {
+	if name == "" || len(name) > 255 || !officeDefinedNamePattern.MatchString(name) {
+		return false
+	}
+	if officeDefinedNameCellRefPat.MatchString(name) {
+		return false
+	}
+	lower := strings.ToLower(name)
+	return lower != "true" && lower != "false" && !strings.HasPrefix(name, "_xlnm")
+}
+
+// officeDefinedNamesListOK validates the names array: each entry is an object
+// with a valid name, a non-empty formula and an optional in-grid sheetIndex;
+// a (name, scope) pair may not repeat.
+func officeDefinedNamesListOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var names []map[string]json.RawMessage
+	if json.Unmarshal(raw, &names) != nil || len(names) > maxOfficeDefinedNames {
+		return false
+	}
+	seen := make(map[string]bool, len(names))
+	for _, entry := range names {
+		if entry == nil {
+			return false
+		}
+		var name string
+		if json.Unmarshal(entry["name"], &name) != nil || !officeDefinedNameOK(name) {
+			return false
+		}
+		var formula string
+		if json.Unmarshal(entry["formula"], &formula) != nil || formula == "" {
+			return false
+		}
+		scope := -1
+		if sheetIndex, ok := entry["sheetIndex"]; ok {
+			value, valid := officeGridIndex(sheetIndex, maxOfficeEditColumns)
+			if !valid {
+				return false
+			}
+			scope = value
+		}
+		key := name + "\x00" + strconv.Itoa(scope)
+		if seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
+}
+
+// officeSetDefinedNamesValid: set_defined_names - a workbook-scoped snapshot
+// with a bounded names array and optional bounded preserveNames.
+func officeSetDefinedNamesValid(edit office.EditOp) bool {
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) == 0 {
+		return false
+	}
+	for name := range attributes {
+		if name != "names" && name != "preserveNames" {
+			return false
+		}
+	}
+	if !officeDefinedNamesListOK(attributes["names"]) {
+		return false
+	}
+	if raw, present := attributes["preserveNames"]; present {
+		var preserved []string
+		if json.Unmarshal(raw, &preserved) != nil || len(preserved) > maxOfficeDefinedNames {
+			return false
+		}
+		for _, name := range preserved {
+			if name == "" || len(name) > 255 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// officeSetSheetProtectionValid: set_sheet_protection - a sheet-ref target
+// plus exactly one raw boolean flag.
+func officeSetSheetProtectionValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) != 1 {
+		return false
+	}
+	protected, present := attributes["protected"]
+	return present && (string(protected) == "true" || string(protected) == "false")
+}
 
 // officeTableNameOK: a present Excel table name (grammar + not a cell ref).
 func officeTableNameOK(raw json.RawMessage) bool {
