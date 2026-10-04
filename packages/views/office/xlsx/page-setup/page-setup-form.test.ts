@@ -36,9 +36,18 @@ describe("printTitlesSpan", () => {
   it("accepts a row span only", () => {
     expect(printTitlesSpan("1:2")).toBe("1:2");
     expect(printTitlesSpan(" 1:2 ")).toBe("1:2");
+    expect(printTitlesSpan("1:1048576")).toBe("1:1048576");
     expect(printTitlesSpan("")).toBeNull();
     expect(printTitlesSpan("A1:B2")).toBeNull();
     expect(printTitlesSpan("3:1")).toBeNull();
+  });
+
+  it("refuses the spans the engine's grammar refuses", () => {
+    // start >= 1 and end <= 1_048_576, so the dialog shows invalidTitles
+    // instead of letting a raw XlsxOpError surface after Apply.
+    expect(printTitlesSpan("0:5")).toBeNull();
+    expect(printTitlesSpan("1:2000000")).toBeNull();
+    expect(printTitlesSpan("0:0")).toBeNull();
   });
 });
 
@@ -74,5 +83,14 @@ describe("buildPageSetupFields", () => {
     expect(buildPageSetupFields(form({ scale: "9" }), null)).toEqual({ ok: false, error: "scale" });
     expect(buildPageSetupFields(form({ fitToWidth: "1001" }), null)).toEqual({ ok: false, error: "fit" });
     expect(buildPageSetupFields(form({ frozenRows: "-1" }), null)).toEqual({ ok: false, error: "frozen" });
+  });
+
+  it("requires the frozen pane as a pair so a lone axis cannot zero the other", () => {
+    expect(buildPageSetupFields(form({ frozenRows: "2" }), null)).toEqual({ ok: false, error: "frozenPair" });
+    expect(buildPageSetupFields(form({ frozenColumns: "1" }), null)).toEqual({ ok: false, error: "frozenPair" });
+    expect(buildPageSetupFields(form({ frozenRows: "2", frozenColumns: "0" }), null)).toEqual({
+      ok: true,
+      fields: { frozenRows: 2, frozenColumns: 0 },
+    });
   });
 });

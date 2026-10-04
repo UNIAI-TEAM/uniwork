@@ -7534,6 +7534,7 @@
           "invalidNumber": "Enter a whole number within the allowed range.",
           "invalidTitles": "Print titles use a row span like 1:2.",
           "invalidPrintArea": "Select a range to use as the print area.",
+          "invalidFrozenPair": "Set both frozen rows and frozen columns.",
           "empty": "Change at least one setting.",
           "apply": "Apply",
           "cancel": "Cancel"

@@ -501,8 +501,9 @@ export class XlsxSessionModel {
   }
 
   /** The page-setup plan for the gateway's pageSetupStates argument: one
-   *  declarative state per touched sheet, last write per sheet, in first-touch
-   *  order. Empty when the session has no page-setup edits. */
+   *  declarative state per touched sheet, fields merged last-write-per-field
+   *  across that sheet's ops, in first-touch sheet order. Empty when the
+   *  session has no page-setup edits. */
   pendingPageSetupStates(): XlsxSheetPageSetupState[] {
     return groupXlsxPageSetupStates([...this.pageSetups.values()]);
   }

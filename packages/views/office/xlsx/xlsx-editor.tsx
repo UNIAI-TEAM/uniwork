@@ -512,6 +512,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     readOnly,
     canEdit,
     edit: editor.edit,
+    getSnapshot: editor.getWorkbookSnapshot,
     onApplied: () => { markDirty(); refreshSnapshot(); },
     onError: setRecalcError,
   });

@@ -7528,6 +7528,7 @@
           "invalidNumber": "Nhập một số nguyên trong khoảng cho phép.",
           "invalidTitles": "Tiêu đề lặp lại dùng khoảng hàng như 1:2.",
           "invalidPrintArea": "Chọn một vùng để làm vùng in.",
+          "invalidFrozenPair": "Hãy đặt cả hàng và cột cố định.",
           "empty": "Hãy thay đổi ít nhất một thiết lập.",
           "apply": "Áp dụng",
           "cancel": "Hủy"

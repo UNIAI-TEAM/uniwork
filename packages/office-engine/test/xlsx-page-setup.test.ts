@@ -101,6 +101,13 @@ describe("XLSX page-setup ops in the session model", () => {
     expect(cloned.pendingPageSetupStates().map((state) => state.sheetName)).toEqual(["Data", "Data copy"]);
   });
 
+  it("accepts the frozen pane only as a pair", () => {
+    const sheets = { sheetNames: () => ["Data", "Report"], nameForId: () => undefined };
+    const [op] = parseXlsxOps([item({ frozenRows: 2, frozenColumns: 1 })], sheets);
+    if (!op || op.kind !== "set_page_setup") throw new Error("expected a page-setup op");
+    expect(op.setup).toEqual({ frozenRows: 2, frozenColumns: 1 });
+  });
+
   it("groups parsed page-setup ops by sheet, last write wins", () => {
     const sheets = { sheetNames: () => ["Data", "Report"], nameForId: () => undefined };
     const ops = parseXlsxOps([
@@ -128,9 +135,15 @@ describe("XLSX page-setup ops in the session model", () => {
       item({ fitToWidth: -1 }),
       item({ fitToHeight: 1_001 }),
       item({ fitToPage: 1 }),
+      item({ fitToPage: null }),
       item({ printGridlines: "yes" }),
+      item({ printHeadings: null }),
       item({ frozenRows: -1 }),
       item({ frozenColumns: 16_384 }),
+      // The pane is one state: a lone axis would reset the other to 0 in the
+      // gateway (applyPageSetupState uses `?? 0`), so it is refused.
+      item({ frozenRows: 2 }),
+      item({ frozenColumns: 3 }),
       item({ printArea: "A1:" }),
       item({ printArea: "A1:XFE1" }),
       item({ printArea: "" }),

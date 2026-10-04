@@ -1,11 +1,15 @@
 // C2 (UNI-926): CSV export for the active sheet. Pure serialization (no DOM),
 // so a host without a DOM (the desktop renderer) can reuse it; the download
 // wiring lives in download.ts and runs in the web host only. The values come
-// from the render model (cached formula results), so a formula exports the way
-// the grid shows it.
-import type { XlsxCellScalar } from "@uniwork/office-engine/xlsx";
+// from the LIVE session snapshot (kept current by every edit), not the render
+// model: the model host is built once at open and never republished, so it
+// would silently omit unsaved in-session edits.
+import type { XlsxCellScalar, XlsxCellState } from "@uniwork/office-engine/xlsx";
 
-/** The slice of a render-model sheet the serializer reads (XlsxRenderSheet). */
+/** The slice of a sheet the serializer reads: an address-keyed cell map plus
+ *  the used-range dimensions. Built from the live session snapshot
+ *  (csvSheetFromSnapshot); the render-model shape (XlsxRenderSheet) also
+ *  satisfies it. */
 export interface XlsxCsvSheet {
   readonly cells: Readonly<Record<string, { readonly v?: XlsxCellScalar | undefined; readonly f?: string | undefined; readonly c?: XlsxCellScalar | undefined }>>;
   readonly rowCount: number;
@@ -42,6 +46,43 @@ function address(row: number, column: number): string {
     label = String.fromCharCode(65 + ((value - 1) % 26)) + label;
   }
   return label + (row + 1);
+}
+
+/** The 0-based row/column of an A1 address, or null (kept local, same reason
+ *  as `address`). */
+function addressPartsOf(value: string): { row: number; column: number } | null {
+  const match = /^([A-Za-z]{1,3})([1-9][0-9]*)$/.exec(value);
+  if (!match) return null;
+  let column = 0;
+  for (const char of match[1]!.toUpperCase()) column = column * 26 + char.charCodeAt(0) - 64;
+  return { row: Number(match[2]) - 1, column: column - 1 };
+}
+
+/**
+ * The CSV slice of one LIVE session snapshot sheet: its used range (the max
+ * address any cell occupies) and, per cell, the value, or, for a formula
+ * cell, the formula text plus whatever cached result the snapshot carries.
+ * The gateway snapshot stores formula cells as `{ value: null, formula }`
+ * (no cached <v>), so a formula exports empty unless a recalc has refreshed
+ * it; every other in-session edit is current, which the open-time render model
+ * was not.
+ */
+export function csvSheetFromSnapshot(sheet: { readonly cells: Readonly<Record<string, XlsxCellState>> }): XlsxCsvSheet {
+  const cells: Record<string, { v?: XlsxCellScalar | undefined; f?: string | undefined; c?: XlsxCellScalar | undefined }> = {};
+  let rowCount = 0;
+  let columnCount = 0;
+  for (const [key, cell] of Object.entries(sheet.cells)) {
+    const parts = addressPartsOf(key);
+    if (!parts) continue;
+    rowCount = Math.max(rowCount, parts.row + 1);
+    columnCount = Math.max(columnCount, parts.column + 1);
+    if (cell.formula !== undefined) {
+      cells[key] = { f: cell.formula, ...(cell.rawValue === undefined ? {} : { c: cell.rawValue }) };
+    } else {
+      cells[key] = { v: cell.value };
+    }
+  }
+  return { cells, rowCount, columnCount };
 }
 
 /**

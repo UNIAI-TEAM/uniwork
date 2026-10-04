@@ -3,11 +3,11 @@
 // field into the worksheet's <printOptions>/<pageMargins>/<pageSetup> (and the
 // sheetView display attributes), and `applyPrintAreas` maintains the
 // `_xlnm.Print_Area` / `_xlnm.Print_Titles` defined names in workbook.xml. One
-// op kind, `set_page_setup`, rides the `pageSetupStates` argument: it is
-// whole-sheet and folded per sheet at save time, last write wins (a
-// filter-style declarative snapshot). This module holds the typed op, the
-// field grammar and the fold; the wire parser lives in ops.ts (it needs the
-// shared target/attributes helpers).
+// op kind, `set_page_setup`, rides the `pageSetupStates` argument: it carries
+// only the fields one edit changed, and the session model folds it per sheet
+// field-wise, last write per field wins (a filter-style declarative snapshot).
+// This module holds the typed op, the field grammar and the fold; the wire
+// parser lives in ops.ts (it needs the shared target/attributes helpers).
 import type { XlsxEditOp } from "./ops.ts";
 
 /** The page-layout fields the envelope may set. Absent = the file's value is
@@ -35,7 +35,8 @@ export interface XlsxPageSetupFields {
 }
 
 /** The envelope op (pageSetupStates slot): the sheet's CURRENT name plus the
- *  fields of the last page-setup edit for that sheet. */
+ *  page-layout fields one edit carries (only the fields the UI changed; the
+ *  model merges them field-wise with earlier ops for the same sheet). */
 export type XlsxPageSetupOp = {
   readonly kind: "set_page_setup";
   readonly sheetName: string;

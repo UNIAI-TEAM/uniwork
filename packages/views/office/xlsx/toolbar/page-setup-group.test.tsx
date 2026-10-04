@@ -67,26 +67,43 @@ describe("XlsxPageSetupGroup", () => {
     expect(onExportCsv).toHaveBeenCalledOnce();
   });
 
-  it("stays in the tab order and inert without handlers or edit rights", () => {
-    for (const overrides of [
-      { onOpenPageSetup: undefined, onPrint: undefined, onExportCsv: undefined },
-      { readOnly: true },
-    ] as Partial<XlsxToolbarGroupProps>[]) {
-      const onOpenPageSetup = vi.fn();
-      const onPrint = vi.fn();
-      const onExportCsv = vi.fn();
-      const view = render(<XlsxPageSetupGroup {...groupProps({ ...overrides, onOpenPageSetup, onPrint, onExportCsv })} />);
-      for (const testId of ["xlsx-page-setup-open", "xlsx-print", "xlsx-export-csv"]) {
-        const button = screen.getByTestId(testId);
-        expect(button).toHaveAttribute("aria-disabled", "true");
-        expect(button).not.toBeDisabled();
-        fireEvent.click(button);
-      }
-      expect(onOpenPageSetup).not.toHaveBeenCalled();
-      expect(onPrint).not.toHaveBeenCalled();
-      expect(onExportCsv).not.toHaveBeenCalled();
-      view.unmount();
+  it("stays in the tab order and inert when the host wires no handlers", () => {
+    // No handlers at all: every control is inert (and still in the tab order).
+    const view = render(
+      <XlsxPageSetupGroup {...groupProps({ onOpenPageSetup: undefined, onPrint: undefined, onExportCsv: undefined })} />,
+    );
+    for (const testId of ["xlsx-page-setup-open", "xlsx-print", "xlsx-export-csv"]) {
+      const button = screen.getByTestId(testId);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).not.toBeDisabled();
+      fireEvent.click(button);
     }
+    view.unmount();
+  });
+
+  it("gates Page Setup on read-only but keeps Print and CSV usable (handler presence only)", () => {
+    // Print and Export CSV are intentionally gated on handler presence alone:
+    // printing and exporting a read-only workbook are safe. Page Setup edits
+    // the file, so read-only disables it.
+    const onOpenPageSetup = vi.fn();
+    const onPrint = vi.fn();
+    const onExportCsv = vi.fn();
+    render(<XlsxPageSetupGroup {...groupProps({ readOnly: true, onOpenPageSetup, onPrint, onExportCsv })} />);
+
+    const pageSetup = screen.getByTestId("xlsx-page-setup-open");
+    expect(pageSetup).toHaveAttribute("aria-disabled", "true");
+    expect(pageSetup).not.toBeDisabled();
+    fireEvent.click(pageSetup);
+    expect(onOpenPageSetup).not.toHaveBeenCalled();
+
+    for (const testId of ["xlsx-print", "xlsx-export-csv"]) {
+      const button = screen.getByTestId(testId);
+      expect(button).not.toHaveAttribute("aria-disabled");
+      expect(button).not.toBeDisabled();
+      fireEvent.click(button);
+    }
+    expect(onPrint).toHaveBeenCalledOnce();
+    expect(onExportCsv).toHaveBeenCalledOnce();
   });
 });
 

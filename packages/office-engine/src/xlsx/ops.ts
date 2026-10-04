@@ -937,6 +937,15 @@ function parseSetPageSetup(item: Dict, op: string, sheets: XlsxSheetResolver): X
   for (const key of Object.keys(a)) {
     if (!PAGE_SETUP_FIELDS.has(key)) throw new XlsxOpError(op, "attributes." + key, "unknown page-setup field");
   }
+  // The frozen pane is one state with two axes: the gateway's
+  // applyPageSetupState writes `frozenRows ?? 0`/`frozenColumns ?? 0`, so a
+  // lone axis would silently reset the other to 0. Require the pair, matching
+  // the upstream workbookPageSetupStateSchema ("both present together").
+  const frozenRows = pageSetupInt(a, "frozenRows", op, 0, MAX_ROWS - 1);
+  const frozenColumns = pageSetupInt(a, "frozenColumns", op, 0, MAX_COLS - 1);
+  if ((frozenRows === undefined) !== (frozenColumns === undefined)) {
+    throw new XlsxOpError(op, "attributes.frozenRows", "frozenRows and frozenColumns must be set together");
+  }
   const setup: XlsxPageSetupFields = {
     orientation: pageSetupEnum(a, "orientation", op, ["portrait", "landscape"] as const),
     paperSize: pageSetupInt(a, "paperSize", op, 1, MAX_PAPER_SIZE),
@@ -949,8 +958,8 @@ function parseSetPageSetup(item: Dict, op: string, sheets: XlsxSheetResolver): X
     printHeadings: pageSetupBool(a, "printHeadings", op),
     printArea: pageSetupPrintArea(a, op),
     printTitles: pageSetupPrintTitles(a, op),
-    frozenRows: pageSetupInt(a, "frozenRows", op, 0, MAX_ROWS - 1),
-    frozenColumns: pageSetupInt(a, "frozenColumns", op, 0, MAX_COLS - 1),
+    frozenRows,
+    frozenColumns,
     rowBreaks: pageSetupBreaks(a, "rowBreaks", op, MAX_ROWS - 1),
     colBreaks: pageSetupBreaks(a, "colBreaks", op, MAX_COLS - 1),
   };

@@ -106,10 +106,11 @@ export interface XlsxGridFilterEdit {
   visibilityRange: XlsxStructuralJournalRange;
 }
 
-/** One page-setup edit the renderer emits (C2): the whole-sheet page-layout
- *  snapshot (a fresh snapshot per page-setup change, last write per sheet
- *  wins). Absent fields keep the file's value. `sheetName` is the live name
- *  at emission when it differs from the host file's. */
+/** One page-setup edit the renderer emits (C2): the page-layout fields one
+ *  edit carries (a fresh partial snapshot per page-setup change; the session
+ *  model merges them field-wise, last write per field wins). Absent fields
+ *  keep the file's value. `sheetName` is the live name at emission when it
+ *  differs from the host file's. */
 export interface XlsxGridPageSetupEdit {
   sheetId: string;
   sheetName?: string;
@@ -117,7 +118,7 @@ export interface XlsxGridPageSetupEdit {
 }
 
 /** Every edit the streamed grid can emit: a cell edit, a structural op, a
- *  sheet op or a filter snapshot. */
+ *  sheet op, a filter snapshot or a page-setup snapshot. */
 export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit | XlsxGridSheetEdit | XlsxGridFilterEdit | XlsxGridPageSetupEdit;
 
 export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStructuralEdit {
@@ -240,9 +241,9 @@ export type FilterOperation =
       attributes: { visibilityRange: XlsxStructuralJournalRange };
     };
 
-/** Every envelope operation a journal edit maps to. A later op kind adds its
- *  union member here and one XLSX_JOURNAL_OP_MAPPINGS entry —
- *  rendererEditsToOperations itself does not change. */
+/** The page-setup vocabulary (C2): `set_page_setup` maps 1:1 to the engine
+ *  op kind (ops.ts) and the gateway's SheetPageSetupState, which merges each
+ *  present field into the worksheet and keeps the rest verbatim. */
 export type PageSetupOperation = {
   op: "set_page_setup";
   target: XlsxStructuralOperationTarget;

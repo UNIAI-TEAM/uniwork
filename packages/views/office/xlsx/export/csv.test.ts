@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvCellText, serializeSheetToCsv } from "./csv";
+import { csvCellText, csvSheetFromSnapshot, serializeSheetToCsv } from "./csv";
 
 const sheet = (cells: Record<string, { v?: string | number | boolean | null; f?: string; c?: string | number | boolean | null }>, rowCount: number, columnCount: number) => ({ cells, rowCount, columnCount });
 
@@ -42,5 +42,37 @@ describe("serializeSheetToCsv", () => {
 
   it("writes an empty sheet as an empty string", () => {
     expect(serializeSheetToCsv(sheet({}, 0, 0), { bom: false })).toBe("");
+  });
+});
+
+describe("csvSheetFromSnapshot", () => {
+  it("reads the live session snapshot's used range and in-session edits", () => {
+    // The live snapshot is what a session edit updates; the open-time render
+    // model would still hold the pre-edit value here.
+    const sheet = csvSheetFromSnapshot({
+      cells: {
+        A1: { value: "Ten" },
+        B1: { value: 2 },
+        A2: { value: "An" },
+        C3: { value: null },
+      },
+    });
+    expect(sheet.rowCount).toBe(3);
+    expect(sheet.columnCount).toBe(3);
+    expect(serializeSheetToCsv(sheet, { bom: false })).toBe("Ten,2,\r\nAn,,\r\n,,");
+  });
+
+  it("exports a formula cell as its formula text with no cached result", () => {
+    // The gateway snapshot stores formula cells as { value: null, formula }
+    // with no cached <v>, so the CSV cell is empty until a recalc refreshes it.
+    const sheet = csvSheetFromSnapshot({ cells: { A1: { value: null, formula: "=SUM(B1:B2)" }, B1: { value: 5 } } });
+    expect(sheet.cells.A1).toEqual({ f: "=SUM(B1:B2)" });
+    expect(serializeSheetToCsv(sheet, { bom: false })).toBe(",5");
+  });
+
+  it("carries a cached formula result when the snapshot has one", () => {
+    const sheet = csvSheetFromSnapshot({ cells: { A1: { value: null, formula: "=1+1", rawValue: 2 } } });
+    expect(sheet.cells.A1).toEqual({ f: "=1+1", c: 2 });
+    expect(serializeSheetToCsv(sheet, { bom: false })).toBe("2");
   });
 });

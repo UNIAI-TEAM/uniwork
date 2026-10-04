@@ -52,6 +52,7 @@ export function XlsxPageSetupDialog({ selection, readOnly = false, onApply, onCl
     if (!built.ok) {
       const key = built.error === "printTitles" ? "invalidTitles"
         : built.error === "printArea" ? "invalidPrintArea"
+        : built.error === "frozenPair" ? "invalidFrozenPair"
         : built.error === "empty" ? "empty"
         : "invalidNumber";
       setError(t(`office.xlsx.pageSetup.dialog.${key}`));

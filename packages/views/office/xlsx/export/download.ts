@@ -24,7 +24,8 @@ export function downloadCsvFile(filename: string, csv: string, doc?: Document): 
   downloadTextFile(filename, csv, "text/csv;charset=utf-8", doc);
 }
 
-/** A safe download filename from a document title. */
+/** A safe download filename from a sheet name (the caller passes the active
+ *  sheet's name, so a workbook with several sheets exports one CSV each). */
 export function csvFilename(title: string | undefined): string {
   const base = (title ?? "").trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, " ").slice(0, 80);
   return (base === "" ? "sheet" : base) + ".csv";

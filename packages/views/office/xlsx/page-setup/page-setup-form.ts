@@ -97,18 +97,24 @@ export function selectionPrintArea(selection: XlsxSelection | null): string | nu
   return start === end ? start : `${start}:${end}`;
 }
 
-/** "1:3" (1-based, ascending) or null. */
+/** "1:3" (1-based, ascending, inside the OOXML grid) or null. Mirrors the
+ *  engine parser's bounds (start >= 1, end <= 1_048_576), so the dialog
+ *  refuses a span the gateway would reject with the localized message rather
+ *  than letting a raw XlsxOpError surface later. */
 export function printTitlesSpan(text: string): string | null {
   const trimmed = text.trim();
   if (trimmed === "") return null;
   const match = /^(\d{1,7}):(\d{1,7})$/.exec(trimmed);
-  if (!match || Number(match[1]) > Number(match[2])) return null;
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (start < 1 || end > 1_048_576 || start > end) return null;
   return trimmed;
 }
 
 export type XlsxPageSetupBuild =
   | { readonly ok: true; readonly fields: XlsxPageSetupFields }
-  | { readonly ok: false; readonly error: "empty" | "scale" | "fit" | "frozen" | "printTitles" | "printArea" };
+  | { readonly ok: false; readonly error: "empty" | "scale" | "fit" | "frozen" | "frozenPair" | "printTitles" | "printArea" };
 
 /** Map the form onto the engine's fields. Only non-"keep" entries ride the op;
  *  the gateway keeps every absent field verbatim. */
@@ -153,9 +159,13 @@ export function buildPageSetupFields(
 
   const frozenRows = boundedInt(form.frozenRows, 0, 1_048_575);
   if (frozenRows === "invalid") return { ok: false, error: "frozen" };
-  if (frozenRows !== null) fields.frozenRows = frozenRows;
   const frozenColumns = boundedInt(form.frozenColumns, 0, 16_383);
   if (frozenColumns === "invalid") return { ok: false, error: "frozen" };
+  // The pane is one state with two axes: the gateway writes `rows ?? 0` /
+  // `cols ?? 0`, so a lone axis would silently reset the other to 0. Refuse
+  // the pair's half instead of dropping the file's other-axis freeze.
+  if ((frozenRows === null) !== (frozenColumns === null)) return { ok: false, error: "frozenPair" };
+  if (frozenRows !== null) fields.frozenRows = frozenRows;
   if (frozenColumns !== null) fields.frozenColumns = frozenColumns;
 
   if (form.printArea === "clear") {

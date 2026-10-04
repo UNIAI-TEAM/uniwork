@@ -614,6 +614,11 @@ func TestValidateOfficeJobEdits(t *testing.T) {
 		{"set_page_setup row breaks not an array", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"rowBreaks":1}`)}}, false},
 		{"set_page_setup col break fractional", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"colBreaks":[1.5]}`)}}, false},
 		{"set_page_setup missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"orientation":"portrait"}`)}}, false},
+		{"set_page_setup fit to page null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToPage":null}`)}}, false},
+		{"set_page_setup print gridlines null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printGridlines":null}`)}}, false},
+		{"set_page_setup print headings null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printHeadings":null}`)}}, false},
+		{"set_page_setup frozen rows without columns", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenRows":2}`)}}, false},
+		{"set_page_setup frozen columns without rows", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenColumns":2}`)}}, false},
 		// Sheet management (B3) refusals.
 		{"add_sheet missing name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{}`)}}, false},
 		{"add_sheet empty name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":""}`)}}, false},

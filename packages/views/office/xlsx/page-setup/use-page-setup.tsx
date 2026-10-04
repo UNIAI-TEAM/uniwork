@@ -7,11 +7,10 @@
 // beside it (export/csv.ts, export/download.ts).
 
 import { useCallback, useState, type ReactNode } from "react";
-import type { XlsxPageSetupFields } from "@uniwork/office-engine/xlsx";
+import type { XlsxPageSetupFields, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
-import { toA1Address } from "../xlsx-render-model-bridge";
 import type { XlsxSelection } from "../types";
-import { serializeSheetToCsv } from "../export/csv";
+import { csvSheetFromSnapshot, serializeSheetToCsv } from "../export/csv";
 import { csvFilename, downloadCsvFile, installPrintStylesheet, printDocument } from "../export/download";
 import { XlsxPageSetupDialog } from "./page-setup-dialog";
 
@@ -22,6 +21,10 @@ export interface XlsxPageSetupOptions {
   readOnly: boolean;
   canEdit: boolean;
   edit?: ((ops: readonly unknown[]) => Promise<void> | void) | undefined;
+  /** The live session snapshot (kept current by every edit). Export CSV reads
+   *  it rather than the open-time render model so unsaved in-session edits are
+   *  included. */
+  getSnapshot?: (() => XlsxWorkbookSnapshot | null) | undefined;
   onApplied: () => void;
   onError: (message: string) => void;
 }
@@ -35,7 +38,7 @@ export interface XlsxPageSetupWiring {
 }
 
 export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWiring {
-  const { host, selection, activeSheet, readOnly, canEdit, edit, onApplied, onError } = options;
+  const { host, selection, activeSheet, readOnly, canEdit, edit, getSnapshot, onApplied, onError } = options;
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const sheetName = selection?.sheet ?? activeSheet;
 
@@ -48,22 +51,18 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
       .catch((error: unknown) => onError(error instanceof Error ? error.message : String(error)));
   }, [canEdit, edit, onApplied, onError, sheetName]);
 
-  // Export CSV: the active sheet's used range read through the render host
-  // (cached formula results, the way the grid shows them), serialized by the
-  // pure serializer and downloaded in this host.
+  // Export CSV: the active sheet read from the LIVE session snapshot (kept
+  // current by every edit), serialized by the pure serializer and downloaded
+  // in this host. The open-time render model is deliberately not used: it is
+  // built once at open and would silently omit unsaved in-session edits.
   const exportCsv = useCallback(() => {
-    const sheet = host?.file.sheets.find((candidate) => candidate.name === sheetName) ?? host?.file.sheets[0];
-    if (!host || !sheet) return;
-    void host.readRange({
-      sessionId: host.file.sessionId,
-      sheetId: sheet.id,
-      range: { startRow: 0, endRow: Math.max(0, sheet.rowCount - 1), startColumn: 0, endColumn: Math.max(0, sheet.columnCount - 1) },
-    }).then((result) => {
-      const cells: Record<string, { v: string | number | boolean | null }> = {};
-      for (const cell of result.cells) cells[toA1Address(cell.row, cell.column)] = { v: cell.value };
-      downloadCsvFile(csvFilename(sheet.name), serializeSheetToCsv({ cells, rowCount: sheet.rowCount, columnCount: sheet.columnCount }));
-    }).catch((error: unknown) => onError(error instanceof Error ? error.message : String(error)));
-  }, [host, onError, sheetName]);
+    if (!host) return;
+    const snapshot = getSnapshot?.();
+    const sheets = snapshot?.sheets ?? [];
+    const sheet = sheets.find((candidate) => candidate.name === sheetName) ?? sheets[0];
+    if (!sheet) return;
+    downloadCsvFile(csvFilename(sheet.name), serializeSheetToCsv(csvSheetFromSnapshot(sheet)));
+  }, [getSnapshot, host, sheetName]);
 
   // Print: the host print path with the print stylesheet installed once.
   const print = useCallback(() => {

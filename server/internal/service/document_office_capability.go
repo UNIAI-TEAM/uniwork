@@ -1422,10 +1422,15 @@ func officePageSetupInt(raw json.RawMessage, min, max int) bool {
 	return err == nil && value == math.Trunc(value) && value >= float64(min) && value <= float64(max)
 }
 
-// officePageSetupBool decodes a JSON boolean.
+// officePageSetupBool requires the raw literal true/false, matching the TS
+// parser (pageSetupBool). A JSON null unmarshals into a Go bool as a no-op, so
+// decoding into bool would accept null and diverge from the engine.
 func officePageSetupBool(raw json.RawMessage) bool {
-	var flag bool
-	return len(raw) > 0 && json.Unmarshal(raw, &flag) == nil
+	switch string(raw) {
+	case "true", "false":
+		return true
+	}
+	return false
 }
 
 // officePrintAreaOK: an A1 range or single cell ("A1:C10", "$A$1"), <=255
@@ -1499,6 +1504,14 @@ func officeSetPageSetupValid(edit office.EditOp) bool {
 		return false
 	}
 	settings := 0
+	_, hasFrozenRows := attributes["frozenRows"]
+	_, hasFrozenColumns := attributes["frozenColumns"]
+	// The pane is one state: the gateway writes `frozenRows ?? 0` /
+	// `frozenColumns ?? 0`, so a lone axis would reset the other to 0. The TS
+	// parser refuses the half pair too (parseSetPageSetup).
+	if hasFrozenRows != hasFrozenColumns {
+		return false
+	}
 	for name, raw := range attributes {
 		if !officePageSetupFields[name] {
 			return false
