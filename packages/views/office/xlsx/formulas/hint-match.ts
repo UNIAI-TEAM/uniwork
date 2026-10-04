@@ -64,8 +64,11 @@ export function functionTokenAt(draft: string, caret: number): XlsxFunctionToken
   let end = position;
   while (end < draft.length && NAME_CHAR.test(draft[end]!)) end += 1;
   // A name followed by "(" is already a complete call: nothing to suggest,
-  // however the caret sits inside it.
-  if (draft[end] === "(") return null;
+  // however the caret sits inside it. A space before the "(" (`=SUM (A1`)
+  // still counts, mirroring the opener scan above.
+  let callEnd = end;
+  while (callEnd < draft.length && draft[callEnd] === " ") callEnd += 1;
+  if (draft[callEnd] === "(") return null;
 
   return { prefix, start, end };
 }

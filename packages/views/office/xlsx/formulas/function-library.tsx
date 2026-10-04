@@ -5,8 +5,9 @@
 // `=NAME(` into the active cell through the toolbar's one command port
 // (`sheet.command.set-range-values`, the allowlisted cell-edit command whose
 // mutation journals through the existing save path). The inserted payload is
-// the pinned matrix shape `{ [row]: { [col]: { f: "NAME(" } } }`; the renderer
-// journal prefixes the `=`, so the saved cell is a formula.
+// the pinned matrix shape `{ [row]: { [col]: { f: "=NAME(" } } }` - the same
+// `f` convention AutoSum and the cell editor use, so the live engine, the
+// formula-cost guard and the journal all agree.
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -52,7 +53,7 @@ export function functionInsertParams(
   return {
     unitId,
     subUnitId: sheetId,
-    value: { [String(row)]: { [String(column)]: { f: functionInsertionText(name).slice(1) } } },
+    value: { [String(row)]: { [String(column)]: { f: functionInsertionText(name) } } },
   };
 }
 
@@ -149,6 +150,7 @@ export function XlsxFunctionLibraryDialog({
                 type="button"
                 role="option"
                 aria-selected={picked?.name === spec.name}
+                aria-disabled={blocked || undefined}
                 data-testid={`xlsx-function-${spec.name}`}
                 className="block w-full border-b border-border/60 px-2 py-1.5 text-left last:border-b-0 hover:bg-accent"
                 onClick={() => insert(spec)}

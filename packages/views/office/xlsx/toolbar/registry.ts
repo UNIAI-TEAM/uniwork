@@ -70,8 +70,8 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
   { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },
   { id: "filter", tab: "data", order: 20, labelKey: "office.xlsx.filter.groups.data", Component: XlsxFilterGroup },
-  { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
   { id: "page-setup", tab: "view", order: 40, labelKey: "office.xlsx.pageSetup.groups.view", Component: XlsxPageSetupGroup },
   { id: "sort", tab: "data", order: 30, labelKey: "office.xlsx.sort.groups.data", Component: XlsxSortGroup },
   { id: "view-shortcuts", tab: "view", order: 50, labelKey: "office.xlsx.toolbar.groups.view.shortcuts.label", Component: XlsxViewShortcutsGroup },
+  { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
 ];

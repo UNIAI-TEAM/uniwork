@@ -103,12 +103,13 @@ function contiguousLeft(
 /**
  * The range one AutoSum press sums, or null when there is nothing to sum.
  * `cells` must be the read window covering the selection and the guess area
- * (see `autoSumReadWindow`); `bounds` is the sheet's declared used extent.
+ * (see `autoSumReadWindow`). The read's far edge is the selection itself, so
+ * the sheet's file-time row/column counts never bound a target: cells typed
+ * this session live past the file's declared extent.
  */
 export function buildAutoSumRange(
   cells: readonly XlsxAutoSumCell[],
   selection: XlsxSelection,
-  bounds?: { rowCount?: number; columnCount?: number },
 ): XlsxAutoSumRange | null {
   const range = autoSumSelectionRange(selection);
   if (!range) return null;
@@ -120,12 +121,7 @@ export function buildAutoSumRange(
     // The whole selection, placed below it; a single-row selection places the
     // result to its right, matching Excel.
     if (range.startRow === range.endRow) {
-      const lastColumn = bounds?.columnCount !== undefined && bounds.columnCount > 0
-        ? bounds.columnCount - 1
-        : Number.MAX_SAFE_INTEGER;
-      const targetColumn = Math.min(range.endColumn + 1, lastColumn);
-      if (targetColumn <= range.endColumn) return null;
-      return { ...range, targetRow: range.startRow, targetColumn, kind: "selection" };
+      return { ...range, targetRow: range.startRow, targetColumn: range.endColumn + 1, kind: "selection" };
     }
     return { ...range, targetRow: range.endRow + 1, targetColumn: range.startColumn, kind: "selection" };
   }
@@ -160,20 +156,19 @@ export function buildAutoSumRange(
 
 /** The rectangle the editor must read for one AutoSum press: the selection,
  *  padded above/left by the guess bound so a single-cell guess can see its
- *  block. Clipped to the sheet's declared used bounds. */
+ *  block. The far edge is the selection itself, never the sheet's file-time
+ *  used bounds: cells typed this session live past the declared row/column
+ *  counts, and a block below/right of the file extent must still be readable. */
 export function autoSumReadWindow(
   selection: XlsxSelection,
-  bounds?: { rowCount?: number; columnCount?: number },
 ): { startRow: number; endRow: number; startColumn: number; endColumn: number } | null {
   const range = autoSumSelectionRange(selection);
   if (!range) return null;
-  const lastRow = bounds?.rowCount !== undefined && bounds.rowCount > 0 ? bounds.rowCount - 1 : Number.MAX_SAFE_INTEGER;
-  const lastColumn = bounds?.columnCount !== undefined && bounds.columnCount > 0 ? bounds.columnCount - 1 : Number.MAX_SAFE_INTEGER;
   return {
     startRow: Math.max(0, range.startRow - XLSX_AUTOSUM_GUESS_MAX),
-    endRow: Math.min(range.endRow, lastRow),
+    endRow: range.endRow,
     startColumn: Math.max(0, range.startColumn - XLSX_AUTOSUM_GUESS_MAX),
-    endColumn: Math.min(range.endColumn, lastColumn),
+    endColumn: range.endColumn,
   };
 }
 

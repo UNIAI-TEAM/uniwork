@@ -131,6 +131,33 @@ describe("XlsxFormulaGroup", () => {
     });
   });
 
+  it("AutoSum writes the live sheet name after a session rename, not the file-time one", async () => {
+    // The host file still carries the name at load ("Data"); the session
+    // renamed the sheet to "Renamed" and only the live name + id resolver know.
+    // The formula text must use the live name or the saved reference breaks.
+    const readRange = vi.fn(async () => result([cell(1, 0, 0), cell(2, 1, 0), cell(3, 2, 0)]));
+    const execute = vi.fn(() => true);
+    const resolveSheetId = vi.fn((liveName: string) => (liveName === "Renamed" ? "sheet-1" : undefined));
+    render(
+      <XlsxFormulaGroup
+        {...groupProps({
+          host: host(readRange),
+          commands: { execute },
+          selection: { sheet: "Renamed", address: "A4" },
+          sheetName: "Renamed",
+          resolveSheetId,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("xlsx-autosum"));
+    await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
+      unitId: `file-${SHA}`,
+      subUnitId: "sheet-1",
+      value: { "3": { "0": { f: "=SUM(Renamed!A1:A3)" } } },
+    });
+  });
+
   it("AutoSum writes nothing and says so when the guess finds no numbers", async () => {
     const execute = vi.fn(() => true);
     render(<XlsxFormulaGroup {...groupProps({ host: host(async () => result([cell("x", 0, 0)])), commands: { execute } })} />);

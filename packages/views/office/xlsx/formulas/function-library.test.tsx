@@ -40,11 +40,11 @@ function renderDialog(overrides: Partial<XlsxFunctionLibraryDialogProps> = {}) {
 }
 
 describe("functionInsertParams", () => {
-  it("builds the allowlisted set-range-values payload with the NAME( formula", () => {
+  it("builds the allowlisted set-range-values payload with the =NAME( formula", () => {
     expect(functionInsertParams("file-abc", "sheet-1", 2, 1, "sum")).toEqual({
       unitId: "file-abc",
       subUnitId: "sheet-1",
-      value: { "2": { "1": { f: "SUM(" } } },
+      value: { "2": { "1": { f: "=SUM(" } } },
     });
   });
 });
@@ -69,7 +69,7 @@ describe("XlsxFunctionLibraryDialog", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
       unitId: `file-${SHA}`,
       subUnitId: "sheet-1",
-      value: { "2": { "1": { f: "SUMIF(" } } },
+      value: { "2": { "1": { f: "=SUMIF(" } } },
     });
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -104,6 +104,7 @@ describe("XlsxFunctionLibraryDialog", () => {
       fireEvent.click(screen.getByTestId("xlsx-function-SUM"));
       expect(execute).not.toHaveBeenCalled();
       expect(screen.getByTestId("xlsx-function-blocked")).toHaveTextContent(text("office.xlsx.formulas.library.noTarget"));
+      expect(screen.getByTestId("xlsx-function-SUM")).toHaveAttribute("aria-disabled", "true");
       unmount();
     }
   });

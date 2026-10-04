@@ -26,7 +26,6 @@ export function XlsxFormulaGroup({
   const { t } = useTranslation();
   const libraryBlocked = readOnly || !commands || !onOpenFunctionLibrary || selection === null;
   const autoSum = useXlsxAutoSum({
-    documentKey: unitId ?? "",
     host,
     commands,
     selection,

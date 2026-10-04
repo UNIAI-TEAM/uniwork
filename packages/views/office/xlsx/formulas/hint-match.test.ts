@@ -23,6 +23,9 @@ describe("functionTokenAt", () => {
     // The name is followed by "(": the call is complete, so there is nothing
     // left to suggest.
     expect(functionTokenAt("=SUM(A1)", 2)).toBeNull();
+    // A space before the "(" still marks a complete call (`=SUM (A1`).
+    expect(functionTokenAt("=SUM (A1", 3)).toBeNull();
+    expect(functionTokenAt("=SUM (A1", 4)).toBeNull();
   });
 
   it("refuses a bare =, a value and a non-formula draft", () => {

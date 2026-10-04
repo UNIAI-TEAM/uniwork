@@ -18,7 +18,6 @@ import {
 } from "./autosum";
 
 export interface XlsxAutoSumOptions {
-  documentKey: string;
   /** Present only with a mounted grid; without it AutoSum cannot read. */
   host?: XlsxGridHostPort;
   commands?: XlsxToolbarCommands;
@@ -55,7 +54,6 @@ export interface XlsxAutoSumController {
  * through the existing envelope -> set_cell path.
  */
 export function useXlsxAutoSum({
-  documentKey,
   host,
   commands,
   selection,
@@ -82,8 +80,8 @@ export function useXlsxAutoSum({
   const canAutoSum = enabled && !readOnly && host !== undefined && commands !== undefined && selection !== null && sheet !== undefined && unitId !== null;
 
   const autoSum = useCallback(() => {
-    if (!canAutoSum || !host || !commands || !selection || !sheet || !unitId || busy) return;
-    const window = autoSumReadWindow(selection, sheet);
+    if (!canAutoSum || !host || !commands || !selection || !sheet || !sheetName || !unitId || busy) return;
+    const window = autoSumReadWindow(selection);
     if (!window) {
       setEmpty(true);
       setFailed(false);
@@ -95,14 +93,17 @@ export function useXlsxAutoSum({
     void host
       .readRange({ sessionId: host.file.sessionId, sheetId: sheet.id, range: window })
       .then((result) => {
-        const range = buildAutoSumRange(result?.cells ?? [], selection, sheet);
+        const range = buildAutoSumRange(result?.cells ?? [], selection);
         if (!range) {
           setLastRange(null);
           setEmpty(true);
           return;
         }
         setLastRange(range);
-        const command = buildAutoSumCommand(range, sheet.id, unitId, sheet.name);
+        // The formula text must use the LIVE sheet name (a session rename
+        // changes it while the host file's id map keeps the old one); the id
+        // still addresses the read/subUnitId.
+        const command = buildAutoSumCommand(range, sheet.id, unitId, sheetName);
         let applied = false;
         try {
           applied = commands.execute(command.id, command.params);
@@ -116,7 +117,7 @@ export function useXlsxAutoSum({
         setFailed(true);
       })
       .finally(() => setBusy(false));
-  }, [busy, canAutoSum, commands, host, selection, sheet, unitId]);
+  }, [busy, canAutoSum, commands, host, selection, sheet, sheetName, unitId]);
 
   return { canAutoSum, busy, empty, failed, lastRange, autoSum };
 }
