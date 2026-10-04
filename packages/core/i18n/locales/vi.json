@@ -7558,7 +7558,8 @@
             "name": "Tên không hợp lệ. Bắt đầu bằng chữ cái, dấu gạch dưới hoặc dấu chéo ngược, và tránh tham chiếu ô.",
             "formula": "Nhập vùng hoặc công thức mà tên tham chiếu đến.",
             "sheetIndex": "Phạm vi trang phải là số nguyên từ 0 đến 16383, hoặc để trống cho phạm vi toàn bộ sổ tính.",
-            "duplicate": "Cùng một tên được đặt hai lần cho cùng một phạm vi."
+            "duplicate": "Cùng một tên được đặt hai lần cho cùng một phạm vi.",
+            "collision": "Tên này đã tồn tại ở dạng hộp thoại này không thể sửa, nên không thể thêm tại đây. Hãy chọn tên khác."
           }
         }
       },

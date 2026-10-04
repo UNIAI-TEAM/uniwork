@@ -57,7 +57,9 @@ export function XlsxProtectNamesDialog({
   };
   const applyNames = () => {
     if (readOnly) return;
-    const built = buildDefinedNames(rows, sheetNames.length);
+    // F1: pass the preserved names so a row reusing an invisible one is refused
+    // here, in the dialog's own localized slot, not by a raw XlsxOpError.
+    const built = buildDefinedNames(rows, sheetNames.length, seed.preserveNames);
     if (!built.ok) {
       setError(t(`office.xlsx.protect.dialog.invalid.${built.error}`));
       return;

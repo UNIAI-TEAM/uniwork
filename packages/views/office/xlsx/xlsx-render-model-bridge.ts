@@ -148,7 +148,10 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
   };
 }
 
-/** Strip the reader-only fields (hidden) to the loader's entry shape. */
+/** Map the render model's name entry to the loader's shape. The reader-only
+ *  `hidden` flag is deliberately kept (the loader ignores it) so the name
+ *  manager can tell a hidden name cannot be modelled and must ride
+ *  preserveNames. */
 function toRendererDefinedName(defined: XlsxRenderDefinedName): RendererWorkbookDefinedName {
   return {
     name: defined.name,

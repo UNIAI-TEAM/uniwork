@@ -56,6 +56,36 @@ describe("xlsx protect + name manager", () => {
     expect(seed.preserveNames).toEqual(["Hidden", "OutOfRange", "A1"]);
   });
 
+  it("groups a name by name: one unmodelable entry preserves the whole name (F1)", () => {
+    // The gateway contract is name-keyed, so a name carrying both a modelable
+    // and an unmodelable entry must never be split across rows and preserveNames.
+    const seed = seedDefinedNames([
+      { name: "Split", formula: "Sheet1!$A$1" },
+      { name: "Split", formula: "Sheet1!$A$1", hidden: true },
+      { name: "Dup", formula: "Sheet1!$A$1" },
+      { name: "Dup", formula: "Sheet1!$A$1" },
+    ], 2);
+    expect(seed.rows).toEqual([]);
+    expect(seed.preserveNames).toEqual(["Split", "Dup"]);
+    // The same name at two different scopes is representable as two rows.
+    const scoped = seedDefinedNames([
+      { name: "Both", formula: "Sheet1!$A$1" },
+      { name: "Both", formula: "Sheet2!$A$1", sheetIndex: 1 },
+    ], 2);
+    expect(scoped.rows).toEqual([
+      { name: "Both", formula: "Sheet1!$A$1", sheetIndex: "" },
+      { name: "Both", formula: "Sheet2!$A$1", sheetIndex: "1" },
+    ]);
+    expect(scoped.preserveNames).toEqual([]);
+  });
+
+  it("refuses a row named like an invisible preserved name (F1)", () => {
+    expect(buildDefinedNames([{ name: "Hidden", formula: "A1", sheetIndex: "" }], 2, ["Hidden"]))
+      .toEqual({ ok: false, error: "collision" });
+    expect(buildDefinedNames([{ name: "Other", formula: "A1", sheetIndex: "" }], 2, ["Hidden"]))
+      .toEqual({ ok: true, names: [{ name: "Other", formula: "A1" }] });
+  });
+
   it("bounds the sheet scope against the live sheet count (F5)", () => {
     expect(buildDefinedNames([{ name: "N", formula: "A1", sheetIndex: "1" }], 2)).toEqual({
       ok: true, names: [{ name: "N", formula: "A1", sheetIndex: 1 }],
@@ -75,6 +105,7 @@ describe("xlsx protect + name manager", () => {
       expect(typeof lookup(locale, group.labelKey)).toBe("string");
       expect(typeof lookup(locale, "office.xlsx.protect.dialog.title")).toBe("string");
       expect(typeof lookup(locale, "office.xlsx.protect.dialog.workbookScope")).toBe("string");
+      expect(typeof lookup(locale, "office.xlsx.protect.dialog.invalid.collision")).toBe("string");
     }
   });
 });

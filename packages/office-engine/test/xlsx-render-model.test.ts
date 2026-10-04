@@ -159,6 +159,25 @@ describe("xlsx render model reader", () => {
     expect(parseDefinedNamesXml("<workbook><sheets/></workbook>")).toEqual([]);
   });
 
+  it("marks a malformed localSheetId as unmodelable instead of re-scoping (F5)", () => {
+    const parsed = parseDefinedNamesXml(`<workbook><definedNames>
+      <definedName name="Blank" localSheetId="">Sheet1!$A$1</definedName>
+      <definedName name="Garbage" localSheetId="abc">Sheet1!$A$1</definedName>
+      <definedName name="Fraction" localSheetId="1.5">Sheet1!$A$1</definedName>
+      <definedName name="Negative" localSheetId="-1">Sheet1!$A$1</definedName>
+      <definedName name="Workbook">Sheet1!$A$1</definedName>
+      <definedName name="Zero" localSheetId="0">Sheet1!$A$1</definedName>
+    </definedNames></workbook>`);
+    expect(parsed).toEqual([
+      { name: "Blank", formula: "Sheet1!$A$1", sheetIndex: -1 },
+      { name: "Garbage", formula: "Sheet1!$A$1", sheetIndex: -1 },
+      { name: "Fraction", formula: "Sheet1!$A$1", sheetIndex: -1 },
+      { name: "Negative", formula: "Sheet1!$A$1", sheetIndex: -1 },
+      { name: "Workbook", formula: "Sheet1!$A$1" },
+      { name: "Zero", formula: "Sheet1!$A$1", sheetIndex: 0 },
+    ]);
+  });
+
   it("surfaces the file's defined names on the render model (F1)", async () => {
     const { model } = await readFixture("xlsx-kitchen-sink.xlsx");
     expect(model.definedNames).toEqual([

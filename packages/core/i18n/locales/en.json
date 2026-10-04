@@ -7564,7 +7564,8 @@
             "name": "That name is not valid. Start with a letter, underscore or backslash, and avoid cell references.",
             "formula": "Enter the range or formula the name refers to.",
             "sheetIndex": "Sheet scope must be a whole number from 0 to 16383, or blank for workbook scope.",
-            "duplicate": "The same name is defined twice for one scope."
+            "duplicate": "The same name is defined twice for one scope.",
+            "collision": "That name already exists in a form this dialog cannot change, so it cannot be added here. Choose a different name."
           }
         }
       },

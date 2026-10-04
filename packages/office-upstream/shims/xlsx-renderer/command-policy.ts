@@ -562,10 +562,12 @@ function filterMutationAllowed(event: RendererCommand, state: LazyWorkbookState)
 // The sort reorders whole rows in place. Validators bound the sorted rectangle
 // and every sort key / order-map entry to the live grid; default deny stays.
 //
-// NOTE (A7 r2): the shim controller's CommandExecuted ingest does NOT handle
-// sheet.mutation.reorder-range yet, so today the model sorts but the journal
-// stays empty (no save). See worker-A7-r2.md; the capture is a shim change
-// (controller.ts + edits.ts) outside this task's owned paths.
+// NOTE (FIX-SORT 033b2482): the shim controller's CommandExecuted ingest now
+// handles sheet.mutation.reorder-range. controller.ts calls ingestSortMutation
+// (edits.ts) with the vendored journalRangeSnapshot injected as the capture;
+// it runs the snapshot over the sorted range and surfaces the changed cells on
+// the edit channel, so the journal records the new row order and a save
+// persists it. The A7 r2 gap (model sorts, journal stays empty) is closed.
 
 const SORT_COMMANDS = new Set([
   "sheet.command.sort-range",

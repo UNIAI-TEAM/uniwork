@@ -34,7 +34,9 @@ export function sectionInner(xml: string, name: string): string {
 
 /** One workbook defined name as read from `xl/workbook.xml`'s
  *  `<definedNames>` section. `sheetIndex` is the 0-based position in
- *  workbook sheet order (`localSheetId`); absent means workbook scope. */
+ *  workbook sheet order (`localSheetId`); absent means workbook scope, and
+ *  `-1` marks a malformed `localSheetId` (not non-empty digits) so callers
+ *  treat the entry as unmodelable instead of silently re-scoping it. */
 export interface XlsxParsedDefinedName {
   readonly name: string;
   readonly formula: string;
@@ -56,8 +58,12 @@ export function parseDefinedNamesXml(workbookXml: string): XlsxParsedDefinedName
     const name = decodeXml(rawName);
     const formula = decodeXml(entry.body.trim());
     const localSheetId = attribute(entry.tag, "localSheetId");
-    const parsedIndex = localSheetId === undefined ? undefined : Number(localSheetId);
-    const sheetIndex = parsedIndex !== undefined && Number.isInteger(parsedIndex) && parsedIndex >= 0 ? parsedIndex : undefined;
+    // F5: require non-empty digits. `Number("")` is 0 and `Number("x")` is NaN,
+    // so a malformed value must not silently become workbook scope or sheet 0.
+    // The -1 sentinel leaves the entry unmodelable: the name manager preserves
+    // it (seedDefinedNames) and the vendored loader leaves it file-only.
+    const sheetIndex =
+      localSheetId === undefined ? undefined : /^\d+$/.test(localSheetId) ? Number.parseInt(localSheetId, 10) : -1;
     const hidden = /^(?:1|true)$/.test(attribute(entry.tag, "hidden") ?? "");
     names.push({
       name,

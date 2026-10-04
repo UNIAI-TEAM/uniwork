@@ -38,12 +38,14 @@ export interface XlsxNamesSeed {
 }
 
 /**
- * Seed the name-manager rows from the workbook's own <definedNames>. A name is
- * modelable only when the form can represent it: not hidden, valid grammar,
- * a non-empty formula, and a scope inside the live sheet count. Everything
- * else - plus `_xlnm` built-ins the gateway already keeps - goes to
- * `preserveNames` (built-ins are skipped entirely; the gateway keeps them
- * whether or not they are listed).
+ * Seed the name-manager rows from the workbook's own <definedNames>. The seed
+ * groups the file's entries BY NAME and decides each whole name at once: a
+ * name is modelable only when EVERY entry of it is (not hidden, valid
+ * grammar, a non-empty formula, a scope inside the live sheet count). If any
+ * entry is unmodelable the whole name rides `preserveNames` - the gateway
+ * contract is name-keyed, so a name can never be both modeled and preserved.
+ * `_xlnm` built-ins are skipped entirely (the gateway keeps them whether or
+ * not they are listed).
  */
 export function seedDefinedNames(
   definedNames: readonly XlsxRenderDefinedName[],
@@ -51,33 +53,55 @@ export function seedDefinedNames(
 ): XlsxNamesSeed {
   const rows: XlsxNameRow[] = [];
   const preserveNames: string[] = [];
-  const seen = new Set<string>();
+  // Group the file entries by name first: the gateway's contract is name-keyed,
+  // so the whole name is either modeled or preserved, never split (F1).
+  const byName = new Map<string, XlsxRenderDefinedName[]>();
   for (const defined of definedNames) {
     // _xlnm.* built-ins are kept by the gateway unconditionally.
     if (defined.name.startsWith("_xlnm")) continue;
-    const scopeOK = defined.sheetIndex === undefined ||
-      (Number.isInteger(defined.sheetIndex) && defined.sheetIndex >= 0 && defined.sheetIndex < sheetCount);
-    const modelable = !defined.hidden && definedNameValid(defined.name) && defined.formula.trim() !== "" && scopeOK;
-    const key = defined.name + "\u0000" + (defined.sheetIndex ?? -1);
-    if (!modelable || seen.has(key)) {
-      if (!preserveNames.includes(defined.name)) preserveNames.push(defined.name);
+    const group = byName.get(defined.name) ?? [];
+    group.push(defined);
+    byName.set(defined.name, group);
+  }
+  for (const [name, group] of byName) {
+    const allModelable = group.every((defined) => {
+      const scopeOK = defined.sheetIndex === undefined ||
+        (Number.isInteger(defined.sheetIndex) && defined.sheetIndex >= 0 && defined.sheetIndex < sheetCount);
+      return !defined.hidden && definedNameValid(name) && defined.formula.trim() !== "" && scopeOK;
+    });
+    // A name repeated in two modeled scopes is also unrepresentable: the row
+    // list cannot hold the duplicate (buildDefinedNames refuses it), so keep
+    // the whole name out of rows and preserve it verbatim.
+    const uniqueScopes = new Set(group.map((defined) => defined.sheetIndex ?? -1));
+    if (!allModelable || uniqueScopes.size !== group.length) {
+      preserveNames.push(name);
       continue;
     }
-    seen.add(key);
-    rows.push({
-      name: defined.name,
-      formula: defined.formula,
-      sheetIndex: defined.sheetIndex === undefined ? "" : String(defined.sheetIndex),
-    });
+    for (const defined of group) {
+      rows.push({
+        name,
+        formula: defined.formula,
+        sheetIndex: defined.sheetIndex === undefined ? "" : String(defined.sheetIndex),
+      });
+    }
   }
   return { rows, preserveNames };
 }
 
 export type XlsxNamesBuild =
   | { readonly ok: true; readonly names: XlsxDefinedNameEntry[] }
-  | { readonly ok: false; readonly error: "name" | "formula" | "sheetIndex" | "duplicate" };
+  | { readonly ok: false; readonly error: "name" | "formula" | "sheetIndex" | "duplicate" | "collision" };
 
-export function buildDefinedNames(rows: readonly XlsxNameRow[], sheetCount?: number): XlsxNamesBuild {
+/** Map rows to the engine's defined-name entries. `preserveNames` are the
+ *  file-native names the form cannot model; a row that reuses one of those
+ *  names is refused with `collision`, because the gateway contract cannot
+ *  model and preserve the same name (F1). */
+export function buildDefinedNames(
+  rows: readonly XlsxNameRow[],
+  sheetCount?: number,
+  preserveNames: readonly string[] = [],
+): XlsxNamesBuild {
+  const preserved = new Set(preserveNames);
   const names: XlsxDefinedNameEntry[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -98,6 +122,8 @@ export function buildDefinedNames(rows: readonly XlsxNameRow[], sheetCount?: num
     }
     const key = name + "\u0000" + (sheetIndex ?? -1);
     if (seen.has(key)) return { ok: false, error: "duplicate" };
+    // F1: an invisible preserved name cannot be modeled in the same snapshot.
+    if (preserved.has(name)) return { ok: false, error: "collision" };
     seen.add(key);
     names.push({ name, formula, ...(sheetIndex === undefined ? {} : { sheetIndex }) });
   }
