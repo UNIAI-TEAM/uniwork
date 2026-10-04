@@ -11,7 +11,7 @@ import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
 import { pdfEditErrorKey } from "./pdf-edit-error";
-import { PDF_COMMANDS, PDF_COMMAND_CAPABILITIES, type PdfCommandId } from "./pdf-command-map";
+import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
 
@@ -94,17 +94,6 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
   PDF_COMMANDS.extractPage,
   PDF_COMMANDS.mergePages,
 ];
-
-/** Commands whose engine work needs a Buffer-based page producer: insert from
- * another PDF, extract and merge. The browser host routes engine envelopes to
- * `applyPdfOpsInBrowser`, which refuses them with `BrowserPdfUnsupportedError`,
- * so a handle that renders pages in-process (`renderer`) cannot run them.
- * Delete, rotate and reorder need no such producer and stay available. */
-const BUFFER_PAGE_COMMANDS: ReadonlySet<PdfCommandId> = new Set([
-  PDF_COMMANDS.insertPage,
-  PDF_COMMANDS.extractPage,
-  PDF_COMMANDS.mergePages,
-]);
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
@@ -345,19 +334,25 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canReplaceImage = canEditText;
   const canPageOps = canEditText;
   const canAnnotate = capability?.operation === "serialize" && capability.status === "available";
-  /** The browser host owns an in-process page renderer and sends every engine
-   * envelope to `applyPdfOpsInBrowser`, which has no Buffer-based page producer
-   * for insert-from-PDF, extract or merge. A handle with no `renderer` is the
-   * desktop/Node lane, where those producers exist. */
-  const canBufferPageOps = canEditText && editor.renderer === undefined;
+  /** The browser host owns an in-process page renderer and routes every engine
+   * envelope to `applyPdfOpsInBrowser`, which rewrites no content streams and
+   * has no Buffer-based page producer, so edit-text, replace-image, insert,
+   * extract and merge are refused there (`BROWSER_UNSUPPORTED_COMMANDS`). A
+   * handle with no `renderer` is the desktop/Node lane, where they all work. */
+  const browserLane = editor.renderer !== undefined;
+  const canRunBrowserUnsupported = canEditText && !browserLane;
+  const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
   const promptMode = failure ? passwordMode(failure) : null;
 
   // One row per command the ribbon can render; the chrome decides which rows a
   // tab shows and falls back to the catalogue label for each id.
   const commands = useMemo<readonly PdfToolbarCommand[]>(() => {
     // Delete, rotate and reorder share the page-ops capability row and stay on
-    // the capability gate; the Buffer-based commands below are overridden per id
-    // because the browser host cannot run them even when the row is available.
+    // the capability gate; the browser-unsupported commands below are overridden
+    // per id because the browser host cannot run them even when the row is
+    // available. Each disabled one carries the honest reason in its label so the
+    // control never silently does nothing (F-01: the guard below still blocks the
+    // action in JS, and the button stays in the tab order via `aria-disabled`).
     const availableByCapability: Readonly<Record<string, boolean>> = {
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.save]]: !readOnly && viewState === "ready",
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.editText]]: canEditText,
@@ -365,12 +360,19 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.deletePage]]: canPageOps,
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.annotations]]: canAnnotate,
     };
-    return COMMAND_ORDER.map((id) => ({
-      id,
-      disabled: BUFFER_PAGE_COMMANDS.has(id) ? !canBufferPageOps : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true,
-      onExecute: () => executeCommand(id),
-    }));
-  }, [canAnnotate, canBufferPageOps, canEditText, canPageOps, canReplaceImage, executeCommand, readOnly, viewState]);
+    return COMMAND_ORDER.map((id) => {
+      const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
+      const disabled = browserReasonKey !== undefined
+        ? !canRunBrowserUnsupported
+        : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true;
+      return {
+        id,
+        disabled,
+        label: disabled && browserReasonKey ? t(browserReasonKey) : undefined,
+        onExecute: () => { if (!disabled) executeCommand(id); },
+      };
+    });
+  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, executeCommand, readOnly, t, viewState]);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
@@ -382,6 +384,11 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           findOpen={findOpen}
           onFindToggle={() => setFindOpen((value) => !value)}
         />
+      ) : null}
+      {browserUnsupportedHint ? (
+        <p className="border-b border-border bg-muted/30 px-3 py-1 text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
+          {t(PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
+        </p>
       ) : null}
       {viewState === "ready" ? (
         <PdfEditorSurface

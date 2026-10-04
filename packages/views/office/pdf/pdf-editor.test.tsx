@@ -276,6 +276,63 @@ describe("PdfEditor", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  const browserRenderer = { renderPage: vi.fn(async () => ({ src: "", width: 0, height: 0 })) };
+
+  it("disables edit-text, replace-image and the page-op commands on a browser handle and says why", async () => {
+    const handle = editor({ renderer: browserRenderer });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    // The browser host rewrites no content streams, so Edit and Replace open a
+    // panel that is then refused; the control must be disabled and honest.
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-edit"));
+    const editText = document.querySelector("[data-ribbon-item='edit-text']") as HTMLElement;
+    const replaceImage = document.querySelector("[data-ribbon-item='replace-image']") as HTMLElement;
+    expect(editText).toHaveAttribute("aria-disabled", "true");
+    expect(replaceImage).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("pdf-browser-unsupported")).toHaveTextContent("Thay đổi này chưa dùng được trên trình duyệt.");
+    fireEvent.click(editText);
+    expect(screen.queryByTestId("pdf-editor-panels")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
+    for (const id of ["insert-page", "extract-page", "merge-pages"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).toHaveAttribute("aria-disabled", "true");
+    }
+    // Delete, rotate and reorder need no Buffer producer and stay usable.
+    for (const id of ["delete-page", "rotate-page", "reorder-page"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
+    }
+  });
+
+  it("keeps the annotate commands enabled on a browser handle", async () => {
+    const handle = editor({ renderer: browserRenderer });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-annotate"));
+    for (const id of ["annotations", "highlight", "note", "stamp", "forms"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
+    }
+    expect(screen.queryByTestId("pdf-browser-unsupported")).not.toBeInTheDocument();
+  });
+
+  it("keeps edit-text, replace-image and the page-op commands enabled on the desktop handle", async () => {
+    // No in-process renderer: the desktop/Node lane has the Buffer producers and
+    // content-stream rewrites, so nothing is browser-gated.
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-edit"));
+    for (const id of ["edit-text", "replace-image"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
+    }
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
+    for (const id of ["insert-page", "extract-page", "merge-pages"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
+    }
+    expect(screen.queryByTestId("pdf-browser-unsupported")).not.toBeInTheDocument();
+  });
+
   it("cancels and disposes an in-flight session", async () => {
     let resolveOpen: ((outcome: PdfOpenOutcome) => void) | undefined;
     const open = vi.fn(() => new Promise<PdfOpenOutcome>((resolve) => { resolveOpen = resolve; }));
