@@ -70,6 +70,12 @@ interface FoldedText {
   sourceEnd: number[];
 }
 
+/** True when no code point of `text` lowercases to something different. */
+function isAlreadyFolded(text: string): boolean {
+  for (const ch of text) if (ch.toLowerCase() !== ch) return false;
+  return true;
+}
+
 /**
  * Lowercase `text` while remembering which source offsets each folded code unit
  * came from. Folding per code POINT (not per UTF-16 code unit) keeps the
@@ -113,6 +119,18 @@ export function strReplace(context: HtmlOpContext, search: string, replacement: 
       if (at === -1) break;
       matches.push([at, search.length]);
       cursor = at + search.length;
+    }
+  } else if (isAlreadyFolded(haystack)) {
+    // Fast path: nothing in the haystack folds, so the folded text IS the
+    // source and no index map is needed. This is the common case and skips the
+    // O(n) mapping allocation entirely.
+    const needle = search.toLowerCase();
+    let cursor = 0;
+    for (;;) {
+      const at = haystack.indexOf(needle, cursor);
+      if (at === -1) break;
+      matches.push([at, needle.length]);
+      cursor = at + needle.length;
     }
   } else {
     const { folded, sourceStart, sourceEnd } = foldText(haystack);

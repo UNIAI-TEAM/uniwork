@@ -147,6 +147,14 @@ describe("html visual ops: one test per op", () => {
       expect(after).toBe("<p>X and 𐐨</p>");
     });
 
+    it("matches a folded needle in an already-folded haystack (fast path)", async () => {
+      const source = "<p>i\u0307x done</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "İ", "Q"));
+      expectByteIdentical(source, after, [{ from: 3, to: 5, text: "Q" }], "str_replace:fast-path");
+      expect(after).toBe("<p>Qx done</p>");
+    });
+
     it("does not emit overlapping patches for a needle that ends mid-fold", async () => {
       const source = "<p>İİİ</p>";
       const f = await openFixture(source);
