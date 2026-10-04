@@ -172,6 +172,12 @@ describe("XlsxFormulaGroup", () => {
     expect(await screen.findByTestId("xlsx-autosum-failed")).toHaveTextContent(text("office.xlsx.formulas.autosum.failed"));
   });
 
+  it("AutoSum reports a rejected dispatch", async () => {
+    render(<XlsxFormulaGroup {...groupProps({ commands: { execute: vi.fn(() => Promise.reject(new Error("handler exploded"))) } })} />);
+    fireEvent.click(screen.getByTestId("xlsx-autosum"));
+    expect(await screen.findByTestId("xlsx-autosum-failed")).toHaveTextContent(text("office.xlsx.formulas.autosum.failed"));
+  });
+
   it("keeps both controls in the tab order and inert without a target or edit rights", () => {
     for (const overrides of [{ readOnly: true }, { selection: null }] as Partial<XlsxToolbarGroupProps>[]) {
       const execute = vi.fn(() => true);

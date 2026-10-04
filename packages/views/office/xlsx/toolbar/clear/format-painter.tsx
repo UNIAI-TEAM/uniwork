@@ -8,11 +8,12 @@ import type { XlsxToolbarGroupProps } from "../types";
 
 /** The pinned Univer format painter (sheets-ui `FormatPainterService`).
  *
- *  Arm/cancel runs the synchronous `set-format-painter` operation
+ *  Arm/cancel runs the `set-format-painter` operation
  *  (`FormatPainterStatus`: 1 = apply once on the next selection end, 0 = off).
  *  The operation is used instead of its `set-once-format-painter` command
- *  wrapper because the wrappers are async handlers, and the renderer's
- *  synchronous command port throws on those.
+ *  wrapper because the operation has no policy wrapper of its own and the
+ *  one-shot mode is applied by the sheets-ui render controller; the port now
+ *  resolves the async result, so the mirror arms only on a resolved true.
  *
  *  The capture happens when the status changes (the sheets-ui
  *  `FormatPainterController` hook snapshots the current selection styles); the
@@ -40,7 +41,9 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
   // armed behind the cleared mirror, so send the explicit off reset too.
   useEffect(() => {
     if (armedRef.current) {
-      commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF });
+      // Fire-and-forget reset: rejections resolve false at the port, and this
+      // path only clears local mirror state regardless of the outcome.
+      void Promise.resolve(commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF })).catch(() => false);
     }
     armedRef.current = false;
     setArmed(false);
@@ -50,7 +53,7 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
     if (!armed) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF });
+      void Promise.resolve(commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF })).catch(() => false);
       armedRef.current = false;
       setArmed(false);
     };
@@ -61,13 +64,17 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
   const toggle = () => {
     if (blocked) return;
     const next = !armed;
-    const executed = commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, {
+    // Arm the local mirror only once the port confirms the command ran; a
+    // resolved false (read-only flip, policy refusal) or a rejection leaves it
+    // unarmed so the mirror never diverges from the renderer.
+    void Promise.resolve(commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, {
       status: next ? XLSX_FORMAT_PAINTER_ONCE : XLSX_FORMAT_PAINTER_OFF,
-    });
-    if (executed) {
-      armedRef.current = next;
-      setArmed(next);
-    }
+    })).then((executed) => {
+      if (executed) {
+        armedRef.current = next;
+        setArmed(next);
+      }
+    }).catch(() => false);
   };
 
   return (

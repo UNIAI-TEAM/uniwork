@@ -95,7 +95,7 @@ describe("XlsxCustomSortDialog", () => {
       orderRules: [{ type: "asc", colIndex: 0 }],
       hasTitle: true,
     });
-    expect(onClose).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("passes the has-header-row choice through to the command", async () => {
@@ -124,7 +124,18 @@ describe("XlsxCustomSortDialog", () => {
 
   it("reports a refused command and keeps the dialog open", async () => {
     const { execute, onClose } = renderDialog();
-    execute.mockReturnValue(false);
+    execute.mockResolvedValue(false);
+    await dialogReady();
+    fireEvent.click(screen.getByTestId("xlsx-sort-apply"));
+    await waitFor(() =>
+      expect(screen.getByTestId("xlsx-sort-error")).toHaveTextContent(text("office.xlsx.sort.applyFailed")),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("reports a rejected dispatch and keeps the dialog open", async () => {
+    const { execute, onClose } = renderDialog();
+    execute.mockRejectedValue(new Error("handler exploded"));
     await dialogReady();
     fireEvent.click(screen.getByTestId("xlsx-sort-apply"));
     await waitFor(() =>

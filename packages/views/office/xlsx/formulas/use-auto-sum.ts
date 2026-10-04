@@ -92,7 +92,7 @@ export function useXlsxAutoSum({
     setFailed(false);
     void host
       .readRange({ sessionId: host.file.sessionId, sheetId: sheet.id, range: window })
-      .then((result) => {
+      .then(async (result) => {
         const range = buildAutoSumRange(result?.cells ?? [], selection);
         if (!range) {
           setLastRange(null);
@@ -104,9 +104,11 @@ export function useXlsxAutoSum({
         // changes it while the host file's id map keeps the old one); the id
         // still addresses the read/subUnitId.
         const command = buildAutoSumCommand(range, sheet.id, unitId, sheetName);
-        let applied: boolean | Promise<boolean> = false;
+        // The port resolves a real boolean; a rejected dispatch resolves false,
+        // so a refused write always reports failure instead of silent success.
+        let applied = false;
         try {
-          applied = commands.execute(command.id, command.params);
+          applied = await commands.execute(command.id, command.params);
         } catch {
           applied = false;
         }

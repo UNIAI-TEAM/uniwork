@@ -313,54 +313,67 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // the host's runtime model applies it to the snapshot.
   const runSheetAction = useCallback((action: XlsxSheetTabAction): void => {
     if (!canEdit) return;
-    // The port may answer asynchronously now; a dispatched command is truthy,
-    // so the grid path is taken whenever the renderer is mounted.
-    const execute = (id: string, params: unknown): boolean | Promise<boolean> =>
-      (gridReady ? gridCommands.execute(id, params) : false);
+    // Chosen semantic (B2 r5): fail-closed. With the renderer mounted the
+    // pinned command path is the single savability gate, so a command that
+    // resolves false surfaces a failure and the direct-op fallback is NOT
+    // retried - the fallback would bypass the policy gate. Only when there is
+    // no mounted renderer (or no live sheet id to address) is there no command
+    // path to gate on, so the fallback applies the op to the snapshot as before.
     const fallback = (): void => {
       void Promise.resolve(editor.edit?.([sheetActionOperation(action)]))
         .then(() => { markDirty(); refreshSnapshot(); })
         .catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
     };
+    // The port resolves a real boolean (a rejection resolves false at the
+    // boundary); a resolved false is a refused/failed command, never silence.
+    const dispatch = (id: string, params: unknown): void => {
+      void Promise.resolve(gridCommands.execute(id, params))
+        .then((executed) => { if (!executed) setRecalcError(t("office.xlsx.errors.editFailed")); })
+        .catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error)));
+    };
+    if (!gridReady) {
+      fallback();
+      refreshSheets();
+      return;
+    }
     switch (action.kind) {
       case "add":
-        if (execute(XLSX_INSERT_SHEET_COMMAND, { sheet: { name: action.name } })) break;
-        fallback();
+        dispatch(XLSX_INSERT_SHEET_COMMAND, { sheet: { name: action.name } });
         break;
       case "duplicate": {
         const id = gridSheetId(action.sheet);
-        if (id !== undefined && execute(XLSX_COPY_SHEET_COMMAND, { subUnitId: id })) break;
-        fallback();
+        if (id === undefined) { fallback(); break; }
+        dispatch(XLSX_COPY_SHEET_COMMAND, { subUnitId: id });
         break;
       }
       case "rename": {
         const id = gridSheetId(action.sheet);
-        if (id !== undefined && execute(XLSX_RENAME_SHEET_COMMAND, { subUnitId: id, name: action.newName })) break;
-        fallback();
+        if (id === undefined) { fallback(); break; }
+        dispatch(XLSX_RENAME_SHEET_COMMAND, { subUnitId: id, name: action.newName });
         break;
       }
       case "remove": {
         const id = gridSheetId(action.sheet);
-        if (id !== undefined && execute(XLSX_REMOVE_SHEET_COMMAND, { subUnitId: id })) break;
-        fallback();
+        if (id === undefined) { fallback(); break; }
+        dispatch(XLSX_REMOVE_SHEET_COMMAND, { subUnitId: id });
         break;
       }
       case "move": {
         const id = gridSheetId(action.sheet);
-        if (id !== undefined && execute(XLSX_ORDER_SHEET_COMMAND, { subUnitId: id, order: action.index })) break;
-        fallback();
+        if (id === undefined) { fallback(); break; }
+        dispatch(XLSX_ORDER_SHEET_COMMAND, { subUnitId: id, order: action.index });
         break;
       }
       case "set-hidden": {
         const id = gridSheetId(action.sheet);
         const command = action.hidden ? XLSX_HIDE_SHEET_COMMAND : XLSX_SHOW_SHEET_COMMAND;
-        if (id !== undefined && execute(command, { subUnitId: id })) break;
-        fallback();
+        if (id === undefined) { fallback(); break; }
+        dispatch(command, { subUnitId: id });
         break;
       }
     }
     refreshSheets();
-  }, [canEdit, editor, gridCommands, gridReady, gridSheetId, markDirty, refreshSheets, refreshSnapshot]);
+  }, [canEdit, editor, gridCommands, gridReady, gridSheetId, markDirty, refreshSheets, refreshSnapshot, t]);
 
   const commitCell = useCallback(async () => {
     if (!canEdit || !selection || formulaDraft === cellText(activeCell)) return;
@@ -490,7 +503,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const cut = useCallback(async () => {
     if (!selection || readOnly || !canEdit || permissions.canCopy === false || !editor.clipboard?.writeText) return;
     await editor.clipboard.writeText(selectionClipboardText(snapshot, selection));
-    gridCommands.execute(XLSX_CONTEXT_CLEAR_CONTENT_COMMAND);
+    // Fire-and-forget clear: the port resolves false on a refusal/rejection, so
+    // there is no unhandled rejection to surface here.
+    void gridCommands.execute(XLSX_CONTEXT_CLEAR_CONTENT_COMMAND);
   }, [canEdit, editor.clipboard, gridCommands, permissions.canCopy, readOnly, selection, snapshot]);
 
   // A9: one capability-folded permissions object feeds the toolbar and the

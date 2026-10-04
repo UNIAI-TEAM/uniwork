@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -63,7 +63,7 @@ describe("XlsxFunctionLibraryDialog", () => {
     expect(screen.getByTestId("xlsx-function-no-match")).toHaveTextContent(text("office.xlsx.formulas.library.noMatch"));
   });
 
-  it("inserts =NAME( at the active cell through the command port and closes", () => {
+  it("inserts =NAME( at the active cell through the command port and closes", async () => {
     const { execute, onClose } = renderDialog();
     fireEvent.click(screen.getByTestId("xlsx-function-SUMIF"));
     expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
@@ -71,14 +71,22 @@ describe("XlsxFunctionLibraryDialog", () => {
       subUnitId: "sheet-1",
       value: { "2": { "1": { f: "=SUMIF(" } } },
     });
-    expect(onClose).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
-  it("reports a refused command and keeps the dialog open", () => {
+  it("reports a refused command and keeps the dialog open", async () => {
     const { execute, onClose } = renderDialog();
-    execute.mockReturnValue(false);
+    execute.mockResolvedValue(false);
     fireEvent.click(screen.getByTestId("xlsx-function-AVERAGE"));
-    expect(screen.getByTestId("xlsx-function-error")).toHaveTextContent(text("office.xlsx.formulas.library.insertFailed"));
+    expect(await screen.findByTestId("xlsx-function-error")).toHaveTextContent(text("office.xlsx.formulas.library.insertFailed"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("reports a rejected dispatch and keeps the dialog open", async () => {
+    const { execute, onClose } = renderDialog();
+    execute.mockRejectedValue(new Error("handler exploded"));
+    fireEvent.click(screen.getByTestId("xlsx-function-SUM"));
+    expect(await screen.findByTestId("xlsx-function-error")).toHaveTextContent(text("office.xlsx.formulas.library.insertFailed"));
     expect(onClose).not.toHaveBeenCalled();
   });
 

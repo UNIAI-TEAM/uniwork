@@ -150,31 +150,41 @@ export function XlsxAdvancedFilterDialog({
       );
       return;
     }
-    try {
-      const unitId = `file-${host.file.sha256}`;
-      const range = {
-        startRow: area.startRow,
-        endRow: area.endRow,
-        startColumn: area.startColumn,
-        endColumn: area.endColumn,
-      };
-      // Establish the filter over the selection when none exists; the command
-      // refuses (false) when a filter already exists — the criteria below then
-      // apply to it. A one-row selection has no data row, so no filter range.
-      if (range.endRow > range.startRow) {
-        commands.execute(XLSX_FILTER_SET_RANGE_COMMAND, { unitId, subUnitId: sheet.id, range });
-      }
-      const failed = operations.filter(
-        (operation) => !commands.execute(XLSX_FILTER_SET_CRITERIA_COMMAND, { unitId, subUnitId: sheet.id, ...operation }),
-      );
-      if (failed.length > 0) {
+    void (async () => {
+      try {
+        const unitId = `file-${host.file.sha256}`;
+        const range = {
+          startRow: area.startRow,
+          endRow: area.endRow,
+          startColumn: area.startColumn,
+          endColumn: area.endColumn,
+        };
+        // Establish the filter over the selection when none exists; the command
+        // refuses (false) when a filter already exists - the criteria below then
+        // apply to it. A one-row selection has no data row, so no filter range.
+        // Fire-and-forget, but rejection-safe: a rejected dispatch must not
+        // surface as an unhandled rejection.
+        if (range.endRow > range.startRow) {
+          void Promise.resolve(commands.execute(XLSX_FILTER_SET_RANGE_COMMAND, { unitId, subUnitId: sheet.id, range })).catch(() => false);
+        }
+        // Every criteria command still dispatches; the port resolves a real
+        // boolean (a rejection resolves false), so the failed set is non-empty
+        // exactly when a command did not run.
+        const applied = await Promise.all(
+          operations.map((operation) =>
+            Promise.resolve(commands.execute(XLSX_FILTER_SET_CRITERIA_COMMAND, { unitId, subUnitId: sheet.id, ...operation })).catch(() => false),
+          ),
+        );
+        const failed = applied.filter((result) => !result);
+        if (failed.length > 0) {
+          setError(t("office.xlsx.filter.dialog.applyFailed"));
+          return;
+        }
+        onClose();
+      } catch {
         setError(t("office.xlsx.filter.dialog.applyFailed"));
-        return;
       }
-      onClose();
-    } catch {
-      setError(t("office.xlsx.filter.dialog.applyFailed"));
-    }
+    })();
   };
 
   return (

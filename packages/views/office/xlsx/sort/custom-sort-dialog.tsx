@@ -143,21 +143,25 @@ export function XlsxCustomSortDialog({
       setError(t("office.xlsx.sort.limitExceeded", { limit: XLSX_SORT_MAX_OPS }));
       return;
     }
-    try {
-      const params = sortCommandParams(area.range, keyColumn, direction, hasHeaderRow);
-      const applied = commands.execute(XLSX_SORT_COMMAND, {
-        unitId: `file-${host.file.sha256}`,
-        subUnitId: sheet.id,
-        ...params,
-      });
-      if (applied === false) {
+    void (async () => {
+      try {
+        const params = sortCommandParams(area.range, keyColumn, direction, hasHeaderRow);
+        // The port resolves a real boolean; a rejected dispatch resolves false,
+        // so applyFailed is reachable instead of a silent close.
+        const applied = await commands.execute(XLSX_SORT_COMMAND, {
+          unitId: `file-${host.file.sha256}`,
+          subUnitId: sheet.id,
+          ...params,
+        });
+        if (applied === false) {
+          setError(t("office.xlsx.sort.applyFailed"));
+          return;
+        }
+        onClose();
+      } catch {
         setError(t("office.xlsx.sort.applyFailed"));
-        return;
       }
-      onClose();
-    } catch {
-      setError(t("office.xlsx.sort.applyFailed"));
-    }
+    })();
   };
 
   return (

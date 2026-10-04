@@ -181,7 +181,7 @@ describe("useXlsxFindReplace scan", () => {
       subUnitId: "sheet-1",
       value: { 0: { 0: { v: "beta" } }, 1: { 1: { v: "beta" } }, 2: { 0: { v: "beta" } } },
     });
-    expect(hook.current.action).toEqual({ kind: "replacedAll", count: 3 });
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "replacedAll", count: 3 }));
   });
 
   it("re-scopes when the user moves the selection themselves", async () => {
@@ -292,7 +292,7 @@ describe("useXlsxFindReplace actions", () => {
       subUnitId: "sheet-1",
       value: { 0: { 0: { v: "beta" } } },
     });
-    expect(hook.current.action).toEqual({ kind: "replaced" });
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "replaced" }));
   });
 
   it("advances to the next match after a successful single replace", async () => {
@@ -311,7 +311,7 @@ describe("useXlsxFindReplace actions", () => {
       value: { 0: { 0: { v: "aa" } } },
     });
     // The replacement still matches ("a" -> "aa") but the cursor moved on.
-    expect(hook.current.currentIndex).toBe(1);
+    await waitFor(() => expect(hook.current.currentIndex).toBe(1));
     execute.mockClear();
     act(() => hook.current.replace());
     expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
@@ -319,7 +319,7 @@ describe("useXlsxFindReplace actions", () => {
       subUnitId: "sheet-1",
       value: { 1: { 0: { v: "aa" } } },
     });
-    expect(hook.current.currentIndex).toBe(0);
+    await waitFor(() => expect(hook.current.currentIndex).toBe(0));
   });
 
   it("never replaces a formula match", async () => {
@@ -352,7 +352,7 @@ describe("useXlsxFindReplace actions", () => {
       subUnitId: "sheet-1",
       value: { 0: { 0: { v: "beta" } }, 1: { 1: { v: "beta" } } },
     });
-    expect(hook.current.action).toEqual({ kind: "replacedAll", count: 2 });
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "replacedAll", count: 2 }));
   });
 
   it("refuses a replace-all above the op bound without sending a command", async () => {
@@ -380,9 +380,11 @@ describe("useXlsxFindReplace actions", () => {
     const { result: hook, execute } = await twoMatches();
     act(() => hook.current.findNext());
     act(() => hook.current.changeReplacement("beta"));
-    execute.mockReturnValue(false);
+    execute.mockResolvedValue(false);
     act(() => hook.current.replace());
-    expect(hook.current.action).toEqual({ kind: "failed" });
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "failed" }));
+    // A refused replace must not advance the cursor onto the next match.
+    expect(hook.current.currentIndex).toBe(0);
   });
 
   it("survives a command service that throws for an unknown id", async () => {
@@ -394,6 +396,16 @@ describe("useXlsxFindReplace actions", () => {
     expect(hook.current.currentIndex).toBe(0);
     act(() => hook.current.changeReplacement("beta"));
     act(() => hook.current.replace());
-    expect(hook.current.action).toEqual({ kind: "failed" });
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "failed" }));
+  });
+
+  it("reports a rejected dispatch as a failed replacement, not a silent success", async () => {
+    const { result: hook, execute } = await twoMatches();
+    act(() => hook.current.findNext());
+    act(() => hook.current.changeReplacement("beta"));
+    execute.mockRejectedValue(new Error("handler exploded"));
+    act(() => hook.current.replace());
+    await waitFor(() => expect(hook.current.action).toEqual({ kind: "failed" }));
+    expect(hook.current.currentIndex).toBe(0);
   });
 });

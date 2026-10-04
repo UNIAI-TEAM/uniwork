@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "../types";
@@ -54,7 +54,7 @@ const ARM = [XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_ONCE }
 const CANCEL = [XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF }];
 
 describe("XlsxFormatPainterGroup", () => {
-  it("arms once and cancels on the second press", () => {
+  it("arms once and cancels on the second press", async () => {
     const { execute } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
     expect(button).toHaveAccessibleName(text("office.xlsx.toolbar.groups.painter.label"));
@@ -62,19 +62,19 @@ describe("XlsxFormatPainterGroup", () => {
 
     fireEvent.click(button);
     expect(execute).toHaveBeenLastCalledWith(...ARM);
-    expect(button).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
 
     fireEvent.click(button);
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
-    expect(button).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "false"));
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
-  it("disarms with the off reset when the editor passes the next selection and stays single-use", () => {
+  it("disarms with the off reset when the editor passes the next selection and stays single-use", async () => {
     const { execute, props, view } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
     fireEvent.click(button);
-    expect(button).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
 
     view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Data", address: "B2" }} />);
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
@@ -82,14 +82,15 @@ describe("XlsxFormatPainterGroup", () => {
 
     fireEvent.click(button);
     expect(execute).toHaveBeenLastCalledWith(...ARM);
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
     expect(execute).toHaveBeenCalledTimes(3);
   });
 
-  it("sends the off reset on a sheet switch that never reached a render apply", () => {
+  it("sends the off reset on a sheet switch that never reached a render apply", async () => {
     const { execute, props, view } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
     fireEvent.click(button);
-    expect(button).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
 
     view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Archive", address: "A1" }} />);
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
@@ -102,7 +103,7 @@ describe("XlsxFormatPainterGroup", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  it("cancels on Escape only while armed", () => {
+  it("cancels on Escape only while armed", async () => {
     const { execute } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
 
@@ -110,20 +111,31 @@ describe("XlsxFormatPainterGroup", () => {
     expect(execute).not.toHaveBeenCalled();
 
     fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
-    expect(button).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "false"));
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
-  it("stays unarmed when the renderer refuses to arm", () => {
+  it("stays unarmed when the renderer refuses to arm", async () => {
     const { execute } = renderPainter();
-    execute.mockReturnValue(false);
+    execute.mockResolvedValue(false);
     const button = screen.getByTestId("xlsx-format-painter");
     fireEvent.click(button);
     expect(execute).toHaveBeenCalledWith(...ARM);
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("stays unarmed when the dispatch rejects", async () => {
+    const { execute } = renderPainter();
+    execute.mockRejectedValue(new Error("handler exploded"));
+    const button = screen.getByTestId("xlsx-format-painter");
+    fireEvent.click(button);
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
     expect(button).toHaveAttribute("aria-pressed", "false");
   });
 

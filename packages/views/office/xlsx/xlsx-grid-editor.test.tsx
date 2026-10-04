@@ -166,6 +166,26 @@ describe("XlsxEditor live grid commands", () => {
     grid.handle.getActiveFormatState.mockReturnValue(null);
   });
 
+  it("normalises a rejected command dispatch to a resolved false without an unhandled rejection", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // The port boundary folds a rejected dispatch into a resolved false, so the
+    // fire-and-forget toolbar click never escapes as an unhandled rejection.
+    const rejections: unknown[] = [];
+    const onRejection = (event: PromiseRejectionEvent) => rejections.push(event.reason);
+    window.addEventListener("unhandledrejection", onRejection);
+    try {
+      grid.handle.executeCommand.mockRejectedValueOnce(new Error("handler exploded"));
+      expect(() => fireEvent.click(screen.getByRole("button", { name: "In nghi\u00eang" }))).not.toThrow();
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(rejections).toHaveLength(0);
+      expect(screen.getByTestId("xlsx-editor")).toBeInTheDocument();
+    } finally {
+      window.removeEventListener("unhandledrejection", onRejection);
+    }
+  });
+
   it("surfaces a rejected host edit and blocks Save", async () => {
     const { handle, coordinator } = setup();
     vi.mocked(handle.edit!).mockRejectedValueOnce(new Error("session unavailable"));
@@ -269,6 +289,20 @@ describe("XlsxEditor context menu and shortcuts", () => {
     grid.handle.redo.mockClear();
     fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "Z", ctrlKey: true, shiftKey: true });
     expect(grid.handle.redo).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces a refused sheet action instead of silently no-opping", async () => {
+    const { handle } = setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // Shift+F11 inserts a sheet through the pinned command; a resolved false is
+    // fail-closed: the direct-op fallback is NOT retried (it would bypass the
+    // policy gate) and the failure is surfaced instead of silent.
+    grid.handle.executeCommand.mockResolvedValueOnce(false);
+    vi.mocked(handle.edit!).mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "F11", shiftKey: true });
+    await waitFor(() => expect(screen.getByTestId("xlsx-recalc-error")).toBeInTheDocument());
+    expect(handle.edit).not.toHaveBeenCalled();
   });
 
   it("leaves catalog keys to the cell editor while it owns the keyboard", async () => {

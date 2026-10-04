@@ -239,9 +239,9 @@ export function useXlsxFindReplace({
   const canReplaceAll = !readOnly && replaceableCount > 0;
 
   const execute = useCallback(
-    (id: string, params: unknown): boolean | Promise<boolean> => {
+    async (id: string, params: unknown): Promise<boolean> => {
       try {
-        return commands.execute(id, params);
+        return await commands.execute(id, params);
       } catch {
         // A command id the pin does not know throws from the command service;
         // the panel reports a failed action instead of unmounting.
@@ -252,7 +252,7 @@ export function useXlsxFindReplace({
   );
 
   const reveal = useCallback(
-    (match: XlsxFindMatch) => {
+    async (match: XlsxFindMatch) => {
       if (!sheet) return;
       // The grid mirrors this move back through the selection prop; arming the
       // guard before the command lets the scan-window sync skip it instead of
@@ -264,13 +264,17 @@ export function useXlsxFindReplace({
         startColumn: match.column,
         endColumn: match.column,
       };
+      // Both view commands dispatch in the same tick (the renderer expects the
+      // select->scroll ordering); only the results are awaited, so a refused
+      // select disarms the reveal guard instead of leaving it armed.
       const selected = execute(XLSX_FIND_SELECT_COMMAND, {
         unitId: `file-${host.file.sha256}`,
         subUnit: sheet.id,
         range,
       });
-      if (!selected) pendingRevealAddressRef.current = null;
-      execute(XLSX_FIND_SCROLL_COMMAND, { range });
+      const scrolled = execute(XLSX_FIND_SCROLL_COMMAND, { range });
+      if (!(await selected)) pendingRevealAddressRef.current = null;
+      await scrolled;
     },
     [execute, host, sheet],
   );
@@ -280,7 +284,7 @@ export function useXlsxFindReplace({
     const next = currentIndex < 0 ? 0 : (currentIndex + 1) % matchCount;
     setCursor(next);
     setAction({ kind: "idle" });
-    reveal(matches[next]!);
+    void reveal(matches[next]!);
   }, [currentIndex, matchCount, matches, reveal]);
 
   const findPrevious = useCallback(() => {
@@ -288,11 +292,11 @@ export function useXlsxFindReplace({
     const previous = currentIndex < 0 ? matchCount - 1 : (currentIndex - 1 + matchCount) % matchCount;
     setCursor(previous);
     setAction({ kind: "idle" });
-    reveal(matches[previous]!);
+    void reveal(matches[previous]!);
   }, [currentIndex, matchCount, matches, reveal]);
 
   const applyBatch = useCallback(
-    (batch: XlsxFindReplacement): boolean | Promise<boolean> => {
+    async (batch: XlsxFindReplacement): Promise<boolean> => {
       if (!sheet || batch.count === 0) return true;
       return execute(XLSX_FIND_SET_VALUES_COMMAND, {
         unitId: `file-${host.file.sha256}`,
@@ -307,15 +311,17 @@ export function useXlsxFindReplace({
     if (!canReplace) return;
     const match = matches[currentIndex];
     if (!match) return;
-    const applied = applyBatch(buildFindReplacement([match], query, replacement, matchCase));
-    setAction(applied ? { kind: "replaced" } : { kind: "failed" });
-    if (!applied) return;
-    // Replace then advance (spreadsheet semantics): even a replacement that
-    // still matches the query ("a" -> "aa") moves to the next match, wrapping
-    // like findNext. The post-write re-read keeps the list in step.
-    const next = (currentIndex + 1) % matchCount;
-    setCursor(next);
-    reveal(matches[next]!);
+    void (async () => {
+      const applied = await applyBatch(buildFindReplacement([match], query, replacement, matchCase));
+      setAction(applied ? { kind: "replaced" } : { kind: "failed" });
+      if (!applied) return;
+      // Replace then advance (spreadsheet semantics): even a replacement that
+      // still matches the query ("a" -> "aa") moves to the next match, wrapping
+      // like findNext. The post-write re-read keeps the list in step.
+      const next = (currentIndex + 1) % matchCount;
+      setCursor(next);
+      await reveal(matches[next]!);
+    })();
   }, [applyBatch, canReplace, currentIndex, matchCase, matchCount, matches, query, replacement, reveal]);
 
   const replaceAll = useCallback(() => {
@@ -326,8 +332,10 @@ export function useXlsxFindReplace({
       setAction({ kind: "limit", count: batch.count });
       return;
     }
-    const applied = applyBatch(batch);
-    setAction(applied ? { kind: "replacedAll", count: batch.count } : { kind: "failed" });
+    void (async () => {
+      const applied = await applyBatch(batch);
+      setAction(applied ? { kind: "replacedAll", count: batch.count } : { kind: "failed" });
+    })();
   }, [applyBatch, canReplaceAll, matchCase, matches, query, replacement]);
 
   return {

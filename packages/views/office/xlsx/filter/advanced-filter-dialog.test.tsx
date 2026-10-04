@@ -58,7 +58,7 @@ function host(readRange: XlsxGridHostPort["readRange"]): XlsxGridHostPort {
 const header = async () => result([cell("Region", 0, 0), cell("Sales", 0, 1)]);
 
 function renderDialog(overrides: Partial<XlsxAdvancedFilterDialogProps> = {}, readRange?: XlsxGridHostPort["readRange"]) {
-  const execute = vi.fn((_id: string, _params?: unknown) => true);
+  const execute = vi.fn((_id: string, _params?: unknown): boolean | Promise<boolean> => true);
   const commands: XlsxToolbarCommands = { execute };
   const onClose = vi.fn();
   const props: XlsxAdvancedFilterDialogProps = {
@@ -100,7 +100,7 @@ describe("XlsxAdvancedFilterDialog", () => {
       col: 0,
       criteria: { colId: 0, customFilters: { customFilters: [{ val: "alpha" }] } },
     });
-    expect(onClose).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("joins two conditions on one column with AND", async () => {
@@ -129,7 +129,23 @@ describe("XlsxAdvancedFilterDialog", () => {
 
   it("reports a refused command and keeps the dialog open", async () => {
     const { execute, onClose } = renderDialog({}, async () => header());
-    execute.mockReturnValue(false);
+    execute.mockResolvedValue(false);
+    await dialogReady();
+    fireEvent.change(screen.getByTestId("xlsx-filter-value-0"), { target: { value: "alpha" } });
+    fireEvent.click(screen.getByTestId("xlsx-filter-apply"));
+    await waitFor(() =>
+      expect(screen.getByTestId("xlsx-filter-error")).toHaveTextContent(text("office.xlsx.filter.dialog.applyFailed")),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("reports a rejected criteria dispatch and keeps the dialog open", async () => {
+    const { execute, onClose } = renderDialog({}, async () => header());
+    // The range command may succeed while the criteria dispatch rejects.
+    execute.mockImplementation(async (id: string) => {
+      if (id === "sheet.command.set-filter-criteria") throw new Error("handler exploded");
+      return true;
+    });
     await dialogReady();
     fireEvent.change(screen.getByTestId("xlsx-filter-value-0"), { target: { value: "alpha" } });
     fireEvent.click(screen.getByTestId("xlsx-filter-apply"));

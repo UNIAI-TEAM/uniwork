@@ -79,14 +79,18 @@ export function XlsxFunctionLibraryDialog({
     setPicked(spec);
     setFailed(false);
     if (!insertable || !commands || !unitId || !sheetId || !position) return;
-    let applied: boolean | Promise<boolean> = false;
-    try {
-      applied = commands.execute(XLSX_FUNCTION_INSERT_COMMAND, functionInsertParams(unitId, sheetId, position.row, position.column, spec.name));
-    } catch {
-      applied = false;
-    }
-    if (applied) onClose();
-    else setFailed(true);
+    // The port resolves a real boolean; a rejection (unregistered id, handler
+    // error) resolves false too, so the failure surface is always reachable.
+    void (async () => {
+      let applied = false;
+      try {
+        applied = await commands.execute(XLSX_FUNCTION_INSERT_COMMAND, functionInsertParams(unitId, sheetId, position.row, position.column, spec.name));
+      } catch {
+        applied = false;
+      }
+      if (applied) onClose();
+      else setFailed(true);
+    })();
   };
 
   return (

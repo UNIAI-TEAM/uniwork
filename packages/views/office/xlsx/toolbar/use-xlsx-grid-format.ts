@@ -19,17 +19,23 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
   }, [gridRef]);
   const commands = useMemo<XlsxToolbarCommands>(() => ({
     execute: (id, params) => {
-      const result = gridRef.current?.executeCommand(id, params) ?? false;
-      // The live renderer dispatches through the async Univer command service,
-      // so the handle hands back a promise; refresh the mirror once it resolves.
-      // A synchronous handle (test double) keeps the old inline behaviour.
-      if (result instanceof Promise) {
-        void result.then((executed) => {
-          if (executed) refreshFormatState();
-        });
-      } else if (result) {
-        refreshFormatState();
+      // The port is the one normalisation point: the live renderer dispatches
+      // through the async Univer command service (a Promise that resolves true
+      // only when the command actually ran), while a synchronous test double
+      // hands back a plain boolean. Both are folded into a single
+      // resolved-boolean Promise here, and a rejected or synchronously thrown
+      // dispatch (unregistered id, handler error) resolves false so no caller
+      // ever sees an unhandled rejection. The mirror refreshes only on a run.
+      let dispatched: boolean | Promise<boolean>;
+      try {
+        dispatched = gridRef.current?.executeCommand(id, params) ?? false;
+      } catch {
+        dispatched = false;
       }
+      const result = Promise.resolve(dispatched).catch(() => false);
+      void result.then((executed) => {
+        if (executed) refreshFormatState();
+      });
       return result;
     },
   }), [gridRef, refreshFormatState]);
