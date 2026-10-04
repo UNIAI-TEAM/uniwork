@@ -1,5 +1,6 @@
 export { XlsxEditor } from "./xlsx-editor";
 export { createXlsxEditorLoader, type XlsxEditorSlotConfig } from "./xlsx-editor-slot";
+export { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, type XlsxJournalDraftCell } from "./xlsx-journal-apply";
 export { XlsxErrorState } from "./xlsx-error-state";
 export { XlsxGridSurface, loadXlsxRendererModule } from "./xlsx-grid-surface";
 export type { XlsxGridHandle, XlsxGridHostPort, XlsxGridSelection, XlsxRendererModule } from "./xlsx-grid-surface";
