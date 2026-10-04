@@ -7375,6 +7375,12 @@
       "find_unbound": "Search is not connected to this editor yet.",
       "find_matches": "{{value}} matches",
       "find_close": "Close find",
+      "text": {
+        "target_label": "Double-click to edit this text",
+        "editor_label": "Edit slide text",
+        "hint": "Ctrl+Enter to save, Esc to cancel",
+        "empty_refused": "Text cannot be empty. Type something or press Esc to cancel."
+      },
       "status": {
         "label": "Presentation status",
         "unknown": "—",

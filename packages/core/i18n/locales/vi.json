@@ -7369,6 +7369,12 @@
       "find_unbound": "Chưa kết nối tìm kiếm cho trình chỉnh sửa này.",
       "find_matches": "{{value}} kết quả",
       "find_close": "Đóng tìm kiếm",
+      "text": {
+        "target_label": "Nháy đúp để sửa văn bản này",
+        "editor_label": "Sửa văn bản trang chiếu",
+        "hint": "Ctrl+Enter để lưu, Esc để huỷ",
+        "empty_refused": "Văn bản không được để trống. Hãy nhập nội dung hoặc nhấn Esc để huỷ."
+      },
       "status": {
         "label": "Trạng thái bản trình bày",
         "unknown": "—",

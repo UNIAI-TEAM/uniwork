@@ -18,6 +18,8 @@ import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxPresenter } from "./presenter";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
+import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from "./text/pptx-text-editor";
+import { collectTextTargets, type PptxTextTarget } from "./text/text-model";
 import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxStatusBar } from "./status-bar";
@@ -42,6 +44,9 @@ export interface PptxEditorProps {
    *  own `edit` port; when neither exists Delete stays honestly unbound. */
   onDeleteElements?: (slideIndex: number, elementIds: readonly string[]) => Promise<unknown>;
   onTextEdit?: (slideIndex: number) => Promise<unknown>;
+  /** In-place text commit (A1ui). When bound, double-clicking a text element opens the
+   *  contenteditable overlay; the commit carries the typed paragraphs for that element. */
+  onCommitText?: (commit: PptxTextCommit) => Promise<unknown> | void;
   /** Find channel (C6). Absent leaves the find bar honest about being unbound. */
   onFind?: (query: string) => void;
   onOpen?: () => void;
@@ -92,6 +97,7 @@ export function PptxEditor({
   transformRequest = null,
   onDeleteElements,
   onTextEdit,
+  onCommitText,
   onFind,
   onOpen,
   onCommandError,
@@ -111,6 +117,7 @@ export function PptxEditor({
   const [findQuery, setFindQuery] = useState("");
   const [gesturePending, setGesturePending] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [textTarget, setTextTarget] = useState<PptxTextTarget | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fitWidthPx, setFitWidthPx] = useState(PPTX_FALLBACK_FIT_WIDTH);
   const gestureRef = useRef<GestureState | null>(null);
@@ -261,15 +268,51 @@ export function PptxEditor({
     onDirty?.();
   }, [onDirty, onTextEdit, selectedIndex, waitForGesture]);
 
+
+  const textTargets = useMemo(() => (rendition ? collectTextTargets(rendition) : []), [rendition]);
+  const textTargetsRef = useRef(textTargets);
+  useEffect(() => { textTargetsRef.current = textTargets; }, [textTargets]);
+
+  // A1ui: the in-place editor is only mounted when the host bound the commit channel.
+  const openTextEditor = useCallback((target: PptxTextTarget) => {
+    if (!onCommitText) return;
+    setCommandError(null);
+    setTextTarget(target);
+  }, [onCommitText]);
+
+  // The ribbon Text command (and the editor's onTextEdit seam) opens the in-place editor
+  // over the selected text element; with nothing selected it falls back to the seam.
+  const openTextEditorForSelection = useCallback(() => {
+    const target = selectionRef.current.ids.length
+      ? textTargetsRef.current.find((candidate) => candidate.sourceId === selectionRef.current.ids[0])
+      : undefined;
+    if (target) { openTextEditor(target); return true; }
+    return false;
+  }, [openTextEditor]);
+
   const reportCommandError = useCallback((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     setCommandError(message);
     onCommandError?.(error);
   }, [onCommandError]);
 
+  const commitText = useCallback((commit: PptxTextCommit) => {
+    setTextTarget(null);
+    if (!onCommitText) return;
+    void Promise.resolve(onCommitText(commit)).then(() => { onDirty?.(); }).catch(reportCommandError);
+  }, [onCommitText, onDirty, reportCommandError]);
+
+  const cancelTextEdit = useCallback(() => setTextTarget(null), []);
+
   const runCommand = useCallback((operation: Promise<unknown>) => {
     void operation.catch(reportCommandError);
   }, [reportCommandError]);
+  /** A1ui: the ribbon Text command opens the in-place overlay when the selected element is
+   *  a text element and the host bound the commit channel; otherwise it keeps the seam. */
+  const runTextCommand = useCallback(() => {
+    if (openTextEditorForSelection()) return;
+    runCommand(runTextEdit());
+  }, [openTextEditorForSelection, runCommand, runTextEdit]);
 
   const save = useCallback(() => {
     if (saveCoordinator) void saveCoordinator.save("button");
@@ -313,6 +356,10 @@ export function PptxEditor({
     onError: reportCommandError,
     ...(onDirty ? { onDeleteCommitted: onDirty } : {}),
   });
+  // Latest selection for the ribbon Text command's ref, written after commit so the
+  // handler never reads a stale id.
+  const selectionRef = useRef(selection.selection);
+  useEffect(() => { selectionRef.current = selection.selection; }, [selection.selection]);
 
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
@@ -324,7 +371,7 @@ export function PptxEditor({
       case "edit-shape-image":
         if (transformRequest) runCommand(runTransform(transformRequest));
         break;
-      case "edit-text": runCommand(runTextEdit()); break;
+      case "edit-text": runTextCommand(); break;
       case "open": onOpen?.(); break;
       case "undo": requestHistory("undo"); break;
       case "redo": requestHistory("redo"); break;
@@ -342,7 +389,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [fullscreen, onFullscreenChange, onOpen, openPresenter, reportCommandError, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
+  }, [fullscreen, onFullscreenChange, onOpen, openPresenter, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, transformRequest]);
 
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const key = event.key.toLowerCase();
@@ -353,7 +400,10 @@ export function PptxEditor({
     if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); save(); }
     if ((event.ctrlKey || event.metaKey) && key === "f") { event.preventDefault(); setFindOpen(true); }
     if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); selection.selectAll(); }
-    if (event.key === "Escape") { selection.clear(); }
+    if (event.key === "Escape") {
+      if (textTarget) { setTextTarget(null); return; }
+      selection.clear();
+    }
     if ((event.key === "Delete" || event.key === "Backspace") && selection.canDelete) {
       event.preventDefault();
       selection.deleteSelection();
@@ -407,12 +457,38 @@ export function PptxEditor({
             onFitWidthChange={setFitWidthPx}
             onKeyDown={onCanvasKeyDown}
             overlay={rendition ? (
-              <PptxSelectionOverlay
-                page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
-                displayWidthPx={displaySize.widthPx}
-                displayHeightPx={displaySize.heightPx}
-                controller={selection}
-              />
+              <>
+                <PptxSelectionOverlay
+                  page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
+                  displayWidthPx={displaySize.widthPx}
+                  displayHeightPx={displaySize.heightPx}
+                  controller={selection}
+                />
+                {/* A1ui: contextual in-place text editing inside the slide box (C9). */}
+                {onCommitText ? (
+                  <PptxTextEditLayer
+                    slideIndex={selectedIndex}
+                    targets={textTargets}
+                    page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
+                    displayWidthPx={displaySize.widthPx}
+                    displayHeightPx={displaySize.heightPx}
+                    controller={selection}
+                    activeId={textTarget?.sourceId ?? null}
+                    onOpen={openTextEditor}
+                  />
+                ) : null}
+                {onCommitText && textTarget ? (
+                  <PptxTextEditorOverlay
+                    slideIndex={selectedIndex}
+                    target={textTarget}
+                    page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
+                    displayWidthPx={displaySize.widthPx}
+                    displayHeightPx={displaySize.heightPx}
+                    onCommitText={commitText}
+                    onCancel={cancelTextEdit}
+                  />
+                ) : null}
+              </>
             ) : null}
           />
         </div>
