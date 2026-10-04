@@ -4,8 +4,10 @@ import { act } from "react";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { Editor as CoreEditor } from "@tiptap/core";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
+import { createMarkdownEditorExtensions } from "./extensions";
 import type { TextEditorHandle } from "../../source-editor-types";
 
 initI18n();
@@ -88,6 +90,39 @@ function ToggleHarness({
     </div>
   );
 }
+
+describe("SelectiveMarkdown wiring", () => {
+  it("keeps the base onBeforeCreate: editor.markdown, getMarkdown and the selective escaper", () => {
+    // `Markdown.extend({ onBeforeCreate })` shallow-merges config, so the child
+    // hook replaces the base one unless it calls `this.parent?.()`. The base
+    // hook is what rebuilds `storage.manager` from the real extensions, assigns
+    // `editor.markdown`, defines `editor.getMarkdown` and handles
+    // `contentType: "markdown"`. Without the parent call, markdown paste bails
+    // (`if (!editor.markdown) return false`) and `editor.getMarkdown` throws.
+    const editor = new CoreEditor({
+      extensions: createMarkdownEditorExtensions(),
+      content: "<p>snake_case_name</p>",
+    });
+    try {
+      expect(editor.markdown).toBeDefined();
+      expect(typeof editor.getMarkdown).toBe("function");
+      // The manager the base hook built is the one `editor.markdown` points at,
+      // so the selective escaper must sit on THAT manager, not the throwaway
+      // `addStorage` one (which has zero extensions).
+      // `extension.storage` is a getter that spreads a fresh object, so read
+      // the storage the hook actually mutated.
+      const markdownStorage = editor.extensionStorage.markdown as unknown as { manager: unknown };
+      expect(editor.markdown).toBe(markdownStorage.manager);
+      const escaper = (editor.markdown as unknown as { escapeMarkdownSyntax?: (text: string) => string })
+        .escapeMarkdownSyntax;
+      expect(typeof escaper).toBe("function");
+      expect(escaper!("snake_case_name")).toBe("snake_case_name");
+      expect(escaper!("a `tick` b")).toBe("a \\`tick\\` b");
+    } finally {
+      editor.destroy();
+    }
+  });
+});
 
 describe("MarkdownWysiwygEditor", () => {
   it("mounts a ProseMirror surface driven by the shared text source", async () => {

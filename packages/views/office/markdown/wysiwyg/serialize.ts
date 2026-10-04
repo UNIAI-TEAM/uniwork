@@ -259,7 +259,8 @@ export function fromEditorDocument(doc: JSONContent, manager: MarkdownManager): 
  * `SelectiveMarkdown.onBeforeCreate` fires for a TipTap editor, but the codec
  * builds its own manager, so without this assignment `serialize()` (the write
  * path) would use the stock blanket escaper and pollute edited text with
- * backslashes. The editor's manager gets it via `SelectiveMarkdown`.
+ * backslashes. The editor's manager gets it via `SelectiveMarkdown`, which
+ * runs the base `onBeforeCreate` first and then patches the rebuilt manager.
  */
 export function createMarkdownSourceManager(extensions: AnyExtension[]): MarkdownManager {
   const manager = new MarkdownManager({ extensions, indentation: { style: "space", size: MARKDOWN_LIST_INDENT } });

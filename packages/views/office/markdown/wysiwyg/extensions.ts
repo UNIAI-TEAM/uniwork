@@ -71,12 +71,21 @@ export const MarkdownSourceGapsExtension = Extension.create({
 });
 
 /**
- * `@tiptap/markdown` with the selective escaper installed. The base extension
- * rebuilds its manager on `onBeforeCreate`, so the selective method must be
- * (re)installed there — after the rebuild, before any parse.
+ * `@tiptap/markdown` with the selective escaper installed.
+ *
+ * `Markdown.extend({ onBeforeCreate })` shallow-merges the config, so this
+ * hook REPLACES the base one; the parent only runs when we call
+ * `this.parent?.()`. The base hook is load-bearing — it rebuilds
+ * `storage.manager` from `editor.extensionManager.baseExtensions`, assigns
+ * `editor.markdown`, defines `editor.getMarkdown` and handles
+ * `contentType: "markdown"`. Without the call, `editor.markdown` never exists
+ * (markdown paste bails) and the escaper would land on the throwaway
+ * `addStorage` manager nothing reads. Run the parent FIRST, then install the
+ * selective escaper on the rebuilt, real manager.
  */
 export const SelectiveMarkdown = Markdown.extend({
   onBeforeCreate() {
+    this.parent?.();
     installSelectiveEscaper(this.storage.manager);
   },
 });
