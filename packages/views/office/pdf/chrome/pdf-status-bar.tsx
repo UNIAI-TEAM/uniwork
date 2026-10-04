@@ -61,7 +61,7 @@ export function PdfStatusBar({
   return (
     <footer
       className={cn(
-        "flex h-7 items-center justify-between gap-3 border-t border-border bg-muted/30 px-3 text-caption text-muted-foreground",
+        "flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-t border-border bg-muted/30 px-3 py-0.5 text-caption text-muted-foreground",
         className,
       )}
       data-testid="pdf-status-bar"
@@ -75,20 +75,20 @@ export function PdfStatusBar({
           const value = counts?.[key];
           if (value === undefined) return null;
           return (
-            <span key={key} className="tabular-nums" data-testid={`pdf-status-count-${key}`}>
+            <span key={key} className="hidden tabular-nums sm:inline" data-testid={`pdf-status-count-${key}`}>
               {t("office.pdf.chrome.statusBarCount", { value, label: t(COUNT_LABEL_KEYS[key]) })}
             </span>
           );
         })}
         {language ? (
-          <span className="truncate" data-testid="pdf-status-language">
+          <span className="hidden truncate sm:inline" data-testid="pdf-status-language">
             {language}
           </span>
         ) : null}
       </div>
       <div className="flex items-center gap-2" data-testid="pdf-status-right">
         {selection ? (
-          <span className="truncate" data-testid="pdf-status-selection">
+          <span className="hidden truncate sm:inline" data-testid="pdf-status-selection">
             {selection}
           </span>
         ) : null}

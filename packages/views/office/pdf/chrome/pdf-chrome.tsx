@@ -219,7 +219,7 @@ export function PdfRibbonBar({
             onValueChange={(value) => {
               if (TAB_ORDER.includes(value as PdfToolbarTab)) onTabChange(value as PdfToolbarTab);
             }}
-            className="min-w-0 flex-1"
+            className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
             data-testid="pdf-chrome-tabs"
           >
             <TabsList variant="line" aria-label={t("office.pdf.chrome.tabsLabel")}>
@@ -250,7 +250,7 @@ export function PdfRibbonBar({
         </div>
         {groups.length > 0 ? (
           <div
-            className="flex h-11 items-center gap-1 overflow-hidden bg-muted/30 px-2"
+            className="flex min-h-11 items-center gap-1 overflow-hidden bg-muted/30 px-2"
             data-testid="pdf-chrome-command-row"
             role="toolbar"
             aria-label={t("office.pdf.chrome.commandsLabel")}

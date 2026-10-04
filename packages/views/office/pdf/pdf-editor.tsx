@@ -248,7 +248,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><div className="flex items-center gap-2"><span className="text-caption text-muted-foreground" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span></div></header>
+      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><div className="flex items-center gap-2"><span className="hidden text-caption text-muted-foreground sm:inline" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span></div></header>
       {viewState === "ready" ? (
         <PdfRibbonBar
           activeTab={"home"}
@@ -267,7 +267,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       {viewState === "ready" ? (
         <>
           <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
-            <PdfThumbnailsRail pages={pages} activePage={selectedPage ?? undefined} onSelect={selectPage} />
+            <PdfThumbnailsRail className="hidden sm:flex" pages={pages} activePage={selectedPage ?? undefined} onSelect={selectPage} />
             <div className="min-h-64 min-w-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-8">
               {editFailure ? <Notice tone="destructive" icon={AlertTriangle} live="assertive" className="mb-3">{t("office.pdf.errors.editFailed")}</Notice> : null}
               {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite" className="mb-3">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
