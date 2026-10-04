@@ -102,7 +102,6 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [snapshot, setSnapshot] = useState<PdfSnapshot | null>(null);
   const [selection, setSelection] = useState<PdfSelection | null>(null);
   const [fontReport, setFontReport] = useState(() => editor.getFontReport?.() ?? null);
-  const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [retryToken, setRetryToken] = useState(0);
   const [passwordPending, setPasswordPending] = useState(false);
   const [activePanel, setActivePanel] = useState<PdfSurfacePanelId | null>(null);
@@ -133,11 +132,6 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const effectiveTitle = title ?? t("office.pdf.title");
   const pages = snapshot?.pages ?? [];
   const selectedPage = selection?.page ?? pages[0]?.pageNumber ?? null;
-
-  useEffect(() => {
-    setCoordinatorState(coordinator.getState());
-    return coordinator.subscribe(setCoordinatorState);
-  }, [coordinator, documentKey]);
 
   useEffect(() => {
     const port = editor.selection;
@@ -360,8 +354,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   }, [canAnnotate, canEditText, canPageOps, canReplaceImage, executeCommand, readOnly, viewState]);
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><div className="flex items-center gap-2"><span className="hidden text-caption text-muted-foreground sm:inline" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span></div></header>
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <PdfRibbonBar
           activeTab={activeTab}
@@ -392,13 +385,13 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (
-          <div className="flex min-h-64 flex-1 items-center justify-center" data-testid="pdf-password-prompt">
+          <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center overflow-x-auto p-3" data-testid="pdf-password-prompt">
             <PdfPasswordPrompt open mode={promptMode} pending={passwordPending} onSubmit={(password) => { void submitPassword(password); }} onCancel={cancelPassword} />
           </div>
         ) : (
           <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
         )
-      ) : <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
+      ) : <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center px-3 text-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
       {viewState === "ready" ? <PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} counts={{}} language={undefined} selection={selection ? String(selection.kind) : null} zoom={zoom} onZoomChange={setZoom} /> : null}
     </div>
   );

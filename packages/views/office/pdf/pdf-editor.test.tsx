@@ -54,6 +54,16 @@ function renderEditor(outcome: PdfOpenOutcome = opened(), options?: { editor?: P
 }
 
 describe("PdfEditor", () => {
+  it("renders no header or title of its own - the host page owns the one header", async () => {
+    render(<PdfEditor documentKey="doc" title="Bao cao.pdf" editor={editor()} open={{ open: vi.fn(async () => opened()) }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    expect(root).toHaveAttribute("aria-label", "Bao cao.pdf");
+    expect(root.querySelector("header")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-open-state")).not.toBeInTheDocument();
+  });
+
   it("mounts the handle, submits text edits, undo/redo, and routes Save via coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const handle = editor({ selection: { getSelection: () => ({ page: 1, objectId: "text-1", kind: "text" as const }), subscribe: () => () => undefined } });
