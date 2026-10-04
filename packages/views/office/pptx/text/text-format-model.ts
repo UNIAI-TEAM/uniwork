@@ -207,6 +207,16 @@ function buildSetParagraphFormatEdit(
     }
     out.bullet = format.bullet;
   }
+  // The panel never collects a picture-bullet image source, so a `blip` bullet
+  // can never be completed here; mirror the vendored rule
+  // (`normalizeParagraphFormat`, text-edits.ts) and refuse it with the stable
+  // code instead of emitting an edit the engine would reject later.
+  if (out.bullet === "blip") {
+    throw refusal(
+      "text_bad_paragraph",
+      'set_paragraph_format bullet "blip" needs "format.bulletImage": { base64, ext }',
+    );
+  }
   if (format.lineSpacingPct !== undefined) {
     const [min, max] = PPTX_PARAGRAPH_RANGES.lineSpacingPct;
     const value = format.lineSpacingPct;

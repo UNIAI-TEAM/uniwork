@@ -40,7 +40,10 @@ describe("PptxTablesPanel", () => {
     renderPanel();
     expect(panel()).toHaveAttribute("data-state", "ready");
     expect(screen.getByRole("region", { name: "Tables" })).toBeInTheDocument();
-    expect(screen.getByText("Insert table")).toBeInTheDocument();
+    // The Insert section heading and its apply button must not share a label
+    // (acceptance: exactly ONE accessible "Insert table" affordance).
+    expect(screen.getByText("New table")).toBeInTheDocument();
+    expect(screen.getAllByText("Insert table")).toHaveLength(1);
     expect(screen.getByText("Cell text")).toBeInTheDocument();
     expect(screen.getByText("Rows and columns")).toBeInTheDocument();
     expect(screen.getByText("Merge")).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PptxEngineError } from "@uniwork/office-engine/pptx";
 import {
   PPTX_TEXT_BULLET_OPTIONS,
   PPTX_TEXT_FONT_FAMILIES,
@@ -197,6 +198,20 @@ describe("paragraph edits (set_paragraph_format)", () => {
     expect(errCode(() => buildLineSpacingEdit(0, "t1", 13201))).toBe("text_bad_paragraph");
     expect(errCode(() => buildLineSpacingEdit(0, "t1", -1))).toBe("text_bad_paragraph");
     expect(errCode(() => buildLineSpacingEdit(0, "t1", Number.NaN))).toBe("text_bad_paragraph");
+  });
+
+  it("refuses the picture bullet `blip` with the typed engine code, never a codeless throw", () => {
+    // `blip` is a vendored bullet kind, but the panel collects no bulletImage,
+    // so the model must refuse it itself (matching buildTextOps' contract)
+    // instead of emitting an edit the engine would reject later.
+    let thrown: unknown;
+    try {
+      buildBulletEdit(0, "t1", "blip" as never);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(PptxEngineError);
+    expect((thrown as PptxEngineError).code).toBe("text_bad_paragraph");
   });
 
   it("never emits a field the panel does not surface (no invented highlight, no raw op)", () => {

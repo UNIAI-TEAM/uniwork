@@ -28,7 +28,7 @@ export const PPTX_TABLES_I18N: Readonly<Record<string, PptxTablesI18nEntry>> = {
   "office.pptx.tables.target": { en: "Table {{rows}} x {{cols}}", vi: "B\u1ea3ng {{rows}} x {{cols}}" },
   "office.pptx.tables.cell_label": { en: "Cell ({{row}}, {{col}})", vi: "\u00d4 ({{row}}, {{col}})" },
 
-  "office.pptx.tables.insert.label": { en: "Insert table", vi: "Ch\u00e8n b\u1ea3ng" },
+  "office.pptx.tables.insert.label": { en: "New table", vi: "B\u1ea3ng m\u1edbi" },
   "office.pptx.tables.insert.rows": { en: "Rows", vi: "S\u1ed1 h\u00e0ng" },
   "office.pptx.tables.insert.cols": { en: "Columns", vi: "S\u1ed1 c\u1ed9t" },
   "office.pptx.tables.insert.apply": { en: "Insert table", vi: "Ch\u00e8n b\u1ea3ng" },
