@@ -48,6 +48,8 @@ export type HtmlBlockStyle = "paragraph" | "heading1" | "heading2" | "heading3" 
 
 /** i18next keys for the HTML ribbon's own labels (see MISSING KEYS list). */
 export const HTML_RIBBON_KEYS = {
+  /** Landmark name for the ribbon region (distinct from the Insert tab label). */
+  ribbonLabel: "office.html.ribbon.ribbonLabel",
   label: "office.html.ribbon.label",
   home: "office.html.ribbon.tabs.home",
   insert: "office.html.ribbon.tabs.insert",
@@ -468,7 +470,7 @@ export function HtmlRibbon({
       quickAccess={quickAccess}
       trailing={trailing}
       layout={layout}
-      labelKey={HTML_RIBBON_KEYS.label}
+      labelKey={HTML_RIBBON_KEYS.ribbonLabel}
       className={className}
     />
   );

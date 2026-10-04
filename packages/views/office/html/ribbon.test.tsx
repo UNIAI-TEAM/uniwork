@@ -63,7 +63,7 @@ describe("HtmlRibbon", () => {
   it("renders the Home groups and executes the inline, block and insert commands", () => {
     const c = commands();
     render(<HtmlRibbon commands={c} state={{ block: "paragraph" }} />);
-    expect(screen.getByRole("region", { name: "Insert" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: HTML_RIBBON_KEYS.ribbonLabel })).toBeInTheDocument();
     for (const caption of [HTML_RIBBON_KEYS.clipboard, HTML_RIBBON_KEYS.paragraph, HTML_RIBBON_KEYS.inline]) {
       expect(screen.getByRole("group", { name: caption })).toBeInTheDocument();
     }
