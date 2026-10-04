@@ -49,6 +49,11 @@ export function PdfRibbonBar({
   );
 
   const tabs = useMemo(() => createPdfRibbonTabs(commands, onCommand), [commands, onCommand]);
+  // Stable signature of the tab ids. `commands` is rebuilt whenever editor
+  // state changes, so `tabs` changes identity far more often than the tab set
+  // does; the annotation effect below keys on this signature to stay off that
+  // churn (and off every plain re-render).
+  const tabIdSignature = useMemo(() => tabs.map((tab) => tab.id).join(" "), [tabs]);
 
   const undo = commandById.get(PDF_COMMANDS.undo);
   const redo = commandById.get(PDF_COMMANDS.redo);
@@ -110,15 +115,21 @@ export function PdfRibbonBar({
   // id, so the PDF chrome annotates them after commit to keep the long-standing
   // pdf-chrome-tab-<id> / pdf-chrome-command-row consumer contract. Additive and
   // idempotent: React never manages these attributes, so a re-render keeps them.
+  // Keyed on the tab-id signature, not the render: the annotation only has work
+  // to do when the tab set changes, so it stays off the per-render path.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    root.querySelectorAll<HTMLElement>("[data-ribbon-tab]").forEach((tab) => {
-      const id = tab.dataset.ribbonTab;
-      if (id) tab.dataset.testid = `pdf-chrome-tab-${id}`;
+    const buttons = new Map<string, HTMLElement>();
+    root.querySelectorAll<HTMLElement>("[data-ribbon-tab]").forEach((node) => {
+      const id = node.dataset.ribbonTab;
+      if (id) buttons.set(id, node);
     });
+    for (const id of tabIdSignature.split(" ")) {
+      buttons.get(id)?.setAttribute("data-testid", `pdf-chrome-tab-${id}`);
+    }
     root.querySelector<HTMLElement>("[data-ribbon-body]")?.setAttribute("data-testid", "pdf-chrome-command-row");
-  });
+  }, [tabIdSignature]);
 
   return (
     <div className="min-w-0" data-testid="pdf-ribbon-bar" ref={rootRef}>

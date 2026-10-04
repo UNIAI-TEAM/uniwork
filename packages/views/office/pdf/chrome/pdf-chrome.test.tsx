@@ -151,6 +151,32 @@ describe("PdfRibbonBar", () => {
     expect(within(trailing).getByTestId("pdf-chrome-find")).toBeInTheDocument();
   });
 
+  it("annotates the tabs only when the tab set changes, not on every render", () => {
+    const setAttribute = vi.spyOn(HTMLElement.prototype, "setAttribute");
+    const annotatedTabs = () =>
+      setAttribute.mock.calls.filter(([name, value]) => name === "data-testid" && String(value).startsWith("pdf-chrome-tab-")).length;
+    try {
+      const { rerender, unmount } = render(<PdfRibbonBar {...baseProps} activeTab="home" commands={undoRedo} />);
+      expect(annotatedTabs()).toBe(5);
+      setAttribute.mockClear();
+      // A re-render with a fresh commands array of the SAME ids (the shape the
+      // editor produces on every state change) and a new active tab must not
+      // re-run the annotation: only the tab set matters, not the render.
+      rerender(<PdfRibbonBar {...baseProps} activeTab="annotate" commands={[...undoRedo]} />);
+      expect(annotatedTabs()).toBe(0);
+      // The ids survive the re-render because React never manages them.
+      expect(screen.getByTestId("pdf-chrome-tab-pages")).toHaveAttribute("data-ribbon-tab", "pages");
+      expect(screen.getByTestId("pdf-chrome-command-row")).toHaveAttribute("data-ribbon-body", "");
+      // A fresh mount annotates again.
+      unmount();
+      setAttribute.mockClear();
+      render(<PdfRibbonBar {...baseProps} activeTab="home" commands={undoRedo} />);
+      expect(annotatedTabs()).toBe(5);
+    } finally {
+      setAttribute.mockRestore();
+    }
+  });
+
   it("renders the active tab's labelled groups and items through the shared ribbon", () => {
     render(<PdfRibbonBar {...baseProps} activeTab="annotate" commands={annotateCommands} />);
     const groupIds = Array.from(document.querySelectorAll("[data-ribbon-group]")).map((node) => node.getAttribute("data-ribbon-group"));
