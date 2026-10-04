@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxSelection } from "../types";
 import { useXlsxSelectionSummary, type XlsxSummaryState } from "./use-selection-summary";
@@ -13,6 +14,8 @@ interface XlsxStatusBarProps {
   host?: XlsxGridHostPort;
   /** The editor's dirty generation: an in-place edit re-reads the same selection. */
   dirtyGeneration?: number;
+  /** F2: the live workbook snapshot; when present the summary reads it instead of the frozen open-time render model. */
+  snapshot?: XlsxWorkbookSnapshot | null;
   className?: string;
 }
 
@@ -43,9 +46,9 @@ function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, loc
  *  every mode: nothing selected, no renderer host, a read in flight and a
  *  failed read each get their own honest state, and a host that confirms only
  *  part of the range is called out instead of being read as a total. */
-export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, className }: XlsxStatusBarProps) {
+export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, snapshot, className }: XlsxStatusBarProps) {
   const { t, i18n } = useTranslation();
-  const { state, pending } = useXlsxSelectionSummary({ documentKey, host, selection, dirtyGeneration });
+  const { state, pending } = useXlsxSelectionSummary({ documentKey, host, selection, dirtyGeneration, snapshot });
 
   let content: ReactNode;
   switch (state.kind) {

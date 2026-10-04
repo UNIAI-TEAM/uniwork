@@ -1,5 +1,6 @@
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { addressParts } from "../xlsx-editor-model";
-import type { RendererRangeCell } from "../xlsx-render-model-bridge";
+import { toA1Address, type RendererRangeCell } from "../xlsx-render-model-bridge";
 import type { XlsxSelection } from "../types";
 
 /** Row/column window one status-bar read may cover. The host is read on the
@@ -129,6 +130,41 @@ export function summaryReadRequest(
   const rowsPerBlock = Math.max(1, Math.floor(maxCells / columns));
   const windowed = clipped.endRow - clipped.startRow + 1 > rowsPerBlock;
   return { range: { ...clipped, endRow: windowed ? clipped.startRow + rowsPerBlock - 1 : clipped.endRow }, windowed };
+}
+
+
+/**
+ * F2 (UNI-926 FIX-STATUSBAR): the status bar must summarize the LIVE workbook
+ * after an edit or a sort. The renderer host's readRange serves the render
+ * model captured at open time, which is never refreshed by an edit, so reading
+ * through it reports pre-edit values and drops cells the frozen model lacks
+ * (edited cells and formula cells added later in the session). The editor
+ * already holds the live workbook snapshot; this reads the selection straight
+ * from it so the summary tracks the current values. Returns null when the
+ * selection address is invalid or its sheet is unknown.
+ */
+export function summarizeSelectionFromSnapshot(
+  snapshot: XlsxWorkbookSnapshot,
+  selection: XlsxSelection,
+  maxCells = SUMMARY_READ_MAX_CELLS,
+): XlsxSummaryRead | null {
+  const range = rangeFromSelection(selection);
+  if (!range) return null;
+  const sheet = snapshot.sheets.find((candidate) => candidate.name === selection.sheet || candidate.id === selection.sheet);
+  if (!sheet) return null;
+  const columns = range.endColumn - range.startColumn + 1;
+  const rowsPerBlock = Math.max(1, Math.floor(maxCells / columns));
+  const windowed = range.endRow - range.startRow + 1 > rowsPerBlock;
+  const endRow = windowed ? range.startRow + rowsPerBlock - 1 : range.endRow;
+  const cells: RendererRangeCell[] = [];
+  for (let row = range.startRow; row <= endRow; row += 1) {
+    for (let column = range.startColumn; column <= range.endColumn; column += 1) {
+      const cell = sheet.cells[toA1Address(row, column)];
+      if (!cell) continue;
+      cells.push({ row, column, value: cell.value });
+    }
+  }
+  return { summary: summarizeCells(cells), partial: windowed };
 }
 
 /**

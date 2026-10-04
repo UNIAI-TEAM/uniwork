@@ -5,6 +5,7 @@ import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { RendererRangeCell, RendererRangeResult } from "../xlsx-render-model-bridge";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxSelection } from "../types";
 import { XlsxStatusBar } from "./xlsx-status-bar";
 
@@ -33,6 +34,9 @@ const selection = (address: string, endAddress?: string): XlsxSelection => ({
   address,
   ...(endAddress === undefined ? {} : { endAddress }),
 });
+
+const snapshotOf = (cells: Record<string, { value: number | string | null; formula?: string }>): XlsxWorkbookSnapshot =>
+  ({ revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells }] }) as unknown as XlsxWorkbookSnapshot;
 
 const viNumber = (value: number) => value.toLocaleString("vi");
 
@@ -119,6 +123,32 @@ describe("XlsxStatusBar", () => {
       sheetId: "sheet-1",
       range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
     });
+  });
+
+  it("summarizes the live snapshot after an edit, not the frozen host read (F2)", async () => {
+    const readRange = vi.fn(async () => result([cell(1_250_000_000)]));
+    const stableHost = host(readRange);
+    const before = snapshotOf({ B2: { value: 1_250_000_000 }, B3: { value: 1_410_000_000 }, B4: { value: 1_570_000_000 } });
+    const { rerender } = render(
+      <XlsxStatusBar documentKey="doc" selection={selection("B2", "B4")} host={stableHost} dirtyGeneration={0} snapshot={before} />,
+    );
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(4_230_000_000)}`);
+    // The host read is never consulted when a live snapshot is supplied.
+    expect(readRange).not.toHaveBeenCalled();
+
+    // B2 edited 1.25e9 -> 2e9 and a formula cell B5 added; the summary must
+    // follow the new values and count the formula cell.
+    const after = snapshotOf({
+      B2: { value: 2_000_000_000 },
+      B3: { value: 1_410_000_000 },
+      B4: { value: 1_570_000_000 },
+      B5: { value: 4_980_000_000, formula: "=SUM(B2:B4)" },
+    });
+    rerender(<XlsxStatusBar documentKey="doc" selection={selection("B2", "B5")} host={stableHost} dirtyGeneration={1} snapshot={after} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(9_960_000_000)}`);
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 4");
   });
 
   it("reports a failed read without inventing values", async () => {
