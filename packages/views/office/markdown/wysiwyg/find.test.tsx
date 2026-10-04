@@ -352,6 +352,41 @@ describe("MarkdownFind", () => {
     expect(document.activeElement).not.toBe(screen.getByLabelText("md source"));
   });
 
+  it("re-imposes the selection and scroll on a different match at the same index (F-08)", async () => {
+    // The first query matches near the top of the document; the second query
+    // matches far enough down that imposing it also scrolls the field. The
+    // active index is 0 in both, so the old (open, index) key treated the change
+    // as a no-op and left the stale range selected.
+    const filler = Array.from({ length: 40 }, (_, i) => `line ${i + 3}`);
+    const text = ["# Title", "", "one here", ...filler.slice(0, 30), "two here", ...filler.slice(30), ""].join("\n");
+    const handle = createHandle(createTextSource(text));
+    render(<SourceHarness handle={handle} />);
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Flush the deferred panel focus so the textarea is not the active element
+    // and the impose below is the effect work.
+    await waitFor(() => expect(screen.getByTestId("find-replace-query")).toHaveFocus());
+
+    const textarea = screen.getByLabelText("md source") as HTMLTextAreaElement;
+    // jsdom lays every element out at zero height; give the field a viewport so
+    // scrollSourceMatchIntoView has somewhere to land.
+    Object.defineProperty(textarea, "clientHeight", { configurable: true, value: 80 });
+
+    query("one");
+    await waitFor(() => expect(textarea.selectionStart).toBe(text.indexOf("one here")));
+    expect(textarea.selectionEnd).toBe(text.indexOf("one here") + 3);
+    expect(textarea.scrollTop).toBe(0);
+
+    // A different match at the SAME index must re-impose both the selection and
+    // the scroll, so the field stops highlighting the old text and follows the
+    // overlay new active mark.
+    query("two");
+    await waitFor(() => expect(textarea.selectionStart).toBe(text.indexOf("two here")));
+    expect(textarea.selectionEnd).toBe(text.indexOf("two here") + 3);
+    await waitFor(() => expect(textarea.scrollTop).toBeGreaterThan(0));
+    expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark[data-find-active]")).toHaveLength(1);
+  });
+
   it("mirrors the textarea scroll into the source overlay (F-03)", async () => {
     const handle = createHandle(createTextSource(FIXTURE));
     render(<SourceHarness handle={handle} />);

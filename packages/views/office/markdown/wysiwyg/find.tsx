@@ -258,13 +258,18 @@ export function MarkdownFind({
   // The effect re-runs on every `result` change - i.e. on every source edit,
   // including the user's own typing - so it must not treat a new result as a
   // reason to move the caret, and it never takes focus:
-  //   F-06 - the selection is imposed only when the active match/index or the
-  //   open state changes (Next/Previous, open), never on a plain text edit. A
+  //   F-06 - the selection is imposed only when the active match (index AND
+  //   range) or the open state changes (Next/Previous, open, a new match at the
+  //   same index), never on a plain text edit that leaves the active match put. A
   //   re-select over the user's caret would make the second and later keystrokes
   //   replace the active match, and the shared text port would save that
   //   corruption. While the textarea itself holds focus the caret is always the
   //   user's, so it is left alone even on navigation. The overlay still marks
   //   every match, so a stale selection is cosmetic.
+  //   F-08 - the key folds in the active match range, so editing the query
+  //   (`one` -> `two`, index stays 0) or a replacement that shifts the matches
+  //   re-imposes the selection and the scroll-to-match instead of leaving the
+  //   stale range selected while the overlay marks the new active match.
   //   F-07 - nothing here calls `focus()`: a result change while a third,
   //   unrelated element is focused (a collab edit, a controlled reopen, a
   //   navigation triggered elsewhere) leaves that focus alone instead of yanking
@@ -274,11 +279,11 @@ export function MarkdownFind({
     if (mode !== "source") return;
     const target = sourceTextarea?.current ?? null;
     if (!target) return;
-    const key = `${isOpen ? "open" : "closed"}:${activeIndex}`;
+    const match = isOpen && activeIndex >= 0 ? result.matches[activeIndex] ?? null : null;
+    const key = `${isOpen ? "open" : "closed"}:${activeIndex}:${match?.start ?? -1}:${match?.end ?? -1}`;
     if (key === sourceSelectionKey.current) return;
     sourceSelectionKey.current = key;
     if (document.activeElement === target) return;
-    const match = isOpen && activeIndex >= 0 ? result.matches[activeIndex] ?? null : null;
     selectSourceMatch(target, match);
   }, [activeIndex, isOpen, mode, result, sourceTextarea]);
 
