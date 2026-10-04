@@ -34,34 +34,35 @@ export interface PptxImageInsertProps {
   busy?: boolean;
   /** Replace mode only: the picture to swap; absent leaves the action honest. */
   targetId?: string | null;
-  onSelect: (file: PptxImageBytes) => void;
+  /** The mode travels with the file so the host never guesses which op to emit. */
+  onSelect: (mode: "insert" | "replace", file: PptxImageBytes) => void;
   className?: string;
 }
 
 export function PptxImageInsert({ mode, disabled = false, busy = false, targetId = null, onSelect, className }: PptxImageInsertProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const replace = mode === "replace";
   const noTarget = replace && !targetId;
   const blocked = disabled || busy || noTarget;
-  const label = replace ? t("insert.image.replace") : t("insert.image.insert");
-  const hint = noTarget ? t("insert.image.no_target") : replace ? t("insert.image.replace_hint") : null;
+  const label = replace ? t("office.pptx.insert.image.replace") : t("office.pptx.insert.image.insert");
+  const hint = noTarget ? t("office.pptx.insert.image.no_target") : replace ? t("office.pptx.insert.image.replace_hint") : null;
 
   const readFile = async (file: File): Promise<void> => {
     const ext = imageExtFromName(file.name);
     if (!ext) {
       const given = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase() : file.name;
-      setError(t("insert.image.unsupported", { ext: given }));
+      setError(t("office.pptx.insert.image.unsupported", { ext: given }));
       return;
     }
     setError(null);
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.length === 0) {
-      setError(t("insert.image.unsupported", { ext }));
+      setError(t("office.pptx.insert.image.unsupported", { ext }));
       return;
     }
-    onSelect({ bytes, ext, name: file.name });
+    onSelect(mode, { bytes, ext, name: file.name });
   };
 
   return (
@@ -81,12 +82,12 @@ export function PptxImageInsert({ mode, disabled = false, busy = false, targetId
         <span className="text-label">{label}</span>
       </Button>
       {hint ? (
-        <span id={`pptx-image-hint-${mode}`} className="px-1 text-caption text-muted-foreground" data-pptx-image-hint>
+        <span id={`pptx-image-hint-${mode}`} className="px-1 text-caption text-muted-foreground" data-pptx-image-hint data-testid={`pptx-image-hint-${mode}`}>
           {hint}
         </span>
       ) : null}
       {error ? (
-        <span role="alert" className="px-1 text-caption text-destructive" data-pptx-image-error>
+        <span role="alert" className="px-1 text-caption text-destructive" data-pptx-image-error data-testid="pptx-image-error">
           {error}
         </span>
       ) : null}
@@ -98,6 +99,7 @@ export function PptxImageInsert({ mode, disabled = false, busy = false, targetId
         aria-hidden="true"
         tabIndex={-1}
         data-pptx-image-input={mode}
+        data-testid={`pptx-image-input-${mode}`}
         onChange={(event) => {
           const file = event.target.files?.[0];
           // Reset first so picking the same file twice still fires a change.

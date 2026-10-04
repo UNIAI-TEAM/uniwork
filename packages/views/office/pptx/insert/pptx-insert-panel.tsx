@@ -86,14 +86,14 @@ export function PptxInsertPanel({
   onGroupSelection,
   className,
 }: PptxInsertPanelProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { t } = useTranslation();
   const [localError, setLocalError] = useState<string | null>(null);
   const noSlide = slideIndex === null;
   const canEdit = Boolean(onEdit) && !noSlide && !disabled && !busy;
   const canConnect = Boolean(onInsertConnector) && !noSlide && !disabled && !busy;
   const canGroup = Boolean(onGroupSelection) && !noSlide && !disabled && !busy;
   const shownError = localError ?? error;
-  const hint = noSlide ? t("insert.no_slide") : disabledReason ?? (disabled ? t("insert.disabled_hint") : null);
+  const hint = noSlide ? t("office.pptx.insert.no_slide") : disabledReason ?? (disabled ? t("office.pptx.insert.disabled_hint") : null);
 
   const emit = useCallback(
     (edit: PptxInsertEdit) => {
@@ -135,9 +135,12 @@ export function PptxInsertPanel({
   );
 
   const onImage = useCallback(
-    (file: PptxImageBytes) => {
+    (mode: "insert" | "replace", file: PptxImageBytes) => {
       if (slideIndex === null) return;
-      if (pictureId) {
+      if (mode === "replace") {
+        // Only the Replace control swaps bytes; Insert always adds a new picture,
+        // even while a picture happens to be selected on the canvas.
+        if (!pictureId) return;
         emit({ op: "replace_picture", slideIndex, elementId: pictureId, bytes: file.bytes, ext: file.ext });
         return;
       }
@@ -180,10 +183,11 @@ export function PptxInsertPanel({
         className={cn("flex items-center gap-2 p-3 text-body text-muted-foreground", className)}
         aria-busy="true"
         data-pptx-insert-panel
+        data-testid="pptx-insert-panel"
         data-state="loading"
       >
         <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-        <span data-pptx-insert-loading>{t("insert.loading")}</span>
+        <span data-pptx-insert-loading data-testid="pptx-insert-loading">{t("office.pptx.insert.loading")}</span>
       </section>
     );
   }
@@ -191,43 +195,45 @@ export function PptxInsertPanel({
   return (
     <section
       className={cn("flex flex-col gap-3 p-3", className)}
-      aria-label={t("insert.title")}
+      aria-label={t("office.pptx.insert.title")}
       data-pptx-insert-panel
+      data-testid="pptx-insert-panel"
       data-state={noSlide ? "empty" : disabled ? "disabled" : busy ? "busy" : "ready"}
     >
       {shownError ? (
-        <Alert variant="destructive" data-pptx-insert-error>
-          <AlertTitle>{t("insert.error_title")}</AlertTitle>
+        <Alert variant="destructive" data-pptx-insert-error data-testid="pptx-insert-error">
+          <AlertTitle>{t("office.pptx.insert.error_title")}</AlertTitle>
           <AlertDescription>{shownError}</AlertDescription>
         </Alert>
       ) : null}
 
       {hint ? (
-        <p className="text-caption text-muted-foreground" data-pptx-insert-hint>
+        <p className="text-caption text-muted-foreground" data-pptx-insert-hint data-testid="pptx-insert-hint">
           {hint}
         </p>
       ) : null}
 
       {busy ? (
-        <p role="status" className="text-caption text-muted-foreground" data-pptx-insert-busy>
-          {t("insert.busy")}
+        <p role="status" className="text-caption text-muted-foreground" data-pptx-insert-busy data-testid="pptx-insert-busy">
+          {t("office.pptx.insert.busy")}
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("insert.sections_label")}>
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("office.pptx.insert.sections_label")}>
         <PptxShapeGallery disabled={!canEdit} busy={busy} onInsert={onInsertShape} />
         <Button
           type="button"
           variant="toolbar"
           size="sm"
           disabled={!canEdit}
-          aria-label={t("insert.text_box.insert")}
-          title={t("insert.text_box.hint")}
+          aria-label={t("office.pptx.insert.text_box.insert")}
+          title={t("office.pptx.insert.text_box.hint")}
           data-pptx-insert-text-box
+          data-testid="pptx-insert-text-box"
           onClick={onInsertTextBox}
         >
           <Type aria-hidden="true" />
-          <span className="text-label">{t("insert.text_box.insert")}</span>
+          <span className="text-label">{t("office.pptx.insert.text_box.insert")}</span>
         </Button>
         <PptxImageInsert
           mode="insert"
@@ -245,7 +251,7 @@ export function PptxInsertPanel({
         <PptxWordArtPicker
           disabled={!canEdit}
           busy={busy}
-          defaultText={t("insert.wordart.text_placeholder")}
+          defaultText={t("office.pptx.insert.wordart.text_placeholder")}
           onInsert={onInsertWordArt}
         />
       </div>
@@ -254,10 +260,11 @@ export function PptxInsertPanel({
         <PptxConnectorPicker
           elements={elements}
           selectedIds={selectedIds}
-          disabled={!canConnect}
+          connectorDisabled={!canConnect}
+          groupDisabled={!canGroup}
           busy={busy}
           onInsertConnector={onConnector}
-          onGroupSelection={canGroup ? onGroup : () => undefined}
+          onGroupSelection={onGroup}
         />
       </div>
     </section>

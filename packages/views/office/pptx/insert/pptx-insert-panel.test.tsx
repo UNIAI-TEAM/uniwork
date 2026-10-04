@@ -7,9 +7,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PptxInsertPanel, type PptxInsertPanelProps } from "./pptx-insert-panel";
+import { pptxInsertNestedDictionary } from "./insert-i18n";
 import type { PptxInsertElementRef } from "./insert-model";
 
-initI18n();
+// The panel's keys live in its own table until the UI-wire round merges them into
+// the shared locale files, so register that table on the i18next singleton - the
+// same seam comments-panel/notes-pane/sorter-panel tests use. Without it every
+// t() returns its key and the name assertions below fail.
+const i18n = initI18n();
+i18n.addResourceBundle("en", "translation", pptxInsertNestedDictionary("en"), true, true);
+i18n.addResourceBundle("vi", "translation", pptxInsertNestedDictionary("vi"), true, true);
 beforeEach(async () => {
   await setLocale("en");
 });
@@ -155,10 +162,23 @@ describe("PptxInsertPanel WordArt", () => {
     expect(dialog).toHaveTextContent("Insert decorative text");
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: "Hello" } });
     fireEvent.click(screen.getByRole("button", { name: "Blue, bold" }));
+    // Picking a preset only selects it; the labelled button performs the insert.
+    expect(onEdit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Insert WordArt" }));
     const edit = onEdit.mock.calls[0]![0] as { op: string; kind: string; paragraphs: Array<{ runs: Array<Record<string, unknown>> }> };
     expect(edit.op).toBe("add_element");
     expect(edit.kind).toBe("textbox");
     expect(edit.paragraphs[0]!.runs[0]).toEqual({ text: "Hello", color: "#4472C4", bold: true });
+  });
+
+  it("does not insert a duplicate when a preset is picked then inserted", async () => {
+    const { onEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "WordArt" }));
+    await screen.findByRole("dialog");
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "Hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Blue, bold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert WordArt" }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -173,6 +193,15 @@ describe("PptxInsertPanel picture", () => {
     expect(edit.ext).toBe("png");
     expect(edit.bytes.length).toBe(4);
     expect(edit.wPx).toBeGreaterThan(0);
+  });
+
+  it("emits add_image from the insert control even while a picture is selected", async () => {
+    const { onEdit } = renderPanel({ pictureId: "p1" });
+    const input = document.querySelector('[data-pptx-image-input="insert"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [pngFile()] } });
+    await waitFor(() => expect(onEdit).toHaveBeenCalledTimes(1));
+    const edit = onEdit.mock.calls[0]![0] as { op: string };
+    expect(edit.op).toBe("add_image");
   });
 
   it("emits replace_picture when a picture is selected", async () => {

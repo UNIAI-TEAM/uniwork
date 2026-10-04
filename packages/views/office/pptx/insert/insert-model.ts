@@ -20,7 +20,7 @@
  */
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 
-// â”€â”€ shapes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── shapes ────────────────────────────────────────────────────────────────
 
 export interface PptxInsertShape {
   /** OOXML preset geometry name; also the `add_element` kind. */
@@ -143,7 +143,7 @@ export const PPTX_INSERT_FLAT_PRSTS: readonly string[] = [
   "flowChartConnector",
 ];
 
-// â”€â”€ WordArt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── WordArt ───────────────────────────────────────────────────────────────
 
 export interface PptxInsertWordArtPreset {
   id: string;
@@ -189,7 +189,7 @@ export function wordArtParagraphs(preset: PptxInsertWordArtPreset, text: string)
   return [{ runs: [run], align: "center" }];
 }
 
-// â”€â”€ preview geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── preview geometry ──────────────────────────────────────────────────────
 
 const R = (value: number) => Math.round(value * 100) / 100;
 
@@ -416,7 +416,7 @@ export function shapePreviewBox(prst: string, size: number): { w: number; h: num
   return PPTX_INSERT_FLAT_PRSTS.includes(prst) ? { w: size, h: size * 0.62 } : { w: size, h: size };
 }
 
-// â”€â”€ images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── images ────────────────────────────────────────────────────────────────
 
 /** Extensions the vendored `addPicture`/`replacePicture` accept. */
 export const PPTX_IMAGE_EXTS: readonly string[] = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tif", "tiff"];
@@ -432,7 +432,7 @@ export function imageExtFromName(name: string): string | null {
   return PPTX_IMAGE_EXTS.includes(ext) ? ext : null;
 }
 
-// â”€â”€ default insert boxes (px on a 960-wide slide) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── default insert boxes (px on a 960-wide slide) ─────────────────────────
 
 export interface PptxInsertBox {
   xPx: number;
@@ -456,7 +456,7 @@ export const PPTX_INSERT_WORDART_BOX: PptxInsertBox = { xPx: 100, yPx: 90, wPx: 
 /** Default frame for an inserted picture. */
 export const PPTX_INSERT_PICTURE_BOX: PptxInsertBox = { xPx: 100, yPx: 80, wPx: 320, hPx: 200 };
 
-// â”€â”€ connectors + grouping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── connectors + grouping ─────────────────────────────────────────────────
 
 export const PPTX_CONNECTOR_KINDS = ["straight", "elbow", "curved"] as const;
 export type PptxConnectorKind = (typeof PPTX_CONNECTOR_KINDS)[number];
@@ -513,7 +513,7 @@ export function groupableSelection(
   return selectedIds.filter((id) => groupable.has(id));
 }
 
-// â”€â”€ emitted edits + commands â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── emitted edits + commands ──────────────────────────────────────────────
 
 /**
  * The edits this panel emits. Every member is `Extract`ed from the real

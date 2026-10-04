@@ -44,10 +44,10 @@ export interface PptxShapeGalleryProps {
 }
 
 export function PptxShapeGallery({ disabled = false, busy = false, onInsert, className }: PptxShapeGalleryProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const blocked = disabled || busy;
-  const label = t("insert.shapes.open");
+  const label = t("office.pptx.insert.shapes.open");
   return (
     <Popover open={open} onOpenChange={(next) => { if (!blocked) setOpen(next); }}>
       <PopoverTrigger
@@ -69,8 +69,8 @@ export function PptxShapeGallery({ disabled = false, busy = false, onInsert, cla
         }
       />
       <PopoverContent align="start" className="w-72">
-        <p className="px-1 text-caption text-muted-foreground">{t("insert.shapes.description")}</p>
-        <div className="max-h-80 space-y-3 overflow-y-auto" role="group" aria-label={t("insert.shapes.gallery_label")}>
+        <p className="px-1 text-caption text-muted-foreground">{t("office.pptx.insert.shapes.description")}</p>
+        <div className="max-h-80 space-y-3 overflow-y-auto" role="group" aria-label={t("office.pptx.insert.shapes.gallery_label")}>
           {PPTX_INSERT_SHAPE_GROUPS.map((group) => (
             <section key={group.id} data-pptx-shape-group={group.id}>
               <h3 className="px-1 pb-1 text-caption font-medium text-foreground">{t(group.labelKey)}</h3>

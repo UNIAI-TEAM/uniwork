@@ -59,13 +59,13 @@ export interface PptxWordArtPickerProps {
 }
 
 export function PptxWordArtPicker({ disabled = false, busy = false, defaultText = "", onInsert, className }: PptxWordArtPickerProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(defaultText);
   const [presetId, setPresetId] = useState<string | null>(null);
   const inputId = `${useId().replace(/[^A-Za-z0-9_-]/g, "")}-wordart-text`;
   const blocked = disabled || busy;
-  const label = t("insert.wordart.open");
+  const label = t("office.pptx.insert.wordart.open");
   const canInsert = text.trim().length > 0 && presetId !== null && !blocked;
 
   return (
@@ -88,21 +88,21 @@ export function PptxWordArtPicker({ disabled = false, busy = false, defaultText 
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-lg" closeLabel={t("insert.close")}>
+      <DialogContent className="sm:max-w-lg" closeLabel={t("office.pptx.insert.close")}>
         <DialogHeader>
-          <DialogTitle>{t("insert.wordart.title")}</DialogTitle>
-          <DialogDescription>{t("insert.wordart.description")}</DialogDescription>
+          <DialogTitle>{t("office.pptx.insert.wordart.title")}</DialogTitle>
+          <DialogDescription>{t("office.pptx.insert.wordart.description")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor={inputId}>{t("insert.wordart.text_label")}</Label>
+          <Label htmlFor={inputId}>{t("office.pptx.insert.wordart.text_label")}</Label>
           <Input
             id={inputId}
             value={text}
-            placeholder={t("insert.wordart.text_placeholder")}
+            placeholder={t("office.pptx.insert.wordart.text_placeholder")}
             onChange={(event) => setText(event.target.value)}
           />
         </div>
-        <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("insert.wordart.title")}>
+        <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("office.pptx.insert.wordart.title")}>
           {PPTX_INSERT_WORDART_PRESETS.map((preset) => {
             const presetLabel = t(preset.nameKey);
             const selected = presetId === preset.id;
@@ -117,10 +117,7 @@ export function PptxWordArtPicker({ disabled = false, busy = false, defaultText 
                 aria-pressed={selected}
                 title={presetLabel}
                 data-pptx-wordart-preset={preset.id}
-                onClick={() => {
-                  setPresetId(preset.id);
-                  onInsert(preset, text.trim() || defaultText);
-                }}
+                onClick={() => setPresetId(preset.id)}
               >
                 <WordArtSwatch preset={preset} text="Aa" />
               </Button>
@@ -138,7 +135,7 @@ export function PptxWordArtPicker({ disabled = false, busy = false, defaultText 
               onInsert(preset, text.trim());
             }}
           >
-            {t("insert.wordart.title")}
+            {t("office.pptx.insert.wordart.insert")}
           </Button>
         </div>
       </DialogContent>

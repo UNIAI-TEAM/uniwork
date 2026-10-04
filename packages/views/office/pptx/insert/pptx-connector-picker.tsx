@@ -10,8 +10,10 @@
  *
  * The request leaves through `onInsertConnector`; the engine half that binds
  * `addConnector` is A4e's (arrange), so this panel owns only the request shape.
- * `Group selection` rides the registered `group_elements` kind with the same
- * connectable-type filter (`groupableSelection`).
+ * `Group selection` rides the `group_elements` edit with the same
+ * connectable-type filter (`groupableSelection`); `group_elements` is a
+ * `FormatEdit` member the wire round registers (not yet in the `PptxEdit`
+ * union), which is why it travels its own channel.
  */
 import { useMemo, useState } from "react";
 import { Link2, Shapes } from "lucide-react";
@@ -37,7 +39,10 @@ export interface PptxConnectorPickerProps {
   elements: readonly PptxInsertElementRef[];
   /** Element ids currently selected on the canvas; seeds the two pickers. */
   selectedIds?: readonly string[];
-  disabled?: boolean;
+  /** No connector channel bound / no slide: the connector controls are inert. */
+  connectorDisabled?: boolean;
+  /** No grouping channel bound / no slide: only the Group button is inert. */
+  groupDisabled?: boolean;
   busy?: boolean;
   onInsertConnector: (request: PptxInsertConnectorRequest) => void;
   onGroupSelection: (elementIds: readonly string[]) => void;
@@ -47,13 +52,14 @@ export interface PptxConnectorPickerProps {
 export function PptxConnectorPicker({
   elements,
   selectedIds = [],
-  disabled = false,
+  connectorDisabled = false,
+  groupDisabled = false,
   busy = false,
   onInsertConnector,
   onGroupSelection,
   className,
 }: PptxConnectorPickerProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { t } = useTranslation();
   const [kind, setKind] = useState<PptxConnectorKind>("straight");
   const [arrow, setArrow] = useState<PptxConnectorArrow>("end");
   const [from, setFrom] = useState<string>(selectedIds[0] ?? "");
@@ -68,33 +74,34 @@ export function PptxConnectorPicker({
     [connectable],
   );
   const groupIds = useMemo(() => groupableSelection(selectedIds, elements), [elements, selectedIds]);
-  const blocked = disabled || busy;
+  const connectorBlocked = connectorDisabled || busy;
+  const groupBlocked = groupDisabled || busy;
   const request: PptxInsertConnectorRequest = { slideIndex: 0, from, to, kind, arrow };
   const validation = validateConnectorRequest({ ...request, slideIndex: 0 }, elements);
-  const canConnect = !blocked && validation.ok && connectable.length >= 2;
+  const canConnect = !connectorBlocked && validation.ok && connectable.length >= 2;
   const reason = validation.ok ? null : t(validation.reasonKey);
 
   return (
     <div className={cn("space-y-3", className)} data-pptx-insert-connector>
       <div className="space-y-1.5">
-        <p className="text-label font-medium text-foreground">{t("insert.connector.title")}</p>
-        <p className="text-caption text-muted-foreground">{t("insert.connector.hint")}</p>
+        <p className="text-label font-medium text-foreground">{t("office.pptx.insert.connector.title")}</p>
+        <p className="text-caption text-muted-foreground">{t("office.pptx.insert.connector.hint")}</p>
       </div>
 
       {connectable.length < 2 ? (
-        <p className="text-caption text-muted-foreground" data-pptx-connector-empty>
-          {t("insert.connector.empty")}
+        <p className="text-caption text-muted-foreground" data-pptx-connector-empty data-testid="pptx-connector-empty">
+          {t("office.pptx.insert.connector.empty")}
         </p>
       ) : null}
 
       <div className="space-y-1.5">
         <p id="pptx-connector-kind-label" className="text-caption font-medium text-foreground">
-          {t("insert.connector.kind_label")}
+          {t("office.pptx.insert.connector.kind_label")}
         </p>
         <ToggleGroup
           value={[kind]}
           aria-labelledby="pptx-connector-kind-label"
-          disabled={blocked}
+          disabled={connectorBlocked}
           className="rounded-lg bg-muted p-1"
           onValueChange={(value) => {
             const next = value[0] as PptxConnectorKind | undefined;
@@ -103,41 +110,41 @@ export function PptxConnectorPicker({
         >
           {PPTX_CONNECTOR_KINDS.map((candidate) => (
             <ToggleGroupItem key={candidate} value={candidate} data-pptx-connector-kind={candidate}>
-              {t(`insert.connector.kind.${candidate}`)}
+              {t(`office.pptx.insert.connector.kind.${candidate}`)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="pptx-connector-from">{t("insert.connector.from_label")}</Label>
+        <Label htmlFor="pptx-connector-from">{t("office.pptx.insert.connector.from_label")}</Label>
         <Select
           id="pptx-connector-from"
           items={options}
           value={from}
-          disabled={blocked}
+          disabled={connectorBlocked}
           onValueChange={(value) => setFrom(String(value))}
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="pptx-connector-to">{t("insert.connector.to_label")}</Label>
+        <Label htmlFor="pptx-connector-to">{t("office.pptx.insert.connector.to_label")}</Label>
         <Select
           id="pptx-connector-to"
           items={options}
           value={to}
-          disabled={blocked}
+          disabled={connectorBlocked}
           onValueChange={(value) => setTo(String(value))}
         />
       </div>
 
       <div className="space-y-1.5">
         <p id="pptx-connector-arrow-label" className="text-caption font-medium text-foreground">
-          {t("insert.connector.arrow_label")}
+          {t("office.pptx.insert.connector.arrow_label")}
         </p>
         <ToggleGroup
           value={[arrow]}
           aria-labelledby="pptx-connector-arrow-label"
-          disabled={blocked}
+          disabled={connectorBlocked}
           className="rounded-lg bg-muted p-1"
           onValueChange={(value) => {
             const next = value[0] as PptxConnectorArrow | undefined;
@@ -146,7 +153,7 @@ export function PptxConnectorPicker({
         >
           {PPTX_CONNECTOR_ARROWS.map((candidate) => (
             <ToggleGroupItem key={candidate} value={candidate} data-pptx-connector-arrow={candidate}>
-              {t(`insert.connector.arrow.${candidate}`)}
+              {t(`office.pptx.insert.connector.arrow.${candidate}`)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -158,34 +165,36 @@ export function PptxConnectorPicker({
         variant="outline"
         disabled={!canConnect}
         data-pptx-connector-insert
+        data-testid="pptx-connector-insert"
         onClick={() => onInsertConnector(request)}
       >
         <Link2 aria-hidden="true" />
-        <span className="text-label">{t("insert.connector.insert")}</span>
+        <span className="text-label">{t("office.pptx.insert.connector.insert")}</span>
       </Button>
       {reason && connectable.length >= 2 ? (
-        <p className="text-caption text-muted-foreground" data-pptx-connector-reason>
+        <p className="text-caption text-muted-foreground" data-pptx-connector-reason data-testid="pptx-connector-reason">
           {reason}
         </p>
       ) : null}
 
       <div className="space-y-1.5 border-t border-border pt-3">
-        <p className="text-label font-medium text-foreground">{t("insert.group.title")}</p>
-        <p className="text-caption text-muted-foreground">{t("insert.group.hint")}</p>
+        <p className="text-label font-medium text-foreground">{t("office.pptx.insert.group.title")}</p>
+        <p className="text-caption text-muted-foreground">{t("office.pptx.insert.group.hint")}</p>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          disabled={blocked || groupIds.length < 2}
+          disabled={groupBlocked || groupIds.length < 2}
           data-pptx-group-selection
+          data-testid="pptx-group-selection"
           onClick={() => onGroupSelection(groupIds)}
         >
           <Shapes aria-hidden="true" />
-          <span className="text-label">{t("insert.group.apply")}</span>
+          <span className="text-label">{t("office.pptx.insert.group.apply")}</span>
         </Button>
         {groupIds.length < 2 ? (
-          <p className="text-caption text-muted-foreground" data-pptx-group-hint>
-            {t("insert.group.need_two")}
+          <p className="text-caption text-muted-foreground" data-pptx-group-hint data-testid="pptx-group-hint">
+            {t("office.pptx.insert.group.need_two")}
           </p>
         ) : null}
       </div>
