@@ -38,6 +38,9 @@ export const FORBIDDEN_BROWSER_SPECIFIERS = [
 export const BROWSER_SAFE_PACKAGES = new Set([
   "zod",
   "zustand",
+  // UNI-931 ribbon collapse preference: persist/createJSONStorage are plain JS
+  // and write through the StorageAdapter, never a Node API.
+  "zustand/middleware",
   // G3 web host: the platform shell is browser code and consumes the shared
   // core/view/ui contracts. Their package exports keep Node-only code out of
   // this graph; the checker treats the package boundary as the seam.
