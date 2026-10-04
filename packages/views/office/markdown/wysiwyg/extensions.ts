@@ -92,17 +92,47 @@ export const SelectiveMarkdown = Markdown.extend({
 });
 
 /**
+ * Options for {@link createMarkdownEditorExtensions}. Everything the shared
+ * factory accepts, plus the two seams the Markdown surface needs.
+ */
+export interface MarkdownEditorExtensionsOptions extends EditorExtensionsOptions {
+  /**
+   * Replace the shared image node. M5 passes the shared `ImageExtension` with
+   * its NodeView swapped for `MarkdownImageView`, so an image resolves through
+   * the asset manifest instead of putting the authored path on `<img src>`.
+   * Only the NodeView changes: `addAttributes` and `renderMarkdown` are
+   * inherited, so the Markdown bytes an image serialises to are unchanged.
+   * Omitted, the shared `ImageView` renders the node.
+   */
+  image?: AnyExtension;
+  /**
+   * Extensions appended after the Markdown set. A NodeView or a ProseMirror
+   * plugin cannot mount "around" an editor the way a React panel can (a panel
+   * takes the editor instance as a prop), so this is the one seam that lets
+   * M5's image upload plugin - and any later surface - attach. It is strictly
+   * additive: parse and serialise are untouched, so M1's byte-identity holds.
+   */
+  extraExtensions?: readonly AnyExtension[];
+}
+
+/**
  * Build the Markdown WYSIWYG extension array: the shared set, the raw node, the
  * source-gap attributes and the selective Markdown extension.
  */
 export function createMarkdownEditorExtensions(
-  options: EditorExtensionsOptions = {},
+  options: MarkdownEditorExtensionsOptions = {},
 ): AnyExtension[] {
-  const base = createEditorExtensions(options).filter(
-    // Replace the shared Markdown config (3-space indent, blanket escaping)
-    // with the selective 4-space twin. The remaining base array is untouched.
-    (extension) => extension.name !== "markdown",
-  );
+  const { image, extraExtensions, ...baseOptions } = options;
+  const base = createEditorExtensions(baseOptions)
+    .filter(
+      // Replace the shared Markdown config (3-space indent, blanket escaping)
+      // with the selective 4-space twin. The remaining base array is untouched.
+      (extension) => extension.name !== "markdown",
+    )
+    // Swap the image node IN PLACE so the schema's node order - and therefore
+    // the bytes the Markdown serializer emits - is identical whether or not a
+    // host supplies its own image extension.
+    .map((extension) => (image && extension.name === "image" ? image : extension));
   return [
     ...base,
     // M4: a pasted formula written with LaTeX delimiters becomes a math node.
@@ -114,5 +144,6 @@ export function createMarkdownEditorExtensions(
     SelectiveMarkdown.configure({
       indentation: { style: "space", size: MARKDOWN_LIST_INDENT },
     }),
+    ...(extraExtensions ?? []),
   ];
 }

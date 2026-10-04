@@ -28,9 +28,34 @@ import type { JSONContent } from "@tiptap/core";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { createMarkdownEditorExtensions } from "./extensions";
+import { createMarkdownImageExtension } from "./image-view";
+import { createMarkdownImageUploadExtension, type MarkdownImageUploader } from "./image-upload";
+import { MarkdownImageScopeProvider, type MarkdownImageScope } from "./image-scope";
+import type { ImageAssetPort } from "./image-resolve";
 import { MarkdownRibbon, type MarkdownRibbonOptions } from "./ribbon";
 import { createMarkdownSourceCodec, type MarkdownSourceCodec } from "./serialize";
+import type { AssetManifestLike, AssetStatus } from "../../asset-manifest";
 import type { TextEditorHandle } from "../../source-editor-types";
+
+/**
+ * The image wiring a host injects: the manifest + port an image node resolves
+ * against, and the upload port a paste/drop goes through. Supplying it activates
+ * the Markdown image pipeline - the shared image node is swapped for
+ * {@link MarkdownImageView} and the upload plugin is appended. Omitted, the
+ * editor renders images through the shared node exactly as before.
+ */
+export interface MarkdownWysiwygImageOptions {
+  /** The manifest an authored relative path resolves through. */
+  manifest?: AssetManifestLike | null;
+  /** Host port: opaque asset id -> display URL. Absent = images do not resolve. */
+  port?: ImageAssetPort;
+  /** Host upload port for pasted/dropped image files. Absent = no upload. */
+  uploader?: MarkdownImageUploader;
+  /** Called when a paste/drop upload fails, so the doc stays unsavable. */
+  onAssetFailure?: (name: string, status: AssetStatus) => void;
+  /** Number of uploads in flight; the ribbon/host can disable save while > 0. */
+  onPendingChange?: (pending: number) => void;
+}
 
 export interface MarkdownWysiwygEditorProps<TSnapshot = unknown> {
   /** The document this view edits. Remounts the editor when it changes. */
@@ -64,6 +89,8 @@ export interface MarkdownWysiwygEditorProps<TSnapshot = unknown> {
   ribbon?: MarkdownRibbonOptions;
   /** Set false to render the surface without its ribbon. */
   showRibbon?: boolean;
+  /** Image pipeline wiring (M5). Omitted, images render through the shared node. */
+  image?: MarkdownWysiwygImageOptions;
   className?: string;
   ariaLabel?: string;
 }
@@ -88,14 +115,54 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
   onCheckpoint,
   ribbon,
   showRibbon = true,
+  image,
   className,
   ariaLabel,
 }: MarkdownWysiwygEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.markdown.wysiwyg" });
 
-  // One codec per mount: the same extension set and indentation the editor
+  // The image scope the NodeView and the upload plugin read. Held in a ref as
+  // well so the plugin's callbacks - created once, with the editor - always see
+  // the latest port/handler instead of the mount-time closure.
+  const imageScope = useMemo<MarkdownImageScope>(
+    () => ({
+      manifest: image?.manifest ?? null,
+      port: image?.port,
+      onAssetFailure: image?.onAssetFailure,
+    }),
+    [image],
+  );
+  const imageScopeRef = useRef(imageScope);
+  imageScopeRef.current = imageScope;
+  const uploaderRef = useRef(image?.uploader);
+  uploaderRef.current = image?.uploader;
+  const onPendingChangeRef = useRef(image?.onPendingChange);
+  onPendingChangeRef.current = image?.onPendingChange;
+
+  // Only when a host wires images: swap the shared image node for the
+  // manifest-resolving one and append the paste/drop upload plugin. Without the
+  // option the extension array is byte-for-byte the shared Markdown set, so the
+  // M1 round-trip contract is untouched.
+  const extensions = useMemo(
+    () =>
+      image
+        ? createMarkdownEditorExtensions({
+            image: createMarkdownImageExtension(),
+            extraExtensions: [
+              createMarkdownImageUploadExtension({
+                getUploader: () => uploaderRef.current,
+                onAssetFailure: (name, status) => imageScopeRef.current.onAssetFailure?.(name, status),
+                onPendingChange: (pending) => onPendingChangeRef.current?.(pending),
+              }),
+            ],
+          })
+        : createMarkdownEditorExtensions(),
+    [image],
+  );
+
+  // One codec per mount: the SAME extension set and indentation the editor
   // mounts with, so parse and serialise agree on what is representable.
-  const codec: MarkdownSourceCodec = useMemo(() => createMarkdownSourceCodec(createMarkdownEditorExtensions()), []);
+  const codec: MarkdownSourceCodec = useMemo(() => createMarkdownSourceCodec(extensions), [extensions]);
 
   // The text this component last published. A source change equal to it is our
   // own write echoing back, not an external edit, and must not be re-parsed.
@@ -139,7 +206,7 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
 
   const instance = useEditor(
     {
-      extensions: createMarkdownEditorExtensions(),
+      extensions,
       content: initialDocRef.current,
       contentType: "json",
       editable,
@@ -208,17 +275,19 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
   }, [editable, instance]);
 
   return (
-    <div
-      className={cn("markdown-wysiwyg flex min-h-0 min-w-0 flex-1 flex-col", className)}
-      data-testid="md-wysiwyg"
-      data-document-key={documentKey}
-    >
-      {showRibbon ? <MarkdownRibbon editor={instance} editable={editable} {...ribbon} /> : null}
-      <EditorContent
-        editor={instance}
-        className="min-h-64 flex-1 overflow-auto p-3"
-        data-testid="md-wysiwyg-surface"
-      />
-    </div>
+    <MarkdownImageScopeProvider scope={imageScope}>
+      <div
+        className={cn("markdown-wysiwyg flex min-h-0 min-w-0 flex-1 flex-col", className)}
+        data-testid="md-wysiwyg"
+        data-document-key={documentKey}
+      >
+        {showRibbon ? <MarkdownRibbon editor={instance} editable={editable} {...ribbon} /> : null}
+        <EditorContent
+          editor={instance}
+          className="min-h-64 flex-1 overflow-auto p-3"
+          data-testid="md-wysiwyg-surface"
+        />
+      </div>
+    </MarkdownImageScopeProvider>
   );
 }

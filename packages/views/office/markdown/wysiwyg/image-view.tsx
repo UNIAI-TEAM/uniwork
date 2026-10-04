@@ -13,7 +13,8 @@
  * no floating command button is drawn over the canvas).
  */
 import { useState } from "react";
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
+import type { AnyExtension } from "@tiptap/core";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ImageExtension } from "../../../editor/extensions";
 import { imageDisplayUrl, resolveImageSource, imageResolutionStatus } from "./image-resolve";
 import { useMarkdownImageScope } from "./image-scope";
 
@@ -41,7 +43,7 @@ export function MarkdownImageView({ node, selected, editor }: NodeViewProps) {
   const editable = editor.isEditable;
 
   return (
-    <NodeViewWrapper as="span" className="relative inline-block max-w-full align-bottom">
+    <NodeViewWrapper as="div" className="relative block max-w-full">
       {uploading ? (
         <span
           role="status"
@@ -94,4 +96,22 @@ export function MarkdownImageView({ node, selected, editor }: NodeViewProps) {
       ) : null}
     </NodeViewWrapper>
   );
+}
+
+
+/**
+ * The Markdown image node: the shared `ImageExtension` with its NodeView
+ * swapped for {@link MarkdownImageView}. Only the NodeView changes - attributes
+ * and `renderMarkdown` are inherited, so the Markdown bytes an image serialises
+ * to are identical to the shared node. A host that wants manifest resolution
+ * passes this to `createMarkdownEditorExtensions({ image })`; without it every
+ * image would render through the shared `ImageView`, which puts the authored
+ * (manifest-relative) path on `<img src>` and shows a broken image.
+ */
+export function createMarkdownImageExtension(): AnyExtension {
+  return ImageExtension.extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(MarkdownImageView);
+    },
+  });
 }
