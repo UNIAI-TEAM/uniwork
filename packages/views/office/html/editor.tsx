@@ -26,6 +26,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
+import { HtmlRibbon } from "./ribbon";
 import { HtmlVisualShell } from "./visual/shell";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
@@ -259,6 +260,10 @@ export function HtmlEditor<TSnapshot = unknown>({
     }
   }, [cycleView, history, permissions.canCopy, permissions.canPaste, save]);
 
+  const presenting = viewMode === "present";
+  // The ribbon models the three inline modes; present is its own toggle.
+  const ribbonViewMode = viewMode === "present" ? "preview" : viewMode;
+
   return (
     <section
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)}
@@ -278,19 +283,26 @@ export function HtmlEditor<TSnapshot = unknown>({
       {viewState === "ready" ? (
         <>
           {/*
-            RIBBON MOUNT POINT (task RB / RB-1). The shared UNI-931 ribbon
-            (`<HtmlRibbon>`, html/ribbon.tsx) is the HTML surface's chrome: the
+            The shared UNI-931 ribbon (RB-1) is the HTML surface's chrome: the
             tab row, the command body and the trailing
-            Source | Split | Preview | Present control. RB owns mounting it, so
-            H2 leaves the mount point open here instead of double-mounting. Wire
-            it to the state this file already owns:
-              viewMode={viewMode === "present" ? "preview" : viewMode}
-              onViewModeChange={setViewMode}
-              presenting={viewMode === "present"}
-              onTogglePresent={() => setViewMode(viewMode === "present" ? "preview" : "present")}
-            and to `history("undo"|"redo")` plus `{ readOnly }`. The shell below
-            renders the panes and the status bar for that same `viewMode`.
+            Source | Split | Preview | Present control. Undo/redo ride its
+            quick-access slot and the view modes its trailing control, so H1's
+            source editor and H2's modes are reachable from the ribbon. The
+            inline/insert intents stay disabled until an H3-op-wired caller
+            supplies `commands` (the shell has no patch port), which is the
+            documented contract of `HtmlRibbon` - disabled, never hidden.
           */}
+          <HtmlRibbon
+            commands={{
+              onUndo: () => history("undo"),
+              onRedo: () => history("redo"),
+            }}
+            state={{ readOnly }}
+            viewMode={ribbonViewMode}
+            onViewModeChange={(mode) => setViewMode(mode)}
+            presenting={presenting}
+            onTogglePresent={() => setViewMode(presenting ? "preview" : "present")}
+          />
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="html-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
             <span className="min-w-0 flex-1" />
             <Button type="button" variant="brand" size="sm" data-testid="html-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
