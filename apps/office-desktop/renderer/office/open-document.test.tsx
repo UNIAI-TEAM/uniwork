@@ -112,6 +112,10 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   buildRenderSlide: () => ({ nodes: [], widthPx: 960, heightPx: 540 }),
   makeViewport: (size: { cx: number; cy: number }, fitWidthPx: number) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
   commitSaved: () => undefined,
+  // pptx-runtime reads getSlideNotes off the artifact namespace at module load
+  // (an optional member); the mock must carry it or the import throws before
+  // any test runs. The suite drives a fake runtime, so it is never called.
+  getSlideNotes: () => "",
   HeuristicMetrics: class {},
   listSlideLayouts: () => [],
   openPptx: async () => ({ deck: { slides: [] } }),
