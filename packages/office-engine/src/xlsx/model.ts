@@ -35,103 +35,39 @@ import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./t
 import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
 import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
 
-/** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
- *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
- *  final tab order; renames/additions name final sheets, removals name the
- *  original file name, hidden changes are keyed by the original name (or the
- *  added name). */
-export interface XlsxSheetEditPlan {
-  readonly renames: readonly { readonly sheetName: string; readonly newName: string }[];
-  readonly additions: readonly { readonly name: string; readonly sourceSheetName?: string | undefined }[];
-  readonly removals: readonly string[];
-  readonly order: readonly string[];
-  readonly hiddenChanges?: readonly { readonly sheetName: string; readonly hidden: boolean }[] | undefined;
-  readonly orderChanged?: boolean | undefined;
-}
+import { overlayCells, type ModelCheckpoint, type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
+import { XlsxSheetOps } from "./model-sheet-ops.ts";
 
-/** One sheet's session state: a stable identity plus the user-visible current
- *  name. Sheet ops are applied in emission order, so `name` is what every
- *  later wire op addresses and what the save plan reports; `originalName` is
- *  the name the package on disk still carries (undefined for a sheet added
- *  this session). */
-interface ModelSheetState {
-  readonly key: string;
-  readonly originalName?: string | undefined;
-  name: string;
-  hidden: boolean;
-  hiddenTouched: boolean;
-  readonly added: boolean;
-  readonly sourceKey?: string | undefined;
-}
+// The two names the package publishes from the session-model state module.
+export type { ModelCheckpoint, XlsxSheetEditPlan } from "./model-state.ts";
 
-/** One removable-sheet tombstone (F3): the state and the pending edits a
- *  removal set aside so an undo can resurrect them. */
-interface RemovedSheetState {
-  readonly state: ModelSheetState;
-  readonly pending: PendingCell[];
-  readonly structural: XlsxStructuralOp[];
-  readonly filter?: XlsxFilterOp | undefined;
-  readonly pageSetup?: XlsxPageSetupOp | undefined;
-  readonly tables?: readonly XlsxTableAddOp[] | undefined;
-  readonly protection?: XlsxSheetProtectionOp | undefined;
-  /** Per-cell hyperlink ops set aside at removal (address -> op). */
-  readonly hyperlinks?: readonly XlsxHyperlinkOp[] | undefined;
-  /** The whole-sheet note snapshot set aside at removal. */
-  readonly notes?: XlsxNotesOp | undefined;
-  /** Tab position at removal: an undo re-insert with no explicit index lands
-   *  back where the sheet was instead of at the end of the strip. */
-  readonly index: number;
+/** The FIX-926-D sheet-op module, bound to this model instance. */
+function sheetOpsFor(model: XlsxSessionModel): XlsxSheetOps {
+  return new XlsxSheetOps({
+    get sheetStates() { return model.sheetStates; },
+    set sheetStates(value) { model.sheetStates = value; },
+    removedStates: model.removedStates,
+    removedOriginals: model.removedOriginals,
+    pending: model.pending,
+    structural: model.structural,
+    filters: model.filters,
+    pageSetups: model.pageSetups,
+    tables: model.tables,
+    sheetProtections: model.sheetProtections,
+    hyperlinks: model.hyperlinks,
+    notes: model.notes,
+    get sheetOrderChanged() { return model.sheetOrderChanged; },
+    set sheetOrderChanged(value) { model.sheetOrderChanged = value; },
+    get sheetOpsApplied() { return model.sheetOpsApplied; },
+    set sheetOpsApplied(value) { model.sheetOpsApplied = value; },
+    get addedSheetSequence() { return model.addedSheetSequence; },
+    set addedSheetSequence(value) { model.addedSheetSequence = value; },
+    get touched() { return model.touched; },
+    set touched(value) { model.touched = value; },
+    get revision() { return model.revision; },
+    set revision(value) { model.revision = value; },
+  });
 }
-
-/** Opaque model snapshot for the adapter's all-or-nothing edit (F5). */
-export interface ModelCheckpoint {
-  readonly pending: Map<string, PendingCell>;
-  readonly structural: Map<string, XlsxStructuralOp[]>;
-  readonly filters: Map<string, XlsxFilterOp>;
-  readonly pageSetups: Map<string, XlsxPageSetupOp>;
-  readonly tables: XlsxTableAddOp[];
-  readonly sheetProtections: Map<string, XlsxSheetProtectionOp>;
-  readonly definedNames: XlsxDefinedNamesOp | undefined;
-  readonly hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
-  readonly notes: Map<string, XlsxNotesOp>;
-  readonly sheetStates: ModelSheetState[];
-  readonly removedOriginals: string[];
-  readonly removedStates: Map<string, RemovedSheetState>;
-  readonly sheetOrderChanged: boolean;
-  readonly sheetOpsApplied: number;
-  readonly addedSheetSequence: number;
-  readonly touched: boolean;
-  readonly revision: number;
-}
-
-/** One pending cell: content and independent style fields fold separately. */
-interface PendingCell {
-  readonly sheetName: string;
-  readonly row: number;
-  readonly column: number;
-  readonly edit: XlsxCellEdit;
-  readonly recalcInput: string | null;
-}
-
-/** The cell map a serialize plans against: snapshot cells overlaid with the
- *  pending edits (a clear removes the entry, a set replaces it). */
-function overlayCells(
-  base: Readonly<Record<string, XlsxCellState>>,
-  pending: Map<string, PendingCell>,
-): Record<string, XlsxCellState> {
-  const cells: Record<string, XlsxCellState> = { ...base };
-  for (const entry of pending.values()) {
-    const address = toA1(entry.row, entry.column);
-    if (entry.edit.writeValue) {
-      cells[address] = entry.edit.cell;
-      if (cells[address].value === null && cells[address].formula === undefined) delete cells[address];
-    } else {
-      cells[address] = cells[address] ?? { value: null };
-    }
-  }
-  return cells;
-}
-
 export class XlsxSessionModel {
   /** The engine's parse result — sheets read through `cells()` reflect edits. */
   snapshot: XlsxWorkbookSnapshot;
@@ -140,60 +76,62 @@ export class XlsxSessionModel {
   inputSha256: string;
   /** Bumped on every successful rebase — one term of the session binding. */
   modelRevision = 0;
-  private pending = new Map<string, PendingCell>();
+  pending = new Map<string, PendingCell>();
   /** Structural journal: row/column ops per sheet, in replay order. Cell
    *  entries above are kept in post-operation coordinates (the renderer's
    *  journal applies every shift to its own entries the same way), so the
    *  gateway replays this list first and then writes the cell edits. The map
    *  key is the sheet's CURRENT name; a rename rewrites both. */
-  private structural = new Map<string, XlsxStructuralOp[]>();
+  structural = new Map<string, XlsxStructuralOp[]>();
   /** Declarative filter journal: the LAST filter op per sheet, in first-touch
    *  order. A filter snapshot is whole-sheet, so only the last one matters
    *  (the gateway applies filterStates after structural replay and cell
    *  edits). The map key is the sheet's CURRENT name; a rename rewrites it. */
-  private filters = new Map<string, XlsxFilterOp>();
+  filters = new Map<string, XlsxFilterOp>();
   /** Declarative page-setup journal: the LAST page-setup op per sheet, in
    *  first-touch order (whole-sheet, like filters). The map key is the
    *  sheet's CURRENT name; a rename rewrites it. */
-  private pageSetups = new Map<string, XlsxPageSetupOp>();
+  pageSetups = new Map<string, XlsxPageSetupOp>();
   /** Table additions (B9): a list, not a per-sheet snapshot. Each op pins
    *  final coordinates at emission time; remove_table drops a pending add.
    *  The key is the sheet's CURRENT name; a rename rewrites it, a removal
    *  drops the sheet's tables (nothing may reach a deleted part). */
-  private tables: XlsxTableAddOp[] = [];
+  tables: XlsxTableAddOp[] = [];
   /** Declarative sheet-protection journal: the LAST protection op per sheet,
    *  in first-touch order (whole-sheet, like filters). Keyed by CURRENT name. */
-  private sheetProtections = new Map<string, XlsxSheetProtectionOp>();
+  sheetProtections = new Map<string, XlsxSheetProtectionOp>();
   /** Declarative workbook-scoped defined-names journal: the LAST snapshot in
    *  emission order (workbook.xml <definedNames> is rewritten wholesale). */
   private definedNames: XlsxDefinedNamesOp | undefined;
   /** Declarative hyperlink journal: per-cell last-write-wins links per sheet
    *  (a null target removes the link). The map key is the sheet's CURRENT
    *  name; a rename rewrites it. */
-  private hyperlinks = new Map<string, Map<string, XlsxHyperlinkOp>>();
+  hyperlinks = new Map<string, Map<string, XlsxHyperlinkOp>>();
   /** Declarative note journal: the LAST whole-sheet note snapshot per sheet,
    *  in first-touch order (like filters). The map key is the sheet's CURRENT
    *  name; a rename rewrites it. */
-  private notes = new Map<string, XlsxNotesOp>();
+  notes = new Map<string, XlsxNotesOp>();
   /** Ordered sheet registry: file sheets in tab order, plus additions. Ops
    *  are applied in emission order, so every entry's `name` is current. */
-  private sheetStates: ModelSheetState[] = [];
+  /** Non-private so the FIX-926-D sheet-op module (model-sheet-ops.ts) can
+   *  apply add/rename/remove/duplicate/reorder/hide against the live registry. */
+  sheetStates: ModelSheetState[] = [];
   /** Original file names of sheets removed this session (additions removed
    *  before save leave no trace). */
-  private removedOriginals: string[] = [];
+  removedOriginals: string[] = [];
   /** F3 tombstones: a removed sheet's state plus the pending edits it
    *  carried, keyed by the name it had when removed. An `add_sheet` whose
    *  name matches a tombstone cancels the removal and resurrects the
    *  original state (the "unremove" an undo of a removal needs); the
    *  gateway then keeps the original part untouched instead of writing a
    *  blank one. */
-  private removedStates = new Map<string, RemovedSheetState>();
+  removedStates = new Map<string, RemovedSheetState>();
   /** True once a reorder op applied: calcChain sheet indexes go stale. */
-  private sheetOrderChanged = false;
+  sheetOrderChanged = false;
   /** Count of applied sheet ops — the save plan exists only when > 0. */
-  private sheetOpsApplied = 0;
-  private addedSheetSequence = 0;
-  private touched = false;
+  sheetOpsApplied = 0;
+  addedSheetSequence = 0;
+  touched = false;
   /** Monotonic edit counter — a two-save chain can prove the base advanced. */
   revision = 0;
 
@@ -299,7 +237,7 @@ export class XlsxSessionModel {
 
   applyEdit(op: XlsxEditOp): void {
     if (isXlsxSheetOp(op)) {
-      this.applySheetOp(op);
+      sheetOpsFor(this).applySheetOp(op);
       return;
     }
     if (isXlsxFilterOp(op)) {
@@ -483,279 +421,13 @@ export class XlsxSessionModel {
     this.pending = shifted;
   }
 
-  // ── sheet ops (add / rename / remove / duplicate / reorder / hide) ───────
-  //
-  // Applied in emission order against the live sheet registry. A rename
-  // rewrites pending cell edits and the structural journal so both keep
-  // addressing the sheet's current name; a removal drops them (nothing may
-  // reach a part the save deletes); a duplicate clones the source's pending
-  // state, mirroring the renderer journal's own copy — the gateway seeds the
-  // clone from the source PART, and the cloned edits bring it to the source's
-  // on-screen state.
-
-  private applySheetOp(op: XlsxSheetOp): void {
-    switch (op.kind) {
-      case "add_sheet": {
-        const tombstone = this.removedStates.get(op.name);
-        if (tombstone !== undefined) {
-          // Undo of a removal: resurrect the original state (identity and
-          // pending edits intact) and cancel the removal, so the save emits
-          // no sheet op for this name and the file keeps its original part.
-          this.removedStates.delete(op.name);
-          const removedIndex = this.removedOriginals.indexOf(op.name);
-          if (removedIndex >= 0) this.removedOriginals.splice(removedIndex, 1);
-          this.sheetStates.splice(this.insertIndex(op.index ?? tombstone.index), 0, tombstone.state);
-          for (const entry of tombstone.pending) this.pending.set(JSON.stringify([entry.sheetName, toA1(entry.row, entry.column)]), entry);
-          if (tombstone.structural.length > 0) this.structural.set(tombstone.state.name, tombstone.structural);
-          if (tombstone.filter !== undefined) this.filters.set(tombstone.state.name, tombstone.filter);
-          if (tombstone.pageSetup !== undefined) this.pageSetups.set(tombstone.state.name, tombstone.pageSetup);
-          if (tombstone.tables !== undefined) for (const table of tombstone.tables) this.tables.push(table);
-          if (tombstone.protection !== undefined) this.sheetProtections.set(tombstone.state.name, tombstone.protection);
-          if (tombstone.hyperlinks !== undefined) this.hyperlinks.set(tombstone.state.name, new Map(tombstone.hyperlinks.map((link) => [link.address, link])));
-          if (tombstone.notes !== undefined) this.notes.set(tombstone.state.name, tombstone.notes);
-          break;
-        }
-        this.sheetStates.splice(this.insertIndex(op.index), 0, this.makeAddedSheet(op.name, undefined));
-        break;
-      }
-      case "duplicate_sheet": {
-        const source = this.requireSheet(op.sheetName);
-        const addition = this.makeAddedSheet(op.name, source.key);
-        this.sheetStates.splice(this.insertIndex(op.index), 0, addition);
-        this.cloneSheetEdits(source.name, addition.name);
-        break;
-      }
-      case "rename_sheet": {
-        const sheet = this.requireSheet(op.sheetName);
-        if (sheet.name !== op.newName) {
-          const previous = sheet.name;
-          sheet.name = op.newName;
-          this.renamePendingSheet(previous, op.newName);
-        }
-        break;
-      }
-      case "remove_sheet": {
-        const sheet = this.requireSheet(op.sheetName);
-        // F9: refuse removing the last visible sheet early, matching the
-        // strip's own `visible.length > 1` guard and the gateway's rule.
-        if (!sheet.hidden && this.sheetStates.every((candidate) => candidate === sheet || candidate.hidden)) {
-          throw new XlsxEngineError("bad_target", "a workbook needs at least one visible sheet");
-        }
-        if (sheet.originalName !== undefined) this.removedOriginals.push(sheet.originalName);
-        // Keep the state and its pending edits as a tombstone so an undo
-        // (an `add_sheet` of the same name) can resurrect the sheet intact.
-        const index = this.sheetStates.indexOf(sheet);
-        this.removedStates.set(sheet.name, {
-          state: sheet,
-          pending: [...this.pending.values()].filter((entry) => entry.sheetName === sheet.name),
-          structural: [...(this.structural.get(sheet.name) ?? [])],
-          filter: this.filters.get(sheet.name),
-          pageSetup: this.pageSetups.get(sheet.name),
-          tables: this.tables.filter((table) => table.sheetName === sheet.name),
-          protection: this.sheetProtections.get(sheet.name),
-          ...(this.hyperlinks.has(sheet.name) ? { hyperlinks: [...(this.hyperlinks.get(sheet.name) ?? new Map()).values()] } : {}),
-          ...(this.notes.has(sheet.name) ? { notes: this.notes.get(sheet.name) } : {}),
-          index,
-        });
-        this.dropPendingSheet(sheet.name);
-        this.sheetStates.splice(index, 1);
-        break;
-      }
-      case "reorder_sheet": {
-        const sheet = this.requireSheet(op.sheetName);
-        const from = this.sheetStates.indexOf(sheet);
-        this.sheetStates.splice(from, 1);
-        this.sheetStates.splice(op.index, 0, sheet);
-        // F9: a same-index move changes nothing; it must not stale the
-        // calcChain (orderChanged) or force the recalc skip.
-        if (this.sheetStates.indexOf(sheet) !== from) this.sheetOrderChanged = true;
-        break;
-      }
-      case "set_sheet_hidden": {
-        const sheet = this.requireSheet(op.sheetName);
-        // F9: refuse hiding the last visible sheet early, matching the
-        // strip's own `visible.length > 1` guard (the gateway would too).
-        if (op.hidden && !sheet.hidden && this.sheetStates.every((candidate) => candidate === sheet || candidate.hidden)) {
-          throw new XlsxEngineError("bad_target", "a workbook needs at least one visible sheet");
-        }
-        sheet.hidden = op.hidden;
-        sheet.hiddenTouched = true;
-        break;
-      }
-    }
-    this.sheetOpsApplied += 1;
-    this.touched = true;
-    this.revision += 1;
-  }
-
-  private requireSheet(name: string): ModelSheetState {
-    const sheet = this.sheetStates.find((candidate) => candidate.name === name);
-    if (!sheet) throw new XlsxEngineError("bad_target", "unknown sheet " + JSON.stringify(name));
-    return sheet;
-  }
-
-  /** Insertion point for an addition: an explicit 0-based position (already
-   *  range-checked by the parser) or the end of the tab strip. */
-  private insertIndex(index: number | undefined): number {
-    return index ?? this.sheetStates.length;
-  }
-
-  private makeAddedSheet(name: string, sourceKey: string | undefined): ModelSheetState {
-    this.addedSheetSequence += 1;
-    return {
-      key: `added:${this.addedSheetSequence}`,
-      name,
-      hidden: false,
-      hiddenTouched: false,
-      added: true,
-      ...(sourceKey === undefined ? {} : { sourceKey }),
-    };
-  }
-
-  private renamePendingSheet(previous: string, next: string): void {
-    const moved = new Map<string, PendingCell>();
-    for (const entry of this.pending.values()) {
-      if (entry.sheetName !== previous) {
-        moved.set(JSON.stringify([entry.sheetName, toA1(entry.row, entry.column)]), entry);
-        continue;
-      }
-      moved.set(JSON.stringify([next, toA1(entry.row, entry.column)]), {
-        ...entry,
-        sheetName: next,
-        edit: { ...entry.edit, sheetName: next },
-      });
-    }
-    this.pending = moved;
-    const ops = this.structural.get(previous);
-    if (ops !== undefined) {
-      this.structural.delete(previous);
-      this.structural.set(next, ops.map((structural) => ({ ...structural, sheetName: next })));
-    }
-    const filter = this.filters.get(previous);
-    if (filter !== undefined) {
-      this.filters.delete(previous);
-      this.filters.set(next, { ...filter, sheetName: next });
-    }
-    const pageSetup = this.pageSetups.get(previous);
-    if (pageSetup !== undefined) {
-      this.pageSetups.delete(previous);
-      this.pageSetups.set(next, { ...pageSetup, sheetName: next });
-    }
-    this.tables = this.tables.map((table) => (table.sheetName === previous ? { ...table, sheetName: next } : table));
-    const protection = this.sheetProtections.get(previous);
-    if (protection !== undefined) {
-      this.sheetProtections.delete(previous);
-      this.sheetProtections.set(next, { ...protection, sheetName: next });
-    }
-    const links = this.hyperlinks.get(previous);
-    if (links !== undefined) {
-      this.hyperlinks.delete(previous);
-      this.hyperlinks.set(next, new Map([...links].map(([address, link]) => [address, { ...link, sheetName: next }])));
-    }
-    const notes = this.notes.get(previous);
-    if (notes !== undefined) {
-      this.notes.delete(previous);
-      this.notes.set(next, { ...notes, sheetName: next });
-    }
-  }
-
-  private dropPendingSheet(sheetName: string): void {
-    for (const [key, entry] of this.pending) {
-      if (entry.sheetName === sheetName) this.pending.delete(key);
-    }
-    this.structural.delete(sheetName);
-    this.filters.delete(sheetName);
-    this.pageSetups.delete(sheetName);
-    this.tables = this.tables.filter((table) => table.sheetName !== sheetName);
-    this.sheetProtections.delete(sheetName);
-    this.hyperlinks.delete(sheetName);
-    this.notes.delete(sheetName);
-  }
-
-  private cloneSheetEdits(fromName: string, toName: string): void {
-    for (const entry of [...this.pending.values()]) {
-      if (entry.sheetName !== fromName) continue;
-      this.pending.set(JSON.stringify([toName, toA1(entry.row, entry.column)]), {
-        ...entry,
-        sheetName: toName,
-        edit: { ...entry.edit, sheetName: toName },
-      });
-    }
-    const ops = this.structural.get(fromName);
-    if (ops !== undefined) {
-      this.structural.set(toName, ops.map((structural) => ({ ...structural, sheetName: toName })));
-    }
-    const filter = this.filters.get(fromName);
-    if (filter !== undefined) this.filters.set(toName, { ...filter, sheetName: toName });
-    const pageSetup = this.pageSetups.get(fromName);
-    if (pageSetup !== undefined) this.pageSetups.set(toName, { ...pageSetup, sheetName: toName });
-    const protection = this.sheetProtections.get(fromName);
-    if (protection !== undefined) this.sheetProtections.set(toName, { ...protection, sheetName: toName });
-    for (const table of this.tables.filter((candidate) => candidate.sheetName === fromName)) {
-      this.tables.push({ ...table, sheetName: toName });
-    }
-    const links = this.hyperlinks.get(fromName);
-    if (links !== undefined) this.hyperlinks.set(toName, new Map([...links].map(([address, link]) => [address, { ...link, sheetName: toName }])));
-    const notes = this.notes.get(fromName);
-    if (notes !== undefined) this.notes.set(toName, { ...notes, sheetName: toName });
-  }
-
   /** The gateway's SheetEditPlan rebuilt from the model's final state. Field
    *  names follow the vendored interface exactly: renames/addition names are
    *  final, removals are original file names, `order` is the complete final
    *  tab order and hidden changes are keyed by the original (or added) name. */
   pendingSheetPlan(): XlsxSheetEditPlan | undefined {
-    if (this.sheetOpsApplied === 0) return undefined;
-    const live = this.sheetStates;
-    const renames = live.flatMap((sheet) =>
-      !sheet.added && sheet.originalName !== sheet.name
-        ? [{ sheetName: sheet.originalName as string, newName: sheet.name }]
-        : [],
-    );
-    const additions = live.flatMap((sheet) => {
-      if (!sheet.added) return [];
-      const sourceSheetName = this.duplicateSourceOriginal(sheet.sourceKey);
-      return [{ name: sheet.name, ...(sourceSheetName === undefined ? {} : { sourceSheetName }) }];
-    });
-    const hiddenChanges = live.flatMap((sheet) =>
-      sheet.hiddenTouched ? [{ sheetName: sheet.originalName ?? sheet.name, hidden: sheet.hidden }] : [],
-    );
-    // A resurrected removal (or a same-index reorder) leaves no plan field to
-    // write: the file already holds this state, so the save stays a pure
-    // cell/structural edit instead of a no-op sheet plan.
-    if (
-      renames.length === 0 && additions.length === 0 && this.removedOriginals.length === 0 &&
-      hiddenChanges.length === 0 && !this.sheetOrderChanged
-    ) {
-      return undefined;
-    }
-    return {
-      renames,
-      additions,
-      removals: [...this.removedOriginals],
-      order: live.map((sheet) => sheet.name),
-      ...(hiddenChanges.length === 0 ? {} : { hiddenChanges }),
-      ...(this.sheetOrderChanged ? { orderChanged: true } : {}),
-    };
+    return sheetOpsFor(this).pendingSheetPlan();
   }
-
-  /** Walks a duplicate chain back to a file sheet (its original name is the
-   *  clone base the gateway can resolve). A chain that ends at an added sheet,
-   *  or at one removed before save, has no file part — the clone base is
-   *  blank and the cloned pending edits carry the content. */
-  private duplicateSourceOriginal(sourceKey: string | undefined): string | undefined {
-    let key = sourceKey;
-    const seen = new Set<string>();
-    while (key !== undefined && !seen.has(key)) {
-      seen.add(key);
-      if (!key.startsWith("added:")) return key;
-      const sheet = this.sheetStates.find((candidate) => candidate.key === key);
-      if (sheet === undefined) return undefined;
-      key = sheet.sourceKey;
-    }
-    return undefined;
-  }
-
   /** The name the package on disk currently holds for a sheet the envelope
    *  addresses by its current name: the original file name for a pre-existing
    *  sheet, the (final) name itself for an addition. Cell edits, structural
