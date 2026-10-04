@@ -7488,6 +7488,12 @@
           "previous_slide": "Previous slide",
           "dismiss": "Clear the selection",
           "help": "Show this help"
+        },
+        "print": {
+          "title": "Print presentation",
+          "slide_label": "Slide {{index}}",
+          "failed": "The presentation could not be printed.",
+          "blocked": "The browser blocked the print window. Allow pop-ups and try again."
         }
       },
     "pdf": {

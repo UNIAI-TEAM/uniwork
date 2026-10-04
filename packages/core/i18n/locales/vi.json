@@ -7482,6 +7482,12 @@
           "previous_slide": "Trang trước",
           "dismiss": "Bỏ chọn",
           "help": "Mở trợ giúp này"
+        },
+        "print": {
+          "title": "In bản trình bày",
+          "slide_label": "Trang chiếu {{index}}",
+          "failed": "Không thể in bản trình bày.",
+          "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại."
         }
       },
     "pdf": {
