@@ -198,4 +198,95 @@ describe("web PPTX session runtime", () => {
       .rejects.toMatchObject({ name: "AbortError" });
     expect(seam.events).toEqual(["open"]);
   });
+
+  it("undoes and redoes by replaying the journal onto the reopened base", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+    const afterFirst = runtime.snapshot(ref);
+    await runtime.edit(ref, [hidden(1, true)]);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 2, edits: [hidden(0, true), hidden(1, true)] });
+
+    // Undo drops the second edit: the snapshot is exactly the after-first-edit
+    // journal and the live model matches it.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual(afterFirst);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
+    expect(runtime.slides(ref)[0]?.hidden).toBe(true);
+    expect(runtime.slides(ref)[1]?.hidden).toBe(false);
+
+    // Undo back to the base is a real model change; a further undo is a no-op.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    expect(runtime.slides(ref)[0]?.hidden).toBe(false);
+    expect(await runtime.undo(ref)).toBe(false);
+
+    // Redo restores the undone edits in order; redo at the tip is a no-op.
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
+    expect(runtime.slides(ref)[0]?.hidden).toBe(true);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 2, edits: [hidden(0, true), hidden(1, true)] });
+    expect(runtime.slides(ref)[1]?.hidden).toBe(true);
+    expect(await runtime.redo(ref)).toBe(false);
+  });
+
+  it("saves the post-undo prefix and refuses a snapshot carrying the undone edit", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+    await runtime.edit(ref, [hidden(1, true)]);
+    const full = runtime.snapshot(ref);
+    expect(await runtime.undo(ref)).toBe(true);
+
+    // The live model holds journal[0..cursor-1]; its own snapshot is a valid save.
+    const out = await runtime.serialize(ref, { snapshot: snapshot(runtime.snapshot(ref)) });
+    expect(out.bytes.length).toBeGreaterThan(0);
+    // A snapshot that still carries the undone edit is not the live prefix.
+    await expect(runtime.serialize(ref, { snapshot: snapshot(full) })).rejects.toThrow("pptx_save_snapshot_invalid");
+  });
+
+  it("drops the redo tail when a new edit lands after an undo", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+    await runtime.edit(ref, [hidden(1, true)]);
+    expect(await runtime.undo(ref)).toBe(true);
+    await runtime.edit(ref, [{ op: "add_blank_slide", slideIndex: 1 }]);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 2, edits: [hidden(0, true), { op: "add_blank_slide", slideIndex: 1 }] });
+    expect(await runtime.redo(ref)).toBe(false);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
+  });
+
+  it("keeps an undo queued during a save on the serialized lane, behind the save", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+    await runtime.edit(ref, [hidden(1, true)]);
+    seam.events = [];
+    let release!: () => void;
+    seam.gate = { promise: new Promise<void>((resolve) => { release = resolve; }), resolve: () => release() };
+    const saving = runtime.serialize(ref, { snapshot: snapshot(runtime.snapshot(ref)) });
+    const undoing = runtime.undo(ref);
+    await vi.waitFor(() => expect(seam.events).toContain("save:start"));
+    // The undo's base reopen must not start inside the save.
+    expect(seam.events.filter((event) => event === "open")).toEqual([]);
+    seam.gate.resolve();
+    const [, undone] = await Promise.all([saving, undoing]);
+    seam.gate = null;
+    expect(undone).toBe(true);
+    // The save's verify reopen and the undo's reopen both follow save:end.
+    expect(seam.events.indexOf("save:end")).toBeLessThan(seam.events.lastIndexOf("open"));
+    expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
+  });
+
+  it("keeps revision and fingerprint consistent across history", async () => {
+    const { runtime, ref } = await opened();
+    await runtime.edit(ref, [hidden(0, true)]);
+    const firstFp = await fingerprintPptxSnapshot(runtime.snapshot(ref));
+    await runtime.edit(ref, [hidden(1, true)]);
+    const fullFp = await fingerprintPptxSnapshot(runtime.snapshot(ref));
+    expect(fullFp).not.toBe(firstFp);
+    await runtime.undo(ref);
+    expect(runtime.snapshot(ref).revision).toBe(1);
+    // Undo returns to the exact prior state: the fingerprint is stable again.
+    expect(await fingerprintPptxSnapshot(runtime.snapshot(ref))).toBe(firstFp);
+  });
 });

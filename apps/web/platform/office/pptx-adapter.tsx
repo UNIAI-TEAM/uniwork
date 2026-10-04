@@ -33,6 +33,10 @@ export interface PptxEditorHandle extends EditorHandle<PptxDeckSnapshot> {
   edit(edits: readonly PptxEdit[]): Promise<{ revision: number }>;
   slides(): PptxSlideSummary[];
   snapshot(): PptxDeckSnapshot | null;
+  /** Journal-backed history on the runtime (narrows the optional EditorHandle
+   *  methods to required, so the ribbon can rely on them existing). */
+  undo(): void;
+  redo(): void;
 }
 
 export interface PptxFormatAdapterOptions extends BrowserOfficeDraftOptions<PptxDeckSnapshot> {
@@ -191,6 +195,31 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       session.coordinator.markDirty(generation);
       refreshView();
       return result;
+    },
+    // Journal-backed history. The shared EditorHandle methods return void, so
+    // each runs on the runtime's serialized lane and publishes its result by
+    // advancing the dirty generation (a content change the coordinator must
+    // still save) and refreshing the deck view. A rejected replay is swallowed:
+    // the shared void contract has no error channel to report it on.
+    undo() {
+      if (disposed || !modelRef) return;
+      const ref = modelRef;
+      void options.runtime.undo(ref).then((applied) => {
+        if (!applied || disposed || modelRef !== ref) return;
+        generation += 1;
+        session.coordinator.markDirty(generation);
+        refreshView();
+      }).catch(() => undefined);
+    },
+    redo() {
+      if (disposed || !modelRef) return;
+      const ref = modelRef;
+      void options.runtime.redo(ref).then((applied) => {
+        if (!applied || disposed || modelRef !== ref) return;
+        generation += 1;
+        session.coordinator.markDirty(generation);
+        refreshView();
+      }).catch(() => undefined);
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),

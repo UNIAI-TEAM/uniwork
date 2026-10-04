@@ -70,6 +70,12 @@ export interface PptxSessionRuntime {
   snapshot(documentModelRef: string): PptxDeckSnapshot;
   /** Replay a recovered draft journal onto the freshly opened base. */
   restore?(documentModelRef: string, snapshot: PptxDeckSnapshot): Promise<void>;
+  /** Journal-backed undo: reopen the base bytes and replay journal[0..cursor-1].
+   *  Returns false at the base (nothing left to undo). */
+  undo(documentModelRef: string): Promise<boolean>;
+  /** Journal-backed redo: replay the entry the last undo removed. Returns false
+   *  when the journal is already at its tip. */
+  redo(documentModelRef: string): Promise<boolean>;
   serialize(
     documentModelRef: string,
     input: { snapshot: StableSnapshot<PptxDeckSnapshot>; signal?: AbortSignal },
@@ -156,10 +162,20 @@ interface RuntimeSession {
   ref: string;
   journal: PptxEdit[];
   revision: number;
+  /** Journal entries the model currently holds; entries past this index were
+   * undone and wait on the redo path (a cursor, not a popped stack, so a
+   * fresh edit can drop the redo tail the way a text editor does). */
+  cursor: number;
+  /** The opened base package; undo/redo replay the journal onto it. */
+  baseBytes: Uint8Array;
 }
 
 export function createWebPptxSessionRuntime(options: { documentId: string }): PptxSessionRuntime {
   const sessions = new Map<string, RuntimeSession>();
+  // One stable runtime ref -> the current engine session ref. undo reopens the
+  // base into a fresh engine session; the runtime ref (and so the adapter and
+  // the editor) never changes across history, only the engine ref behind it.
+  const engineRefs = new Map<string, string>();
   let adapter: PptxAdapter | null = null;
   // One serialized lane: edits and serialize never interleave inside the
   // engine's archive mutation/save pair.
@@ -187,12 +203,24 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return session;
   }
 
+  /** The engine session ref currently backing a runtime ref (undo swaps it). */
+  function currentEngineRef(ref: string): string {
+    const engineRef = engineRefs.get(ref);
+    if (!engineRef) throw new Error("pptx_runtime_not_open");
+    return engineRef;
+  }
+
+  /** Apply one already-decoded journal entry on the live engine session. */
+  function applyEntry(ref: string, entry: PptxEdit): number {
+    return engineAdapter().edit(currentEngineRef(ref), entry).revision;
+  }
+
   function liveSession(ref: string): LivePptxSession {
-    return engineAdapter().sessionOf(ref) as unknown as LivePptxSession;
+    return engineAdapter().sessionOf(currentEngineRef(ref)) as unknown as LivePptxSession;
   }
 
   function snapshotOf(session: RuntimeSession): PptxDeckSnapshot {
-    return { revision: session.revision, edits: session.journal.map(encodePptxEdit) };
+    return { revision: session.revision, edits: session.journal.slice(0, session.cursor).map(encodePptxEdit) };
   }
 
   /** Structural checks every snapshot must pass. The runtime advances the
@@ -213,10 +241,11 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return true;
   }
 
-  /** Serialize direction: the snapshot must be the live journal's own prefix
-   * (a save may not carry edits the model never applied). */
+  /** Serialize direction: the snapshot must be a prefix of what the model
+   * currently holds (journal[0..cursor-1]) - a save may not carry edits the
+   * model never applied, and after an undo the redo tail is not applied. */
   function snapshotIsJournalPrefix(session: RuntimeSession, snapshot: PptxDeckSnapshot): boolean {
-    if (!validSnapshot(snapshot) || snapshot.edits.length > session.journal.length) return false;
+    if (!validSnapshot(snapshot) || snapshot.edits.length > session.cursor) return false;
     return prefixEqual(session, snapshot.edits, snapshot.edits.length);
   }
 
@@ -241,8 +270,9 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
             ...(outcome.engine_error ? { engine_error: outcome.engine_error } : {}),
           };
         }
-        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0 };
+        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0, cursor: 0, baseBytes: bytes };
         sessions.set(session.ref, session);
+        engineRefs.set(session.ref, session.ref);
         return {
           outcome: "opened" as const,
           document_id: documentId,
@@ -256,11 +286,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     async edit(documentModelRef, edits) {
       return serializeOperation(() => {
         const session = requireSession(documentModelRef);
+        // A fresh edit after an undo drops the redo tail (text-editor behavior).
+        if (session.cursor < session.journal.length) session.journal.splice(session.cursor);
         let revision = session.revision;
         for (const edit of edits) {
-          revision = engineAdapter().edit(documentModelRef, edit).revision;
+          revision = applyEntry(documentModelRef, edit);
           session.journal.push(edit);
         }
+        session.cursor = session.journal.length;
         session.revision = revision;
         return { revision };
       });
@@ -273,12 +306,51 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     async restore(documentModelRef, snapshot) {
       return serializeOperation(() => {
         const session = requireSession(documentModelRef);
+        // A recovered draft supersedes any local redo tail: the model only holds
+        // journal[0..cursor-1], so the comparison and replay must ignore the
+        // undone entries (a tail left over from an undo before recovery).
+        if (session.cursor < session.journal.length) session.journal.splice(session.cursor);
         if (!journalIsSnapshotPrefix(session, snapshot)) throw new Error("pptx_restore_diverged");
         for (let i = session.journal.length; i < snapshot.edits.length; i += 1) {
           const edit = decodePptxEdit(snapshot.edits[i] as PptxJournalEntry);
-          session.revision = engineAdapter().edit(documentModelRef, edit).revision;
+          session.revision = applyEntry(documentModelRef, edit);
           session.journal.push(edit);
         }
+        session.cursor = session.journal.length;
+      });
+    },
+
+    async undo(documentModelRef) {
+      return serializeOperation(async () => {
+        const session = requireSession(documentModelRef);
+        if (session.cursor === 0) return false;
+        const nextCursor = session.cursor - 1;
+        // Reopen the base package and replay the journal up to (not including)
+        // the undone entry, so the model holds exactly the after-undo deck and a
+        // later save serializes a genuine prefix of the journal. Reopening mid
+        // session is feasible: the engine open is just another lane operation.
+        const reopened = await engineAdapter().open({ bytes: session.baseBytes, format: "pptx", document_id: documentModelRef });
+        if (reopened.outcome !== "opened" || !reopened.document_model_ref) throw new Error("pptx_undo_replay_failed");
+        const previous = currentEngineRef(documentModelRef);
+        engineRefs.set(documentModelRef, reopened.document_model_ref);
+        engineAdapter().release(previous);
+        let revision = 0;
+        for (let i = 0; i < nextCursor; i += 1) revision = applyEntry(documentModelRef, session.journal[i] as PptxEdit);
+        session.cursor = nextCursor;
+        session.revision = revision;
+        return true;
+      });
+    },
+
+    async redo(documentModelRef) {
+      return serializeOperation(() => {
+        const session = requireSession(documentModelRef);
+        if (session.cursor >= session.journal.length) return false;
+        // The live model already holds journal[0..cursor-1]; replaying the next
+        // entry forward is the whole redo.
+        session.revision = applyEntry(documentModelRef, session.journal[session.cursor] as PptxEdit);
+        session.cursor += 1;
+        return true;
       });
     },
 
@@ -289,7 +361,9 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         signal?.throwIfAborted();
         const session = requireSession(documentModelRef);
         if (!snapshotIsJournalPrefix(session, snapshot.value)) throw new Error("pptx_save_snapshot_invalid");
-        const out = await engineAdapter().serialize({ document_model_ref: documentModelRef, format: "pptx" });
+        // The live engine session (not the runtime ref) is what holds the model;
+        // undo swaps it, so the save must serialize the current one.
+        const out = await engineAdapter().serialize({ document_model_ref: currentEngineRef(documentModelRef), format: "pptx" });
         signal?.throwIfAborted();
         return { bytes: out.bytes, checksum: out.checksum, warnings: out.warnings };
       });
@@ -307,7 +381,9 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     async release(documentModelRef) {
       return serializeOperation(() => {
         sessions.delete(documentModelRef);
-        engineAdapter().release(documentModelRef);
+        const engineRef = engineRefs.get(documentModelRef);
+        engineRefs.delete(documentModelRef);
+        if (engineRef) engineAdapter().release(engineRef);
       });
     },
   };

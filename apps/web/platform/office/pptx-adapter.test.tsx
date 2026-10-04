@@ -51,7 +51,7 @@ function keyProvider(): DraftKeyProvider {
   };
 }
 
-function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string[] } {
+function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string[]; undo: ReturnType<typeof vi.fn>; redo: ReturnType<typeof vi.fn> } {
   let revision = 0;
   const edits: PptxEdit[][] = [];
   const released: string[] = [];
@@ -67,6 +67,8 @@ function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string
     }),
     snapshot: vi.fn(() => ({ revision, edits: [] })),
     restore: vi.fn(async (_ref, snapshot) => { revision = snapshot.revision; }),
+    undo: vi.fn(async () => true),
+    redo: vi.fn(async () => true),
     serialize: vi.fn(async () => ({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] })),
     slides: vi.fn(slides),
     release: vi.fn(async (ref) => { released.push(ref); }),
@@ -176,6 +178,49 @@ describe("web PPTX format adapter", () => {
     expect(engine.restore).toHaveBeenCalledWith("model-1", { revision: 1, edits: [{ op: "set_slide_hidden", slideIndex: 0, hidden: true }] });
     expect(adapter.editor.getDirtyGeneration()).toBe(3);
     await adapter.session.dispose();
+  });
+
+  it("exposes undo/redo bound to the runtime and marks the deck dirty", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createPptxFormatAdapter(options(engine, files));
+    expect(typeof adapter.editor.undo).toBe("function");
+    expect(typeof adapter.editor.redo).toBe("function");
+    await adapter.open.open();
+
+    adapter.editor.undo();
+    adapter.editor.redo();
+    expect(engine.undo).toHaveBeenCalledWith("model-1");
+    expect(engine.redo).toHaveBeenCalledWith("model-1");
+    // Both settled on the runtime's lane; each is a content change, so the
+    // generation advanced and the coordinator was told to save it.
+    await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(2));
+    expect(adapter.session.coordinator.getState().state).toBe("dirty");
+    const saved = await adapter.session.coordinator.save("button");
+    expect(saved.accepted).toBe(true);
+    expect(files.uploaded).toHaveLength(1);
+    await adapter.session.dispose();
+  });
+
+  it("ignores undo/redo before open, after dispose, and when the runtime refuses", async () => {
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    // Not open yet: no runtime call, no crash.
+    adapter.editor.undo();
+    adapter.editor.redo();
+    expect(engine.undo).not.toHaveBeenCalled();
+    expect(engine.redo).not.toHaveBeenCalled();
+
+    await adapter.open.open();
+    // The runtime reporting "nothing to undo" leaves the deck clean.
+    vi.mocked(engine.undo).mockResolvedValueOnce(false);
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(engine.undo).toHaveBeenCalledTimes(1));
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
+
+    await adapter.session.dispose();
+    adapter.editor.undo();
+    expect(engine.undo).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a readonly document from editing and from writing to the cloud", async () => {
