@@ -277,6 +277,26 @@ describe("web PPTX session runtime", () => {
     expect(runtime.snapshot(ref)).toEqual({ revision: 1, edits: [hidden(0, true)] });
   });
 
+  it("exposes the opened engine deck through the deck accessor", async () => {
+    const { runtime, ref } = await opened();
+    const deck = runtime.deck(ref);
+    expect(deck.slides).toHaveLength(2);
+    expect(deck.size).toEqual({ cx: 9144000, cy: 5143500 });
+    const first = deck.slides[0] as { elements: Array<{ id: string; type: string }> };
+    expect(first.elements.some((element) => element.id === "t1" && element.type === "text")).toBe(true);
+
+    // The accessor reads the LIVE model: an edit is visible immediately, and a
+    // reopen (undo) swaps the engine session the accessor resolves.
+    await runtime.edit(ref, [hidden(0, true)]);
+    expect((runtime.deck(ref).slides[0] as { hidden?: boolean }).hidden).toBe(true);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect((runtime.deck(ref).slides[0] as { hidden?: boolean }).hidden).toBeFalsy();
+
+    // A released session refuses the read instead of returning a stale deck.
+    await runtime.release(ref);
+    expect(() => runtime.deck(ref)).toThrow("pptx_runtime_not_open");
+  });
+
   it("keeps revision and fingerprint consistent across history", async () => {
     const { runtime, ref } = await opened();
     await runtime.edit(ref, [hidden(0, true)]);

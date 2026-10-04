@@ -1,18 +1,21 @@
-// UNI-927 (P0-1) — the web PPTX format adapter.
+﻿// UNI-927 (P0-1, WIRE-WEB) - the web PPTX format adapter.
 //
 // Binds the browser runtime (the generated pptx artifact through
 // office-engine's PptxAdapter) to the shared office-editor host: the editor
 // handle owns open/capture/restore, the shared coordinator owns the
-// serialize -> upload -> commit save, and the interim surface below renders
-// the opened deck until P0-2's canvas lands. Save runs in the browser; this
-// file never touches a server edit job.
+// serialize -> upload -> commit save, and `editorView` mounts the REAL shared
+// PptxEditor canvas with the opened deck. Save runs in the browser; this file
+// never touches a server edit job.
 "use client";
 
-import { useSyncExternalStore, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { EditorHandle, OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
-import { cn } from "@uniwork/ui/lib/utils";
+import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
+import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
+import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
+import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+import type { PptxSlideView } from "@uniwork/views/office/pptx/slide-rail";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { createPptxSaveTransport, type PptxDocumentsTransport } from "./pptx-save-transport";
 import { fingerprintPptxSnapshot, type PptxDeckSnapshot, type PptxSessionRuntime, type PptxSlideSummary } from "./pptx-runtime";
@@ -28,11 +31,17 @@ export interface PptxOpenOutcome {
 }
 
 /** The adapter's editor handle: the shared EditorHandle plus the typed edit
- * channel and the deck view the canvas lanes bind gestures to. */
+ * channel, the deck view the canvas renders and the revision the canvas keys
+ * its rendition cache on. */
 export interface PptxEditorHandle extends EditorHandle<PptxDeckSnapshot> {
   edit(edits: readonly PptxEdit[]): Promise<{ revision: number }>;
   slides(): PptxSlideSummary[];
   snapshot(): PptxDeckSnapshot | null;
+  /** The opened engine deck the shared canvas renders (null before open). */
+  deck(): PptxDeckModel | null;
+  /** Bumps on every applied edit / undo / redo / restore, so the canvas and the
+   *  rail thumbnails rebuild exactly when the model moved. */
+  revision(): number;
   /** Journal-backed history on the runtime (narrows the optional EditorHandle
    *  methods to required, so the ribbon can rely on them existing). */
   undo(): void;
@@ -59,8 +68,11 @@ export interface PptxFormatAdapter {
 
 interface PptxSurfaceView {
   slides: PptxSlideSummary[];
+  deck: PptxDeckModel | null;
   revision: number;
 }
+
+type PptxOpenPhase = "loading" | "ready" | "error";
 
 interface PptxRuntimeOpenError extends Error {
   failureClass?: string;
@@ -74,50 +86,197 @@ function runtimeOpenError(outcome: Awaited<ReturnType<PptxSessionRuntime["open"]
   return error;
 }
 
-/** Interim deck surface (P0-2 replaces it with the render canvas): the slide
- * rail and the selected slide's element list, read from the live model. */
-function PptxSessionSurface(props: { view: () => PptxSurfaceView | null; subscribe: (listener: () => void) => () => void }): ReactNode {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
-  const current = useSyncExternalStore(props.subscribe, props.view, props.view);
+/** Plain text of every element on every slide of the opaque deck model. The
+ * model is owned by the artifact; this walker only reads the documented
+ * `text.paragraphs[].runs[].text` shape the render tree already consumes. */
+function deckSlideTexts(deck: PptxDeckModel | null): string[] {
+  if (!deck) return [];
+  return deck.slides.map((slide) => {
+    const elements = (slide as { elements?: unknown }).elements;
+    if (!Array.isArray(elements)) return "";
+    return elements
+      .map((element) => {
+        const paragraphs = (element as { text?: { paragraphs?: unknown } }).text?.paragraphs;
+        if (!Array.isArray(paragraphs)) return "";
+        return paragraphs
+          .map((paragraph) => {
+            const runs = (paragraph as { runs?: unknown }).runs;
+            if (!Array.isArray(runs)) return "";
+            return runs.map((run) => (run as { text?: string }).text ?? "").join("");
+          })
+          .join("\n");
+      })
+      .join("\n");
+  });
+}
+
+/** The web host's OfficeHost for the shared editor: read/write/assets are the
+ * adapter's own ports (save goes through the coordinator), and the one bound
+ * ipc channel is the slides transform gesture -> the typed edit channel. */
+function makePptxEditorHost(editor: PptxEditorHandle, documentId: string): OfficeHost {
+  return {
+    read: {
+      readDocument: async () => new Uint8Array(),
+      openDocument: async () => ({ outcome: "opened", document_id: documentId, document_model_ref: documentId, warnings: [] }),
+    },
+    write: { writeOutput: async () => { throw new Error("use_save_coordinator"); } },
+    assets: { resolveFont: async () => null, resolveImage: async () => null, resolveAsset: async () => null },
+    ipc: {
+      call: (async (channel: string, body: unknown) => {
+        if (channel === "host:slides-edit-transform") {
+          const request = body as SlidesEditTransformRequest;
+          if (!request.sourceId) throw new Error("pptx_transform_needs_element");
+          await editor.edit([{
+            op: "edit_transform",
+            slideIndex: request.slideIndex,
+            elementId: request.sourceId,
+            xPx: request.xPx,
+            yPx: request.yPx,
+            wPx: request.wPx,
+            hPx: request.hPx,
+            ...(request.rotationDeg === undefined ? {} : { rotationDeg: request.rotationDeg }),
+            ...(request.fitWidthPx == null ? {} : { fitWidthPx: request.fitWidthPx }),
+          }]);
+          return {};
+        }
+        throw new Error("host_operation_unbound:" + channel);
+      }) as OfficeHost["ipc"]["call"],
+      send: () => undefined,
+      subscribe: () => () => undefined,
+    },
+  };
+}
+
+/** The mounted editor surface: opens the deck through the adapter, then renders
+ * the real shared canvas with the live deck, revision, slide list and the edit
+ * ports the demo core flow needs. */
+function PptxEditorSurface(props: {
+  view: () => PptxSurfaceView | null;
+  subscribe: (listener: () => void) => () => void;
+  editor: PptxEditorHandle;
+  coordinator: OfficeEditorSession<PptxDeckSnapshot>["coordinator"];
+  capability: OfficeCapabilityEntry;
+  readonly: boolean;
+  documentId: string;
+  open: (signal?: AbortSignal) => Promise<PptxOpenOutcome>;
+}): ReactNode {
+  const { t } = useTranslation();
+  const { editor, coordinator, readonly, documentId, open, view, subscribe } = props;
+  const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
-  if (!current) return null;
-  const bounded = Math.min(selected, Math.max(current.slides.length - 1, 0));
-  const slide = current.slides[bounded];
+  const [phase, setPhase] = useState<PptxOpenPhase>("loading");
+  const [failure, setFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setPhase("loading");
+    setFailure(null);
+    void open(controller.signal).then((outcome) => {
+      if (!active) return;
+      if (outcome.outcome === "opened") {
+        setPhase("ready");
+        return;
+      }
+      setPhase("error");
+      setFailure(outcome.message ?? outcome.failure_class ?? t("office.editor.open_error_hint"));
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setPhase("error");
+      setFailure(error instanceof Error ? error.message : String(error));
+    });
+    return () => { active = false; controller.abort(); };
+  }, [attempt, open, t]);
+
+  const host = useMemo(() => makePptxEditorHost(editor, documentId), [documentId, editor]);
+
+  const slides = useMemo<readonly PptxSlideView[]>(
+    () => (current?.slides ?? []).map((slide, index) => ({ id: slide.id, label: String(index + 1), ...(slide.hidden ? { hidden: true } : {}) })),
+    [current],
+  );
+  const deck = useMemo(
+    () => (current?.deck ? { deck: current.deck, revision: current.revision } : {}),
+    [current],
+  );
+
+  const commitText = useCallback(
+    (commit: { slideIndex: number; elementId: string; paragraphs: PptxParagraphLike[] }) =>
+      editor.edit([{ op: "edit_text", slideIndex: commit.slideIndex, elementId: commit.elementId, paragraphs: commit.paragraphs }]),
+    [editor],
+  );
+  const transform = useCallback(
+    (request: SlidesEditTransformRequest) => {
+      if (!request.sourceId) throw new Error("pptx_transform_needs_element");
+      return editor.edit([{
+        op: "edit_transform",
+        slideIndex: request.slideIndex,
+        elementId: request.sourceId,
+        xPx: request.xPx,
+        yPx: request.yPx,
+        wPx: request.wPx,
+        hPx: request.hPx,
+        ...(request.rotationDeg === undefined ? {} : { rotationDeg: request.rotationDeg }),
+        ...(request.fitWidthPx == null ? {} : { fitWidthPx: request.fitWidthPx }),
+      }]);
+    },
+    [editor],
+  );
+  // The generic channel accepts the panel FormatEdit union too; once the engine
+  // registers those kinds they are PptxEdit members and the cast is a no-op.
+  const applyEdit = useCallback((edit: PptxEdit | FormatEdit) => editor.edit([edit as PptxEdit]), [editor]);
+  const deleteElements = useCallback(
+    (slideIndex: number, elementIds: readonly string[]) =>
+      editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))),
+    [editor],
+  );
+  // A real find: jump the editor to the first slide whose text carries the query.
+  const find = useCallback((query: string) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return;
+    const index = deckSlideTexts(editor.deck()).findIndex((text) => text.toLowerCase().includes(needle));
+    if (index >= 0) setSelected(index);
+  }, [editor]);
+  const commandCapabilities = useMemo(
+    () => ({ "edit-text": readonly ? { status: "unavailable" as const, reason: t("office.editor.read_only_hint") } : ("available" as const) }),
+    [readonly, t],
+  );
+
+  if (phase !== "ready") {
+    return (
+      <div className="flex min-h-64 flex-col gap-3 rounded-panel border border-border bg-background p-4" role="status" aria-live="polite" aria-busy={phase === "loading"} data-pptx-open-state={phase}>
+        <p className="text-body text-muted-foreground">
+          {phase === "loading" ? t("office.pptx.state.opening") : t("office.editor.open_error")}
+        </p>
+        {phase === "error" ? (
+          <>
+            <p className="text-caption text-muted-foreground" role="alert">{t("office.editor.open_error_hint")}{failure ? ` ${failure}` : ""}</p>
+            <button type="button" className="self-start rounded-md border border-border px-3 py-1 text-body" onClick={() => setAttempt((value) => value + 1)}>
+              {t("office.editor.retry")}
+            </button>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <section data-pptx-session-surface className="flex min-h-0 flex-1 flex-col gap-3 rounded-panel border border-border bg-background p-3">
-      <div className="flex items-center justify-between text-caption text-muted-foreground">
-        <span>{t("slide_rail_label")}</span>
-        <span data-pptx-revision={current.revision}>{t("slide_position", { current: current.slides.length ? bounded + 1 : 0, total: current.slides.length })}</span>
-      </div>
-      <div className="flex min-h-0 flex-1 gap-3">
-        <ol aria-label={t("slide_rail_label")} className="flex w-44 shrink-0 flex-col gap-1 overflow-auto" data-pptx-slide-rail>
-          {current.slides.map((item, index) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                aria-current={index === bounded}
-                onClick={() => setSelected(index)}
-                className={cn("w-full rounded-md border border-border px-2 py-1 text-left text-body", index === bounded ? "bg-muted" : "bg-background")}
-                data-pptx-slide-index={index}
-              >
-                {t("slide_number", { index: index + 1 })}
-              </button>
-            </li>
-          ))}
-        </ol>
-        <div role="group" aria-label={t("canvas_label")} className="flex min-h-48 flex-1 items-center justify-center overflow-auto rounded-md border border-border bg-muted/10 p-4" data-pptx-canvas>
-          {current.slides.length === 0 ? (
-            <p className="text-body text-muted-foreground">{t("no_slides")}</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-caption text-muted-foreground">
-              {(slide?.elements ?? []).map((element) => (
-                <li key={element.id} data-element-id={element.id}>{element.type}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </section>
+    <PptxEditor
+      host={host}
+      editorHandle={editor}
+      slides={slides}
+      deck={deck}
+      selectedIndex={selected}
+      onSlideSelect={setSelected}
+      onCommitText={commitText}
+      onTransform={transform}
+      onApplyEdit={applyEdit}
+      onDeleteElements={deleteElements}
+      onFind={find}
+      saveCoordinator={coordinator}
+      capabilities={commandCapabilities}
+      includeSave={false}
+    />
   );
 }
 
@@ -127,6 +286,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
+  let viewRevision = 0;
   let view: PptxSurfaceView | null = null;
   const listeners = new Set<() => void>();
   const subscribe = (listener: () => void) => {
@@ -135,7 +295,9 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   };
   const getView = () => view;
   const refreshView = () => {
-    view = modelRef && !disposed ? { slides: options.runtime.slides(modelRef), revision: options.runtime.snapshot(modelRef).revision } : null;
+    view = modelRef && !disposed
+      ? { slides: options.runtime.slides(modelRef), deck: options.runtime.deck(modelRef), revision: viewRevision }
+      : null;
     for (const listener of listeners) listener();
   };
 
@@ -190,6 +352,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       if (!modelRef) throw new Error("pptx_editor_not_open");
       const result = await options.runtime.edit(modelRef, edits);
       generation += 1;
+      viewRevision += 1;
       // One applied edit is one dirty generation: the editor handle owns the
       // counter, so a caller cannot apply an edit the coordinator never sees.
       session.coordinator.markDirty(generation);
@@ -199,14 +362,15 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     // Journal-backed history. The shared EditorHandle methods return void, so
     // each runs on the runtime's serialized lane and publishes its result by
     // advancing the dirty generation (a content change the coordinator must
-    // still save) and refreshing the deck view. A rejected replay is swallowed:
-    // the shared void contract has no error channel to report it on.
+    // still save) and republishing the deck view. A rejected replay is
+    // swallowed: the shared void contract has no error channel to report it on.
     undo() {
       if (disposed || !modelRef) return;
       const ref = modelRef;
       void options.runtime.undo(ref).then((applied) => {
         if (!applied || disposed || modelRef !== ref) return;
         generation += 1;
+        viewRevision += 1;
         session.coordinator.markDirty(generation);
         refreshView();
       }).catch(() => undefined);
@@ -217,12 +381,15 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       void options.runtime.redo(ref).then((applied) => {
         if (!applied || disposed || modelRef !== ref) return;
         generation += 1;
+        viewRevision += 1;
         session.coordinator.markDirty(generation);
         refreshView();
       }).catch(() => undefined);
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),
+    deck: () => (modelRef && !disposed ? options.runtime.deck(modelRef) : null),
+    revision: () => viewRevision,
   };
 
   const transport = createPptxSaveTransport({
@@ -265,6 +432,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         if (!modelRef || !options.runtime.restore) throw new Error("pptx_editor_not_open");
         await options.runtime.restore(modelRef, snapshot.value);
         generation = Math.max(generation, snapshot.generation);
+        viewRevision += 1;
         refreshView();
       }
     : undefined;
@@ -273,7 +441,18 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     session,
     editor,
     capability: options.capability,
-    editorView: <PptxSessionSurface view={getView} subscribe={subscribe} />,
+    editorView: (
+      <PptxEditorSurface
+        view={getView}
+        subscribe={subscribe}
+        editor={editor}
+        coordinator={session.coordinator}
+        capability={options.capability}
+        readonly={options.readonly === true}
+        documentId={options.identity.documentId}
+        open={open.open}
+      />
+    ),
     open,
     onRecoverSnapshot,
   };

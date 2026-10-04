@@ -1,4 +1,4 @@
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
@@ -117,6 +117,21 @@ describe("PPTX web session lifetime", () => {
     });
     await mount();
     expect(container.querySelector("[data-adapter]")?.getAttribute("data-adapter")).toBe("unbound");
+  });
+
+  it("mounts the adapter's real-canvas editorView through the shared host", async () => {
+    // The adapter owns the canvas; the host must render the node it is given
+    // verbatim (the interim element-list surface must never reappear).
+    mocks.adapter.mockImplementation(() => ({
+      id: "adapter-canvas",
+      session: { dispose: mocks.dispose },
+      editorView: createElement("div", { "data-pptx-canvas": "" }, createElement("span", null, "real canvas")),
+    }));
+    await mount();
+    const canvas = container.querySelector("[data-pptx-canvas]");
+    expect(canvas).not.toBeNull();
+    expect(canvas?.textContent).toBe("real canvas");
+    expect(container.querySelector("[data-pptx-session-surface]")).toBeNull();
   });
 
   it("hands a non-pptx document to the shared host without binding the pptx engine", async () => {

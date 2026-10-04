@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isValidElement } from "react";
+import { act, isValidElement, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import type { PptxSessionRuntime } from "./pptx-runtime";
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
+  buildRenderSlide: () => ({ nodes: [], widthPx: 960, heightPx: 540 }),
+  makeViewport: (size: { cx: number; cy: number }, fitWidthPx: number) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+}));
 import { createPptxFormatAdapter } from "./pptx-adapter";
 import type { PptxDocumentsTransport } from "./pptx-save-transport";
 
@@ -71,6 +77,7 @@ function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string
     redo: vi.fn(async () => true),
     serialize: vi.fn(async () => ({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] })),
     slides: vi.fn(slides),
+    deck: vi.fn(() => ({ slides: [{ id: "s1", elements: [{ id: "e1", type: "text", text: { paragraphs: [{ runs: [{ text: "Title" }] }] } }] }], size: { cx: 12192000, cy: 6858000 } })),
     release: vi.fn(async (ref) => { released.push(ref); }),
   };
 }
@@ -221,6 +228,52 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
     adapter.editor.undo();
     expect(engine.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("mounts the real shared canvas once the deck is bound and republishes the revision per edit", async () => {
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    await adapter.open.open();
+    expect(adapter.editor.deck()).not.toBeNull();
+    expect(adapter.editor.revision()).toBe(0);
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let root!: Root;
+    await act(async () => { root = createRoot(container); root.render(adapter.editorView as ReactElement); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    // The interim element-list surface is gone; the real canvas is mounted.
+    expect(container.querySelector("[data-pptx-session-surface]")).toBeNull();
+    expect(container.querySelector("[data-pptx-canvas]")).not.toBeNull();
+
+    // An applied edit advances the published revision (the canvas cache key).
+    await act(async () => { await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]); });
+    expect(adapter.editor.revision()).toBe(1);
+    await act(async () => { await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]); });
+    expect(adapter.editor.revision()).toBe(2);
+    expect(container.querySelector("[data-pptx-canvas]")).not.toBeNull();
+
+    await act(async () => { root.unmount(); });
+    container.remove();
+    await adapter.session.dispose();
+  });
+
+  it("advances the published revision on undo, redo and restore", async () => {
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    await adapter.open.open();
+    await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]);
+    const afterEdit = adapter.editor.revision();
+
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(adapter.editor.revision()).toBe(afterEdit + 1));
+    adapter.editor.redo();
+    await vi.waitFor(() => expect(adapter.editor.revision()).toBe(afterEdit + 2));
+
+    await adapter.onRecoverSnapshot?.({ generation: 1, fingerprint: "fp", value: { revision: 1, edits: [] } });
+    expect(adapter.editor.revision()).toBe(afterEdit + 3);
+    await adapter.session.dispose();
   });
 
   it("keeps a readonly document from editing and from writing to the cloud", async () => {

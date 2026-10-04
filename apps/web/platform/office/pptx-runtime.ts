@@ -22,6 +22,7 @@ import {
   savePptx,
 } from "@uniwork/office-upstream/pptx-renderer";
 import type { StableSnapshot } from "@uniwork/core/office";
+import type { PptxDeckModel } from "@uniwork/views/office/pptx";
 
 /** One applied edit, JSON-safe (byte payloads become base64). */
 export interface PptxJournalEntry {
@@ -80,6 +81,8 @@ export interface PptxSessionRuntime {
     documentModelRef: string,
     input: { snapshot: StableSnapshot<PptxDeckSnapshot>; signal?: AbortSignal },
   ): Promise<PptxRuntimeSerializedOutput>;
+  /** The opened engine deck the shared canvas renders (EMU size included). */
+  deck(documentModelRef: string): PptxDeckModel;
   slides(documentModelRef: string): PptxSlideSummary[];
   release(documentModelRef: string): Promise<void>;
 }
@@ -367,6 +370,10 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         signal?.throwIfAborted();
         return { bytes: out.bytes, checksum: out.checksum, warnings: out.warnings };
       });
+    },
+
+    deck(documentModelRef) {
+      return liveSession(documentModelRef).model as unknown as PptxDeckModel;
     },
 
     slides(documentModelRef) {
