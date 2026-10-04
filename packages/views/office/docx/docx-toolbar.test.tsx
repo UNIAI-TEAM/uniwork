@@ -57,7 +57,7 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
 }
 
 const TAB_GROUPS: Array<[string, string[]]> = [
-  ["Trang chủ", ["home-base", "home-font", "home-paragraph", "home-styles", "home-find"]],
+  ["Trang chủ", ["home-font", "home-lists", "home-paragraph", "home-styles"]],
   ["Chèn", ["insert-links", "insert-table", "insert-symbols", "insert-header-footer"]],
   ["Bố cục", ["layout-page-setup"]],
   ["Xem lại", ["review-track-changes", "review-comments"]],
@@ -100,9 +100,11 @@ describe("DocxToolbarShell", () => {
 
   it("keeps one roving tab stop and navigates the strip with the arrow keys", () => {
     render(<DocxToolbarShell {...context()} />);
-    const bold = screen.getByRole("button", { name: "Đậm" });
-    const italic = screen.getByRole("button", { name: "Nghiêng" });
-    expect(bold.tabIndex).toBe(0);
+    const strip = screen.getByTestId("docx-toolbar-groups");
+    const bold = screen.getByTestId("docx-bold");
+    const italic = screen.getByTestId("docx-italic");
+    // Exactly one roving tab stop in the strip; it starts on the first control.
+    expect(strip.querySelectorAll('[data-toolbar-current="true"]').length).toBe(1);
     expect(italic.tabIndex).toBe(-1);
 
     bold.focus();
@@ -111,10 +113,13 @@ describe("DocxToolbarShell", () => {
     expect(italic.tabIndex).toBe(0);
     expect(bold.tabIndex).toBe(-1);
 
+    // End jumps to the strip's last item, Home back to the first.
     fireEvent.keyDown(italic, { key: "End" });
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Danh sách đánh số" }));
-    fireEvent.keyDown(document.activeElement as Element, { key: "Home" });
-    expect(document.activeElement).toBe(bold);
+    const last = document.activeElement as HTMLElement;
+    expect(last).not.toBe(bold);
+    expect(strip.contains(last)).toBe(true);
+    fireEvent.keyDown(last, { key: "Home" });
+    expect(document.activeElement).toBe(screen.getByTestId("docx-font-family"));
   });
 
   it("collapses low-priority groups into the overflow popover at narrow widths", async () => {
@@ -123,24 +128,29 @@ describe("DocxToolbarShell", () => {
     try {
       render(<DocxToolbarShell {...context()} />);
 
-      expect(document.querySelector('[data-toolbar-group="home-base"]')).toBeInTheDocument();
       expect(document.querySelector('[data-toolbar-group="home-font"]')).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId("docx-toolbar-overflow"));
       const overflow = await screen.findByTestId("docx-toolbar-overflow-content");
       expect(overflow.querySelector('[data-toolbar-group="home-font"]')).toBeInTheDocument();
-      expect(overflow.querySelector('[data-toolbar-group="home-find"]')).toBeInTheDocument();
-      expect(overflow.querySelector('[data-toolbar-group="home-base"]')).toBeNull();
-      expect(document.querySelector('[data-toolbar-group="home-base"]')).toBeInTheDocument();
+      expect(overflow.querySelector('[data-toolbar-group="home-styles"]')).toBeInTheDocument();
     } finally {
       window.innerWidth = originalWidth;
     }
   });
 
   it("keeps every group inline at a wide width", () => {
-    render(<DocxToolbarShell {...context()} />);
-    expect(screen.queryByTestId("docx-toolbar-overflow")).not.toBeInTheDocument();
-    expect(document.querySelector('[data-toolbar-group="home-find"]')).toBeInTheDocument();
+    const originalWidth = window.innerWidth;
+    window.innerWidth = 1600;
+    try {
+      render(<DocxToolbarShell {...context()} />);
+      expect(screen.queryByTestId("docx-toolbar-overflow")).not.toBeInTheDocument();
+      expect(document.querySelector('[data-toolbar-group="home-styles"]')).toBeInTheDocument();
+      // Find lives in the ribbon tab row, not the command strip (C6).
+      expect(screen.getByTestId("docx-find-toggle")).toBeInTheDocument();
+    } finally {
+      window.innerWidth = originalWidth;
+    }
   });
 
   it("disables formatting and Save while read-only, and routes Save through onSave", () => {
@@ -149,14 +159,14 @@ describe("DocxToolbarShell", () => {
     const toggleBold = vi.spyOn(runtime, "toggleBold");
     const { unmount } = render(<DocxToolbarShell {...context({ commands: runtime, dirty: true, onSave })} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Đậm" }));
+    fireEvent.click(screen.getByTestId("docx-bold"));
     expect(toggleBold).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("docx-save"));
     expect(onSave).toHaveBeenCalledTimes(1);
     unmount();
 
     render(<DocxToolbarShell {...context({ dirty: true, onSave, readOnly: true })} />);
-    expect(screen.getByRole("button", { name: "Đậm" })).toBeDisabled();
+    expect(screen.getByTestId("docx-bold")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Hoàn tác" })).toBeDisabled();
     expect(screen.getByTestId("docx-save")).toBeDisabled();
   });
@@ -166,9 +176,15 @@ describe("DocxToolbarShell", () => {
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
   });
 
-  it("shows the selection range in the quick-access row", () => {
+  it("puts undo/redo far left in the tab row and Find far right, with no selection text (C6)", () => {
     render(<DocxToolbarShell {...context({ selection: { blockId: "p1", from: 2, to: 7 } })} />);
-    expect(screen.getByTestId("docx-selection")).toHaveTextContent("Vùng chọn 2–7");
+    const quickAccess = screen.getByTestId("docx-quick-access");
+    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(quickAccess).toContainElement(screen.getByRole("button", { name: "Làm lại" }));
+    // Find is the ribbon's right-hand entry; the selection text moved to the
+    // status bar (C10), so the ribbon no longer carries it.
+    expect(screen.getByTestId("docx-find-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("docx-selection")).not.toBeInTheDocument();
   });
 
   it("routes undo and redo through their callbacks", () => {

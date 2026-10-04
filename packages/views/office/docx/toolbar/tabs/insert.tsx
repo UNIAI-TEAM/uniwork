@@ -1,6 +1,7 @@
 import { CaptionGroup } from "../../toc/caption-group";
 import { TocGroup } from "../../toc/toc-group";
 import { InsertChartGroup } from "../../charts/insert-chart-group";
+import { InsertImageGroup } from "../../image/insert-image-group";
 import { InsertHeaderFooterGroup } from "../groups/insert-header-footer";
 import { InsertLinksGroup } from "../groups/insert-links";
 import { InsertNotesGroup } from "../groups/insert-notes";
@@ -15,6 +16,7 @@ export const insertTab: DocxToolbarTab = {
   groups: [
     { id: "insert-links", labelKey: "office.docx.toolbar.groups.links", component: InsertLinksGroup, collapseAt: 560 },
     { id: "insert-table", labelKey: "office.docx.toolbar.groups.table", component: InsertTableGroup, collapseAt: 900 },
+    { id: "insert-image", labelKey: "office.docx.toolbar.groups.image", component: InsertImageGroup, collapseAt: 900 },
     { id: "insert-symbols", labelKey: "office.docx.toolbar.groups.symbols", component: InsertSymbolsGroup, collapseAt: 1000 },
     { id: "insert-shapes", labelKey: "office.docx.toolbar.groups.shapes", component: DocxShapesGroup, collapseAt: 1000 },
     { id: "insert-notes", labelKey: "office.docx.toolbar.groups.notes", component: InsertNotesGroup, collapseAt: 1000 },

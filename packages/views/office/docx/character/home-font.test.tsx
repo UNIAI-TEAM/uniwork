@@ -200,7 +200,7 @@ describe("HomeFontGroup", () => {
     expect(attrs(editor).fontAscii).toBe("Aptos Display");
   });
 
-  it("commits a typed size and steps through the presets", async () => {
+  it("commits a typed size and steps with the -/+ pair (no extra chevron, C8)", async () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
     render(<Harness editor={editor} />);
@@ -215,10 +215,9 @@ describe("HomeFontGroup", () => {
     expect(attrs(editor).sizeHalfPoints).toBe(40);
     await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue("20"));
 
-    fireEvent.click(screen.getByTestId("docx-font-size-presets"));
-    const options = await screen.findAllByTestId("docx-font-size-option");
-    fireEvent.click(options[9] as HTMLElement);
-    expect(attrs(editor).sizeHalfPoints).toBe(24);
+    // C8: the size box is the field only; the old preset chevron is gone.
+    expect(screen.queryByTestId("docx-font-size-presets")).not.toBeInTheDocument();
+    expect(screen.getByTestId("docx-font-size-decrease")).toBeInTheDocument();
   });
 
   it("applies a text colour and resets it to automatic", async () => {
@@ -329,7 +328,9 @@ describe("HomeFontGroup", () => {
       "docx-font-size",
       "docx-font-size-decrease",
       "docx-font-size-increase",
-      "docx-font-size-presets",
+      "docx-bold",
+      "docx-italic",
+      "docx-underline",
       "docx-strike",
       "docx-superscript",
       "docx-subscript",

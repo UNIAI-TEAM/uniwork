@@ -92,6 +92,24 @@ describe("DocxStatusBar", () => {
     },
   );
 
+  it("splits the readouts into a left cluster and a right cluster with the selection (C10)", () => {
+    renderBar({ page: { current: 1, total: 3 }, counts: { words: 12 }, language: "vi-VN", zoom: 100, selection: { from: 2, to: 7 } });
+    const left = screen.getByTestId("docx-status-left");
+    const right = screen.getByTestId("docx-status-right");
+    expect(left).toContainElement(screen.getByTestId("docx-status-page"));
+    expect(left).toContainElement(screen.getByTestId("docx-status-language"));
+    expect(right).toContainElement(screen.getByTestId("docx-status-selection"));
+    expect(right).toContainElement(screen.getByTestId("docx-status-zoom"));
+    expect(screen.getByTestId("docx-status-selection")).toHaveTextContent("Selection 2\u20137");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
+  });
+
+  it("hides the selection readout for a collapsed caret", () => {
+    renderBar({ selection: { from: 4, to: 4 } });
+    expect(screen.queryByTestId("docx-status-selection")).toBeNull();
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("\u2014");
+  });
+
   it("renders a partial page position without inventing the missing side", () => {
     renderBar({ page: { current: 3 } });
     expect(screen.getByTestId("docx-status-page")).toHaveTextContent("Page 3 / —");

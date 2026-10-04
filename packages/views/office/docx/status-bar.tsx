@@ -1,18 +1,67 @@
 "use client";
 
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
+import { docxEditorCounts, readDocxPagePosition, type DocxPagePosition } from "./status";
+import { DocxStatusBar as DocxStatusBarView } from "./status/status-bar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
-import { DocxStatusBar as DocxStatusBarView } from "./status";
+import { getDocxZoomController, useDocxZoomState } from "./view";
+import { useDocxViewSurface } from "./view/surface-targets";
 
 /**
  * Editor-chrome slot: docx-editor.tsx mounts this with the shared toolbar
- * context. The bar is presentational, and the context carries the host
- * EditorHandle, which keeps the live TipTap document private (no counts or
- * language reader; the command runtime exposes none either), so counts and
- * language have no source yet and the wiring does not measure page x/y or
- * zoom — every readout renders its unknown mark. A later round that publishes
- * the live editor (the schema-extension store pattern the find layer uses) can
- * feed this adapter without changing the mount contract.
+ * context. The bar is presentational; this adapter feeds it from the surfaces
+ * the lane already publishes, so no engine accessor has to be threaded through
+ * the handle:
+ *
+ * - the live TipTap editor (the store the find layer publishes) for the word /
+ *   character counts and the document language the handle writes on the root;
+ * - the shared zoom controller (view/**) for the zoom mirror;
+ * - the mounted scroll viewport for the page x/y the pagination driver's
+ *   page-gap widgets mark;
+ * - the toolbar context's selection for the right-hand selection readout.
+ *
+ * Nothing here reaches into the save path; a host with no mounted document
+ * surface leaves every readout on its unknown mark.
  */
-export function DocxStatusBar(_context: DocxToolbarGroupContext) {
-  return <DocxStatusBarView />;
+export function DocxStatusBar({ selection }: DocxToolbarGroupContext) {
+  const live = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
+  const surface = useDocxViewSurface();
+  const controller = getDocxZoomController();
+  const zoom = useDocxZoomState(controller);
+  const [page, setPage] = useState<DocxPagePosition | null>(null);
+  // Counts change on every transaction; the revision just re-renders the bar.
+  const [, setRevision] = useState(0);
+
+  useEffect(() => {
+    if (!live) return undefined;
+    const onTransaction = () => setRevision((value) => value + 1);
+    live.on("transaction", onTransaction);
+    return () => {
+      live.off("transaction", onTransaction);
+    };
+  }, [live]);
+
+  const scrollElement = surface?.scrollElement ?? null;
+  const surfaceKey = surface?.key ?? "";
+  useEffect(() => {
+    if (!scrollElement) {
+      setPage(null);
+      return undefined;
+    }
+    const read = () => setPage(readDocxPagePosition(scrollElement));
+    read();
+    scrollElement.addEventListener("scroll", read, { passive: true });
+    return () => scrollElement.removeEventListener("scroll", read);
+  }, [scrollElement, surfaceKey]);
+
+  return (
+    <DocxStatusBarView
+      counts={live ? docxEditorCounts(live) : null}
+      page={page}
+      language={live ? live.view.dom.getAttribute("lang") : null}
+      zoom={surface ? zoom.percent : null}
+      selection={selection ? { from: selection.from, to: selection.to } : null}
+    />
+  );
 }

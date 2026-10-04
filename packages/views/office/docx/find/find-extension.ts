@@ -1,37 +1,27 @@
 import { Extension, type Editor } from "@tiptap/core";
+import { getDocxLiveEditor, publishDocxEditor, subscribeDocxLiveEditor } from "../editor-store";
 import { createDocxFindPlugin } from "./find-decoration";
 import { closeDocxFind } from "./find-store";
 
-let current: Editor | null = null;
-const listeners = new Set<() => void>();
+/** The live editor the find surface searches; null while no document is open.
+ * Re-exported from the shared editor store so every chrome subtree reads one
+ * source (see ../../editor-store.ts). */
+export const getDocxFindEditor = getDocxLiveEditor;
+export const subscribeDocxFindEditor = subscribeDocxLiveEditor;
 
 function publish(editor: Editor | null): void {
-  if (current === editor) return;
-  current = editor;
+  if (getDocxLiveEditor() === editor) return;
   // A fresh document starts with Find closed, the way Word does it: the open
   // state must not leak across an editor teardown into the next document.
   if (!editor) closeDocxFind();
-  for (const listener of listeners) listener();
-}
-
-/** The live editor the find surface searches; null while no document is open. */
-export function getDocxFindEditor(): Editor | null {
-  return current;
-}
-
-export function subscribeDocxFindEditor(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  publishDocxEditor(editor);
 }
 
 /**
  * Schema-level find layer, registered by docx-schema.ts. The panel and the
  * toolbar group are mounted in different shell subtrees and the shared context
- * carries only the host handle, so the editor is published here instead of
- * being threaded through as a prop. One editing surface per host page, the same
- * assumption the view zoom controller makes.
+ * carries only the host handle, so the editor is published through the shared
+ * editor store instead of being threaded through as a prop.
  */
 export const DocxFindExtension = Extension.create({
   name: "docxFind",
@@ -42,6 +32,6 @@ export const DocxFindExtension = Extension.create({
     return [createDocxFindPlugin()];
   },
   onDestroy() {
-    if (current === this.editor) publish(null);
+    if (getDocxLiveEditor() === this.editor) publish(null);
   },
 });

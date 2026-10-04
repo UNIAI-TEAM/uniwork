@@ -22,6 +22,12 @@ export interface DocxStatusPage {
   total?: number | null;
 }
 
+/** The caret/selection range the wiring reports (M-1 / C10). */
+export interface DocxStatusSelection {
+  from: number;
+  to: number;
+}
+
 export interface DocxStatusBarProps {
   /** Live editor; counts are derived from it unless `counts` is supplied. */
   editor?: Editor | null;
@@ -32,6 +38,8 @@ export interface DocxStatusBarProps {
   language?: string | null;
   /** Whole zoom percentage > 0 (100 = 100%); anything else renders the unknown mark. */
   zoom?: number | null;
+  /** The active selection; a collapsed caret renders no selection readout. */
+  selection?: DocxStatusSelection | null;
   className?: string;
 }
 
@@ -61,13 +69,32 @@ function zoomValue(value: number | null | undefined): string | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? String(value) : null;
 }
 
+function Readout({ testId, text }: { testId: string; text: string }) {
+  return (
+    <span className="min-w-0 truncate" data-testid={testId}>
+      {text}
+    </span>
+  );
+}
+
+/** A separator between readouts inside one cluster. */
+function Dot() {
+  return (
+    <span aria-hidden="true" className="shrink-0 text-faint-foreground">
+      {SEPARATOR}
+    </span>
+  );
+}
+
 /**
- * DOCX status row: page x/y, word/character counts, document language and a
- * zoom mirror. Presentational — the wiring owns page, zoom and language and
- * either feeds counts or hands over the editor; every missing field renders
- * the unknown mark, so the bar is safe to mount before those surfaces exist.
+ * DOCX status row (28px, C10): the left cluster carries page x/y, word and
+ * character counts and the document language; the right cluster carries the
+ * active selection and the zoom mirror. Presentational - the wiring owns page,
+ * zoom, language and selection and either feeds counts or hands over the
+ * editor; every missing field renders the unknown mark, so the bar is safe to
+ * mount before those surfaces exist.
  */
-export function DocxStatusBar({ editor, counts, page, language, zoom, className }: DocxStatusBarProps) {
+export function DocxStatusBar({ editor, counts, page, language, zoom, selection, className }: DocxStatusBarProps) {
   const { t } = useTranslation();
   const unknown = t("office.docx.status.unknown");
   const resolvedCounts = counts ?? (editor ? docxEditorCounts(editor) : null);
@@ -85,8 +112,10 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, className 
   // The zoom template carries a trailing `%`, so an unknown value collapses to
   // the bare mark instead of rendering a dangling percent sign.
   const zoomText = zoomPercent === null ? unknown : t("office.docx.status.zoom", { percent: zoomPercent });
+  // A collapsed caret is not a selection; Word's bar shows the range only.
+  const hasSelection = Boolean(selection && selection.to > selection.from);
 
-  const items: ReadonlyArray<{ testId: string; text: string }> = [
+  const left: ReadonlyArray<{ testId: string; text: string }> = [
     { testId: "docx-status-page", text: pageText },
     { testId: "docx-status-words", text: t("office.docx.status.words", { value: countText(resolvedCounts?.words, unknown) }) },
     {
@@ -98,7 +127,6 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, className 
       text: t("office.docx.status.charactersNoSpaces", { value: countText(resolvedCounts?.charactersWithoutSpaces, unknown) }),
     },
     { testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel ?? unknown }) },
-    { testId: "docx-status-zoom", text: zoomText },
   ];
 
   return (
@@ -109,22 +137,30 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, className 
       aria-live="off"
       data-testid="docx-status-bar"
       className={cn(
-        "flex min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-caption text-muted-foreground",
+        "flex h-7 min-w-0 flex-nowrap items-center justify-between gap-x-3 overflow-hidden whitespace-nowrap px-2 text-caption text-muted-foreground",
         className,
       )}
     >
-      {items.map((item, index) => (
-        <Fragment key={item.testId}>
-          {index > 0 ? (
-            <span aria-hidden="true" className="shrink-0 text-faint-foreground">
-              {SEPARATOR}
-            </span>
-          ) : null}
-          <span className="min-w-0 truncate" data-testid={item.testId}>
-            {item.text}
-          </span>
-        </Fragment>
-      ))}
+      <div className="flex min-w-0 items-center gap-x-2" data-testid="docx-status-left">
+        {left.map((item, index) => (
+          <Fragment key={item.testId}>
+            {index > 0 ? <Dot /> : null}
+            <Readout testId={item.testId} text={item.text} />
+          </Fragment>
+        ))}
+      </div>
+      <div className="flex min-w-0 shrink-0 items-center gap-x-2" data-testid="docx-status-right">
+        {hasSelection && selection ? (
+          <>
+            <Readout
+              testId="docx-status-selection"
+              text={t("office.docx.selection.range", { from: selection.from, to: selection.to })}
+            />
+            <Dot />
+          </>
+        ) : null}
+        <Readout testId="docx-status-zoom" text={zoomText} />
+      </div>
     </div>
   );
 }

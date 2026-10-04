@@ -16,11 +16,13 @@ const ALIGNMENTS: readonly { align: ParagraphAlign; icon: typeof AlignLeft; labe
 ];
 
 /**
- * The Home tab's paragraph group (task A3): alignment, indent/outdent and the
- * line + paragraph spacing popover. The bullet/numbering toggles already live
- * in the pre-wave base group and are reused as-is; every command here comes
- * from commands/paragraph.ts and only maps attrs the vendored paragraph nodes
- * already store.
+ * The Home tab's paragraph group (task A3, C8 order): outdent/indent, the four
+ * alignments and the line + paragraph spacing popover. The bullet/numbered
+ * toggles the pre-wave base group carried duplicated the list gallery that
+ * renders just before this group, so each control now appears once per tab
+ * (C7); the list controls themselves live in lists/home-lists.tsx. Commands
+ * come from commands/paragraph.ts and only map attrs the vendored paragraph
+ * nodes already store.
  */
 export function HomeParagraphGroup({ format, commands, readOnly, saving }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
@@ -28,22 +30,7 @@ export function HomeParagraphGroup({ format, commands, readOnly, saving }: DocxT
   const align = format?.align ?? null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {ALIGNMENTS.map(({ align: value, icon: Icon, labelKey }) => (
-        <Toggle
-          key={value}
-          type="button"
-          variant="toolbar"
-          size="sm"
-          pressed={align === value}
-          onPressedChange={() => commands?.setParagraphAlign(value)}
-          disabled={blocked}
-          aria-label={t(labelKey)}
-          data-testid={`docx-align-${value}`}
-        >
-          <Icon aria-hidden />
-        </Toggle>
-      ))}
+    <div className="flex flex-nowrap items-center gap-1">
       <Button
         type="button"
         variant="toolbar"
@@ -66,6 +53,21 @@ export function HomeParagraphGroup({ format, commands, readOnly, saving }: DocxT
       >
         <IndentIncrease aria-hidden />
       </Button>
+      {ALIGNMENTS.map(({ align: value, icon: Icon, labelKey }) => (
+        <Toggle
+          key={value}
+          type="button"
+          variant="toolbar"
+          size="sm"
+          pressed={align === value}
+          onPressedChange={() => commands?.setParagraphAlign(value)}
+          disabled={blocked}
+          aria-label={t(labelKey)}
+          data-testid={`docx-align-${value}`}
+        >
+          <Icon aria-hidden />
+        </Toggle>
+      ))}
       <ParagraphSpacingPicker
         lineSpacing={format?.lineSpacing ?? null}
         spaceBeforePt={ptFromTwips(format?.spaceBeforeTwips ?? null)}

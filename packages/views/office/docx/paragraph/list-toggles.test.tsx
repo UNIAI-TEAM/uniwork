@@ -3,13 +3,17 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
-import { HomeBaseFormatGroup } from "../toolbar/groups/home-base";
+import { HomeFontGroup } from "../toolbar/groups/home-font";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 
 /**
- * A3 checklist item 3: the bullet/numbering toggles stay at one level and keep
- * their active state. The buttons live in the pre-wave base group; these tests
- * pin the behaviour the paragraph work reuses instead of duplicating them.
+ * C7/C8 dedupe: the pre-wave "Formatting" group carried a Heading select and
+ * bullet/numbered toggles that duplicated the Styles gallery and the list
+ * gallery. Those controls are gone; the Home command strip renders the list
+ * entry exactly once (lists/home-lists.tsx) and the character trio once (in the
+ * Font group). The `toggleList` command itself still backs the list gallery and
+ * is exercised here through the command runtime, not through a duplicate
+ * button.
  */
 const editors: Editor[] = [];
 
@@ -88,7 +92,7 @@ function renderGroup(
   editor.commands.setTextSelection(2);
   const format = { ...runtime.getState(), ...(options.formatOverride ?? {}) } as DocxToolbarGroupContext["format"];
   const commands = "commands" in options ? options.commands : runtime;
-  render(<HomeBaseFormatGroup {...context({ commands, format, readOnly: options.readOnly ?? false })} />);
+  render(<HomeFontGroup {...context({ commands, format, readOnly: options.readOnly ?? false })} />);
   return { editor, runtime };
 }
 
@@ -97,36 +101,70 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("list toggles (base group)", () => {
-  it("adds a bullet list at level 0 and returns to a paragraph on the second click", () => {
+describe("Home character trio (Font group)", () => {
+  it("renders bold/italic/underline once and no duplicate list or heading controls", () => {
+    renderGroup();
+    expect(screen.getByTestId("docx-bold")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-italic")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-underline")).toBeInTheDocument();
+    // The deduped controls: no bullet/numbered toggle and no heading select in
+    // this group (the list gallery and the Styles gallery own them).
+    expect(screen.queryByRole("button", { name: "Danh s?ch d?u ??u d?ng" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Danh s?ch ??nh s?" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Ti?u ??" })).not.toBeInTheDocument();
+  });
+
+  it("toggles the trio through the shared command runtime", () => {
     const { editor } = renderGroup();
-    fireEvent.click(screen.getByRole("button", { name: "Danh sách dấu đầu dòng" }));
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    fireEvent.click(screen.getByTestId("docx-bold"));
+    fireEvent.click(screen.getByTestId("docx-italic"));
+    fireEvent.click(screen.getByTestId("docx-underline"));
+    expect(editor.isActive("bold")).toBe(true);
+    expect(editor.isActive("italic")).toBe(true);
+    expect(editor.isActive("underline")).toBe(true);
+  });
+
+  it("marks the active marks from the composed state", () => {
+    renderGroup({ formatOverride: { bold: true, italic: false, underline: true } });
+    expect(screen.getByTestId("docx-bold")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("docx-italic")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("docx-underline")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("disables the trio while read-only", () => {
+    renderGroup({ readOnly: true });
+    expect(screen.getByTestId("docx-bold")).toBeDisabled();
+    expect(screen.getByTestId("docx-italic")).toBeDisabled();
+    expect(screen.getByTestId("docx-underline")).toBeDisabled();
+  });
+});
+
+describe("toggleList command (single list entry)", () => {
+  it("adds a bullet list at level 0 and returns to a paragraph on the second call", () => {
+    const editor = editorWith([paragraph("hello world")]);
+    const runtime = createDocxCommandRuntime(() => editor);
+    editor.commands.setTextSelection(2);
+
+    runtime.toggleList("bullet");
     expect(blockAt(editor).type.name).toBe("docListItem");
     expect(attrsOf(editor).kind).toBe("bullet");
     expect(attrsOf(editor).ilvl).toBe(0);
     expect(typeof attrsOf(editor).numId).toBe("string");
-    fireEvent.click(screen.getByRole("button", { name: "Danh sách dấu đầu dòng" }));
+
+    runtime.toggleList("bullet");
     expect(blockAt(editor).type.name).toBe("docParagraph");
   });
 
   it("switches a list item to numbering through the same command", () => {
-    const { editor } = renderGroup();
-    fireEvent.click(screen.getByRole("button", { name: "Danh sách dấu đầu dòng" }));
-    fireEvent.click(screen.getByRole("button", { name: "Danh sách đánh số" }));
+    const editor = editorWith([paragraph("hello world")]);
+    const runtime = createDocxCommandRuntime(() => editor);
+    editor.commands.setTextSelection(2);
+
+    runtime.toggleList("bullet");
+    runtime.toggleList("ordered");
     expect(blockAt(editor).type.name).toBe("docListItem");
     expect(attrsOf(editor).kind).toBe("ordered");
     expect(attrsOf(editor).ilvl).toBe(0);
-  });
-
-  it("marks the active list kind from the composed state", () => {
-    renderGroup({ formatOverride: { listKind: "ordered" } });
-    expect(screen.getByRole("button", { name: "Danh sách đánh số" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Danh sách dấu đầu dòng" })).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("disables the toggles while read-only", () => {
-    renderGroup({ readOnly: true });
-    expect(screen.getByRole("button", { name: "Danh sách dấu đầu dòng" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Danh sách đánh số" })).toBeDisabled();
   });
 });
