@@ -31,15 +31,18 @@ export interface PdfFormatAdapterOptions extends BrowserOfficeDraftOptions<PdfSn
   applyOps?: typeof applyPdfOpsInBrowser;
   readFormFields?: typeof readPdfFormFields;
   readNotes?: typeof readPdfNotes;
+  /** Test seam: the undo/redo byte budget; production uses UNDO_BYTE_BUDGET. */
+  undoByteBudget?: number;
 }
 
 type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>>;
 type FailureClass = "password_required" | "wrong_password" | "engine_error";
 
 interface PdfEditorSurface extends PdfEditorHandle<PdfSnapshot> {
-  /** The web lane opens with an optional password (C3); the base handle's
-   * `open()` takes none, so the surface widens it here. */
-  open(password?: string): Promise<void>;
+  /** The web lane opens with an optional password (C3) and threads the
+   * caller's AbortSignal so a superseded open stops early; the base handle's
+   * `open()` takes neither, so the surface widens it here. */
+  open(signal?: AbortSignal, password?: string): Promise<void>;
   openOutcome(): PdfOpenOutcome | null;
   serializeSnapshot(snapshot: StableSnapshot<PdfSnapshot>): Promise<{ bytes: Uint8Array; checksum: string }>;
   /** Final teardown, called when the host session is disposed. dispose() alone stays reopenable. */
@@ -47,7 +50,19 @@ interface PdfEditorSurface extends PdfEditorHandle<PdfSnapshot> {
   openFailureClass(): FailureClass;
 }
 
-const UNDO_LIMIT = 20;
+/** The undo/redo stacks keep the newest byte snapshots until this budget is spent. */
+const UNDO_BYTE_BUDGET = 256 * 1024 * 1024;
+
+/** Push a snapshot and drop the oldest entries past the budget, always keeping
+    at least the newest one. */
+function pushBounded(stack: Uint8Array[], bytes: Uint8Array, budget: number): void {
+  stack.push(bytes);
+  let total = stack.reduce((sum, entry) => sum + entry.byteLength, 0);
+  while (total > budget && stack.length > 1) {
+    const dropped = stack.shift();
+    if (dropped) total -= dropped.byteLength;
+  }
+}
 
 function failureClassOf(error: unknown): FailureClass {
   const code = (error as { code?: unknown } | null)?.code;
@@ -67,6 +82,7 @@ function createPdfEditorSurface(options: {
   applyOps: typeof applyPdfOpsInBrowser;
   readFormFields: typeof readPdfFormFields;
   readNotes: typeof readPdfNotes;
+  undoByteBudget: number;
 }): PdfEditorSurface {
   let original: Uint8Array | null = null;
   let current: Uint8Array | null = null;
@@ -114,9 +130,11 @@ function createPdfEditorSurface(options: {
     opening ??= (async () => {
       const myEpoch = epoch;
       try {
+        if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
         const bytes = original ?? await options.documents.read();
         if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
         const session = await options.createRenderSession(bytes, password === undefined ? undefined : { password });
+        if (signal?.aborted) { session.dispose(); throw new DOMException("Open cancelled", "AbortError"); }
         if (myEpoch !== epoch || terminated) { session.dispose(); throw new Error("pdf_editor_disposed"); }
         original = bytes;
         current = bytes;
@@ -138,8 +156,7 @@ function createPdfEditorSurface(options: {
     if (!bytes) throw new Error("pdf_editor_not_open");
     const result = await options.applyOps(bytes, operations);
     await swapDocument(result.bytes);
-    undoStack.push(bytes);
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    pushBounded(undoStack, bytes, options.undoByteBudget);
     redoStack = [];
     return { skipped: result.skipped };
   });
@@ -152,7 +169,7 @@ function createPdfEditorSurface(options: {
       if (!target || !bytes) return;
       await swapDocument(target);
       source.pop();
-      to().push(bytes);
+      pushBounded(to(), bytes, options.undoByteBudget);
     }).catch(() => undefined);
   };
 
@@ -183,7 +200,7 @@ function createPdfEditorSurface(options: {
 
   return {
     format: "pdf",
-    open: (password?: string) => load(undefined, password),
+    open: (signal?: AbortSignal, password?: string) => load(signal, password),
     openOutcome: () => outcome,
     openFailureClass: () => lastFailure,
     getDirtyGeneration: () => generation,
@@ -262,6 +279,7 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
     applyOps: options.applyOps ?? applyPdfOpsInBrowser,
     readFormFields: options.readFormFields ?? readPdfFormFields,
     readNotes: options.readNotes ?? readPdfNotes,
+    undoByteBudget: options.undoByteBudget ?? UNDO_BYTE_BUDGET,
   });
   const transport = createPdfSaveTransport({
     documentId: options.identity.documentId,
@@ -274,7 +292,7 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
     async open(signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome> {
       if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
       try {
-        await editor.open(password);
+        await editor.open(signal, password);
         if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
         const result = editor.openOutcome();
         if (!result) throw new Error("pdf_open_outcome_missing");

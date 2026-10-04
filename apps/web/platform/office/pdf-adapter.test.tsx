@@ -311,4 +311,57 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
     await expect(editor.open()).rejects.toThrow("pdf_editor_disposed");
   });
+
+  it("trims the undo stack by total bytes instead of entry count", async () => {
+    let call = 0;
+    const applyOps = vi.fn(async () => ({ bytes: new Uint8Array(12).fill(++call), skipped: [] }));
+    // Budget fits a single 12-byte snapshot: the third edit must drop the two
+    // oldest entries (5-byte original and the first 12-byte snapshot).
+    const { adapter, editor } = setup({ applyOps, undoByteBudget: 20 });
+    await adapter.open.open();
+    await editor.submitEngineOperations?.([{ op: "a" }]);
+    await editor.submitEngineOperations?.([{ op: "b" }]);
+    await editor.submitEngineOperations?.([{ op: "c" }]);
+    const readBytes = async () => Array.from((await editor.serializeSnapshot(await editor.captureSnapshot())).bytes);
+    expect(await readBytes()).toEqual(Array.from(new Uint8Array(12).fill(3)));
+
+    const undone = new Promise<void>((resolve) => { const off = editor.subscribe!(() => { off(); resolve(); }); });
+    editor.undo?.();
+    await undone;
+    expect(await readBytes()).toEqual(Array.from(new Uint8Array(12).fill(2)));
+
+    // Only the newest entry survived the byte budget, so the next undo is a no-op.
+    editor.undo?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await readBytes()).toEqual(Array.from(new Uint8Array(12).fill(2)));
+    await adapter.session.dispose();
+  });
+
+  it("aborts a superseded open without swapping the document", async () => {
+    const controller = new AbortController();
+    let enteredResolve!: () => void;
+    const entered = new Promise<void>((resolve) => { enteredResolve = resolve; });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const sessions: FakeSession[] = [];
+    const createRenderSession = vi.fn(async (bytes: Uint8Array) => {
+      enteredResolve();
+      await gate;
+      const session = fakeSession(bytes, ["a"]);
+      sessions.push(session);
+      return session;
+    });
+    const { adapter, editor } = setup({ createRenderSession });
+
+    const pending = adapter.open.open(controller.signal);
+    await entered;
+    controller.abort();
+    release();
+
+    await expect(pending).rejects.toThrow("Open cancelled");
+    expect(sessions[0]!.disposed).toBe(true);
+    expect(editor.getPdfSnapshot?.()).toBeNull();
+    expect(editor.openOutcome()).toBeNull();
+    await adapter.session.dispose();
+  });
 });
