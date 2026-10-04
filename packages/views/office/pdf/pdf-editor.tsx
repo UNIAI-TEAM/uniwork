@@ -336,7 +336,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     if (!modifier) return;
     const key = event.key.toLowerCase();
     if (key === "s") { event.preventDefault(); save("shortcut"); }
-    else if (key === "f") { event.preventDefault(); toggleFind(); }
+    else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
     else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); undo(); }
     else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); redo(); }
   }, [redo, save, toggleFind, undo]);

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import i18n from "i18next";
 import { expect, it } from "vitest";
@@ -98,6 +98,28 @@ it("shows no recovery prompt when the store holds no draft for this document", a
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
   await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("office.ribbon.more") })).toBeInTheDocument());
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
+});
+
+it("exposes the local-mode AI entry as a labelled group and keeps it locked", async () => {
+  const bridge = {
+    call: (async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {}) as RendererBridge["call"],
+    onSessionChanged: () => () => undefined,
+  } as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" kind="local" signedIn={false} onSignIn={() => undefined} onBack={() => undefined} />);
+
+  // The AI entry is reachable as a labelled group inside the document menu, not
+  // a bare <div> child of role=menu.
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  const group = await screen.findByRole("group", { name: i18n.t("officeDesktop.ai.entry") });
+  const entry = within(group).getByRole("button", { name: i18n.t("officeDesktop.ai.entry") });
+  expect(entry).toHaveAttribute("data-ai-entry", "locked");
+
+  // Behaviour is unchanged: opening it stays locked and only offers sign-in.
+  fireEvent.click(entry);
+  const prompt = await screen.findByRole("dialog");
+  expect(within(prompt).getByText(i18n.t("officeDesktop.ai.title"))).toBeInTheDocument();
+  expect(within(prompt).getByRole("button", { name: i18n.t("officeDesktop.ai.signIn") })).toBeInTheDocument();
 });
 
 it("keeps ONE primary Save in the header and moves Save As and back into the document menu", async () => {

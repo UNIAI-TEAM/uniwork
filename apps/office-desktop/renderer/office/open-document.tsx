@@ -8,7 +8,7 @@ import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
@@ -26,6 +26,7 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
+  const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -91,7 +92,7 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
           <MoreIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-56">
-          {kind === "local" ? <div className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></div> : null}
+          {kind === "local" ? <DropdownMenuGroup aria-label={tAi("entry")} className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></DropdownMenuGroup> : null}
           {ready && session.canSave && session.localHandle ? <DropdownMenuItem className="gap-2 px-2 py-2" disabled={saveState === "saving"} onClick={() => { void saveAs(); }}>{t("saveAs")}</DropdownMenuItem> : null}
           <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</DropdownMenuItem>
         </DropdownMenuContent>

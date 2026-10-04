@@ -421,6 +421,19 @@ describe("PdfEditor", () => {
     expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 
+  it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+
+    // The shifted chord must not reach the Find toggle (nor preventDefault the
+    // browser's own Ctrl+Shift+F), while the plain Ctrl+F still opens Find.
+    fireEvent.keyDown(root, { key: "F", ctrlKey: true, shiftKey: true });
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    fireEvent.keyDown(root, { key: "f", ctrlKey: true });
+    expect(screen.getByRole("search")).toBeInTheDocument();
+  });
+
   it("disables undo and redo when the handle exposes no history facet", async () => {
     const markDirty = vi.fn();
     // The desktop lane mounts a handle without undo/redo, so a no-op step must
