@@ -24,7 +24,7 @@ import type {
 } from "./types";
 
 /** What the row shows before the editor instance exists (or when read-only). */
-export const EMPTY_MARKDOWN_TOOLBAR_STATE: MarkdownToolbarState = {
+const EMPTY_MARKDOWN_TOOLBAR_STATE: MarkdownToolbarState = {
   readOnly: true,
   activeBlock: "paragraph",
   marks: { bold: false, italic: false, strike: false, inlineCode: false },
@@ -36,7 +36,7 @@ export const EMPTY_MARKDOWN_TOOLBAR_STATE: MarkdownToolbarState = {
 };
 
 /** The state the editor reports on its own; the pane toggles are the caller's. */
-export type MarkdownEditorToolbarState = Omit<MarkdownToolbarState, "readOnly" | "outline" | "frontmatter">;
+type MarkdownEditorToolbarState = Omit<MarkdownToolbarState, "readOnly" | "outline" | "frontmatter">;
 
 function readEditorState(editor: Editor): MarkdownEditorToolbarState {
   const headingLevel = editor.isActive("heading") ? (editor.getAttributes("heading").level as number | undefined) : null;
@@ -78,13 +78,20 @@ export function useMarkdownEditorToolbarState(editor: Editor | null): MarkdownEd
  * The row's commands. `insertImage` is absent until M5 wires asset upload, so
  * the image control renders disabled with a "not available yet" tooltip rather
  * than offering an insert the document could not keep.
+ *
+ * Every command is guarded by `editor.isEditable`, not only by the disabled
+ * surface. The controls are one way in - a ribbon custom item, a menu entry or
+ * a future host could call an action directly - and a command that mutated a
+ * non-editable document would publish the change back to the source as a dirty
+ * edit the user cannot undo. The guard sits at the one place every action
+ * funnels through, so each is inert no matter which surface invoked it.
  */
 export function useMarkdownToolbarActions(editor: Editor | null, options: { insertImage?: () => void } = {}): MarkdownToolbarActions {
   const insertImage = options.insertImage;
   return useMemo<MarkdownToolbarActions>(
     () => ({
       setBlockStyle(style) {
-        if (!editor) return;
+        if (!editor?.isEditable) return;
         const chain = editor.chain().focus();
         const level = headingLevelOf(style);
         if (level !== null) chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run();
@@ -93,7 +100,7 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
         else chain.setParagraph().run();
       },
       toggleMark(mark: MarkdownInlineMark) {
-        if (!editor) return;
+        if (!editor?.isEditable) return;
         const chain = editor.chain().focus();
         if (mark === "bold") chain.toggleBold().run();
         else if (mark === "italic") chain.toggleItalic().run();
@@ -101,7 +108,7 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
         else chain.toggleCode().run();
       },
       applyLink(href, title) {
-        if (!editor) return;
+        if (!editor?.isEditable) return;
         editor
           .chain()
           .focus()
@@ -110,18 +117,19 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
           .run();
       },
       removeLink() {
-        if (!editor) return;
+        if (!editor?.isEditable) return;
         editor.chain().focus().extendMarkRange("link").unsetLink().run();
       },
       toggleList(list: MarkdownListKind) {
-        if (!editor) return;
+        if (!editor?.isEditable) return;
         const chain = editor.chain().focus();
         if (list === "bullet") chain.toggleBulletList().run();
         else if (list === "ordered") chain.toggleOrderedList().run();
         else chain.toggleTaskList().run();
       },
       insertTable() {
-        editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+        if (!editor?.isEditable) return;
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
       },
       insertImage: insertImage
         ? () => {
@@ -129,19 +137,16 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
           }
         : undefined,
       insertHorizontalRule() {
-        editor?.chain().focus().setHorizontalRule().run();
+        if (!editor?.isEditable) return;
+        editor.chain().focus().setHorizontalRule().run();
       },
       insertDiagram() {
+        if (!editor?.isEditable) return;
         insertMermaidDiagram(editor);
       },
       insertMath(kind, expression) {
+        if (!editor?.isEditable) return;
         applyMath(editor, kind, expression);
-      },
-      setOutline() {
-        // Pane visibility is the caller's state (M6 owns the panes).
-      },
-      setFrontmatter() {
-        // Pane visibility is the caller's state (M6 owns the panes).
       },
     }),
     [editor, insertImage],

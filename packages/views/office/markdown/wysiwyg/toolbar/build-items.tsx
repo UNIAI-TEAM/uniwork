@@ -18,9 +18,10 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  ListTree,
   Minus,
   PanelTop,
-  Rows3,
+  PanelTopOpen,
   Strikethrough,
   Table2,
   Workflow,
@@ -47,8 +48,8 @@ const ICONS: Record<string, RibbonIcon> = {
   insertHr: Minus,
   insertDiagram: Workflow,
   insertMath: Sigma,
-  viewOutline: Rows3,
-  viewFrontmatter: Rows3,
+  viewOutline: ListTree,
+  viewFrontmatter: PanelTopOpen,
 };
 
 /** True when a toggle reads as "on" for the given state. */

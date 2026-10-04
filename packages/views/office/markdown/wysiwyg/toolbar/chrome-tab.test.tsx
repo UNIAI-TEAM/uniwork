@@ -45,6 +45,25 @@ function createHandle(): TextEditorHandle {
 let live: Editor | null = null;
 let renderedTab: ReturnType<typeof useMarkdownToolbarChromeTab> | null = null;
 
+/** jsdom lays nothing out: report the widths the chrome's overflow decision reads. */
+function stubWidths(widths: Record<string, number>, rowWidth: number): () => void {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    const group = this.getAttribute("data-chrome-group");
+    const width = group ? widths[group] : undefined;
+    if (width !== undefined) {
+      return { x: 0, y: 0, width, height: 28, top: 0, left: 0, right: width, bottom: 28, toJSON: () => ({}) } as DOMRect;
+    }
+    if (this.getAttribute("data-testid") === "editor-chrome-commands") {
+      return { x: 0, y: 0, width: rowWidth, height: 44, top: 0, left: 0, right: rowWidth, bottom: 44, toJSON: () => ({}) } as DOMRect;
+    }
+    return original.call(this);
+  };
+  return () => {
+    HTMLElement.prototype.getBoundingClientRect = original;
+  };
+}
+
 /** The Markdown groups mounted in the SHARED chrome, exactly as a host would. */
 function Harness() {
   const [handle] = useState(createHandle);
@@ -108,6 +127,38 @@ describe("useMarkdownToolbarChromeTab", () => {
     // A plain control still carries its command for the menu.
     const bold = tab.groups.flatMap((group) => group.items).find((item) => item.id === "bold");
     expect(typeof bold?.onSelect).toBe("function");
+  });
+
+  it("drives the editor from the » overflow menu and keeps the two custom entries inert", async () => {
+    // Every group is too wide for the row, so all six move into "»".
+    const restore = stubWidths(
+      { blockStyle: 400, inline: 400, link: 400, lists: 400, insert: 400, view: 400 },
+      300,
+    );
+    try {
+      render(<Harness />);
+      await waitForChrome();
+      await act(async () => {
+        live!.chain().selectAll().run();
+      });
+      // A plain control still runs its command from the menu.
+      fireEvent.click(await screen.findByTestId("editor-chrome-overflow"));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Bold" }));
+      await waitFor(() => expect(live!.isActive("bold")).toBe(true));
+      // The block-style dropdown and the link popover cannot be rebuilt inside a
+      // menu, so their entries are inert labels - a menu click must not silently
+      // apply a style or drop a link. The menu closes on each item click, so
+      // re-open it for the second entry.
+      const before = JSON.stringify(live!.getJSON());
+      fireEvent.click(screen.getByTestId("editor-chrome-overflow"));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Block style" }));
+      expect(JSON.stringify(live!.getJSON())).toBe(before);
+      fireEvent.click(screen.getByTestId("editor-chrome-overflow"));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Link" }));
+      expect(JSON.stringify(live!.getJSON())).toBe(before);
+    } finally {
+      restore();
+    }
   });
 
   it("does not add undo/redo or Save to the Markdown groups", async () => {

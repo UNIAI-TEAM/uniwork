@@ -7,6 +7,7 @@ import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "../editor";
 import type { TextEditorHandle } from "../../../source-editor-types";
 import { MarkdownCommandRow } from "./command-row";
+import { useMarkdownToolbarActions } from "./use-markdown-toolbar-state";
 
 initI18n();
 beforeEach(async () => {
@@ -70,6 +71,25 @@ function Harness({ editable = true, ...row }: Partial<Parameters<typeof Markdown
 
 function renderRow(props: Partial<Parameters<typeof MarkdownCommandRow>[0]> = {}) {
   return render(<Harness {...props} />);
+}
+
+/**
+ * Calls the actions directly, bypassing every disabled surface. The read-only
+ * contract has to hold here too: a ribbon custom item, a menu entry or a future
+ * host can reach an action without going through a disabled button.
+ */
+function ActionsProbe({ editor }: { editor: Editor | null }) {
+  const actions = useMarkdownToolbarActions(editor);
+  return (
+    <>
+      <button type="button" onClick={() => actions.setBlockStyle("heading2")}>
+        probe block style
+      </button>
+      <button type="button" onClick={() => actions.toggleMark("bold")}>
+        probe bold
+      </button>
+    </>
+  );
 }
 
 const GROUP_ORDER = ["blockStyle", "inline", "link", "lists", "insert", "view"];
@@ -170,6 +190,87 @@ describe("MarkdownCommandRow", () => {
     const url = await screen.findByLabelText("Paste a URL");
     fireEvent.change(url, { target: { value: "example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply link" }));
+    await waitFor(() => expect(live!.isActive("link")).toBe(true));
+    expect(live!.getAttributes("link").href).toBe("https://example.com");
+  });
+
+  it("keeps the block-style menu closed while the editor is read-only", async () => {
+    renderRow({ editable: false });
+    await waitForRow();
+    const trigger = screen.getByRole("button", { name: "Block style" });
+    // Base UI opens a menu on mousedown and on keyboard, not on `onClick`, so
+    // the guard has to be the trigger's own `disabled` - the button's
+    // `aria-disabled` alone never sees these paths.
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).toBeDisabled();
+    const before = JSON.stringify(live!.getJSON());
+    fireEvent.mouseDown(trigger);
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-toolbar-menu="blockStyle"]')).toBeNull();
+    expect(JSON.stringify(live!.getJSON())).toBe(before);
+  });
+
+  it("keeps the link popover closed while the editor is read-only", async () => {
+    renderRow({ editable: false });
+    await waitForRow();
+    const trigger = screen.getByRole("button", { name: "Link" });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(document.querySelector('[data-toolbar-popover="link"]')).toBeNull();
+  });
+
+  it("makes every command inert on a non-editable editor, even when called directly", async () => {
+    renderRow({ editable: false });
+    await waitForRow();
+    await act(async () => {
+      live!.chain().selectAll().run();
+    });
+    const before = JSON.stringify(live!.getJSON());
+    render(<ActionsProbe editor={live} />);
+    fireEvent.click(screen.getByRole("button", { name: "probe block style" }));
+    fireEvent.click(screen.getByRole("button", { name: "probe bold" }));
+    expect(JSON.stringify(live!.getJSON())).toBe(before);
+  });
+
+  it("edits an existing link from the popover, seeded with its current target", async () => {
+    renderRow();
+    await waitForRow();
+    await act(async () => {
+      live!.chain().selectAll().setLink({ href: "https://example.com", title: "Example" }).run();
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Link" })).toHaveAttribute("aria-pressed", "true"));
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    const url = await screen.findByLabelText("Paste a URL");
+    expect(url).toHaveValue("https://example.com");
+    expect(screen.getByLabelText("Link title (optional)")).toHaveValue("Example");
+    fireEvent.change(url, { target: { value: "docs.example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply link" }));
+    await waitFor(() => expect(live!.getAttributes("link").href).toBe("https://docs.example.com"));
+  });
+
+  it("removes a link from the popover", async () => {
+    renderRow();
+    await waitForRow();
+    await act(async () => {
+      live!.chain().selectAll().setLink({ href: "https://example.com" }).run();
+    });
+    await waitFor(() => expect(live!.isActive("link")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove link" }));
+    await waitFor(() => expect(live!.isActive("link")).toBe(false));
+  });
+
+  it("applies the link when Enter is pressed in the URL field", async () => {
+    renderRow();
+    await waitForRow();
+    await act(async () => {
+      live!.chain().selectAll().run();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    const url = await screen.findByLabelText("Paste a URL");
+    fireEvent.change(url, { target: { value: "example.com" } });
+    fireEvent.keyDown(url, { key: "Enter" });
     await waitFor(() => expect(live!.isActive("link")).toBe(true));
     expect(live!.getAttributes("link").href).toBe("https://example.com");
   });

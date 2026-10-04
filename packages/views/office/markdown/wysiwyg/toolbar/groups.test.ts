@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  MARKDOWN_BLOCK_STYLES,
-  MARKDOWN_TOOLBAR_GROUPS,
-  blockStyleOf,
-  headingLevelOf,
-  markdownToolbarControlIds,
-} from "./groups";
+import { MARKDOWN_BLOCK_STYLES, MARKDOWN_TOOLBAR_GROUPS, blockStyleOf, headingLevelOf } from "./groups";
+
+/** Every control id the command row declares, in row order. */
+const controlIds = () => MARKDOWN_TOOLBAR_GROUPS.flatMap((group) => group.controls.map((control) => control.id));
 
 describe("MARKDOWN_TOOLBAR_GROUPS", () => {
   it("declares the C7 order: block style, inline, link, lists, insert, view", () => {
@@ -20,14 +17,14 @@ describe("MARKDOWN_TOOLBAR_GROUPS", () => {
   });
 
   it("declares every control exactly once, with no duplicate group id", () => {
-    const ids = markdownToolbarControlIds();
+    const ids = controlIds();
     expect(new Set(ids).size).toBe(ids.length);
     const groupIds = MARKDOWN_TOOLBAR_GROUPS.map((group) => group.id);
     expect(new Set(groupIds).size).toBe(groupIds.length);
   });
 
   it("keeps undo, redo and save out of the command row", () => {
-    const ids = markdownToolbarControlIds();
+    const ids = controlIds();
     // Undo/redo are the chrome's tab-row quick access (C6); Save is the shared
     // save cluster (C2, UNI-930). A duplicate here would be a second control.
     for (const forbidden of ["undo", "redo", "save", "viewSource", "viewWysiwyg"]) {

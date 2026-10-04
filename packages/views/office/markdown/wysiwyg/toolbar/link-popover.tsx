@@ -9,7 +9,7 @@
  * rather than a second rule set that could drift. The title is optional
  * (`[text](href "title")`), so it is written only when the user types one.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { Link2, Link2Off } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -49,12 +49,21 @@ export function LinkPopover({ link, disabled = false, onApply, onRemove }: LinkP
     setOpen(false);
   };
 
+  // The popover is not a form, so Enter has to apply explicitly rather than
+  // submit. It commits only when the URL normalises, exactly like the button.
+  const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    apply();
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger
           render={
             <PopoverTrigger
+              disabled={disabled}
               render={
                 <Button
                   type="button"
@@ -76,16 +85,28 @@ export function LinkPopover({ link, disabled = false, onApply, onRemove }: LinkP
       </Tooltip>
       <PopoverContent align="start" className="w-80 gap-2" data-toolbar-popover="link">
         <Input
+          type="url"
+          inputMode="url"
+          name="link-url"
           value={href}
           onChange={(event) => setHref(event.target.value)}
+          onKeyDown={onFieldKeyDown}
           placeholder="https://"
           aria-label={t("office.markdown.wysiwyg.linkPlaceholder")}
+          autoComplete="off"
+          spellCheck={false}
           data-toolbar-link-url
         />
         <Input
+          type="text"
+          name="link-title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
+          onKeyDown={onFieldKeyDown}
+          placeholder={t("office.markdown.wysiwyg.linkTitle")}
           aria-label={t("office.markdown.wysiwyg.linkTitle")}
+          autoComplete="off"
+          spellCheck={false}
           data-toolbar-link-title
         />
         <div className="flex items-center gap-2">

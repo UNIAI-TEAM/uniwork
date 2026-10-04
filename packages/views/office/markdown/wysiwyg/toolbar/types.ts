@@ -117,6 +117,4 @@ export interface MarkdownToolbarActions {
   insertDiagram(): void;
   /** Insert or edit a formula: `inline` or `block` (M4). */
   insertMath(kind: "inline" | "block", expression: string): void;
-  setOutline(visible: boolean): void;
-  setFrontmatter(visible: boolean): void;
 }

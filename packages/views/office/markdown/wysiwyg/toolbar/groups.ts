@@ -56,7 +56,7 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
     id: "link",
     labelKey: "office.markdown.toolbar.groups.link",
     priority: 20,
-    controls: [{ id: "link", labelKey: "office.markdown.wysiwyg.link", kind: "custom", shortcut: "Ctrl+K" }],
+    controls: [{ id: "link", labelKey: "office.markdown.wysiwyg.link", kind: "custom" }],
   },
   {
     id: "lists",
@@ -92,11 +92,6 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
     ],
   },
 ];
-
-/** Every control id the command row declares, in row order. */
-export function markdownToolbarControlIds(): string[] {
-  return MARKDOWN_TOOLBAR_GROUPS.flatMap((group) => group.controls.map((control) => control.id));
-}
 
 /** The heading level a block style stands for, or null for the other styles. */
 export function headingLevelOf(style: MarkdownBlockStyle): number | null {

@@ -23,7 +23,7 @@ import { MARKDOWN_BLOCK_STYLES, headingLevelOf } from "./groups";
 import type { MarkdownBlockStyle } from "./types";
 
 /** i18next key for one block style. */
-export function blockStyleLabelKey(style: MarkdownBlockStyle): string {
+function blockStyleLabelKey(style: MarkdownBlockStyle): string {
   if (style === "paragraph") return "office.markdown.wysiwyg.paragraph";
   if (style === "quote") return "office.markdown.wysiwyg.quote";
   if (style === "code") return "office.markdown.wysiwyg.codeBlock";
@@ -31,13 +31,19 @@ export function blockStyleLabelKey(style: MarkdownBlockStyle): string {
 }
 
 /** Options for the i18next call: a heading needs its level. */
-export function blockStyleLabelOptions(style: MarkdownBlockStyle): Record<string, number> | undefined {
+function blockStyleLabelOptions(style: MarkdownBlockStyle): Record<string, number> | undefined {
   const level = headingLevelOf(style);
   return level === null ? undefined : { level };
 }
 
 export interface BlockStyleDropdownProps {
   value: MarkdownBlockStyle;
+  /**
+   * Read-only: the trigger itself is disabled, so no pointer path (Base UI
+   * opens a menu on mousedown) and no keyboard path (Enter/Arrow) can open it.
+   * `aria-disabled` stays on the button so the control keeps its reason in the
+   * tab order; `disabled` is what Base UI actually gates hover/click/key on.
+   */
   disabled?: boolean;
   onChange: (style: MarkdownBlockStyle) => void;
 }
@@ -52,6 +58,7 @@ export function BlockStyleDropdown({ value, disabled = false, onChange }: BlockS
         <TooltipTrigger
           render={
             <DropdownMenuTrigger
+              disabled={disabled}
               render={
                 <Button
                   type="button"
