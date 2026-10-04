@@ -16,7 +16,10 @@ export interface XlsxFormulaBarProps {
   disabled?: boolean;
   /** A new draft from typing or from a hint completion. */
   onChange: (value: string) => void;
-  /** Enter or blur: the editor commits the draft. */
+  /** Enter, or a blur that still holds an uncommitted draft: the editor
+   *  commits the draft. A blur that follows a commit (for example the click
+   *  that moves the selection) is ignored, so stale text is never written to
+   *  the next cell. */
   onCommit: () => void;
 }
 
@@ -25,17 +28,36 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
   const inputRef = useRef<HTMLInputElement>(null);
   const [caret, setCaret] = useState(0);
 
+  // F1 (UNI-926): the bar must commit a draft at most once. After Enter the
+  // editor has written the cell, but the input keeps its text and focus; the
+  // click that then changes the selection blurs the input, and a second
+  // commit would write the stale text into the newly selected cell. Track the
+  // uncommitted state here and drop it as soon as the draft is committed or
+  // the editor refreshes the draft for another cell.
+  const dirtyRef = useRef(false);
+  const emittedRef = useRef<string | null>(null);
+
   // Completing a name rewrites the draft and puts the caret after the "(".
   // The caret state updates immediately (the hints close because the token is
   // gone); the DOM selection is restored after the new value has committed.
   const pendingSelectionRef = useRef<number | null>(null);
+  const emit = useCallback(
+    (nextValue: string) => {
+      // Our own edit: uncommitted until Enter (or a blur that is not a
+      // selection change) commits it.
+      emittedRef.current = nextValue;
+      dirtyRef.current = true;
+      onChange(nextValue);
+    },
+    [onChange],
+  );
   const complete = useCallback(
     (nextValue: string, nextCaret: number) => {
-      onChange(nextValue);
+      emit(nextValue);
       setCaret(nextCaret);
       pendingSelectionRef.current = nextCaret;
     },
-    [onChange],
+    [emit],
   );
   useEffect(() => {
     const pending = pendingSelectionRef.current;
@@ -45,6 +67,22 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
     input?.focus();
     input?.setSelectionRange(pending, pending);
   });
+  // The editor's draft changing to a value we did not just emit means the
+  // selection moved (or paste/reload refreshed the cell): adopt it and clear
+  // the pending commit so the old text cannot follow the caret.
+  useEffect(() => {
+    if (emittedRef.current !== null && value === emittedRef.current) {
+      emittedRef.current = null;
+      return;
+    }
+    emittedRef.current = null;
+    dirtyRef.current = false;
+  }, [value]);
+  const commit = useCallback(() => {
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    onCommit();
+  }, [onCommit]);
   // The catalog is static, so hints are available wherever editing is: the
   // live grid and the snapshot-table fallback alike.
   const hints = useFormulaHints({ draft: value, caret, enabled: !disabled, onComplete: complete });
@@ -66,7 +104,7 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
           aria-controls={hints.inputProps["aria-controls"]}
           aria-activedescendant={hints.inputProps["aria-activedescendant"]}
           onChange={(event) => {
-            onChange(event.target.value);
+            emit(event.target.value);
             setCaret(event.target.selectionStart ?? event.target.value.length);
           }}
           onKeyUp={(event) => setCaret(event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
@@ -76,12 +114,12 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
             if (hints.handleKeyDown(event)) return;
             if (event.key === "Enter") {
               event.preventDefault();
-              onCommit();
+              commit();
             }
           }}
           onBlur={() => {
             hints.dismiss();
-            onCommit();
+            commit();
           }}
           className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption pointer-coarse:min-h-11"
           data-testid="xlsx-formula-bar"
