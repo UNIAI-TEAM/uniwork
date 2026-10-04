@@ -13,6 +13,18 @@ import type { FormFieldInput } from "./types.ts";
 
 const OP = "setFormValue";
 
+const WINANSI_UNDEFINED = new Set([0x81, 0x8d, 0x8f, 0x90, 0x9d]);
+/** A WinAnsi standard font (the AcroForm norm) cannot encode code points
+    above 0xFF or the WinAnsi-undefined slots, so such a value would crash
+    pdf-lib's appearance update inside save(); refuse it as a typed error. */
+function isWinAnsiEncodable(value: string): boolean {
+  for (const ch of value) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp > 0xff || WINANSI_UNDEFINED.has(cp)) return false;
+  }
+  return true;
+}
+
 /** True when the document carries an AcroForm at all. Read from the raw
     catalog: getForm() would create an empty /AcroForm on a document that never
     had one, so a refused write must not touch it. */
@@ -65,7 +77,11 @@ export function applyFormValue(doc: PDFDocument, input: FormFieldInput): void {
       if (!(field instanceof PDFTextField)) {
         throw new PdfOpError(OP, "kind", `field "${input.name}" is not a text field`);
       }
-      field.setText(asString(input.value, "text"));
+      const text = asString(input.value, "text");
+      if (!isWinAnsiEncodable(text)) {
+        throw new PdfOpError(OP, "value", `field "${input.name}" cannot encode the value with its WinAnsi font`, true);
+      }
+      field.setText(text);
       return;
     }
     case "checkbox": {
@@ -106,6 +122,9 @@ export function applyFormValue(doc: PDFDocument, input: FormFieldInput): void {
         throw new PdfOpError(OP, "kind", `field "${input.name}" is not a choice field`);
       }
       const value = asString(input.value, "choice");
+      if (!isWinAnsiEncodable(value)) {
+        throw new PdfOpError(OP, "value", `field "${input.name}" cannot encode the value with its WinAnsi font`, true);
+      }
       field.select(requireOption(field.getOptions(), value, input.name));
       return;
     }
@@ -130,6 +149,14 @@ export function flattenForms(doc: PDFDocument): boolean {
   if (!hasAcroForm(doc)) return false;
   const form = doc.getForm();
   if (form.getFields().length === 0) return false;
+  for (const field of form.getFields()) {
+    const getText = (field as { getText?: () => string }).getText;
+    if (typeof getText !== "function") continue;
+    const value = getText.call(field);
+    if (typeof value === "string" && !isWinAnsiEncodable(value)) {
+      throw new PdfOpError(OP, "value", `field "${field.getName()}" cannot encode its value with its WinAnsi font`, true);
+    }
+  }
   form.flatten();
   return true;
 }

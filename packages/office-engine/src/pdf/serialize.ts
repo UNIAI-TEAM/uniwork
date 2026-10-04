@@ -2,8 +2,8 @@
 // (applySaveRequest + verifyContentEdits + finalPageIndex + applyMetadata),
 // trimmed to the G2-05 scope: annot deletes, text edits/inserts, image ops,
 // page rotation/deletion/reorder, metadata. Markup, drawing, ink and note
-// annotations are kept separate from content streams; form authoring remains
-// outside this lane. Image / signature stamps (B6) draw straight into the
+// annotations are kept separate from content streams; AcroForm field values and
+// flattening are applied in the pdf-lib stage. Image / signature stamps (B6) draw straight into the
 // target page's content stream, so they need no annotation and are applied in
 // the pdf-lib stage.
 //
@@ -13,7 +13,8 @@
 //   2. Content-stream rewrites (textEdits, textInserts, imageEdits) land before
 //      pdf-lib touches the bytes.
 //   3. pdf-lib stage: rotations, metadata, stamps, annotations (markup/drawing/
-//      ink, then notes, then saved-note edits/resolves — note edits run after
+//      ink, then notes, then saved-note edits/resolves, then form values + flatten
+//      — note edits run after
 //      the note stage so same-request replies still match parents by old
 //      contents), then deletions (descending), then reorder — earlier ops all
 //      address original page indices.

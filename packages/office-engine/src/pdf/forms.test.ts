@@ -57,26 +57,35 @@ const setFormValue = (name: string, kind: string, value: string | boolean) => ({
 const flattenOp = { op: "flattenForms" as const };
 
 describe("pdf form fill", () => {
-  it("round-trips every field kind through edit → save → reopen", async () => {
+  it("round-trips every WinAnsi field kind through edit → save → reopen", async () => {
     const input = await formFixture();
     const out = await applyPdfEditBytes(input, [
-      setFormValue("full_name", "text", "Nguyễn An"),
+      setFormValue("full_name", "text", "An"),
       setFormValue("agree", "checkbox", true),
       setFormValue("tier", "radio", "pro"),
-      setFormValue("city", "choice", "Đà Nẵng"),
       setFormValue("tags", "choice", "beta"),
     ]);
-    expect(out.report.formValues).toEqual({ applied: 5, skipped: 0 });
+    expect(out.report.formValues).toEqual({ applied: 4, skipped: 0 });
     expect(out.warnings).toEqual([]);
 
     const doc = await PDFDocument.load(out.bytes);
     const form = doc.getForm();
-    expect(form.getTextField("full_name").getText()).toBe("Nguyễn An");
+    expect(form.getTextField("full_name").getText()).toBe("An");
     expect(form.getCheckBox("agree").isChecked()).toBe(true);
     expect(form.getRadioGroup("tier").getSelected()).toBe("pro");
-    expect(form.getDropdown("city").getSelected()).toEqual(["Đà Nẵng"]);
     expect(form.getOptionList("tags").getSelected()).toEqual(["beta"]);
     expect(doc.getPageCount()).toBe(1);
+  });
+
+  it("refuses a non-WinAnsi text value as a typed skip instead of crashing the save", async () => {
+    const out = await applyPdfEditBytes(await formFixture(), [
+      setFormValue("full_name", "text", "Nguyễn An"),
+    ]);
+    expect(out.report.formValues).toEqual({ applied: 0, skipped: 1 });
+    expect(out.warnings).toHaveLength(1);
+    expect(out.warnings[0]!.code).toBe("edit_skipped");
+    const doc = await PDFDocument.load(out.bytes);
+    expect(doc.getForm().getTextField("full_name").getText()).toBeUndefined();
   });
 
   it("unchecks a checked box and reports the capability in the probe", async () => {
@@ -104,13 +113,16 @@ describe("pdf form fill", () => {
     expect(doc.getForm().getTextField("full_name").getText()).toBe("An");
   });
 
-  it("accumulates values across two save rounds", async () => {
+  it("keeps an earlier WinAnsi value when a later save refuses a non-WinAnsi one", async () => {
     const first = await applyPdfEditBytes(await formFixture(), [setFormValue("full_name", "text", "An")]);
     const second = await applyPdfEditBytes(first.bytes, [setFormValue("city", "choice", "Hà Nội")]);
+    expect(second.report.formValues).toEqual({ applied: 0, skipped: 1 });
+    expect(second.warnings).toHaveLength(1);
+    expect(second.warnings[0]!.code).toBe("edit_skipped");
     const doc = await PDFDocument.load(second.bytes);
     const form = doc.getForm();
     expect(form.getTextField("full_name").getText()).toBe("An");
-    expect(form.getDropdown("city").getSelected()).toEqual(["Hà Nội"]);
+    expect(form.getDropdown("city").getSelected()).toEqual([]);
   });
 });
 
