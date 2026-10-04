@@ -230,8 +230,15 @@ export function fromEditorDocument(doc: JSONContent, manager: MarkdownManager): 
   let out = "";
   content.forEach((node, index) => {
     const lead = node.attrs?.[MARKDOWN_LEAD_ATTRIBUTE];
+    // A stored string is AUTHORITATIVE, `""` included: the source really had no
+    // separator between this block and the previous one. Marked hands
+    // `startBlock` callbacks `src.slice(1)`, so a one-character line followed by
+    // `---`/`<!--`/`<tag` becomes two top-level tokens with no separator; that
+    // stored `""` must stay empty. Only a `null`/`undefined` lead — a block the
+    // user inserted after mount, which carries no source separator — wants the
+    // default blank line.
     out +=
-      typeof lead === "string" && lead.length > 0
+      typeof lead === "string"
         ? lead
         : index === 0
           ? ""

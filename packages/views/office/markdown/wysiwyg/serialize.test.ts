@@ -119,6 +119,36 @@ describe("Markdown source round-trip", () => {
     }
   });
 
+  it("keeps a one-character line adjacent to a raw block byte-identical", () => {
+    // Marked hands `startBlock` callbacks `src.slice(1)`, so when a one-char
+    // line is immediately followed by `---` / `<!--` / `<tag`, the raw-node
+    // lexer sees the construct at index 0 of the shifted string, the paragraph
+    // is truncated to that single character, and the next token carries NO
+    // separator. `mdLead` is then a real stored `""` and must stay empty —
+    // emitting the default blank line would rewrite bytes on an untouched open.
+    const source = codec();
+    for (const text of [
+      "x---\nrest\n",
+      "a<div>\nx\n</div>\n",
+      "b<!--\nc\n-->\n",
+      "para\n\nx---\nrest\n",
+    ]) {
+      const out = source.serialize(source.parse(text));
+      expect(out === text ? "" : firstByteDifference(out, text)).toBe("");
+      expect(out).toBe(text);
+    }
+  });
+
+  it("keeps a one-character line adjacent to a raw block byte-identical in CRLF", () => {
+    // The separator here is the empty string, so nothing may be injected — not
+    // even a bare LF inside an otherwise-CRLF document.
+    const source = codec();
+    const text = "x---\r\nrest\r\n";
+    const out = source.serialize(source.parse(text));
+    expect(out === text ? "" : firstByteDifference(out, text)).toBe("");
+    expect(out).toBe(text);
+  });
+
   it("keeps CRLF bytes outside an edited range", () => {
     const source = codec();
     const text = "# T\r\n\r\nBody text.\r\n\r\n- a\r\n- b\r\n";
