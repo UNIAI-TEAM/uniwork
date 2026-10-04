@@ -121,9 +121,13 @@ function writeSource(handle: TextEditorHandle, text: string): void {
  */
 function replacementFragment(editor: Editor, value: string): Fragment {
   const parts = value.split("\n");
+  // `schema.nodes` is an index signature, so the entry is `NodeType | undefined`.
+  const hardBreak = editor.state.schema.nodes.hardBreak;
   const nodes = [];
   for (let i = 0; i < parts.length; i += 1) {
-    if (i > 0) nodes.push(editor.state.schema.nodes.hardBreak.create());
+    if (i > 0) {
+      nodes.push(hardBreak ? hardBreak.create() : editor.state.schema.text("\n"));
+    }
     if (parts[i]!.length > 0) nodes.push(editor.state.schema.text(parts[i]!));
   }
   return Fragment.fromArray(nodes);
