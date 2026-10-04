@@ -7360,6 +7360,30 @@
           "view": "View"
         }
       },
+      "ribbon": {
+        "label": "Markdown ribbon",
+        "tabs": {
+          "home": "Home",
+          "insert": "Insert",
+          "table": "Table",
+          "code": "Code"
+        },
+        "groups": {
+          "clipboard": "Clipboard",
+          "paragraph": "Paragraph",
+          "table": "Table"
+        },
+        "table": {
+          "addRowBefore": "Add row above",
+          "addRowAfter": "Add row below",
+          "addColumnBefore": "Add column left",
+          "addColumnAfter": "Add column right",
+          "deleteRow": "Delete row",
+          "deleteColumn": "Delete column",
+          "toggleHeaderRow": "Header row",
+          "deleteTable": "Delete table"
+        }
+      },
       "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving…", "retry": "Try again" },
       "state": { "opening": "Opening document…", "error": "Could not open document" },
       "source": { "label": "Markdown source" },
@@ -7534,7 +7558,22 @@
         "tableSizeLabel": "Choose table size",
         "list": "List",
         "button": "Button",
-        "section": "Section"
+        "section": "Section",
+        "ribbonLabel": "HTML ribbon",
+        "tabs": {
+          "home": "Home",
+          "insert": "Insert"
+        },
+        "groups": {
+          "clipboard": "Clipboard",
+          "inline": "Inline",
+          "paragraph": "Paragraph"
+        },
+        "orderedList": "Numbered list",
+        "blockquote": "Quote",
+        "imageUrlRefused": "This image URL cannot be inserted",
+        "imageUrlInsert": "Insert",
+        "hr": "Divider"
       },
       "float": {
         "label": "Quick edit",
@@ -7568,7 +7607,10 @@
         "editHint": "Double-click to edit text",
         "editing": "Editing text…",
         "move": "Move",
-        "resize": "Resize"
+        "resize": "Resize",
+        "underline": "Underline",
+        "strike": "Strikethrough",
+        "code": "Inline code"
       }
     },
     "pptx": {

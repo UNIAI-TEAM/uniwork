@@ -7354,6 +7354,30 @@
           "view": "Chế độ xem"
         }
       },
+      "ribbon": {
+        "label": "Dải lệnh Markdown",
+        "tabs": {
+          "home": "Trang chủ",
+          "insert": "Chèn",
+          "table": "Bảng",
+          "code": "Mã"
+        },
+        "groups": {
+          "clipboard": "Bảng nhớ tạm",
+          "paragraph": "Đoạn văn",
+          "table": "Bảng"
+        },
+        "table": {
+          "addRowBefore": "Thêm hàng phía trên",
+          "addRowAfter": "Thêm hàng phía dưới",
+          "addColumnBefore": "Thêm cột bên trái",
+          "addColumnAfter": "Thêm cột bên phải",
+          "deleteRow": "Xóa hàng",
+          "deleteColumn": "Xóa cột",
+          "toggleHeaderRow": "Hàng tiêu đề",
+          "deleteTable": "Xóa bảng"
+        }
+      },
       "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
       "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
       "source": { "label": "Mã nguồn Markdown" },
@@ -7528,7 +7552,22 @@
         "tableSizeLabel": "Chọn kích thước bảng",
         "list": "Danh sách",
         "button": "Nút",
-        "section": "Khối nội dung"
+        "section": "Khối nội dung",
+        "ribbonLabel": "Dải lệnh HTML",
+        "tabs": {
+          "home": "Trang chủ",
+          "insert": "Chèn"
+        },
+        "groups": {
+          "clipboard": "Bảng nhớ tạm",
+          "inline": "Định dạng trong dòng",
+          "paragraph": "Đoạn văn"
+        },
+        "orderedList": "Danh sách đánh số",
+        "blockquote": "Trích dẫn",
+        "imageUrlRefused": "Không thể chèn URL ảnh này",
+        "imageUrlInsert": "Chèn",
+        "hr": "Đường kẻ ngang"
       },
       "float": {
         "label": "Sửa nhanh",
@@ -7562,7 +7601,10 @@
         "editHint": "Nhấp đúp để sửa chữ",
         "editing": "Đang sửa chữ…",
         "move": "Di chuyển",
-        "resize": "Đổi kích thước"
+        "resize": "Đổi kích thước",
+        "underline": "Gạch chân",
+        "strike": "Gạch ngang",
+        "code": "Mã trong dòng"
       }
     },
     "pptx": {
