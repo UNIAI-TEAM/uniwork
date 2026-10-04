@@ -12,7 +12,6 @@ import {
   replaceRange,
   requireElement,
   type HtmlAttribute,
-  type HtmlElementEntry,
   type HtmlTarget,
   type PatchOrigin,
   type SourceRange,
@@ -251,5 +250,3 @@ export function unwrap(context: HtmlOpContext, target: HtmlTarget): UpstreamPatc
     "unwrap",
   );
 }
-
-export type { HtmlElementEntry, HtmlTarget, SourceRange, MoveDestination };
