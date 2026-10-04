@@ -186,6 +186,11 @@ export function move(context: HtmlOpContext, target: HtmlTarget, destination: Mo
 
 /** Set, replace or (with `value === null`) remove one attribute. */
 export function setAttr(context: HtmlOpContext, target: HtmlTarget, name: string, value: string | null): UpstreamPatchSet {
+  if (!/^[A-Za-z_:][A-Za-z0-9_.:-]*$/.test(name)) {
+    // Only the value is encoded below; an unvalidated name would splice quotes
+    // and a new attribute (or event handler) into the tag.
+    throw new HtmlOpError("invalid_target", "not a valid attribute name", { name });
+  }
   const element = requireElement(context.map, target);
   const attrs = parseStartTagAttributes(context.text, element.startTag);
   const existing = findAttribute(attrs, name);

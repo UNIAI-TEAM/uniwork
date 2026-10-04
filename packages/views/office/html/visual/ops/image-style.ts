@@ -98,6 +98,11 @@ export function readImageStyle(startTag: string): ImageStyle {
   const attrs: HtmlAttribute[] = parseStartTagAttributes(startTag, [0, startTag.length]);
   const style = attrs.find((attr) => attr.name === "style")?.value ?? "";
   const style2: ImageStyle = {};
+  // `margin-left:auto` / `margin-right:auto` are tracked independently because
+  // `display:block;margin-left:auto` is this module's RIGHT-aligned form while
+  // `margin-right:auto` alone is the LEFT-aligned form; both together centre.
+  let marginLeftAuto = false;
+  let marginRightAuto = false;
   for (const declaration of splitDeclarations(style)) {
     const at = declaration.indexOf(":");
     if (at === -1) continue;
@@ -118,11 +123,14 @@ export function readImageStyle(startTag: string): ImageStyle {
     } else if (name === "object-fit" && FIT_VALUES.has(value)) {
       style2.fit = value as ImageFit;
     } else if (name === "margin-left" && value === "auto") {
-      style2.align = style2.align === "right" ? undefined : "center";
-    } else if (name === "margin-right" && value === "auto" && style2.align !== "center") {
-      style2.align = "left";
+      marginLeftAuto = true;
+    } else if (name === "margin-right" && value === "auto") {
+      marginRightAuto = true;
     }
   }
+  if (marginLeftAuto && marginRightAuto) style2.align = "center";
+  else if (marginRightAuto) style2.align = "left";
+  else if (marginLeftAuto) style2.align = "right";
   return style2;
 }
 

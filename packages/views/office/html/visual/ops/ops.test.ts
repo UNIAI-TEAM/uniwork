@@ -256,6 +256,20 @@ describe("html visual ops: one test per op", () => {
     });
   });
 
+  it("set_attr: rejects an attribute name that could inject markup", async () => {
+    const f = await fixture();
+    const img = elementByPath(f.map, IMG)!;
+    const injected = 'foo" onmouseover="alert(1)';
+    expect(() => setAttr(context(f), { sid: img.sid }, injected, "v")).toThrow(HtmlOpError);
+    try {
+      setAttr(context(f), { sid: img.sid }, injected, "v");
+    } catch (error) {
+      expect((error as HtmlOpError).code).toBe("invalid_target");
+    }
+    // A well-formed name with the sanctioned characters still passes.
+    expect(() => setAttr(context(f), { sid: img.sid }, "data-x:y", "v")).not.toThrow();
+  });
+
   it("set_style: merges with the author's style and keeps other declarations", async () => {
     const f = await fixture();
     const img = elementByPath(f.map, IMG)!;

@@ -98,6 +98,15 @@ describe("image-style", () => {
     expect(isImageAlign("left")).toBe(true);
     expect(isImageAlign("middle")).toBe(false);
   });
+
+  it("resolves each alignment from the margins this module writes", () => {
+    // `margin-left:auto` alone is the RIGHT-aligned form - reading it as center
+    // made the style panel "correct" a right-aligned image into the centre.
+    expect(readImageStyle('<img style="display:block;margin-left:auto">').align).toBe("right");
+    expect(readImageStyle('<img style="display:block;margin-right:auto">').align).toBe("left");
+    expect(readImageStyle('<img style="display:block;margin-left:auto;margin-right:auto">').align).toBe("center");
+    expect(readImageStyle('<img style="display:block">').align).toBeUndefined();
+  });
 });
 
 describe("move-target", () => {
