@@ -29,6 +29,13 @@ export interface FindReplacePanelProps {
   onReplaceValueChange?: (value: string) => void;
   onClose?: () => void;
   /**
+   * Render the replace row. Defaults to true, so a plain find surface keeps the
+   * layout it has always had. A host that binds Ctrl+F to find-only and Ctrl+H
+   * to replace opens the same panel with this false for the former, which is
+   * the only difference between the two gestures.
+   */
+  replaceVisible?: boolean;
+  /**
    * Replace one match. The caller applies the edit to its own document and
    * passes the new text back; the panel re-runs the matcher on it.
    */
@@ -59,6 +66,7 @@ export function FindReplacePanel({
   open = true,
   disabled = false,
   className,
+  replaceVisible = true,
   replaceValue,
   defaultReplaceValue = "",
   onReplaceValueChange,
@@ -235,43 +243,47 @@ export function FindReplacePanel({
           <ChevronDown aria-hidden />
         </Button>
       </span>
-      <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
-      <Input
-        value={replace}
-        onChange={(event) => setReplacement(event.target.value)}
+      {replaceVisible ? (
+        <>
+          <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+          <Input
+            value={replace}
+            onChange={(event) => setReplacement(event.target.value)}
         placeholder={t("replacePlaceholder")}
         aria-label={t("replacePlaceholder")}
         disabled={disabled}
         autoComplete="off"
         spellCheck={false}
-        onKeyDown={onReplaceKeyDown}
-        className="h-7 w-40"
-        data-testid="find-replace-value"
-      />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-label={t("replace")}
-        aria-disabled={cannotStep || undefined}
-        onClick={replaceCurrent}
-        data-testid="find-replace-one"
-      >
-        <Replace aria-hidden />
-        {t("replace")}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-label={t("replaceAll")}
-        aria-disabled={cannotStep || undefined}
-        onClick={replaceEvery}
-        data-testid="find-replace-all"
-      >
-        <ReplaceAll aria-hidden />
-        {t("replaceAll")}
-      </Button>
+            onKeyDown={onReplaceKeyDown}
+            className="h-7 w-40"
+            data-testid="find-replace-value"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={t("replace")}
+            aria-disabled={cannotStep || undefined}
+            onClick={replaceCurrent}
+            data-testid="find-replace-one"
+          >
+            <Replace aria-hidden />
+            {t("replace")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={t("replaceAll")}
+            aria-disabled={cannotStep || undefined}
+            onClick={replaceEvery}
+            data-testid="find-replace-all"
+          >
+            <ReplaceAll aria-hidden />
+            {t("replaceAll")}
+          </Button>
+        </>
+      ) : null}
       <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
       <Label className="text-caption text-muted-foreground">
         <Checkbox checked={caseSensitive} onCheckedChange={(value) => setCaseSensitive(value === true)} disabled={disabled} />

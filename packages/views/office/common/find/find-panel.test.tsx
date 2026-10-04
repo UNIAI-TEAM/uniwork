@@ -201,6 +201,23 @@ describe("FindReplacePanel", () => {
     expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one", query: "one", caseSensitive: true, wholeWord: false, regex: false });
   });
 
+  it("renders the replace row by default and hides it when replaceVisible is false", () => {
+    // Ctrl+F is a find-only gesture and Ctrl+H a replace one; the host opens
+    // the same panel with this prop as the only difference between them.
+    const { view } = renderPanel("cat");
+    expect(screen.getByTestId("find-replace-value")).toBeInTheDocument();
+    expect(screen.getByTestId("find-replace-one")).toBeInTheDocument();
+    expect(screen.getByTestId("find-replace-all")).toBeInTheDocument();
+
+    view.rerender(<FindReplacePanel text="cat" replaceVisible={false} />);
+    expect(screen.queryByTestId("find-replace-value")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("find-replace-one")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("find-replace-all")).not.toBeInTheDocument();
+    // Find itself stays: the query field and the next/prev controls remain.
+    expect(screen.getByTestId("find-replace-query")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next match" })).toBeInTheDocument();
+  });
+
   it("renders nothing while closed and supports a controlled replacement", () => {
     const onReplaceValueChange = vi.fn();
     const { view } = renderPanel("abc");
