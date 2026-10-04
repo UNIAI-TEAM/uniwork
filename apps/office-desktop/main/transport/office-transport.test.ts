@@ -150,4 +150,27 @@ describe("desktop office HTTP transport", () => {
     await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [{ id: "doc-x", format: "xlsx", canEdit: true }] });
     await expect(transport.download({ workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename: "budget.xlsx" });
   });
+
+  it("runs an xlsx edit job through start, poll and output and reports the staged bytes", async () => {
+    const output = new TextEncoder().encode("PK\x03\x04staged");
+    let polls = 0;
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/documents/doc-x/office/jobs") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { operation: string; format: string; base_revision: string; edits: unknown[] };
+        expect(body).toMatchObject({ operation: "edit", format: "xlsx", base_revision: "2" });
+        expect(body.edits).toEqual([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+        expect(new Headers(init.headers).get("Idempotency-Key")).toMatch(/^desktop-job-/);
+        return new Response(JSON.stringify({ job_id: "job-1", state: "accepted" }), { status: 202 });
+      }
+      if (url.endsWith("/office/jobs/job-1")) { polls += 1; return new Response(JSON.stringify({ job_id: "job-1", state: polls > 1 ? "completed" : "running" }), { status: 200 }); }
+      if (url.endsWith("/office/jobs/job-1/output")) return new Response(output, { status: 200, headers: { "Content-Type": "application/octet-stream" } });
+      throw new Error("unexpected " + url);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
+    expect(result.state).toBe("completed");
+    expect(Buffer.from(result.outputBase64 ?? "", "base64")).toEqual(Buffer.from(output));
+    expect(result.outputChecksum).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(polls).toBe(2);
+  }, 20_000);
 });

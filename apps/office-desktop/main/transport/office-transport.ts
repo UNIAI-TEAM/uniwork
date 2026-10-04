@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
-import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
+import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
@@ -9,6 +9,9 @@ import { DESKTOP_FORMAT_PROFILES, extensionForFormat, formatFromMimeType, mimeTy
 
 const DOCX_MIME = mimeTypeForFormat("docx");
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+const JOB_POLL_MS = 1_000;
+const JOB_TIMEOUT_MS = 120_000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 type MainOfficeTransport = DesktopOfficeTransport & Readonly<{
   readDocumentAccess(scope: { workspaceId: string; documentId: string }): Promise<"edit" | "none">;
 }>;
@@ -136,6 +139,35 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     download,
+    // The server edit-job path for a carried non-docx format (xlsx today).
+    // This is NOT a second save path: the job output is staged bytes, and the
+    // existing desktop:office-save command still owns upload+commit. The
+    // renderer never sees the engine address or a grant - main polls and
+    // returns only the bounded output bytes plus the pinned job id.
+    async officeJob(input: { workspaceId: string; documentId: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse> {
+      const base = `/documents/${encodeURIComponent(input.documentId)}/office/jobs`;
+      const body = { operation: input.operation, format: "xlsx" as const, base_revision: input.baseRevision, ...(input.edits === undefined ? {} : { edits: input.edits }) };
+      const startRaw = await json(base, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": `desktop-job-${crypto.randomUUID()}` }, body: JSON.stringify(body) });
+      const start = startRaw && typeof startRaw === "object" ? startRaw as Record<string, unknown> : {};
+      const jobId = typeof start.job_id === "string" ? start.job_id : undefined;
+      if (!jobId) throw new Error("office_job_invalid");
+      const deadline = Date.now() + JOB_TIMEOUT_MS;
+      let job: Record<string, unknown> = start;
+      while (job.state === "accepted" || job.state === "running") {
+        if (Date.now() >= deadline) {
+          await json(`${base}/${encodeURIComponent(jobId)}/cancel`, { method: "POST" }).catch(() => undefined);
+          throw new Error("office_job_timeout");
+        }
+        await sleep(JOB_POLL_MS);
+        const next = await json(`${base}/${encodeURIComponent(jobId)}`);
+        job = next && typeof next === "object" ? next as Record<string, unknown> : {};
+      }
+      const state = typeof job.state === "string" ? job.state : "failed";
+      if (state !== "completed") return { jobId, documentId: input.documentId, state: state as DesktopOfficeJobResponse["state"] };
+      const output = await authRequest(`${base}/${encodeURIComponent(jobId)}/output`, { headers: { Accept: "*/*" } });
+      const data = new Uint8Array(await output.arrayBuffer());
+      return { jobId, documentId: input.documentId, state: "completed", outputBase64: Buffer.from(data).toString("base64"), outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
+    },
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {
       const [downloaded, raw] = await Promise.all([download(input), json(`/documents/${encodeURIComponent(input.documentId)}`)]);
       const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;

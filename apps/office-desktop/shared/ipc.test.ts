@@ -61,3 +61,13 @@ it("requires a carried format on an office-save request", () => {
   for (const format of ["docx", "xlsx"]) expect(() => validateIpcRequest("desktop:office-save", save(format), sender)).not.toThrow();
   expect(() => validateIpcRequest("desktop:office-save", save("pptx"), sender)).toThrow();
 });
+
+it("validates the office-job request surface in main", () => {
+  const job = (overrides: Record<string, unknown> = {}) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", operation: "edit", baseRevision: "9", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }], ...overrides });
+  expect(() => validateIpcRequest("desktop:office-job", job(), sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:office-job", job({ operation: "open", edits: undefined }), sender)).not.toThrow();
+  // Unknown operations, a non-decimal base and a non-array edit list all refuse.
+  expect(() => validateIpcRequest("desktop:office-job", job({ operation: "serialize" }), sender)).toThrow();
+  expect(() => validateIpcRequest("desktop:office-job", job({ baseRevision: "nine" }), sender)).toThrow();
+  expect(() => validateIpcRequest("desktop:office-job", job({ edits: "set_cell" }), sender)).toThrow();
+});

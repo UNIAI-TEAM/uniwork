@@ -10,6 +10,7 @@ import { LibraryHost } from "./library/host";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LocalHomeView } from "./local-home";
 import { OpenByteDocument } from "./office/open-document";
+import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
 import { isDocumentDirty, useDocumentTabs } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
@@ -346,7 +347,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
-        <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+        {"rendererHostRef" in tab.data.session
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}
