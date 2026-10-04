@@ -16,7 +16,11 @@ import { usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRen
 import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
 import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
+import { PptxContextMenu } from "./context-menu/pptx-context-menu";
+import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { PptxPresenter } from "./presenter";
+import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
+import { PptxShortcutsHelp } from "./shortcuts/pptx-shortcuts-help";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
 import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from "./text/pptx-text-editor";
 import { collectTextTargets, type PptxTextTarget } from "./text/text-model";
@@ -114,6 +118,7 @@ export function PptxEditor({
   const [internalIndex, setInternalIndex] = useState(0);
   const [presenterOpen, setPresenterOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [gesturePending, setGesturePending] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
@@ -344,6 +349,16 @@ export function PptxEditor({
     };
   }, [editableHandle, onDeleteElements]);
 
+  // A7: the z-order channel. `reorder_element` is a registered PptxEdit kind, so it
+  // travels through the same handle edit port Delete uses; absent leaves the menu rows
+  // disabled with their reason instead of a dead control.
+  const reorderElements = useMemo(() => {
+    if (!editableHandle?.edit) return undefined;
+    return async (slideIndex: number, elementIds: readonly string[], dir: "front" | "back") => {
+      await editableHandle.edit?.(elementIds.map((elementId) => ({ op: "reorder_element" as const, slideIndex, elementId, dir })));
+    };
+  }, [editableHandle]);
+
   const selection = usePptxSelection({
     slideIndex: selectedIndex,
     boxes: rendition ? collectRenderNodeBoxes(rendition) : [],
@@ -391,24 +406,52 @@ export function PptxEditor({
     }
   }, [fullscreen, onFullscreenChange, onOpen, openPresenter, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, transformRequest]);
 
+  // A7: one dispatch table owns the canvas keys. The chords live in the pure shortcut
+  // map (which the help dialog also lists), so a key that runs is a key that is
+  // documented and vice versa - there is no second, drifting handler.
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const key = event.key.toLowerCase();
-    if (event.key === "PageDown" || event.key === "ArrowDown") { event.preventDefault(); selectSlide(selectedIndex + 1); }
-    if (event.key === "PageUp" || event.key === "ArrowUp") { event.preventDefault(); selectSlide(selectedIndex - 1); }
-    if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); requestHistory(event.shiftKey ? "redo" : "undo"); }
-    if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); requestHistory("redo"); }
-    if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); save(); }
-    if ((event.ctrlKey || event.metaKey) && key === "f") { event.preventDefault(); setFindOpen(true); }
-    if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); selection.selectAll(); }
-    if (event.key === "Escape") {
-      if (textTarget) { setTextTarget(null); return; }
-      selection.clear();
-    }
-    if ((event.key === "Delete" || event.key === "Backspace") && selection.canDelete) {
-      event.preventDefault();
-      selection.deleteSelection();
+    const binding = matchPptxShortcut(event);
+    if (!binding) return;
+    switch (binding.action) {
+      case "undo": event.preventDefault(); requestHistory("undo"); return;
+      case "redo": event.preventDefault(); requestHistory("redo"); return;
+      case "save": event.preventDefault(); save(); return;
+      case "find": event.preventDefault(); setFindOpen(true); return;
+      case "edit-text": event.preventDefault(); runCommand(runTextEdit()); return;
+      case "select-all": event.preventDefault(); selection.selectAll(); return;
+      case "delete-selection":
+        if (selection.canDelete) {
+          event.preventDefault();
+          selection.deleteSelection();
+        }
+        return;
+      case "next-slide": event.preventDefault(); selectSlide(selectedIndex + 1); return;
+      case "previous-slide": event.preventDefault(); selectSlide(selectedIndex - 1); return;
+      case "dismiss":
+        // An open in-place text editor owns Escape first (A1ui); only then clear.
+        if (textTarget) { setTextTarget(null); return; }
+        selection.clear();
+        return;
+      case "shortcuts-help": event.preventDefault(); setShortcutsOpen(true); return;
+      default: return;
     }
   };
+
+  // A7: the canvas context menu's actions. Only a bound channel runs; the model
+  // disables every other row with the reason the editor already knows.
+  const onContextMenuAction = useCallback((action: PptxContextMenuAction) => {
+    switch (action) {
+      case "delete": selection.deleteSelection(); break;
+      case "bring-to-front":
+        if (reorderElements) runCommand(reorderElements(selectedIndex, selection.selection.ids, "front"));
+        break;
+      case "send-to-back":
+        if (reorderElements) runCommand(reorderElements(selectedIndex, selection.selection.ids, "back"));
+        break;
+      case "edit-text": runCommand(runTextEdit()); break;
+      default: break;
+    }
+  }, [reorderElements, runCommand, runTextEdit, selectedIndex, selection]);
 
   const selectedCount = selection.selection.ids.length;
 
@@ -448,6 +491,16 @@ export function PptxEditor({
         <div className="flex min-h-48 min-w-0 flex-1 flex-col p-3">
           {/* C9: no floating command buttons over the slide. The only floating
               surface is the contextual selection overlay inside the slide box. */}
+          <PptxContextMenu
+            slideBound={slides.length > 0}
+            selectionCount={selection.selection.ids.length}
+            canDelete={Boolean(deleteElements)}
+            canEditText={Boolean(onTextEdit)}
+            canReorder={Boolean(reorderElements)}
+            canInsert={false}
+            gesturePending={gesturePending}
+            onAction={onContextMenuAction}
+          >
           <PptxCanvasSurface
             content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
             slideIndex={selectedIndex}
@@ -491,6 +544,7 @@ export function PptxEditor({
               </>
             ) : null}
           />
+          </PptxContextMenu>
         </div>
       </div>
       {/* C10: the status bar owns slide x/y, counts, language, selection and zoom. */}
@@ -507,6 +561,7 @@ export function PptxEditor({
         zoom={zoom}
         onZoomChange={setZoom}
       />
+      <PptxShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <PptxPresenter
         slides={presenterSlides}
         selectedIndex={selectedIndex}
