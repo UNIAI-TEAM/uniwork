@@ -215,6 +215,29 @@ function codecManager() {
   return createMarkdownSourceManager(createMarkdownEditorExtensions());
 }
 
+describe("@tiptap/markdown internals the codec depends on", () => {
+  it("pins the private lexer the block splitter reaches", () => {
+    const manager = codecManager();
+    // `lexBlocks` calls `manager.instance.lexer`. If a TipTap/marked bump
+    // renames it, this fails loudly instead of the round-trip silently losing
+    // the block boundaries.
+    const lexer = (manager.instance as unknown as { lexer?: unknown }).lexer;
+    expect(typeof lexer).toBe("function");
+    const tokens = (lexer as (src: string) => Array<{ type?: string; raw?: string }>).call(manager.instance, "# H\n\nBody.\n");
+    expect(tokens.length).toBeGreaterThan(0);
+    expect(tokens.every((token) => typeof token.raw === "string")).toBe(true);
+  });
+
+  it("pins the private escaper the manager must expose", () => {
+    const manager = codecManager();
+    // `installSelectiveEscaper` assigns this private member. If it disappears,
+    // the write path silently falls back to the stock blanket escaper.
+    const escaper = (manager as unknown as { escapeMarkdownSyntax?: (text: string) => string }).escapeMarkdownSyntax;
+    expect(typeof escaper).toBe("function");
+    expect(escaper!("snake_case_name")).toBe("snake_case_name");
+  });
+});
+
 describe("selective escaping", () => {
   it("leaves ordinary text untouched", () => {
     for (const text of [

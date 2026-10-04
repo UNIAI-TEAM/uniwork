@@ -173,7 +173,6 @@ describe("MarkdownWysiwygEditor", () => {
     expect(source.getText().endsWith("Final line.\n")).toBe(true);
   });
 
-
   it("mounts the new document when documentKey changes in place", async () => {
     const source = createTextSource(FIXTURE);
     const handle = createHandle(source);

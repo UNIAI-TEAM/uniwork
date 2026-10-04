@@ -31,8 +31,8 @@ export const MARKDOWN_RAW_NODE_NAME = "markdownRaw";
  */
 export const RAW_TOKENIZER_LIMIT = 64 * 1024;
 
-/** `---` on its own line through the closing `---`/`...` line (LF or CRLF). */
-const FRONTMATTER = /^---[ \t]*\r?\n[\s\S]*?(?:^|\r?\n)(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
+/** `---` on its own line through the closing `---`/`...` line. */
+const FRONTMATTER = /^---[ \t]*\n[\s\S]*?(?:^|\n)(?:---|\.\.\.)[ \t]*(?:\n|$)/;
 /** `<!-- … -->`, plus the trailing newline a block-level comment consumes. */
 const HTML_COMMENT = /^<!--[\s\S]*?-->(?:[ \t]*\n|$)/;
 /** An opening block tag, e.g. `<div class="x">` or `<figure>`. */
@@ -80,7 +80,11 @@ export const MarkdownRawExtension = Node.create({
 
   addAttributes() {
     return {
-      source: { default: "" },
+      // `rendered: false` keeps the auto-rendered `source="…"` attribute out of
+      // the DOM; `renderHTML` below emits `data-source` instead, matching
+      // `parseHTML`. Without this the HTML round-trip read `source` as "" and
+      // the block serialized to nothing.
+      source: { default: "", rendered: false },
     };
   },
 
@@ -102,7 +106,7 @@ export const MarkdownRawExtension = Node.create({
     // this with a React node view; the attribute stays the source of truth.
     return [
       "div",
-      mergeAttributes(HTMLAttributes, { "data-markdown-raw": "" }),
+      mergeAttributes(HTMLAttributes, { "data-markdown-raw": "", "data-source": source }),
       ["pre", { class: "markdown-raw-source" }, ["code", {}, source]],
     ];
   },
@@ -112,7 +116,7 @@ export const MarkdownRawExtension = Node.create({
     level: "block" as const,
     start(source: string) {
       if (source.length > RAW_TOKENIZER_LIMIT) return -1;
-      if (/^---[ \t]*\r?\n/.test(source)) return 0;
+      if (/^---[ \t]*\n/.test(source)) return 0;
       return source.search(/^(?:<!--|<[A-Za-z][\w-]*(?:\s[^>]*)?>)/m);
     },
     tokenize(source: string): MarkdownToken | undefined {

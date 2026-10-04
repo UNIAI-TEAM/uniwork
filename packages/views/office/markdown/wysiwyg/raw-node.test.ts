@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
+import { generateHTML, generateJSON } from "@tiptap/core";
+import type { JSONContent } from "@tiptap/core";
 import { createMarkdownEditorExtensions } from "./extensions";
 import { createMarkdownSourceCodec, createMarkdownSourceManager, toEditorDocument } from "./serialize";
 import { MARKDOWN_RAW_NODE_NAME, rawNodeSource } from "./raw-node";
@@ -75,6 +77,29 @@ describe("markdownRaw opaque node", () => {
     const raw = (doc.content ?? [])[0] as { type?: string };
     expect(raw.type).toBe(MARKDOWN_RAW_NODE_NAME);
     expect(codec.serialize(doc)).toBe(text);
+  });
+
+  it("keeps its source through an HTML round-trip (getHTML -> setContent)", () => {
+    // Regression: `parseHTML` read `data-source` but TipTap auto-rendered the
+    // attribute as `source="…"`, so any HTML-flavour round-trip parsed
+    // `source: ""` and the block serialized to NOTHING (silent content loss).
+    const extensions = createMarkdownEditorExtensions();
+    const codec = source();
+    for (const text of ["<!-- keep -->\n", '<div class="note">\n  <p>x</p>\n</div>\n']) {
+      const doc = codec.parse(text);
+      const html = generateHTML(doc, extensions);
+      // `data-source` is the parse attribute; a bare `source=` would be the bug.
+      expect(html).toContain("data-source=");
+      expect(html).not.toMatch(/\ssource="/);
+      const reparsed = generateJSON(html, extensions) as JSONContent;
+      const raw = (reparsed.content ?? []).find((node) => node.type === MARKDOWN_RAW_NODE_NAME);
+      expect(raw).toBeDefined();
+      // The block's own bytes survive; only the doc-level tail (`mdLead`) is
+      // not carried by HTML, so compare against the block content, not the
+      // trailing newline.
+      expect(rawNodeSource(raw)).toBe(text.trimEnd());
+      expect(codec.serialize(reparsed)).toBe(text.trimEnd());
+    }
   });
 
   it("keeps inline HTML the schema would drop as an opaque raw block", () => {

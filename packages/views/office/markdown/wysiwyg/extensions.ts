@@ -16,7 +16,7 @@
  * Nothing here is a fork: the base array is built by the shared factory and
  * only the Markdown extension itself is swapped for its selective twin.
  */
-import { Extension, splitExtensions } from "@tiptap/core";
+import { Extension, getExtensionField, splitExtensions } from "@tiptap/core";
 import type { AnyExtension } from "@tiptap/core";
 import { Markdown } from "@tiptap/markdown";
 import { createEditorExtensions, type EditorExtensionsOptions } from "../../../editor/extensions";
@@ -32,18 +32,36 @@ export const MARKDOWN_LIST_INDENT = 4;
 export const MARKDOWN_LEAD_ATTRIBUTE = "mdLead";
 
 /**
- * Adds the leading-separator attribute to every block node, plus the document
- * tail. `rendered: false` keeps it out of the DOM and out of Markdown; it
- * exists only in the TipTap JSON the serializer walks.
+ * The node types that can sit at the top level of the document, plus the doc
+ * node that carries the tail. Only these need the leading-separator attribute;
+ * `mdLead` on an inline node (`hardBreak`, inline `image`/`math`, `mention`) is
+ * never read and only widens the schema's attribute surface.
+ */
+function blockLevelNodeTypes(extensions: AnyExtension[]): string[] {
+  return splitExtensions(extensions).nodeExtensions
+    .filter((extension) => extension.name !== "text")
+    .filter((extension) => {
+      const context = { name: extension.name, options: extension.options, storage: extension.storage };
+      if (getExtensionField(extension, "topNode", context)) return true;
+      const group = getExtensionField(extension, "group", context);
+      const resolved = typeof group === "function" ? group.call(context) : group;
+      return typeof resolved === "string" && resolved.split(/\s+/).includes("block");
+    })
+    .map((extension) => extension.name);
+}
+
+/**
+ * Adds the leading-separator attribute to every block-level node, plus the
+ * document tail. `rendered: false` keeps it out of the DOM and out of Markdown;
+ * it exists only in the TipTap JSON the serializer walks.
  */
 export const MarkdownSourceGapsExtension = Extension.create({
   name: "markdownSourceGaps",
 
   addGlobalAttributes() {
-    const { nodeExtensions } = splitExtensions(this.extensions);
     return [
       {
-        types: nodeExtensions.filter((extension) => extension.name !== "text").map((extension) => extension.name),
+        types: blockLevelNodeTypes(this.extensions),
         attributes: {
           [MARKDOWN_LEAD_ATTRIBUTE]: { default: null, rendered: false, keepOnSplit: false },
         },
