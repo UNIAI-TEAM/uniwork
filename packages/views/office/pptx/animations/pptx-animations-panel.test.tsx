@@ -81,7 +81,12 @@ describe("PptxAnimationsPanel", () => {
   it("sends the trigger and a re-timed duration when they change", () => {
     const { onAdd } = renderPanel();
     fireEvent.click(screen.getByRole("combobox", { name: "Start" }));
-    fireEvent.click(screen.getByRole("option", { name: "After previous" }));
+    // Base UI's Select ignores a bare virtual click (detail 0, no pointerType)
+    // on an item that is not highlighted: a real pointer press is what marks
+    // the item eligible, so send the pointerdown a real click always sends.
+    const afterPrevious = screen.getByRole("option", { name: "After previous" });
+    fireEvent.pointerDown(afterPrevious);
+    fireEvent.click(afterPrevious);
     const duration = screen.getByLabelText("Duration (seconds)");
     fireEvent.change(duration, { target: { value: "2" } });
     fireEvent.click(screen.getByTestId("pptx-animation-add-button"));

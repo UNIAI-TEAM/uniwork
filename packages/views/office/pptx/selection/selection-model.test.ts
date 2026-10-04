@@ -11,9 +11,13 @@ describe("selection model", () => {
     expect(selectAt({ ids: ["a"] }, null, true)).toEqual({ ids: ["a"] });
   });
 
-  it("keeps the same reference when a plain click re-selects the only element", () => {
+  it("keeps the same ids reference when a plain click re-selects the only element", () => {
     const state = { ids: ["a"] as const };
-    expect(selectAt(state, "a", false)).toBe(state.ids);
+    // The documented shape is the state object ({ ids }), the same shape every
+    // other assertion here uses; the reference that must stay stable is the
+    // ids array inside it.
+    expect(selectAt(state, "a", false)).toEqual({ ids: ["a"] });
+    expect(selectAt(state, "a", false).ids).toBe(state.ids);
   });
 
   it("toggles with shift-click", () => {

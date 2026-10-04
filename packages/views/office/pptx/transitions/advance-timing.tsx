@@ -75,11 +75,25 @@ export function PptxAdvanceTiming({ ms, onCommit, disabled = false, pending = fa
         className="gap-1.5"
       >
         <div className="flex items-center gap-2">
-          <RadioGroupItem value="off" id="pptx-advance-off" aria-label={t("advance_off")} disabled={inert} />
+          <RadioGroupItem
+            value="off"
+            id="pptx-advance-off"
+            aria-label={t("advance_off")}
+            disabled={inert}
+            nativeButton
+            render={<button type="button" />}
+          />
           <Label htmlFor="pptx-advance-off" className="text-body font-normal">{t("advance_off")}</Label>
         </div>
         <div className="flex items-center gap-2">
-          <RadioGroupItem value="on" id="pptx-advance-on" aria-label={t("advance_on")} disabled={inert} />
+          <RadioGroupItem
+            value="on"
+            id="pptx-advance-on"
+            aria-label={t("advance_on")}
+            disabled={inert}
+            nativeButton
+            render={<button type="button" />}
+          />
           <Label htmlFor="pptx-advance-on" className="text-body font-normal">{t("advance_on")}</Label>
         </div>
       </RadioGroup>
