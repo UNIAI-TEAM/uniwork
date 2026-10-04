@@ -48,7 +48,6 @@ import {
   assertInspectorNonce,
   injectInspector,
   inspectorInboundSchema,
-  isInspectorNonce,
   sealInspectorCommand,
   type InspectorCommand,
   type InspectorInbound,
@@ -103,7 +102,7 @@ export type PreviewEvent =
   | { type: "ready" }
   | { type: "resize"; height: number }
   | { type: "navigated" }
-  | { type: "refused"; reason: "unstable_serialisation" | "residual_after_reparse" | "inspector_injection_failed" }
+  | { type: "refused"; reason: "unstable_serialisation" | "residual_after_reparse" | "inspector_injection_failed" | "unexpected_inspector_message" }
   // Inspector events, visual-edit only. Each is rebuilt from a zod-validated
   // frame message (acceptInspectorMessage); the raw frame data never reaches
   // a caller and is never evaluated.
@@ -269,7 +268,11 @@ export function createPreviewBridge(nonce: string, onEvent: (event: PreviewEvent
  * parent never evaluates frame data. Real port messages carry origin "".
  */
 export function acceptInspectorMessage(event: { data: unknown; origin?: string }, nonce: string): InspectorInbound | null {
-  if (event.origin === "null") return null;
+  // The handler is attached to a MessagePort, whose messages carry origin ""
+  // (a real window message from the sandboxed frame carries "null"). Require
+  // the port origin exactly, so a window-delivered event can never reach this
+  // gate even if a future caller attaches it to a window listener.
+  if (event.origin !== "") return null;
   const data = event.data;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   if ((data as { nonce?: unknown }).nonce !== nonce) return null;
@@ -297,7 +300,7 @@ export function inspectorEvent(message: InspectorInbound): PreviewEvent {
     default:
       // A type added to the schema without a case here would be a compile
       // error (never); at runtime an unknown type is refused, not forwarded.
-      return { type: "refused", reason: "inspector_injection_failed" };
+      return { type: "refused", reason: "unexpected_inspector_message" };
   }
 }
 
@@ -393,12 +396,14 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
 interface AssetManifestEntryWithID {
   asset_id?: unknown;
 }
-  let current = await openScope(manifest, manifest.entries.map((e) => e.key), null);
-  const assetOrigin = current.origin;
   // Visual-edit is validated before any render: a bad nonce fails the mount
   // (the caller gets no frame), it is never softened into a script-free copy.
+  // It is validated before openScope too, so a refused mount never leaves a
+  // live asset grant behind (SEC F3).
   const visual = capability?.visualEdit !== undefined;
   const nonce = visual ? visualEditNonce(capability) : newNonce();
+  let current = await openScope(manifest, manifest.entries.map((e) => e.key), null);
+  const assetOrigin = current.origin;
   const csp = previewCsp(assetOrigin, capability);
 
   const assetUrl = (key: string): string | null => {
@@ -461,7 +466,7 @@ interface AssetManifestEntryWithID {
     // Final gate: the browser's own parser decides what the copy contains. In
     // visual-edit it also strips every <script> and on* handler, so what comes
     // out is script-free and the inspector is the only script added after it.
-    const gated = gatePreviewCopy(render(text), { assetOrigin, blockedUrl: BLOCKED_URL, stripScripts: visual });
+    const gated = gatePreviewCopy(render(text), { assetOrigin, blockedUrl: BLOCKED_URL, stripScripts: visual, csp });
     if (!gated.ok) {
       pending = "blank";
       iframe.srcdoc = "";

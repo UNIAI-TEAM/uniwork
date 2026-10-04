@@ -159,6 +159,63 @@ describe("preview gate: visual-edit strip pass (ADR 0026)", () => {
     expect(result.html).not.toContain("a()");
   });
 
+  it("drops <script> in every namespace, any case, and inside <template> (SEC F11)", () => {
+    const result = strip(
+      `<p>x</p><SCRIPT>a()</SCRIPT><math><script>b()</script></math><template><script>c()</script></template>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/<script/i);
+    expect(result.html).not.toMatch(/a\(\)|b\(\)|c\(\)/);
+  });
+
+  it("drops an SVG animation onbegin handler and a nonce-bearing document script (SEC F11)", () => {
+    const result = strip(
+      `<svg><animate onbegin="a()" attributeName="x" dur="1s"></animate></svg><script nonce="deadbeef">b()</script>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/onbegin|<script/i);
+  });
+
+  it("drops a document-supplied CSP meta but keeps the host's own (SEC F7)", () => {
+    const host = "default-src 'none'; script-src 'nonce-a'";
+    const result = gatePreviewCopy(
+      `<head><meta http-equiv="Content-Security-Policy" content="script-src 'none'">` +
+        `<meta http-equiv="content-security-policy" content="${host}">` +
+        `<meta name="viewport" content="width=device-width"></head><body><p>x</p></body>`,
+      { ...OPTIONS, stripScripts: true, csp: host },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Exactly one CSP meta survives, and it is the host policy.
+    expect(result.html.match(/Content-Security-Policy/gi) ?? []).toHaveLength(1);
+    expect(result.html).toContain(host);
+    expect(result.html).not.toContain("script-src 'none'");
+    // A non-CSP meta is untouched: the rule only drops CSP metas.
+    expect(result.html).toContain('<meta name="viewport" content="width=device-width">');
+  });
+
+  it("keeps a document CSP meta when stripping is off (plain preview byte-parity)", () => {
+    const result = gatePreviewCopy(`<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`, OPTIONS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).toContain("script-src 'none'");
+  });
+
+  it("drops a document CSP meta in strip mode even when no host policy is named", () => {
+    // The strip helper carries no `csp`, so the document meta is the only CSP
+    // and must still go: it could intersect the host's policy away.
+    const result = strip(
+      `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">` +
+        `<meta http-equiv="Content-Security-Policy"><p>x</p>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/Content-Security-Policy/i);
+    expect(result.html).toContain("<p>x</p>");
+  });
+
   it("leaves the plain preview path byte-identical (stripScripts off by default)", () => {
     const html = `<p>x</p><script>kept</script><div onclick="kept()">y</div>`;
     const off = gatePreviewCopy(html, OPTIONS);

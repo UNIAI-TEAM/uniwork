@@ -257,4 +257,38 @@ describe("inspector script runtime (frame side)", () => {
     expect(frame.sent).toHaveLength(1);
     expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "text-edit-commit", sid: 9, text: "hello world" });
   });
+
+  it("sends a hover only when the resolved sid changes (FE-M4)", () => {
+    const frame = runInspector('<div data-sid="3"><span id="in">t</span></div>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    const inner = frame.root.querySelector("#in")!;
+    const outer = frame.root.querySelector('[data-sid="3"]')!;
+    // Two mouseovers that resolve to the same sid emit one message, not two.
+    frame.emit("mouseover", { target: inner });
+    frame.emit("mouseover", { target: outer });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "hover", sid: 3 }]);
+    frame.sent.length = 0;
+    // Leaving the element (null) is a change; repeating it is not.
+    frame.emit("mouseover", { target: frame.root });
+    frame.emit("mouseover", { target: frame.root });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "hover", sid: null }]);
+    frame.sent.length = 0;
+    // Returning to the element is a change again.
+    frame.emit("mouseover", { target: outer });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "hover", sid: 3 }]);
+  });
+
+  it("clamps data-sid to the parent schema's bound (SEC F8)", () => {
+    const frame = runInspector('<p data-sid="2147483647">max</p><p data-sid="2147483648">over</p>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    frame.emit("click", { target: frame.root.querySelector('[data-sid="2147483647"]'), preventDefault: () => undefined });
+    expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "select", sid: 2147483647 });
+    frame.sent.length = 0;
+    // One past the cap is treated as no sid, so nothing is reported - matching
+    // the parent schema, which would drop such a message anyway.
+    frame.emit("click", { target: frame.root.querySelector('[data-sid="2147483648"]'), preventDefault: () => undefined });
+    expect(frame.sent).toEqual([]);
+  });
 });

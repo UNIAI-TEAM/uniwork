@@ -477,6 +477,13 @@ describe("visual-edit inspector (ADR 0026)", () => {
     expect(directives["script-src"]).not.toContain("unsafe-eval");
     expect(csp).toContain("connect-src 'none'");
     expect(csp).toContain("form-action 'none'");
+    // iframe[csp] is Chromium-only; Firefox/Safari enforce the in-document
+    // meta, so pin the policy that actually ships in the srcdoc (SEC F10).
+    const metaCsp = previewCsp(PROXY_ORIGIN, { scripts: false, visualEdit: { nonce: VISUAL_NONCE } })
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+    expect(session.iframe.srcdoc).toContain('<meta http-equiv="Content-Security-Policy" content="' + metaCsp + '">');
     session.dispose();
   });
 
@@ -499,22 +506,33 @@ describe("visual-edit inspector (ADR 0026)", () => {
   it("refuses a mount with a malformed nonce instead of rendering a frame", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
+    const fake = fakeProxy();
     await expect(mountHtmlPreview({
       container,
       title: "X",
       text: "<p>x</p>",
       manifest: MANIFEST,
       scope: { document_id: "D1", job_id: "J1" },
-      proxy: fakeProxy().proxy,
+      proxy: fake.proxy,
       capability: { scripts: false, visualEdit: { nonce: "not-a-nonce" } },
       appOrigin: APP,
     })).rejects.toMatchObject({ name: "PreviewIsolationError" });
     expect(container.querySelector("iframe")).toBeNull();
+    // The nonce is validated BEFORE the asset scope opens, so a refused mount
+    // leaves no live grant behind (SEC F3).
+    expect(fake.opened).toEqual([]);
+    expect(fake.revoked()).toBe(0);
   });
 
   // Each hostile document, and the exact thing it is trying to do.
   const HOSTILE: ReadonlyArray<readonly [string, string]> = [
     ["a document script", `<p>hi</p><script>parent.postMessage({type:"select",nonce:"${VISUAL_NONCE}",sid:1},"*")</script>`],
+    ["an uppercase SCRIPT element", `<SCRIPT>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</SCRIPT>`],
+    ["a math-namespace script", `<math><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script></math>`],
+    ["a script inside a template", `<template><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script></template>`],
+    ["a document nonce-bearing script (the ADR-named forgery)", `<script nonce="${VISUAL_NONCE}">parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script>`],
+    ["a document CSP meta", `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`],
+    ["an svg onbegin handler", `<svg><animate onbegin="parent.postMessage({type:'ready',nonce:'${VISUAL_NONCE}'},'*')" attributeName="x" dur="1s"></animate></svg>`],
     ["a script that posts with a guessed nonce", `<script>parent.postMessage({type:"ready",nonce:"00000000000000000000000000000000"},"*")</script>`],
     ["a script that reads document.cookie", `<script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}",cookie:document.cookie},"*")</script>`],
     ["an inline on* handler", `<div onclick="parent.postMessage({type:'select',nonce:'${VISUAL_NONCE}',sid:1},'*')">c</div>`],
@@ -560,11 +578,11 @@ describe("visual-edit inspector (ADR 0026)", () => {
     const remote = session.inspector;
     expect(remote).not.toBeNull();
     // A forged ready with a guessed nonce never becomes an event.
-    expect(acceptInspectorMessage({ data: { type: "ready", nonce: "f".repeat(32) } }, VISUAL_NONCE)).toBeNull();
-    const accepted = acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE } }, VISUAL_NONCE);
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: "f".repeat(32) }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    const accepted = acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE);
     expect(accepted).not.toBeNull();
     expect(inspectorEvent(accepted!)).toEqual({ type: "ready" });
-    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE, url: "https://evil.example" } }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE, url: "https://evil.example" }, origin: "" }, VISUAL_NONCE)).toBeNull();
     port.close();
     session.dispose();
   });
@@ -614,6 +632,28 @@ describe("visual-edit inspector (ADR 0026)", () => {
     await pending;
   });
 
+  it("re-strips, re-injects and rotates the channel on a visual-edit update()", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    const firstPort = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    // The update source carries its own script: the re-render must strip it and
+    // inject the inspector again, and the channel must be a new one.
+    await session.update(`<p>y</p><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script>`);
+    const doc = session.iframe.srcdoc;
+    expect((doc.match(/<script\b/gi) ?? [])).toHaveLength(1);
+    expect(doc).toContain('<script nonce="' + VISUAL_NONCE + '">');
+    expect(doc).not.toContain("parent.postMessage");
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(2);
+    const secondPort = (post.mock.calls[1] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    expect(secondPort).not.toBe(firstPort);
+    firstPort.close();
+    secondPort.close();
+    session.dispose();
+  });
+
   it("refuses inspector events that fail the schema and never evaluates frame data", async () => {
     const events: PreviewEvent[] = [];
     const { session } = await mount("<p>x</p>", {
@@ -634,17 +674,26 @@ describe("visual-edit inspector (ADR 0026)", () => {
 });
 
 describe("inspector message gate and event projection (ADR 0026)", () => {
-  it("refuses an opaque-origin, non-object or array message", () => {
+  it("requires the port origin (empty), refusing an opaque window origin or a missing one", () => {
+    // A MessagePort message carries origin ""; the sandboxed frame's window
+    // messages carry "null". Only the port shape may pass this gate.
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE)).toMatchObject({ type: "ready" });
     expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "null" }, VISUAL_NONCE)).toBeNull();
-    expect(acceptInspectorMessage({ data: "ready" }, VISUAL_NONCE)).toBeNull();
-    expect(acceptInspectorMessage({ data: null }, VISUAL_NONCE)).toBeNull();
-    expect(acceptInspectorMessage({ data: [VISUAL_NONCE] }, VISUAL_NONCE)).toBeNull();
-    expect(acceptInspectorMessage({ data: { type: "ready" } }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: APP }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE } }, VISUAL_NONCE)).toBeNull();
+  });
+
+  it("refuses a non-object, array, nonce-less or extra-key message", () => {
+    expect(acceptInspectorMessage({ data: "ready", origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: null, origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: [VISUAL_NONCE], origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready" }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE, url: "x" }, origin: "" }, VISUAL_NONCE)).toBeNull();
   });
 
   it("projects every declared inspector message type, and refuses an unknown one", () => {
     const project = (message: unknown) => {
-      const accepted = acceptInspectorMessage({ data: message }, VISUAL_NONCE);
+      const accepted = acceptInspectorMessage({ data: message, origin: "" }, VISUAL_NONCE);
       expect(accepted).not.toBeNull();
       return inspectorEvent(accepted!);
     };
@@ -657,9 +706,9 @@ describe("inspector message gate and event projection (ADR 0026)", () => {
     expect(project({ type: "text-edit-commit", nonce: VISUAL_NONCE, sid: 7, text: "hi" }))
       .toEqual({ type: "text-edit-commit", sid: 7, text: "hi" });
     // A type the schema does not declare is refused before projection.
-    expect(acceptInspectorMessage({ data: { type: "navigate", nonce: VISUAL_NONCE } }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "navigate", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE)).toBeNull();
     // The projection's own default arm refuses rather than forwarding.
-    expect(inspectorEvent({ type: "navigate" } as never)).toEqual({ type: "refused", reason: "inspector_injection_failed" });
+    expect(inspectorEvent({ type: "navigate" } as never)).toEqual({ type: "refused", reason: "unexpected_inspector_message" });
   });
 
   it("returns false when the port refuses a sealed command", () => {

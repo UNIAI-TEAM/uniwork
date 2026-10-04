@@ -15,7 +15,7 @@
 //     network, no timers that fetch. The tests pin that by scanning the source.
 //   * It keeps the port and the nonce in a closure - nothing is attached to
 //     window or document, so nothing in the document can reach them.
-//   * It carries the per-render nonce as an attribute, never in its body, and
+//   * It carries the per-session nonce as an attribute, never in its body, and
 //     it refuses every command whose nonce does not match the one the parent
 //     handed it at init. The parent validates the other direction with zod.
 //
@@ -48,7 +48,7 @@ export const INSPECTOR_MAX_RECT = 10_000_000;
 export const INSPECTOR_MAX_TEXT = 100_000;
 const MAX_SID = 2 ** 31 - 1;
 
-/** The per-render nonce format. The CSP nonce and the inspector attribute are
+/** The per-session nonce format. The CSP nonce and the inspector attribute are
  * the same value; anything else is refused at mount, never guessed. */
 const NONCE_RE = /^[0-9a-f]{32}$/;
 
@@ -124,17 +124,18 @@ export function sealInspectorCommand(command: InspectorCommand, nonce: string): 
  */
 export const INSPECTOR_SCRIPT_BODY = [
   "(function(){",
-  "var P=null,N='',SEL=null,HOV=null,EDIT=null,SAVE=null;",
+  "var P=null,N='',SEL=null,HOV=null,EDIT=null,SAVE=null,HS;",
   "var FRAME=" + JSON.stringify(INSPECTOR_FRAME_MESSAGE_TYPES) + ";",
   "var CMD=" + JSON.stringify(INSPECTOR_COMMAND_TYPES) + ";",
+  "var MAXSID=" + MAX_SID + ";",
   "function send(t,x){if(!P)return;var m={nonce:N,type:t};for(var k in x)m[k]=x[k];try{P.postMessage(m)}catch(e){}}",
-  "function num(el){var v=el.getAttribute&&el.getAttribute('data-sid');if(v===null||!/^[1-9][0-9]{0,9}$/.test(v))return null;var d=parseInt(v,10);return d>0?d:null}",
+  "function num(el){var v=el.getAttribute&&el.getAttribute('data-sid');if(v===null||!/^[1-9][0-9]{0,9}$/.test(v))return null;var d=parseInt(v,10);return d>0&&d<=MAXSID?d:null}",
   "function sid(el){for(var n=el;n&&n.nodeType===1;n=n.parentNode){var d=num(n);if(d!==null)return d}return null}",
   "function el(d){if(d===null)return null;var all=document.querySelectorAll('[data-sid]');for(var i=0;i<all.length;i++){if(num(all[i])===d)return all[i]}return null}",
   "function mark(e,color){if(e&&e.style)e.style.outline=color?('2px solid '+color):''}",
   "function rect(e){var r=e.getBoundingClientRect();return{x:r.left,y:r.top,width:r.width,height:r.height}}",
   "function pick(d){var e=el(d);mark(SEL,'');SEL=e;if(!e){send('select',{sid:null});return}mark(e,'#2563eb');send('select',{sid:d});send('rect',{sid:d,rect:rect(e)})}",
-  "function hover(d){var e=el(d);if(HOV&&HOV!==SEL)mark(HOV,'');HOV=e;if(e&&e!==SEL)mark(e,'#93c5fd');send('hover',{sid:d})}",
+  "function hover(d){var e=el(d);if(HOV&&HOV!==SEL)mark(HOV,'');HOV=e;if(e&&e!==SEL)mark(e,'#93c5fd');if(HS!==d){HS=d;send('hover',{sid:d})}}",
   "function commit(){if(!EDIT)return;var e=EDIT,before=SAVE;EDIT=null;SAVE=null;e.removeAttribute('contenteditable');",
   "var text=(e.textContent||'').replace(/\\s+/g,' ').trim();if(before!==null)e.textContent=before;send('text-edit-commit',{sid:sid(e),text:text})}",
   "function begin(d){var e=el(d);if(!e)return;if(EDIT)commit();EDIT=e;SAVE=e.textContent;e.setAttribute('contenteditable','true');try{e.focus()}catch(x){}}",

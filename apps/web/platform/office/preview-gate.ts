@@ -55,6 +55,18 @@ const SRCSET_DESCRIPTOR = /^\d+(?:\.\d+)?[wxh]$/i;
 /** A script element, in any namespace (an SVG <script> runs too). */
 const SCRIPT_ELEMENT = "script";
 
+/** A document-supplied Content-Security-Policy meta (SEC F7). CSP policies
+ * intersect, so a hostile document could ship `script-src 'none'` and silently
+ * disable the injected inspector (availability only, never an escape). In strip
+ * mode every CSP meta is dropped EXCEPT the host's own, whose content equals
+ * `options.csp` - dropping that one would leave the frame unpoliced. The caller
+ * has already matched the element to a <meta>. */
+function isDocumentCsp(el: Element, options: GateOptions): boolean {
+  if ((el.getAttribute("http-equiv") ?? "").trim().toLowerCase() !== "content-security-policy") return false;
+  const content = (el.getAttribute("content") ?? "").trim();
+  return options.csp === undefined || content !== options.csp.trim();
+}
+
 /** Every on* attribute (onclick, onerror, onload, ...) in any case. */
 function isEventHandler(name: string): boolean {
   return /^on[a-z]+$/.test(name);
@@ -71,6 +83,11 @@ export interface GateOptions {
    * preview never runs a script and keeps the copy byte-for-byte what it was,
    * where the CSP ('none', or a nonce) is what stops execution. */
   stripScripts?: boolean;
+  /** The host's CSP string (preview.ts previewCsp). In strip mode the CSP meta
+   * carrying exactly this content is the host policy and survives; any other
+   * document-supplied CSP meta is dropped so it cannot intersect the host
+   * policy away. Ignored when stripScripts is off. */
+  csp?: string;
 }
 
 export type GateResult =
@@ -137,7 +154,7 @@ function walk(doc: Document, options: GateOptions, fix: boolean): number {
   for (const el of allElements(doc)) {
     const tag = el.localName.toLowerCase();
     const smilHref = SMIL_ELEMENTS.has(tag) && /href/i.test(el.getAttribute("attributeName") ?? "");
-    if (DROPPED_ELEMENTS.has(tag) || smilHref || (tag === "meta" && isRefresh(el)) || (strip && tag === SCRIPT_ELEMENT)) {
+    if (DROPPED_ELEMENTS.has(tag) || smilHref || (tag === "meta" && (isRefresh(el) || (strip && isDocumentCsp(el, options)))) || (strip && tag === SCRIPT_ELEMENT)) {
       found++;
       if (fix) el.remove();
       continue;

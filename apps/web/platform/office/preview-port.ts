@@ -130,11 +130,19 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
       if (input.visualEdit !== undefined && (!visualEdit || options.allowVisualEdit !== true)) {
         return Promise.reject(new Error("preview unavailable: visual-edit is HTML-only and opt-in"));
       }
+      // `options.capability` may carry a `visualEdit` member even though this
+      // port never opted in: strip it unless `allowVisualEdit` is set, so the
+      // opt-in cannot be bypassed by a port-level capability (SEC F4).
+      const configured = options.allowVisualEdit === true
+        ? options.capability
+        : options.capability === undefined
+          ? undefined
+          : { scripts: options.capability.scripts };
       const capability = visualEdit
         ? { scripts: false, visualEdit: input.visualEdit }
-        : options.capability?.scripts === true
+        : configured?.scripts === true
           ? { scripts: false }
-          : options.capability;
+          : configured;
       const session = await mountHtmlPreview({
         container: input.container,
         title: input.title,

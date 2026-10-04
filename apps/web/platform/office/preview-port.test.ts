@@ -157,6 +157,27 @@ describe("visual-edit mode (ADR 0026)", () => {
     })).rejects.toThrow("visual-edit is HTML-only and opt-in");
   });
 
+  it("strips a visualEdit member from the port options unless it opted in (SEC F4)", async () => {
+    const port = createOfficePreviewPort({
+      scope: { document_id: "D1", job_id: "J1" },
+      proxy,
+      capability: { scripts: false, visualEdit: { nonce: NONCE } },
+    });
+    const session = await port.mount({
+      container: document.createElement("div"),
+      format: "html",
+      title: "HTML",
+      text: "<p>x</p>",
+      manifest: { entries: [] },
+    });
+    // The port never opted in, so its configured capability cannot smuggle
+    // visual-edit into a mount that did not ask for it.
+    expect(session.iframe.getAttribute("sandbox")).toBe("");
+    expect(session.iframe.getAttribute("csp")).toContain("script-src 'none'");
+    expect(session.iframe.srcdoc).not.toContain("<script");
+    session.dispose();
+  });
+
   it("refuses visual-edit for Markdown even when the port allows it", async () => {
     const port = createOfficePreviewPort({
       scope: { document_id: "D1", job_id: "J1" },

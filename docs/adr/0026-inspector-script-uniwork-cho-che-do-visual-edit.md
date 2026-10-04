@@ -29,7 +29,7 @@ script inspector do UniWork sở hữu vào frame, **chỉ** ở chế độ vis
 ## Quyết định
 
 Chỉ ở chế độ visual-edit của trình soạn thảo HTML, host chèn **đúng một** script
-inspector do UniWork sở hữu, mang một nonce sinh theo từng lần render; CSP của
+inspector do UniWork sở hữu, mang một nonce sinh theo **từng phiên preview**; CSP của
 frame đổi thành `script-src 'nonce-<n>'` (kèm origin tài sản) **chỉ cho chế độ
 này**. Toàn bộ G3-D2 còn lại giữ nguyên: origin tài sản riêng, sandbox **không**
 `allow-same-origin` (chỉ thêm `allow-scripts`), không cầu cookie/token/API trong
@@ -49,6 +49,13 @@ Cụ thể trong mã nguồn:
 - Nonce phải là 32 ký tự hex thường (`/^[0-9a-f]{32}$/`); một nonce không hợp lệ
   hoặc không sinh được thì **từ chối ngay khi mount** (ném
   `PreviewIsolationError`), không dựng frame — fail closed, không đoán.
+- Nonce là **theo từng phiên preview** (một giá trị cho mỗi `mountHtmlPreview`,
+  dùng lại qua mọi `update()`). Bản ghi quyết định ghi "per-render"; chọn cách
+  đọc theo phiên vì kênh `MessageChannel` **đã** được làm mới theo từng lần
+  render: mỗi load tạo một channel mới và đóng channel cũ, nên năng lực thực tế
+  vẫn là per-render dù giá trị nonce không đổi, và việc xoay nonce giữa các lần
+  render không thêm bảo vệ nào (tài liệu không có script nên không thể học nonce,
+  và CSP nonce-hiding che thuộc tính `nonce`).
 - Inspector được chèn sau `gatePreviewCopy`, ngay trước `</head>` để nằm **sau**
   thẻ `<meta http-equiv="Content-Security-Policy">` (chính sách CSP qua meta chỉ
   áp dụng cho nội dung được phân tích sau nó).
@@ -73,12 +80,20 @@ chứng minh bản serialisation ổn định qua lần phân tích lại, việ
 sau đó (một lần phân tích lại + nối vào `<head>`) không mở lại đường nào. Thuộc
 tính `data-sid` vốn đã được cổng giữ nguyên (đã kiểm bằng test), nên việc gắn
 `data-sid` từ parse map là phạm vi của H5, không cần thêm gì ở cổng.
+Khi bật, cổng **cũng** loại mọi `<meta http-equiv="Content-Security-Policy">`
+do tài liệu cung cấp: chính sách CSP giao nhau (intersect), nên một tài liệu thù
+địch có thể gửi `script-src 'none'` và âm thầm vô hiệu hoá inspector. Đây chỉ là
+DoS tự gây (không bao giờ là escape) và chỉ **siết** thêm: nó loại một chính sách
+do tài liệu đặt, không bao giờ đụng tới chính sách của host.
 
 ### Giao thức (kiểm ở cả hai phía)
 
 Kênh là một `MessageChannel`: parent chuyển `port2` cho frame bằng
 `postMessage(..., "*", [port2])` khi frame load (origin mờ nên chỉ định địa chỉ
 được bằng `"*"`; chính port mới là năng lực, và nó chỉ tới cửa sổ của frame này).
+Parent giữ và **gửi lệnh trên `port1`** — `postMessage` giao cho đầu đối diện, và
+một port đã chuyển thì bị vô hiệu ở phía gửi, nên gửi trên `port2` là no-op im
+lặng (SEC F1).
 Inspector nhận port khi `event.source === parent` và thông điệp init đúng
 nonce/loại; sau đó nó **kiểm `m.nonce === N` và `m.type` nằm trong allowlist**
 trước khi làm bất cứ việc gì, và giữ port trong closure (không gắn vào window).
@@ -100,8 +115,10 @@ Parent -> frame (`inspectorCommandSchema`, cùng quy tắc): `select`/`hover`
 `sealInspectorCommand` gắn nonce và kiểm schema **trước khi rời app**; một lệnh
 sai bị bỏ, không được đoán.
 
-Parent kiểm mọi thông điệp vào bằng `acceptInspectorMessage` (origin `"null"` bị
-từ chối, phải là object thường, nonce khớp, schema `strictObject` chấp nhận) rồi
+Parent kiểm mọi thông điệp vào bằng `acceptInspectorMessage` (origin phải **đúng
+bằng `""`** — thông điệp qua `MessagePort` mang origin rỗng, còn thông điệp
+`window` từ frame sandbox mang `"null"` nên bị từ chối; phải là object thường,
+nonce khớp, schema `strictObject` chấp nhận) rồi
 chiếu qua `inspectorEvent`; **không** bao giờ `eval`/`new Function` dữ liệu của
 frame. Chỉnh sửa đi về dưới dạng `text-edit-commit` (ý định); H3 biến nó thành
 patch set áp lên nguồn qua `engine.applyPatchSet`, S1 không tự ghi DOM.
