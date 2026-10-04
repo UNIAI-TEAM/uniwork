@@ -67,6 +67,10 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
   }, [focusToken]);
   const lastTop = tops[tops.length - 1];
   const contentHeight = lastTop ? lastTop.top + lastTop.height + PAGE_GAP : PAGE_GAP;
+  // Pages are absolutely positioned, so they do not size the list: give it the
+  // widest page plus gutters, or a landscape page wider than the viewport is
+  // clipped on the left instead of scrolling.
+  const contentWidth = dimensions.reduce((widest, item) => Math.max(widest, item.width), 0) + PAGE_GAP * 2;
   const firstVisible = Math.max(0, tops.findIndex((item) => item.top + item.height >= scrollTop) - overscan);
   const lastVisibleIndex = tops.findIndex((item) => item.top > scrollTop + viewportHeight);
   const lastVisible = Math.min(pages.length, (lastVisibleIndex < 0 ? pages.length : lastVisibleIndex + overscan));
@@ -75,7 +79,7 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
     onSelectionChange?.(next);
   }, [onSelectionChange, selection]);
   return <div ref={scrollRef} className={cn("min-h-0 flex-1 overflow-auto bg-muted/20", className)} aria-label={t("office.pdf.pages.label")} data-testid="pdf-canvas-scroll" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
-    <div className="relative mx-auto" style={{ height: contentHeight, width: "fit-content", minWidth: "100%" }} role="list">
+    <div className="relative mx-auto" style={{ height: contentHeight, width: contentWidth, minWidth: "100%" }} role="list">
       {pages.slice(firstVisible, lastVisible).map((page, offset) => {
         const index = firstVisible + offset;
         const item = tops[index];

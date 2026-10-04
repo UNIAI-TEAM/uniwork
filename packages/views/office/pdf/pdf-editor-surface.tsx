@@ -101,7 +101,8 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
   const [stampPlacement, setStampPlacement] = useState<PdfStampPlacement | null>(null);
   const [formFields, setFormFields] = useState<readonly PdfFormField[] | undefined>(undefined);
   const [formsError, setFormsError] = useState<string | null>(null);
-  const [skipped, setSkipped] = useState(false);
+  // The translation key of the last partial-apply warning, or null.
+  const [skipped, setSkipped] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<readonly PdfSearchHit[]>([]);
   const [hitIndex, setHitIndex] = useState(0);
@@ -116,15 +117,20 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
   }, [canvasMode, editor, revision]);
 
   const submitEngine = useCallback(async (operations: readonly unknown[]): Promise<void> => {
-    setSkipped(false);
+    setSkipped(null);
     const submit = editor.submitEngineOperations;
     if (!submit) throw new Error("pdf_engine_operations_unavailable");
     const result = await run(() => submit(operations));
-    if (result && result.skipped.length > 0) setSkipped(true);
+    if (result && result.skipped.length > 0) {
+      // A form value pdf-lib cannot encode (Vietnamese in a WinAnsi field) is a
+      // refusal of that value, not a browser gap: say so.
+      const formOnly = result.skipped.every((skip) => skip.op === "setFormValue");
+      setSkipped(formOnly ? "office.pdf.errors.formValueRejected" : "office.pdf.errors.editSkipped");
+    }
   }, [editor, run]);
 
   const editOps = useCallback((operations: readonly PdfEditOperation[]): Promise<void> => {
-    setSkipped(false);
+    setSkipped(null);
     const edit = editor.edit;
     if (!edit) return Promise.reject(new Error("pdf_edit_unavailable"));
     return run(async () => { await edit(operations); });
@@ -207,7 +213,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/20">
         <div className="flex flex-col gap-2 px-3 pt-3 empty:hidden">
           {errorKey ? <Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(errorKey)}</Notice> : null}
-          {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t("office.pdf.errors.editSkipped")}</Notice> : null}
+          {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t(skipped)}</Notice> : null}
           {findOpen ? <PdfFindBar query={query} hits={hits} activeIndex={hitIndex} loading={finding} onQueryChange={setQuery} onNext={() => setHitIndex((index) => (hits.length ? (index + 1) % hits.length : 0))} onPrevious={() => setHitIndex((index) => (hits.length ? (index - 1 + hits.length) % hits.length : 0))} onClose={onFindClose} onHitActivate={onHitActivate} /> : null}
           {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
           {hint ? <p className="text-caption text-muted-foreground" role="status" data-testid="pdf-surface-hint">{hint}</p> : null}

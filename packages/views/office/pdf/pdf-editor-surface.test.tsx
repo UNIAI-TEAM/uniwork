@@ -131,6 +131,18 @@ describe("PdfEditorSurface", () => {
     expect(save.markDirty).not.toHaveBeenCalled();
   });
 
+  it("names the font refusal when the engine skips a form value it cannot encode", async () => {
+    const skipped = [{ op: "setFormValue", reason: "fullName: WinAnsi cannot encode \"ễ\"" }];
+    const { handle } = host({ submitEngineOperations: vi.fn(async () => ({ skipped })) });
+    await mount(handle);
+    openAnnotate("Fill form");
+    const input = await screen.findByLabelText("fullName");
+    fireEvent.change(input, { target: { value: "Nguyễn Văn An" } });
+    fireEvent.blur(input);
+    expect(await screen.findByText(/its form font does not support them/)).toBeInTheDocument();
+    expect(screen.queryByText(/browser cannot apply it/)).not.toBeInTheDocument();
+  });
+
   it("rotates the selected page from the Pages tab", async () => {
     const { handle } = host();
     const save = await mount(handle);
