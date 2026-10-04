@@ -200,6 +200,25 @@ describe("HomeFontGroup", () => {
     expect(attrs(editor).fontAscii).toBe("Aptos Display");
   });
 
+  it("shows the document default size for plain unstyled text (M-8)", () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection(3);
+    render(<Harness editor={editor} />);
+    // No docTextStyle size mark anywhere: Word shows the document default (11),
+    // never the picker's "-" placeholder.
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("11");
+  });
+
+  it("shows the mixed placeholder when a selection spans two sizes (M-8)", () => {
+    const editor = editorWith("hello world");
+    // First run 14pt, the rest unstyled (the document default 11pt).
+    editor.chain().setTextSelection({ from: 1, to: 6 }).setMark("docTextStyle", { sizeHalfPoints: 28 }).run();
+    editor.commands.setTextSelection({ from: 1, to: 12 });
+    render(<Harness editor={editor} />);
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("");
+    expect(screen.getByTestId("docx-font-size")).toHaveAttribute("aria-placeholder", "-");
+  });
+
   it("commits a typed size and steps with the -/+ pair (no extra chevron, C8)", async () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });

@@ -7620,7 +7620,8 @@
       },
       "selection": {
         "none": "Chưa chọn",
-        "range": "Vùng chọn {{from}}–{{to}}"
+        "range": "Vùng chọn {{from}}–{{to}}",
+        "count": "{{value}} ký tự"
       },
       "state": {
         "opening": "Đang mở tài liệu…",

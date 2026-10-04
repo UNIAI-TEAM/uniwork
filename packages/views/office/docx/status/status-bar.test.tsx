@@ -1,6 +1,6 @@
 import { Editor } from "@tiptap/core";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { docxExtensions } from "../docx-schema";
 import {
@@ -101,6 +101,38 @@ describe("DocxStatusBar", () => {
     expect(right).toContainElement(screen.getByTestId("docx-status-selection"));
     expect(right).toContainElement(screen.getByTestId("docx-status-zoom"));
     expect(screen.getByTestId("docx-status-selection")).toHaveTextContent("Selection 2\u20137");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
+  });
+
+  it("renders the selection count beside the range (C10)", () => {
+    renderBar({ selection: { from: 16, to: 28 } });
+    expect(screen.getByTestId("docx-status-selection-count")).toHaveTextContent("12 characters");
+    // the range readout the editor test pins stays on its own testid
+    expect(screen.getByTestId("docx-status-selection")).toHaveTextContent("Selection 16\u201328");
+  });
+
+  it("renders the selection count under the vi locale", async () => {
+    await setLocale("vi");
+    renderBar({ selection: { from: 16, to: 28 } });
+    expect(screen.getByTestId("docx-status-selection-count")).toHaveTextContent("12 k\u00fd t\u1ef1");
+  });
+
+  it("wires the zoom step buttons to the supplied controller actions (C10)", () => {
+    const onZoomIn = vi.fn();
+    const onZoomOut = vi.fn();
+    renderBar({ zoom: 100, onZoomIn, onZoomOut });
+    const control = screen.getByTestId("docx-status-zoom-control");
+    expect(control).toContainElement(screen.getByTestId("docx-status-zoom"));
+    fireEvent.click(screen.getByTestId("docx-status-zoom-out"));
+    fireEvent.click(screen.getByTestId("docx-status-zoom-in"));
+    expect(onZoomOut).toHaveBeenCalledTimes(1);
+    expect(onZoomIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the zoom step buttons inert when no controller is wired", () => {
+    renderBar({ zoom: 100 });
+    expect(screen.getByTestId("docx-status-zoom-out")).toBeDisabled();
+    expect(screen.getByTestId("docx-status-zoom-in")).toBeDisabled();
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
   });
 

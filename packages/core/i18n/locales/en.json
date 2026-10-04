@@ -7626,7 +7626,8 @@
       },
       "selection": {
         "none": "No selection",
-        "range": "Selection {{from}}–{{to}}"
+        "range": "Selection {{from}}–{{to}}",
+        "count": "{{value}} characters"
       },
       "state": {
         "opening": "Opening document…",

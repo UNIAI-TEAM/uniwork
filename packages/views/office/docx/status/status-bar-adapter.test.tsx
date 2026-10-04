@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { DocxStatusBar } from "../status-bar";
+import { DocxStatusBar, readDocumentLang } from "../status-bar";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSaveCoordinator } from "../types";
 
@@ -84,6 +84,25 @@ describe("DocxStatusBar chrome adapter", () => {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
+  });
+
+  it("reads the document language from the editor root or the mounted surface (M-7)", () => {
+    const surface = document.createElement("div");
+    surface.innerHTML = '<div class="doc-page" lang="vi-VN"></div>';
+    // The editor root carries nothing: the surface's document root supplies it.
+    const bare = document.createElement("div");
+    expect(readDocumentLang(bare, surface)).toBe("vi-VN");
+    // The editor root's own attribute wins.
+    const own = document.createElement("div");
+    own.setAttribute("lang", "en-GB");
+    expect(readDocumentLang(own, surface)).toBe("en-GB");
+    // Neither declares a language: the bar keeps its unknown mark.
+    expect(readDocumentLang(bare, null)).toBeNull();
+    expect(readDocumentLang(null, null)).toBeNull();
+    // A blank attribute is not a language.
+    const blank = document.createElement("div");
+    blank.setAttribute("lang", "  ");
+    expect(readDocumentLang(blank, null)).toBeNull();
   });
 
   it("renders only the bar even when the handle carries a document surface", () => {

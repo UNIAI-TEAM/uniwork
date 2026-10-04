@@ -2,7 +2,9 @@
 
 import { Fragment } from "react";
 import type { Editor } from "@tiptap/core";
+import { Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { docxEditorCounts } from "./status-counts";
 
@@ -40,6 +42,10 @@ export interface DocxStatusBarProps {
   zoom?: number | null;
   /** The active selection; a collapsed caret renders no selection readout. */
   selection?: DocxStatusSelection | null;
+  /** Zoom step controls (C10). The wiring hands over the shared controller's
+   *  own step functions; absent keeps the readout text-only. */
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
   className?: string;
 }
 
@@ -89,12 +95,12 @@ function Dot() {
 /**
  * DOCX status row (28px, C10): the left cluster carries page x/y, word and
  * character counts and the document language; the right cluster carries the
- * active selection and the zoom mirror. Presentational - the wiring owns page,
- * zoom, language and selection and either feeds counts or hands over the
- * editor; every missing field renders the unknown mark, so the bar is safe to
- * mount before those surfaces exist.
+ * active selection (count + range) and the zoom step control. Presentational -
+ * the wiring owns page, zoom, language and selection and either feeds counts or
+ * hands over the editor; every missing field renders the unknown mark, so the
+ * bar is safe to mount before those surfaces exist.
  */
-export function DocxStatusBar({ editor, counts, page, language, zoom, selection, className }: DocxStatusBarProps) {
+export function DocxStatusBar({ editor, counts, page, language, zoom, selection, onZoomIn, onZoomOut, className }: DocxStatusBarProps) {
   const { t } = useTranslation();
   const unknown = t("office.docx.status.unknown");
   const resolvedCounts = counts ?? (editor ? docxEditorCounts(editor) : null);
@@ -112,7 +118,7 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
   // The zoom template carries a trailing `%`, so an unknown value collapses to
   // the bare mark instead of rendering a dangling percent sign.
   const zoomText = zoomPercent === null ? unknown : t("office.docx.status.zoom", { percent: zoomPercent });
-  // A collapsed caret is not a selection; Word's bar shows the range only.
+  // A collapsed caret is not a selection; Word's bar shows the count and range only.
   const hasSelection = Boolean(selection && selection.to > selection.from);
 
   const left: ReadonlyArray<{ testId: string; text: string }> = [
@@ -153,13 +159,42 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
         {hasSelection && selection ? (
           <>
             <Readout
+              testId="docx-status-selection-count"
+              text={t("office.docx.selection.count", { value: selection.to - selection.from })}
+            />
+            <Dot />
+            <Readout
               testId="docx-status-selection"
               text={t("office.docx.selection.range", { from: selection.from, to: selection.to })}
             />
             <Dot />
           </>
         ) : null}
-        <Readout testId="docx-status-zoom" text={zoomText} />
+        <div className="flex shrink-0 items-center gap-x-1" data-testid="docx-status-zoom-control">
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            aria-label={t("office.docx.view.zoom.out")}
+            disabled={!onZoomOut}
+            onClick={onZoomOut}
+            data-testid="docx-status-zoom-out"
+          >
+            <Minus aria-hidden />
+          </Button>
+          <Readout testId="docx-status-zoom" text={zoomText} />
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            aria-label={t("office.docx.view.zoom.in")}
+            disabled={!onZoomIn}
+            onClick={onZoomIn}
+            data-testid="docx-status-zoom-in"
+          >
+            <Plus aria-hidden />
+          </Button>
+        </div>
       </div>
     </div>
   );
