@@ -281,11 +281,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     });
     const offSave = bridge.onOfficeSaveRequested?.((event) => {
       const active = tabs.current.current.tabs.find((tab) => tab.id === tabs.current.current.activeTabId);
-      if (active?.id === event.documentId && !leaveRef.current && !document.querySelector('[role="dialog"]')) void active.data.session.coordinator.save("menu");
+      if (active?.id === event.documentId && !leaveRef.current && !document.querySelector('[role="dialog"]:not([data-closed])')) void active.data.session.coordinator.save("menu");
     });
     const shortcut = (event: KeyboardEvent) => {
       if (modeRef.current === "login") return;
-      if ((!event.ctrlKey && !event.metaKey) || event.altKey || leaveRef.current || document.querySelector('[role="dialog"]')) return;
+      if ((!event.ctrlKey && !event.metaKey) || event.altKey || leaveRef.current || document.querySelector('[role="dialog"]:not([data-closed])')) return;
       const stop = () => { event.preventDefault(); event.stopImmediatePropagation(); };
       if (event.key.toLowerCase() === "s" && !event.isComposing) {
         stop();
