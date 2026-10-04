@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
-import { CodeBlockToolbar, useCodeBlockToolbar } from "./code-block";
+import { CodeBlockToolbar } from "./code-block";
 import { MarkdownCommandRow } from "./toolbar/command-row";
 import type { TextEditorHandle } from "../../source-editor-types";
 
@@ -146,19 +146,4 @@ describe("CodeBlockToolbar", () => {
     expect(JSON.stringify(live!.getJSON())).toBe(before);
   });
 
-  it("makes the language command inert even when called directly on a read-only editor", async () => {
-    let props: ReturnType<typeof useCodeBlockToolbar> | null = null;
-    function Probe() {
-      props = useCodeBlockToolbar(live);
-      return null;
-    }
-    render(<Harness editable={false} />);
-    await waitForRow();
-    selectCodeBlock();
-    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
-    render(<Probe />);
-    const before = JSON.stringify(live!.getJSON());
-    act(() => props!.onLanguageChange("python"));
-    expect(JSON.stringify(live!.getJSON())).toBe(before);
-  });
 });

@@ -23,10 +23,8 @@
  */
 import { useState } from "react";
 import type { Editor } from "@tiptap/core";
-import { useEditorState } from "@tiptap/react";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { copyText } from "@uniwork/ui/lib/clipboard";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -96,32 +94,6 @@ export function readCodeBlock(editor: Editor | null): CodeBlockInfo | null {
     if (node.type.name === "codeBlock") return { language, text: node.textContent };
   }
   return null;
-}
-
-/**
- * The contextual control's props, driven by the live editor: null `codeBlock`
- * outside a code block (so the caller renders nothing), the picker writing
- * `language` through `updateAttributes`, and the copy control reading the
- * block's text and writing it through the product clipboard helper.
- *
- * The language command carries an `isEditable` guard of its own: a read-only
- * document must not be mutated even if a caller reaches the callback without
- * going through the disabled trigger (`@tiptap/core`'s `updateAttributes`
- * does not check editable).
- */
-export function useCodeBlockToolbar(editor: Editor | null): CodeBlockToolbarProps {
-  const codeBlock = useEditorState({
-    editor,
-    selector: ({ editor: live }) => readCodeBlock(live),
-  });
-  return {
-    codeBlock: codeBlock ?? null,
-    onLanguageChange: (language) => {
-      if (!editor?.isEditable) return;
-      editor.chain().focus().updateAttributes("codeBlock", { language }).run();
-    },
-    onCopy: () => copyText(codeBlock?.text ?? ""),
-  };
 }
 
 export function CodeBlockToolbar({ codeBlock, disabled = false, onLanguageChange, onCopy }: CodeBlockToolbarProps) {
