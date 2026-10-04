@@ -75,7 +75,7 @@ function Harness() {
   renderedTab = tab;
   return (
     <div>
-      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={setInstance} />
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={setInstance} showRibbon={false} />
       <EditorChrome tabs={[tab]} viewModes={[{ id: "wysiwyg", label: "Visual" }, { id: "source", label: "Source" }]} activeViewMode="wysiwyg" />
     </div>
   );

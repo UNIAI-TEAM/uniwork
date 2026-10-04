@@ -63,7 +63,7 @@ function Harness({ editable = true, ...row }: Partial<Parameters<typeof Markdown
   }, [instance]);
   return (
     <div>
-      <MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={editable} onEditorReady={setInstance} />
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={editable} onEditorReady={setInstance} showRibbon={false} />
       <MarkdownCommandRow editor={instance} editable={editable} {...row} />
     </div>
   );

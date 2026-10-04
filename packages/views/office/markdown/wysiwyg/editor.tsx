@@ -28,6 +28,7 @@ import type { JSONContent } from "@tiptap/core";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { createMarkdownEditorExtensions } from "./extensions";
+import { MarkdownRibbon, type MarkdownRibbonOptions } from "./ribbon";
 import { createMarkdownSourceCodec, type MarkdownSourceCodec } from "./serialize";
 import type { TextEditorHandle } from "../../source-editor-types";
 
@@ -54,6 +55,15 @@ export interface MarkdownWysiwygEditorProps<TSnapshot = unknown> {
    * mid-IME composition.
    */
   onCheckpoint?: () => void;
+  /**
+   * The ribbon is mounted over the surface by default (the lane's surface
+   * assembler). These options wire it: pane toggles (M6), Find (M7), the
+   * Source | Visual control and the image insert (M5). `editor` and `editable`
+   * are supplied by the editor itself.
+   */
+  ribbon?: MarkdownRibbonOptions;
+  /** Set false to render the surface without its ribbon. */
+  showRibbon?: boolean;
   className?: string;
   ariaLabel?: string;
 }
@@ -76,6 +86,8 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
   onEditorReady,
   onChange,
   onCheckpoint,
+  ribbon,
+  showRibbon = true,
   className,
   ariaLabel,
 }: MarkdownWysiwygEditorProps<TSnapshot>) {
@@ -201,6 +213,7 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
       data-testid="md-wysiwyg"
       data-document-key={documentKey}
     >
+      {showRibbon ? <MarkdownRibbon editor={instance} editable={editable} {...ribbon} /> : null}
       <EditorContent
         editor={instance}
         className="min-h-64 flex-1 overflow-auto p-3"

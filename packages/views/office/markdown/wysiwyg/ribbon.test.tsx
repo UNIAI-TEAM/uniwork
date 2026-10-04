@@ -52,7 +52,7 @@ function Harness({ editable = true, ...ribbon }: Partial<Parameters<typeof Markd
   }, [instance]);
   return (
     <div>
-      <MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={editable} onEditorReady={setInstance} />
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={editable} onEditorReady={setInstance} showRibbon={false} />
       <MarkdownRibbon editor={instance} editable={editable} {...ribbon} />
     </div>
   );
@@ -116,6 +116,12 @@ describe("MarkdownRibbon", () => {
     fireEvent.click(bold);
     await waitFor(() => expect(live!.isActive("bold")).toBe(true));
     await waitFor(() => expect(within(inlineGroup()).getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("is mounted by the WYSIWYG editor by default", async () => {
+    const [handle] = [createHandle()];
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} />);
+    await waitFor(() => expect(screen.getByRole("region", { name: MARKDOWN_RIBBON_KEYS.label })).toBeInTheDocument());
   });
 
   it("switches to the Insert tab and shows its group", async () => {
