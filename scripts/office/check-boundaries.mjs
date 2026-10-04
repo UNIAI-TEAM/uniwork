@@ -3,11 +3,12 @@
 //
 // Enforces the three boundary rules the lane owns:
 //   1. Browser isolation: the browser-facing surface of @uniwork/office-engine
-//      (src/index.ts, src/shared/**, src/browser/**) and all of
-//      @uniwork/office-contracts must not resolve Node, Electron, native or
+//      (src/index.ts, src/shared/**, src/browser/**, and the markdown/html/
+//      assets/xlsx lanes), @uniwork/office-contracts, packages/core/office and
+//      apps/web/platform/office must not resolve Node, Electron, native or
 //      canvas - directly OR transitively through relative imports - and must
-//      not reference a bare Node global (Buffer, process) the import scan
-//      cannot see.
+//      not reference a bare Node global (Buffer, process, global, module,
+//      exports, ...) the import scan cannot see.
 //   2. No /ee anywhere in the office tree: upstream /ee is separately licensed
 //      enterprise material and must never enter the source package
 //      (docs/office/g0/source-manifest.json).
@@ -122,16 +123,16 @@ export const BROWSER_SCOPE_ROOTS = [
   "apps/web/platform/office",
 ];
 
-/** Browser-facing surface whose BARE identifiers are scanned for Node globals.
- * Narrower than BROWSER_SCOPE_ROOTS on purpose: the xlsx seam legitimately
- * feature-detects Buffer and its Node sidecar is out of scope by construction,
- * so only the code a browser bundle evaluates is held to this rule. */
-export const BROWSER_GLOBAL_SCOPE_ROOTS = [
-  "packages/office-contracts/src",
-  "packages/office-engine/src/index.ts",
-  "packages/office-engine/src/shared",
-  "packages/office-engine/src/browser",
-];
+/** R14-2: the bare-global scan now covers every browser root (see
+ * BROWSER_SCOPE_ROOTS) instead of a narrow subset, so a stray `Buffer.from` in
+ * apps/web/platform/office or the markdown/html/assets/xlsx lanes can no longer
+ * pass silently. The only carve-out is this per-file allowlist: the xlsx
+ * seam feature-detects `typeof Buffer === "undefined"` before a Node host hands
+ * it bytes, and that `typeof` guard is exactly what the scanner would flag.
+ * Every other browser file must stay clean. */
+export const BROWSER_GLOBAL_SCOPE_EXCLUDE_FILES = new Set([
+  "packages/office-engine/src/xlsx/vendor.ts",
+]);
 
 /** Directories the /ee and licence checks scan. */
 export const OFFICE_TREE_ROOTS = [
@@ -232,7 +233,18 @@ export function unverifiableModuleCalls(source) {
  * `Buffer.from(...)` or `process.cwd()` is invisible to the import scan yet
  * throws the moment the browser bundle runs, so the browser surface is scanned
  * for the identifiers too. Node-22 built-ins only. */
-export const BROWSER_FORBIDDEN_GLOBALS = ["Buffer", "process", "__dirname", "__filename", "setImmediate", "clearImmediate"];
+export const BROWSER_FORBIDDEN_GLOBALS = [
+  "Buffer",
+  "process",
+  "__dirname",
+  "__filename",
+  "setImmediate",
+  "clearImmediate",
+  // R14-2: CJS/Node ambient bindings a browser bundle does not define either.
+  "global",
+  "module",
+  "exports",
+];
 
 /**
  * Blank comments and string/template-literal contents so an identifier scan
@@ -269,6 +281,41 @@ export function stripCommentsAndStrings(source) {
     blank(i, j);
     return j;
   };
+  // R14-3: a regex literal is not a comment/string, but its body must be
+  // blanked too - otherwise `/a\/\/` reads as a line comment and blanks the
+  // rest of the line, and `/Buffer/` false-positives as a global.
+  const REGEX_KEYWORDS = /(?:^|[^\w$])(?:return|typeof|instanceof|in|of|new|delete|void|do|else|yield|await|case)$/;
+  const regexOpensHere = (i) => {
+    for (let j = i - 1; j >= 0; j -= 1) {
+      const p = out[j];
+      if (p === " " || p === "\t" || p === "\r" || p === "\n") continue;
+      if (/[\w$)\]]/.test(p)) {
+        const word = out.slice(0, j + 1).join("").match(/[\w$]+$/);
+        return word ? REGEX_KEYWORDS.test(word[0]) : false;
+      }
+      if (p === "+" && out[j - 1] === "+") return false;
+      if (p === "-" && out[j - 1] === "-") return false;
+      return true;
+    }
+    return true;
+  };
+  const skipRegex = (i) => {
+    let j = i + 1;
+    let inClass = false;
+    while (j < source.length) {
+      const c = source[j];
+      if (c === "\\") { blank(j, j + 2); j += 2; continue; }
+      if (c === "\n") break;
+      if (c === "[") inClass = true;
+      else if (c === "]") inClass = false;
+      else if (c === "/" && !inClass) { blank(j, j + 1); j += 1; break; }
+      blank(j, j + 1);
+      j += 1;
+    }
+    while (j < source.length && /[a-z]/i.test(source[j])) { blank(j, j + 1); j += 1; }
+    blank(i, i + 1);
+    return j;
+  };
   const skipTemplate = (i) => {
     blank(i, i + 1);
     let j = i + 1;
@@ -292,6 +339,7 @@ export function stripCommentsAndStrings(source) {
       if (c === "/" && next === "*") { j = skipBlockComment(j); continue; }
       if (c === '"' || c === "'") { j = skipString(j); continue; }
       if (c === "`") { j = skipTemplate(j); continue; }
+      if (c === "/" && regexOpensHere(j)) { j = skipRegex(j); continue; }
       if (c === "{") depth += 1;
       else if (c === "}") depth -= 1;
       j += 1;
@@ -306,23 +354,53 @@ export function stripCommentsAndStrings(source) {
     if (c === "/" && next === "*") { i = skipBlockComment(i); continue; }
     if (c === '"' || c === "'") { i = skipString(i); continue; }
     if (c === "`") { i = skipTemplate(i); continue; }
+    if (c === "/" && regexOpensHere(i)) { i = skipRegex(i); continue; }
     i += 1;
   }
   return out.join("");
 }
 
-/** Bare Node globals referenced in code (comments/strings ignored). A property
- * key (`{ process: 1 }`, a TS member signature) is not a reference and is
- * skipped; `foo.Buffer` is a property access, not the global, and the
- * lookbehind excludes it too. */
+/** Identifiers the file binds itself (declarations, params, imports). A local
+ * `module`/`process` shadow is not the Node global, so the scanner skips it
+ * instead of reporting a false positive on `(module) => module.X`. */
+export function collectLocalBindings(code) {
+  const bound = new Set();
+  const add = (name) => { if (name) bound.add(name); };
+  const addList = (list) => {
+    for (const part of list.split(",")) {
+      const name = part.trim().split(/[:=]/)[0].trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) add(name);
+    }
+  };
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  for (const m of code.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}/g)) addList(m[1]);
+  for (const m of code.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  for (const m of code.matchAll(/\(([^()]*)\)\s*=>/g)) addList(m[1]);
+  for (const m of code.matchAll(/\bfunction\s*\w*\s*\(([^()]*)\)/g)) addList(m[1]);
+  return bound;
+}
+
+/** Bare Node globals referenced in code (comments/strings/regex ignored). A
+ * property key (`{ process: 1 }`) and a locally bound name are not a reference
+ * and are skipped; `foo.Buffer` is a property access, not the global, and the
+ * lookbehind excludes it too. R14-3: the old blanket skip-if-followed-by-":"
+ * rule also swallowed `cond ? process : x` and `case Buffer:`; the ":" skip now
+ * applies only where a key can occur (start of an object / after , ( ; or at a
+ * declaration), so a ternary or a switch case is still caught. */
 export function bareNodeGlobals(source) {
   const code = stripCommentsAndStrings(source);
+  const bound = collectLocalBindings(code);
   const pattern = new RegExp(`(?<![\\w$.])(?:${BROWSER_FORBIDDEN_GLOBALS.join("|")})(?![\\w$])`, "g");
   const hits = [];
   for (const match of code.matchAll(pattern)) {
-    const after = code.slice(match.index + match[0].length);
-    if (/^\s*:/.test(after)) continue;
-    hits.push(match[0]);
+    const name = match[0];
+    if (bound.has(name)) continue;
+    const after = code.slice(match.index + name.length);
+    if (/^\s*:/.test(after)) {
+      const before = code.slice(0, match.index).replace(/\s+$/, "").slice(-1);
+      if (before === "" || "{,(;".includes(before)) continue;
+    }
+    hits.push(name);
   }
   return hits;
 }
@@ -336,37 +414,6 @@ function resolveRelative(fromFile, specifier) {
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return path.resolve(candidate);
   }
   return null;
-}
-
-/** Files reachable from a set of relative roots by relative imports (test
- * files excluded) - the same closure the browser-scope walk follows. Used to
- * scope the bare-global scan to the browser-facing surface. */
-function collectGraph(root, relRoots) {
-  const files = new Set();
-  const queue = [];
-  for (const rel of relRoots) {
-    const entry = path.join(root, rel);
-    if (!fs.existsSync(entry)) continue;
-    if (fs.statSync(entry).isFile()) {
-      if (!isTestFile(entry)) queue.push(entry);
-    } else {
-      for (const f of walk(entry)) if (!isTestFile(f)) queue.push(f);
-    }
-  }
-  while (queue.length) {
-    const file = path.resolve(queue.shift());
-    if (files.has(file) || !SOURCE_EXT.has(path.extname(file))) continue;
-    files.add(file);
-    const source = fs.readFileSync(file, "utf8");
-    for (const specifier of extractImportSpecifiers(source)) {
-      if (!specifier.startsWith("./") && !specifier.startsWith("../")) continue;
-      const resolved = resolveRelative(file, specifier);
-      if (resolved && !files.has(resolved) && !isTestFile(resolved) && resolved.startsWith(root + path.sep)) {
-        queue.push(resolved);
-      }
-    }
-  }
-  return files;
 }
 
 function isForbiddenSpecifier(specifier) {
@@ -397,7 +444,6 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
 
   // --- 1. Browser isolation -------------------------------------------------
   const browserRoots = BROWSER_SCOPE_ROOTS.map((r) => path.join(root, r));
-  const browserGlobalScope = collectGraph(root, BROWSER_GLOBAL_SCOPE_ROOTS);
   const seen = new Set();
   const queue = [];
   for (const entry of browserRoots) {
@@ -422,7 +468,11 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
     for (const hit of unverifiableModuleCalls(source)) {
       report("browser_isolation", normalized, `unverifiable module access: ${hit}`);
     }
-    if (browserGlobalScope.has(normalized)) {
+    // R14-2: scan every file in the browser walk for bare Node globals. The
+    // only carve-out is the per-file allowlist (xlsx/vendor.ts's typeof Buffer
+    // feature-detect); every other browser file must stay clean.
+    const relFile = path.relative(root, normalized).replaceAll("\\", "/");
+    if (!BROWSER_GLOBAL_SCOPE_EXCLUDE_FILES.has(relFile)) {
       for (const name of bareNodeGlobals(source)) {
         report("browser_isolation", normalized, `references the Node global ${JSON.stringify(name)}`);
       }
