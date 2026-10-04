@@ -7,7 +7,9 @@
  * that belongs to it: Design -> PptxDesignPanel, Insert -> PptxInsertPanel,
  * Animations -> PptxAnimationsPanel, Transitions -> PptxTransitionsPanel,
  * Sorter -> PptxSorterPanel, Tables -> PptxTablesPanel, Charts -> PptxChartsPanel,
- * Format -> PptxFormatPanel, Find -> PptxFindReplacePanel, Links -> PptxLinkEditor.
+ * Format -> PptxFormatPanel, Find -> PptxFindReplacePanel, Links -> PptxLinkEditor,
+ * Notes -> PptxNotesPane, Comments -> PptxCommentsPanel,
+ * Header/footer -> PptxHeaderFooterPanel, Media -> PptxMediaPanel.
  *
  * It owns no write path. Every panel port is passed in; when a port is absent the
  * panel renders its own honest disabled state. Panels with a per-edit port route
@@ -16,9 +18,17 @@
  * the transport or the save coordinator directly.
  */
 import type { ReactNode } from "react";
-import type { FormatEdit, PptxEdit } from "@uniwork/office-engine/pptx";
+import type { FormatEdit, HeaderFooterEdit, MediaEdit, NotesCommentEdit, PptxEdit } from "@uniwork/office-engine/pptx";
+import type { PptxNodeBox } from "./canvas/render-tree";
 import type { PptxSlideView } from "./slide-rail";
 import type { PptxAnimationEntry } from "./animations";
+import type { PptxComment } from "./comments/comments-panel-state";
+import { PptxCommentsPanel } from "./comments/comments-panel";
+import type { PptxHeaderFooterSettings } from "./headerfooter/headerfooter-model";
+import { PptxHeaderFooterPanel } from "./headerfooter";
+import { PptxMediaPanel } from "./media";
+import { PptxNotesPane } from "./notes/notes-pane";
+import type { PptxRibbonContextualSelection } from "./pptx-ribbon";
 import { PptxAnimationsPanel } from "./animations";
 import { PptxChartsPanel } from "./charts";
 import { PptxDesignPanel } from "./design";
@@ -42,7 +52,58 @@ export type PptxPanelKind =
   | "charts"
   | "format"
   | "find"
-  | "links";
+  | "links"
+  | "notes"
+  | "comments"
+  | "headerfooter"
+  | "media";
+
+/**
+ * Every edit a panel can emit. The engine registers only the base kinds in the
+ * `PptxEdit` union today (WIRE-KINDS owns that registration), so the generic
+ * channel accepts the committed panel unions too and the single cast happens
+ * once, in `buildPptxPanel`'s fallback. When the engine registers them the cast
+ * becomes a no-op; it is never a second write path.
+ */
+export type PptxPanelEdit = PptxEdit | FormatEdit | NotesCommentEdit | HeaderFooterEdit | MediaEdit;
+
+/** The deck data the newly mounted panels read; all optional so a host that
+ *  cannot supply one leaves the panel honestly disabled/empty. */
+export interface PptxPanelData {
+  notes?: string | null;
+  notesLoading?: boolean;
+  comments?: readonly PptxComment[];
+  commentsLoading?: boolean;
+  defaultAuthor?: string;
+  headerFooterSettings?: PptxHeaderFooterSettings | null;
+  headerFooterLoading?: boolean;
+  mediaElementId?: string | null;
+  readonly?: boolean;
+}
+
+/**
+ * R4: which contextual tabs the live selection makes reachable, derived from the
+ * selected source ids and the rendition node types. Returns undefined when no
+ * object of a contextual kind is selected, so the caller omits the prop.
+ */
+export function pptxContextualSelection(
+  boxes: readonly PptxNodeBox[],
+  ids: readonly string[],
+): PptxRibbonContextualSelection | undefined {
+  if (ids.length === 0) return undefined;
+  const byId = new Map(boxes.map((box) => [box.sourceId, box.type]));
+  const selection: PptxRibbonContextualSelection = {};
+  for (const id of ids) {
+    switch (byId.get(id)) {
+      case "picture": selection.picture = true; break;
+      case "shape":
+      case "text": selection.shape = true; break;
+      case "table": selection.table = true; break;
+      default: break;
+    }
+  }
+  return Object.keys(selection).length > 0 ? selection : undefined;
+}
 
 /**
  * The fixed ribbon tab -> panel mapping. A contextual panel (Tables, Charts,
@@ -55,6 +116,7 @@ export function pptxPanelForTab(tab: PptxTabId | string): PptxPanelKind | null {
     case "insert": return "insert";
     case "animations": return "animations";
     case "transitions": return "transitions";
+    case "review": return "notes";
     case "view": return "sorter";
     default: return null;
   }
@@ -62,16 +124,18 @@ export function pptxPanelForTab(tab: PptxTabId | string): PptxPanelKind | null {
 
 export interface PptxPanelHostProps {
   panel: PptxPanelKind;
-  /** One committed edit per call (a PptxEdit kind, or a FormatEdit the engine
-   *  has not registered in the PptxEdit union yet); absent leaves the panel
+  /** One committed edit per call (a registered PptxEdit kind, or a committed
+   *  panel union the engine has not registered yet); absent leaves the panel
    *  honestly disabled. */
-  onApplyEdit?: (edit: PptxEdit | FormatEdit) => Promise<unknown>;
+  onApplyEdit?: (edit: PptxPanelEdit) => Promise<unknown>;
   /** Bulk edit channel (the editor handle's `edit`), used by the sorter. */
   onEdit?: (edits: readonly PptxEdit[]) => Promise<unknown>;
   onError?: (error: unknown) => void;
   slideIndex?: number | null;
   slideCount?: number;
   slides?: readonly PptxSlideView[];
+  /** Deck data for the notes/comments/headerfooter/media panels. */
+  data?: PptxPanelData;
   className?: string;
 }
 
@@ -83,6 +147,7 @@ export function PptxPanelHost({
   slideIndex = null,
   slideCount = 0,
   slides = [],
+  data = {},
   className,
 }: PptxPanelHostProps) {
   switch (panel) {
@@ -131,6 +196,62 @@ export function PptxPanelHost({
       return <PptxFindReplacePanel texts={[]} {...(onApplyEdit ? { onFindReplace: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} className={className} />;
     case "links":
       return <PptxLinkEditor slideIndex={slideIndex} {...(onApplyEdit ? { onSetLink: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} className={className} />;
+    case "notes":
+      return (
+        <PptxNotesPane
+          slideIndex={slideIndex}
+          notes={data.notes ?? null}
+          {...(data.notesLoading !== undefined ? { loading: data.notesLoading } : {})}
+          {...(data.readonly !== undefined ? { readonly: data.readonly } : {})}
+          {...(onApplyEdit
+            ? { onCommitNotes: (index: number, text: string) => void onApplyEdit({ op: "set_notes", slideIndex: index, text }) }
+            : {})}
+          className={className}
+        />
+      );
+    case "comments":
+      return (
+        <PptxCommentsPanel
+          slideIndex={slideIndex}
+          comments={data.comments ?? []}
+          {...(data.commentsLoading !== undefined ? { loading: data.commentsLoading } : {})}
+          {...(data.defaultAuthor !== undefined ? { defaultAuthor: data.defaultAuthor } : {})}
+          {...(data.readonly !== undefined ? { readonly: data.readonly } : {})}
+          {...(onApplyEdit
+            ? {
+                onAddComment: (index: number, text: string, author: string) =>
+                  void onApplyEdit({ op: "add_comment", slideIndex: index, text, author }),
+                onDeleteComment: (index: number, authorId: number, idx: number) =>
+                  void onApplyEdit({ op: "delete_comment", slideIndex: index, authorId, idx }),
+              }
+            : {})}
+          className={className}
+        />
+      );
+    case "headerfooter":
+      return (
+        <PptxHeaderFooterPanel
+          slideCount={slideCount}
+          {...(data.headerFooterSettings !== undefined ? { settings: data.headerFooterSettings } : {})}
+          {...(data.headerFooterLoading !== undefined ? { loading: data.headerFooterLoading } : {})}
+          {...(data.readonly !== undefined ? { disabled: data.readonly } : {})}
+          {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})}
+          {...(onError ? { onError } : {})}
+          className={className}
+        />
+      );
+    case "media":
+      return (
+        <PptxMediaPanel
+          slideCount={slideCount}
+          slideIndex={slideIndex}
+          {...(data.mediaElementId !== undefined ? { mediaElementId: data.mediaElementId } : {})}
+          {...(data.readonly !== undefined ? { disabled: data.readonly } : {})}
+          {...(onApplyEdit ? { onSelect: (edit) => onApplyEdit(edit) } : {})}
+          {...(onError ? { onError } : {})}
+          className={className}
+        />
+      );
     default:
       return null;
   }
@@ -152,20 +273,24 @@ export function PptxPanelAside({ children }: { children?: ReactNode }) {
 
 export interface PptxPanelNodeOptions {
   panelKind?: PptxPanelKind;
-  onApplyEdit?: (edit: PptxEdit | FormatEdit) => Promise<unknown>;
+  onApplyEdit?: (edit: PptxPanelEdit) => Promise<unknown>;
   /** The editor handle edit port; used when the host binds no onApplyEdit. */
   edit?: (edits: readonly PptxEdit[]) => Promise<unknown>;
   onError?: (error: unknown) => void;
   slideIndex?: number;
   slides?: readonly PptxSlideView[];
+  data?: PptxPanelData;
 }
 
 /** Compose the active panel node (with its aside wrapper) or null. Pure: the
  *  caller passes every port; a missing port leaves the panel honestly disabled. */
 export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
-  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [] } = options;
+  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data } = options;
   if (!panelKind) return null;
-  const applyEdit = onApplyEdit ?? (edit ? (one: PptxEdit | FormatEdit) => edit([one as PptxEdit]) : undefined);
+  // The ONE cast of the whole seam: the engine has not registered every panel
+  // union in `PptxEdit` yet (WIRE-KINDS owns that), so the committed edit is
+  // handed to the same generic handle edit port every other kind uses.
+  const applyEdit = onApplyEdit ?? (edit ? (one: PptxPanelEdit) => edit([one as PptxEdit]) : undefined);
   return (
     <PptxPanelAside>
       <PptxPanelHost
@@ -176,6 +301,7 @@ export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
         slideIndex={slideIndex}
         slideCount={slides.length}
         slides={slides}
+        {...(data ? { data } : {})}
       />
     </PptxPanelAside>
   );

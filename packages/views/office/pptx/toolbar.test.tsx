@@ -63,6 +63,41 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("restores the F4 disabled-reason tooltip: undo says why it is dead, without a native title", () => {
+    // F4 regression: the disabled reason is a real role=tooltip node, never a
+    // native title (which a disabled control suppresses for keyboard users).
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} canUndo={false} canRedo={false} />);
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeDisabled();
+    expect(undo).not.toHaveAttribute("title");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("No edit history yet.");
+  });
+
+  it("restores the F6 presenter pressed wash: a pressed toggle paints the selected token", () => {
+    const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen={false} />);
+    const presenter = () => screen.getByRole("button", { name: "Presenter" });
+    expect(presenter().className).not.toContain("bg-surface-selected");
+    view.rerender(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen />);
+    expect(presenter()).toHaveAttribute("aria-pressed", "true");
+    expect(presenter().className).toContain("bg-surface-selected");
+  });
+
+  it("restores the undo/redo history remap: a bound journal enables the controls", () => {
+    // With real history the remap must not touch the command: undo/redo stay
+    // enabled and carry no history_empty reason tooltip.
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} canUndo canRedo />);
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).not.toBeDisabled();
+    expect(screen.queryByText("No edit history yet.")).not.toBeInTheDocument();
+  });
+
+  it("restores the empty-tab note: the Transitions tab explains itself instead of a blank band", () => {
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    expect(screen.getByText("This tab has no commands yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
   it("adds a contextual tab only when the caller says the object is selected (R4)", () => {
     const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
     expect(screen.queryByRole("tab", { name: "Table Design" })).not.toBeInTheDocument();

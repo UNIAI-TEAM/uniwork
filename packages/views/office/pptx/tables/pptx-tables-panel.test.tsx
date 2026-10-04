@@ -66,6 +66,29 @@ describe("PptxTablesPanel", () => {
     });
   });
 
+  it("resyncs the cell-text field when the selected cell changes (F1)", () => {
+    const { rerender } = renderPanel({ cell: { row: 0, col: 0 }, cellText: "first" });
+    const field = screen.getByLabelText("Text");
+    expect(field).toHaveValue("first");
+    rerender({ cell: { row: 2, col: 1 }, cellText: "second" });
+    expect(screen.getByLabelText("Text")).toHaveValue("second");
+    // A different cell with no bound text clears the field rather than keeping
+    // the previous cell's text (which could be applied to the wrong cell).
+    rerender({ cell: { row: 1, col: 1 }, cellText: null });
+    expect(screen.getByLabelText("Text")).toHaveValue("");
+  });
+
+  it("passes before:true for insert kinds only, never for a delete (F5)", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(document.querySelector('[data-pptx-tables-structure-kind="insert-row"]') as HTMLButtonElement);
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(1));
+    expect(onApplyEdit.mock.calls[0]![0]).toMatchObject({ op: "table_structure", kind: "insert-row", before: true });
+    fireEvent.click(document.querySelector('[data-pptx-tables-structure-kind="delete-row"]') as HTMLButtonElement);
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(2));
+    expect(onApplyEdit.mock.calls[1]![0]).toMatchObject({ op: "table_structure", kind: "delete-row" });
+    expect(onApplyEdit.mock.calls[1]![0]).not.toHaveProperty("before");
+  });
+
   it("applies cell text from the field", async () => {
     const { onApplyEdit } = renderPanel();
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: "hello" } });

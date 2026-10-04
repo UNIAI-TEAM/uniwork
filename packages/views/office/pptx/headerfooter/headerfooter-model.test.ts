@@ -15,6 +15,12 @@ const value = <T>(r: { ok: true; value: T } | { ok: false; code: string }) => {
   if (!r.ok) throw new Error("expected ok, got " + r.code);
   return r.value;
 };
+/** The panel only ever builds the apply_header_footer member; narrow so the
+ *  union access is typed (HeaderFooterEdit also carries insert_slide_pptx). */
+const applyEdit = (edit: HeaderFooterEdit) => {
+  if (edit.op !== "apply_header_footer") throw new Error("expected apply_header_footer, got " + edit.op);
+  return edit;
+};
 const codeOf = (r: { ok: true } | { ok: false; code: string }) => (r.ok ? "" : r.code);
 
 describe("emptyHeaderFooterDraft / draftFromSettings", () => {
@@ -95,7 +101,7 @@ describe("buildHeaderFooterEdit", () => {
   });
 
   it("omits dateAuto when the date is empty", () => {
-    const edit = value(buildHeaderFooterEdit({ footer: "", slideNum: true, date: "", dateAuto: true }));
+    const edit = applyEdit(value(buildHeaderFooterEdit({ footer: "", slideNum: true, date: "", dateAuto: true })));
     expect(edit.settings).toEqual({ footer: null, slideNum: true, date: null });
   });
 
@@ -105,7 +111,7 @@ describe("buildHeaderFooterEdit", () => {
   });
 
   it("allows an empty draft when the deck currently shows something (a clear)", () => {
-    expect(value(buildHeaderFooterEdit(emptyHeaderFooterDraft(), { footer: "old", slideNum: true, date: null })).settings).toEqual({
+    expect(applyEdit(value(buildHeaderFooterEdit(emptyHeaderFooterDraft(), { footer: "old", slideNum: true, date: null }))).settings).toEqual({
       footer: null,
       slideNum: false,
       date: null,

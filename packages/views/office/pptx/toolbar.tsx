@@ -36,7 +36,6 @@ import {
 export interface PptxToolbarProps {
   commands: readonly PptxCommand[];
   onCommand: (id: PptxCommandId) => void;
-  activeCommand?: PptxCommandId | null;
   /** Default tab on mount; the ribbon remembers the user's choice afterwards. */
   defaultTab?: PptxTabId;
   /** Engine-journal availability, so a toolbar Undo/Redo is disabled with the
@@ -129,6 +128,7 @@ export function PptxToolbar({
       <OfficeRibbon
         scope="pptx"
         tabs={tabs}
+        emptyKey="office.pptx.tab_empty"
         activeTabId={tab}
         onActiveTabChange={(id) => setTab(id as PptxTabId)}
         quickAccess={quickAccess}

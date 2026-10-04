@@ -6,7 +6,7 @@ import type { EditorHandle, OfficeCapabilityEntry, OfficeCapabilityStatus, Offic
 import { EditorSlot, type EditorOpenState, type OfficeEditorComponent, type OfficeEditorRendererProps } from "../editor-slot";
 import { OfficeShell, type OfficeSaveCoordinatorLike } from "../office-shell";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
-import { buildPptxPanel, type PptxPanelKind } from "./pptx-panel-host";
+import { buildPptxPanel, type PptxPanelKind, type PptxPanelEdit } from "./pptx-panel-host";
 
 export interface PptxEditorViewProps extends Omit<PptxEditorProps, "host" | "editorHandle"> {
   title: ReactNode;
@@ -48,7 +48,11 @@ export function PptxEditorView({
   // Wire-round: a host-supplied panel wins; otherwise compose the active panel
   // from `panelKind` with the same generic edit channel the editor uses.
   const composedPanel = panel ?? (panelKind
-    ? buildPptxPanel({ panelKind, ...(editorProps.onApplyEdit ? { onApplyEdit: editorProps.onApplyEdit } : {}) })
+    ? buildPptxPanel({
+        panelKind,
+        ...(editorProps.onApplyEdit ? { onApplyEdit: editorProps.onApplyEdit } : {}),
+        ...(editorProps.panelData ? { data: editorProps.panelData } : {}),
+      })
     : undefined);
   const [panelOpen, setPanelOpen] = useState(Boolean(composedPanel));
   // EditorSlot keys its lazy component on the loader identity. Keep the

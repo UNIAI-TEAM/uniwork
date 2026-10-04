@@ -21,7 +21,7 @@
  * host must keep selection from the record's `after.elementId`, never from the
  * id the edit named.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -136,6 +136,14 @@ export function PptxTablesPanel({
   const [rows, setRows] = useState("3");
   const [cols, setCols] = useState("3");
   const [text, setText] = useState(cellText ?? "");
+
+  // F1: the cell-text field must follow the SELECTED cell. Re-seed it whenever
+  // the cell identity or its bound text changes, so a stale value can never be
+  // applied to a different cell.
+  const cellKey = cell ? cell.row + ":" + cell.col : "";
+  useEffect(() => {
+    setText(cellText ?? "");
+  }, [cellKey, cellText]);
   const [rowHeight, setRowHeight] = useState("40");
   const [colWidth, setColWidth] = useState("120");
 
@@ -161,7 +169,10 @@ export function PptxTablesPanel({
   };
   const applyStructure = (kind: (typeof PPTX_TABLE_STRUCTURE_KINDS)[number]) => {
     if (!target || !cell) return;
-    void run(buildStructureEdit(target, kind, kind === "insert-row" || kind === "delete-row" ? cell.row : cell.col, true));
+    // F5: `before` belongs to the INSERT kinds only; a delete carries no
+    // insertion anchor (passing it could delete the wrong row/column).
+    const insert = kind === "insert-row" || kind === "insert-col";
+    void run(buildStructureEdit(target, kind, kind === "insert-row" || kind === "delete-row" ? cell.row : cell.col, insert));
   };
   const applyRowHeight = () => {
     if (!target || !cell) return;

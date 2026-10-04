@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,16 +10,18 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
 import { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument } from "./canvas/build-slide-svg";
-import { PptxCanvasSurface } from "./canvas/pptx-canvas-surface";
+import { PptxCanvasSurface, type PptxCanvasContent } from "./canvas/pptx-canvas-surface";
 import { loadPptxRendererModule, type PptxRendererModule } from "./canvas/renderer-module";
 import { usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRendition, type PptxDeckRendererInput } from "./canvas/use-canvas-host";
 import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
 import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
-import { buildPptxPanel, type PptxPanelKind } from "./pptx-panel-host";
+import { buildPptxPanel, pptxContextualSelection, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import { collectPptxPrintSlides, pptxPrintCapability, type PptxPrintPort } from "./print";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { PptxPresenter } from "./presenter";
+import { presenterNextSlideContent, presenterSlideContent } from "./show";
 import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
 import { PptxShortcutsHelp } from "./shortcuts/pptx-shortcuts-help";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
@@ -67,10 +69,14 @@ export interface PptxEditorProps {
   panel?: ReactNode;
   /** Wire-round seam: render the active panel for this surface inside the editor. */
   panelKind?: PptxPanelKind;
+  /** Wire-round seam: the deck data the notes/comments/headerfooter/media panels read. */
+  panelData?: PptxPanelData;
+  /** Wire-round seam: the committed print/PDF port (C1). Absent keeps export-pdf honestly disabled. */
+  printPort?: PptxPrintPort | null;
   /** Wire-round seam: ONE generic edit channel every panel port routes to.
    *  Accepts the FormatEdit union too (an engine gap: it is not yet a PptxEdit
    *  kind). Falls back to the editor handle edit port when the host supplies none. */
-  onApplyEdit?: (edit: PptxEdit | FormatEdit) => Promise<unknown>;
+  onApplyEdit?: (edit: PptxPanelEdit) => Promise<unknown>;
   className?: string;
 }
 
@@ -123,6 +129,8 @@ export function PptxEditor({
   includeSave = true,
   panel,
   panelKind,
+  panelData,
+  printPort = null,
   onApplyEdit,
   className,
 }: PptxEditorProps) {
@@ -188,16 +196,20 @@ export function PptxEditor({
     () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
     [slides, thumbnails],
   );
-  // P0-2 F6: the presenter used to upscale the 160px rail thumbnail fullscreen. Until
-  // C2 owns a real presenter rendition, hand it the label only (no thumbnailUrl) so it
-  // never shows a blurry 10x upscale.
-  const presenterSlides = useMemo<readonly PptxSlideView[]>(
-    () => slides.map((slide) => ({
-      id: slide.id,
-      ...(slide.label !== undefined ? { label: slide.label } : {}),
-      ...(slide.hidden ? { hidden: true } : {}),
-    })),
-    [slides],
+  // WIRE-CANVAS-BIND: the presenter shows the SAME rendition the canvas mounts, not the
+  // 160px rail thumbnail (P0-2 F6). The next slide is built through the same renderer so
+  // the preview is the real tree too.
+  const presenterContent = useMemo<PptxCanvasContent | null>(() => presenterSlideContent(svgDocument, rendition?.hidden), [rendition?.hidden, svgDocument]);
+  const presenterNext = useMemo<PptxCanvasContent | null>(
+    () => presenterNextSlideContent(deckRenderer, selectedIndex + 1, fitWidthPx, {
+      idPrefix: `${railIdPrefix}-presenter`,
+      palette,
+      ...(imageSizeRef.current ? { imageSize: imageSizeRef.current } : {}),
+      ...(patternGrid ? { patternGrid } : {}),
+      ...(presetPath ? { presetPath } : {}),
+      ...(presetPolygon ? { presetPolygon } : {}),
+    }),
+    [deckRenderer, fitWidthPx, palette, patternGrid, presetPath, presetPolygon, railIdPrefix, selectedIndex],
   );
   const effectiveCapabilities = useMemo(() => ({
     ...capabilities,
@@ -210,7 +222,9 @@ export function PptxEditor({
     "edit-shape-image": transformRequest
       ? capabilities?.["edit-shape-image"] ?? { status: "available" as const }
       : { status: "unavailable" as const, reason: "Select a real slide transform gesture to edit a shape or image" },
-  }), [capabilities, onOpen, onTextEdit, transformRequest]);
+    // C1: the print/PDF command reports what the bound port can actually do.
+    "export-pdf": capabilities?.["export-pdf"] ?? pptxPrintCapability(printPort),
+  }), [capabilities, onOpen, onTextEdit, printPort, transformRequest]);
   const commands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
 
   useEffect(() => {
@@ -284,7 +298,6 @@ export function PptxEditor({
     await onTextEdit(selectedIndex);
     onDirty?.();
   }, [onDirty, onTextEdit, selectedIndex, waitForGesture]);
-
 
   const textTargets = useMemo(() => (rendition ? collectTextTargets(rendition) : []), [rendition]);
   const textTargetsRef = useRef(textTargets);
@@ -371,9 +384,12 @@ export function PptxEditor({
     };
   }, [editableHandle]);
 
+  // F3: the flattened node boxes feed both the selection hit-test and the R4
+  // contextual tab flags, so a picture/shape/table selection is reachable.
+  const nodeBoxes = useMemo(() => (rendition ? collectRenderNodeBoxes(rendition) : []), [rendition]);
   const selection = usePptxSelection({
     slideIndex: selectedIndex,
-    boxes: rendition ? collectRenderNodeBoxes(rendition) : [],
+    boxes: nodeBoxes,
     page: { widthPx: rendition?.widthPx ?? 0, heightPx: rendition?.heightPx ?? 0 },
     fitWidthPx,
     scale: zoom,
@@ -387,7 +403,12 @@ export function PptxEditor({
   // handler never reads a stale id.
   const selectionRef = useRef(selection.selection);
   useEffect(() => { selectionRef.current = selection.selection; }, [selection.selection]);
-
+  // F3: the R4 contextual tabs open only for the object actually selected; the
+  // flags come from the live selection ids against the rendition node types.
+  const contextual = useMemo(
+    () => pptxContextualSelection(nodeBoxes, selection.selection.ids),
+    [nodeBoxes, selection.selection.ids],
+  );
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
     return slideDisplaySize(fitWidthPx, zoom, aspect);
@@ -404,6 +425,13 @@ export function PptxEditor({
       case "redo": requestHistory("redo"); break;
       case "save": save(); break;
       case "find": setFindOpen((open) => !open); break;
+      case "export-pdf":
+        // C1: one committed print run through the bound port; nothing is faked
+        // when the port is absent (the capability above keeps it disabled).
+        if (printPort && deckRenderer) {
+          runCommand(printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) }));
+        }
+        break;
       case "presenter": openPresenter(); break;
       case "fullscreen": {
         if (onFullscreenChange) {
@@ -416,7 +444,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [fullscreen, onFullscreenChange, onOpen, openPresenter, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, transformRequest]);
+  }, [deckRenderer, fullscreen, onFullscreenChange, onOpen, openPresenter, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, transformRequest]);
 
   // A7: one dispatch table owns the canvas keys. The chords live in the pure shortcut
   // map (which the help dialog also lists), so a key that runs is a key that is
@@ -474,6 +502,7 @@ export function PptxEditor({
     onError: reportCommandError,
     slideIndex: selectedIndex,
     slides,
+    ...(panelData ? { data: panelData } : {}),
   });
 
   const selectedCount = selection.selection.ids.length;
@@ -485,29 +514,13 @@ export function PptxEditor({
         onCommand={onCommand}
         presenterOpen={presenterOpen}
         findButtonRef={setFindTrigger}
+        {...(contextual ? { contextual } : {})}
         {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
       />
-      {findOpen ? (
-        <PptxFindBar
-          query={findQuery}
-          onQueryChange={setFindQuery}
-          onClose={closeFind}
-          {...(onFind ? { onSearch: onFind } : {})}
-        />
-      ) : null}
+      {findOpen ? <PptxFindBar query={findQuery} onQueryChange={setFindQuery} onClose={closeFind} {...(onFind ? { onSearch: onFind } : {})} /> : null}
       {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
-      {rendererState.status === "error" ? (
-        <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error">
-          <AlertTitle>{t("render_failed")}</AlertTitle>
-          <AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription>
-        </Alert>
-      ) : null}
-      {svgBuild.error ? (
-        <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-svg-error">
-          <AlertTitle>{t("render_failed")}</AlertTitle>
-          <AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription>
-        </Alert>
-      ) : null}
+      {rendererState.status === "error" ? <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription></Alert> : null}
+      {svgBuild.error ? <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-svg-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription></Alert> : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* C11: the slide rail stays on the LEFT. */}
         <PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />
@@ -528,10 +541,7 @@ export function PptxEditor({
             content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
             slideIndex={selectedIndex}
             slideCount={slides.length}
-            building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))}
-            zoom={zoom}
-            onFitWidthChange={setFitWidthPx}
-            onKeyDown={onCanvasKeyDown}
+            building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} zoom={zoom} onFitWidthChange={setFitWidthPx} onKeyDown={onCanvasKeyDown}
             overlay={rendition ? (
               <>
                 <PptxSelectionOverlay
@@ -571,37 +581,12 @@ export function PptxEditor({
         </div>
         {activePanel}
       </div>
-      {/* C10: the status bar owns slide x/y, counts, language, selection and zoom. */}
-      <PptxStatusBar
-        slideCurrent={slides.length ? selectedIndex + 1 : null}
-        slideTotal={slides.length || null}
-        // F1: no deck-language source exists in this lane yet, and
-        // `document.documentElement.lang` is the UI locale - showing it as the
-        // document language is a fabricated value. Render the unknown mark
-        // until a real deck-language source is wired, matching the counts.
-        language={null}
-        selectionCount={selectedCount}
-        gesturePending={gesturePending}
-        zoom={zoom}
-        onZoomChange={setZoom}
-      />
+      {/* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */}
+      <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedCount} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} />
       <PptxShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      <PptxPresenter
-        slides={presenterSlides}
-        selectedIndex={selectedIndex}
-        open={presenterOpen}
-        onClose={() => {
-          setPresenterOpen(false);
-          presenterTriggerRef.current?.focus();
-        }}
-      />
+      <PptxPresenter slideCount={slides.length} selectedIndex={selectedIndex} content={presenterContent} nextContent={presenterNext} notes={null} building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} open={presenterOpen} onIndexChange={selectSlide} onClose={() => { setPresenterOpen(false); presenterTriggerRef.current?.focus(); }} />
       {onSnapshot ? <Button type="button" className="sr-only" onClick={() => void waitForGesture().then(onSnapshot)} data-testid="pptx-snapshot">{t("snapshot")}</Button> : null}
       {editorHandle == null && slides.length > 0 ? <Alert className="m-2" data-testid="pptx-editor-handle-warning"><AlertTitle>{t("session_missing")}</AlertTitle><AlertDescription>{t("session_missing_hint")}</AlertDescription></Alert> : null}
     </section>
   );
 }
-
-
-
-
-
