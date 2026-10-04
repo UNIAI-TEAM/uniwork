@@ -7426,6 +7426,11 @@
         "redo": "Redo",
         "presenter": "Presenter",
         "fullscreen": "Fullscreen"
+        },
+        "context": {
+          "picture": "Picture Format",
+          "shape": "Shape Format",
+          "table": "Table Design"
         }
       },
     "pdf": {

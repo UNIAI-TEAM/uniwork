@@ -7420,6 +7420,11 @@
         "redo": "Làm lại",
         "presenter": "Trình bày",
         "fullscreen": "Toàn màn hình"
+        },
+        "context": {
+          "picture": "Định dạng ảnh",
+          "shape": "Định dạng hình",
+          "table": "Thiết kế bảng"
         }
       },
     "pdf": {
