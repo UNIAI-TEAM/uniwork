@@ -1,4 +1,4 @@
-﻿// W-F (UNI-924): the styles group's typed gallery. Selecting a card must apply
+// W-F (UNI-924): the styles group's typed gallery. Selecting a card must apply
 // the same paragraph style the legacy gallery applied.
 import { describe, expect, it, vi } from "vitest";
 import type { RibbonItem } from "../../../ribbon";

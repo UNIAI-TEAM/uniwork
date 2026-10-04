@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { getI18n } from "react-i18next";
 import type { RibbonItem } from "../../../ribbon";
