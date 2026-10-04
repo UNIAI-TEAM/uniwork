@@ -2,8 +2,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { HtmlStylePanel } from "./style-panel";
-import { defaultHtmlStyleValues, type HtmlStylePatch, type HtmlStyleValues } from "./model";
+// Imported through the barrel: the panel is not mounted yet (the shell mount
+// is the lead's), so this test is what keeps the package's public surface
+// (index.ts) reachable and knip from reading it as dead code - the same
+// pattern ops/helpers.test.ts uses.
+import {
+  HtmlStylePanel,
+  defaultHtmlStyleValues,
+  type HtmlStylePanelProps,
+  type HtmlStylePatch,
+  type HtmlStyleValues,
+} from "./index";
 
 initI18n();
 beforeEach(async () => {
@@ -36,7 +45,23 @@ function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   return found as T;
 }
 
+/** The public prop shape, pinned at the type level: the barrel's surface is
+ * what a mounting host (and H6's entry) builds against, so a change here is a
+ * contract change, not an implementation detail. */
+const PANEL_PROPS: HtmlStylePanelProps = {
+  values: defaultHtmlStyleValues(),
+  isImage: false,
+  disabled: false,
+  onChange: () => {},
+  onRevert: () => {},
+};
+
 describe("HtmlStylePanel rendering", () => {
+  it("pins the public prop shape", () => {
+    expect(PANEL_PROPS.isImage).toBe(false);
+    expect(PANEL_PROPS.values.size.width).toBeNull();
+  });
+
   it("renders the typography, size, appearance and custom-CSS controls", () => {
     render(<HtmlStylePanel values={values()} {...handlers()} />);
     expect(screen.getByTestId("html-style-panel")).toBeInTheDocument();

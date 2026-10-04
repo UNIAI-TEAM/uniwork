@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-// Imported through the barrel: this test is what keeps the panel's public
-// surface (index.ts) reachable, so knip does not read the barrel as dead code.
 import {
   applyAspectLock,
   clampOpacity,
@@ -8,13 +6,24 @@ import {
   CUSTOM_CSS_MAX_LENGTH,
   defaultHtmlStyleValues,
   fontFamilyFromSelectValue,
+  HTML_STYLE_ALIGNMENTS,
+  HTML_STYLE_FITS,
+  HTML_STYLE_FONT_FAMILIES,
   HTML_STYLE_FONT_INHERIT,
+  HTML_STYLE_FONT_WEIGHTS,
   isPlainCssString,
   mergeHtmlStyleValues,
   normalizeCustomCss,
   normalizeHexColour,
   selectValueForFontFamily,
   STYLE_OPACITY_DEFAULT,
+  STYLE_OPACITY_MAX,
+  STYLE_OPACITY_MIN,
+  STYLE_SIZE_MAX,
+  STYLE_SIZE_MIN,
+  type HtmlStyleAlign,
+  type HtmlStyleFit,
+  type HtmlStyleFontWeight,
   type HtmlStyleSize,
   type HtmlStyleValues,
 } from "./index";
@@ -180,5 +189,25 @@ describe("defaultHtmlStyleValues", () => {
     expect(values.opacity).toBe(STYLE_OPACITY_DEFAULT);
     expect(values.customCss).toBe("");
     expect(values.size).toEqual({ width: null, height: null, aspectLocked: false, aspectRatio: null });
+  });
+});
+
+describe("panel surface constants", () => {
+  it("pins the option lists the controls render and the clamp bounds they use", () => {
+    expect(HTML_STYLE_FONT_WEIGHTS).toEqual([400, 500, 600, 700]);
+    expect(HTML_STYLE_ALIGNMENTS).toEqual(["left", "center", "right", "justify"]);
+    expect(HTML_STYLE_FITS).toEqual(["contain", "cover", "fill"]);
+    expect(HTML_STYLE_FONT_FAMILIES).toContain("system-ui");
+    expect(clampStyleSize(STYLE_SIZE_MIN - 1)).toBe(STYLE_SIZE_MIN);
+    expect(clampStyleSize(STYLE_SIZE_MAX + 1)).toBe(STYLE_SIZE_MAX);
+    expect(clampOpacity(STYLE_OPACITY_MIN - 1)).toBe(STYLE_OPACITY_MIN);
+    expect(clampOpacity(STYLE_OPACITY_MAX + 1)).toBe(STYLE_OPACITY_MAX);
+  });
+
+  it("pins the exported option types against the lists they name", () => {
+    const weight: HtmlStyleFontWeight = HTML_STYLE_FONT_WEIGHTS[0]!;
+    const align: HtmlStyleAlign = HTML_STYLE_ALIGNMENTS[0]!;
+    const fit: HtmlStyleFit = HTML_STYLE_FITS[0]!;
+    expect([weight, align, fit]).toEqual([400, "left", "contain"]);
   });
 });
