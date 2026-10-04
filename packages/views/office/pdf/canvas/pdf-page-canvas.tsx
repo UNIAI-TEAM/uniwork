@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { hitTestPdfBox } from "./hit-test";
-import type { PdfCanvasBox, PdfCanvasPage, PdfCanvasRegion, PdfCanvasSelection, PdfCanvasTool, PdfPageRenderService, PdfRenderResult } from "./types";
+import type { PdfCanvasBox, PdfCanvasHighlight, PdfCanvasPage, PdfCanvasRegion, PdfCanvasSelection, PdfCanvasTool, PdfPageRenderService, PdfRenderResult } from "./types";
 
 export interface PdfPageCanvasProps {
   page: PdfCanvasPage;
@@ -17,6 +17,8 @@ export interface PdfPageCanvasProps {
   /** `select` (default) picks objects; `region` drags a rectangle; `point` drops a point. */
   tool?: PdfCanvasTool;
   onPageRegion?: (pageNumber: number, region: PdfCanvasRegion) => void;
+  /** Find-hit rectangles for this page, in PDF user space (origin bottom-left). */
+  highlights?: readonly PdfCanvasHighlight[];
 }
 
 /** Smallest dragged region (points) that counts as a region rather than a stray click. */
@@ -96,6 +98,21 @@ function SelectionOverlay({ page, selection, onSelectionChange }: Pick<PdfPageCa
 }
 
 
+/** Find-hit highlights for one page: bottom-left user-space quads become the
+ * canvas's top-left display points, then follow the page rotation. Visual only. */
+function HighlightOverlay({ page, highlights, turns }: { page: PdfCanvasPage; highlights: readonly PdfCanvasHighlight[]; turns: number }) {
+  return <>{highlights.map((highlight) => {
+    const [x1, y1, x2, y2] = highlight.quad;
+    const left = Math.min(x1, x2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+    // PDF user space is bottom-left; the canvas is top-left: top = height - y2.
+    const region = toDisplayRegion({ x: left, y: page.height - Math.max(y1, y2), width, height }, page.width, page.height, turns);
+    const active = highlight.active === true;
+    return <div key={highlight.id} aria-hidden data-testid={`pdf-find-highlight-${highlight.id}`} data-active={active} className={cn("pointer-events-none absolute rounded-sm", active ? "bg-warning/30 ring-2 ring-warning" : "bg-warning/20")} style={{ left: `${region.x}px`, top: `${region.y}px`, width: `${region.width}px`, height: `${region.height}px` }} />;
+  })}</>;
+}
+
 function regionOf(start: { x: number; y: number }, end: { x: number; y: number }): PdfCanvasRegion {
   return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) };
 }
@@ -125,7 +142,7 @@ function toDisplayRegion(region: PdfCanvasRegion, width: number, height: number,
   }
 }
 
-export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSelectionChange, tool = "select", onPageRegion }: PdfPageCanvasProps) {
+export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSelectionChange, tool = "select", onPageRegion, highlights }: PdfPageCanvasProps) {
   const { t } = useTranslation();
   const turns = quarterTurns(page.rotation);
   const pageWidth = (turns % 2 === 1 ? page.height : page.width) * zoom;
@@ -191,6 +208,7 @@ export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSel
         }}
       />
       {displayDraft ? <div aria-hidden className="pointer-events-none absolute border border-primary bg-primary/20" data-testid="pdf-region-draft" style={{ left: displayDraft.x * zoom, top: displayDraft.y * zoom, width: displayDraft.width * zoom, height: displayDraft.height * zoom }} /> : null}
+      <div className="pointer-events-none absolute inset-0" style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }} data-testid={`pdf-find-highlights-${page.pageNumber}`}><HighlightOverlay page={page} highlights={highlights ?? []} turns={turns} /></div>
       <div className="pointer-events-none absolute inset-0 z-10"><SelectionOverlay page={scaledPage} selection={selection} onSelectionChange={onSelectionChange} /></div>
     </div>
   </article>;

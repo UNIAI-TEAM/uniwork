@@ -211,6 +211,34 @@ describe("PdfEditorSurface", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-status-page")).toHaveTextContent("Page 2"));
   });
 
+  it("paints a find hit's quads on the canvas and marks the active one", async () => {
+    const searchText = vi.fn(async (query: string) => [
+      { id: "h1", page: 2, start: 0, end: query.length, text: query, quads: [[10, 80, 40, 100]] as const },
+      { id: "h2", page: 2, start: 5, end: 5 + query.length, text: query, quads: [[10, 40, 40, 60]] as const },
+    ]);
+    const { handle } = host({ searchText });
+    await mount(handle);
+    fireEvent.click(screen.getByTestId("pdf-chrome-find"));
+    fireEvent.change(screen.getByLabelText("Search PDF text"), { target: { value: "total" } });
+    const active = await screen.findByTestId("pdf-find-highlight-h1:0");
+    const other = screen.getByTestId("pdf-find-highlight-h2:0");
+    expect(active).toHaveAttribute("data-active", "true");
+    expect(other).toHaveAttribute("data-active", "false");
+    expect(active.className).not.toBe(other.className);
+    // Page is 200x300: top = 300 - 100 = 200, height = 20, left = 10, width = 30.
+    expect(active).toHaveStyle({ left: "10px", top: "200px", width: "30px", height: "20px" });
+  });
+
+  it("paints no find overlay when a hit carries no quads", async () => {
+    const { handle } = host();
+    await mount(handle);
+    fireEvent.click(screen.getByTestId("pdf-chrome-find"));
+    fireEvent.change(screen.getByLabelText("Search PDF text"), { target: { value: "total" } });
+    await waitFor(() => expect(handle.searchText).toHaveBeenCalledWith("total"));
+    await waitFor(() => expect(screen.getByTestId("pdf-status-page")).toHaveTextContent("Page 2"));
+    expect(screen.getByTestId("pdf-find-highlights-2")).toBeEmptyDOMElement();
+  });
+
   it("refreshes the canvas pages when the host reports changed bytes", async () => {
     let notify: () => void = () => undefined;
     const { handle } = host({ subscribe: vi.fn((listener: () => void) => { notify = listener; return () => undefined; }) });

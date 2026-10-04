@@ -92,6 +92,37 @@ describe("PdfCanvas", () => {
     expect(onSelectionChange).toHaveBeenLastCalledWith({ page: 1, objectId: null, kind: "page" });
   });
 
+  it("paints find-hit overlays and marks the active hit", () => {
+    const highlights = [
+      { id: "a", page: 1, quad: [10, 80, 40, 100] as const, active: true },
+      { id: "b", page: 1, quad: [10, 40, 40, 60] as const },
+    ];
+    render(<PdfCanvas pages={pages} renderer={service()} highlights={highlights} />);
+    const active = screen.getByTestId("pdf-find-highlight-a");
+    const other = screen.getByTestId("pdf-find-highlight-b");
+    expect(active).toHaveAttribute("data-active", "true");
+    expect(other).toHaveAttribute("data-active", "false");
+    expect(active.className).not.toBe(other.className);
+  });
+
+  it("converts a bottom-left user-space quad to top-left display points", () => {
+    // Page is 100x120: top = 120 - y2 = 20, height = y2 - y1 = 20, left = 10, width = 30.
+    render(<PdfCanvas pages={[pages[0]!]} renderer={service()} highlights={[{ id: "a", page: 1, quad: [10, 80, 40, 100] }]} />);
+    expect(screen.getByTestId("pdf-find-highlight-a")).toHaveStyle({ left: "10px", top: "20px", width: "30px", height: "20px" });
+  });
+
+  it("rotates a find-hit overlay with the page", () => {
+    const rotated: PdfCanvasPage = { pageNumber: 1, width: 100, height: 120, rotation: 90 };
+    render(<PdfCanvas pages={[rotated]} renderer={service()} highlights={[{ id: "a", page: 1, quad: [10, 80, 40, 100] }]} />);
+    // Page-own (10,20,30x20) becomes display (80,10,20x30) after a 90-degree turn.
+    expect(screen.getByTestId("pdf-find-highlight-a")).toHaveStyle({ left: "80px", top: "10px", width: "20px", height: "30px" });
+  });
+
+  it("paints no overlay when a page has no find hits", () => {
+    render(<PdfCanvas pages={[pages[0]!]} renderer={service()} />);
+    expect(screen.getByTestId("pdf-find-highlights-1")).toBeEmptyDOMElement();
+  });
+
   it("emits a zero-size point for a click in point mode and a centred region from the keyboard", () => {
     const onPageRegion = vi.fn();
     render(<PdfCanvas pages={[pages[0]!]} renderer={service()} tool="point" onPageRegion={onPageRegion} />);

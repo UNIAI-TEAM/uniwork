@@ -3,6 +3,8 @@ export { PdfPageCanvas, type PdfPageCanvasProps } from "./pdf-page-canvas";
 export { hitTestPdfBox } from "./hit-test";
 export type {
   PdfCanvasBox,
+  PdfCanvasHighlight,
+  PdfCanvasHighlightQuad,
   PdfCanvasPage,
   PdfCanvasRegion,
   PdfCanvasSelection,

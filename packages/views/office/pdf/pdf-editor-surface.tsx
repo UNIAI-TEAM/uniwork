@@ -5,7 +5,7 @@ import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../../common/notice";
-import { PdfCanvas, type PdfCanvasPage, type PdfCanvasRegion, type PdfCanvasTool } from "./canvas";
+import { PdfCanvas, type PdfCanvasHighlight, type PdfCanvasHighlightQuad, type PdfCanvasPage, type PdfCanvasRegion, type PdfCanvasTool } from "./canvas";
 import { PdfThumbnailsRail } from "./chrome";
 import { PdfFindBar } from "./find/pdf-find-bar";
 import type { PdfSearchHit } from "./find/types";
@@ -59,6 +59,20 @@ const NO_PAGES: readonly PdfCanvasPage[] = [];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+/** The quads a find hit may carry; absent until the search reads page geometry,
+ * so a hit without them simply paints nothing. */
+function hitQuads(hit: PdfSearchHit): readonly PdfCanvasHighlightQuad[] {
+  const quads: unknown = (hit as unknown as Record<string, unknown>)["quads"];
+  if (!Array.isArray(quads)) return [];
+  return (quads as unknown[]).filter((quad): quad is PdfCanvasHighlightQuad => Array.isArray(quad) && quad.length === 4);
+}
+
+/** Turn the current find hits into canvas highlights, marking the active hit. */
+function toHighlights(hits: readonly PdfSearchHit[], activeIndex: number): readonly PdfCanvasHighlight[] {
+  const active = hits[activeIndex];
+  return hits.flatMap((hit) => hitQuads(hit).map((quad, index) => ({ id: `${hit.id}:${index}`, page: hit.page, quad, active: hit === active })));
 }
 
 /** A box of `width` x `height` hanging below the clicked point, in PDF user space
@@ -180,6 +194,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
     return () => { cancelled = true; clearTimeout(timer); };
   }, [editor, findOpen, query, revision]);
 
+  const highlights = useMemo(() => toHighlights(hits, hitIndex), [hits, hitIndex]);
   const focusPage = useCallback((page: number) => {
     setFocus((current) => ({ page, token: (current?.token ?? 0) + 1 }));
   }, []);
@@ -234,7 +249,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
         </div>
         {canvasMode && editor.renderer ? (
           <div className="flex min-h-0 flex-1 flex-col" data-testid="pdf-document-surface">
-            <PdfCanvas pages={canvasPages} renderer={editor.renderer} zoom={zoom} selection={selection} onSelectionChange={onCanvasSelect} tool={tool} onPageRegion={onPageRegion} focusPage={focus} />
+            <PdfCanvas pages={canvasPages} renderer={editor.renderer} zoom={zoom} selection={selection} onSelectionChange={onCanvasSelect} tool={tool} onPageRegion={onPageRegion} focusPage={focus} highlights={highlights} />
           </div>
         ) : (
           <div className="min-h-64 min-w-0 flex-1 overflow-auto p-4 sm:p-8">

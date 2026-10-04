@@ -48,6 +48,18 @@ export interface PdfCanvasPage {
 
 export type PdfCanvasSelection = PdfSelection;
 
+/** A find-hit highlight: one rectangle in PDF user space (origin bottom-left) as
+ * `[x1, y1, x2, y2]` points, the same space markups use. */
+export type PdfCanvasHighlightQuad = readonly [number, number, number, number];
+
+/** One find hit painted on a page; `active` marks the hit the find bar is on. */
+export interface PdfCanvasHighlight {
+  id: string;
+  page: number;
+  quad: PdfCanvasHighlightQuad;
+  active?: boolean;
+}
+
 /** What a pointer does on a page: select objects, drag a region, or drop a point. */
 export type PdfCanvasTool = "select" | "region" | "point";
 
