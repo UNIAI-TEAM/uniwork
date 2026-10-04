@@ -97,14 +97,14 @@ describe("DocxToolbarShell unavailable-group skip", () => {
     render(<DocxToolbarShell {...context({ commands: stub as DocxCommandRuntime })} />);
 
     fireEvent.click(screen.getByRole("tab", { name: "Chèn" }));
-    await waitFor(() => expect(document.querySelector('[data-toolbar-group="insert-table"]')).toBeInTheDocument());
-    expect(document.querySelector('[data-toolbar-group="insert-header-footer"]')).not.toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('[data-ribbon-group="insert-table"]')).toBeInTheDocument());
+    expect(document.querySelector('[data-ribbon-group="insert-header-footer"]')).not.toBeInTheDocument();
   });
 
   it("mounts the group in the Insert tab when the command area is composed", async () => {
     render(<DocxToolbarShell {...context()} />);
     fireEvent.click(screen.getByRole("tab", { name: "Chèn" }));
-    await waitFor(() => expect(document.querySelector('[data-toolbar-group="insert-header-footer"]')).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector('[data-ribbon-group="insert-header-footer"]')).toBeInTheDocument());
     expect(screen.getByTestId("docx-header-footer-open")).toBeInTheDocument();
   });
 });

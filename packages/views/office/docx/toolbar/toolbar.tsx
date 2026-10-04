@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Save, Undo2, Redo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";

@@ -1,4 +1,4 @@
-﻿import { createElement, type ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
 import type { AvailabilityAwareGroup } from "./groups/insert-header-footer";
 import { DOCX_TOOLBAR_TABS } from "./tabs/tabs";
@@ -88,11 +88,24 @@ function toRibbonGroup(group: DocxToolbarGroup, context: DocxToolbarGroupContext
   };
 }
 
+/** Whether a group's command area exists for this context. A group without
+ * an `isAvailable` guard is always available. */
+function isGroupAvailable(group: DocxToolbarGroup, context: DocxToolbarGroupContext): boolean {
+  const Group = group.component as AvailabilityAwareGroup;
+  return !Group.isAvailable || Group.isAvailable(context);
+}
+
 /** The DOCX tabs as shared-ribbon data, bound to one toolbar context. */
 export function buildDocxRibbonTabs(context: DocxToolbarGroupContext): readonly RibbonTab[] {
   return DOCX_TOOLBAR_TABS.map((tab) => ({
     id: tab.id,
     labelKey: tab.labelKey,
-    groups: tab.groups.map((group) => toRibbonGroup(group, context)),
+    // An unavailable group is dropped wholesale - label, chrome, separator and
+    // width estimate - matching the old ToolbarGroupView contract instead of
+    // mounting an empty labelled box. renderGroup keeps its check as
+    // defence-in-depth.
+    groups: tab.groups
+      .filter((group) => isGroupAvailable(group, context))
+      .map((group) => toRibbonGroup(group, context)),
   }));
 }

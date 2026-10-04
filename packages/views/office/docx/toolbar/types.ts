@@ -32,7 +32,7 @@ export interface DocxToolbarGroupContext {
 }
 
 export interface DocxToolbarGroup {
-  /** Stable id, also rendered as `data-toolbar-group` for tests. */
+  /** Stable id, rendered as `data-ribbon-group` (group chrome) / `data-ribbon-item` (item) for tests. */
   id: string;
   /** i18next key used as the group's accessible name. */
   labelKey: string;
