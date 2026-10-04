@@ -14,7 +14,7 @@
  * slot (C6) and Find plus the Source | Split | Preview | Present control its
  * trailing slot (C6/C11). No floating controls (C9).
  */
-import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bold,
@@ -207,41 +207,49 @@ function ImageUrlPopover({ disabled, onInsert }: { disabled: boolean; onInsert?:
  *
  * The grid is ONE composite widget, not 36 tab stops (RB-7). The shared ribbon
  * already keeps its body a single tab stop through `useRovingFocus`, so the
- * grid must NOT fight it for tabindex. Instead this container owns the arrow
- * keys: ←/→ move within a row, ↑/↓ between rows, and the event is stopped so
- * the ribbon's linear roving does not walk the grid cell by cell. A keyboard
- * user therefore reaches every size with the arrows, in 2D.
+ * grid must NOT fight it for tabindex. Instead it captures the arrow keys at
+ * the container: ←/→ move within a row, ↑/↓ between rows, and the event is
+ * stopped in the CAPTURE phase so the ribbon's linear roving never sees it. A
+ * keyboard user reaches every size with the arrows, in 2D.
  */
 function TableSizePicker({ disabled, onPick, label }: { disabled: boolean; onPick: (rows: number, columns: number) => void; label: string }) {
   const { t } = useTranslation();
   const [size, setSize] = useState<{ rows: number; columns: number }>({ rows: 0, columns: 0 });
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
-  const move = (event: KeyboardEvent<HTMLDivElement>, row: number, column: number, dr: number, dc: number) => {
-    // Keep the grid's own 2D movement; stop it reaching the ribbon's linear
-    // roving handler, which would otherwise move focus cell by cell.
-    event.preventDefault();
-    event.stopPropagation();
-    const nextRow = Math.max(0, Math.min(TABLE_MAX - 1, row + dr));
-    const nextColumn = Math.max(0, Math.min(TABLE_MAX - 1, column + dc));
-    event.currentTarget
-      .querySelector<HTMLButtonElement>(`[data-html-table-cell="${nextRow + 1}x${nextColumn + 1}"]`)
-      ?.focus();
-  };
-
-  const onGridKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-html-table-cell]") : null;
-    const cell = target?.getAttribute("data-html-table-cell");
-    if (!cell) return;
-    const [row, column] = cell.split("x").map((part) => Number(part) - 1);
-    if (row === undefined || column === undefined || Number.isNaN(row) || Number.isNaN(column)) return;
-    if (event.key === "ArrowRight") move(event, row, column, 0, 1);
-    else if (event.key === "ArrowLeft") move(event, row, column, 0, -1);
-    else if (event.key === "ArrowDown") move(event, row, column, 1, 0);
-    else if (event.key === "ArrowUp") move(event, row, column, -1, 0);
-  };
+  // A native capture-phase listener: the shared ribbon's roving handler is a
+  // bubble-phase listener on the ribbon body, so stopping the event here keeps
+  // the grid's 2D movement from also walking the ribbon cell by cell.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return undefined;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-html-table-cell]") : null;
+      const cell = target?.getAttribute("data-html-table-cell");
+      if (!cell) return;
+      const parts = cell.split("x").map((part) => Number(part) - 1);
+      const row = parts[0];
+      const column = parts[1];
+      if (row === undefined || column === undefined || Number.isNaN(row) || Number.isNaN(column)) return;
+      const step =
+        event.key === "ArrowRight" ? [0, 1] :
+        event.key === "ArrowLeft" ? [0, -1] :
+        event.key === "ArrowDown" ? [1, 0] :
+        event.key === "ArrowUp" ? [-1, 0] :
+        null;
+      if (!step) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const nextRow = Math.max(0, Math.min(TABLE_MAX - 1, row + step[0]!));
+      const nextColumn = Math.max(0, Math.min(TABLE_MAX - 1, column + step[1]!));
+      grid.querySelector<HTMLButtonElement>(`[data-html-table-cell="${nextRow + 1}x${nextColumn + 1}"]`)?.focus();
+    };
+    grid.addEventListener("keydown", onKeyDown, true);
+    return () => grid.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   return (
-    <div className="flex flex-col items-center gap-1 px-1" data-html-table-picker role="group" aria-label={label} onKeyDown={onGridKeyDown}>
+    <div ref={gridRef} className="flex flex-col items-center gap-1 px-1" data-html-table-picker role="group" aria-label={label}>
       {Array.from({ length: TABLE_MAX }, (_, r) => (
         <div key={r} className="flex gap-0.5">
           {Array.from({ length: TABLE_MAX }, (_, c) => {
