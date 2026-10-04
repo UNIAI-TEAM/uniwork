@@ -130,8 +130,9 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
   );
   const inTable = useEditorState({ editor, selector: ({ editor: live }) => live?.isActive("table") ?? false }) ?? false;
   // `state.codeBlock` (from the editor state) and the memoised `actions` are
-  // both stable across renders; `useCodeBlockToolbar` returned a fresh object
-  // each render, so keying the memo on it defeated the memo entirely (RB-9).
+  // both stable across renders; the deleted `useCodeBlockToolbar` returned a
+  // fresh object each render, so keying the memo on it defeated the memo
+  // entirely (RB-9; the hook went with RBF-6).
   const inCodeBlock = state.codeBlock !== null;
 
   return useMemo<RibbonTab[]>(() => {
@@ -177,7 +178,9 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
         id: command.id,
         labelKey: command.labelKey,
         icon: command.icon,
-        size: "icon",
+        // R2/RB-3: exactly one large primary per group, including this
+        // contextual tab; Delete table is the group's primary (as in Word).
+        size: command.id === "table-delete" ? "large" : "icon",
         disabled: readOnly,
         onExecute: () => {
           if (editor) command.run(editor.chain().focus()).run();

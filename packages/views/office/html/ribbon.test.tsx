@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { HtmlRibbon, htmlImageUrlAllowed, useHtmlRibbonTabs } from "./ribbon";
+import { HTML_RIBBON_KEYS, HtmlRibbon, htmlImageUrlAllowed, useHtmlRibbonTabs } from "./ribbon";
 import type { HtmlRibbonCommands } from "./ribbon";
 
 initI18n();
@@ -81,8 +81,9 @@ describe("useHtmlRibbonTabs", () => {
     // R2: one large primary per group (undo in Clipboard, bold in Inline).
     expect(byId.home!.groups[0]!.items.find((item) => item.id === "undo")?.size).toBe("large");
     expect(byId.home!.groups[2]!.items.find((item) => item.id === "bold")?.size).toBe("large");
-    // RB-6: the dead groups.image entry is gone.
-    expect("image" in byId.home!.groups[1]!).toBe(false);
+    // RB-6: the dead groups.image entry is gone. `image` was never a group
+    // property, so pin the value instead: the key itself must not return.
+    expect("image" in HTML_RIBBON_KEYS).toBe(false);
   });
 });
 
@@ -157,6 +158,32 @@ describe("HtmlRibbon", () => {
     expect(document.activeElement).toBe(cell("1x2"));
     fireEvent.keyDown(cell("1x2"), { key: "ArrowLeft" });
     expect(document.activeElement).toBe(cell("1x1"));
+  });
+
+  it("lets a boundary arrow leave the grid to the ribbon's roving focus (RBF-4)", () => {
+    const c = commands();
+    // A document-level listener stands in for the ribbon's bubble-phase roving
+    // handler: it only sees the arrow when the grid does not consume it.
+    const bubbled = vi.fn();
+    document.addEventListener("keydown", bubbled);
+    try {
+      const { container } = render(<HtmlRibbon commands={c} />);
+      const root = region(container);
+      fireEvent.click(root.querySelector<HTMLElement>('[data-ribbon-tab="insert"]')!);
+      const cell = (id: string) => root.querySelector<HTMLElement>(`[data-html-table-cell="${id}"]`)!;
+      cell("1x1").focus();
+      // An in-grid move is consumed: the event never reaches the ribbon.
+      fireEvent.keyDown(cell("1x1"), { key: "ArrowRight" });
+      expect(document.activeElement).toBe(cell("1x2"));
+      expect(bubbled).not.toHaveBeenCalled();
+      // A boundary arrow clamps to the same cell and is left to bubble out to
+      // the ribbon's roving focus, so the keyboard user can leave the grid.
+      fireEvent.keyDown(cell("1x1"), { key: "ArrowLeft" });
+      expect(bubbled).toHaveBeenCalledTimes(1);
+      expect((document.activeElement as HTMLElement | null)?.hasAttribute("data-html-table-cell")).toBe(false);
+    } finally {
+      document.removeEventListener("keydown", bubbled);
+    }
   });
 
   it("gives the button, section and present affordances distinct icons (RB-8)", () => {

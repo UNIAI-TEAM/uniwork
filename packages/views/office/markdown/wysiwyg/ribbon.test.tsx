@@ -132,6 +132,9 @@ describe("useMarkdownRibbonTabs", () => {
     expect(ribbonItemId(home, "lists", "large")).toBe("bulletList");
     expect(ribbonItemId(home, "view", "large")).toBe("viewOutline");
     expect(ribbonItemId(byId.insert!, "insert", "large")).toBe("insertTable");
+    // The contextual Table tab's group carries one too (RB-3/RBF-1); the Code
+    // tab's single item is a `custom` control, which owns its own sizing.
+    expect(ribbonItemId(byId.table!, "table", "large")).toBe("table-delete");
   });
 });
 
