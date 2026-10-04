@@ -51,6 +51,7 @@ import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-ty
 import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
 import { HtmlSelectionOverlay } from "./selection/bridge";
 import { HtmlFloatToolbar, type HtmlFloatToolbarCommands } from "./float-toolbar";
+import { useHtmlInlineEdit, type HtmlInlineEditPort } from "./inline-edit";
 import {
   clampZoom,
   HTML_ZOOM_DEFAULT,
@@ -103,6 +104,15 @@ export interface HtmlVisualShellProps {
    * reviewable without the H3/H8 edit wiring.
    */
   floatCommands?: HtmlFloatToolbarCommands;
+  /**
+   * H8 inline-edit wiring: the caller injects the host port that holds the live
+   * inspector channel, the op context (source + parse map + revision) and the
+   * apply path. The shell merges the bridge's `edit text` / `move up` /
+   * `move down` callbacks into `floatCommands` (an explicit entry in
+   * `floatCommands` still wins). Absent, those toolbar actions stay inert - no
+   * command is sent and no op is applied. The bridge is gated on the H5 flag.
+   */
+  inlineEdit?: HtmlInlineEditPort;
   /**
    * Overlay slot rendered last inside the `relative` canvas: H7 style panel,
    * H8 inline edit. Children self-position (absolute) or portal. The H6 float
@@ -319,6 +329,7 @@ export function HtmlVisualShell({
   onZoomChange,
   selection = null,
   floatCommands,
+  inlineEdit,
   overlay,
   className,
 }: HtmlVisualShellProps) {
@@ -355,6 +366,15 @@ export function HtmlVisualShell({
     setPreviewSelection(next);
     onPreviewSelectionRef.current?.(next);
   }, []);
+
+  // H8: the bridge turns the toolbar's edit-text / move actions and the frame's
+  // text-edit-commit into H3 ops applied through the caller's port. Flag-gated
+  // inside the hook (the same H5 flag), so a flag-off build sends nothing.
+  const inlineEditController = useHtmlInlineEdit({ sink: previewEvents, selection: previewSelection, port: inlineEdit });
+  const mergedFloatCommands = useMemo<HtmlFloatToolbarCommands>(
+    () => ({ ...inlineEditController.commands, ...floatCommands }),
+    [inlineEditController.commands, floatCommands],
+  );
 
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);
@@ -461,7 +481,7 @@ export function HtmlVisualShell({
             canvasRef={canvasRef}
             scrollRef={previewScrollRef}
             zoom={clampedZoom}
-            commands={floatCommands}
+            commands={mergedFloatCommands}
           />
         ) : null}
         {overlay}
