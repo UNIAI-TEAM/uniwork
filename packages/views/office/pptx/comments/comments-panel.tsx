@@ -14,7 +14,7 @@
  * the vendored engine registers no reply/resolve op: an enabled control that
  * silently does nothing would be a lie (the lane's "pending command" pattern).
  */
-import { useCallback, useId, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -73,13 +73,19 @@ export function PptxCommentsPanel({
 }: PptxCommentsPanelProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const authorId = useId();
-  const textId = useId();
-  const mode = commentsPanelMode({ slideIndex, loading, unbound });
-  const [author, setAuthor] = useState(defaultAuthor);
-  const [draft, setDraft] = useState("");
-
   const boundAdd = typeof onAddComment === "function";
   const boundDelete = typeof onDeleteComment === "function";
+  const mode = commentsPanelMode({ slideIndex, loading, unbound: unbound || (!boundAdd && !boundDelete) });
+  const [author, setAuthor] = useState(defaultAuthor);
+  const [authorTouched, setAuthorTouched] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  // The session author can resolve a tick after mount; fill the field while the
+  // user has not typed into it yet.
+  useEffect(() => {
+    if (!authorTouched) setAuthor(defaultAuthor);
+  }, [defaultAuthor, authorTouched]);
+
   const ready = commentDraftReady({ author, text: draft, readonly, pending, boundPort: boundAdd });
   const slideLabel = slideIndex === null ? "" : String(slideIndex + 1);
   const timeLocale = locale ?? (typeof document !== "undefined" ? document.documentElement.lang || undefined : undefined);
@@ -88,10 +94,12 @@ export function PptxCommentsPanel({
     if (!ready || slideIndex === null) return;
     const text = draft.trim();
     const name = author.trim();
-    setDraft("");
     // Fire-and-forget: the host reports the outcome through `comments` /
-    // `error`; a rejection must not become an unhandled promise.
-    void Promise.resolve(onAddComment?.(slideIndex, text, name)).catch(() => undefined);
+    // `error`; a rejection must not become an unhandled promise. The draft is
+    // cleared only once the add resolves, so a failed add keeps the typed text.
+    void Promise.resolve(onAddComment?.(slideIndex, text, name))
+      .then(() => setDraft(""))
+      .catch(() => undefined);
   }, [author, draft, onAddComment, ready, slideIndex]);
 
   const remove = useCallback(
@@ -130,7 +138,7 @@ export function PptxCommentsPanel({
         ) : null}
         {mode === "ready" ? (
           <span className="shrink-0 text-caption text-muted-foreground" data-pptx-comments-count data-testid="pptx-comments-count">
-            {t("comments.count", { value: String(comments.length) })}
+            {t("comments.count", { count: comments.length })}
           </span>
         ) : null}
         {onClose ? (
@@ -181,7 +189,7 @@ export function PptxCommentsPanel({
                       variant="ghost"
                       className="ml-auto shrink-0"
                       disabled={readonly || pending || !boundDelete}
-                      aria-label={t("comments.delete")}
+                      aria-label={t("comments.delete_for", { author: comment.author })}
                       data-pptx-comment-action="delete"
                       onClick={() => remove(comment)}
                     >
@@ -190,10 +198,10 @@ export function PptxCommentsPanel({
                   </div>
                   <p className="text-body whitespace-pre-wrap break-words text-foreground">{comment.text}</p>
                   <div className="flex items-center gap-1">
-                    <Button type="button" size="xs" variant="ghost" disabled aria-disabled="true" data-pptx-comment-action="reply">
+                    <Button type="button" size="xs" variant="ghost" aria-disabled="true" data-pptx-comment-action="reply">
                       {t("comments.reply")}
                     </Button>
-                    <Button type="button" size="xs" variant="ghost" disabled aria-disabled="true" data-pptx-comment-action="resolve">
+                    <Button type="button" size="xs" variant="ghost" aria-disabled="true" data-pptx-comment-action="resolve">
                       {t("comments.resolve")}
                     </Button>
                   </div>
@@ -215,10 +223,12 @@ export function PptxCommentsPanel({
                 value={author}
                 disabled={!boundAdd || pending}
                 placeholder={t("comments.author_placeholder")}
-                onChange={(event) => setAuthor(event.target.value)}
+                onChange={(event) => {
+                  setAuthorTouched(true);
+                  setAuthor(event.target.value);
+                }}
               />
               <Textarea
-                id={textId}
                 value={draft}
                 rows={2}
                 disabled={!boundAdd || pending}

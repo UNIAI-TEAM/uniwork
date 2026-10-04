@@ -11,9 +11,9 @@
  *
  * Honesty rules: with no bound port the pane explains rather than faking an
  * editor; with no selected slide it asks for one; a read-only document keeps
- * the textarea disabled and hides the commit control.
+ * the textarea readable (readOnly) and hides the commit control.
  */
-import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -61,8 +61,8 @@ export function PptxNotesPane({
   className,
 }: PptxNotesPaneProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
-  const fieldId = useId();
-  const mode = notesPaneMode({ slideIndex, loading, unbound });
+  const boundPort = typeof onCommitNotes === "function";
+  const mode = notesPaneMode({ slideIndex, loading, unbound: unbound || !boundPort });
   const [draft, setDraft] = useState<string>(notes ?? "");
 
   // The bound notes are the source of truth: a slide change or a completed
@@ -72,7 +72,6 @@ export function PptxNotesPane({
     setDraft(notes ?? "");
   }, [notes, slideIndex]);
 
-  const boundPort = typeof onCommitNotes === "function";
   const dirty = notes !== null && draft !== notes;
   const status = notesStatus({ dirty, pending });
   const canCommit = notesCommitAllowed({ bound: notes, draft, pending, readonly, boundPort });
@@ -143,10 +142,9 @@ export function PptxNotesPane({
         <p className="text-caption text-muted-foreground" role="status" data-pptx-notes-loading data-testid="pptx-notes-loading">{t("notes.loading")}</p>
       ) : (
         <Textarea
-          id={fieldId}
           value={draft}
           rows={4}
-          disabled={readonly}
+          readOnly={readonly}
           aria-label={t("notes.for_slide", { index: slideLabel })}
           placeholder={t("notes.placeholder")}
           className="min-h-20"
@@ -155,27 +153,29 @@ export function PptxNotesPane({
         />
       )}
 
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          role="status"
-          aria-live="polite"
-          data-pptx-notes-status={status}
-          data-testid="pptx-notes-status"
-          className={cn("min-w-0 truncate text-caption", status === "dirty" ? "text-warning" : "text-muted-foreground")}
-        >
-          {readonly && mode === "ready" ? t("notes.readonly") : t(STATUS_KEY[status])}
-        </span>
-        {mode === "ready" && !readonly && boundPort ? (
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Button type="button" size="sm" variant="ghost" disabled={!dirty || pending} onClick={revert}>
-              {t("notes.revert")}
-            </Button>
-            <Button type="button" size="sm" disabled={!canCommit} onClick={commit}>
-              {t("notes.commit")}
-            </Button>
-          </div>
-        ) : null}
-      </div>
+      {mode === "ready" ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            role="status"
+            aria-live="polite"
+            data-pptx-notes-status={status}
+            data-testid="pptx-notes-status"
+            className={cn("min-w-0 truncate text-caption", status === "dirty" ? "text-warning" : "text-muted-foreground")}
+          >
+            {readonly ? t("notes.readonly") : t(STATUS_KEY[status])}
+          </span>
+          {!readonly && boundPort ? (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <Button type="button" size="sm" variant="ghost" disabled={!dirty || pending} onClick={revert}>
+                {t("notes.revert")}
+              </Button>
+              <Button type="button" size="sm" disabled={!canCommit} onClick={commit}>
+                {t("notes.commit")}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {mode === "ready" && !readonly && boundPort ? (
         <p className="text-caption text-muted-foreground">{t("notes.hint")}</p>
       ) : null}

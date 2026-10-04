@@ -32,6 +32,6 @@ describe("A5 panel i18n bundles", () => {
     const vi = notesI18nResources("vi");
     expect(Object.keys(en).sort()).toEqual(Object.keys(PPTX_NOTES_I18N).sort());
     expect(en["office.pptx.notes.title"]).toBe("Speaker notes");
-    expect(vi["office.pptx.notes.title"]).toBe("Ghi chú trình bày");
+    expect(vi["office.pptx.notes.title"]).toBe("Ghi chú diễn giả");
   });
 });

@@ -61,6 +61,13 @@ describe("PptxNotesPane", () => {
     expect(screen.getByTestId("pptx-notes-unbound")).toHaveTextContent("not connected");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save notes" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pptx-notes-status")).not.toBeInTheDocument();
+  });
+
+  it("honours an explicit unbound override even with a bound port", () => {
+    render(<PptxNotesPane slideIndex={0} notes="x" unbound onCommitNotes={vi.fn()} />);
+    expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "unbound");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("asks for a slide when none is selected", () => {
@@ -68,6 +75,7 @@ describe("PptxNotesPane", () => {
     expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "no_slide");
     expect(screen.getByTestId("pptx-notes-no-slide")).toHaveTextContent("Select a slide");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pptx-notes-status")).not.toBeInTheDocument();
   });
 
   it("shows a loading status while the host fetches the notes", () => {
@@ -75,11 +83,13 @@ describe("PptxNotesPane", () => {
     expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "loading");
     expect(screen.getByTestId("pptx-notes-loading")).toHaveTextContent("Loading speaker notes");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pptx-notes-status")).not.toBeInTheDocument();
   });
 
-  it("disables editing and hides the commit control on a read-only document", () => {
+  it("keeps the notes readable and hides the commit control on a read-only document", () => {
     render(<PptxNotesPane slideIndex={0} notes="locked" readonly onCommitNotes={vi.fn()} />);
-    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
+    expect(screen.getByRole("textbox")).not.toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save notes" })).not.toBeInTheDocument();
     expect(screen.getByText("This presentation is read-only.")).toBeInTheDocument();
   });
