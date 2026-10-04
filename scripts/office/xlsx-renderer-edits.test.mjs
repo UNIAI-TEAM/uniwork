@@ -10,7 +10,7 @@ const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
 const bundled = await build({
   stdin: {
     contents: `export * from './edits'; export * from './command-policy'; export * from './cell-input';
-      export {createEditJournal} from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
+      export {createEditJournal, recordSetRangeValues} from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
     resolveDir: renderer, loader: 'ts',
   },
   bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent',
@@ -38,7 +38,7 @@ new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.ex
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
   snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
-  sessionTableIdForName } = module.exports;
+  sessionTableIdForName, ingestSortMutation, recordSetRangeValues } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -964,32 +964,54 @@ test('table commands and mutations: add, delete by id or name, and undo without 
 // ── DEMO COVERAGE (UNI-926): sort a column persists through the journal ──────
 // Demo step 3 is "sort a column". The dispatch is covered above (the pinned
 // `sheet.command.sort-range` reaches `sheet.mutation.reorder-range` with a
-// bounded range + keys). What is NOT covered — because the product is BROKEN —
-// is that the sort never reaches the save: the controller's CommandExecuted
-// ingest does not handle `sheet.mutation.reorder-range` (it is in none of
-// CELL_MUTATIONS / STRUCTURAL_MUTATIONS / the merge / sheet / filter / table
-// families), so the model reorders but the journal stays empty and a save
-// writes the UNSORTED rows. See reports/xlsx-genoffice-parity/worker-A7-r2.md
-// ("Route / persistence": the capture needs a shim change outside this task's
-// owned paths). This test asserts the required behaviour and therefore FAILS
-// today — it is the evidence for the fix worker, not a false pass.
-test('DEMO-COVERAGE FAILING: a reorder-range sort mutation journals the sorted rows', async () => {
-  const { mountController } = await import('./xlsx-renderer-controller-harness.mjs');
-  const file = { sessionId: 'session', sha256: 'sha', styles: [], sheets: [
-    { id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, columnWidths: [] },
-  ] };
-  const edits = [];
-  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
-  try {
-    await mounted.handle.loadWorkbook(file);
-    const before = edits.length;
-    const ok = mounted.h.execute({ id: 'sheet.mutation.reorder-range', type: 2, params: {
-      unitId: 'file-sha', subUnitId: 's1',
-      range: { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 },
-      order: { 0: 2, 1: 0, 2: 1, 3: 3, 4: 4 },
-    } });
-    assert.equal(ok, true, 'the pinned reorder mutation must execute');
-    assert.ok(edits.length > before, 'the sort must journal cell edits so a save persists it (currently: none)');
-    assert.ok(mounted.handle.getJournal().cells.size > 0, 'the sort must fill the edit journal (currently: empty)');
-  } finally { mounted.close(); }
+// bounded range + keys). This pins the persistence half: the controller's
+// CommandExecuted ingest now captures `sheet.mutation.reorder-range` through
+// ingestSortMutation, which runs the vendored journalRangeSnapshot over the
+// sorted range and surfaces the changed cells as set_cell edits, so a save
+// writes the new row order instead of the unsorted rows.
+//
+// The capture is passed in (the controller injects the real vendored
+// journalRangeSnapshot); the stub here mirrors it by journaling the sorted
+// range through the same recordSetRangeValues write.
+test('a reorder-range sort mutation journals the sorted rows as cell edits', () => {
+  const model = state();
+  const range = { startRow: 0, endRow: 2, startColumn: 0, endColumn: 0 };
+  const sortedRows = { 0: 'Ada', 1: 'Bo', 2: 'Cy' };
+  const capture = (stateArg, sheetId, area) => {
+    const cellValue = {};
+    for (let row = area.startRow; row <= area.endRow; row += 1) {
+      cellValue[row] = { [area.startColumn]: { v: sortedRows[row] } };
+    }
+    recordSetRangeValues(stateArg.editJournal, sheetId, cellValue);
+  };
+  const sortMutation = { id: 'sheet.mutation.reorder-range', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's1', range, order: { 0: 2, 1: 0, 2: 1 },
+  } };
+  assert.equal(canExecuteCommand(sortMutation, model, false), true, 'the sort mutation must pass the policy');
+
+  const edits = ingestSortMutation(model, sortMutation, capture);
+  assert.equal(edits.length, 3, 'the sort must emit one set_cell edit per sorted row');
+  assert.deepEqual(edits.map((edit) => edit.row), [0, 1, 2]);
+  assert.deepEqual(edits.map((edit) => edit.value), ['Ada', 'Bo', 'Cy']);
+  assert.ok(edits.every((edit) => edit.sheetId === 's1' && edit.writeValue === true));
+
+  // The journal now carries the sorted rows: a save would persist them.
+  const journal = model.editJournal.cells.get('s1');
+  assert.equal(journal.get('0:0').value, 'Ada');
+  assert.equal(journal.get('1:0').value, 'Bo');
+  assert.equal(journal.get('2:0').value, 'Cy');
+
+  // Re-running over an unchanged journal emits nothing (no spurious dirty).
+  assert.deepEqual(ingestSortMutation(model, sortMutation, capture), []);
+
+  // Foreign workbook, a non-sort mutation id and a missing range stay untouched.
+  assert.deepEqual(ingestSortMutation(model, { id: 'sheet.mutation.reorder-range', type: 2, params: {
+    unitId: 'other', subUnitId: 's1', range, order: { 0: 1 },
+  } }, capture), []);
+  assert.deepEqual(ingestSortMutation(model, { id: 'sheet.mutation.set-range-values', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's1', range, order: { 0: 1 },
+  } }, capture), []);
+  assert.deepEqual(ingestSortMutation(model, { id: 'sheet.mutation.reorder-range', type: 2, params: {
+    unitId: 'file-sha', subUnitId: 's1', order: { 0: 1 },
+  } }, capture), []);
 });

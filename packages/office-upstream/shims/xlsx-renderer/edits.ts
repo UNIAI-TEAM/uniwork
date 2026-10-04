@@ -15,7 +15,7 @@ import {
   removeTableAdd,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
-import { FILTER_MUTATIONS, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
+import { FILTER_MUTATIONS, REORDER_RANGE_MUTATION, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { SharedFormulaResolver } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { IExecutionOptions } from "@univerjs/core";
@@ -872,4 +872,66 @@ export function hyperlinkEdit(
 ): XlsxRendererHyperlinkEdit {
   recordHyperlinkEdit(state.editJournal, sheetId, row, column, target);
   return { sheetId, row, column, target };
+}
+
+
+// ── sort capture (A7 / FIX-SORT) ─────────────────────────────────────────────
+//
+// The pinned sort path is sheet.command.sort-range -> sheet.command.reorder-range
+// -> sheet.mutation.reorder-range, which reorders whole rows in place. The
+// vendored renderer already captures that mutation with journalRangeSnapshot
+// (univer-sync.ts), which journals every cell of the sorted range as set_cell
+// edits so the save writes exactly what the screen shows. This wrapper invokes
+// that capture and diffs the journal afterwards, because the controller's edit
+// channel emits the CHANGED cells (the journal alone never reaches onEdits).
+//
+// The capture is injected by the controller rather than imported here: the
+// vendored snapshot lives in univer-sync, which the shim's lighter test bundles
+// (scripts/office/xlsx-renderer-edits.test.mjs) do not load.
+
+/** The vendored range-snapshot capture (journalRangeSnapshot), injected by the
+ *  controller so this module stays free of the heavy univer-sync import. */
+export type SortJournalCapture = (
+  state: LazyWorkbookState,
+  sheetId: string,
+  range: AxisRange,
+  order?: Readonly<Record<number, number>>,
+) => void;
+
+/** Ingest one reorder-range (sort) mutation: run the vendored capture over the
+ *  sorted range, then return the cells whose journal entries it changed, so the
+ *  controller emits them on the edit channel and a save persists the new row
+ *  order. */
+export function ingestSortMutation(
+  state: LazyWorkbookState | null,
+  event: RendererCommand,
+  capture: SortJournalCapture,
+  suppressed = false,
+): XlsxRendererCellEdit[] {
+  if (!state || suppressed || event.options?.fromFormula || event.id !== REORDER_RANGE_MUTATION) return [];
+  const params = event.params as {
+    unitId?: string; subUnitId?: string; range?: AxisRange; order?: Record<number, number>;
+  } | undefined;
+  const sheetId = params?.subUnitId;
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+      !liveSessionSheets(state).some((sheet) => sheet.id === sheetId)) return [];
+  const range = params.range;
+  if (!range || ![range.startRow, range.endRow, range.startColumn, range.endColumn]
+    .every((value) => Number.isInteger(value) && value >= 0)) return [];
+  const before = new Map(state.editJournal.cells.get(sheetId));
+  capture(state, sheetId, range, params.order);
+  const after = state.editJournal.cells.get(sheetId);
+  if (!after) return [];
+  const changed: XlsxRendererCellEdit[] = [];
+  for (const [key, entry] of after) {
+    if (JSON.stringify(before.get(key)) === JSON.stringify(entry)) continue;
+    changed.push({
+      sheetId, row: entry.row, column: entry.column,
+      writeValue: entry.hasValue, value: entry.value,
+      ...(entry.formula === undefined ? {} : { formula: entry.formula }),
+      ...(entry.style === undefined ? {} : { style: { ...entry.style } }),
+      ...(entry.styleReset ? { styleReset: true } : {}),
+    });
+  }
+  return changed;
 }

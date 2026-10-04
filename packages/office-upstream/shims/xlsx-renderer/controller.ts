@@ -45,6 +45,7 @@ import {
   ingestSheetMutation,
   ingestTableMutation,
   ingestStructuralMutation,
+  ingestSortMutation,
   sessionTableIdForName,
   ingestNoteMutation,
   hyperlinkEdit,
@@ -79,6 +80,7 @@ import { installThickBorderFix } from "../../upstream/apps/sheets/src/renderer/t
 import {
   installFindRevealFix,
   installInjectorResolutionGuard,
+  journalRangeSnapshot,
   installWrapMeasureLifecycle,
   loadVisibleRange,
   loadWorkbookSkeleton,
@@ -664,9 +666,18 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
         journalSuppression.active,
       );
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0) return;
+      // Sorts (A7): the pinned sort reorders whole rows via
+      // sheet.mutation.reorder-range; the vendored journalRangeSnapshot journals
+      // every cell of the sorted range, and this ingest surfaces the changed
+      // cells on the edit channel so a save persists the new row order.
+      const sortEdits = ingestSortMutation(
+        lazyWorkbookRef.current, event,
+        (state, sheetId, range, order) => journalRangeSnapshot(runtime, state, sheetId, range, order),
+        journalSuppression.active,
+      );
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits]));
       options.onDirty?.();
     }),
   );
