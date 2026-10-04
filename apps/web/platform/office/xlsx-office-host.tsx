@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { OfficeShell } from "@uniwork/views/office/office-shell";
 import type { Document } from "@uniwork/core/types/document";
 import { useSession } from "@uniwork/core/auth";
@@ -120,7 +121,7 @@ export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   </div> : undefined;
   // Negotiation is a distinct, sessionless busy state. Sending a loading
   // view to the fail-closed Shared host would produce its unbound alert.
-  if (pending) return <div className={props.className} data-office-editor-host>
+  if (pending) return <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", props.className)} data-office-editor-host>
     <OfficeShell title={document.title} breadcrumbs={props.breadcrumbs} editor={loadingView} editorReady={false} className="min-h-[20rem]" />
   </div>;
   return <OfficeEditorHost<XlsxWorkbookSnapshot> {...(props as OfficeEditorHostProps<XlsxWorkbookSnapshot>)} officeDeploymentId={officeDeploymentId} formatAdapter={adapter} capability={capability ?? undefined} />;

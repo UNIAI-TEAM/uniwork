@@ -316,3 +316,34 @@ describe("OfficeEditorHost page header", () => {
     act(() => root.unmount());
   });
 });
+
+describe("OfficeEditorHost viewport bound", () => {
+  // visual-r4 M-1: at 1440x900 the web editor card grew to ~1465px because the
+  // host wrapper was an unbounded block div. It must be a definite-height flex
+  // column so OfficeShell's flex-1 and docx-editor's h-full resolve and only
+  // data-testid="docx-canvas" scrolls (ribbon + status bar stay pinned).
+  it("gives the editor a bounded flex column so the canvas, not the page, scrolls", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session);
+    await settle();
+    const wrapper = rendered.container.querySelector("[data-office-editor-host]")!;
+    const classes = wrapper.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["flex", "h-full", "min-h-0", "flex-col", "overflow-hidden"]));
+    // The shell is the flex child that absorbs the bound, not an auto-height block.
+    const shell = rendered.container.querySelector("[data-office-shell]")!;
+    expect(shell.className).toContain("flex-1");
+    expect(shell.className).toContain("flex-col");
+    rendered.root.unmount();
+  });
+
+  it("keeps a caller className without dropping the bounded wrapper classes", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session, { className: "rounded-lg border" });
+    await settle();
+    const wrapper = rendered.container.querySelector("[data-office-editor-host]")!;
+    expect(wrapper.className).toContain("rounded-lg");
+    expect(wrapper.className).toContain("h-full");
+    expect(wrapper.className).toContain("overflow-hidden");
+    rendered.root.unmount();
+  });
+});
