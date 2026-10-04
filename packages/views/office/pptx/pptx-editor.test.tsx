@@ -4,7 +4,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
 import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
-import { run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
+import { box, run, shapeNode, slide, tableNode, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
 initI18n();
@@ -36,6 +36,19 @@ function fakeRendererModule(text = "Rendered title"): { module: PptxRendererModu
     buildRenderSlide,
   };
   return { module, buildRenderSlide };
+}
+
+/** Artifact stand-in that renders a table node, for the R4 contextual-tab pin. */
+function tableRendererModule(): { module: PptxRendererModule } {
+  const module: PptxRendererModule = {
+    makeViewport: (size, fitWidthPx) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+    buildRenderSlide: (_slide: unknown, _size: unknown, options: { fitWidthPx: number }) =>
+      slide([tableNode({ box: box({ x: 100, y: 80, w: 240, h: 100 }) })], {
+        widthPx: options.fitWidthPx,
+        heightPx: options.fitWidthPx * (6858000 / 12192000),
+      }),
+  };
+  return { module };
 }
 
 function renderEditor(props: Partial<PptxEditorProps> = {}, text = "Rendered title") {
@@ -143,16 +156,19 @@ describe("PptxEditor", () => {
     expect(screen.getByTestId("pptx-render-pending")).toBeInTheDocument();
   });
 
-  it("opens presenter mode over the selected slide without another editor", () => {
-    const call = vi.fn();
-    const view = render(<PptxEditor host={makeHost(call)} editorHandle={handle()} loadRendererModule={async () => fakeRendererModule().module} slides={[{ id: "s1", label: "Intro" }]} />);
+  it("opens the presenter over the SAME rendition the canvas mounts", async () => {
+    renderEditor({ slides: [{ id: "s1", label: "Intro" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const canvasSvg = document.querySelector("[data-pptx-slide-svg]") as SVGElement;
     fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
     fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
-    expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
-    expect(screen.getAllByText("Intro").length).toBeGreaterThanOrEqual(1);
+    const dialog = screen.getByRole("dialog", { name: "Presenter view" });
+    const presenterSvg = dialog.querySelector("[data-pptx-presenter-svg]") as SVGElement;
+    expect(presenterSvg).not.toBeNull();
+    // WIRE-CANVAS-BIND: the same render tree, not the 160px rail thumbnail.
+    expect(presenterSvg.innerHTML).toBe(canvasSvg.innerHTML);
     fireEvent.click(screen.getByRole("button", { name: "Close presenter" }));
     expect(screen.queryByRole("dialog", { name: "Presenter view" })).not.toBeInTheDocument();
-    view.unmount();
   });
 
   it("mounts the shared Office ribbon instead of the raw command-id row", () => {
@@ -209,14 +225,14 @@ describe("PptxEditor", () => {
     await waitFor(() => expect(canvas.querySelector("[data-pptx-selection-outline]")).not.toBeNull());
   });
 
-  it("does not upscale the 160px rail thumbnail fullscreen in the presenter", async () => {
+  it("never upscales the rail thumbnail in the presenter", async () => {
     renderEditor({ slides: [{ id: "s1", label: "Intro" }], deck });
     await waitFor(() => expect(screen.getByRole("navigation", { name: "Slides" }).querySelector("img")).not.toBeNull());
     fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
     fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
     const dialog = screen.getByRole("dialog", { name: "Presenter view" });
     expect(dialog.querySelector("img")).toBeNull();
-    expect(dialog).toHaveTextContent("Intro");
+    expect(dialog.querySelector("[data-pptx-presenter-svg]")).not.toBeNull();
   });
 
   it("labels a bound deck that is still building instead of claiming rendering is unbound", async () => {
@@ -313,4 +329,38 @@ describe("PptxEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close presenter" }));
     expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "false");
   });
+  it("advances and goes back from the presenter controls", async () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1");
+    fireEvent.click(screen.getByRole("button", { name: "Next slide" }));
+    await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 2"));
+    fireEvent.click(screen.getByRole("button", { name: "Previous slide" }));
+    await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1"));
+  });
+
+  it("exits the presenter on Escape and returns focus to the trigger", async () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const trigger = screen.getByRole("button", { name: "Presenter" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Presenter view" })).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("opens a contextual tab only while the matching object is selected (R4)", async () => {
+    const { module } = tableRendererModule();
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} loadRendererModule={async () => module} slides={[{ id: "s1" }]} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Cell A1")).toBeInTheDocument());
+    expect(screen.queryByRole("tab", { name: "Table Design" })).not.toBeInTheDocument();
+    const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+    fireEvent.pointerDown(overlay, { button: 0, clientX: 200, clientY: 120 });
+    fireEvent.pointerUp(overlay, { button: 0, clientX: 200, clientY: 120 });
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Table Design" })).toHaveAttribute("data-ribbon-contextual", "info"));
+  });
+
 });

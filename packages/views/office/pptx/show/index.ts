@@ -23,3 +23,4 @@ export {
   registerPptxShowI18n,
   type PptxShowI18nEntry,
 } from "./show-i18n";
+export { presenterNextSlideContent, presenterSlideContent } from "./presenter-rendition";

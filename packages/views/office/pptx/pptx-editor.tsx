@@ -201,15 +201,17 @@ export function PptxEditor({
   // the preview is the real tree too.
   const presenterContent = useMemo<PptxCanvasContent | null>(() => presenterSlideContent(svgDocument, rendition?.hidden), [rendition?.hidden, svgDocument]);
   const presenterNext = useMemo<PptxCanvasContent | null>(
-    () => presenterNextSlideContent(deckRenderer, selectedIndex + 1, fitWidthPx, {
+    // Built only while the presenter is open: the editor never pays for a
+    // rendition nobody is looking at.
+    () => (presenterOpen ? presenterNextSlideContent(deckRenderer, selectedIndex + 1, fitWidthPx, {
       idPrefix: `${railIdPrefix}-presenter`,
       palette,
       ...(imageSizeRef.current ? { imageSize: imageSizeRef.current } : {}),
       ...(patternGrid ? { patternGrid } : {}),
       ...(presetPath ? { presetPath } : {}),
       ...(presetPolygon ? { presetPolygon } : {}),
-    }),
-    [deckRenderer, fitWidthPx, palette, patternGrid, presetPath, presetPolygon, railIdPrefix, selectedIndex],
+    }) : null),
+    [deckRenderer, fitWidthPx, palette, patternGrid, presenterOpen, presetPath, presetPolygon, railIdPrefix, selectedIndex],
   );
   const effectiveCapabilities = useMemo(() => ({
     ...capabilities,
