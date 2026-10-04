@@ -112,4 +112,20 @@ describe("HtmlEditor", () => {
     expect(editor.dispose).toHaveBeenCalledTimes(1);
     expect(coordinator.cancel).toHaveBeenCalledTimes(1);
   });
+
+  it("routes one Ctrl+Z to exactly one undo on the shared snapshot stack", async () => {
+    const { editor, container } = renderHtml();
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    const view = cmView(container);
+    // CodeMirror owns no history in this pane, so the keydown bubbles to the
+    // section handler, which is the SINGLE undo owner. If CM still bound
+    // Mod-z, the keydown would also undo the doc in-pane and the section would
+    // run a second undo: this asserts exactly one.
+    fireEvent.keyDown(view.contentDOM, { key: "z", ctrlKey: true });
+    expect(editor.undo).toHaveBeenCalledTimes(1);
+    expect(editor.redo).not.toHaveBeenCalled();
+    fireEvent.keyDown(view.contentDOM, { key: "y", ctrlKey: true });
+    expect(editor.redo).toHaveBeenCalledTimes(1);
+    expect(editor.undo).toHaveBeenCalledTimes(1);
+  });
 });

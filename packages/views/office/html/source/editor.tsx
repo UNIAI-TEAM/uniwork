@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactElement } from "react";
 import { autocompletion } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap } from "@codemirror/commands";
 import { html } from "@codemirror/lang-html";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
@@ -98,7 +98,6 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
         doc: value,
         extensions: [
           lineNumbers(),
-          history(),
           drawSelection(),
           highlightActiveLine(),
           syntaxHighlighting(uniworkHighlightStyle),
@@ -106,7 +105,15 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
           search(),
           autocompletion(),
           cmPlaceholder(placeholder ?? ""),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+          // No `history()` / `historyKeymap` here on purpose: the shared
+          // source surface owns undo through the editor handle's snapshot
+          // stack (`SourceEditor.history`), and CodeMirror's `runHandlers`
+          // calls `preventDefault()` but never `stopPropagation()`, so a
+          // second in-pane history would let one Mod-Z run BOTH undo systems
+          // (CM undo fires onChange -> adapter `setText` pushes `past`, then
+          // the bubbled section handler pops it straight back). One owner,
+          // exactly one undo per keystroke.
+          keymap.of([...defaultKeymap, ...searchKeymap]),
           uniworkTheme,
           readOnlyCompartment.of(readOnlyExtensions(readOnly)),
           EditorView.updateListener.of((update) => {

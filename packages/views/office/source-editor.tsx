@@ -338,9 +338,20 @@ export function SourceEditor<TSnapshot = unknown>({
       else if (editorRef.current.clipboard?.readText) { event.preventDefault(); void pasteText().catch(() => undefined); }
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      history(event.shiftKey ? "redo" : "undo");
+    if ((event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        event.preventDefault();
+        history(event.shiftKey ? "redo" : "undo");
+        return;
+      }
+      // CodeMirror's historyKeymap used to own Mod-Y redo in the HTML pane.
+      // The snapshot stack is the single undo owner now, so route that gesture
+      // here too; the Markdown textarea keeps the browser's native Mod-Y.
+      if (key === "y" && format === "html") {
+        event.preventDefault();
+        history("redo");
+      }
     }
   }, [copySelection, format, history, pasteText, permissions.canCopy, permissions.canPaste, save]);
 

@@ -91,4 +91,19 @@ describe("HtmlSourceEditor", () => {
     const node = screen.getByTestId("html-codemirror");
     expect(node).toHaveAttribute("aria-label", "HTML source");
   });
+
+  it("does not own undo: a Mod-z keydown leaves the document and onChange untouched", async () => {
+    const onChange = vi.fn();
+    const { container } = render(<HtmlSourceEditor value="<p>one</p>" onChange={onChange} />);
+    await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
+    const v = view(container);
+    v.dispatch({ changes: { from: v.state.doc.length, insert: "<!-- typed -->" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // CodeMirror has no `history()`/`historyKeymap`: the shared source surface
+    // owns undo through the editor handle's snapshot stack. If CM owned a
+    // second stack, this keydown would revert the doc here and fire onChange.
+    fireEvent.keyDown(v.contentDOM, { key: "z", ctrlKey: true });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(v.state.doc.toString()).toBe("<p>one</p><!-- typed -->");
+  });
 });
