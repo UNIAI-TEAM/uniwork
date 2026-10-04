@@ -23,6 +23,14 @@
  *     `onPreviewEvent` (forwarded preview events).
  *   H6 float toolbar / H7 style panel / H8 inline edit -> the `overlay` slot,
  *     rendered above the canvas in every mode.
+ *
+ * The overlay contract (F5): the canvas is `relative`, so an `absolute` overlay
+ * child positions against the canvas and not the viewport, in every mode. The
+ * overlay slot renders LAST inside that canvas, so its children must
+ * self-position (or be portaled) - it must never be an in-flow block that would
+ * claim layout height from the canvas. Present mode is the same canvas
+ * fullscreen (one root, a `fixed` class) rather than a second root, so entering
+ * and leaving it keeps the isolated preview session mounted (F4).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -63,12 +71,17 @@ export interface HtmlVisualShellProps {
   onPreviewSession?(session: PreviewSession | null): void;
   /** Forwarded preview events (selection bridge / inspector, H5-H8). */
   onPreviewEvent?(event: { type: string }): void;
+  /** The document title: the isolated preview iframe's accessible name. */
+  title?: string;
   /** Zoom ladder value in percent; owned by the caller for the status bar. */
   zoom: number;
   onZoomChange: (percent: number) => void;
   /** Selection in source offsets, or null; owned by the caller (H5-H8). */
   selection?: { from: number; to: number } | null;
-  /** Overlay slot above the canvas: H6 float toolbar, H7 style panel, H8 inline edit. */
+  /**
+   * Overlay slot rendered last inside the `relative` canvas: H6 float toolbar,
+   * H7 style panel, H8 inline edit. Children self-position (absolute) or portal.
+   */
   overlay?: ReactNode;
   className?: string;
 }
@@ -254,6 +267,10 @@ function PreviewPane({
 /**
  * The view shell. It renders exactly the panes the current mode asks for; the
  * ribbon and the save cluster are the caller's chrome.
+ *
+ * One root for all four modes (F4): present toggles `fixed inset-0` and the
+ * dialog role through `cn`, so the isolated preview session survives entering
+ * and leaving present instead of being disposed and re-mounted.
  */
 export function HtmlVisualShell({
   documentKey,
@@ -267,6 +284,7 @@ export function HtmlVisualShell({
   manifest,
   onPreviewSession,
   onPreviewEvent,
+  title,
   zoom,
   onZoomChange,
   selection = null,
@@ -274,12 +292,13 @@ export function HtmlVisualShell({
   className,
 }: HtmlVisualShellProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
-  const title = t("title");
+  const previewTitle = title ?? t("title");
   const safeManifest = useMemo<AssetManifestLike>(() => manifest ?? { entries: [] }, [manifest]);
   const clampedZoom = clampZoom(zoom);
   const showSource = sourceVisibleIn(viewMode);
   const showPreview = previewVisibleIn(viewMode);
   const presenting = viewMode === "present";
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);
@@ -293,6 +312,14 @@ export function HtmlVisualShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [presenting]);
 
+  // Present is a dialog: move focus in on open and restore it on close (N2).
+  useEffect(() => {
+    if (!presenting) return undefined;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    rootRef.current?.focus();
+    return () => previouslyFocused?.focus?.();
+  }, [presenting]);
+
   const previewPane = showPreview ? (
     <div
       className="flex min-h-0 min-w-0 flex-1 items-start justify-center overflow-auto p-1"
@@ -302,7 +329,7 @@ export function HtmlVisualShell({
       <div className="h-full w-full" style={{ zoom: clampedZoom / 100 }}>
         <PreviewPane
           preview={preview}
-          title={title}
+          title={previewTitle}
           text={text}
           manifest={safeManifest}
           onSession={onPreviewSession}
@@ -325,44 +352,61 @@ export function HtmlVisualShell({
     </div>
   ) : null;
 
-  // Present mode is the isolated preview, fullscreen: no source pane, no chrome.
-  if (presenting) {
-    return (
-      <div
-        className={cn("fixed inset-0 z-50 flex flex-col bg-background p-3 text-foreground", className)}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("present.label")}
-        data-testid="html-shell"
-        data-html-view="present"
-        data-document-key={documentKey}
-      >
-        {previewPane}
-        {overlay}
-      </div>
-    );
-  }
-
   return (
     <div
-      className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
+      ref={rootRef}
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col",
+        presenting && "fixed inset-0 z-50 bg-background p-3 text-foreground",
+        className,
+      )}
+      role={presenting ? "dialog" : undefined}
+      aria-modal={presenting || undefined}
+      aria-label={presenting ? t("present.label") : undefined}
+      tabIndex={presenting ? -1 : undefined}
       data-testid="html-shell"
       data-html-view={viewMode}
       data-document-key={documentKey}
     >
-      <div className={cn("flex min-h-0 min-w-0 flex-1 gap-3 p-3", showSource && showPreview ? "flex-col lg:flex-row" : "flex-col")}>
+      <div
+        className={cn(
+          "relative flex min-h-0 min-w-0 flex-1 gap-3",
+          presenting ? "p-0" : "p-3",
+          showSource && showPreview ? "flex-col lg:flex-row" : "flex-col",
+        )}
+        data-testid="html-canvas"
+      >
         {sourcePane}
         {previewPane}
+        {overlay}
+        {presenting ? (
+          // A visible exit (F3): the preview iframe swallows keydown, so Esc
+          // alone cannot be relied on once the preview holds focus. It is an
+          // overlay child of the `relative` canvas (F5) - the same corner the
+          // ribbon's Present toggle uses - so a presenter cannot get stuck.
+          <div className="absolute end-3 top-3 z-10">
+            <Button
+              type="button"
+              variant="toolbar"
+              size="sm"
+              data-testid="html-present-exit"
+              onClick={() => onViewModeChange("preview")}
+            >
+              {t("present.exit")}
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {overlay}
-      <div
-        className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-border px-2 text-caption text-muted-foreground"
-        role="group"
-        aria-label={t("status.label")}
-        data-testid="html-status"
-      >
-        <HtmlStatusBar text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
-      </div>
+      {!presenting ? (
+        <div
+          className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-border px-2 text-caption text-muted-foreground"
+          role="group"
+          aria-label={t("status.label")}
+          data-testid="html-status"
+        >
+          <HtmlStatusBar text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
+        </div>
+      ) : null}
     </div>
   );
 }

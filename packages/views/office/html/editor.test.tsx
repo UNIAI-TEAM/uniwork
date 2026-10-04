@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlEditor } from "./editor";
+import { HtmlVisualShell } from "./visual/shell";
 import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
@@ -33,7 +34,7 @@ function cmView(container: HTMLElement): EditorView {
 
 const SOURCE = "<!doctype html>\n<!-- preserve -->\n<section data-x=\"1\">Keep</section>";
 
-function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }) {
+function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }, title?: string) {
   let source = SOURCE;
   const editor: HtmlEditorHandle = {
     format: "html",
@@ -49,13 +50,14 @@ function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boo
   };
   const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const coordinator = makeCoordinator();
-  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} permissions={permissions} />);
+  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} permissions={permissions} title={title} />);
   return { editor, coordinator, ...rendered };
 }
 
 /** The editor landmark owns the mode shortcut, so keys land on the section. */
 function pressCycle(container: HTMLElement) {
-  fireEvent.keyDown(container.querySelector('[data-testid="html-editor"]')!, { key: "\\", ctrlKey: true });
+  // `code`, not `key`: a layout where Ctrl+\ arrives as "|" still cycles (N3).
+  fireEvent.keyDown(container.querySelector('[data-testid="html-editor"]')!, { key: "\\", code: "Backslash", ctrlKey: true });
 }
 
 async function renderReady(preview?: IsolatedPreviewPort) {
@@ -199,6 +201,12 @@ describe("HtmlEditor view modes", () => {
     expect(view()).toBe("split");
   });
 
+  it("cycles on Ctrl+Shift+\\ too, where the key arrives as | (N3)", async () => {
+    const { container } = await renderReady();
+    fireEvent.keyDown(container.querySelector('[data-testid="html-editor"]')!, { key: "|", code: "Backslash", ctrlKey: true, shiftKey: true });
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "preview");
+  });
+
   it("renders only the panes each mode asks for", async () => {
     const { container } = await renderReady();
     // split -> preview: the source pane goes away.
@@ -225,6 +233,54 @@ describe("HtmlEditor view modes", () => {
     expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "preview");
   });
 
+  it("names the preview mount with the document title, not the generic label (F2)", async () => {
+    const mount = vi.fn(async (_options: PreviewMountOptions) => ({ dispose: vi.fn(), update: vi.fn() }));
+    renderHtml({ mount }, undefined, "Q3 report.html");
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    // The mount title becomes the isolated iframe's accessible name.
+    expect(mount.mock.calls[0]?.[0].title).toBe("Q3 report.html");
+  });
+
+  it("falls back to the generic HTML label when the caller passes no title (F2)", async () => {
+    const mount = vi.fn(async (_options: PreviewMountOptions) => ({ dispose: vi.fn(), update: vi.fn() }));
+    await renderReady({ mount });
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    expect(mount.mock.calls[0]?.[0].title).toBe("HTML document");
+  });
+
+  it("offers a visible exit in present and keeps one shell root, so the preview session survives (F3, F4)", async () => {
+    const dispose = vi.fn();
+    const mount = vi.fn(async (_options: PreviewMountOptions) => ({ dispose, update: vi.fn() }));
+    const { container } = await renderReady({ mount });
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    const root = screen.getByTestId("html-shell");
+    pressCycle(container); // split -> preview
+    pressCycle(container); // preview -> present
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
+    // F4: present toggles a class on the SAME root; the preview is never remounted.
+    expect(screen.getByTestId("html-shell")).toBe(root);
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+    // F3: a discoverable exit the presenter can click when the iframe owns focus.
+    fireEvent.click(screen.getByTestId("html-present-exit"));
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "preview");
+    expect(screen.getByTestId("html-shell")).toBe(root);
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
+  it("moves focus into present and restores it on exit (N2)", async () => {
+    const { container } = await renderReady();
+    const save = screen.getByTestId("html-save");
+    save.focus();
+    expect(document.activeElement).toBe(save);
+    pressCycle(container); // split -> preview
+    pressCycle(container); // preview -> present
+    expect(document.activeElement).toBe(screen.getByTestId("html-shell"));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.activeElement).toBe(save);
+  });
+
   it("mounts the preview through the injected port in every preview mode", async () => {
     const mount = vi.fn(async (_options: PreviewMountOptions) => ({ dispose: vi.fn(), update: vi.fn() }));
     const { container } = await renderReady({ mount });
@@ -237,6 +293,32 @@ describe("HtmlEditor view modes", () => {
     expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
     expect(screen.getByTestId("html-preview")).toBeInTheDocument();
     expect(mount.mock.calls.every((call) => call[0].format === "html")).toBe(true);
+  });
+});
+
+describe("HtmlVisualShell overlay contract (F5)", () => {
+  it("renders the overlay inside a relative canvas so children self-position", () => {
+    render(
+      <HtmlVisualShell
+        documentKey="doc"
+        text="<p>x</p>"
+        viewMode="preview"
+        onViewModeChange={() => undefined}
+        zoom={100}
+        onZoomChange={() => undefined}
+        overlay={<span data-testid="probe-overlay" />}
+      />,
+    );
+    const canvas = screen.getByTestId("html-canvas");
+    expect(canvas.className).toContain("relative");
+    expect(canvas).toContainElement(screen.getByTestId("probe-overlay"));
+  });
+
+  it("keeps the present exit inside the same relative canvas", async () => {
+    const { container } = await renderReady();
+    pressCycle(container); // split -> preview
+    pressCycle(container); // preview -> present
+    expect(screen.getByTestId("html-canvas")).toContainElement(screen.getByTestId("html-present-exit"));
   });
 });
 

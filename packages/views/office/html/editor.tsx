@@ -19,7 +19,7 @@
  * The preview mounts only through the injected `IsolatedPreviewPort`; this file
  * builds no iframe policy and weakens none.
  */
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -112,7 +112,6 @@ export function HtmlEditor<TSnapshot = unknown>({
   const [viewMode, setViewMode] = useState<HtmlViewMode>("split");
   const [zoom, setZoom] = useState(HTML_ZOOM_DEFAULT);
   const [retryToken, setRetryToken] = useState(0);
-  const composingRef = useRef(false);
   const disposedRef = useRef(false);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
@@ -201,11 +200,13 @@ export function HtmlEditor<TSnapshot = unknown>({
   }, [documentKey, retryToken, capability?.operation, capability?.status]);
 
   const markDirty = useCallback(() => coordinator.markDirty?.(editorRef.current.getDirtyGeneration()), [coordinator]);
+  // H1 suppresses the IME window itself, so no composition gate is needed here
+  // (the earlier composingRef was never assigned).
   const checkpoint = useCallback(() => {
-    if (!composingRef.current) void coordinatorRef.current.checkpoint?.();
+    void coordinatorRef.current.checkpoint?.();
   }, []);
-  // The H1 source editor reports a committed edit through onChange AND
-  // onCheckpoint; checkpointing here too would double every save checkpoint.
+  // H1 reports a committed edit through onChange AND onCheckpoint; checkpointing
+  // here too would double every save checkpoint.
   const onTextChange = useCallback((next: string) => {
     if (editorRef.current.source) editorRef.current.source.setText(next);
     else editorRef.current.setText?.(next);
@@ -225,7 +226,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   const cycleView = useCallback(() => setViewMode((mode) => nextViewMode(mode)), []);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
-    if (mod && event.key === "\\") {
+    if (mod && event.code === "Backslash") {
       // Ctrl+\ cycles source -> split -> preview -> present -> source (C11).
       event.preventDefault();
       cycleView();
@@ -263,6 +264,11 @@ export function HtmlEditor<TSnapshot = unknown>({
   const presenting = viewMode === "present";
   // The ribbon models the three inline modes; present is its own toggle.
   const ribbonViewMode = viewMode === "present" ? "preview" : viewMode;
+  // RBF-2: stable identities. A fresh `commands` object or inline closures made
+  // the ribbon rebuild its tab/quick-access/trailing memos on every keystroke.
+  const ribbonCommands = useMemo(() => ({ onUndo: () => history("undo"), onRedo: () => history("redo") }), [history]);
+  const onRibbonViewModeChange = useCallback((mode: "source" | "split" | "preview") => setViewMode(mode), []);
+  const onTogglePresent = useCallback(() => setViewMode((mode) => (mode === "present" ? "preview" : "present")), []);
 
   return (
     <section
@@ -293,15 +299,12 @@ export function HtmlEditor<TSnapshot = unknown>({
             documented contract of `HtmlRibbon` - disabled, never hidden.
           */}
           <HtmlRibbon
-            commands={{
-              onUndo: () => history("undo"),
-              onRedo: () => history("redo"),
-            }}
+            commands={ribbonCommands}
             state={{ readOnly }}
             viewMode={ribbonViewMode}
-            onViewModeChange={(mode) => setViewMode(mode)}
+            onViewModeChange={onRibbonViewModeChange}
             presenting={presenting}
-            onTogglePresent={() => setViewMode(presenting ? "preview" : "present")}
+            onTogglePresent={onTogglePresent}
           />
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="html-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
             <span className="min-w-0 flex-1" />
@@ -319,6 +322,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             onCheckpoint={checkpoint}
             preview={preview}
             manifest={manifest}
+            title={effectiveTitle}
             zoom={zoom}
             onZoomChange={setZoom}
             className="min-h-0 flex-1"
