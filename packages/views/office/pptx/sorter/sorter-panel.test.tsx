@@ -92,7 +92,7 @@ describe("PptxSorterPanel", () => {
     expect(document.querySelectorAll("[data-pptx-sorter-section]")).toHaveLength(3);
     expect(document.querySelector("[data-pptx-sorter-section='unsectioned']")).not.toBeNull();
     expect(screen.getByText("Opening")).toBeInTheDocument();
-    expect(screen.getByTestId("pptx-sorter-section-count")).toHaveTextContent(copy("office.pptx.sections.count", { value: 2 }));
+    expect(screen.getByTestId("pptx-sorter-section-count")).toHaveTextContent(i18n.t("office.pptx.sections.count", { count: 2 }));
   });
 
   it("selects a slide from a tile and from the section list", () => {
@@ -164,6 +164,14 @@ describe("PptxSorterPanel", () => {
     expect(await screen.findByText(copy("office.pptx.sorter.layouts_unavailable"))).toBeInTheDocument();
   });
 
+  it("opens the picker on an empty catalog and explains it", async () => {
+    renderPanel({ layouts: [] });
+    const trigger = button("office.pptx.sorter.new_label");
+    expect(trigger).toBeEnabled();
+    fireEvent.click(trigger);
+    expect(await screen.findByText(copy("office.pptx.sorter.layouts_empty"))).toBeInTheDocument();
+  });
+
   it("adds, moves, removes and renames sections through the edit channel", async () => {
     const onEdit = vi.fn(async () => undefined);
     renderPanel({ onEdit, selectedIndex: 1 });
@@ -181,6 +189,17 @@ describe("PptxSorterPanel", () => {
     fireEvent.change(field, { target: { value: "Khai mạc" } });
     fireEvent.keyDown(field, { key: "Enter" });
     await waitFor(() => expect(onEdit).toHaveBeenCalledWith([{ op: "rename_section", id: "sec-1", name: "Khai mạc" }]));
+  });
+
+  it("cancels an inline rename on Escape without sending an edit", () => {
+    const onEdit = vi.fn(async () => undefined);
+    renderPanel({ onEdit });
+    fireEvent.click(button("office.pptx.sections.rename", { name: "Opening" }));
+    const field = screen.getByLabelText(copy("office.pptx.sections.rename_label"));
+    fireEvent.change(field, { target: { value: "Discarded" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(screen.queryByLabelText(copy("office.pptx.sections.rename_label"))).not.toBeInTheDocument();
+    expect(onEdit).not.toHaveBeenCalled();
   });
 
   it("warns inline when a rename would be blank", () => {
@@ -243,10 +262,14 @@ describe("PptxSorterPanel", () => {
     expect(screen.getByTestId("pptx-sorter-status")).toHaveTextContent(/^$/);
   });
 
-  it("keeps a one-slide deck's reorder handle honest but its actions usable", () => {
+  it("keeps a one-slide deck's reorder handle and delete honest", () => {
     renderPanel({ slides: [{ id: "only" }], sections: [] });
     expect(button("office.pptx.sorter.drag_handle", { index: 1 })).toBeDisabled();
     expect(button("office.pptx.sorter.duplicate")).toBeEnabled();
+    // Delete would be refused by the engine on the last slide, so it is disabled.
+    const remove = button("office.pptx.sorter.delete");
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAttribute("title", copy("office.pptx.sorter.disabled_last_slide"));
   });
 
   it("renders a tile thumbnail when the rail supplies one", () => {

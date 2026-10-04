@@ -12,6 +12,14 @@ import { PPTX_SORTER_MESSAGES, pptxSorterI18nResources } from "./sorter-i18n";
  */
 const PANEL_FILES = ["./sorter-panel.tsx", "./sorter-sections.tsx", "./sortable-slide-tile.tsx"];
 
+/** i18next JSON v4 plural forms collapse onto one stem (the panel calls the stem). */
+const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+
+function stem(key: string): string {
+  const suffix = PLURAL_SUFFIXES.find((candidate) => key.endsWith(candidate));
+  return suffix ? key.slice(0, -suffix.length) : key;
+}
+
 function calledKeys(): Set<string> {
   const keys = new Set<string>();
   for (const file of PANEL_FILES) {
@@ -28,12 +36,14 @@ function variablesOf(value: string): string[] {
 }
 
 describe("sorter i18n table", () => {
-  it("declares the exact keys the panel calls", () => {
+  it("declares the exact keys the panel calls, plural stems collapsed", () => {
     const declared = new Set(Object.keys(PPTX_SORTER_MESSAGES));
     const called = calledKeys();
     expect(called.size).toBeGreaterThan(20);
-    for (const key of called) expect(declared.has(key), `missing table entry for ${key}`).toBe(true);
-    for (const key of declared) expect(called.has(key), `unused table entry ${key}`).toBe(true);
+    const declaredStems = new Set([...declared].map(stem));
+    for (const key of called) expect(declaredStems.has(key), `missing table entry for ${key}`).toBe(true);
+    const calledStems = new Set([...called].map(stem));
+    for (const key of declared) expect(calledStems.has(stem(key)), `unused table entry ${key}`).toBe(true);
   });
 
   it("keeps vi/en parity with the same variables", () => {

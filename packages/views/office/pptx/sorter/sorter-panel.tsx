@@ -134,6 +134,11 @@ export function PptxSorterPanel({
           : undefined;
   const current = hasSlides ? slides[selectedIndex] : undefined;
 
+  // The engine refuses `delete_slide` on a one-slide deck, so Delete is disabled
+  // with its own reason instead of offering a guaranteed refusal.
+  const deleteDisabled = disabled || count < 2;
+  const deleteReason = disabled ? disabledReason : count < 2 ? t("office.pptx.sorter.disabled_last_slide") : undefined;
+
   // The catalog the host passed wins; otherwise load it once, on demand. The
   // applied reference is remembered so an inline array prop (a new identity on
   // every parent render) cannot set state in a loop.
@@ -206,10 +211,10 @@ export function PptxSorterPanel({
     (layoutIndex: number) => {
       const value = layoutPickerValue(layoutsState.status === "ready" ? layoutsState.layouts : [], layoutIndex);
       if (value === null) return;
-      const edit = addSlideEdit(value, hasSlides ? selectedIndex : 0);
+      const edit = addSlideEdit(value, selectedIndex);
       if (edit) void runEdit([edit]);
     },
-    [hasSlides, layoutsState, runEdit, selectedIndex],
+    [layoutsState, runEdit, selectedIndex],
   );
 
   const addSection = useCallback(
@@ -222,7 +227,6 @@ export function PptxSorterPanel({
   );
 
   const layoutCatalog = layoutsState.status === "ready" ? layoutsState.layouts : [];
-  const layoutPickerDisabled = disabled || (layoutsState.status === "ready" && layoutCatalog.length === 0);
 
   const grid = useMemo(
     () => (
@@ -270,7 +274,7 @@ export function PptxSorterPanel({
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={layoutPickerDisabled}
+                disabled={disabled}
                 title={disabled ? disabledReason : undefined}
                 aria-label={t("office.pptx.sorter.new_label")}
                 data-pptx-sorter-new
@@ -352,8 +356,8 @@ export function PptxSorterPanel({
           type="button"
           size="sm"
           variant="destructive"
-          disabled={disabled}
-          title={disabled ? disabledReason : undefined}
+          disabled={deleteDisabled}
+          title={deleteDisabled ? deleteReason : undefined}
           data-pptx-sorter-delete
           onClick={() => {
             const edit = deleteSlideEdit(selectedIndex);

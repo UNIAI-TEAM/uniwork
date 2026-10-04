@@ -25,8 +25,6 @@ export interface PptxSorterSectionsProps {
   selectedIndex: number;
   /** Section id currently being renamed, or null. */
   renamingId: string | null;
-  /** Section id whose edit is still applying; its actions stay disabled. */
-  busyId?: string | null;
   disabled: boolean;
   /** Why every action is disabled; rendered as each control's tooltip. */
   disabledReason?: string;
@@ -48,7 +46,6 @@ export function PptxSorterSections({
   slideCount,
   selectedIndex,
   renamingId,
-  busyId = null,
   disabled,
   disabledReason,
   onStartRename,
@@ -71,7 +68,7 @@ export function PptxSorterSections({
       <header className="flex items-center justify-between gap-2">
         <h3 className="text-label font-medium">{t("office.pptx.sections.title")}</h3>
         <span className="text-caption text-muted-foreground" data-pptx-sorter-section-count data-testid="pptx-sorter-section-count">
-          {t("office.pptx.sections.count", { value: named.length })}
+          {t("office.pptx.sections.count", { count: named.length })}
         </span>
         <Button
           type="button"
@@ -100,7 +97,6 @@ export function PptxSorterSections({
             sections={sections}
             selectedIndex={selectedIndex}
             renaming={group.id !== null && renamingId === group.id}
-            busy={group.id !== null && busyId === group.id}
             disabled={disabled}
             disabledReason={disabledReason}
             onStartRename={onStartRename}
@@ -121,7 +117,6 @@ interface SectionRowProps {
   sections: readonly PptxSectionInfo[];
   selectedIndex: number;
   renaming: boolean;
-  busy: boolean;
   disabled: boolean;
   disabledReason?: string;
   onStartRename: (id: string) => void;
@@ -137,7 +132,6 @@ function SectionRow({
   sections,
   selectedIndex,
   renaming,
-  busy,
   disabled,
   disabledReason,
   onStartRename,
@@ -182,7 +176,6 @@ function SectionRow({
         !unsectioned && groupCovers(group, selectedIndex) && "border-primary/60",
       )}
       data-pptx-sorter-section={id ?? "unsectioned"}
-      data-pptx-sorter-section-busy={busy ? "true" : undefined}
     >
       <div className="flex min-w-0 items-center gap-1.5">
         {renaming && !unsectioned ? (
@@ -230,7 +223,7 @@ function SectionRow({
               type="button"
               size="icon-sm"
               variant="ghost"
-              disabled={disabled || busy || !canMoveSection(sections, id, "up")}
+              disabled={disabled || !canMoveSection(sections, id, "up")}
               title={disabled ? disabledReason : undefined}
               aria-label={t("office.pptx.sections.move_up", { name })}
               data-pptx-sorter-section-up={id}
@@ -242,7 +235,7 @@ function SectionRow({
               type="button"
               size="icon-sm"
               variant="ghost"
-              disabled={disabled || busy || !canMoveSection(sections, id, "down")}
+              disabled={disabled || !canMoveSection(sections, id, "down")}
               title={disabled ? disabledReason : undefined}
               aria-label={t("office.pptx.sections.move_down", { name })}
               data-pptx-sorter-section-down={id}
@@ -254,7 +247,7 @@ function SectionRow({
               type="button"
               size="icon-sm"
               variant="ghost"
-              disabled={disabled || busy}
+              disabled={disabled}
               title={disabled ? disabledReason : undefined}
               aria-label={t("office.pptx.sections.rename", { name })}
               data-pptx-sorter-section-rename={id}
@@ -266,7 +259,7 @@ function SectionRow({
               type="button"
               size="icon-sm"
               variant="ghost"
-              disabled={disabled || busy}
+              disabled={disabled}
               title={disabled ? disabledReason : undefined}
               aria-label={t("office.pptx.sections.remove", { name })}
               data-pptx-sorter-section-remove={id}

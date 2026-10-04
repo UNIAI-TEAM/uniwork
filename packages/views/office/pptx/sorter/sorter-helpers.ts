@@ -89,9 +89,9 @@ export function sectionIdAtSlide(sections: readonly PptxSectionInfo[], slideInde
 }
 
 /**
- * A default name for a section added at `atSlideIndex`. Numbered by how many
- * sections already start at or before that slide, so inserting after the second
- * section suggests "Section 3" rather than reusing an existing number. The UI
+ * A default name for a section: one past the number of named sections the deck
+ * already has, so adding a section suggests "Section 3" rather than reusing an
+ * existing number (PowerPoint numbers by count, not by slide position). The UI
  * passes the result through `t("office.pptx.sections.default_name", { index })`,
  * which is why this returns the number and not the copy.
  */
