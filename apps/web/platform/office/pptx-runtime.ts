@@ -150,14 +150,21 @@ export function decodePptxEdit(entry: PptxJournalEntry): PptxEdit {
   return copy as unknown as PptxEdit;
 }
 
-/** The model surface the runtime reads for the interim session view. */
+/** The engine session model surface the runtime reads. The public `opened`
+ * handle carries the REAL deck (`opened.deck`) - the same object openPptx
+ * produced and savePptx serializes - so the canvas gets a deck with an EMU
+ * `size`; the PptxSessionModel wrapper only proxies `slides` and has none. */
 interface LivePptxSession {
   model: {
-    slides: Array<{
-      id?: string;
-      hidden?: boolean;
-      elements?: Array<{ id?: string; type?: string }>;
-    }>;
+    opened: {
+      deck: {
+        slides: Array<{
+          id?: string;
+          hidden?: boolean;
+          elements?: Array<{ id?: string; type?: string }>;
+        }>;
+      };
+    };
   };
 }
 
@@ -373,11 +380,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     },
 
     deck(documentModelRef) {
-      return liveSession(documentModelRef).model as unknown as PptxDeckModel;
+      // Return the REAL opened deck: `opened.deck` carries the EMU `size` and
+      // the live `slides`; the PptxSessionModel wrapper only proxies `slides`
+      // and has no `size`, which made the canvas fall back to 16:9.
+      return liveSession(documentModelRef).model.opened.deck as unknown as PptxDeckModel;
     },
 
     slides(documentModelRef) {
-      const slides = liveSession(documentModelRef).model.slides ?? [];
+      const slides = liveSession(documentModelRef).model.opened.deck.slides ?? [];
       return slides.map((slide, index) => ({
         id: slide.id ?? String(index),
         hidden: slide.hidden === true,

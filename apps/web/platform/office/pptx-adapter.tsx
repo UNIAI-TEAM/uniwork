@@ -11,7 +11,8 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import type { PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
@@ -110,20 +111,36 @@ function deckSlideTexts(deck: PptxDeckModel | null): string[] {
   });
 }
 
-/** The web host's OfficeHost for the shared editor: read/write/assets are the
- * adapter's own ports (save goes through the coordinator), and the one bound
- * ipc channel is the slides transform gesture -> the typed edit channel. */
-function makePptxEditorHost(editor: PptxEditorHandle, documentId: string): OfficeHost {
+/** The web host's OfficeHost for the shared editor. The browser host owns no
+ * read/write port (the adapter reads the bytes itself and save goes through the
+ * coordinator), so both refuse by name instead of fabricating an open or
+ * handing back a blank package; the one bound ipc channel is the slides
+ * transform gesture -> the typed edit channel, bound only while editable. */
+export function makePptxEditorHost(editor: PptxEditorHandle, editable: boolean): OfficeHost {
   return {
     read: {
-      readDocument: async () => new Uint8Array(),
-      openDocument: async () => ({ outcome: "opened", document_id: documentId, document_model_ref: documentId, warnings: [] }),
+      // Unbound on purpose: the bytes come from documents.read() in editor.open,
+      // so a caller here gets a typed refusal, never an empty Uint8Array.
+      readDocument: async () => { throw new HostCapabilityRefusal("host:read-document", "unsupported", "the web host reads bytes through the adapter, not the shared host read port"); },
+      // Open runs through the adapter editor, so a fabricated success (a bogus
+      // document_model_ref) would be a lie about a model that does not exist.
+      // openDocument owns a failure channel (the contract's OpenOutcome), so
+      // the refusal is that named failure - never a thrown surprise, never a
+      // fabricated "opened".
+      openDocument: async (documentId, format) => ({
+        outcome: "failed" as const,
+        document_id: documentId,
+        format,
+        failure_class: "unsupported_feature" as const,
+        message: "the web host opens through the adapter editor, not the shared host read port",
+      }),
     },
     write: { writeOutput: async () => { throw new Error("use_save_coordinator"); } },
     assets: { resolveFont: async () => null, resolveImage: async () => null, resolveAsset: async () => null },
     ipc: {
       call: (async (channel: string, body: unknown) => {
         if (channel === "host:slides-edit-transform") {
+          if (!editable) throw new HostCapabilityRefusal("host:slides-edit-transform", "policy", "the document is readonly");
           const request = body as SlidesEditTransformRequest;
           if (!request.sourceId) throw new Error("pptx_transform_needs_element");
           await editor.edit([{
@@ -136,6 +153,7 @@ function makePptxEditorHost(editor: PptxEditorHandle, documentId: string): Offic
             hPx: request.hPx,
             ...(request.rotationDeg === undefined ? {} : { rotationDeg: request.rotationDeg }),
             ...(request.fitWidthPx == null ? {} : { fitWidthPx: request.fitWidthPx }),
+            ...(request.groupId ? { groupId: request.groupId } : {}),
           }]);
           return {};
         }
@@ -155,13 +173,12 @@ function PptxEditorSurface(props: {
   subscribe: (listener: () => void) => () => void;
   editor: PptxEditorHandle;
   coordinator: OfficeEditorSession<PptxDeckSnapshot>["coordinator"];
-  capability: OfficeCapabilityEntry;
-  readonly: boolean;
-  documentId: string;
+  /** A readonly document binds no edit port at all (F6). */
+  editable: boolean;
   open: (signal?: AbortSignal) => Promise<PptxOpenOutcome>;
 }): ReactNode {
   const { t } = useTranslation();
-  const { editor, coordinator, readonly, documentId, open, view, subscribe } = props;
+  const { editor, coordinator, editable, open, view, subscribe } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
@@ -189,7 +206,7 @@ function PptxEditorSurface(props: {
     return () => { active = false; controller.abort(); };
   }, [attempt, open, t]);
 
-  const host = useMemo(() => makePptxEditorHost(editor, documentId), [documentId, editor]);
+  const host = useMemo(() => makePptxEditorHost(editor, editable), [editable, editor]);
 
   const slides = useMemo<readonly PptxSlideView[]>(
     () => (current?.slides ?? []).map((slide, index) => ({ id: slide.id, label: String(index + 1), ...(slide.hidden ? { hidden: true } : {}) })),
@@ -218,29 +235,40 @@ function PptxEditorSurface(props: {
         hPx: request.hPx,
         ...(request.rotationDeg === undefined ? {} : { rotationDeg: request.rotationDeg }),
         ...(request.fitWidthPx == null ? {} : { fitWidthPx: request.fitWidthPx }),
+        ...(request.groupId ? { groupId: request.groupId } : {}),
       }]);
     },
     [editor],
   );
-  // The generic channel accepts the panel FormatEdit union too; once the engine
-  // registers those kinds they are PptxEdit members and the cast is a no-op.
-  const applyEdit = useCallback((edit: PptxEdit | FormatEdit) => editor.edit([edit as PptxEdit]), [editor]);
+  // WIRE-KINDS (d3890c0a) registered FormatEdit in the PptxEdit union, so the
+  // panel edit union IS PptxEdit and no cast is needed.
+  const applyEdit = useCallback((edit: PptxEdit) => editor.edit([edit]), [editor]);
   const deleteElements = useCallback(
     (slideIndex: number, elementIds: readonly string[]) =>
       editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))),
     [editor],
   );
+  // F4 seam: the shared PptxEditor exposes no selection-aware text-edit port -
+  // the in-place layer is bound through onCommitText (double-click / context
+  // "Edit Text"), and onTextEdit is only its no-selection fallback. Binding
+  // onTextEdit to a no-op would light the ribbon Text command while doing
+  // nothing, so it stays unbound and the shared editor honestly disables
+  // edit-text; the dead commandCapabilities["edit-text"] entry is gone.
+  // Follow-up row: add a selection-aware text port to PptxEditor and bind it
+  // here. F6: a readonly document binds NO edit port at all (below), so no
+  // in-place layer opens over a document whose commit would be refused.
+  // F7: the deck texts are memoized on the published view instead of rescanned
+  // per keystroke. The view object is replaced on every applied edit / undo /
+  // redo / restore (the deck itself mutates in place), so the memo refreshes
+  // exactly when the model moved.
+  const deckText = useMemo(() => deckSlideTexts(current?.deck ?? null), [current]);
   // A real find: jump the editor to the first slide whose text carries the query.
   const find = useCallback((query: string) => {
     const needle = query.trim().toLowerCase();
     if (!needle) return;
-    const index = deckSlideTexts(editor.deck()).findIndex((text) => text.toLowerCase().includes(needle));
+    const index = deckText.findIndex((text) => text.toLowerCase().includes(needle));
     if (index >= 0) setSelected(index);
-  }, [editor]);
-  const commandCapabilities = useMemo(
-    () => ({ "edit-text": readonly ? { status: "unavailable" as const, reason: t("office.editor.read_only_hint") } : ("available" as const) }),
-    [readonly, t],
-  );
+  }, [deckText]);
 
   if (phase !== "ready") {
     return (
@@ -268,13 +296,11 @@ function PptxEditorSurface(props: {
       deck={deck}
       selectedIndex={selected}
       onSlideSelect={setSelected}
-      onCommitText={commitText}
-      onTransform={transform}
-      onApplyEdit={applyEdit}
-      onDeleteElements={deleteElements}
+      // F6: readonly binds no edit port (text/transform/panel/delete); find and
+      // slide selection stay live because they never mutate the deck.
+      {...(editable ? { onCommitText: commitText, onTransform: transform, onApplyEdit: applyEdit, onDeleteElements: deleteElements } : {})}
       onFind={find}
       saveCoordinator={coordinator}
-      capabilities={commandCapabilities}
       includeSave={false}
     />
   );
@@ -447,9 +473,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         subscribe={subscribe}
         editor={editor}
         coordinator={session.coordinator}
-        capability={options.capability}
-        readonly={options.readonly === true}
-        documentId={options.identity.documentId}
+        editable={options.readonly !== true}
         open={open.open}
       />
     ),

@@ -281,7 +281,10 @@ describe("web PPTX session runtime", () => {
     const { runtime, ref } = await opened();
     const deck = runtime.deck(ref);
     expect(deck.slides).toHaveLength(2);
+    // F1: the REAL OpenedPptx.deck - it carries the EMU size the canvas scales
+    // from; the PptxSessionModel wrapper proxies slides but has no size.
     expect(deck.size).toEqual({ cx: 9144000, cy: 5143500 });
+    expect((deck as { fitWidthPx?: number }).fitWidthPx).toBeUndefined();
     const first = deck.slides[0] as { elements: Array<{ id: string; type: string }> };
     expect(first.elements.some((element) => element.id === "t1" && element.type === "text")).toBe(true);
 

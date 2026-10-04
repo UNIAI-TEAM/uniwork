@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, isValidElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
+import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -13,7 +14,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   buildRenderSlide: () => ({ nodes: [], widthPx: 960, heightPx: 540 }),
   makeViewport: (size: { cx: number; cy: number }, fitWidthPx: number) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
 }));
-import { createPptxFormatAdapter } from "./pptx-adapter";
+import { createPptxFormatAdapter, makePptxEditorHost, type PptxEditorHandle } from "./pptx-adapter";
 import type { PptxDocumentsTransport } from "./pptx-save-transport";
 
 const identity: OfficeIdentity = {
@@ -274,6 +275,35 @@ describe("web PPTX format adapter", () => {
     await adapter.onRecoverSnapshot?.({ generation: 1, fingerprint: "fp", value: { revision: 1, edits: [] } });
     expect(adapter.editor.revision()).toBe(afterEdit + 3);
     await adapter.session.dispose();
+  });
+
+  it("refuses the shared host read ports instead of fabricating an open or a blank package (F3)", async () => {
+    const edit = vi.fn(async () => ({ revision: 1 }));
+    const host = makePptxEditorHost({ edit } as unknown as PptxEditorHandle, true);
+    // readDocument has no failure channel: it refuses by name, never an empty Uint8Array.
+    await expect(host.read.readDocument("doc")).rejects.toBeInstanceOf(HostCapabilityRefusal);
+    await expect(host.read.readDocument("doc")).rejects.toMatchObject({ reason: "unsupported" });
+    // openDocument owns the OpenOutcome failure channel: a named failure, never a
+    // fabricated "opened" with a bogus model ref.
+    await expect(host.read.openDocument("doc", "pptx")).resolves.toMatchObject({
+      outcome: "failed",
+      document_id: "doc",
+      format: "pptx",
+      failure_class: "unsupported_feature",
+    });
+  });
+
+  it("passes groupId through the transform channel and refuses it when readonly (F5/F6)", async () => {
+    const edit = vi.fn(async () => ({ revision: 1 }));
+    const host = makePptxEditorHost({ edit } as unknown as PptxEditorHandle, true);
+    await host.ipc.call("host:slides-edit-transform", { slideIndex: 0, sourceId: "e1", xPx: 1, yPx: 2, wPx: 3, hPx: 4, groupId: "g1" });
+    expect(edit).toHaveBeenCalledWith([expect.objectContaining({ op: "edit_transform", elementId: "e1", groupId: "g1" })]);
+
+    // A readonly document binds no transform: the channel refuses by policy
+    // before the engine is touched, matching the readonly edit refusal.
+    const readonlyHost = makePptxEditorHost({ edit } as unknown as PptxEditorHandle, false);
+    await expect(readonlyHost.ipc.call("host:slides-edit-transform", { slideIndex: 0, sourceId: "e1", xPx: 1, yPx: 2, wPx: 3, hPx: 4 }))
+      .rejects.toMatchObject({ reason: "policy" });
   });
 
   it("keeps a readonly document from editing and from writing to the cloud", async () => {
