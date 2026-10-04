@@ -308,7 +308,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // the host's runtime model applies it to the snapshot.
   const runSheetAction = useCallback((action: XlsxSheetTabAction): void => {
     if (!canEdit) return;
-    const execute = (id: string, params: unknown): boolean => (gridReady ? gridCommands.execute(id, params) : false);
+    // The port may answer asynchronously now; a dispatched command is truthy,
+    // so the grid path is taken whenever the renderer is mounted.
+    const execute = (id: string, params: unknown): boolean | Promise<boolean> =>
+      (gridReady ? gridCommands.execute(id, params) : false);
     const fallback = (): void => {
       void Promise.resolve(editor.edit?.([sheetActionOperation(action)]))
         .then(() => { markDirty(); refreshSnapshot(); })

@@ -17,7 +17,7 @@ export interface XlsxToolbarTabDefinition {
  *  stays authoritative, so a group never needs a save or byte path of its own;
  *  `false` means the renderer did not run the command. */
 export interface XlsxToolbarCommands {
-  execute(id: string, params?: unknown): boolean;
+  execute(id: string, params?: unknown): boolean | Promise<boolean>;
 }
 
 /** The slice of the toolbar props a command group may read. It is declared

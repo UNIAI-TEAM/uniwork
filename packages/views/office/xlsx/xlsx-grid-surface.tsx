@@ -62,7 +62,7 @@ export interface XlsxGridHandle {
   setNumberFormat(pattern: string): void;
   /** Run an allowlisted Univer command on the active selection (false when
    *  the renderer refuses it: read-only, no active range, or policy). */
-  executeCommand(id: string, params?: unknown): boolean;
+  executeCommand(id: string, params?: unknown): boolean | Promise<boolean>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxGridFormatState | null;
   /** The live sheet list in tab order; optional so test doubles that only

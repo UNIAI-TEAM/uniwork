@@ -304,25 +304,25 @@ test('workbook skeleton waits for local font probes and exposes truthful font ma
 test('renderer command port runs allowlisted commands through the policy and refuses the rest', async () => {
   const mounted = mountController();
   try {
-    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no open workbook');
+    assert.equal(await mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no open workbook');
     await mounted.handle.loadWorkbook(file);
-    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), true);
+    assert.equal(await mounted.handle.executeCommand('sheet.command.set-bold'), true);
     // The port fills the active unit/sheet ids when a command omits them, so a
     // toolbar group can drive the active render without carrying renderer ids.
     assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-bold', params: { unitId: 'file-sha', subUnitId: 's1' } });
-    assert.equal(mounted.handle.executeCommand('sheet.command.set-font-size', { value: 14 }), true);
+    assert.equal(await mounted.handle.executeCommand('sheet.command.set-font-size', { value: 14 }), true);
     assert.deepEqual(mounted.events.at(-1), { id: 'sheet.command.set-font-size', params: { unitId: 'file-sha', subUnitId: 's1', value: 14 } });
-    assert.equal(mounted.handle.executeCommand('sheet.operation.set-selections', { selections: [] }), true);
+    assert.equal(await mounted.handle.executeCommand('sheet.operation.set-selections', { selections: [] }), true);
     assert.deepEqual(mounted.events.at(-1), { id: 'sheet.operation.set-selections', params: { unitId: 'file-sha', subUnitId: 's1', selections: [] } });
-    assert.equal(mounted.handle.executeCommand('sheet.mutation.insert-row'), false, 'policy refuses the command');
+    assert.equal(await mounted.handle.executeCommand('sheet.mutation.insert-row'), false, 'policy refuses the command');
     assert.equal(mounted.events.some((event) => event.id === 'sheet.mutation.insert-row'), false);
     mounted.workbook.setActiveRange(null);
-    assert.equal(mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no active range');
+    assert.equal(await mounted.handle.executeCommand('sheet.command.set-bold'), false, 'no active range');
   } finally { mounted.close(); }
   const readonly = mountController({ readOnly: true });
   try {
     await readonly.handle.loadWorkbook(file);
-    assert.equal(readonly.handle.executeCommand('sheet.command.set-bold'), false);
+    assert.equal(await readonly.handle.executeCommand('sheet.command.set-bold'), false);
     assert.equal(readonly.events.some((event) => event.id === 'sheet.command.set-bold'), false);
   } finally { readonly.close(); }
 });
@@ -387,14 +387,14 @@ test('outline commands run through the registered command service and journal le
   const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
   try {
     await mounted.handle.loadWorkbook(file);
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
     assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 1, end: 3, level: 1 } });
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
     assert.deepEqual(edits.at(-1).structural, { kind: 'set-rows-outline', start: 1, end: 3, level: 2 });
     // A run already at the boundary is a no-op; malformed params never run.
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 2, end: 2, action: 'ungroup' }), false);
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 3, end: 1, action: 'group' }), false);
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'nope' }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 2, end: 2, action: 'ungroup' }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 3, end: 1, action: 'group' }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'nope' }), false);
     assert.deepEqual(mounted.handle.getJournal().structuralOps.get('s1'), [
       { kind: 'set-rows-outline', start: 1, end: 3, level: 1 },
       { kind: 'set-rows-outline', start: 1, end: 3, level: 2 },
@@ -404,7 +404,7 @@ test('outline commands run through the registered command service and journal le
   const readonly = mountController({ readOnly: true });
   try {
     await readonly.handle.loadWorkbook(file);
-    assert.equal(readonly.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'group' }), false);
+    assert.equal(await readonly.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'group' }), false);
     assert.equal(readonly.handle.getJournal().structuralOps.size, 0);
   } finally { readonly.close(); }
 });
@@ -419,14 +419,14 @@ test('column default-width command journals a null size and file outline levels 
       file.sheets[1],
     ] };
     await mounted.handle.loadWorkbook(seeded);
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 1, end: 2 }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 1, end: 2 }), true);
     assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'set-col-size', start: 1, end: 2, size: null } });
     // The file's <col outlineLevel> is the base the first session group raises from.
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 1, end: 2, action: 'group' }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 1, end: 2, action: 'group' }), true);
     assert.deepEqual(edits.at(-1).structural, { kind: 'set-cols-outline', start: 1, end: 2, level: 3 });
     // Malformed spans never reach the journal.
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 3, end: 2 }), false);
-    assert.equal(mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 0, end: 20000 }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 3, end: 2 }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-default-width', { start: 0, end: 20000 }), false);
     assert.deepEqual(mounted.handle.getJournal().structuralOps.get('s1'), [
       { kind: 'set-col-size', start: 1, end: 2, size: null },
       { kind: 'set-cols-outline', start: 1, end: 2, level: 3 },

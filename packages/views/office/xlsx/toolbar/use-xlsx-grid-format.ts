@@ -19,9 +19,18 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
   }, [gridRef]);
   const commands = useMemo<XlsxToolbarCommands>(() => ({
     execute: (id, params) => {
-      const executed = gridRef.current?.executeCommand(id, params) ?? false;
-      if (executed) refreshFormatState();
-      return executed;
+      const result = gridRef.current?.executeCommand(id, params) ?? false;
+      // The live renderer dispatches through the async Univer command service,
+      // so the handle hands back a promise; refresh the mirror once it resolves.
+      // A synchronous handle (test double) keeps the old inline behaviour.
+      if (result instanceof Promise) {
+        void result.then((executed) => {
+          if (executed) refreshFormatState();
+        });
+      } else if (result) {
+        refreshFormatState();
+      }
+      return result;
     },
   }), [gridRef, refreshFormatState]);
   return { formatState, refreshFormatState, commands };

@@ -239,7 +239,7 @@ export function useXlsxFindReplace({
   const canReplaceAll = !readOnly && replaceableCount > 0;
 
   const execute = useCallback(
-    (id: string, params: unknown): boolean => {
+    (id: string, params: unknown): boolean | Promise<boolean> => {
       try {
         return commands.execute(id, params);
       } catch {
@@ -292,7 +292,7 @@ export function useXlsxFindReplace({
   }, [currentIndex, matchCount, matches, reveal]);
 
   const applyBatch = useCallback(
-    (batch: XlsxFindReplacement): boolean => {
+    (batch: XlsxFindReplacement): boolean | Promise<boolean> => {
       if (!sheet || batch.count === 0) return true;
       return execute(XLSX_FIND_SET_VALUES_COMMAND, {
         unitId: `file-${host.file.sha256}`,

@@ -104,7 +104,7 @@ export function useXlsxAutoSum({
         // changes it while the host file's id map keeps the old one); the id
         // still addresses the read/subUnitId.
         const command = buildAutoSumCommand(range, sheet.id, unitId, sheetName);
-        let applied = false;
+        let applied: boolean | Promise<boolean> = false;
         try {
           applied = commands.execute(command.id, command.params);
         } catch {

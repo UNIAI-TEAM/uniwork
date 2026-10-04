@@ -79,7 +79,7 @@ export function XlsxFunctionLibraryDialog({
     setPicked(spec);
     setFailed(false);
     if (!insertable || !commands || !unitId || !sheetId || !position) return;
-    let applied = false;
+    let applied: boolean | Promise<boolean> = false;
     try {
       applied = commands.execute(XLSX_FUNCTION_INSERT_COMMAND, functionInsertParams(unitId, sheetId, position.row, position.column, spec.name));
     } catch {

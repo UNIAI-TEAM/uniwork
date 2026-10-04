@@ -234,7 +234,7 @@ export interface XlsxRendererHandle {
   /** Run an allowlisted Univer command against the active selection; false
    *  when the mount is read-only, there is no active range, or the command
    *  policy cancels the command. */
-  executeCommand(id: string, params?: unknown): boolean;
+  executeCommand(id: string, params?: unknown): Promise<boolean>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they

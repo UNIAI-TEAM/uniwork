@@ -173,7 +173,7 @@ export interface XlsxRendererHandle {
    *  read-only mounts, a missing workbook/sheet/range, and anything the
    *  command policy cancels (the policy stays the single savability gate).
    *  Returns whether the command actually ran. */
-  executeCommand(id: string, params?: unknown): boolean;
+  executeCommand(id: string, params?: unknown): Promise<boolean>;
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
@@ -683,7 +683,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         !canEditRange(lazyWorkbookRef.current, sheetId, range.getRange())) return;
       range.setNumberFormat(pattern);
     },
-    executeCommand(id, params) {
+    async executeCommand(id, params) {
       if (options.readOnly) return false;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = workbook?.getActiveSheet();
@@ -693,12 +693,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       // carries a group's own params; fill the unit/sheet ids when a command
       // omits them (explicit params win) so `sheet.operation.set-selections`
       // and the header size commands reach the active unit instead of a
-      // no-op. The synchronous command service still runs the
+      // no-op. The async command service still runs the
       // BeforeCommandExecute gate, so `canExecuteCommand` decides savability;
       // a cancelled command comes back as false and never touches the model.
+      // The pinned handlers for the structural / merge / sort families are
+      // `async`, so the port must go through the promise-returning
+      // `executeCommand` (the sync variant throws on a promise result).
       const base = params && typeof params === "object" ? params as Record<string, unknown> : {};
       const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base };
-      return runtime.univerAPI.syncExecuteCommand(id, commandParams) === true;
+      return (await runtime.univerAPI.executeCommand(id, commandParams)) === true;
     },
     getActiveFormatState() {
       const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();
