@@ -72,7 +72,11 @@ it("requires a carried format on an office-save request", () => {
 it("validates the office-job request surface in main", () => {
   const job = (overrides: Record<string, unknown> = {}) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format: "xlsx", operation: "edit", baseRevision: "9", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }], ...overrides });
   expect(() => validateIpcRequest("desktop:office-job", job(), sender)).not.toThrow();
-  expect(() => validateIpcRequest("desktop:office-job", job({ operation: "open", edits: undefined }), sender)).not.toThrow();
+  // An open job carries no edit list: the key is absent, not present-but-undefined
+  // (the IPC size walk refuses a bare undefined value on the wire).
+  const openJob = job({ operation: "open" }) as Record<string, unknown>;
+  delete openJob.edits;
+  expect(() => validateIpcRequest("desktop:office-job", openJob, sender)).not.toThrow();
   // Unknown operations, a non-decimal base and a non-array edit list all refuse.
   expect(() => validateIpcRequest("desktop:office-job", job({ operation: "serialize" }), sender)).toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ baseRevision: "nine" }), sender)).toThrow();

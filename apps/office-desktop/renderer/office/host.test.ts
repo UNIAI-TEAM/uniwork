@@ -9,7 +9,7 @@ describe("desktop office host injection", () => {
     const bridge = { call: vi.fn(async () => ({ dataBase64: "aGVsbG8=" })) };
     const host = createDesktopOfficeHost({ bridge: bridge as never, context });
     await expect(host.read.readDocument("doc-1")).resolves.toEqual(new Uint8Array([104, 101, 108, 108, 111]));
-    await expect(host.read.openDocument("doc-1", "xlsx")).resolves.toMatchObject({ outcome: "failed", failure_class: "unsupported_feature" });
+    await expect(host.read.openDocument("doc-1", "pptx")).resolves.toMatchObject({ outcome: "failed", failure_class: "unsupported_feature" });
   });
 
   it("uses one office-save command with the same intent and idempotency key", async () => {

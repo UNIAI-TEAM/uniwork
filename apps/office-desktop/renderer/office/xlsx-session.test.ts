@@ -17,6 +17,7 @@ function makeBridge(openOutput: unknown = { snapshot, render_model: renderModel 
       }
       if (channel === "desktop:office-save") return { documentId: "doc-x", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, versionId: "version-2", revision: "3", checksum: payload.checksum };
       if (channel === "desktop:draft-list") return { drafts: [] };
+      if (channel === "desktop:draft-checkpoint") return { stored: true, generation: payload.generation };
       throw new Error("unexpected channel " + channel);
     }),
   };
