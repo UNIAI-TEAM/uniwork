@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
-import { handleDesktopEngineCall } from "@uniwork/office-engine/desktop";
+import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
@@ -456,7 +456,7 @@ async function startElectronHost(): Promise<void> {
     });
   });
   const host = createDesktopHost({
-    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall(request as never), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }) },
