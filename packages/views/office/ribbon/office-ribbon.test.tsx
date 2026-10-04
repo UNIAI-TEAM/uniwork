@@ -213,6 +213,23 @@ describe("adaptive collapse", () => {
     expect(row.className).toContain("min-w-0");
     expect(row.className).toContain("flex-wrap");
     expect(row.className).not.toContain("shrink-0");
+
+    // The panel sizes to the wrapped rows: a viewport max-height plus internal
+    // scroll keeps the frame inside the window instead of spilling below its
+    // border (visual r6b M-4). jsdom has no layout, so this pins the classes.
+    const panel = screen.getByRole("dialog", { name: "Lệnh Styles" });
+    expect(panel.className).toContain("max-h-[calc(100dvh-4rem)]");
+    expect(panel.className).toContain("overflow-y-auto");
+
+    // In a wrapping row `h-full` is degenerate, so the card carries a definite
+    // height and renders its preview line instead of collapsing to nothing.
+    const card = row.querySelector("button") as HTMLElement;
+    expect(card.className).toContain("h-14");
+    expect(card.className).not.toContain("h-full");
+    expect(card.querySelector("span")).toHaveTextContent("normal");
+
+    // The caption row stays the last child, below the cards, not overlapped.
+    expect(inPanel.lastElementChild).toHaveTextContent("Styles");
   });
 });
 

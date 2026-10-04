@@ -126,7 +126,8 @@ function GalleryControl({ item, stage, inPanel }: { item: RibbonGalleryItem; sta
           aria-pressed={item.selectedId === option.id}
           aria-disabled={item.disabled || undefined}
           className={cn(
-            "h-14 min-h-14 flex-col items-start justify-end overflow-hidden border border-border bg-background px-1.5 py-1 text-caption font-normal",
+            inPanel ? "h-14" : "h-full",
+            "min-h-14 flex-col items-start justify-end overflow-hidden border border-border bg-background px-1.5 py-1 text-caption font-normal",
             PRESSED_CLASS,
           )}
           style={{ width: item.cardWidth ?? 76 }}
