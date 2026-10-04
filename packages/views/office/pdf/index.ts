@@ -175,3 +175,4 @@ export type {
   PdfPageBoxSetPageBoxInput,
   PdfPageSizeDialogProps,
 } from "./page-box";
+export * from "./chrome";

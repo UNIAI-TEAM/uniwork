@@ -7363,6 +7363,24 @@
       },
     "pdf": {
       "title": "PDF document",
+      "chrome": {
+        "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
+        "tabsLabel": "PDF tool tabs",
+        "commandsLabel": "PDF command groups",
+        "find": "Find",
+        "overflow": "More commands",
+        "undo": "Undo",
+        "redo": "Redo",
+        "thumbnailsLabel": "Page thumbnails",
+        "thumbnailPage": "Page {{page}}",
+        "statusBarLabel": "PDF status bar",
+        "statusBarPage": "Page {{page}} / {{total}}",
+        "statusBarCount": "{{value}} {{label}}",
+        "count": { "words": "words", "characters": "characters", "annotations": "annotations" },
+        "zoomOut": "Zoom out",
+        "zoom": "{{percent}}%",
+        "zoomIn": "Zoom in"
+      },
       "toolbar": { "label": "PDF editing commands", "tabsLabel": "PDF tool tabs", "more": "More commands" },
       "actions": {
         "undo": "Undo",

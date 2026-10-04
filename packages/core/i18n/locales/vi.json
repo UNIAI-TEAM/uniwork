@@ -7357,6 +7357,24 @@
       },
     "pdf": {
       "title": "Tài liệu PDF",
+      "chrome": {
+        "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
+        "tabsLabel": "Thẻ công cụ PDF",
+        "commandsLabel": "Nhóm lệnh PDF",
+        "find": "Tìm",
+        "overflow": "Lệnh khác",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "thumbnailsLabel": "Ảnh thu nhỏ trang",
+        "thumbnailPage": "Trang {{page}}",
+        "statusBarLabel": "Thanh trạng thái PDF",
+        "statusBarPage": "Trang {{page}} / {{total}}",
+        "statusBarCount": "{{value}} {{label}}",
+        "count": { "words": "từ", "characters": "ký tự", "annotations": "chú thích" },
+        "zoomOut": "Thu nhỏ",
+        "zoom": "{{percent}}%",
+        "zoomIn": "Phóng to"
+      },
       "toolbar": { "label": "Lệnh chỉnh sửa PDF", "tabsLabel": "Các tab công cụ PDF", "more": "Lệnh khác" },
       "actions": {
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
