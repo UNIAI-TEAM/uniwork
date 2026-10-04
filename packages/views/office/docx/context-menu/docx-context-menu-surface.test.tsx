@@ -1,7 +1,9 @@
 import { Editor, type JSONContent } from "@tiptap/core";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CellSelection } from "@tiptap/pm/tables";
 import { docxExtensions } from "../docx-schema";
+import { readDocxMenuContext } from "./menu-model";
 import { DocxContextMenuSurface } from "./index";
 import { createDocxPasteOptionsController, type DocxPasteOptionsController } from "./use-docx-paste-options";
 
@@ -61,6 +63,17 @@ function textPosition(editor: Editor, needle: string): number {
   return found;
 }
 
+function firstTwoCellPositions(editor: Editor): [number, number] {
+  const positions: number[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "docTableCell" || node.type.name === "docTableHeader") positions.push(pos);
+    return true;
+  });
+  const [first, second] = positions;
+  if (first === undefined || second === undefined) throw new Error("table cells missing");
+  return [first, second];
+}
+
 function rowCount(editor: Editor): number {
   let rows = 0;
   editor.state.doc.descendants((node) => {
@@ -97,10 +110,71 @@ async function openMenu(): Promise<HTMLElement> {
   return screen.findByTestId("docx-context-menu");
 }
 
+/** Right-click the real document DOM node under the pointer, the way a user
+ * does; the target also drives the layout-free posAtDOM fallback in jsdom. */
+async function openMenuOn(target: Element): Promise<HTMLElement> {
+  fireEvent.contextMenu(target);
+  return screen.findByTestId("docx-context-menu");
+}
+
 async function closeMenu(menu: HTMLElement): Promise<void> {
   fireEvent.keyDown(menu, { key: "Escape" });
   await waitFor(() => expect(screen.queryByTestId("docx-context-menu")).toBeNull());
 }
+
+  it("adds the table section when the real editor is right-clicked inside a cell", async () => {
+    const editor = createEditor();
+    // No prior click: the caret is still at the document start, which is the
+    // runtime state visual-r4 caught (menu showed only the clipboard five).
+    expect(readDocxMenuContext(editor, false).inTable).toBe(false);
+    renderSurface(editor);
+    screen.getByTestId("docx-context-menu-surface").appendChild(editor.view.dom);
+
+    const cell = editor.view.dom.querySelector("td");
+    expect(cell).not.toBeNull();
+    const menu = await openMenuOn(cell as Element);
+
+    expect(screen.getByTestId("docx-menu-insertRowBelow")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-menu-deleteColumn")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-menu-toggleHeaderRow")).toBeInTheDocument();
+    expect(readDocxMenuContext(editor, false).inTable).toBe(true);
+
+    fireEvent.click(screen.getByTestId("docx-menu-insertRowBelow"));
+    await waitFor(() => expect(rowCount(editor)).toBe(3));
+    expect(within(menu).getAllByRole("menuitem").length).toBeGreaterThan(5);
+  });
+
+  it("adds the link section when the real editor is right-clicked on a link", async () => {
+    const editor = createEditor();
+    renderSurface(editor);
+    screen.getByTestId("docx-context-menu-surface").appendChild(editor.view.dom);
+
+    const link = editor.view.dom.querySelector("a[href]");
+    expect(link).not.toBeNull();
+    await openMenuOn(link as Element);
+
+    expect(screen.getByTestId("docx-menu-openLink")).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-menu-editLink")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("docx-menu-removeLink"));
+    await waitFor(() => expect(linkHref(editor)).toBeNull());
+  });
+
+  it("keeps a multi-cell selection when the click lands inside it", async () => {
+    const editor = createEditor();
+    const [a1, b1] = firstTwoCellPositions(editor);
+    editor.view.dispatch(
+      editor.state.tr.setSelection(
+        new CellSelection(editor.state.doc.resolve(a1), editor.state.doc.resolve(b1)),
+      ),
+    );
+    renderSurface(editor);
+    screen.getByTestId("docx-context-menu-surface").appendChild(editor.view.dom);
+
+    await openMenuOn(editor.view.dom.querySelector("td") as Element);
+
+    expect(readDocxMenuContext(editor, false).canMergeCells).toBe(true);
+    expect(screen.getByTestId("docx-menu-mergeCells")).not.toHaveAttribute("aria-disabled", "true");
+  });
 
 describe("DocxContextMenuSurface", () => {
   it("opens the clipboard verbs on right click, gated by the selection, and closes on Escape", async () => {

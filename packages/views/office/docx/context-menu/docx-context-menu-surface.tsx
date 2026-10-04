@@ -1,6 +1,8 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
+import { CellSelection } from "@tiptap/pm/tables";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -43,6 +45,56 @@ import {
   toggleHeaderRow,
 } from "./table-actions";
 import { useDocxPasteOptions, type DocxPasteOptionsController } from "./use-docx-paste-options";
+
+/** Whether a document position resolves inside a docTable. */
+function positionInsideTable(editor: Editor, position: number): boolean {
+  const $pos = editor.state.doc.resolve(position);
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    if ($pos.node(depth).type.name === "docTable") return true;
+  }
+  return false;
+}
+
+/**
+ * Move the caret to a right-click inside the document, Word's behavior: the
+ * menu's commands then act on the clicked block/cell. ProseMirror itself never
+ * moves the selection on a secondary-button press, which is why the mounted
+ * menu used to show only the clipboard verbs even inside a table or on a link.
+ *
+ * The click is resolved from the DOM node under the pointer (exact for a cell
+ * or a link); only a click that really lands inside the document moves the
+ * caret, so a right-click on the surrounding chrome or padding leaves the
+ * selection alone, and a click inside a multi-cell selection keeps it.
+ */
+function moveCaretToContextMenuPoint(editor: Editor, event: MouseEvent): void {
+  const target = event.target;
+  if (!(target instanceof Node) || !editor.view.dom.contains(target)) return;
+  let position = -1;
+  if (target !== editor.view.dom) {
+    try {
+      position = editor.view.posAtDOM(target, 0);
+    } catch {
+      position = -1;
+    }
+  }
+  if (position < 0) {
+    try {
+      position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? -1;
+    } catch {
+      position = -1;
+    }
+  }
+  if (position < 0 || position > editor.state.doc.content.size) return;
+  const current = editor.state.selection;
+  // A multi-cell selection survives a right-click inside its table so Merge
+  // cells stays reachable (Word keeps it); a click outside the table falls
+  // through and moves the caret like any other.
+  if (current instanceof CellSelection && positionInsideTable(editor, position)) return;
+  if (!current.empty && position >= current.from && position <= current.to) return;
+  const selection = TextSelection.near(editor.state.doc.resolve(position));
+  if (selection.eq(current)) return;
+  editor.view.dispatch(editor.state.tr.setSelection(selection));
+}
 
 export interface DocxContextMenuSurfaceProps {
   editor: Editor;
@@ -172,6 +224,12 @@ export function DocxContextMenuSurface({
         <ContextMenuTrigger
           className={className}
           data-testid="docx-context-menu-surface"
+          onContextMenu={(event) => {
+            // Runs before Base UI's own handler (rightmost prop wins), so the
+            // caret is already at the click when the popup first renders and
+            // readDocxMenuContext sees the table/link under the pointer.
+            moveCaretToContextMenuPoint(editor, event.nativeEvent);
+          }}
           onPasteCapture={(event) => {
             const target = event.target;
             // A paste outside the editable document (a nested control) must not arm the chip.

@@ -7,6 +7,25 @@ import { StylesGallery } from "../../paragraph/styles-gallery-menu";
 import type { DocxToolbarGroupContext } from "../types";
 
 /**
+ * Card width in px: wide enough for "Heading 1" .. "Heading 6" (and their
+ * translations) on one line, so the six cards are distinguishable instead of
+ * all reading "Head...". The ribbon measures the real row and corrects its own
+ * width estimate, and the collapsed group's panel wraps the same cards.
+ */
+const STYLE_CARD_WIDTH = 96;
+
+/**
+ * The gallery card is a single truncated line, so the dropdown's display-size
+ * preview class would clip the name to "Head...". The card renders the name at
+ * the caption token size (keeping the entry's weight/italic voice) instead, so
+ * every card stays identifiable.
+ */
+const CARD_TEXT_STYLE = {
+  fontSize: "var(--text-caption)",
+  lineHeight: "var(--text-caption--line-height)",
+} as const;
+
+/**
  * The Home tab's styles group (task A3): the Normal / Heading 1-6 / Title /
  * Quote gallery. The active entry follows the caret's block - a docHeading by
  * level, a paragraph/list item by its direct style id.
@@ -41,13 +60,22 @@ export function homeStylesRibbonItems({ format, commands, readOnly, saving }: Do
       size: "large",
       disabled: blocked,
       selectedId: format?.paragraphStyle ?? null,
-      options: DOCX_STYLES_GALLERY.map((entry) => ({
-        id: entry.id,
-        label: t(entry.labelKey, entry.level ? { level: String(entry.level) } : undefined),
-        preview: (
-          <span className={entry.previewClass}>{t(entry.labelKey, entry.level ? { level: String(entry.level) } : undefined)}</span>
-        ),
-      })),
+      cardWidth: STYLE_CARD_WIDTH,
+      maxVisible: 4,
+      minVisible: 1,
+      options: DOCX_STYLES_GALLERY.map((entry) => {
+        const label = t(entry.labelKey, entry.level ? { level: String(entry.level) } : undefined);
+        return {
+          id: entry.id,
+          label,
+          // The full name as a tooltip too, so a long translation can still be read.
+          preview: (
+            <span className={entry.previewClass} style={CARD_TEXT_STYLE} title={label}>
+              {label}
+            </span>
+          ),
+        };
+      }),
       onSelect: (id) => commands?.applyParagraphStyle(id as DocxGalleryStyleId),
     },
   ];
