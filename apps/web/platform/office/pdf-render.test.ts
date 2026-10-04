@@ -69,6 +69,46 @@ describe("createPdfRenderSession", () => {
     }
   });
 
+  it("keys the cache by device pixel ratio so a density change re-renders", async () => {
+    const s = setup();
+    vi.stubGlobal("devicePixelRatio", 1);
+    try {
+      const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+      const first = await session.renderPage(request);
+      expect(first.src).toBe("blob:0");
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(1);
+      expect(s.docs[0].renderPage).toHaveBeenCalledWith(0, { scale: 1 });
+      // Same page and scale, new display density: the key must differ so the
+      // 1x bitmap is not reused on a 2x screen.
+      vi.stubGlobal("devicePixelRatio", 2);
+      const second = await session.renderPage(request);
+      expect(second.src).toBe("blob:1");
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(2);
+      expect(s.docs[0].renderPage).toHaveBeenLastCalledWith(0, { scale: 2 });
+      // A third render at the new density still hits the fresh cache entry.
+      const third = await session.renderPage(request);
+      expect(third.src).toBe("blob:1");
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("lays out each page box from the engine's rotation-applied size", async () => {
+    // pdfium already applies /Rotate: a portrait page with /Rotate 90 reports a
+    // landscape 200x100. pdf-render must pass that size through unchanged; a
+    // swap here would squeeze the pre-rotated raster into the wrong box.
+    const doc = fakeDoc("r", [{ width: 200, height: 100 }]);
+    const session = await createPdfRenderSession(new Uint8Array(1), {
+      loadPdfium: async () => ({ openDocument: vi.fn(() => doc) }) satisfies BrowserPdfium,
+      toImageUrl: async () => "blob:0",
+      revokeImageUrl: () => undefined,
+    });
+    expect(session.pages()).toEqual([{ pageNumber: 1, width: 200, height: 100, rotation: 0 }]);
+    const result = await session.renderPage(request);
+    expect(result).toEqual({ src: "blob:0", width: 200, height: 100 });
+  });
+
   it("rejects an aborted request with AbortError", async () => {
     const s = setup();
     const session = await createPdfRenderSession(new Uint8Array(1), s.deps);

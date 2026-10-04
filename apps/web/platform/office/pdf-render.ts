@@ -17,7 +17,13 @@ export const PDFIUM_WASM_URL = "/office/pdfium.wasm";
 const MAX_PIXEL_RATIO = 3;
 
 export interface PdfRenderSession extends PdfPageRenderService {
-  /** pageNumber is 1-based; width/height are points. */
+  /**
+   * pageNumber is 1-based; width/height are points in display orientation: the
+   * engine reports the /Rotate-applied size, so a rotated page's box already
+   * has its long edge on the matching axis and `rotation` stays 0 (the raster
+   * is likewise pre-rotated). Overlays that want the page-own orientation can
+   * still flip the axes through the reported `rotation`.
+   */
   pages(): PdfCanvasPage[];
   pageText(pageNumber: number): string;
   /** Swap the document after an edit; drops cached images and revokes their object URLs. */
@@ -98,7 +104,9 @@ export async function createPdfRenderSession(
     const document = requireDoc();
     const index = pageIndex(request.pageNumber, document);
     const size = document.pageSize(index);
-    const key = `${request.pageNumber}@${request.scale}@${version}`;
+    // dpr is part of the key: moving between 1x/2x displays must not reuse a
+    // stale-density bitmap until the next version bump.
+    const key = `${request.pageNumber}@${request.scale}@${pixelRatio()}@${version}`;
     let pending = cache.get(key);
     if (!pending) {
       const rendered = document.renderPage(index, { scale: request.scale * pixelRatio() });
