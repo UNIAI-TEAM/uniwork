@@ -92,6 +92,27 @@ function expectOp(
   expect(outsideEditsUnchanged(source, after, edits)).toBe(true);
 }
 
+describe("the byte-identity assertion fails loudly", () => {
+  it("accepts an exact outside-range edit and rejects a stray outside change", () => {
+    const before = '<p class="a">x</p>';
+    const edits = [{ from: 13, to: 14, text: "y" }];
+    // The correct result: only the content byte changed.
+    expect(() => expectByteIdentical(before, '<p class="a">y</p>', edits, "self")).not.toThrow();
+    // A whitespace change outside the range must fail with the offset.
+    expect(() => expectByteIdentical(before, '<p  class="a">y</p>', edits, "self")).toThrow(/byte-identity failed at offset 3/);
+    // A quoting change outside the range must fail too.
+    expect(() => expectByteIdentical(before, "<p class='a'>y</p>", edits, "self")).toThrow(/byte-identity failed/);
+  });
+
+  it("reports an overlap instead of silently producing a wrong expected string", () => {
+    const before = "abcdef";
+    expect(() => expectByteIdentical(before, "abc", [
+      { from: 1, to: 3, text: "X" },
+      { from: 2, to: 4, text: "Y" },
+    ], "self")).toThrow(/edits overlap/);
+  });
+});
+
 describe("byte identity outside the edited range (kitchen-sink fixture)", () => {
   it("the fixture is preserved verbatim by the engine on open", async () => {
     const f = await openFixture(FIXTURE);
