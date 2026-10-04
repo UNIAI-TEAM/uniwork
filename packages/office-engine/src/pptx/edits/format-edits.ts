@@ -42,11 +42,24 @@
 //     'left'|'centerH'|'right'|'top'|'centerV'|'bottom'; to defaults to 'selection'
 //   distributeElements axis 'horizontal'|'vertical'; to defaults to 'selection'
 //
+// Plan-time element-type gate, mirroring the vendored resolveElement types opt
+// (without it the executor refuses the built op with an untyped GuidedError):
+//   set_fill            { text, shape }          core-ops.ts:67
+//   set_stroke          { text, shape, picture } core-ops.ts:121
+//   set_effects         { text, shape, picture } index.ts:1356 (apply guard)
+//   set_text_anchor     { text, shape }          index.ts:1188 (apply guard)
+//   set_text_body_props { text, shape }          index.ts:1227 (apply guard)
+//   group_elements      { text, shape, picture } index.ts:4055-4064 GROUPABLE
+//   ungroup_element     { group }                element-ops.ts:398 (fmt_bad_group)
+//
 // Not bound here because they are already owned elsewhere: setTransform
 // (model.ts edit_transform), setLink (edits/find-link-edits.ts set_link),
 // reorderElement (model.ts reorder_element - the z-order gesture). Group-child
 // targeting (`op.group`) is deliberately not exposed yet: every op targets a
 // top-level element of the slide, so validation stays a plain element lookup.
+// Element refs are parse-time `element.id` only (the sibling engine-half
+// convention); the durable `e_<guid8>` / `e_<cNvPr id>` aliases the vendored
+// matchesElementRef also accepts must be resolved by the wire/UI round.
 //
 // Geometry-free: none of the twelve ops carries an EMU rect - align/distribute
 // read the existing element transforms inside the vendored engine, and the EMU
@@ -54,7 +67,7 @@
 // are supplied by the caller, not derived from pixels. So there is no px->EMU
 // conversion and no use of makePxToEmu; `fitWidthPx` stays in the signature
 // only because every engine-half builder shares the same mechanical wire call.
-import { PptxEngineError, type OpenedPptxLike, type PptxOp, type PptxSlideLike } from "../engine";
+import { PptxEngineError, type OpenedPptxLike, type PptxElementLike, type PptxOp, type PptxSlideLike } from "../engine";
 
 /** alignElements mode keys, verbatim from the vendored ALIGN_MODES
  * (arrange-ops.ts:32-39). */
@@ -88,6 +101,15 @@ export type PptxStrokeJoin = (typeof PPTX_STROKE_JOINS)[number];
 
 export const PPTX_GRADIENT_PATHS = ["circle", "rect", "shape"] as const;
 export type PptxGradientPath = (typeof PPTX_GRADIENT_PATHS)[number];
+
+/** setFill's plan-time element-type gate (core-ops.ts:67); also the vendored
+ * setTextAnchor/setTextBodyProps apply guard (index.ts:1188,1227). */
+export const PPTX_FILL_ELEMENT_TYPES = ["text", "shape"] as const;
+
+/** setStroke's plan-time element-type gate (core-ops.ts:121) - pictures carry a
+ * border too; also the setEffects apply guard (index.ts:1356) and the
+ * groupElements GROUPABLE gate (index.ts:4055-4064). */
+export const PPTX_STROKE_ELEMENT_TYPES = ["text", "shape", "picture"] as const;
 
 /** One gradient stop (GradientFillPatch.stops, generate.ts:1041). */
 export interface PptxGradientStop {
@@ -198,10 +220,20 @@ const requireElementId = (value: unknown, op: string, field: string): string => 
   return value;
 };
 
-const requireElement = (slide: PptxSlideLike, elementId: unknown, op: string, slideIndex: number): string => {
-  const id = requireElementId(elementId, op, "elementId");
-  if (!slide.elements.some((element) => element.id === id)) {
+const requireElement = (
+  slide: PptxSlideLike, elementId: unknown, op: string, slideIndex: number,
+  types?: readonly string[], field = "elementId",
+): string => {
+  const id = requireElementId(elementId, op, field);
+  const element: PptxElementLike | undefined = slide.elements.find((candidate) => candidate.id === id);
+  if (!element) {
     throw new PptxEngineError("fmt_no_element", op + ': no element "' + id + '" on slide ' + String(slideIndex));
+  }
+  if (types && !types.includes(element.type)) {
+    throw new PptxEngineError(
+      "fmt_bad_element_type",
+      op + ': element "' + id + '" is a ' + element.type + " element; expected " + types.join("/"),
+    );
   }
   return id;
 };
@@ -444,6 +476,7 @@ const requireElementIds = (
   op: string,
   slideIndex: number,
   min: number,
+  types?: readonly string[],
 ): string[] => {
   if (!Array.isArray(value) || value.length < min) {
     throw new PptxEngineError("fmt_bad_els", op + ': "elementIds" needs at least ' + min + " element id(s)");
@@ -452,11 +485,7 @@ const requireElementIds = (
   if (new Set(ids).size !== ids.length) {
     throw new PptxEngineError("fmt_bad_els", op + ': "elementIds" lists the same element twice');
   }
-  for (const id of ids) {
-    if (!slide.elements.some((element) => element.id === id)) {
-      throw new PptxEngineError("fmt_no_element", op + ': no element "' + id + '" on slide ' + String(slideIndex));
-    }
-  }
+  for (const id of ids) requireElement(slide, id, op, slideIndex, types, "elementIds[]");
   return ids;
 };
 
@@ -467,9 +496,10 @@ const requireTo = (value: unknown, op: string): PptxAlignTo | undefined => {
 
 /** One validated edit -> the vendored op the executor runs. Refusals are typed
  * PptxEngineError codes: fmt_no_slide, fmt_no_element, fmt_bad_element_id,
- * fmt_bad_fill, fmt_bad_color, fmt_bad_gradient, fmt_bad_stroke,
- * fmt_bad_effects, fmt_bad_prst, fmt_bad_adjust, fmt_bad_els, fmt_bad_axis,
- * fmt_bad_anchor, fmt_bad_text_body, fmt_bad_align, fmt_bad_to. */
+ * fmt_bad_element_type, fmt_bad_fill, fmt_bad_color, fmt_bad_gradient,
+ * fmt_bad_stroke, fmt_bad_effects, fmt_bad_prst, fmt_bad_adjust, fmt_bad_group,
+ * fmt_bad_els, fmt_bad_axis, fmt_bad_anchor, fmt_bad_text_body, fmt_bad_align,
+ * fmt_bad_to, fmt_bad_op. */
 export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit: FormatEdit): PptxOp[] {
   // No op in this area carries an EMU rect (see the module header), so nothing
   // converts. `void` keeps the uniform wire signature honest about the
@@ -478,19 +508,19 @@ export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit:
   switch (edit.op) {
     case "set_fill": {
       const slide = requireSlide(opened, edit.slideIndex, "set_fill");
-      const elementId = requireElement(slide, edit.elementId, "set_fill", edit.slideIndex);
+      const elementId = requireElement(slide, edit.elementId, "set_fill", edit.slideIndex, PPTX_FILL_ELEMENT_TYPES);
       const fill = normalizeFill(edit.fill, "set_fill");
       return [{ op: "setFill", target: { slide: edit.slideIndex, el: elementId }, fill }];
     }
     case "set_stroke": {
       const slide = requireSlide(opened, edit.slideIndex, "set_stroke");
-      const elementId = requireElement(slide, edit.elementId, "set_stroke", edit.slideIndex);
+      const elementId = requireElement(slide, edit.elementId, "set_stroke", edit.slideIndex, PPTX_STROKE_ELEMENT_TYPES);
       const stroke = normalizeStroke(edit.stroke, "set_stroke");
       return [{ op: "setStroke", target: { slide: edit.slideIndex, el: elementId }, stroke }];
     }
     case "set_effects": {
       const slide = requireSlide(opened, edit.slideIndex, "set_effects");
-      const elementId = requireElement(slide, edit.elementId, "set_effects", edit.slideIndex);
+      const elementId = requireElement(slide, edit.elementId, "set_effects", edit.slideIndex, PPTX_STROKE_ELEMENT_TYPES);
       const effects = normalizeEffects(edit.effects, "set_effects");
       return [{ op: "setEffects", target: { slide: edit.slideIndex, el: elementId }, effects }];
     }
@@ -537,7 +567,7 @@ export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit:
     }
     case "group_elements": {
       const slide = requireSlide(opened, edit.slideIndex, "group_elements");
-      const elementIds = requireElementIds(slide, edit.elementIds, "group_elements", edit.slideIndex, 2);
+      const elementIds = requireElementIds(slide, edit.elementIds, "group_elements", edit.slideIndex, 2, PPTX_STROKE_ELEMENT_TYPES);
       return [{ op: "groupElements", target: { slide: edit.slideIndex }, els: elementIds }];
     }
     case "flip_elements": {
@@ -548,20 +578,20 @@ export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit:
     }
     case "set_text_anchor": {
       const slide = requireSlide(opened, edit.slideIndex, "set_text_anchor");
-      const elementId = requireElement(slide, edit.elementId, "set_text_anchor", edit.slideIndex);
+      const elementId = requireElement(slide, edit.elementId, "set_text_anchor", edit.slideIndex, PPTX_FILL_ELEMENT_TYPES);
       const anchor = requireEnum(edit.anchor, PPTX_TEXT_ANCHORS, "set_text_anchor", "anchor", "fmt_bad_anchor");
       return [{ op: "setTextAnchor", target: { slide: edit.slideIndex, el: elementId }, anchor }];
     }
     case "set_text_body_props": {
       const slide = requireSlide(opened, edit.slideIndex, "set_text_body_props");
-      const elementId = requireElement(slide, edit.elementId, "set_text_body_props", edit.slideIndex);
+      const elementId = requireElement(slide, edit.elementId, "set_text_body_props", edit.slideIndex, PPTX_FILL_ELEMENT_TYPES);
       const props = normalizeTextBodyProps(edit.props, "set_text_body_props");
       return [{ op: "setTextBodyProps", target: { slide: edit.slideIndex, el: elementId }, props }];
     }
     case "align_elements": {
       const slide = requireSlide(opened, edit.slideIndex, "align_elements");
-      const to = requireTo(edit.to, "align_elements");
       const mode = requireEnum(edit.mode, PPTX_ALIGN_MODES, "align_elements", "mode", "fmt_bad_align");
+      const to = requireTo(edit.to, "align_elements");
       const elementIds = requireElementIds(slide, edit.elementIds, "align_elements", edit.slideIndex, to === "slide" ? 1 : 2);
       return [
         {
@@ -575,13 +605,13 @@ export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit:
     }
     case "distribute_elements": {
       const slide = requireSlide(opened, edit.slideIndex, "distribute_elements");
-      const to = requireTo(edit.to, "distribute_elements");
       if (edit.axis !== "horizontal" && edit.axis !== "vertical") {
         throw new PptxEngineError(
           "fmt_bad_axis",
           'distribute_elements "axis" must be "horizontal" or "vertical"',
         );
       }
+      const to = requireTo(edit.to, "distribute_elements");
       const elementIds = requireElementIds(
         slide,
         edit.elementIds,
@@ -599,5 +629,7 @@ export function buildFormatOps(opened: OpenedPptxLike, fitWidthPx: number, edit:
         },
       ];
     }
+    default:
+      throw new PptxEngineError("fmt_bad_op", "unsupported format edit " + String((edit as { op?: unknown }).op));
   }
 }

@@ -12,10 +12,12 @@ import { fileURLToPath } from "node:url";
 import {
   buildFormatOps,
   PPTX_ALIGN_MODES,
+  PPTX_FILL_ELEMENT_TYPES,
   PPTX_FLIP_AXES,
   PPTX_GRADIENT_PATHS,
   PPTX_STROKE_CAPS,
   PPTX_STROKE_COMPOUNDS,
+  PPTX_STROKE_ELEMENT_TYPES,
   PPTX_STROKE_JOINS,
   PPTX_TEXT_ANCHORS,
   PPTX_TEXT_AUTOFIT,
@@ -135,6 +137,16 @@ describe("format/arrange vendored guard", () => {
     expect(
       literalsAfter(elementOps, /if \(props\.autofit && !?\[[^\]]*\]\.includes\(props\.autofit\)\)[^\n]*/),
     ).toEqual([...PPTX_TEXT_AUTOFIT]);
+  });
+
+  it("pins the element-type gates to the vendored resolveElement types opts", () => {
+    const coreOps = readVendored(CORE_OPS);
+    expect(
+      literalsAfter(coreOps, /resolveElement\(ctx, op, \{ types: \['text', 'shape'\]/),
+    ).toEqual([...PPTX_FILL_ELEMENT_TYPES]);
+    expect(
+      literalsAfter(coreOps, /resolveElement\(ctx, op, \{ types: \['text', 'shape', 'picture'\]/),
+    ).toEqual([...PPTX_STROKE_ELEMENT_TYPES]);
   });
 
   it("pins the stroke cap/compound/join and gradient path lists to StrokePatch/GradientFillPatch", () => {
@@ -385,6 +397,52 @@ describe("format/arrange refusals", () => {
 
   it("refuses a non-group ungroup target with fmt_bad_group", () => {
     expect(errCode(() => build({ op: "ungroup_element", slideIndex: 0, elementId: "sh1" }))).toBe("fmt_bad_group");
+  });
+
+  it("refuses set_fill on a picture/table/chart/group with fmt_bad_element_type", () => {
+    for (const elementId of ["pic1", "tbl1", "ch1", "grp1"]) {
+      expect(errCode(() => build({ op: "set_fill", slideIndex: 0, elementId, fill: "none" }))).toBe(
+        "fmt_bad_element_type",
+      );
+    }
+    // text and shape stay allowed
+    expect(build({ op: "set_fill", slideIndex: 0, elementId: "t1", fill: "none" })).toHaveLength(1);
+  });
+
+  it("refuses set_stroke on a table/chart/group with fmt_bad_element_type", () => {
+    for (const elementId of ["tbl1", "ch1", "grp1"]) {
+      expect(errCode(() => build({ op: "set_stroke", slideIndex: 0, elementId, stroke: null }))).toBe(
+        "fmt_bad_element_type",
+      );
+    }
+    // a picture border is strokable
+    expect(build({ op: "set_stroke", slideIndex: 0, elementId: "pic1", stroke: null })).toHaveLength(1);
+  });
+
+  it("refuses set_effects / set_text_anchor / set_text_body_props outside their vendored types", () => {
+    expect(
+      errCode(() => build({ op: "set_effects", slideIndex: 0, elementId: "tbl1", effects: { softEdge: 1 } })),
+    ).toBe("fmt_bad_element_type");
+    expect(
+      errCode(() => build({ op: "set_text_anchor", slideIndex: 0, elementId: "pic1", anchor: "top" })),
+    ).toBe("fmt_bad_element_type");
+    expect(
+      errCode(() => build({ op: "set_text_body_props", slideIndex: 0, elementId: "pic1", props: { wrap: true } })),
+    ).toBe("fmt_bad_element_type");
+    // effects are valid on a picture; text anchor on a shape
+    expect(build({ op: "set_effects", slideIndex: 0, elementId: "pic1", effects: { softEdge: 1 } })).toHaveLength(1);
+    expect(build({ op: "set_text_anchor", slideIndex: 0, elementId: "sh1", anchor: "top" })).toHaveLength(1);
+  });
+
+  it("refuses group_elements with a non-groupable member with fmt_bad_element_type", () => {
+    expect(
+      errCode(() => build({ op: "group_elements", slideIndex: 0, elementIds: ["t1", "tbl1"] })),
+    ).toBe("fmt_bad_element_type");
+    expect(errCode(() => build({ op: "group_elements", slideIndex: 0, elementIds: ["t1", "pic1"] }))).toBe("");
+  });
+
+  it("refuses an out-of-union runtime op with fmt_bad_op", () => {
+    expect(errCode(() => build({ op: "nope" } as unknown as FormatEdit))).toBe("fmt_bad_op");
   });
 
   it("refuses invalid fills with fmt_bad_fill, colors with fmt_bad_color, gradients with fmt_bad_gradient", () => {
