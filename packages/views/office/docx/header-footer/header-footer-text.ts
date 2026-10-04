@@ -1,11 +1,11 @@
-﻿// Task A13 (UNI-924): text view of a header/footer part.
+// Task A13 (UNI-924): text view of a header/footer part.
 //
 // A port of the vendored renderer's editor/hf-text.ts onto the model's
 // DocxHeaderFooter: paragraphs edit as lines, the invisible PAGE / NUMPAGES
 // field sentinels as visible {PAGE} / {NUMPAGES} tokens, and layout-table rows
 // (cells) stay out of the text flow. Formatting is preserved by mapping each
 // edited line onto its original paragraph template (first-run style), which is
-// the run formatting the model carries â€” this is an edit of the existing part,
+// the run formatting the model carries — this is an edit of the existing part,
 // not a rebuild.
 import type { DocxHeaderFooter } from "@uniwork/office-engine/docx";
 
@@ -37,7 +37,7 @@ function runsOf(paragraph: DocxHfParagraphLike): DocxHfParagraphLike["runs"] {
 const EMPTY_HF_PARAGRAPH: DocxHfParagraphLike = { align: "center", runs: [] };
 
 /** effective paragraphs: rich paras when present, else the legacy single line
- * (upstream hf-text.ts hfParasOf â€” a page-number field appended as PAGE_MARK). */
+ * (upstream hf-text.ts hfParasOf — a page-number field appended as PAGE_MARK). */
 export function hfParasOf(value: DocxHeaderFooter): DocxHfParagraphLike[] {
   const paras = value.paras;
   // Upstream returns the part's own list as-is when non-empty. A malformed

@@ -38,6 +38,13 @@ describe("hfEditText", () => {
   });
 });
 
+describe("hfParasOf", () => {
+  it("keeps a paras entry lacking runs instead of dropping the whole list", () => {
+    const value: DocxHeaderFooter = { text: "legacy", paras: [{ align: "center" }] };
+    expect(hfParasOf(value)).toEqual([{ align: "center" }]);
+  });
+});
+
 describe("applyHfText", () => {
   it("maps an edited line onto its paragraph template, keeping the run style", () => {
     const value: DocxHeaderFooter = {

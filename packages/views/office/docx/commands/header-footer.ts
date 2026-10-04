@@ -1,4 +1,4 @@
-﻿// A13 wire (UNI-924): the header/footer command area. It owns the open
+// A13 wire (UNI-924): the header/footer command area. It owns the open
 // document's six-slot read state (seeded from the engine parse), the pending
 // set_header_footer / set_title_pg / set_even_odd_headers edits and the
 // snapshot channel that replays them onto the save session. The panel drives

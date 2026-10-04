@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";

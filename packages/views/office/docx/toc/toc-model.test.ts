@@ -183,6 +183,21 @@ describe("caption helpers", () => {
     expect(countDocxCaptions(editor.state.doc, "Equation")).toBe(0);
   });
 
+  it("counts a parsed caption block whose number is colon-separated (Word default)", () => {
+    const parsedCaption = (left: string): JSONContent => ({
+      type: "docProtected",
+      attrs: {
+        docxIndex: 5,
+        blockType: "passthrough",
+        label: "Caption number field",
+        fieldDisplay: { kind: "text", left },
+      },
+    });
+    const editor = editorWith([parsedCaption("Figure 1: A chart"), parsedCaption("Figure 2 Existing chart")]);
+    expect(countDocxCaptions(editor.state.doc, "Figure")).toBe(2);
+    expect(countDocxCaptions(editor.state.doc, "Table")).toBe(0);
+  });
+
   it("counts quoted instructions and Word switches like the engine scan", () => {
     const caption = (instr: string): JSONContent => ({
       type: "docParagraph",

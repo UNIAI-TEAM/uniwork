@@ -227,7 +227,7 @@ function isParsedCaptionOf(node: DocxTocDocNode, label: string): boolean {
   if (String(node.attrs?.label ?? "") !== DOCX_CAPTION_FIELD_LABEL) return false;
   const display = node.attrs?.fieldDisplay as { kind?: unknown; left?: unknown } | undefined;
   if (display?.kind !== "text" || typeof display.left !== "string") return false;
-  const pattern = new RegExp("^\\s*" + docxCaptionLabel(label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+\\d+(?:\\s|$)");
+  const pattern = new RegExp("^\\s*" + docxCaptionLabel(label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+\\d+(?:[\\s:.,;)\\]\\u2013\\u2014]|$)");
   return pattern.test(display.left);
 }
 

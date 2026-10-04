@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DocxHeaderFooter, DocxHfSlot } from "@uniwork/office-engine/docx";
 import { DocxHeaderFooterPanel, type DocxHeaderFooterPanelProps } from "./docx-header-footer-panel";
