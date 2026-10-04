@@ -23,6 +23,20 @@ import { createTextDocumentsTransport, createTextSaveTransport, type TextDocumen
 
 const ENGINE_BUILD = "09485f884dc845cf3bf27fb7edfe489f9d457aad";
 const utf8 = (value: string): Uint8Array => new TextEncoder().encode(value);
+const BOM_BYTES = [0xef, 0xbb, 0xbf] as const;
+
+/** The engine's text serialize is identity-encoding: UTF-8 of the source plus
+ *  the document's BOM flag, which the engine keeps as an encoding property,
+ *  not a character. Mirrored here so a snapshot can be serialized without
+ *  touching a live session (see `serializeSnapshot`). */
+function encodeSource(text: string, bom: boolean): Uint8Array {
+  const body = utf8(text);
+  if (!bom) return body;
+  const out = new Uint8Array(body.length + 3);
+  out.set(BOM_BYTES, 0);
+  out.set(body, 3);
+  return out;
+}
 
 /**
  * Browser-side upstream bindings.
@@ -129,6 +143,7 @@ function openFailure(documentId: string, format: TextFormat, error: unknown): Te
 function createTextHandle(options: { engine: TextEngine; format: TextFormat; documentId: string; readBytes(): Promise<Uint8Array> }) {
   let ref: string | null = null;
   let text = "";
+  let bom = false;
   let generation = 0;
   let disposed = false;
   let opening: Promise<void> | null = null;
@@ -170,6 +185,7 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
           throw Object.assign(new Error(outcome.message ?? "text_open_failed"), { failureClass: outcome.failure_class });
         }
         ref = outcome.document_model_ref;
+        bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
         text = options.engine.snapshot(ref).text;
         generation = 0;
         emit();
@@ -211,9 +227,16 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
     async serializeSnapshot(snapshot) {
       if (disposed) throw new Error("text_editor_disposed");
       if (!ref) throw new Error("text_editor_not_open");
-      if (snapshot.value.text !== text) setText(snapshot.value.text);
-      const out = await options.engine.serialize({ document_model_ref: ref, format: options.format });
-      return { bytes: out.bytes, checksum: out.checksum };
+      // Serialize the snapshot's OWN bytes; never mutate the live editor. The
+      // coordinator replays a retained intent's snapshot through this port
+      // (recoverPendingSave -> runIntent), and the user may have typed after
+      // the intent was minted - rewinding `text` here would silently discard
+      // those edits from the editor and every `source.subscribe` listener.
+      // The engine's text serialize is identity-encoding (UTF-8 + the BOM
+      // flag), so encoding the snapshot's text with the session's BOM flag
+      // reproduces `engine.serialize` for those bytes exactly.
+      const bytes = encodeSource(snapshot.value.text, bom);
+      return { bytes, checksum: await sha256Hex(bytes) };
     },
     restoreSnapshot(snapshot) {
       if (disposed || !ref) throw new Error("text_restore_unavailable");

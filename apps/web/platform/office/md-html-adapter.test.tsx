@@ -163,6 +163,33 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it("replaying a retained intent serializes its own snapshot without rewinding the live editor", async () => {
+    const source = "first line\n";
+    const { adapter: created, files } = adapter("md", new TextEncoder().encode(source));
+    await created.open.open();
+    // Mint an intent, then fail its commit ambiguously so the coordinator
+    // retains it for a replay - exactly the recoverPendingSave path.
+    vi.mocked(files.commit).mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    const intentText = source + "typed after the intent\n";
+    created.editor.source?.setText(intentText);
+    created.session.coordinator.markDirty(created.editor.getDirtyGeneration());
+    const first = await created.session.coordinator.save("button");
+    expect(first.accepted).toBe(false);
+    expect(created.session.coordinator.getState().activeIntentId).toBeTruthy();
+
+    // The user keeps typing while the outcome is unknown.
+    const typedAfter = intentText + "and more after that\n";
+    created.editor.source?.setText(typedAfter);
+    created.session.coordinator.markDirty(created.editor.getDirtyGeneration());
+    const replay = await created.session.coordinator.save("button");
+    expect(replay.accepted).toBe(true);
+    // The replay writes the intent's own bytes (its idempotency key binds them)...
+    expect(new TextDecoder().decode(await readBlob(files.uploaded.at(-1)!))).toBe(intentText);
+    // ...but serializing that snapshot must NOT rewind the live editor.
+    expect(created.editor.source?.getText()).toBe(typedAfter);
+    await created.session.dispose();
+  });
+
   it("renders the matching view with the adapter's editor, open port and coordinator", async () => {
     const { adapter: created } = adapter("md");
     expect(isValidElement(created.editorView)).toBe(true);
