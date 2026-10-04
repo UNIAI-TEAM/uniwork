@@ -1,6 +1,6 @@
 import { parseAssetManifest, type AssetManifest } from "@uniwork/office-engine/assets";
 import { createPreviewScope } from "@uniwork/core/api/endpoints/office";
-import { mountHtmlPreview, type HtmlPreviewSession, type MountHtmlPreviewOptions, type PreviewAssetProxy } from "./preview";
+import { mountHtmlPreview, type HtmlPreviewSession, type MountHtmlPreviewOptions, type PreviewAssetProxy, type PreviewEvent } from "./preview";
 
 interface PreviewMountInput {
   container: HTMLElement;
@@ -8,7 +8,14 @@ interface PreviewMountInput {
   title: string;
   text: string;
   manifest: { entries: readonly unknown[] };
-  onEvent?(event: { type: string }): void;
+  onEvent?(event: PreviewEvent): void;
+  /**
+   * Visual-edit mode for the HTML editor (ADR 0026). The caller generates the
+   * nonce (createInspectorNonce) so it can hold the same value for the session;
+   * the port validates it and refuses the mount otherwise. Markdown never gets
+   * this mode: the port drops it for `format: "md"`.
+   */
+  visualEdit?: { nonce: string };
 }
 
 interface IsolatedPreviewPort {
@@ -70,6 +77,12 @@ export interface OfficePreviewPortOptions {
   color_scheme?: MountHtmlPreviewOptions["color_scheme"];
   appOrigin?: string;
   renderMarkdown?: (source: string) => string;
+  /**
+   * Whether this port instance may mount a visual-edit session (ADR 0026). It
+   * is opt-in and HTML-only: with it off (the default) a `visualEdit` request
+   * is refused rather than silently downgraded, and Markdown never gets it.
+   */
+  allowVisualEdit?: boolean;
 }
 
 /** Real web proxy: scope creation uses the authenticated API transport, while
@@ -110,6 +123,18 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
     async mount(input: PreviewMountInput): Promise<HtmlPreviewSession> {
       const text = input.format === "md" ? options.renderMarkdown?.(input.text) : input.text;
       if (text === undefined) return Promise.reject(new Error("preview runtime is unavailable for Markdown"));
+      // ADR 0026: visual-edit is HTML-only and opt-in. A Markdown mount or a
+      // port that did not allow it refuses rather than downgrading to a
+      // script-free render the caller did not ask for.
+      const visualEdit = input.format === "html" && input.visualEdit !== undefined;
+      if (input.visualEdit !== undefined && (!visualEdit || options.allowVisualEdit !== true)) {
+        return Promise.reject(new Error("preview unavailable: visual-edit is HTML-only and opt-in"));
+      }
+      const capability = visualEdit
+        ? { scripts: false, visualEdit: input.visualEdit }
+        : options.capability?.scripts === true
+          ? { scripts: false }
+          : options.capability;
       const session = await mountHtmlPreview({
         container: input.container,
         title: input.title,
@@ -117,11 +142,12 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
         manifest: previewManifest(input.manifest, input.format),
         scope: options.scope,
         proxy: options.proxy,
-        // G3-D2 production Markdown/HTML previews are always inert. The
-        // lower-level isolation primitive still supports its explicit trusted
-        // script policy for existing host tests, but this production port
-        // never grants that capability to untrusted document content.
-        capability: options.capability?.scripts === true ? { scripts: false } : options.capability,
+        // G3-D2 production Markdown/HTML previews are always inert unless the
+        // caller asked for the ADR 0026 visual-edit mode. The lower-level
+        // isolation primitive still supports its explicit trusted script
+        // policy for existing host tests, but this production port never
+        // grants that capability to untrusted document content.
+        capability,
         color_scheme: options.color_scheme,
         appOrigin: options.appOrigin,
         onEvent: input.onEvent,

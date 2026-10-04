@@ -52,11 +52,25 @@ const URL_ATTRIBUTE_ELEMENTS: ReadonlyMap<string, ReadonlySet<string>> = new Map
 const SRCSET_ATTRIBUTES: ReadonlySet<string> = new Set(["srcset", "imagesrcset"]);
 const SRCSET_DESCRIPTOR = /^\d+(?:\.\d+)?[wxh]$/i;
 
+/** A script element, in any namespace (an SVG <script> runs too). */
+const SCRIPT_ELEMENT = "script";
+
+/** Every on* attribute (onclick, onerror, onload, ...) in any case. */
+function isEventHandler(name: string): boolean {
+  return /^on[a-z]+$/.test(name);
+}
+
 export interface GateOptions {
   /** The checked asset proxy origin (preview.ts checkAssetOrigin). */
   assetOrigin: string;
   /** The inert URL the engine uses for neutralised references. */
   blockedUrl: string;
+  /** Visual-edit mode only (ADR 0026): also drop every <script> element and
+   * every on* handler from the copy, so the frame's only script is the
+   * UniWork inspector injected AFTER this gate. Off by default: the plain
+   * preview never runs a script and keeps the copy byte-for-byte what it was,
+   * where the CSP ('none', or a nonce) is what stops execution. */
+  stripScripts?: boolean;
 }
 
 export type GateResult =
@@ -117,18 +131,25 @@ function badAttribute(tag: string, name: string, value: string, options: GateOpt
 /** Walk the tree; with `fix`, drop offenders. Returns how many it found. */
 function walk(doc: Document, options: GateOptions, fix: boolean): number {
   let found = 0;
+  const strip = options.stripScripts === true;
   // A descendant of an element removed earlier is still visited; fixing it
   // too is harmless and keeps the count honest for the re-parse check.
   for (const el of allElements(doc)) {
     const tag = el.localName.toLowerCase();
     const smilHref = SMIL_ELEMENTS.has(tag) && /href/i.test(el.getAttribute("attributeName") ?? "");
-    if (DROPPED_ELEMENTS.has(tag) || smilHref || (tag === "meta" && isRefresh(el))) {
+    if (DROPPED_ELEMENTS.has(tag) || smilHref || (tag === "meta" && isRefresh(el)) || (strip && tag === SCRIPT_ELEMENT)) {
       found++;
       if (fix) el.remove();
       continue;
     }
     for (const attr of Array.from(el.attributes)) {
-      if (!badAttribute(tag, attr.name.toLowerCase(), attr.value, options)) continue;
+      const name = attr.name.toLowerCase();
+      if (strip && isEventHandler(name)) {
+        found++;
+        if (fix) el.removeAttribute(attr.name);
+        continue;
+      }
+      if (!badAttribute(tag, name, attr.value, options)) continue;
       found++;
       if (fix) el.removeAttribute(attr.name);
     }

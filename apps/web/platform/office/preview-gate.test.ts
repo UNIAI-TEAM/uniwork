@@ -138,3 +138,63 @@ describe("preview gate (browser parser tree walk)", () => {
     expect(gatePreviewCopy("<p>x</p>", OPTIONS)).toEqual({ ok: false, reason: "unstable_serialisation" });
   });
 });
+
+describe("preview gate: visual-edit strip pass (ADR 0026)", () => {
+  const strip = (html: string) =>
+    gatePreviewCopy(html, { ...OPTIONS, stripScripts: true });
+
+  it("drops every <script> element in any namespace", () => {
+    const result = strip(`<p>x</p><script>parent.postMessage(1)</script><svg><script>alert(1)</script></svg>`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/<script/i);
+    expect(result.html).not.toContain("postMessage");
+  });
+
+  it("drops every on* handler, in any case", () => {
+    const result = strip(`<div onclick="a()" ONMOUSEOVER="b()" onerror="c()">x</div><img src="about:blank#blocked" onload="d()">`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(result.html).not.toContain("a()");
+  });
+
+  it("leaves the plain preview path byte-identical (stripScripts off by default)", () => {
+    const html = `<p>x</p><script>kept</script><div onclick="kept()">y</div>`;
+    const off = gatePreviewCopy(html, OPTIONS);
+    const offAgain = gatePreviewCopy(html, { ...OPTIONS, stripScripts: false });
+    expect(off.ok && offAgain.ok && off.html === offAgain.html).toBe(true);
+    if (!off.ok) return;
+    // Off: the copy still carries the script/handler; the CSP is what stops it.
+    expect(off.html).toContain("<script>kept</script>");
+    expect(off.html).toContain('onclick="kept()"');
+  });
+
+  it("fails closed when a re-parse re-introduces a script or handler after stripping", () => {
+    const real = DOMParser.prototype.parseFromString;
+    let calls = 0;
+    vi.spyOn(DOMParser.prototype, "parseFromString").mockImplementation(function (this: DOMParser, text: string, type: DOMParserSupportedType) {
+      calls++;
+      // The verification re-parse (second call) shows an on* handler the fix
+      // pass removed: the copy did not stay stripped, so it must be refused.
+      return real.call(this, calls === 2 ? `<div onclick="x()">x</div>` : text, type);
+    });
+    expect(strip("<p>x</p>")).toEqual({ ok: false, reason: "residual_after_reparse" });
+    calls = 0;
+    vi.mocked(DOMParser.prototype.parseFromString).mockImplementation(function (this: DOMParser, text: string, type: DOMParserSupportedType) {
+      calls++;
+      return real.call(this, calls === 2 ? `<p>x</p><script>alert(1)</script>` : text, type);
+    });
+    expect(strip("<p>x</p>")).toEqual({ ok: false, reason: "residual_after_reparse" });
+  });
+
+  it("does not weaken any existing drop rule when stripping", () => {
+    const result = strip(
+      `<base href="${EVIL}/"><iframe src="${EVIL}/i"></iframe><object data="${EVIL}/o"></object>` +
+        `<a href="javascript:alert(1)">j</a><a href="${EVIL}/a">a</a>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/evil\.example|javascript:|<base|<iframe|<object/i);
+  });
+});
