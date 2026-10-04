@@ -127,6 +127,15 @@ describe("PdfEditorSurface", () => {
     expect(await screen.findByText("Saved note")).toBeInTheDocument();
   });
 
+  it("shows the empty state, never a permanent loading, when the host has no note reader", async () => {
+    const { handle } = host();
+    expect(handle.readSavedNotes).toBeUndefined();
+    await mount(handle);
+    openAnnotate("Note");
+    expect(screen.queryByTestId("pdf-notes-loading")).not.toBeInTheDocument();
+    expect(screen.getByText("No notes in this document.")).toBeInTheDocument();
+  });
+
   it("keeps the editor alive and shows a translated message when reading saved notes fails", async () => {
     const { handle } = host({ readSavedNotes: vi.fn(async () => { throw new Error("engine down"); }) });
     await mount(handle);

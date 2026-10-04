@@ -172,7 +172,10 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
   const notesOpen = activePanel === "notes";
   useEffect(() => {
     const read = editor.readSavedNotes;
-    if (!notesOpen || !read) return;
+    if (!notesOpen) return;
+    // No reader means no saved threads to wait for; clear any stale ones so a
+    // reader-less handle shows the empty/composer state instead of hanging.
+    if (!read) { setNoteThreads([]); return; }
     let cancelled = false;
     setNotesError(null);
     read().then((threads) => { if (!cancelled) setNoteThreads(threads); }).catch(() => {
@@ -226,10 +229,10 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
       disabled: !canEdit,
       onMarkup: (operation) => { editOps([operation]).then(() => setMarkupSelection(null)).catch(noop); },
     },
-    notes: { threads: noteThreads ?? [], provider: noteProvider, addTarget, loading: notesOpen && noteThreads === undefined && notesError === null, error: notesError, disabled: !canEngine, onApplied: () => setAddTarget(null) },
+    notes: { threads: noteThreads ?? [], provider: noteProvider, addTarget, loading: notesOpen && editor.readSavedNotes !== undefined && noteThreads === undefined && notesError === null, error: notesError, disabled: !canEngine, onApplied: () => setAddTarget(null) },
     stamps: { placement: stampPlacement, provider: stampProvider, disabled: !canEngine },
     forms: { fields: formFields, provider: formProvider, loading: formsOpen && formFields === undefined && formsError === null, error: formsError, disabled: !canEngine },
-  }), [addTarget, canEdit, canEngine, editOps, formFields, formProvider, formsError, formsOpen, markupSelection, noteProvider, noteThreads, notesError, notesOpen, stampPlacement, stampProvider]);
+  }), [addTarget, canEdit, canEngine, editOps, editor, formFields, formProvider, formsError, formsOpen, markupSelection, noteProvider, noteThreads, notesError, notesOpen, stampPlacement, stampProvider]);
 
   const hint = activePanel === "markups" ? (markupSelection ? t("office.pdf.surface.areaSelected", { page: markupSelection.page }) : t("office.pdf.surface.hintRegion"))
     : activePanel === "notes" ? t("office.pdf.surface.hintNote")
