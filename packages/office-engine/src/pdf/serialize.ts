@@ -38,6 +38,8 @@ import { applyTextInserts } from "./text-insert.ts";
 import { addMarkup } from "./markups.ts";
 import { addDrawing } from "./drawings.ts";
 import { addNote, editNote, resolveNote } from "./notes.ts";
+import { applyFormValue, flattenForms } from "./forms.ts";
+import { PdfOpError } from "./op-parse.ts";
 import {
   extractPagesBytes,
   insertBlankPageBytes,
@@ -58,6 +60,8 @@ export interface PdfEditSkips {
   skippedNotes: { pageIndex: number; reason: string }[];
   skippedNoteEdits: { pageIndex: number; reason: string }[];
   skippedNoteResolves: { pageIndex: number; reason: string }[];
+  /** AcroForm fields whose write was refused (unknown name, kind or value). */
+  skippedFormValues: { name: string; reason: string }[];
   /** Page inserts whose anchor page is not in the output (an unusable source
       PDF is a typed refusal, not a skip). */
   skippedPageInserts: PageOpFailure[];
@@ -70,6 +74,8 @@ export interface AppliedPdfEdit {
   skips: PdfEditSkips;
   /** Annotations actually removed (differs from requested when skips exist). */
   annotDeletesApplied: number;
+  /** 1 when the interactive form was flattened, 0 when there was none. */
+  formsFlattened: number;
   /** NEW documents produced by extract / merge / split. F2: the caller commits
       each one through Documents; the engine never writes them anywhere. */
   documents: PdfNewDocument[];
@@ -384,6 +390,20 @@ export async function applyPdfEdits(
     const reason = resolveNote(pdfDoc, page, resolve);
     if (reason) skippedNoteResolves.push({ pageIndex: resolve.pageIndex, reason });
   }
+  const skippedFormValues: { name: string; reason: string }[] = [];
+  for (const formValue of request.formValues ?? []) {
+    try {
+      applyFormValue(pdfDoc, formValue);
+    } catch (error) {
+      // A typed refusal (unknown field, kind/value mismatch, unknown option) is
+      // reported as a skip so the rest of the batch still applies; anything
+      // else is an engine failure and must reach the job's crash path.
+      if (!(error instanceof PdfOpError)) throw error;
+      skippedFormValues.push({ name: formValue.name, reason: error.message });
+    }
+  }
+  let formsFlattened = 0;
+  if (request.flattenForms) formsFlattened = flattenForms(pdfDoc) ? 1 : 0;
   // Deletions go last, in descending order; earlier ops all address original
   // page indices.
   for (const idx of [...(request.deletedPages ?? [])].sort((a, b) => b - a)) {
@@ -416,6 +436,7 @@ export async function applyPdfEdits(
     skippedNotes,
     skippedNoteEdits,
     skippedNoteResolves,
+    skippedFormValues,
     skippedPageInserts,
     skippedNewDocuments,
   });
@@ -429,8 +450,9 @@ export async function applyPdfEdits(
   const documents = await applyDocumentProducers(finalBytes, request, skippedNewDocuments);
   return {
     bytes: finalBytes,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedPageInserts, skippedNewDocuments },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedFormValues, skippedPageInserts, skippedNewDocuments },
     annotDeletesApplied,
+    formsFlattened,
     documents,
   };
 }

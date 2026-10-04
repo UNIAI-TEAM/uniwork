@@ -113,6 +113,21 @@ export interface AnnotDeleteInput {
   contents?: string;
 }
 
+/** AcroForm field kinds this lane can write. `choice` binds to whichever of
+    dropdown / option list the document's field actually is. */
+export type FormFieldKind = "text" | "checkbox" | "radio" | "choice";
+
+/** One AcroForm field value to write. The document owns the field's type, so a
+    mismatch between `kind` and the field it names is a typed refusal rather than
+    a silent no-op. */
+export interface FormFieldInput {
+  name: string;
+  kind: FormFieldKind;
+  /** string for text/choice and for a radio option; boolean for a checkbox or
+      a two-state radio (false clears the group) */
+  value: string | boolean;
+}
+
 /** Document info; an empty string clears the field */
 export interface MetadataInput {
   title?: string;
@@ -383,5 +398,10 @@ export interface PdfEditRequest {
   mergePdfs?: MergePdfsInput;
   /** Produce N new documents, one per consecutive chunk of the saved output. */
   splitPdf?: SplitPdfInput;
+  /** AcroForm field values to write, in request order (later writes win). */
+  formValues?: FormFieldInput[];
+  /** Bake every filled field's appearance into its page and drop the
+      interactive form, after the formValues stage. */
+  flattenForms?: boolean;
   metadata?: MetadataInput;
 }

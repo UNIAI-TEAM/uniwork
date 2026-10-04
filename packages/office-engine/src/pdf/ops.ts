@@ -4,6 +4,8 @@
 // ops either all parse or the job fails before any byte is touched.
 import type {
   AnnotDeleteInput,
+  FormFieldInput,
+  FormFieldKind,
   ImageEditInput,
   ImageLayer,
   MetadataInput,
@@ -254,6 +256,34 @@ function parseDrawing(a: Dict, op: string): DrawingInput {
   };
 }
 
+/** The first candidate object carrying a field `name`, across the envelope
+    shapes setFormValue arrives in (top-level `field`, AI `value`, merged
+    `attributes`, or the item itself). */
+function formValueDict(item: Dict, merged: Dict): Dict {
+  for (const candidate of [item.field, item.value, merged.field, merged, item]) {
+    if (isDict(candidate) && candidate.name !== undefined) return candidate;
+  }
+  return item;
+}
+
+const FORM_FIELD_KINDS = new Set<FormFieldKind>(["text", "checkbox", "radio", "choice"]);
+
+function parseFormValue(a: Dict, op: string): FormFieldInput {
+  const name = str(a.name, op, "name");
+  if (name.trim() === "") throw new PdfOpError(op, "name", "non-empty field name required");
+  const kind = str(a.kind, op, "kind") as FormFieldKind;
+  if (!FORM_FIELD_KINDS.has(kind)) throw new PdfOpError(op, "kind", "text|checkbox|radio|choice");
+  // A checkbox is a boolean (op-docs spells it `checked`; the host sends
+  // `value`); a radio takes an option name or a boolean two-state write.
+  if (kind === "checkbox") {
+    return { name, kind, value: bool(a.value ?? a.checked, op, "value") };
+  }
+  if (kind === "radio" && typeof a.value === "boolean") {
+    return { name, kind, value: a.value };
+  }
+  return { name, kind, value: capText(str(a.value, op, "value"), op, "value") };
+}
+
 /** Non-empty comment text — an empty note is a caller bug, not a valid annot. */
 function noteContents(v: unknown, op: string, f: string): string {
   const value = capText(str(v, op, f), op, f);
@@ -354,6 +384,15 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       case "addImageEdit":
         push("imageEdits", parseImageEdit(a, op));
         break;
+      case "setFormValue":
+        // The host sends the field at the top level ({op, field:{name,kind,
+        // value}}); the AI tool schema nests it under `value`, and the generic
+        // envelope carries it inside `attributes` (merged into `a`) or flat.
+        push("formValues", parseFormValue(formValueDict(item, a), op));
+        break;
+      case "flattenForms":
+        req.flattenForms = true;
+        break;
       case "deleteSavedAnnot":
         // upstream shape: {annot:{pageIndex,objNum,type,rect,...}}
         push("annotDeletes", parseAnnotDelete(isDict(a.annot) ? a.annot : a, op));
@@ -407,7 +446,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         req.splitPdf = parseSplitPdf(a, op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
-      // form authoring (form values, stamps, signatures) and OCR.
+      // stamps, signatures and OCR.
       case "ocrPage":
       case "ocr":
         throw new PdfOpError(op, "", "ocr is not a capability of this engine build (optical engines live outside the service)", true);

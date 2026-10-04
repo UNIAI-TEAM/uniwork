@@ -155,6 +155,8 @@ export interface PdfEditOutcome {
     notes: { applied: number; skipped: number };
     noteEdits: { applied: number; skipped: number };
     noteResolves: { applied: number; skipped: number };
+    formValues: { applied: number; skipped: number };
+    flattenForms: { applied: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
     blankPages: { applied: number; skipped: number };
     insertedPdfs: { applied: number; skipped: number };
@@ -180,6 +182,7 @@ export interface PdfProbe {
     ink: true;
     note: true;
     noteResolve: true;
+    formFill: true;
     ocr: false;
     ocrReason: string;
   };
@@ -239,6 +242,7 @@ function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
       ink: true,
       note: true,
       noteResolve: true,
+      formFill: true,
       ocr: false,
       ocrReason: OCR_REASON,
     },
@@ -323,6 +327,9 @@ export async function applyPdfEditBytes(
     pushSkips("note", applied.skips.skippedNotes);
     pushSkips("note-edit", applied.skips.skippedNoteEdits);
     pushSkips("note-resolve", applied.skips.skippedNoteResolves);
+    for (const s of applied.skips.skippedFormValues) {
+      warnings.push({ code: "edit_skipped", detail: `form field "${s.name}": ${s.reason}` });
+    }
     for (const s of applied.skips.skippedPageInserts) {
       warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
     }
@@ -359,6 +366,8 @@ export async function applyPdfEditBytes(
         notes: { applied: (request.notes?.length ?? 0) - applied.skips.skippedNotes.length, skipped: applied.skips.skippedNotes.length },
         noteEdits: { applied: (request.noteEdits?.length ?? 0) - applied.skips.skippedNoteEdits.length, skipped: applied.skips.skippedNoteEdits.length },
         noteResolves: { applied: (request.noteResolves?.length ?? 0) - applied.skips.skippedNoteResolves.length, skipped: applied.skips.skippedNoteResolves.length },
+        formValues: { applied: (request.formValues?.length ?? 0) - applied.skips.skippedFormValues.length, skipped: applied.skips.skippedFormValues.length },
+        flattenForms: { applied: applied.formsFlattened },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,
