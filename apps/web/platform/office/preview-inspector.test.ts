@@ -124,3 +124,137 @@ describe("inspector wire schemas (parent side)", () => {
     expect(inspectorCommandSchema.safeParse({ type: "select", nonce: NONCE, sid: 1, url: "x" }).success).toBe(false);
   });
 });
+
+// --- The injected script, executed -----------------------------------------
+//
+// jsdom never runs a script added to a document, so the body is executed in a
+// simulated frame: the harness supplies `parent`, `addEventListener`,
+// `document` and a fake port. This proves the frame SIDE of the protocol - the
+// nonce check, the command allowlist and the messages it emits - which a
+// source scan alone cannot. `new Function` appears only in this test, to run
+// the exact string the frame receives; the shipped module evaluates nothing.
+
+interface InspectorFrame {
+  sent: Array<Record<string, unknown>>;
+  port: MessagePort;
+  /** The exact object the script sees as `parent` (identity matters). */
+  parent: object;
+  /** The rendered frame document root the script queries. */
+  root: HTMLElement;
+  command(message: unknown): void;
+  emit(type: string, event: unknown): void;
+  hasListener(type: string): boolean;
+}
+
+function runInspector(html: string): InspectorFrame {
+  const sent: Array<Record<string, unknown>> = [];
+  const port = { postMessage: (message: Record<string, unknown>) => sent.push(message) } as unknown as MessagePort;
+  const windowListeners = new Map<string, Array<(event: unknown) => void>>();
+  const docListeners = new Map<string, Array<(event: unknown) => void>>();
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  const frameDocument = {
+    documentElement: { scrollHeight: 111 },
+    querySelectorAll: (selector: string) => holder.querySelectorAll(selector),
+    addEventListener: (type: string, handler: (event: unknown) => void) => {
+      docListeners.set(type, [...(docListeners.get(type) ?? []), handler]);
+    },
+  };
+  const parent = { frame: "parent" };
+  const run = new Function("parent", "addEventListener", "document", "ResizeObserver", INSPECTOR_SCRIPT_BODY);
+  run(
+    parent,
+    (type: string, handler: (event: unknown) => void) => {
+      windowListeners.set(type, [...(windowListeners.get(type) ?? []), handler]);
+    },
+    frameDocument,
+    undefined,
+  );
+  return {
+    sent,
+    port,
+    parent,
+    root: holder,
+    command(message) {
+      const onmessage = (port as unknown as { onmessage?: (e: { data: unknown }) => void }).onmessage;
+      onmessage?.({ data: message });
+    },
+    emit(type, event) {
+      for (const handler of windowListeners.get(type) ?? []) handler(event);
+      for (const handler of docListeners.get(type) ?? []) handler(event);
+    },
+    hasListener(type) {
+      return (docListeners.get(type) ?? []).length > 0;
+    },
+  };
+}
+
+const INIT = { type: "uniwork-preview:init", nonce: NONCE };
+
+describe("inspector script runtime (frame side)", () => {
+  it("ignores an init from anything but the parent, or with a bad nonce or type", () => {
+    const frame = runInspector('<p data-sid="1">x</p>');
+    frame.emit("message", { data: INIT, source: { not: "parent" }, ports: [frame.port] });
+    frame.emit("message", { data: { type: "uniwork-preview:init", nonce: "bad" }, source: frame.parent, ports: [frame.port] });
+    frame.emit("message", { data: { type: "other", nonce: NONCE }, source: frame.parent, ports: [frame.port] });
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [] });
+    expect(frame.sent).toEqual([]);
+    expect(frame.hasListener("click")).toBe(false);
+  });
+
+  it("takes the port once, reports ready and resize, and ignores a second init", () => {
+    const frame = runInspector('<p data-sid="1">x</p>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    expect(frame.sent).toEqual([
+      { nonce: NONCE, type: "ready" },
+      { nonce: NONCE, type: "resize", height: 111 },
+    ]);
+    for (const type of ["click", "mouseover", "focusout", "keydown"]) expect(frame.hasListener(type)).toBe(true);
+  });
+
+  it("answers a select command with select + rect, and refuses a wrong nonce or type", () => {
+    const frame = runInspector('<p data-sid="7">x</p>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    frame.command({ type: "select", nonce: "wrong", sid: 7 });
+    frame.command({ type: "navigate", nonce: NONCE });
+    expect(frame.sent).toEqual([]);
+    frame.command({ type: "select", nonce: NONCE, sid: 7 });
+    expect(frame.sent.map((m) => m.type)).toEqual(["select", "rect"]);
+    expect(frame.sent[0]).toEqual({ nonce: NONCE, type: "select", sid: 7 });
+    expect(frame.sent[1]).toMatchObject({ nonce: NONCE, type: "rect", sid: 7 });
+    // A null selection clears without a rect.
+    frame.sent.length = 0;
+    frame.command({ type: "select", nonce: NONCE, sid: null });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "select", sid: null }]);
+  });
+
+  it("maps a click to the nearest data-sid", () => {
+    const frame = runInspector('<div data-sid="3"><span id="s1-inner">t</span></div>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    const inner = frame.root.querySelector("#s1-inner")!;
+    frame.emit("click", { target: inner, preventDefault: () => undefined });
+    expect(frame.sent.map((m) => m.type)).toEqual(["select", "rect"]);
+    expect(frame.sent[0]).toMatchObject({ nonce: NONCE, sid: 3 });
+    // A click with no data-sid ancestor is ignored.
+    frame.sent.length = 0;
+    frame.emit("click", { target: frame.root, preventDefault: () => undefined });
+    expect(frame.sent).toEqual([]);
+  });
+
+  it("reports hover and commits a text edit with the element's text", () => {
+    const frame = runInspector('<p data-sid="9">hello world</p>');
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    frame.emit("mouseover", { target: frame.root.querySelector('[data-sid="9"]') });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "hover", sid: 9 }]);
+    frame.sent.length = 0;
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 9 });
+    expect(frame.sent).toEqual([]);
+    frame.emit("focusout", { target: frame.root.querySelector('[data-sid="9"]') });
+    expect(frame.sent).toHaveLength(1);
+    expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "text-edit-commit", sid: 9, text: "hello world" });
+  });
+});

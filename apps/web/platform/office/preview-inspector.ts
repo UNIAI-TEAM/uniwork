@@ -133,7 +133,7 @@ export const INSPECTOR_SCRIPT_BODY = [
   "function el(d){if(d===null)return null;var all=document.querySelectorAll('[data-sid]');for(var i=0;i<all.length;i++){if(num(all[i])===d)return all[i]}return null}",
   "function mark(e,color){if(e&&e.style)e.style.outline=color?('2px solid '+color):''}",
   "function rect(e){var r=e.getBoundingClientRect();return{x:r.left,y:r.top,width:r.width,height:r.height}}",
-  "function pick(d){var e=el(d);mark(SEL,'');SEL=e;if(!e)return;mark(e,'#2563eb');send('select',{sid:d});send('rect',{sid:d,rect:rect(e)})}",
+  "function pick(d){var e=el(d);mark(SEL,'');SEL=e;if(!e){send('select',{sid:null});return}mark(e,'#2563eb');send('select',{sid:d});send('rect',{sid:d,rect:rect(e)})}",
   "function hover(d){var e=el(d);if(HOV&&HOV!==SEL)mark(HOV,'');HOV=e;if(e&&e!==SEL)mark(e,'#93c5fd');send('hover',{sid:d})}",
   "function commit(){if(!EDIT)return;var e=EDIT,before=SAVE;EDIT=null;SAVE=null;e.removeAttribute('contenteditable');",
   "var text=(e.textContent||'').replace(/\\s+/g,' ').trim();if(before!==null)e.textContent=before;send('text-edit-commit',{sid:sid(e),text:text})}",

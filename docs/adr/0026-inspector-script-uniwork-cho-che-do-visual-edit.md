@@ -74,6 +74,38 @@ sau đó (một lần phân tích lại + nối vào `<head>`) không mở lại
 tính `data-sid` vốn đã được cổng giữ nguyên (đã kiểm bằng test), nên việc gắn
 `data-sid` từ parse map là phạm vi của H5, không cần thêm gì ở cổng.
 
+### Giao thức (kiểm ở cả hai phía)
+
+Kênh là một `MessageChannel`: parent chuyển `port2` cho frame bằng
+`postMessage(..., "*", [port2])` khi frame load (origin mờ nên chỉ định địa chỉ
+được bằng `"*"`; chính port mới là năng lực, và nó chỉ tới cửa sổ của frame này).
+Inspector nhận port khi `event.source === parent` và thông điệp init đúng
+nonce/loại; sau đó nó **kiểm `m.nonce === N` và `m.type` nằm trong allowlist**
+trước khi làm bất cứ việc gì, và giữ port trong closure (không gắn vào window).
+
+Frame -> parent (`inspectorInboundSchema`, `z.discriminatedUnion` trên
+`strictObject`, nonce phải khớp tuyệt đối):
+
+| `type` | trường | nghĩa |
+| --- | --- | --- |
+| `ready` | — | đã nhận port |
+| `resize` | `height` | chiều cao tài liệu (<= 1e6, làm tròn) |
+| `select` | `sid: number \| null` | chọn phần tử theo `data-sid`; `null` là bỏ chọn |
+| `hover` | `sid: number \| null` | hover |
+| `rect` | `sid`, `rect {x,y,width,height}` | khung bao (mọi số hữu hạn, biên ±1e7) |
+| `text-edit-commit` | `sid`, `text` | ý định sửa chữ (<= 100000 ký tự) |
+
+Parent -> frame (`inspectorCommandSchema`, cùng quy tắc): `select`/`hover`
+(`sid: number | null`), `begin-text-edit` (`sid`), `cancel-text-edit`. Lệnh được
+`sealInspectorCommand` gắn nonce và kiểm schema **trước khi rời app**; một lệnh
+sai bị bỏ, không được đoán.
+
+Parent kiểm mọi thông điệp vào bằng `acceptInspectorMessage` (origin `"null"` bị
+từ chối, phải là object thường, nonce khớp, schema `strictObject` chấp nhận) rồi
+chiếu qua `inspectorEvent`; **không** bao giờ `eval`/`new Function` dữ liệu của
+frame. Chỉnh sửa đi về dưới dạng `text-edit-commit` (ý định); H3 biến nó thành
+patch set áp lên nguồn qua `engine.applyPatchSet`, S1 không tự ghi DOM.
+
 ## Hệ quả
 
 - Chế độ visual-edit chạy được script, nhưng chỉ đúng một script do repo sở hữu và
