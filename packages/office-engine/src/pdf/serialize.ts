@@ -3,18 +3,20 @@
 // trimmed to the G2-05 scope: annot deletes, text edits/inserts, image ops,
 // page rotation/deletion/reorder, metadata. Markup, drawing, ink and note
 // annotations are kept separate from content streams; form authoring remains
-// outside this lane.
+// outside this lane. Image / signature stamps (B6) draw straight into the
+// target page's content stream, so they need no annotation and are applied in
+// the pdf-lib stage.
 //
 // Ordering contract (upstream, kept exactly):
 //   1. annotDeletes first — their object numbers address the on-disk bytes and
 //      later pdfium rewrites may renumber objects.
 //   2. Content-stream rewrites (textEdits, textInserts, imageEdits) land before
 //      pdf-lib touches the bytes.
-//   3. pdf-lib stage: rotations, metadata, annotations (markup/drawing/ink,
-//      then notes, then saved-note edits/resolves — note edits run after the
-//      note stage so same-request replies still match parents by old contents),
-//      then deletions (descending), then reorder — earlier ops all address
-//      original page indices.
+//   3. pdf-lib stage: rotations, metadata, stamps, annotations (markup/drawing/
+//      ink, then notes, then saved-note edits/resolves — note edits run after
+//      the note stage so same-request replies still match parents by old
+//      contents), then deletions (descending), then reorder — earlier ops all
+//      address original page indices.
 //   4. Read-back verification against the final bytes BEFORE the caller sees
 //      them: a verify failure means the output is thrown away and the original
 //      bytes are never replaced.
@@ -37,6 +39,7 @@ import { applyTextEdits, verifyTextEdits } from "./text.ts";
 import { applyTextInserts } from "./text-insert.ts";
 import { addMarkup } from "./markups.ts";
 import { addDrawing } from "./drawings.ts";
+import { applyStamp } from "./stamps.ts";
 import { addNote, editNote, resolveNote } from "./notes.ts";
 import { applyFormValue, flattenForms } from "./forms.ts";
 import { PdfOpError } from "./op-parse.ts";
@@ -57,6 +60,8 @@ export interface PdfEditSkips {
   skippedAnnotDeletes: { pageIndex: number; reason: string }[];
   skippedMarkups: { pageIndex: number; reason: string }[];
   skippedDrawings: { pageIndex: number; reason: string }[];
+  /** Stamps refused at draw time (page out of range, undecodable image). */
+  skippedStamps: { pageIndex: number; reason: string }[];
   skippedNotes: { pageIndex: number; reason: string }[];
   skippedNoteEdits: { pageIndex: number; reason: string }[];
   skippedNoteResolves: { pageIndex: number; reason: string }[];
@@ -312,6 +317,7 @@ export async function applyPdfEdits(
   let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
   const skippedMarkups: { pageIndex: number; reason: string }[] = [];
   const skippedDrawings: { pageIndex: number; reason: string }[] = [];
+  const skippedStamps: { pageIndex: number; reason: string }[] = [];
   const skippedNotes: { pageIndex: number; reason: string }[] = [];
   const skippedNoteEdits: { pageIndex: number; reason: string }[] = [];
   const skippedNoteResolves: { pageIndex: number; reason: string }[] = [];
@@ -361,6 +367,17 @@ export async function applyPdfEdits(
       continue;
     }
     addDrawing(pdfDoc, page, drawing);
+  }
+  for (const stamp of request.stamps ?? []) {
+    try {
+      await applyStamp(pdfDoc, stamp);
+    } catch (error) {
+      // A typed refusal (bad page, undecodable image, bad rect) is reported as
+      // a skip so the rest of the batch still applies; anything else is an
+      // engine failure and must reach the job's crash path.
+      if (!(error instanceof PdfOpError)) throw error;
+      skippedStamps.push({ pageIndex: stamp.pageIndex, reason: error.message });
+    }
   }
   const noteRefs = new Map<string, PDFRef>();
   for (const note of request.notes ?? []) {
@@ -433,6 +450,7 @@ export async function applyPdfEdits(
     skippedAnnotDeletes,
     skippedMarkups,
     skippedDrawings,
+    skippedStamps,
     skippedNotes,
     skippedNoteEdits,
     skippedNoteResolves,
@@ -450,7 +468,7 @@ export async function applyPdfEdits(
   const documents = await applyDocumentProducers(finalBytes, request, skippedNewDocuments);
   return {
     bytes: finalBytes,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedFormValues, skippedPageInserts, skippedNewDocuments },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes, skippedMarkups, skippedDrawings, skippedStamps, skippedNotes, skippedNoteEdits, skippedNoteResolves, skippedFormValues, skippedPageInserts, skippedNewDocuments },
     annotDeletesApplied,
     formsFlattened,
     documents,

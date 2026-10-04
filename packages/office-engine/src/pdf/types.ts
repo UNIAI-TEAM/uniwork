@@ -247,6 +247,30 @@ export type ImageEditInput =
     }
   | { kind: "deleteImage"; pageIndex: number; oldRect: [number, number, number, number] };
 
+/** Right-angle rotation of a stamp, clockwise, in quarter turns. */
+export type QuarterTurns = 0 | 90 | 180 | 270;
+
+/** One placed stamp from the B6 stamps / signature provider: a pasted image or a
+    drawn visual signature. `rect` is [x1,y1,x2,y2] in PDF user space and
+    `pageIndex` is the engine's original 0-based page index (the UI has already
+    resolved the displayed page order). Both kinds take the same drawing path: a
+    plain image XObject in the target page's content stream, so no annotation or
+    form field is invented. */
+export interface StampInput {
+  kind: "image" | "signature";
+  pageIndex: number;
+  /** PDF user space [x1,y1,x2,y2] footprint; the image fills it. */
+  rect: [number, number, number, number];
+  /** image/png or image/jpeg only. */
+  contentType: string;
+  /** base64 image bytes, without the data: prefix. */
+  image: string;
+  /** Signature stamps carry the id of the signature that produced the image;
+      validated by the op parser, recorded for the caller, never persisted. */
+  signatureId?: string;
+  quarterTurns?: QuarterTurns;
+}
+
 /** An existing content-stream image on a page */
 export interface PageImageRef {
   pageIndex: number;
@@ -382,6 +406,9 @@ export interface PdfEditRequest {
   textEdits?: TextEditInput[];
   textInserts?: TextInsertInput[];
   imageEdits?: ImageEditInput[];
+  /** Image / signature stamps, in request order (drawn as content-stream images
+      on the target page only; applied after image edits). */
+  stamps?: StampInput[];
   /** Page rotation deltas (original page index → multiple of 90 clockwise) */
   rotations?: { pageIndex: number; delta: number }[];
   /** Pages to delete (original page indices) */

@@ -152,6 +152,7 @@ export interface PdfEditOutcome {
     annotDeletes: { applied: number; skipped: number };
     markups: { applied: number; skipped: number };
     drawings: { applied: number; skipped: number };
+    stamps: { applied: number; skipped: number };
     notes: { applied: number; skipped: number };
     noteEdits: { applied: number; skipped: number };
     noteResolves: { applied: number; skipped: number };
@@ -180,6 +181,7 @@ export interface PdfProbe {
     annotationDelete: true;
     drawing: true;
     ink: true;
+    stamp: true;
     note: true;
     noteResolve: true;
     formFill: true;
@@ -240,6 +242,7 @@ function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
       annotationDelete: true,
       drawing: true,
       ink: true,
+      stamp: true,
       note: true,
       noteResolve: true,
       formFill: true,
@@ -324,6 +327,7 @@ export async function applyPdfEditBytes(
     pushSkips("annot", applied.skips.skippedAnnotDeletes);
     pushSkips("markup", applied.skips.skippedMarkups);
     pushSkips("drawing", applied.skips.skippedDrawings);
+    pushSkips("stamp", applied.skips.skippedStamps);
     pushSkips("note", applied.skips.skippedNotes);
     pushSkips("note-edit", applied.skips.skippedNoteEdits);
     pushSkips("note-resolve", applied.skips.skippedNoteResolves);
@@ -363,6 +367,7 @@ export async function applyPdfEditBytes(
         annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
         markups: { applied: (request.markups?.length ?? 0) - applied.skips.skippedMarkups.length, skipped: applied.skips.skippedMarkups.length },
         drawings: { applied: (request.drawings?.length ?? 0) - applied.skips.skippedDrawings.length, skipped: applied.skips.skippedDrawings.length },
+        stamps: { applied: (request.stamps?.length ?? 0) - applied.skips.skippedStamps.length, skipped: applied.skips.skippedStamps.length },
         notes: { applied: (request.notes?.length ?? 0) - applied.skips.skippedNotes.length, skipped: applied.skips.skippedNotes.length },
         noteEdits: { applied: (request.noteEdits?.length ?? 0) - applied.skips.skippedNoteEdits.length, skipped: applied.skips.skippedNoteEdits.length },
         noteResolves: { applied: (request.noteResolves?.length ?? 0) - applied.skips.skippedNoteResolves.length, skipped: applied.skips.skippedNoteResolves.length },

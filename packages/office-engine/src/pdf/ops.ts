@@ -17,6 +17,7 @@ import type {
   NoteReplyTarget,
   NoteResolveInput,
   PdfEditRequest,
+  StampInput,
   TextEditInput,
   TextInsertInput,
 } from "./types.ts";
@@ -44,6 +45,7 @@ import {
   vec2,
   vec4,
 } from "./op-parse.ts";
+import { parseQuarterTurns } from "./stamps.ts";
 
 const MARKUP_SUBTYPES = new Set(["highlight", "underline", "strikeout", "note"]);
 
@@ -180,6 +182,32 @@ function parseImageEdit(a: Dict, op: string): ImageEditInput {
     default:
       throw new PdfOpError(op, "kind", "insertImage|transformImage|replaceImage|deleteImage");
   }
+}
+
+const STAMP_KINDS = new Set<StampInput["kind"]>(["image", "signature"]);
+const STAMP_CONTENT_TYPES = new Set(["image/png", "image/jpeg"]);
+
+function parseStamp(a: Dict, op: string): StampInput {
+  const kind = str(a.kind, op, "kind") as StampInput["kind"];
+  if (!STAMP_KINDS.has(kind)) throw new PdfOpError(op, "kind", "image|signature");
+  const contentType = str(a.contentType, op, "contentType");
+  if (!STAMP_CONTENT_TYPES.has(contentType)) throw new PdfOpError(op, "contentType", "image/png|image/jpeg");
+  const signatureId = opt(a.signatureId, str, op, "signatureId");
+  const rect = vec4(a.rect, op, "rect");
+  if (rect[2] - rect[0] <= 0 || rect[3] - rect[1] <= 0) {
+    throw new PdfOpError(op, "rect", "positive width and height required");
+  }
+  const image = capImageB64(str(a.image, op, "image"), op, "image");
+  if (image === "") throw new PdfOpError(op, "image", "non-empty base64 image required");
+  return {
+    kind,
+    pageIndex: int(a.pageIndex, op, "pageIndex"),
+    rect,
+    contentType,
+    image,
+    ...(signatureId === undefined ? {} : { signatureId }),
+    quarterTurns: parseQuarterTurns(a.quarterTurns, op, "quarterTurns"),
+  };
 }
 
 function parseMetadata(a: Dict, op: string): MetadataInput {
@@ -384,6 +412,11 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       case "addImageEdit":
         push("imageEdits", parseImageEdit(a, op));
         break;
+      case "addStamp":
+        // The B6 provider nests the payload under `attributes.stamp`; the flat
+        // shape ({op, ...fields}) is accepted too, like every other op.
+        push("stamps", parseStamp(isDict(a.stamp) ? a.stamp : a, op));
+        break;
       case "setFormValue":
         // The host sends the field at the top level ({op, field:{name,kind,
         // value}}); the AI tool schema nests it under `value`, and the generic
@@ -446,7 +479,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         req.splitPdf = parseSplitPdf(a, op);
         break;
       // Upstream vocabulary that this lane deliberately does not bind:
-      // stamps, signatures and OCR.
+      // OCR (optical engines live outside this service).
       case "ocrPage":
       case "ocr":
         throw new PdfOpError(op, "", "ocr is not a capability of this engine build (optical engines live outside the service)", true);
