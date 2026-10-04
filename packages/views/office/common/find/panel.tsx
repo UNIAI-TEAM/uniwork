@@ -249,11 +249,11 @@ export function FindReplacePanel({
           <Input
             value={replace}
             onChange={(event) => setReplacement(event.target.value)}
-        placeholder={t("replacePlaceholder")}
-        aria-label={t("replacePlaceholder")}
-        disabled={disabled}
-        autoComplete="off"
-        spellCheck={false}
+            placeholder={t("replacePlaceholder")}
+            aria-label={t("replacePlaceholder")}
+            disabled={disabled}
+            autoComplete="off"
+            spellCheck={false}
             onKeyDown={onReplaceKeyDown}
             className="h-7 w-40"
             data-testid="find-replace-value"
