@@ -145,6 +145,12 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
         i = end;
         continue;
       }
+      // A tag only opens when `<` is followed by an ASCII letter (HTML5 tag
+      // open state); `a < b` is text, and parse5 keeps it inside the parent.
+      if (!/[a-zA-Z]/.test(text[i + 1] ?? "")) {
+        i += 1;
+        continue;
+      }
       const end = tagEnd(text, i);
       const nameMatch = /^<\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(text.slice(i, end));
       if (!nameMatch) {

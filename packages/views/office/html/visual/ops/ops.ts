@@ -230,7 +230,7 @@ export function move(context: HtmlOpContext, target: HtmlTarget, destination: Mo
 
 /** Set, replace or (with `value === null`) remove one attribute. */
 export function setAttr(context: HtmlOpContext, target: HtmlTarget, name: string, value: string | null): UpstreamPatchSet {
-  if (!/^[A-Za-z_:][A-Za-z0-9_.:-]*$/.test(name)) {
+  if (!isValidAttributeName(name)) {
     // Only the value is encoded below; an unvalidated name would splice quotes
     // and a new attribute (or event handler) into the tag.
     throw new HtmlOpError("invalid_target", "not a valid attribute name", { name });
@@ -256,6 +256,17 @@ export function setAttr(context: HtmlOpContext, target: HtmlTarget, name: string
   }
   const at = attributeInsertionPoint(context.text, element.startTag);
   return insertAt(context.version, at, " " + name.toLowerCase() + '="' + encodeAttributeValue(value, '"') + '"', "inspector", "set_attr");
+}
+
+/**
+ * A valid attribute name: a letter/underscore/colon, then letters, digits,
+ * `_`, `.`, `:`, `-`. HTML5 attribute names are NOT ASCII-only, so the classes
+ * are Unicode (`đậm` is a legal attribute name) while the structural
+ * characters that could end the name or splice a new attribute - whitespace,
+ * quotes, `<`, `>`, `/`, `=`, backtick - stay out of the allowlist.
+ */
+function isValidAttributeName(name: string): boolean {
+  return /^[\p{L}_:][\p{L}\p{N}_.:-]*$/u.test(name);
 }
 
 /** True for an attribute written without a value (`disabled`, `hidden`, ...). */
@@ -342,6 +353,55 @@ function assertBalancedRange(context: HtmlOpContext, from: number, to: number): 
       throw new HtmlOpError("invalid_range", "wrap range splits an element", { from, to, tag: element.tag });
     }
   }
+  assertNoMarkupSplit(context, from, to);
+}
+
+/** Markup that is not an element: comments, CDATA, doctype and processing
+ * instructions. parse5 puts none of these in the element map, so the element
+ * scan above cannot see a range that splits one - wrapping `[7,10]` over
+ * `<div><!-- xx -->` would put `</em>` inside the comment. */
+const NON_ELEMENT_MARKUP = /<!--|<\!\[CDATA\[|<\?|<\!/g;
+
+/**
+ * Reject a range that splits a non-element markup span (comment / CDATA /
+ * doctype / processing instruction), or that cuts a tag the element map does
+ * not cover. A span the range fully contains is fine, exactly like a contained
+ * element.
+ */
+function assertNoMarkupSplit(context: HtmlOpContext, from: number, to: number): void {
+  const text = context.text;
+  for (const match of text.matchAll(NON_ELEMENT_MARKUP)) {
+    const spanStart = match.index!;
+    const spanEnd = markupSpanEnd(text, match[0], spanStart);
+    if (spanStart >= to || spanEnd <= from) continue;
+    if (spanStart >= from && spanEnd <= to) continue;
+    throw new HtmlOpError("invalid_range", "wrap range splits non-element markup", { from, to });
+  }
+  // A markup-looking `<` outside every element range means the slice cuts a
+  // tag the map does not cover (e.g. markup-looking text in a rawtext body).
+  // A bare `<` in text (`a < b`) is not markup and is left alone.
+  const ranges = context.map.elements.map((element) => element.range);
+  for (let at = from; at < to; at += 1) {
+    if (text[at] !== "<") continue;
+    if (!/[a-zA-Z/!?]/.test(text[at + 1] ?? "")) continue;
+    if (ranges.some((range) => range[0] <= at && at < range[1])) continue;
+    throw new HtmlOpError("invalid_range", "wrap range splits a tag", { from, to });
+  }
+}
+
+/** The offset just past a markup opener's matching close (`-->`, `]]>`, `>`). */
+function markupSpanEnd(text: string, opener: string, at: number): number {
+  if (opener === "<!--") {
+    const close = text.indexOf("-->", at + 4);
+    return close === -1 ? text.length : close + 3;
+  }
+  if (opener === "<![CDATA[") {
+    const close = text.indexOf("]]>", at + 9);
+    return close === -1 ? text.length : close + 3;
+  }
+  // Doctype / processing instruction: up to the next `>`.
+  const close = text.indexOf(">", at + opener.length);
+  return close === -1 ? text.length : close + 1;
 }
 
 /** Wrap a source range in a new element: an opening tag at its start and a

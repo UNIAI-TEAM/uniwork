@@ -414,6 +414,18 @@ describe("html visual ops: one test per op", () => {
     expect(() => setAttr(context(f), { sid: img.sid }, "data-x:y", "v")).not.toThrow();
   });
 
+  it("set_attr: sets and removes a non-ASCII attribute name", async () => {
+    const source = '<div đậm="x">t</div>';
+    const setFixture = await openFixture(source);
+    const setDiv = setFixture.map.elements.find((element) => element.tag === "div")!;
+    const after = applyOp(setFixture, setAttr(context(setFixture), { sid: setDiv.sid }, "đậm", "y"));
+    expect(after).toBe('<div đậm="y">t</div>');
+    const removeFixture = await openFixture(source);
+    const removeDiv = removeFixture.map.elements.find((element) => element.tag === "div")!;
+    const removed = applyOp(removeFixture, setAttr(context(removeFixture), { sid: removeDiv.sid }, "đậm", null));
+    expect(removed).toBe("<div>t</div>");
+  });
+
   it("set_style: merges with the author's style and keeps other declarations", async () => {
     const f = await fixture();
     const img = elementByPath(f.map, IMG)!;
@@ -492,6 +504,48 @@ describe("html visual ops: one test per op", () => {
     // elements, is still accepted.
     expect(() => wrapText(context(f), [ps[0]!.inner[0], ps[0]!.inner[1]], "em")).not.toThrow();
     expect(() => wrapText(context(f), [ps[0]!.range[0], ps[1]!.range[1]], "em")).not.toThrow();
+  });
+
+  // NF4: comments / doctype / CDATA are not in the element map, so the element
+  // scan alone let wrap_text split them (`<!<em>-- </em>xx -->`). Reject any
+  // range that cuts a non-element markup span.
+  describe("wrap_text: refuses to split non-element markup", () => {
+    it("refuses a range inside a comment", async () => {
+      const source = "<div><!-- xx --><p>aa</p></div>";
+      const f = await openFixture(source);
+      expect(() => wrapText(context(f), [7, 10], "em")).toThrow(HtmlOpError);
+      try {
+        wrapText(context(f), [7, 10], "em");
+      } catch (error) {
+        expect((error as HtmlOpError).code).toBe("invalid_range");
+      }
+    });
+
+    it("refuses a range that starts before a comment and ends inside it", async () => {
+      const source = "<div><!-- xx --><p>aa</p></div>";
+      const f = await openFixture(source);
+      expect(() => wrapText(context(f), [5, 10], "em")).toThrow(HtmlOpError);
+    });
+
+    it("refuses a range that splits a doctype", async () => {
+      const source = "<!doctype html><p>aa</p>";
+      const f = await openFixture(source);
+      expect(() => wrapText(context(f), [4, 9], "em")).toThrow(HtmlOpError);
+    });
+
+    it("still wraps a range that fully contains a comment", async () => {
+      const source = "<div><!-- xx --><p>aa</p></div>";
+      const f = await openFixture(source);
+      // [5,16] is exactly the comment span; a range that contains it whole is
+      // as valid as one that contains a whole element.
+      expect(() => wrapText(context(f), [5, 16], "em")).not.toThrow();
+    });
+
+    it("still wraps plain text containing a bare less-than", async () => {
+      const source = "<p>a < b</p>";
+      const f = await openFixture(source);
+      expect(() => wrapText(context(f), [3, 8], "em")).not.toThrow();
+    });
   });
 
   it("unwrap: replaces the element with its own inner content", async () => {
