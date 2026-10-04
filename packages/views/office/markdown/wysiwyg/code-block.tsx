@@ -12,6 +12,11 @@
  * M2 actions (`updateAttributes("codeBlock", { language })`), never through a
  * second copy of the node.
  *
+ * It is mounted from the toolbar GROUP DATA (`toolbar/build-items.tsx`), not
+ * from a single mount point, so the command row and the shared ribbon both
+ * render it; `readCodeBlock` feeds `MarkdownToolbarState.codeBlock` and the
+ * language command rides `MarkdownToolbarActions.setCodeBlockLanguage`.
+ *
  * Copy goes through `copyText` (the product's clipboard helper, which falls
  * back to `execCommand` on plain http://) and the "copied" mark is gated on
  * its boolean result, so a refused clipboard never claims success.
@@ -56,7 +61,11 @@ export const CODE_BLOCK_LANGUAGES: readonly string[] = [
   "mermaid",
 ];
 
-/** The language a fenced block with no info string carries. */
+/**
+ * The menu value for a language-less fence. Picking it clears the info string
+ * (writes `""`) rather than the literal `plaintext`, so the fence serialises
+ * back as a bare ``` rather than ```plaintext — byte-identical to the source.
+ */
 export const PLAIN_TEXT_LANGUAGE = "plaintext";
 
 /** The code block the cursor is inside, as the toolbar reads it. */
@@ -78,7 +87,7 @@ export interface CodeBlockToolbarProps {
 }
 
 /** The code block the cursor sits in, read from the live editor, or null. */
-function readCodeBlock(editor: Editor | null): CodeBlockInfo | null {
+export function readCodeBlock(editor: Editor | null): CodeBlockInfo | null {
   if (!editor || !editor.isActive("codeBlock")) return null;
   const language = (editor.getAttributes("codeBlock") as { language?: string }).language ?? "";
   const { $from } = editor.state.selection;
@@ -94,6 +103,11 @@ function readCodeBlock(editor: Editor | null): CodeBlockInfo | null {
  * outside a code block (so the caller renders nothing), the picker writing
  * `language` through `updateAttributes`, and the copy control reading the
  * block's text and writing it through the product clipboard helper.
+ *
+ * The language command carries an `isEditable` guard of its own: a read-only
+ * document must not be mutated even if a caller reaches the callback without
+ * going through the disabled trigger (`@tiptap/core`'s `updateAttributes`
+ * does not check editable).
  */
 export function useCodeBlockToolbar(editor: Editor | null): CodeBlockToolbarProps {
   const codeBlock = useEditorState({
@@ -103,15 +117,11 @@ export function useCodeBlockToolbar(editor: Editor | null): CodeBlockToolbarProp
   return {
     codeBlock: codeBlock ?? null,
     onLanguageChange: (language) => {
-      editor?.chain().focus().updateAttributes("codeBlock", { language }).run();
+      if (!editor?.isEditable) return;
+      editor.chain().focus().updateAttributes("codeBlock", { language }).run();
     },
     onCopy: () => copyText(codeBlock?.text ?? ""),
   };
-}
-
-/** The language name shown for one menu entry ("plaintext" reads as prose). */
-export function codeBlockLanguageLabel(language: string): string {
-  return language;
 }
 
 export function CodeBlockToolbar({ codeBlock, disabled = false, onLanguageChange, onCopy }: CodeBlockToolbarProps) {
@@ -137,6 +147,7 @@ export function CodeBlockToolbar({ codeBlock, disabled = false, onLanguageChange
     >
       <DropdownMenu>
         <DropdownMenuTrigger
+          disabled={disabled}
           render={
             <Button
               type="button"
@@ -148,20 +159,20 @@ export function CodeBlockToolbar({ codeBlock, disabled = false, onLanguageChange
             />
           }
         >
-          <span className="truncate">{language === PLAIN_TEXT_LANGUAGE ? t("office.markdown.code.plain") : codeBlockLanguageLabel(language)}</span>
+          <span className="truncate">{language === PLAIN_TEXT_LANGUAGE ? t("office.markdown.code.plain") : language}</span>
           <ChevronDown aria-hidden className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="min-w-44" data-toolbar-menu="codeBlockLanguage">
           {CODE_BLOCK_LANGUAGES.map((option) => (
             <DropdownMenuItem
               key={option}
-              onClick={() => onLanguageChange(option)}
+              // Plain text clears the info string; every other option is written
+              // verbatim (F-07: a bare fence, not ```plaintext).
+              onClick={() => onLanguageChange(option === PLAIN_TEXT_LANGUAGE ? "" : option)}
               data-code-block-language-option={option}
               className={cn("gap-2", option === language && "bg-surface-selected text-surface-selected-foreground")}
             >
-              <span className="flex-1">
-                {option === PLAIN_TEXT_LANGUAGE ? t("office.markdown.code.plain") : codeBlockLanguageLabel(option)}
-              </span>
+              <span className="flex-1">{option === PLAIN_TEXT_LANGUAGE ? t("office.markdown.code.plain") : option}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

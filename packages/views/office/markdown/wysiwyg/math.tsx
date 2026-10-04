@@ -16,7 +16,7 @@
  * escaped text). It claims the event only when the whole clipboard text is one
  * formula; anything else falls through untouched.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { FunctionSquare, Sigma } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Extension } from "@tiptap/core";
@@ -115,22 +115,14 @@ function updateMathSelection(editor: Editor, target: MathSelection, expression: 
  * place, otherwise a new node of `kind` is inserted at the selection.
  */
 export function applyMath(editor: Editor | null, kind: MathKind, expression: string): void {
-  if (!editor) return;
+  // A read-only document must not be mutated even if a caller reaches this
+  // without going through the disabled popover.
+  if (!editor?.isEditable) return;
   const target = readMathSelection(editor);
   if (target) {
     updateMathSelection(editor, target, expression);
     return;
   }
-  editor
-    .chain()
-    .focus()
-    .insertContent({ type: kind === "inline" ? "inlineMath" : "blockMath", attrs: { expression } })
-    .run();
-}
-
-/** Insert a new formula of the given kind, regardless of the selection. */
-export function insertMath(editor: Editor | null, kind: MathKind, expression = ""): void {
-  if (!editor) return;
   editor
     .chain()
     .focus()
@@ -210,12 +202,21 @@ export function MathPopover({ math, disabled = false, onApply }: MathPopoverProp
     setOpen(false);
   };
 
+  // The popover is not a form, so Enter has to apply explicitly rather than
+  // submit.
+  const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    apply();
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger
           render={
             <PopoverTrigger
+              disabled={disabled}
               render={
                 <Button
                   type="button"
@@ -239,6 +240,7 @@ export function MathPopover({ math, disabled = false, onApply }: MathPopoverProp
         <Input
           value={expression}
           onChange={(event) => setExpression(event.target.value)}
+          onKeyDown={onFieldKeyDown}
           placeholder="E = mc^2"
           aria-label={t("office.markdown.math.latexPlaceholder")}
           data-toolbar-math-input
@@ -247,20 +249,25 @@ export function MathPopover({ math, disabled = false, onApply }: MathPopoverProp
           <Button type="button" size="sm" disabled={disabled} onClick={apply} data-toolbar-math-apply>
             {math ? t("office.markdown.math.edit") : t("office.markdown.math.insertBlock")}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() => {
-              onApply("inline", expression);
-              setOpen(false);
-            }}
-            data-toolbar-math-insert-inline
-          >
-            <FunctionSquare aria-hidden />
-            {t("office.markdown.math.insertInline")}
-          </Button>
+          {/* Edit mode updates the formula in place and ignores `kind`, so an
+              "Insert inline formula" button would promise an insert it cannot
+              do. Hide it while editing; the primary button applies. */}
+          {math === null && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              onClick={() => {
+                onApply("inline", expression);
+                setOpen(false);
+              }}
+              data-toolbar-math-insert-inline
+            >
+              <FunctionSquare aria-hidden />
+              {t("office.markdown.math.insertInline")}
+            </Button>
+          )}
         </div>
       </PopoverContent>
     </Popover>

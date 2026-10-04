@@ -12,6 +12,8 @@
 import { useMemo } from "react";
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
+import { copyText } from "@uniwork/ui/lib/clipboard";
+import { readCodeBlock } from "../code-block";
 import { insertMermaidDiagram } from "../diagram";
 import { applyMath, readMathSelection } from "../math";
 import { blockStyleOf, headingLevelOf } from "./groups";
@@ -33,6 +35,7 @@ const EMPTY_MARKDOWN_TOOLBAR_STATE: MarkdownToolbarState = {
   outline: false,
   frontmatter: false,
   math: null,
+  codeBlock: null,
 };
 
 /** The state the editor reports on its own; the pane toggles are the caller's. */
@@ -62,6 +65,7 @@ function readEditorState(editor: Editor): MarkdownEditorToolbarState {
       task: editor.isActive("taskList"),
     },
     math: readMathSelection(editor),
+    codeBlock: readCodeBlock(editor),
   };
 }
 
@@ -147,6 +151,13 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
       insertMath(kind, expression) {
         if (!editor?.isEditable) return;
         applyMath(editor, kind, expression);
+      },
+      setCodeBlockLanguage(language) {
+        if (!editor?.isEditable) return;
+        editor.chain().focus().updateAttributes("codeBlock", { language }).run();
+      },
+      copyCodeBlock() {
+        return copyText(readCodeBlock(editor)?.text ?? "");
       },
     }),
     [editor, insertImage],

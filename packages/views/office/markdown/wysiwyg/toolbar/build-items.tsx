@@ -22,11 +22,13 @@ import {
   Minus,
   PanelTop,
   PanelTopOpen,
+  SquareCode,
   Strikethrough,
   Table2,
   Workflow,
 } from "lucide-react";
 import type { RibbonIcon, RibbonItem } from "../../../ribbon/types";
+import { CodeBlockToolbar } from "../code-block";
 import { MathPopover } from "../math";
 import { BlockStyleDropdown } from "./block-style-dropdown";
 import { LinkPopover } from "./link-popover";
@@ -48,6 +50,7 @@ const ICONS: Record<string, RibbonIcon> = {
   insertHr: Minus,
   insertDiagram: Workflow,
   insertMath: Sigma,
+  codeBlock: SquareCode,
   viewOutline: ListTree,
   viewFrontmatter: PanelTopOpen,
 };
@@ -119,6 +122,27 @@ export function buildMarkdownGroupItems(
         width: 40,
         render: () => (
           <LinkPopover link={state.link} disabled={readOnly} onApply={actions.applyLink} onRemove={actions.removeLink} />
+        ),
+      };
+    }
+    if (control.id === "codeBlock") {
+      return {
+        kind: "custom",
+        id: control.id,
+        labelKey: control.labelKey,
+        icon,
+        // The picker null-renders outside a fence, so it reserves no width
+        // until the cursor is inside one (an always-on 150px would fold the
+        // Insert group into "»" early for a control that is not there).
+        width: state.codeBlock ? 150 : 0,
+        collapseAs: "icon",
+        render: () => (
+          <CodeBlockToolbar
+            codeBlock={state.codeBlock}
+            disabled={readOnly}
+            onLanguageChange={actions.setCodeBlockLanguage}
+            onCopy={actions.copyCodeBlock}
+          />
         ),
       };
     }

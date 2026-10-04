@@ -11,6 +11,8 @@
  * so neither is declared here.
  */
 
+import type { CodeBlockInfo } from "../code-block";
+
 /** The one block-style dropdown's choices: paragraph, H1-H6, quote, code. */
 export type MarkdownBlockStyle =
   | "paragraph"
@@ -46,6 +48,7 @@ export type MarkdownToolbarControlId =
   | "insertHr"
   | "insertDiagram"
   | "insertMath"
+  | "codeBlock"
   | "viewOutline"
   | "viewFrontmatter";
 
@@ -97,6 +100,8 @@ export interface MarkdownToolbarState {
   frontmatter: boolean;
   /** Formula under the cursor, for the math control's edit mode (M4). */
   math: MarkdownToolbarMathState | null;
+  /** Code block under the cursor, for the contextual picker (M4); null hides it. */
+  codeBlock: CodeBlockInfo | null;
 }
 
 /**
@@ -117,4 +122,8 @@ export interface MarkdownToolbarActions {
   insertDiagram(): void;
   /** Insert or edit a formula: `inline` or `block` (M4). */
   insertMath(kind: "inline" | "block", expression: string): void;
+  /** Set the current code block's `language` attribute ("" clears it) (M4). */
+  setCodeBlockLanguage(language: string): void;
+  /** Copy the current code block's text; resolves true when it reached the clipboard (M4). */
+  copyCodeBlock(): Promise<boolean>;
 }

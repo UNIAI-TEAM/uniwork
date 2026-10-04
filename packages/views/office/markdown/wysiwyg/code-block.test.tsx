@@ -6,6 +6,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
 import { CodeBlockToolbar, useCodeBlockToolbar } from "./code-block";
+import { MarkdownCommandRow } from "./toolbar/command-row";
 import type { TextEditorHandle } from "../../source-editor-types";
 
 initI18n();
@@ -45,18 +46,18 @@ function createHandle(initial: string): TextEditorHandle {
 
 let live: Editor | null = null;
 
-/** The contextual code-block controls, mounted exactly as the surface does. */
-function Harness() {
+/** The code-block controls mounted the way the product mounts them: through
+ * the toolbar group data, so the command row (and the ribbon) carry them. */
+function Harness({ editable = true }: { editable?: boolean } = {}) {
   const [handle] = useState(() => createHandle(FIXTURE));
   const [instance, setInstance] = useState<Editor | null>(null);
   useEffect(() => {
     live = instance;
   }, [instance]);
-  const props = useCodeBlockToolbar(instance);
   return (
     <div>
-      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={setInstance} />
-      <CodeBlockToolbar {...props} />
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={editable} onEditorReady={setInstance} showRibbon={false} />
+      <MarkdownCommandRow editor={instance} editable={editable} />
     </div>
   );
 }
@@ -77,11 +78,16 @@ function selectCodeBlock(): void {
   });
 }
 
+async function waitForRow() {
+  await waitFor(() => expect(live).not.toBeNull());
+  await waitFor(() => expect(screen.getByTestId("md-toolbar")).toBeInTheDocument());
+}
+
 describe("CodeBlockToolbar", () => {
-  it("hides outside a code block and appears when the cursor is inside one", async () => {
+  it("is unmounted outside a code block and appears from the group data inside one", async () => {
     render(<Harness />);
-    await waitFor(() => expect(live).not.toBeNull());
-    // Cursor starts in the heading: nothing to control.
+    await waitForRow();
+    // Cursor starts in the heading: the contextual control renders nothing.
     expect(document.querySelector("[data-code-block-toolbar]")).toBeNull();
     selectCodeBlock();
     await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
@@ -90,7 +96,7 @@ describe("CodeBlockToolbar", () => {
 
   it("changes the current block's language through updateAttributes", async () => {
     render(<Harness />);
-    await waitFor(() => expect(live).not.toBeNull());
+    await waitForRow();
     selectCodeBlock();
     await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Language" }));
@@ -100,16 +106,59 @@ describe("CodeBlockToolbar", () => {
     expect(live!.getJSON().content?.some((node) => node.type === "codeBlock" && node.attrs?.language === "python")).toBe(true);
   });
 
+  it("clears the info string when Plain text is chosen (a bare fence)", async () => {
+    render(<Harness />);
+    await waitForRow();
+    selectCodeBlock();
+    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Plain text" }));
+    await waitFor(() => expect(live!.getAttributes("codeBlock").language).toBe(""));
+    // It serialises as a bare fence, not ```plaintext.
+    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")?.getAttribute("data-code-block-language")).toBe("plaintext"));
+  });
+
   it("copies the block's exact text to the clipboard", async () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<Harness />);
-    await waitFor(() => expect(live).not.toBeNull());
+    await waitForRow();
     selectCodeBlock();
     await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
     // The node view has its own copy button; scope to this contextual toolbar.
     const toolbar = document.querySelector("[data-code-block-toolbar]") as HTMLElement;
     fireEvent.click(within(toolbar).getByRole("button", { name: "Copy code" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(CODE));
+  });
+
+  it("keeps the language menu closed while the editor is read-only", async () => {
+    render(<Harness editable={false} />);
+    await waitForRow();
+    // The control is still present (disabled, not hidden) and does not mutate.
+    selectCodeBlock();
+    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
+    const trigger = screen.getByRole("button", { name: "Language" });
+    expect(trigger).toBeDisabled();
+    const before = JSON.stringify(live!.getJSON());
+    fireEvent.mouseDown(trigger);
+    fireEvent.click(trigger);
+    expect(document.querySelector('[data-toolbar-menu="codeBlockLanguage"]')).toBeNull();
+    expect(JSON.stringify(live!.getJSON())).toBe(before);
+  });
+
+  it("makes the language command inert even when called directly on a read-only editor", async () => {
+    let props: ReturnType<typeof useCodeBlockToolbar> | null = null;
+    function Probe() {
+      props = useCodeBlockToolbar(live);
+      return null;
+    }
+    render(<Harness editable={false} />);
+    await waitForRow();
+    selectCodeBlock();
+    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")).toBeTruthy());
+    render(<Probe />);
+    const before = JSON.stringify(live!.getJSON());
+    act(() => props!.onLanguageChange("python"));
+    expect(JSON.stringify(live!.getJSON())).toBe(before);
   });
 });

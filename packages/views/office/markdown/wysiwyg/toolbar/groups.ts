@@ -76,10 +76,15 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
       { id: "insertTable", labelKey: "office.markdown.wysiwyg.insertTable", kind: "button" },
       { id: "insertImage", labelKey: "office.markdown.wysiwyg.insertImage", kind: "button" },
       { id: "insertHr", labelKey: "office.markdown.wysiwyg.insertHr", kind: "button" },
-      // M4: the two insertable rich blocks. The code-block language picker is
-      // contextual (it appears inside a code block), not a group item.
-      { id: "insertDiagram", labelKey: "office.markdown.diagram.template", kind: "button" },
+      // M4: the two insertable rich blocks.
+      { id: "insertDiagram", labelKey: "office.markdown.diagram.label", kind: "button" },
       { id: "insertMath", labelKey: "office.markdown.math.blockLabel", kind: "custom" },
+      // M4: the code-block language picker + copy are CONTEXTUAL - they render
+      // only while the cursor is inside a fence (the control null-renders
+      // otherwise). Declaring them here, once, is what mounts them in BOTH the
+      // command row and the shared ribbon; a contextual control the data model
+      // forgot would be dead code.
+      { id: "codeBlock", labelKey: "office.markdown.code.language", kind: "custom" },
     ],
   },
   {

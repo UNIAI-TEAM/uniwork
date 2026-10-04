@@ -5,14 +5,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { createMarkdownEditorExtensions } from "./extensions";
-import {
-  MathPopover,
-  applyMath,
-  createMathPasteExtension,
-  insertMath,
-  parseMathPaste,
-  readMathSelection,
-} from "./math";
+import { MathPopover, applyMath, parseMathPaste, readMathSelection } from "./math";
 
 initI18n();
 beforeEach(async () => {
@@ -27,13 +20,18 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-/** The Markdown WYSIWYG stack (shared math nodes included) plus the normaliser. */
+/**
+ * The Markdown WYSIWYG stack, exactly as the product mounts it. The paste
+ * normaliser is registered inside `createMarkdownEditorExtensions()`; adding
+ * it a second time here would let the suite pass even if that production
+ * registration were dropped, so it is deliberately not repeated.
+ */
 function makeEditor(): Editor {
   const element = document.createElement("div");
   document.body.appendChild(element);
   return new Editor({
     element,
-    extensions: [...createMarkdownEditorExtensions(), createMathPasteExtension()],
+    extensions: createMarkdownEditorExtensions(),
     content: "<p>before</p>",
   });
 }
@@ -105,15 +103,15 @@ describe("math paste normalisation", () => {
   });
 });
 
-describe("insertMath / applyMath", () => {
+describe("applyMath", () => {
   it("inserts inline and block nodes and edits the one under the cursor", async () => {
     editor = makeEditor();
     await act(async () => {
-      insertMath(editor, "inline", "a^2");
+      editor!.chain().focus().insertContent({ type: "inlineMath", attrs: { expression: "a^2" } }).run();
     });
     await waitFor(() => expect(findAll(editor!.getJSON(), "inlineMath")).toHaveLength(1));
     await act(async () => {
-      insertMath(editor, "block", "b^2");
+      editor!.chain().focus().insertContent({ type: "blockMath", attrs: { expression: "b^2" } }).run();
     });
     await waitFor(() => expect(findAll(editor!.getJSON(), "blockMath")).toHaveLength(1));
     // Editing the block node in place keeps one node and replaces its source.
@@ -145,6 +143,30 @@ describe("MathPopover", () => {
     fireEvent.change(input, { target: { value: "e^{i\\pi}" } });
     fireEvent.click(screen.getByRole("button", { name: "Insert block formula" }));
     await waitFor(() => expect(onApply).toHaveBeenCalledWith("block", "e^{i\\pi}"));
+    cleanup();
+  });
+
+  it("applies with Enter and hides the inline-insert button while editing", async () => {
+    const onApply = vi.fn();
+    render(<MathPopover math={{ kind: "block", expression: "x^2" }} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Block formula" }));
+    const input = await screen.findByLabelText("Enter LaTeX");
+    expect(input).toHaveValue("x^2");
+    // Editing updates in place and ignores `kind`, so no insert-inline promise.
+    expect(screen.queryByRole("button", { name: "Insert inline formula" })).toBeNull();
+    fireEvent.change(input, { target: { value: "y^2" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith("block", "y^2"));
+    cleanup();
+  });
+
+  it("keeps the popover closed while disabled", async () => {
+    const onApply = vi.fn();
+    render(<MathPopover math={null} disabled onApply={onApply} />);
+    const trigger = screen.getByRole("button", { name: "Block formula" });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(document.querySelector('[data-toolbar-popover="math"]')).toBeNull();
     cleanup();
   });
 });
