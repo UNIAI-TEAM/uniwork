@@ -79,6 +79,16 @@ export function commentDraftReady(input: PptxCommentDraftInput): boolean {
   return input.author.trim().length > 0 && input.text.trim().length > 0;
 }
 
+/**
+ * The draft once an add resolves: clear only the exact text that was posted, so
+ * anything that changed while the add was in flight survives. The composer is
+ * gated for that window anyway; this is the second guard (the clear can never
+ * wipe text it did not post).
+ */
+export function commentDraftAfterAdd(current: string, postedDraft: string): string {
+  return current === postedDraft ? "" : current;
+}
+
 /** The reply/resolve capability the engine does not have (constant, so the
  *  panel and its test read the same fact). */
 export const PPTX_COMMENT_REPLY_RESOLVE_SUPPORTED = false;

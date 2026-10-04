@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commentAvatarLabel,
+  commentDraftAfterAdd,
   commentDraftReady,
   commentRefKey,
   commentsPanelMode,
@@ -72,6 +73,16 @@ describe("commentDraftReady", () => {
     expect(commentDraftReady({ ...base, boundPort: false })).toBe(false);
     expect(commentDraftReady({ ...base, readonly: true })).toBe(false);
     expect(commentDraftReady({ ...base, pending: true })).toBe(false);
+  });
+});
+
+describe("commentDraftAfterAdd", () => {
+  it("clears only the exact posted draft", () => {
+    expect(commentDraftAfterAdd("hello", "hello")).toBe("");
+  });
+
+  it("keeps text that changed while the add was in flight", () => {
+    expect(commentDraftAfterAdd("hello there", "hello")).toBe("hello there");
   });
 });
 

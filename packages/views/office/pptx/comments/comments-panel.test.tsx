@@ -66,6 +66,26 @@ describe("PptxCommentsPanel", () => {
     expect(textbox).toHaveValue("keep me");
   });
 
+  it("gates the composer while an add is in flight so a second Post cannot resubmit", async () => {
+    let settle: (value: unknown) => void = () => {};
+    const onAddComment = vi.fn(() => new Promise((resolve) => { settle = resolve; }));
+    render(<PptxCommentsPanel slideIndex={0} comments={[]} defaultAuthor="An" onAddComment={onAddComment} onDeleteComment={vi.fn()} />);
+    const textbox = screen.getByRole("textbox", { name: "Write a comment" });
+    fireEvent.change(textbox, { target: { value: "hello" } });
+    const post = screen.getByRole("button", { name: "Post comment" });
+    fireEvent.click(post);
+    expect(onAddComment).toHaveBeenCalledTimes(1);
+    // In flight: the whole composer is inert, so no duplicate can be sent.
+    expect(post).toBeDisabled();
+    expect(textbox).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Author" })).toBeDisabled();
+    fireEvent.click(post);
+    expect(onAddComment).toHaveBeenCalledTimes(1);
+    settle(undefined);
+    await waitFor(() => expect(textbox).toHaveValue(""));
+    await waitFor(() => expect(textbox).toBeEnabled());
+  });
+
   it("fills the author field when the session author resolves after mount", () => {
     const { rerender } = render(<PptxCommentsPanel slideIndex={0} comments={[]} onAddComment={vi.fn()} onDeleteComment={vi.fn()} />);
     expect(screen.getByRole("textbox", { name: "Author" })).toHaveValue("");
@@ -88,6 +108,15 @@ describe("PptxCommentsPanel", () => {
     render(<PptxCommentsPanel slideIndex={2} comments={[comment({ authorId: 4, idx: 7 })]} onAddComment={vi.fn()} onDeleteComment={onDeleteComment} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete comment by An Nguyen" }));
     expect(onDeleteComment).toHaveBeenCalledWith(2, 4, 7);
+  });
+
+  it("falls back to a generic delete label when the comment has no author", () => {
+    const onDeleteComment = vi.fn();
+    render(<PptxCommentsPanel slideIndex={0} comments={[comment({ author: "   " })]} onAddComment={vi.fn()} onDeleteComment={onDeleteComment} />);
+    const del = screen.getByRole("button", { name: "Delete comment" });
+    expect(del).not.toHaveAccessibleName("Delete comment by ");
+    fireEvent.click(del);
+    expect(onDeleteComment).toHaveBeenCalledWith(0, 1, 2);
   });
 
   it("renders reply/resolve as disabled controls with the unsupported reason", () => {

@@ -14,7 +14,7 @@
  * the vendored engine registers no reply/resolve op: an enabled control that
  * silently does nothing would be a lie (the lane's "pending command" pattern).
  */
-import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -22,6 +22,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   commentAvatarLabel,
+  commentDraftAfterAdd,
   commentDraftReady,
   commentRefKey,
   commentsPanelMode,
@@ -79,6 +80,8 @@ export function PptxCommentsPanel({
   const [author, setAuthor] = useState(defaultAuthor);
   const [authorTouched, setAuthorTouched] = useState(false);
   const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
+  const postingRef = useRef(false);
 
   // The session author can resolve a tick after mount; fill the field while the
   // user has not typed into it yet.
@@ -86,20 +89,32 @@ export function PptxCommentsPanel({
     if (!authorTouched) setAuthor(defaultAuthor);
   }, [defaultAuthor, authorTouched]);
 
-  const ready = commentDraftReady({ author, text: draft, readonly, pending, boundPort: boundAdd });
+  const addInFlight = pending || posting;
+  const ready = commentDraftReady({ author, text: draft, readonly, pending: addInFlight, boundPort: boundAdd });
   const slideLabel = slideIndex === null ? "" : String(slideIndex + 1);
   const timeLocale = locale ?? (typeof document !== "undefined" ? document.documentElement.lang || undefined : undefined);
 
   const post = useCallback(() => {
-    if (!ready || slideIndex === null) return;
+    if (!ready || slideIndex === null || postingRef.current) return;
     const text = draft.trim();
     const name = author.trim();
-    // Fire-and-forget: the host reports the outcome through `comments` /
-    // `error`; a rejection must not become an unhandled promise. The draft is
-    // cleared only once the add resolves, so a failed add keeps the typed text.
+    const postedDraft = draft;
+    // The composer is gated for the whole in-flight window (a local `posting`
+    // flag on top of the host's `pending`), so a second Post cannot resubmit
+    // the same draft. Fire-and-forget: the host reports the outcome through
+    // `comments` / `error`, and a rejection must not become an unhandled
+    // promise. The clear is compared against the exact posted draft, so it can
+    // never wipe text that arrived after the post, and a failed add keeps the
+    // typed text.
+    postingRef.current = true;
+    setPosting(true);
     void Promise.resolve(onAddComment?.(slideIndex, text, name))
-      .then(() => setDraft(""))
-      .catch(() => undefined);
+      .then(() => setDraft((current) => commentDraftAfterAdd(current, postedDraft)))
+      .catch(() => undefined)
+      .finally(() => {
+        postingRef.current = false;
+        setPosting(false);
+      });
   }, [author, draft, onAddComment, ready, slideIndex]);
 
   const remove = useCallback(
@@ -189,7 +204,11 @@ export function PptxCommentsPanel({
                       variant="ghost"
                       className="ml-auto shrink-0"
                       disabled={readonly || pending || !boundDelete}
-                      aria-label={t("comments.delete_for", { author: comment.author })}
+                      aria-label={
+                        comment.author.trim().length > 0
+                          ? t("comments.delete_for", { author: comment.author })
+                          : t("comments.delete_unknown")
+                      }
                       data-pptx-comment-action="delete"
                       onClick={() => remove(comment)}
                     >
@@ -221,7 +240,7 @@ export function PptxCommentsPanel({
               <Input
                 id={authorId}
                 value={author}
-                disabled={!boundAdd || pending}
+                disabled={!boundAdd || addInFlight}
                 placeholder={t("comments.author_placeholder")}
                 onChange={(event) => {
                   setAuthorTouched(true);
@@ -231,7 +250,7 @@ export function PptxCommentsPanel({
               <Textarea
                 value={draft}
                 rows={2}
-                disabled={!boundAdd || pending}
+                disabled={!boundAdd || addInFlight}
                 aria-label={t("comments.text_placeholder")}
                 placeholder={t("comments.text_placeholder")}
                 onChange={(event) => setDraft(event.target.value)}
@@ -241,7 +260,7 @@ export function PptxCommentsPanel({
                 <Button type="button" size="sm" disabled={!ready} data-pptx-comment-action="post" onClick={post}>
                   {t("comments.post")}
                 </Button>
-                {pending ? <span className="text-caption text-muted-foreground" role="status">{t("comments.pending")}</span> : null}
+                {addInFlight ? <span className="text-caption text-muted-foreground" role="status">{t("comments.pending")}</span> : null}
               </div>
             </div>
           )}

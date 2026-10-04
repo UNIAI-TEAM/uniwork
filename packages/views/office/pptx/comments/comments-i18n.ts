@@ -23,6 +23,7 @@ export const PPTX_COMMENTS_I18N: PptxPanelI18n = {
   "office.pptx.comments.text_placeholder": { en: "Write a comment", vi: "Viết bình luận" },
   "office.pptx.comments.post": { en: "Post comment", vi: "Gửi bình luận" },
   "office.pptx.comments.delete_for": { en: "Delete comment by {{author}}", vi: "Xóa bình luận của {{author}}" },
+  "office.pptx.comments.delete_unknown": { en: "Delete comment", vi: "Xóa bình luận" },
   "office.pptx.comments.reply": { en: "Reply", vi: "Trả lời" },
   "office.pptx.comments.resolve": { en: "Resolve", vi: "Đánh dấu đã xử lý" },
   "office.pptx.comments.unsupported": { en: "Replying and resolving are not supported by this presentation engine yet.", vi: "Trả lời và đánh dấu đã xử lý chưa được engine trình bày hỗ trợ." },
