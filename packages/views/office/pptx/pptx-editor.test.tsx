@@ -77,10 +77,18 @@ describe("PptxEditor", () => {
   });
 
   it("does not advertise edit commands without a bound host operation", () => {
-    renderEditor({ slides: [{ id: "s1" }] });
-    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Text" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Shape / image" })).toBeDisabled();
+    // The disabled flag and its reason tooltip are pinned on the mapped data in
+    // pptx-ribbon.test.ts. With no host operation bound the three commands are
+    // inert: clicking them must not run a handler or surface a command error.
+    const onCommandError = vi.fn();
+    renderEditor({ slides: [{ id: "s1" }], onCommandError });
+    for (const id of ["open", "edit-text", "edit-shape-image"]) {
+      const button = document.querySelector(`[data-ribbon-item="${id}"]`) as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      fireEvent.click(button);
+    }
+    expect(onCommandError).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("surfaces a rejected transform as a typed command error", async () => {
@@ -147,13 +155,16 @@ describe("PptxEditor", () => {
     view.unmount();
   });
 
-  it("mounts the tabbed ribbon instead of the raw command-id row", () => {
+  it("mounts the shared Office ribbon instead of the raw command-id row", () => {
     renderEditor({ slides: [{ id: "s1" }] });
-    expect(screen.getByRole("tablist", { name: "PowerPoint commands" })).toBeInTheDocument();
+    // The tablist label now belongs to the shared ribbon (amendment R), not the
+    // lane's own strip.
+    expect(screen.getByRole("tablist", { name: "Ribbon tabs" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab")).toHaveLength(8);
-    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    expect(document.querySelector('[data-ribbon-item="open"]')).not.toBeNull();
+    // The honestly empty tab drops the Home groups entirely.
     fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
-    expect(screen.getByText("This tab has no commands yet.")).toBeInTheDocument();
+    expect(document.querySelector('[data-ribbon-item="open"]')).toBeNull();
   });
 
   it("binds Ctrl+Y and Ctrl+Shift+Z to redo on the canvas", () => {

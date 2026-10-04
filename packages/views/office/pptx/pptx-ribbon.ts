@@ -200,7 +200,13 @@ function mapItem(command: PptxCommand, primary: boolean, options: PptxRibbonOpti
     disabled,
     ...(disabled && command.capability.reason ? { tooltipKey: command.capability.reason } : {}),
   };
-  const onExecute = () => options.onCommand?.(command.id);
+  // The shared ribbon renders a disabled item as `aria-disabled` (so it stays
+  // reachable by keyboard), which leaves it clickable; the lane keeps its own
+  // contract that a disabled command never dispatches.
+  const onExecute = () => {
+    if (disabled) return;
+    options.onCommand?.(command.id);
+  };
   if (command.toggle === true) return { ...base, kind: "toggle", pressed, onExecute };
   return { ...base, kind: "button", onExecute };
 }
