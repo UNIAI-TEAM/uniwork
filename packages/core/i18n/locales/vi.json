@@ -7078,6 +7078,7 @@
         },
         "overflow": "Thêm lệnh",
         "groups": {
+          "clipboard": "Bảng tạm",
           "baseFormat": "Định dạng",
           "font": "Phông chữ",
           "paragraph": "Đoạn văn",
@@ -7108,6 +7109,12 @@
         },
         "insert": {
           "symbol": "Ký hiệu",
+          "tableSize2x2": "Chèn bảng 2×2",
+          "tableSize3x2": "Chèn bảng 3×2",
+          "tableSize3x3": "Chèn bảng 3×3",
+          "tableSize4x3": "Chèn bảng 4×3",
+          "tableSize4x4": "Chèn bảng 4×4",
+          "tableSize5x5": "Chèn bảng 5×5",
           "equation": "Công thức"
         },
         "paragraph": {

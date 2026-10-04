@@ -7084,6 +7084,7 @@
         },
         "overflow": "More commands",
         "groups": {
+          "clipboard": "Clipboard",
           "baseFormat": "Formatting",
           "font": "Font",
           "paragraph": "Paragraph",
@@ -7114,6 +7115,12 @@
         },
         "insert": {
           "symbol": "Symbol",
+          "tableSize2x2": "Insert 2×2 table",
+          "tableSize3x2": "Insert 3×2 table",
+          "tableSize3x3": "Insert 3×3 table",
+          "tableSize4x3": "Insert 4×3 table",
+          "tableSize4x4": "Insert 4×4 table",
+          "tableSize5x5": "Insert 5×5 table",
           "equation": "Equation"
         },
         "paragraph": {

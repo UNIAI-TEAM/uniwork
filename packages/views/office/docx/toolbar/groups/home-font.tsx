@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useSyncExternalStore } from "react";
 import {
+  ALargeSmall,
   Bold,
   Italic,
   Paintbrush,
@@ -18,8 +19,12 @@ import { CaseMenu } from "../../character/case-menu";
 import { HighlightPicker, TextColorPicker } from "../../character/color-picker";
 import { FontFamilyPicker } from "../../character/font-family-picker";
 import { FontSizePicker } from "../../character/font-size-picker";
+import type { CaseCommandMode } from "../../character/case-transform";
+import { BUILTIN_FONT_FAMILIES } from "../../character/font-list";
+import { FONT_SIZES } from "../../character/font-size";
 import { useFormatPainter } from "../../character/format-painter";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../../editor-store";
+import type { RibbonItem } from "../../../ribbon";
 import { docxFontSizeDisplay } from "../font-size-display";
 import type { DocxToolbarGroupContext } from "../types";
 
@@ -172,4 +177,207 @@ export function HomeFontGroup({ editor, format, commands, readOnly, saving }: Do
       </Toggle>
     </div>
   );
+}
+/** The five Word case modes, in the same order as the case menu. */
+const CASE_ENTRIES: readonly { mode: CaseCommandMode; labelKey: string }[] = [
+  { mode: "sentence", labelKey: "office.docx.character.caseSentence" },
+  { mode: "lower", labelKey: "office.docx.character.caseLower" },
+  { mode: "upper", labelKey: "office.docx.character.caseUpper" },
+  { mode: "title", labelKey: "office.docx.character.caseTitle" },
+  { mode: "toggle", labelKey: "office.docx.character.caseToggle" },
+];
+
+/**
+ * The painter is a hook-driven control (it tracks the armed capture and the
+ * next selection), so it cannot be a plain typed item - it stays a `custom`
+ * item inside the typed group and renders the same toggle as before.
+ */
+function FormatPainterItem({
+  editor,
+  commands,
+  disabled,
+}: Pick<DocxToolbarGroupContext, "editor" | "commands"> & { disabled: boolean }) {
+  const { t } = useTranslation();
+  const painter = useFormatPainter({ editor, commands, disabled });
+  return (
+    <Toggle
+      type="button"
+      variant="toolbar"
+      size="sm"
+      pressed={painter.armed}
+      onPressedChange={() => painter.toggle()}
+      disabled={disabled || !editor.selection?.subscribe}
+      aria-label={painter.armed ? t("office.docx.character.formatPainterArmed") : t("office.docx.character.formatPainter")}
+      data-testid="docx-format-painter"
+    >
+      <Paintbrush aria-hidden />
+    </Toggle>
+  );
+}
+
+/**
+ * The typed Font-group items (R7/R8). Every command is the one the pre-typed
+ * group already called, in Word's order: family combo, size combo, B/I/U/S/x2
+ * toggles, colour/highlight custom pickers, case dropdown, clear, painter.
+ */
+export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { editor, format, commands, readOnly, saving } = context;
+  const blocked = readOnly || saving || !commands || !format;
+  const verticalAlign = format?.verticalAlign ?? null;
+  const sizeDisplay = docxFontSizeDisplay(getDocxLiveEditor(), format?.fontSizePt ?? null);
+  const fonts = [...BUILTIN_FONT_FAMILIES];
+  for (const font of commands?.documentFonts() ?? []) {
+    if (!fonts.includes(font)) fonts.push(font);
+  }
+
+  return [
+    {
+      kind: "combo",
+      id: "docx-font-family",
+      labelKey: "office.docx.character.fontFamily",
+      tooltipKey: "office.docx.character.fontFamily",
+      value: format?.fontFamily ?? "",
+      width: 128,
+      disabled: blocked,
+      options: [
+        { value: "", labelKey: "office.docx.character.fontFamilyDefault" },
+        ...fonts.map((font) => ({ value: font, label: font })),
+      ],
+      onChange: (value) => commands?.setFontFamily(value === "" ? null : value),
+    },
+    {
+      kind: "combo",
+      id: "docx-font-size",
+      labelKey: "office.docx.character.fontSize",
+      tooltipKey: "office.docx.character.fontSize",
+      // Mixed selections keep the picker's empty placeholder by passing null.
+      value: sizeDisplay.mixed || sizeDisplay.value === null ? null : String(sizeDisplay.value),
+      width: 72,
+      disabled: blocked,
+      options: FONT_SIZES.map((size) => ({ value: String(size), label: String(size) })),
+      onChange: (value) => {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed)) commands?.setFontSizePt(parsed);
+      },
+    },
+    {
+      kind: "toggle",
+      id: "docx-bold",
+      labelKey: "office.docx.commands.bold",
+      icon: Bold,
+      size: "large",
+      collapseAs: "small",
+      pressed: format?.bold ?? false,
+      disabled: blocked,
+      onExecute: () => commands?.toggleBold(),
+    },
+    {
+      kind: "toggle",
+      id: "docx-italic",
+      labelKey: "office.docx.commands.italic",
+      icon: Italic,
+      size: "small",
+      pressed: format?.italic ?? false,
+      disabled: blocked,
+      onExecute: () => commands?.toggleItalic(),
+    },
+    {
+      kind: "toggle",
+      id: "docx-underline",
+      labelKey: "office.docx.commands.underline",
+      icon: UnderlineIcon,
+      size: "small",
+      pressed: format?.underline ?? false,
+      disabled: blocked,
+      onExecute: () => commands?.toggleUnderline(),
+    },
+    {
+      kind: "toggle",
+      id: "docx-strike",
+      labelKey: "office.docx.character.strike",
+      icon: Strikethrough,
+      size: "small",
+      pressed: format?.strike ?? false,
+      disabled: blocked,
+      onExecute: () => commands?.toggleStrike(),
+    },
+    {
+      kind: "toggle",
+      id: "docx-superscript",
+      labelKey: "office.docx.character.superscript",
+      icon: Superscript,
+      size: "small",
+      pressed: verticalAlign === "superscript",
+      disabled: blocked,
+      onExecute: () => commands?.setVerticalAlign(verticalAlign === "superscript" ? null : "superscript"),
+    },
+    {
+      kind: "toggle",
+      id: "docx-subscript",
+      labelKey: "office.docx.character.subscript",
+      icon: Subscript,
+      size: "small",
+      pressed: verticalAlign === "subscript",
+      disabled: blocked,
+      onExecute: () => commands?.setVerticalAlign(verticalAlign === "subscript" ? null : "subscript"),
+    },
+    {
+      kind: "custom",
+      id: "docx-text-color",
+      labelKey: "office.docx.character.textColor",
+      width: 34,
+      disabled: blocked,
+      render: () => (
+        <TextColorPicker
+          value={format?.color ?? null}
+          disabled={blocked}
+          onPick={(color) => commands?.setTextColor(color)}
+        />
+      ),
+    },
+    {
+      kind: "custom",
+      id: "docx-highlight",
+      labelKey: "office.docx.character.highlight",
+      width: 34,
+      disabled: blocked,
+      render: () => (
+        <HighlightPicker
+          value={format?.highlight ?? null}
+          disabled={blocked}
+          onPick={(name) => commands?.setHighlight(name)}
+        />
+      ),
+    },
+    {
+      kind: "dropdown",
+      id: "docx-change-case",
+      labelKey: "office.docx.character.changeCase",
+      icon: ALargeSmall,
+      size: "small",
+      disabled: blocked,
+      menu: CASE_ENTRIES.map((entry) => ({
+        id: entry.mode,
+        labelKey: entry.labelKey,
+        onSelect: () => commands?.changeCase(entry.mode),
+      })),
+    },
+    {
+      kind: "button",
+      id: "docx-clear-formatting",
+      labelKey: "office.docx.character.clearFormatting",
+      icon: RemoveFormatting,
+      size: "small",
+      disabled: blocked,
+      onExecute: () => commands?.clearCharacterFormatting(),
+    },
+    {
+      kind: "custom",
+      id: "docx-format-painter",
+      labelKey: "office.docx.character.formatPainter",
+      width: 34,
+      disabled: blocked,
+      render: () => <FormatPainterItem editor={editor} commands={commands} disabled={blocked} />,
+    },
+  ];
 }
