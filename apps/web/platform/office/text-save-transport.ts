@@ -23,6 +23,16 @@ export const TEXT_MEDIA_TYPE: Record<TextFormat, string> = {
   html: "text/html",
 };
 
+/** Filename the upload part carries. FileService decides a text document's
+ *  type from the verified bytes plus the extension: an unnamed part sniffs as
+ *  text/plain, and the commit then refuses the version with 415
+ *  format_changed. The name is a hint inside a text family the bytes already
+ *  proved, so it never makes a type the content is not. */
+export const TEXT_FILENAME: Record<TextFormat, string> = {
+  md: "document.md",
+  html: "document.html",
+};
+
 /** The engine that produces the text lane's bytes. UniWork's own
  *  `text-document.ts` serializer, not the vendored genoffice build - the
  *  bytes a Markdown/HTML save writes are never produced by genoffice. */
@@ -44,7 +54,7 @@ function bytesOf(value: unknown): Uint8Array {
 
 export interface TextDocumentsTransport {
   read(): Promise<Uint8Array>;
-  upload(file: Blob, idempotencyKey: string): Promise<{ upload_id: string; checksum_sha256: string; size_bytes: number; claim_expires_at: string } | null>;
+  upload(file: Blob, idempotencyKey: string, filename?: string): Promise<{ upload_id: string; checksum_sha256: string; size_bytes: number; claim_expires_at: string } | null>;
   commit(uploadId: string, baseRevision: string, idempotencyKey: string): Promise<{
     document: { id: string; revision: string };
     version: { id: string; checksum_sha256?: string | null; size_bytes?: number; engine_name?: string | null; engine_version?: string | null; contract_version?: string | null; protocol_version?: string | null };
@@ -57,7 +67,7 @@ export function createTextDocumentsTransport(documentId: string): TextDocumentsT
       const blob = await downloadDocumentFile(documentId);
       return new Uint8Array(await blob.arrayBuffer());
     },
-    upload: (file: Blob, idempotencyKey: string) => uploadDocumentFile(documentId, file, { idempotencyKey }),
+    upload: (file: Blob, idempotencyKey: string, filename?: string) => uploadDocumentFile(documentId, file, { idempotencyKey, filename }),
     commit: (uploadId: string, baseRevision: string, idempotencyKey: string) => commitDocumentVersion(documentId, { upload_id: uploadId, base_revision: baseRevision }, { idempotencyKey }),
   };
 }
@@ -83,7 +93,7 @@ export function createTextSaveTransport(options: {
       const data = bytesOf(output.data);
       if (data.length !== output.sizeBytes) throw new Error("text_serialized_output_invalid");
       const file = new Blob([data.slice().buffer], { type: TEXT_MEDIA_TYPE[options.format] });
-      const receipt = await options.documents.upload(file, intent.idempotencyKey);
+      const receipt = await options.documents.upload(file, intent.idempotencyKey, TEXT_FILENAME[options.format]);
       if (!receipt || receipt.checksum_sha256 !== output.checksumSha256 || receipt.size_bytes !== output.sizeBytes) throw new Error("text_upload_receipt_mismatch");
       return { uploadId: receipt.upload_id, checksumSha256: receipt.checksum_sha256, sizeBytes: receipt.size_bytes, claimExpiresAt: receipt.claim_expires_at };
     },
