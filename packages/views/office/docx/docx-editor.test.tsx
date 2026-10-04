@@ -113,7 +113,7 @@ describe("DocxEditor", () => {
 
     await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
     expect(handle.open).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("docx-selection")).toHaveTextContent("Vùng chọn 2–7");
+    expect(screen.getByTestId("docx-status-selection")).toHaveTextContent("Vùng chọn 2–7");
 
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
