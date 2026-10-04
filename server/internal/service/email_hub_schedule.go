@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,7 +17,21 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const emailHubScheduleBatch = 20
+const (
+	emailHubScheduleBatch       = 20
+	emailHubScheduleLease       = 10 * time.Minute
+	emailHubScheduleMarkTimeout = 30 * time.Second
+)
+
+var (
+	emailHubScheduleOwnerOnce sync.Once
+	emailHubScheduleOwner     string
+)
+
+// Delivery is at-most-once on lease expiry: a crash after SMTP accepts mail but
+// before we mark sent leaves the row in sending until the lease times out, then
+// FailExpiredEmailHubScheduledSendLeases marks it failed for the user to review.
+// A live lease is never returned to pending for a blind resend.
 
 type EmailHubScheduledSendView struct {
 	ID        string
@@ -61,52 +78,111 @@ func (s *EmailHubService) ScheduleSend(
 	}, nil
 }
 
-func (s *EmailHubService) runScheduledSendBatch(ctx context.Context) {
-	rows, err := s.q.ListDueEmailHubScheduledSends(ctx, emailHubScheduleBatch)
-	if err != nil {
-		s.log.Warn("email hub scheduled send list", "err", err)
-		return
+func (s *EmailHubService) scheduleWorkerOwner() string {
+	if s.scheduleWorkerOwnerFn != nil {
+		return s.scheduleWorkerOwnerFn()
 	}
-	for _, row := range rows {
-		s.deliverScheduledSend(ctx, row)
+	emailHubScheduleOwnerOnce.Do(func() {
+		host, _ := os.Hostname()
+		emailHubScheduleOwner = fmt.Sprintf("emailhub-schedule:%s:%d", host, os.Getpid())
+	})
+	return emailHubScheduleOwner
+}
+
+func (s *EmailHubService) runScheduledSendBatch(ctx context.Context) {
+	for {
+		n := s.runScheduledSendOnce(ctx)
+		if n == 0 || n < emailHubScheduleBatch {
+			return
+		}
 	}
 }
 
-func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.EmailHubScheduledSend) {
+func (s *EmailHubService) runScheduledSendOnce(ctx context.Context) int {
+	now := time.Now().UTC()
+	owner := s.scheduleWorkerOwner()
+	if _, err := s.q.FailExpiredEmailHubScheduledSendLeases(ctx, pgtype.Timestamptz{Time: now, Valid: true}); err != nil {
+		s.log.Warn("email hub scheduled send expire leases", "err", err)
+	}
+	rows, err := s.q.ClaimDueEmailHubScheduledSends(ctx, db.ClaimDueEmailHubScheduledSendsParams{
+		LeaseOwner: fileText(owner), LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(emailHubScheduleLease), Valid: true},
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, LimitN: emailHubScheduleBatch,
+	})
+	if err != nil {
+		s.log.Warn("email hub scheduled send claim", "err", err)
+		return 0
+	}
+	for _, row := range rows {
+		s.deliverScheduledSend(ctx, row, owner)
+	}
+	return len(rows)
+}
+
+func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.EmailHubScheduledSend, owner string) {
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), emailHubScheduleMarkTimeout)
+	defer cancel()
+
+	markFailed := func(msg string) {
+		n, err := s.q.MarkEmailHubScheduledSendFailed(markCtx, db.MarkEmailHubScheduledSendFailedParams{
+			ID: row.ID, LeaseOwner: fileText(owner), LastError: pgtype.Text{String: msg, Valid: true},
+		})
+		if err != nil {
+			s.log.Warn("email hub scheduled send mark failed", "scheduled_id", row.ID, "err", err)
+			return
+		}
+		if n == 0 {
+			s.log.Warn("email hub scheduled send mark failed no-op", "scheduled_id", row.ID)
+		}
+	}
+
 	var payload scheduledSendPayload
 	if err := json.Unmarshal(row.Payload, &payload); err != nil {
-		_ = s.q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-			ID: row.ID, LastError: pgtype.Text{String: "invalid payload", Valid: true},
-		})
+		markFailed("invalid payload")
 		return
 	}
 	attachments, err := decodeSendAttachmentsSDI(payload.Attachments)
 	if err != nil {
-		_ = s.q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-			ID: row.ID, LastError: pgtype.Text{String: err.Error(), Valid: true},
-		})
+		markFailed(err.Error())
 		return
 	}
 	acc, err := s.q.GetEmailHubAccountByID(ctx, row.AccountID)
 	if err != nil {
-		_ = s.q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-			ID: row.ID, LastError: pgtype.Text{String: "account missing", Valid: true},
-		})
+		markFailed("account missing")
 		return
 	}
-	if _, err := s.sendOutboundMail(ctx, acc, row.OrganizationID, SendEmailHubInput{
+	sendErr := s.deliverScheduledSendOutbound(ctx, acc, row.OrganizationID, SendEmailHubInput{
 		AccountID: row.AccountID, To: payload.To, Cc: payload.Cc, Bcc: payload.Bcc, Subject: payload.Subject,
 		BodyText: payload.BodyText, BodyHTML: payload.BodyHTML, Attachments: attachments,
 		ReplyToThreadID: payload.ReplyToThreadID,
-	}); err != nil && !errors.Is(err, errEmailHubSentNotCached) {
-		_ = s.q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-			ID: row.ID, LastError: pgtype.Text{String: err.Error(), Valid: true},
-		})
+	})
+	if sendErr != nil {
+		markFailed(sendErr.Error())
 		return
-	} else if err != nil {
-		s.log.Warn("email hub scheduled send not cached", "scheduled_id", row.ID, "err", err)
 	}
-	_ = s.q.MarkEmailHubScheduledSendSent(ctx, row.ID)
+	n, err := s.q.MarkEmailHubScheduledSendSent(markCtx, db.MarkEmailHubScheduledSendSentParams{
+		ID: row.ID, LeaseOwner: fileText(owner),
+	})
+	if err != nil {
+		s.log.Error("email hub scheduled send mark sent", "scheduled_id", row.ID, "err", err)
+		return
+	}
+	if n == 0 {
+		s.log.Error("email hub scheduled send mark sent no-op", "scheduled_id", row.ID)
+	}
+}
+
+func (s *EmailHubService) deliverScheduledSendOutbound(
+	ctx context.Context, acc db.EmailHubAccount, organizationID string, in SendEmailHubInput,
+) error {
+	if s.testHookScheduledSend != nil {
+		return s.testHookScheduledSend(ctx, acc, organizationID, in)
+	}
+	_, err := s.sendOutboundMail(ctx, acc, organizationID, in)
+	if errors.Is(err, errEmailHubSentNotCached) {
+		s.log.Warn("email hub scheduled send not cached", "account_id", acc.ID, "err", err)
+		return nil
+	}
+	return err
 }
 
 func (s *EmailHubService) queueScheduledSend(

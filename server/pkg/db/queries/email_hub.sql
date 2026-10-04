@@ -639,32 +639,60 @@ INSERT INTO email_hub_scheduled_sends (
 )
 RETURNING *;
 
--- name: ListDueEmailHubScheduledSends :many
+-- name: FailExpiredEmailHubScheduledSendLeases :execrows
 -- tenant: system
-SELECT *
-FROM email_hub_scheduled_sends
-WHERE status = 'pending'
-  AND send_at <= now()
-ORDER BY send_at ASC
-LIMIT $1;
+-- At-most-once after a crash: an expired sending lease becomes failed so the
+-- user can review/retry explicitly; it never returns to pending for a blind resend.
+UPDATE email_hub_scheduled_sends
+SET status = 'failed',
+    last_error = 'worker lease expired',
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE status = 'sending'
+  AND lease_expires_at IS NOT NULL
+  AND lease_expires_at <= sqlc.arg('now');
 
--- name: MarkEmailHubScheduledSendSent :exec
+-- name: ClaimDueEmailHubScheduledSends :many
+-- tenant: system
+UPDATE email_hub_scheduled_sends SET
+  status = 'sending',
+  lease_owner = sqlc.arg('lease_owner'),
+  lease_expires_at = sqlc.arg('lease_expires_at')
+WHERE id IN (
+  SELECT email_hub_scheduled_sends.id
+  FROM email_hub_scheduled_sends
+  WHERE email_hub_scheduled_sends.status = 'pending'
+    AND email_hub_scheduled_sends.send_at <= sqlc.arg('now')
+  ORDER BY email_hub_scheduled_sends.send_at ASC, email_hub_scheduled_sends.id ASC
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- name: MarkEmailHubScheduledSendSent :execrows
 -- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
-    last_error = NULL
-WHERE id = $1;
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE id = sqlc.arg('id')
+  AND status = 'sending'
+  AND lease_owner = sqlc.arg('lease_owner');
 
--- name: MarkEmailHubScheduledSendFailed :exec
+-- name: MarkEmailHubScheduledSendFailed :execrows
 -- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
-    last_error = $2
-WHERE id = $1
-  -- A user cancel that lands mid-send stays cancelled; it must not resurface
-  -- as a retryable failure.
-  AND status = 'pending';
+    last_error = sqlc.arg('last_error'),
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE id = sqlc.arg('id')
+  AND (
+    (status = 'sending' AND lease_owner = sqlc.arg('lease_owner'))
+    OR (status = 'pending' AND sqlc.arg('lease_owner') = '')
+  );
 
 -- name: ListEmailHubOpenScheduledSends :many
 -- Open = still the user's concern: pending (waiting to go out) or failed (the
@@ -688,7 +716,11 @@ WHERE id = $1
 
 -- name: RetryEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
-SET status = 'pending', send_at = now(), last_error = NULL
+SET status = 'pending',
+    send_at = now(),
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
 WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3

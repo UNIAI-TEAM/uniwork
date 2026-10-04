@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -218,8 +220,8 @@ func seedFailedScheduledSend(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-		ID: id, LastError: pgtype.Text{String: "smtp: 550 mailbox unavailable", Valid: true},
+	if _, err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: id, LeaseOwner: pgtype.Text{String: "", Valid: true}, LastError: pgtype.Text{String: "smtp: 550 mailbox unavailable", Valid: true},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -339,8 +341,8 @@ func TestEmailHubScheduledSendFailureKeepsCancelled(t *testing.T) {
 	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, sent.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-		ID: sent.ID, LastError: pgtype.Text{String: "smtp: timeout", Valid: true},
+	if _, err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: sent.ID, LeaseOwner: pgtype.Text{String: "", Valid: true}, LastError: pgtype.Text{String: "smtp: timeout", Valid: true},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -350,5 +352,152 @@ func TestEmailHubScheduledSendFailureKeepsCancelled(t *testing.T) {
 	}
 	if status != "cancelled" {
 		t.Fatalf("status = %q, want cancelled", status)
+	}
+}
+
+func TestEmailHubScheduledSendOnceAcrossTwoWorkers(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	payload, err := json.Marshal(scheduledSendPayload{
+		To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hello",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true}
+	for i := 0; i < 50; i++ {
+		if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+			ID: util.NewID(), WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+			UserID: user.ID, Payload: payload, SendAt: due,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sendCount atomic.Int32
+	hook := func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error {
+		sendCount.Add(1)
+		return nil
+	}
+	worker := func(owner string) {
+		w := *svc
+		w.scheduleWorkerOwnerFn = func() string { return owner }
+		w.testHookScheduledSend = hook
+		for {
+			if n := w.runScheduledSendOnce(ctx); n == 0 {
+				return
+			}
+		}
+	}
+	var wg sync.WaitGroup
+	for _, owner := range []string{"worker-a", "worker-b"} {
+		wg.Add(1)
+		go func(o string) {
+			defer wg.Done()
+			worker(o)
+		}(owner)
+	}
+	wg.Wait()
+	if n := int(sendCount.Load()); n != 50 {
+		t.Fatalf("hook send count = %d, want 50", n)
+	}
+}
+
+func TestEmailHubScheduledSendMarkSentFailureStaysSending(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	payload, err := json.Marshal(scheduledSendPayload{
+		To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hello",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := util.NewID()
+	if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+		ID: id, WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		UserID: user.ID, Payload: payload, SendAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	owner := "worker-mark-sent"
+	svc.scheduleWorkerOwnerFn = func() string { return owner }
+	svc.testHookScheduledSend = func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error { return nil }
+
+	if n := svc.runScheduledSendOnce(ctx); n != 1 {
+		t.Fatalf("claimed %d rows, want 1", n)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM email_hub_scheduled_sends WHERE id=$1`, id).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "sent" {
+		t.Fatalf("after deliver status = %q, want sent", status)
+	}
+
+	// Simulate SMTP ok but bookkeeping lost the lease owner: row stays sending, not pending.
+	id2 := util.NewID()
+	if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+		ID: id2, WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		UserID: user.ID, Payload: payload, SendAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := q.ClaimDueEmailHubScheduledSends(ctx, db.ClaimDueEmailHubScheduledSendsParams{
+		LeaseOwner: fileText(owner), LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(emailHubScheduleLease), Valid: true},
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, LimitN: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := q.MarkEmailHubScheduledSendSent(ctx, db.MarkEmailHubScheduledSendSentParams{
+		ID: id2, LeaseOwner: fileText("wrong-owner"),
+	}); err != nil || n != 0 {
+		t.Fatalf("mark sent wrong owner: n=%d err=%v", n, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT status FROM email_hub_scheduled_sends WHERE id=$1`, id2).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "sending" {
+		t.Fatalf("status = %q, want sending (never pending)", status)
+	}
+}
+
+func TestEmailHubScheduledSendExpiredLeaseMarksFailedNotPending(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	payload, err := json.Marshal(scheduledSendPayload{
+		To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hello",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := util.NewID()
+	if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+		ID: id, WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		UserID: user.ID, Payload: payload, SendAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	owner := "worker-expired"
+	now := time.Now().UTC()
+	claimed, err := q.ClaimDueEmailHubScheduledSends(ctx, db.ClaimDueEmailHubScheduledSendsParams{
+		LeaseOwner: fileText(owner), LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(-time.Minute), Valid: true},
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, LimitN: 1,
+	})
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("claim: err=%v rows=%d", err, len(claimed))
+	}
+	if _, err := q.FailExpiredEmailHubScheduledSendLeases(ctx, pgtype.Timestamptz{Time: now, Valid: true}); err != nil {
+		t.Fatal(err)
+	}
+	var status, lastErr string
+	if err := pool.QueryRow(ctx, `SELECT status, last_error FROM email_hub_scheduled_sends WHERE id=$1`, id).
+		Scan(&status, &lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if status != "failed" || lastErr != "worker lease expired" {
+		t.Fatalf("status=%q last_error=%q, want failed / worker lease expired", status, lastErr)
 	}
 }

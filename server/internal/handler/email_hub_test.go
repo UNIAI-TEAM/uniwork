@@ -363,8 +363,8 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-		ID: failedID, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
+	if _, err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: failedID, LeaseOwner: pgtype.Text{String: "", Valid: true}, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -396,8 +396,8 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("retry cancelled scheduled: %d", res.StatusCode)
 	}
-	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
-		ID: failedID, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
+	if _, err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: failedID, LeaseOwner: pgtype.Text{String: "", Valid: true}, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
 	}); err != nil {
 		t.Fatal(err)
 	}
