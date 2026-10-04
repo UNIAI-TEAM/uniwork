@@ -109,7 +109,10 @@ describe("useXlsxFindReplace scan", () => {
     );
     await ready(hook);
     act(() => hook.current.changeScope("sheet"));
-    await waitFor(() => expect(hook.current.scan.kind).toBe("ready"));
+    // The previous selection-scope scan is already "ready", so wait for the
+    // sheet-scope read to land (its totalRows covers the whole sheet) before
+    // asserting on its windowed result.
+    await waitFor(() => expect(hook.current.scan.kind === "ready" && hook.current.scan.totalRows).toBe(100_000));
     expect(readRange).toHaveBeenLastCalledWith({
       sessionId: "s-1",
       sheetId: "sheet-1",

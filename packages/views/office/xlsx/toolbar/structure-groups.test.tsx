@@ -100,7 +100,7 @@ describe("XlsxStructureInsertGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 4) }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 4 });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertRowsBelow") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-after", undefined);
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-after");
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteRows") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.remove-row", {
       range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
@@ -111,7 +111,7 @@ describe("XlsxStructureInsertGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 5) }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 5 });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertColsRight") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-after", undefined);
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-after");
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteCols") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.remove-col", {
       range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
@@ -176,7 +176,7 @@ describe("XlsxStructureSizeGroup", () => {
     render(<XlsxStructureSizeGroup {...props} />);
     const execute = executeMock(props);
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.resetRowHeight") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-row-is-auto-height", undefined);
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-row-is-auto-height");
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.resetColWidth") }));
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-default-width", { start: 1, end: 2 });
     const ranges = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];

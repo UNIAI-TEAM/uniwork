@@ -55,11 +55,11 @@ describe("XlsxFontGroup", () => {
     expect(screen.getByRole("button", { name: "In đậm" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "In nghiêng" })).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(screen.getByRole("button", { name: "In nghiêng" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.set-italic", undefined]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-italic"]);
     fireEvent.click(screen.getByRole("button", { name: "Gạch chân" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.set-underline", undefined]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-underline"]);
     fireEvent.click(screen.getByRole("button", { name: "Gạch ngang" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.set-stroke", undefined]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-stroke"]);
   });
 
   it("steps and clamps the font size from the mirrored value", () => {
@@ -106,14 +106,14 @@ describe("XlsxFontGroup", () => {
     fireEvent.click(within(textDialog).getByRole("button", { name: "Màu #FF0000" }));
     expect(lastCall(execute)).toEqual(["sheet.command.set-text-color", { value: "#FF0000" }]);
     fireEvent.click(within(textDialog).getByRole("button", { name: "Tự động" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.reset-text-color", undefined]);
+    expect(lastCall(execute)).toEqual(["sheet.command.reset-text-color"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Màu tô" }));
     const fillDialog = await screen.findByRole("dialog", { name: "Màu tô" });
     fireEvent.click(within(fillDialog).getByRole("button", { name: "Màu #FFFF00" }));
     expect(lastCall(execute)).toEqual(["sheet.command.set-background-color", { value: "#FFFF00" }]);
     fireEvent.click(within(fillDialog).getByRole("button", { name: "Không tô" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.reset-background-color", undefined]);
+    expect(lastCall(execute)).toEqual(["sheet.command.reset-background-color"]);
   });
 
   it("keeps read-only controls inert but reachable", () => {

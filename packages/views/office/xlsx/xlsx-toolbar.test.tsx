@@ -206,7 +206,7 @@ describe("XlsxToolbar on the shared ribbon", () => {
 
     // Home is the default tab; the Font group routes through the port.
     fireEvent.click(screen.getByRole("button", { name: "In đậm" }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-bold", undefined);
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-bold");
 
     // The non-port callbacks still fire from their groups (no path changed).
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));

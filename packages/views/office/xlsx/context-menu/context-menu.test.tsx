@@ -56,7 +56,7 @@ describe("XlsxContextMenu", () => {
   it("runs the item's command through the port and closes on click", async () => {
     const { onClose, state } = renderMenu();
     fireEvent.click(await screen.findByTestId("xlsx-context-clear-content"));
-    expect(state.commands?.execute).toHaveBeenCalledWith("sheet.command.clear-selection-content", undefined);
+    expect(state.commands?.execute).toHaveBeenCalledWith("sheet.command.clear-selection-content");
     expect(onClose).toHaveBeenCalledOnce();
   });
 

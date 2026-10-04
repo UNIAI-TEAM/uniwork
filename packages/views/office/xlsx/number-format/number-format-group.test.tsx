@@ -93,8 +93,8 @@ describe("XlsxNumberFormatGroup", () => {
     render(<XlsxNumberFormatGroup {...groupProps({ commands: { execute } })} />);
     fireEvent.click(screen.getByTestId("xlsx-number-format-decrease-decimals"));
     fireEvent.click(screen.getByTestId("xlsx-number-format-increase-decimals"));
-    expect(execute).toHaveBeenNthCalledWith(1, XLSX_NUMBER_FORMAT_COMMANDS.decreaseDecimals, undefined);
-    expect(execute).toHaveBeenNthCalledWith(2, XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals, undefined);
+    expect(execute).toHaveBeenNthCalledWith(1, XLSX_NUMBER_FORMAT_COMMANDS.decreaseDecimals);
+    expect(execute).toHaveBeenNthCalledWith(2, XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals);
   });
 
   it("keeps both decimal steppers inert when the port raises the pinned async-handler TypeError", () => {
