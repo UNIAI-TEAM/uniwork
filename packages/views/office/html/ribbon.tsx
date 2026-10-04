@@ -237,9 +237,9 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
   const { t } = useTranslation();
   const { commands = {}, state = {} } = options;
   const readOnly = state.readOnly === true;
-  const mark = (id: HtmlInlineMark): boolean => state.marks?.[id] === true;
 
   return useMemo<RibbonTab[]>(() => {
+    const mark = (id: HtmlInlineMark): boolean => state.marks?.[id] === true;
     const inline: RibbonGroup = {
       id: "inline",
       labelKey: HTML_RIBBON_KEYS.inline,
