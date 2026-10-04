@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DocxHeaderFooter, DocxHfSlot } from "@uniwork/office-engine/docx";
 import { DocxHeaderFooterPanel, type DocxHeaderFooterPanelProps } from "./docx-header-footer-panel";
@@ -138,8 +138,11 @@ describe("DocxHeaderFooterPanel", () => {
     expect(screen.getByTestId("docx-hf-apply")).toBeDisabled();
     expect(screen.getByTestId("docx-hf-revert")).toBeDisabled();
     expect(screen.getByTestId("docx-hf-clear")).toBeDisabled();
-    expect(screen.getByTestId("docx-hf-title-pg")).toBeDisabled();
-    expect(screen.getByTestId("docx-hf-even-odd")).toBeDisabled();
+    // Base UI Switch renders aria-disabled/data-disabled, not the native
+    // `disabled` attribute (repo disabled-control contract, login-view.test.tsx);
+    // the panel does block the toggle, so assert the real disabled surface.
+    expect(screen.getByTestId("docx-hf-title-pg")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-hf-even-odd")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("docx-hf-readonly")).toBeInTheDocument();
     expect(screen.getByTestId("docx-header-footer-preview")).toHaveTextContent("Confidential");
 
@@ -152,7 +155,7 @@ describe("DocxHeaderFooterPanel", () => {
 
     expect(screen.getByTestId("docx-hf-text")).toBeDisabled();
     expect(screen.getByTestId("docx-hf-clear")).toBeDisabled();
-    expect(screen.getByTestId("docx-hf-title-pg")).toBeDisabled();
+    expect(screen.getByTestId("docx-hf-title-pg")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("docx-header-footer-preview")).toHaveTextContent("Confidential");
     expect(props.onSetSlot).not.toHaveBeenCalled();
   });

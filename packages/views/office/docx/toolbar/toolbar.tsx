@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Fragment, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,13 +8,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { partitionToolbarGroups } from "./overflow";
+import type { AvailabilityAwareGroup } from "./groups/insert-header-footer";
 import { DOCX_TOOLBAR_TABS } from "./tabs/tabs";
 import { useRovingToolbar } from "./use-roving-toolbar";
 import { useToolbarWidth } from "./use-toolbar-width";
 import type { DocxToolbarGroup, DocxToolbarGroupContext, DocxToolbarProps, DocxToolbarTab } from "./types";
 
+/** A group component may declare that its command area is absent for this
+ * context (see groups/insert-header-footer.tsx); the shell then renders
+ * nothing, so an unavailable group cannot leave an empty labelled box (F1
+ * secondary effect). */
 function ToolbarGroupView({ group, context, label }: { group: DocxToolbarGroup; context: DocxToolbarGroupContext; label: string }) {
-  const Group = group.component;
+  const Group = group.component as AvailabilityAwareGroup;
+  if (Group.isAvailable && !Group.isAvailable(context)) return null;
   return (
     <div role="group" aria-label={label} data-toolbar-group={group.id} className="flex items-center gap-1">
       <Group {...context} />

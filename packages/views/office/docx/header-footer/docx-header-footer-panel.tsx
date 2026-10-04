@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -78,6 +78,13 @@ export function DocxHeaderFooterPanel({
   const [heldDraft, setHeldDraft] = useState<DocxHfDraft | null>(null);
 
   const blocked = readOnly || saving;
+  /** Switching slots abandons an unapplied draft (the draft belongs to the
+   * slot it was typed in); a same-slot return therefore starts from the part. */
+  const selectSlot = (next: DocxHfSlot): void => {
+    if (next === slot) return;
+    setHeldDraft(null);
+    setSlot(next);
+  };
   const slotState: DocxHfSlotState = state.slots[slot];
   const current = slotState.value;
   const currentText = hfEditText(current);
@@ -113,7 +120,7 @@ export function DocxHeaderFooterPanel({
                 aria-pressed={active}
                 data-testid={`docx-hf-slot-${option}`}
                 data-has-content={hasContent ? "true" : "false"}
-                onClick={() => setSlot(option)}
+                onClick={() => selectSlot(option)}
               >
                 <span>{t(SLOT_LABEL_KEYS[option])}</span>
                 {hasContent ? (

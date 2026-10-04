@@ -1,11 +1,11 @@
-// Task A13 (UNI-924): text view of a header/footer part.
+﻿// Task A13 (UNI-924): text view of a header/footer part.
 //
 // A port of the vendored renderer's editor/hf-text.ts onto the model's
 // DocxHeaderFooter: paragraphs edit as lines, the invisible PAGE / NUMPAGES
 // field sentinels as visible {PAGE} / {NUMPAGES} tokens, and layout-table rows
 // (cells) stay out of the text flow. Formatting is preserved by mapping each
 // edited line onto its original paragraph template (first-run style), which is
-// the run formatting the model carries — this is an edit of the existing part,
+// the run formatting the model carries â€” this is an edit of the existing part,
 // not a rebuild.
 import type { DocxHeaderFooter } from "@uniwork/office-engine/docx";
 
@@ -27,18 +27,23 @@ export interface DocxHfParagraphLike {
   [key: string]: unknown;
 }
 
-function isParagraphLike(value: unknown): value is DocxHfParagraphLike {
-  return typeof value === "object" && value !== null && Array.isArray((value as { runs?: unknown }).runs);
+/** A paragraph's runs, tolerating a malformed entry (upstream's HfParagraph
+ * guarantees runs, but a hand-built part may not carry them). */
+function runsOf(paragraph: DocxHfParagraphLike): DocxHfParagraphLike["runs"] {
+  return Array.isArray(paragraph.runs) ? paragraph.runs : [];
 }
 
 /** A part with no paragraph at all (a fresh slot) edits as one centered line. */
 const EMPTY_HF_PARAGRAPH: DocxHfParagraphLike = { align: "center", runs: [] };
 
 /** effective paragraphs: rich paras when present, else the legacy single line
- * (upstream hf-text.ts hfParasOf — a page-number field appended as PAGE_MARK). */
+ * (upstream hf-text.ts hfParasOf â€” a page-number field appended as PAGE_MARK). */
 export function hfParasOf(value: DocxHeaderFooter): DocxHfParagraphLike[] {
   const paras = value.paras;
-  if (Array.isArray(paras) && paras.length > 0 && paras.every(isParagraphLike)) return paras as DocxHfParagraphLike[];
+  // Upstream returns the part's own list as-is when non-empty. A malformed
+  // entry is preserved (not silently dropped), so a subsequent edit keeps the
+  // original paragraph list instead of flattening it to the legacy line.
+  if (Array.isArray(paras) && paras.length > 0) return paras as DocxHfParagraphLike[];
   const runs: DocxHfParagraphLike["runs"] = value.text ? [{ text: value.text }] : [];
   if (value.pageNumber && !value.text.includes("#") && !value.text.includes(PAGE_MARK)) {
     runs.push({ text: runs.length > 0 ? ` ${PAGE_MARK}` : PAGE_MARK });
@@ -51,7 +56,7 @@ export function hfEditText(value: DocxHeaderFooter | null): string {
   if (!value) return "";
   return hfParasOf(value)
     .filter((p) => !p.cells)
-    .map((p) => p.runs.map((r) => r.text ?? "").join(""))
+    .map((p) => runsOf(p).map((r) => r.text ?? "").join(""))
     .join("\n")
     .replaceAll(PAGE_MARK, PAGE_TOKEN)
     .replaceAll(TOTAL_PAGES_MARK, TOTAL_TOKEN);
@@ -74,7 +79,7 @@ export function applyHfText(value: DocxHeaderFooter | null, text: string): DocxH
   const templates: DocxHfParagraphLike[] = textParas.length > 0 ? textParas : [EMPTY_HF_PARAGRAPH];
   const edited: DocxHfParagraphLike[] = lines.map((line, i) => {
     const template = templates[Math.min(i, templates.length - 1)] ?? EMPTY_HF_PARAGRAPH;
-    const style = template.runs[0] ?? {};
+    const style = runsOf(template)[0] ?? {};
     return { ...template, runs: line === "" ? [] : [{ ...style, text: line }] };
   });
   const nextParas: DocxHfParagraphLike[] = [];
@@ -88,7 +93,7 @@ export function applyHfText(value: DocxHeaderFooter | null, text: string): DocxH
     if (next) nextParas.push(next);
   }
   nextParas.push(...edited.slice(ei));
-  const nextText = edited.map((p) => p.runs.map((r) => r.text ?? "").join("")).join("");
+  const nextText = edited.map((p) => runsOf(p).map((r) => r.text ?? "").join("")).join("");
   return { ...base, text: nextText, paras: nextParas };
 }
 
