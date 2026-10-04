@@ -57,16 +57,46 @@ interface BlockChunk {
 }
 
 /**
- * Split a lexed token's `raw` into the leading blank lines, the block source
- * and the trailing newlines the lexer absorbed. Only *newline* whitespace is
- * treated as a separator: a leading space inside a block is block content
- * (an indented code block), never a separator.
+ * Split a source slice into the leading blank lines, the block source and the
+ * trailing newlines the lexer absorbed. Only *newline* whitespace is treated
+ * as a separator: a leading space inside a block is block content (an indented
+ * code block), never a separator.
+ *
+ * The slice is always cut from the ORIGINAL bytes (see `newlineOffsetMap`), so
+ * a `\r\n` separator stays `\r\n` and is never rewritten to `\n`.
  */
-function splitBlockChunk(raw: string): BlockChunk {
-  const lead = /^(?:[ \t]*\r?\n)+/.exec(raw)?.[0] ?? "";
-  const rest = raw.slice(lead.length);
+function splitBlockChunk(slice: string): BlockChunk {
+  const lead = /^(?:[ \t]*\r?\n)+/.exec(slice)?.[0] ?? "";
+  const rest = slice.slice(lead.length);
   const trail = /[\r\n]+$/.exec(rest)?.[0] ?? "";
   return { lead, core: rest.slice(0, rest.length - trail.length), trail };
+}
+
+/**
+ * Marked's newline normalization, mirrored exactly so the offset map below is
+ * built for the same text the lexer is handed.
+ */
+const CARRIAGE_RETURN = /\r\n|\r/g;
+
+/**
+ * Offset map from the newline-normalized text back to the original source.
+ *
+ * `Lexer.lex` starts with `src.replace(/\r\n|\r/g, "\n")`, so every token's
+ * `raw` — and every `lead`/`core`/`trail` cut from it — would come from the
+ * NORMALIZED text and silently drop the source's `\r` bytes. The mapping is
+ * monotone: only `\r\n` and a lone `\r` collapse to one `\n`, so
+ * `map[normalizedIndex]` is the source index of that normalized character and
+ * `map[normalized.length]` is `source.length`. Lexing the normalized text and
+ * cutting each block through `map` keeps the exact source bytes.
+ */
+function newlineOffsetMap(source: string): number[] {
+  const map: number[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    map.push(index);
+    if (source[index] === "\r" && source[index + 1] === "\n") index += 1;
+  }
+  map.push(source.length);
+  return map;
 }
 
 /**
@@ -78,7 +108,18 @@ function trimBlockBoundaryNewlines(text: string): string {
   return text.replace(/^\n+/, "").replace(/\n+$/, "");
 }
 
-/** Lex the source into top-level tokens, reusing the manager's marked instance. */
+/**
+ * Lex the source into top-level tokens, reusing the manager's marked instance.
+ *
+ * `manager.instance.lexer` is private API (`@tiptap/markdown` 3.30.6, marked
+ * 17): the manager exposes no public lexer. The call is pinned by
+ * `serialize.test.ts` ("pins the @tiptap/markdown internals"), which fails if
+ * the member is renamed or stops being a function.
+ *
+ * The returned tokens tile the input exactly — marked's `blockTokens` advances
+ * by `raw.length` and only ever appends to a previous token's `raw` — which is
+ * what lets `toEditorDocument` map each `raw` back to a source range.
+ */
 function lexBlocks(manager: MarkdownManager, source: string): LexedToken[] {
   const lexer = manager.instance.lexer as unknown as (src: string) => LexedToken[];
   return lexer.call(manager.instance, source);
@@ -126,6 +167,12 @@ function rawBlock(source: string, lead: string): JSONContent {
  * YAML frontmatter is taken first (a `---` fence is not a thematic break when
  * it opens the file) and kept as one raw node; the rest is lexed and mapped
  * block by block.
+ *
+ * The lexer normalizes CR/CRLF to LF before tokenizing, so its tokens are
+ * ranges in the NORMALIZED text, never in the source. Each token's range is
+ * translated back through `newlineOffsetMap` and the `lead`/`core`/`trail` are
+ * cut from the original bytes — otherwise every `\r` in the body would be
+ * lost (frontmatter survives only because it is sliced before lexing).
  */
 export function toEditorDocument(source: string, manager: MarkdownManager): JSONContent {
   const content: JSONContent[] = [];
@@ -136,9 +183,16 @@ export function toEditorDocument(source: string, manager: MarkdownManager): JSON
     body = source.slice(frontmatter.end);
   }
 
+  const normalized = body.replace(CARRIAGE_RETURN, "\n");
+  const offsets = newlineOffsetMap(body);
+  const sliceOriginal = (from: number, to: number) => body.slice(offsets[from] ?? body.length, offsets[to] ?? body.length);
+
   let pending = "";
-  for (const token of lexBlocks(manager, body)) {
-    const chunk = splitBlockChunk(token.raw ?? "");
+  let cursor = 0;
+  for (const token of lexBlocks(manager, normalized)) {
+    const raw = token.raw ?? "";
+    const chunk = splitBlockChunk(sliceOriginal(cursor, cursor + raw.length));
+    cursor += raw.length;
     pending += chunk.lead;
     if (chunk.core.length > 0) {
       const candidate = representableBlock(manager, chunk.core);

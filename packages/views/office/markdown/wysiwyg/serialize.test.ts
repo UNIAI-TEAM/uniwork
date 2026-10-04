@@ -101,6 +101,34 @@ describe("Markdown source round-trip", () => {
     }
   });
 
+  it("round-trips CRLF and bare-CR sources byte-identically", () => {
+    const source = codec();
+    // The lexer normalizes CR/CRLF to LF before tokenizing; every byte the
+    // source had must still come back. A bare `\r` is not a line ending the
+    // document may silently convert either — that would change block structure.
+    const crlfFixtures = [
+      "# T\r\n\r\nBody text.\r\n\r\n- a\r\n- b\r\n",
+      "---\r\ntitle: x\r\n---\r\n\r\n# H\r\n\r\nPara.\r\n",
+      "a\rb\n",
+      "| a | b |\r\n| - | - |\r\n| 1 | 2 |\r\n",
+    ];
+    for (const text of crlfFixtures) {
+      const out = source.serialize(source.parse(text));
+      expect(out === text ? "" : firstByteDifference(out, text)).toBe("");
+      expect(out).toBe(text);
+    }
+  });
+
+  it("keeps CRLF bytes outside an edited range", () => {
+    const source = codec();
+    const text = "# T\r\n\r\nBody text.\r\n\r\n- a\r\n- b\r\n";
+    const doc = source.parse(text);
+    const edited = JSON.parse(JSON.stringify(doc)) as typeof doc;
+    edited.content![0] = { type: "heading", attrs: { level: 1, mdLead: "" }, content: [{ type: "text", text: "T edited" }] };
+    const out = source.serialize(edited);
+    expect(out).toBe(text.replace("# T\r\n", "# T edited\r\n"));
+  });
+
   it("changes nothing outside the edited range after one edit", () => {
     const source = codec();
     const doc = source.parse(KITCHEN_SINK_FIXTURE);
