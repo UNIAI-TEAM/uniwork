@@ -38,7 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-g
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { OfficeRibbon, type OfficeRibbonProps } from "../../ribbon";
 import type { RibbonGroup, RibbonIcon, RibbonItem, RibbonTab } from "../../ribbon/types";
-import { CodeBlockToolbar, useCodeBlockToolbar } from "./code-block";
+import { CodeBlockToolbar } from "./code-block";
 import { buildMarkdownGroupItems } from "./toolbar/build-items";
 import { useMarkdownEditorToolbarState, useMarkdownToolbarActions } from "./toolbar/use-markdown-toolbar-state";
 import type { MarkdownToolbarState } from "./toolbar/types";
@@ -128,9 +128,11 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
     () => ({ ...editorState, readOnly, outline, frontmatter }),
     [editorState, readOnly, outline, frontmatter],
   );
-  const codeBlock = useCodeBlockToolbar(editor);
   const inTable = useEditorState({ editor, selector: ({ editor: live }) => live?.isActive("table") ?? false }) ?? false;
-  const inCodeBlock = codeBlock.codeBlock !== null;
+  // `state.codeBlock` (from the editor state) and the memoised `actions` are
+  // both stable across renders; `useCodeBlockToolbar` returned a fresh object
+  // each render, so keying the memo on it defeated the memo entirely (RB-9).
+  const inCodeBlock = state.codeBlock !== null;
 
   return useMemo<RibbonTab[]>(() => {
     const itemsOf = (groupId: string): RibbonItem[] =>
@@ -194,7 +196,14 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
           labelKey: "office.markdown.code.language",
           width: 150,
           collapseAs: "icon",
-          render: () => <CodeBlockToolbar {...codeBlock} disabled={readOnly} />,
+          render: () => (
+            <CodeBlockToolbar
+              codeBlock={state.codeBlock}
+              disabled={readOnly}
+              onLanguageChange={actions.setCodeBlockLanguage}
+              onCopy={actions.copyCodeBlock}
+            />
+          ),
         },
       ],
     };
@@ -229,7 +238,7 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
       groups: [codeGroup],
     };
     return [home, insert, table, code];
-  }, [actions, codeBlock, editor, inCodeBlock, inTable, onFrontmatterChange, onOutlineChange, readOnly, state]);
+  }, [actions, editor, inCodeBlock, inTable, onFrontmatterChange, onOutlineChange, readOnly, state]);
 }
 
 /**

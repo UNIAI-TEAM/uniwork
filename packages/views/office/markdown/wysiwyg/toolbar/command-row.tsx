@@ -1,6 +1,13 @@
 "use client";
 
 /**
+ * SUPERSEDED (Amendment R / UNI-931): the shared ribbon (`MarkdownRibbon`)
+ * replaced this command row in the product, so nothing outside
+ * `command-row.test.*` imports this file any more. It is kept only until the
+ * chrome deletion lands, because its sibling `common/chrome/editor-chrome.tsx`
+ * is still standing; delete this row, `chrome-tab.tsx` and that chrome file
+ * together (RB-5).
+ *
  * The Markdown command row (M2): the C7 groups, in order, driven by the M1
  * editor.
  *

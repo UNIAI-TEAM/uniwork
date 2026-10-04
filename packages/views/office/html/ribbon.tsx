@@ -14,21 +14,23 @@
  * slot (C6) and Find plus the Source | Split | Preview | Present control its
  * trailing slot (C6/C11). No floating controls (C9).
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bold,
   Code,
+  Frame,
   Heading1,
   Image as ImageIcon,
   Italic,
   Link2,
   List,
   Minus,
+  MonitorPlay,
   Pilcrow,
+  RectangleHorizontal,
   Redo2,
   Search,
-  Square,
   Strikethrough,
   Table2,
   Underline,
@@ -56,7 +58,6 @@ export const HTML_RIBBON_KEYS = {
   clipboard: "office.html.ribbon.groups.clipboard",
   inline: "office.html.ribbon.groups.inline",
   paragraph: "office.html.ribbon.groups.paragraph",
-  image: "office.html.ribbon.groups.image",
   tableSizeLabel: "office.html.ribbon.tableSizeLabel",
   orderedList: "office.html.ribbon.orderedList",
   blockquote: "office.html.ribbon.blockquote",
@@ -185,6 +186,7 @@ function ImageUrlPopover({ disabled, onInsert }: { disabled: boolean; onInsert?:
         <Button
           type="button"
           size="sm"
+          data-html-image-url-insert
           disabled={disabled || !allowed}
           onClick={() => {
             onInsert?.(url.trim());
@@ -199,12 +201,47 @@ function ImageUrlPopover({ disabled, onInsert }: { disabled: boolean; onInsert?:
   );
 }
 
-/** A grid size picker: hover a cell to pick rows x columns (word-processor style). */
+/**
+ * A grid size picker: hover a cell to pick rows x columns (word-processor
+ * style).
+ *
+ * The grid is ONE composite widget, not 36 tab stops (RB-7). The shared ribbon
+ * already keeps its body a single tab stop through `useRovingFocus`, so the
+ * grid must NOT fight it for tabindex. Instead this container owns the arrow
+ * keys: ←/→ move within a row, ↑/↓ between rows, and the event is stopped so
+ * the ribbon's linear roving does not walk the grid cell by cell. A keyboard
+ * user therefore reaches every size with the arrows, in 2D.
+ */
 function TableSizePicker({ disabled, onPick, label }: { disabled: boolean; onPick: (rows: number, columns: number) => void; label: string }) {
   const { t } = useTranslation();
   const [size, setSize] = useState<{ rows: number; columns: number }>({ rows: 0, columns: 0 });
+
+  const move = (event: KeyboardEvent<HTMLDivElement>, row: number, column: number, dr: number, dc: number) => {
+    // Keep the grid's own 2D movement; stop it reaching the ribbon's linear
+    // roving handler, which would otherwise move focus cell by cell.
+    event.preventDefault();
+    event.stopPropagation();
+    const nextRow = Math.max(0, Math.min(TABLE_MAX - 1, row + dr));
+    const nextColumn = Math.max(0, Math.min(TABLE_MAX - 1, column + dc));
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`[data-html-table-cell="${nextRow + 1}x${nextColumn + 1}"]`)
+      ?.focus();
+  };
+
+  const onGridKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-html-table-cell]") : null;
+    const cell = target?.getAttribute("data-html-table-cell");
+    if (!cell) return;
+    const [row, column] = cell.split("x").map((part) => Number(part) - 1);
+    if (row === undefined || column === undefined || Number.isNaN(row) || Number.isNaN(column)) return;
+    if (event.key === "ArrowRight") move(event, row, column, 0, 1);
+    else if (event.key === "ArrowLeft") move(event, row, column, 0, -1);
+    else if (event.key === "ArrowDown") move(event, row, column, 1, 0);
+    else if (event.key === "ArrowUp") move(event, row, column, -1, 0);
+  };
+
   return (
-    <div className="flex flex-col items-center gap-1 px-1" data-html-table-picker role="group" aria-label={label}>
+    <div className="flex flex-col items-center gap-1 px-1" data-html-table-picker role="group" aria-label={label} onKeyDown={onGridKeyDown}>
       {Array.from({ length: TABLE_MAX }, (_, r) => (
         <div key={r} className="flex gap-0.5">
           {Array.from({ length: TABLE_MAX }, (_, c) => {
@@ -335,7 +372,7 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
           kind: "button",
           id: "button-preset",
           labelKey: "office.html.ribbon.button",
-          icon: Square,
+          icon: RectangleHorizontal,
           size: "icon",
           disabled: readOnly || !commands.onInsertButton,
           onExecute: () => commands.onInsertButton?.(),
@@ -344,7 +381,7 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
           kind: "button",
           id: "section-preset",
           labelKey: "office.html.ribbon.section",
-          icon: Square,
+          icon: Frame,
           size: "icon",
           disabled: readOnly || !commands.onInsertSection,
           onExecute: () => commands.onInsertSection?.(),
@@ -455,7 +492,7 @@ export function HtmlRibbon({
         ) : null}
         {onTogglePresent ? (
           <Button type="button" variant="toolbar" size="icon-sm" aria-pressed={presenting} aria-label={t(presenting ? "office.html.present.exit" : "office.html.present.enter")} onClick={onTogglePresent}>
-            <Square aria-hidden />
+            <MonitorPlay aria-hidden />
           </Button>
         ) : null}
       </>

@@ -1,6 +1,11 @@
 "use client";
 
 /**
+ * SUPERSEDED (Amendment R / UNI-931): the shared ribbon owns the tab row and
+ * the group body now, so nothing outside `chrome-tab.test.*` imports this
+ * module any more. It survives only alongside the still-standing
+ * `common/chrome/editor-chrome.tsx`; delete the three together (RB-5).
+ *
  * The same C7 groups, mounted in the SHARED chrome's command row.
  *
  * The chrome (`packages/views/office/common/chrome/`) owns the row: it measures
