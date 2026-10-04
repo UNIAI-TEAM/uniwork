@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { parseDocx } from "@uniwork/office-upstream/docs-renderer-editor";
 import { DocxNoteAreas } from "./docx-note-areas";
 import { docxExtensions } from "./docx-schema";
+import { DOCX_ZOOM_CSS_VAR } from "./view/zoom-factor";
 
 describe("DOCX display-only note areas", () => {
   it("renders the fixture footnote and endnote without editing controls", async () => {
@@ -40,5 +41,24 @@ describe("DOCX display-only note areas", () => {
       const { container } = render(<DocxNoteAreas editor={editor} parsed={{ blocks: [], footnotes: [], endnotes: [{ id: "1", text: "Endnote" }] }} />);
       await waitFor(() => expect((container.querySelector(".page-endnotes") as HTMLElement)?.style.top).toBe("260px"));
     } finally { editor.destroy(); wrap.remove(); }
+  });
+
+  it("divides the endnote anchor by the live zoom factor", async () => {
+    const editor = new Editor({ extensions: docxExtensions(), content: { type: "doc", content: [{ type: "docParagraph" }] } });
+    const zoom = document.createElement("div");
+    zoom.className = "doc-zoom";
+    zoom.style.setProperty(DOCX_ZOOM_CSS_VAR, "1.25");
+    const wrap = document.createElement("div");
+    wrap.className = "page-wrap";
+    wrap.append(editor.view.dom);
+    zoom.append(wrap);
+    document.body.append(zoom);
+    Object.defineProperty(wrap, "getBoundingClientRect", { value: () => ({ top: 40 }) });
+    Object.defineProperty(editor.view.dom.firstElementChild, "getBoundingClientRect", { value: () => ({ bottom: 340, height: 30 }) });
+    try {
+      const { container } = render(<DocxNoteAreas editor={editor} parsed={{ blocks: [], footnotes: [], endnotes: [{ id: "1", text: "Endnote" }] }} />);
+      // (340 - 40) / 1.25 = 240; a zoom-blind factor of 1 anchors at 300.
+      await waitFor(() => expect((container.querySelector(".page-endnotes") as HTMLElement)?.style.top).toBe("240px"));
+    } finally { editor.destroy(); zoom.remove(); }
   });
 });
