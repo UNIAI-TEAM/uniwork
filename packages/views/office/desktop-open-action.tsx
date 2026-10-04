@@ -1,16 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, MonitorUp } from "lucide-react";
+import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
-import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
+import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
   type OfficeLaunchSessionResponse,
 } from "@uniwork/core/api/endpoints/office-launch";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
+import { ButtonGroup } from "@uniwork/ui/components/ui/button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
+import { cn } from "@uniwork/ui/lib/utils";
+import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../layout/header-actions-slot";
 import {
   Dialog,
   DialogContent,
@@ -107,6 +116,8 @@ export function DesktopOpenAction({
   const [resolvedInstallers, setResolvedInstallers] = useState(installers);
   const [resolvedPlatforms, setResolvedPlatforms] = useState(supportedPlatforms);
   const [resolvedHint, setResolvedHint] = useState(platformHint);
+  const [hintRequested, setHintRequested] = useState(false);
+  const inPageHeader = useHeaderActionsSlotAvailable();
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
   const label = t("action");
@@ -187,13 +198,59 @@ export function DesktopOpenAction({
 
   const installProps = { open: installOpen, channel, installers: resolvedInstallers, supportedPlatforms: resolvedPlatforms, platformHint: resolvedHint, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason };
 
+  // The menu names the detected platform once it is known; the install prompt
+  // it opens preselects that platform and still lists every other one.
+  const requestHint = (open: boolean) => {
+    if (!open || hintRequested || !loadPlatformHint) return;
+    setHintRequested(true);
+    void loadPlatformHint().then(setResolvedHint).catch(() => setResolvedHint(UNKNOWN_PLATFORM));
+  };
+  const detectedPlatform = resolvedHint.platform && resolvedPlatforms.includes(resolvedHint.platform) ? resolvedHint.platform : null;
+  const downloadLabel = detectedPlatform
+    ? t("download_for", { os: t(`install.os.${DESKTOP_INSTALLER_KINDS[detectedPlatform].os}`) })
+    : t("download");
+  const openDownload = () => { void openInstallPrompt("download"); };
+  // Under the page header on a phone the split button folds into the page's
+  // overflow menu; these items carry the same two intents there.
+  const compactMenuItems = inPageHeader ? (
+    <>
+      <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={onAction}>
+        <MonitorUp aria-hidden className="size-3.5" />
+        {label}
+      </DropdownMenuItem>
+      <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={openDownload}>
+        <Download aria-hidden className="size-3.5" />
+        {downloadLabel}
+      </DropdownMenuItem>
+    </>
+  ) : null;
+
   return (
     <>
-      <Button type="button" variant="outline" className={className} onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
-        <MonitorUp aria-hidden />
-        <span className="sr-only lg:not-sr-only">{working ? t("working") : label}</span>
-      </Button>
-      {error ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{error}</AlertDescription></Alert> : null}
+      {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
+      <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
+        <Button type="button" variant="outline" size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+          <MonitorUp aria-hidden />
+          <span className="sr-only lg:not-sr-only">{working ? t("working") : label}</span>
+        </Button>
+        <DropdownMenu onOpenChange={requestHint}>
+          <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
+            <ChevronDown aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onAction}>
+              <MonitorUp aria-hidden className="size-3.5" />
+              {label}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={openDownload}>
+              <Download aria-hidden className="size-3.5" />
+              {downloadLabel}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ButtonGroup>
+      {error ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (!working) setChoiceOpen(open); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>
@@ -207,10 +264,6 @@ export function DesktopOpenAction({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Button type="button" variant="ghost" onClick={() => void openInstallPrompt("download")} aria-label={t("download")} title={t("download")}>
-        <Download aria-hidden />
-        <span className="sr-only lg:not-sr-only">{t("download")}</span>
-      </Button>
       <OfficeInstallPrompt {...installProps} onDownload={downloadInstaller ?? (async () => { throw new Error("download handler unavailable"); })} />
     </>
   );

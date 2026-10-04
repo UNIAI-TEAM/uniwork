@@ -36,16 +36,15 @@ export interface DesktopWorkspaceProps {
   loginLockedReason?: "keyring";
   onLoginStart: () => void;
   onLoginCancel: () => void;
-  onUseLocal: (entry: "home" | "open-local") => void;
+  onUseLocal: () => void;
   onSignIn: () => void;
   onLogout: () => void | Promise<void>;
-  openLocalRequest: number;
 }
 
 /** The one window that owns document tabs in both modes. Cloud tabs belong to
  * the signed-in account; local device tabs and their protected drafts survive
  * sign-in and sign-out because this component never unmounts for a mode change. */
-export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout, openLocalRequest }: DesktopWorkspaceProps) {
+export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout }: DesktopWorkspaceProps) {
   const { t } = useTranslation();
   const signedIn = mode === "signed-in" && Boolean(metadata);
   const tabs = useDocumentTabs(bridge);
@@ -190,17 +189,6 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     if (!selected || !canOpen()) return;
     void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: t("officeDesktop.library.untitled") }), (raw) => acceptCloud(raw, selected));
   };
-  const openLocalRef = useRef(openLocal);
-  openLocalRef.current = openLocal;
-  const openLocalTicket = useRef(0);
-  useEffect(() => {
-    if (mode !== "local" || openLocalRequest === 0 || openLocalRequest === openLocalTicket.current) return;
-    // A blocked moment (busy open, leave dialog) keeps the ticket queued
-    // instead of silently dropping the user's pick request.
-    if (busy || leave) return;
-    openLocalTicket.current = openLocalRequest;
-    openLocalRef.current();
-  }, [mode, openLocalRequest, busy, leave]);
 
   const sendHostAnswer = async (request: HostLeave, choice: LeaveChoice, proceeded: boolean) => {
     if (answered.current.has(request.requestId)) return;
@@ -276,7 +264,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     const offLaunch = bridge.onLaunchRequested?.((event) => setPendingOpens((previous) => [...previous, { kind: "launch", ...event }]));
     const offFile = bridge.onFileOpenRequested?.((event) => {
       // An OS open while signed out enters the local mode directly.
-      if (modeRef.current !== "signed-in") onUseLocalRef.current("home");
+      if (modeRef.current !== "signed-in") onUseLocalRef.current();
       setPendingOpens((previous) => [...previous, { kind: "file", handle: event.handle }]);
     });
     const offSave = bridge.onOfficeSaveRequested?.((event) => {
@@ -363,7 +351,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
       <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
       {alerts}
-      <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onOpenLocal={() => onUseLocal("open-local")} onUseLocal={() => onUseLocal("home")} />
+      <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onUseLocal={onUseLocal} />
       {leaveDialog}
     </div> : null}
   </>;
