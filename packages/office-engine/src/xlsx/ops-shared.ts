@@ -384,7 +384,7 @@ export function recalcInputFor(cell: XlsxCellState): string {
   return String(v);
 }
 
-export function parseSheet(target: Dict, op: string, sheets: XlsxSheetResolver): string {
+function parseSheet(target: Dict, op: string, sheets: XlsxSheetResolver): string {
   if (target.sheet !== undefined) {
     const name = str(target.sheet, op, "target.sheet");
     if (!sheets.sheetNames().includes(name)) {
