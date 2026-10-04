@@ -262,4 +262,31 @@ describe.skipIf(!existsSync(artifact))("XLSX real gateway cell folding", () => {
     adapter.release(opened.document_model_ref);
     fresh.release(reopened.document_model_ref);
   });
+  it("persists a value plus the currency preset format through a fresh reopen", async () => {
+    // Demo step 1: edit a cell value, apply number format (currency), save, reopen.
+    // The existing case above covers a plain "0.00" code; this pins the catalog's
+    // real currency pattern (a quoted VND sign) through the OOXML numFmt round trip.
+    const module = await import(pathToFileURL(artifact).href);
+    const engine = bindXlsxGateway(module as never);
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes: new Uint8Array(readFileSync(join(repo, "docs", "office", "g0", "fixtures", "files", "sheets", "xlsx-compatibility-edit.xlsx"))), format: "xlsx", document_id: "real-currency" });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    const target = { sheet: adapter.sheetNames(opened.document_model_ref)[0]!, cell: "D4" };
+    const currency = '#,##0"\u20ab"';
+    adapter.edit(opened.document_model_ref, [
+      { op: "set_cell", target, attributes: { value: 1250000 } },
+      { op: "set_cell", target, attributes: { styleReset: true }, style: { numberFormat: currency } },
+    ]);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    const fresh = createXlsxAdapter({ engine });
+    const reopened = await fresh.open({ bytes: saved.bytes, format: "xlsx", document_id: "reopened-currency" });
+    if (reopened.outcome !== "opened") throw new Error("reopen_failed");
+    expect(fresh.snapshotOf(reopened.document_model_ref).sheets[0]?.cells.D4?.value).toBe(1250000);
+    const render = await readXlsxRenderModel(engine, saved.bytes);
+    const styleIndex = render.sheets[0]?.cells.D4?.s;
+    expect(styleIndex).toBeTypeOf("number");
+    expect(render.styles[styleIndex!]?.numberFormat).toBe(currency);
+    adapter.release(opened.document_model_ref);
+    fresh.release(reopened.document_model_ref);
+  });
 });

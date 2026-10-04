@@ -960,3 +960,36 @@ test('table commands and mutations: add, delete by id or name, and undo without 
   assert.equal(canExecuteCommand(addCommand({ range }), model, true), false);
   assert.equal(canExecuteCommand(deleteCommand({ tableId: 't1' }), model, true), false);
 });
+
+// ── DEMO COVERAGE (UNI-926): sort a column persists through the journal ──────
+// Demo step 3 is "sort a column". The dispatch is covered above (the pinned
+// `sheet.command.sort-range` reaches `sheet.mutation.reorder-range` with a
+// bounded range + keys). What is NOT covered — because the product is BROKEN —
+// is that the sort never reaches the save: the controller's CommandExecuted
+// ingest does not handle `sheet.mutation.reorder-range` (it is in none of
+// CELL_MUTATIONS / STRUCTURAL_MUTATIONS / the merge / sheet / filter / table
+// families), so the model reorders but the journal stays empty and a save
+// writes the UNSORTED rows. See reports/xlsx-genoffice-parity/worker-A7-r2.md
+// ("Route / persistence": the capture needs a shim change outside this task's
+// owned paths). This test asserts the required behaviour and therefore FAILS
+// today — it is the evidence for the fix worker, not a false pass.
+test('DEMO-COVERAGE FAILING: a reorder-range sort mutation journals the sorted rows', async () => {
+  const { mountController } = await import('./xlsx-renderer-controller-harness.mjs');
+  const file = { sessionId: 'session', sha256: 'sha', styles: [], sheets: [
+    { id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, columnWidths: [] },
+  ] };
+  const edits = [];
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const before = edits.length;
+    const ok = mounted.h.execute({ id: 'sheet.mutation.reorder-range', type: 2, params: {
+      unitId: 'file-sha', subUnitId: 's1',
+      range: { startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 },
+      order: { 0: 2, 1: 0, 2: 1, 3: 3, 4: 4 },
+    } });
+    assert.equal(ok, true, 'the pinned reorder mutation must execute');
+    assert.ok(edits.length > before, 'the sort must journal cell edits so a save persists it (currently: none)');
+    assert.ok(mounted.handle.getJournal().cells.size > 0, 'the sort must fill the edit journal (currently: empty)');
+  } finally { mounted.close(); }
+});
