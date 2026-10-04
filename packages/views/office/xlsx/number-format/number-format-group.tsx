@@ -15,7 +15,7 @@ import {
   XLSX_NUMBER_FORMAT_COMMANDS,
   type XlsxCustomFormatError,
 } from "./catalog";
-import { runNumberFormatCommand } from "./command-runner";
+import { fireCommand } from "../fire-command";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
   empty: "office.xlsx.toolbar.groups.numberFormat.customError.empty",
@@ -42,7 +42,7 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
 
   const applyPattern = (pattern: string) => {
     if (blocked || !cells) return;
-    runNumberFormatCommand(commands, XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern));
+    fireCommand(commands, XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern));
   };
 
   const applyPreset = (pattern: string) => {
@@ -65,7 +65,7 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
 
   const stepDecimals = (id: string) => {
     if (blocked) return;
-    runNumberFormatCommand(commands, id);
+    fireCommand(commands, id);
   };
 
   const submitCustomOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {

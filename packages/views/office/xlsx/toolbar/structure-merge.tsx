@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { selectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** The pinned Univer merge commands this group wires. Merge-all takes the
  *  whole selection as one merge; merge-horizontal is "merge across" (one
@@ -36,7 +37,7 @@ export function XlsxStructureMergeGroup({ readOnly = false, selection, commands 
 
   const run = (inert: boolean, id: string, params: unknown) => {
     if (inert) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
 
   return (

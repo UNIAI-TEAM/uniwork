@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Select } from "@uniwork/ui/components/ui/select";
 import { clampFontSize, stepFontSize, XLSX_DEFAULT_FONT_FAMILY, XLSX_DEFAULT_FONT_SIZE, XLSX_FONT_FAMILIES, XLSX_PALETTE_COLORS } from "./home-format";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 const SIZE_DECREASE = -1;
 const SIZE_INCREASE = 1;
@@ -66,7 +67,7 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
 
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
   const commitSize = () => {
     if (!/^\d+$/.test(sizeDraft)) {

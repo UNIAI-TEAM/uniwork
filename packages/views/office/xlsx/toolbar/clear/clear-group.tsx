@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { XlsxToolbarGroupProps } from "../types";
+import { fireCommand } from "../../fire-command";
 
 /** The three pinned Univer clear commands. All three are already allowlisted
  *  and persist through the journal: they dispatch
@@ -27,7 +28,7 @@ export function XlsxClearGroup({ readOnly = false, canFormat, commands }: XlsxTo
   const label = t("office.xlsx.toolbar.groups.clear.label");
   const run = (command: string) => {
     if (blocked) return;
-    commands?.execute(command);
+    fireCommand(commands, command);
     setOpen(false);
   };
 

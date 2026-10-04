@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { parseA1Reference, scrollCommandParams, selectionCommandParams, XLSX_SCROLL_TO_CELL_COMMAND, XLSX_SET_SELECTIONS_COMMAND } from "../view/goto";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** View > go to: an A1 reference input (single cell or range). A valid submit
  *  selects the range through the allowlisted selection view command and
@@ -25,8 +26,8 @@ export function XlsxViewGoToGroup({ commands }: XlsxToolbarGroupProps) {
       return;
     }
     setInvalid(false);
-    commands.execute(XLSX_SET_SELECTIONS_COMMAND, selectionCommandParams(range));
-    commands.execute(XLSX_SCROLL_TO_CELL_COMMAND, scrollCommandParams(range));
+    fireCommand(commands, XLSX_SET_SELECTIONS_COMMAND, selectionCommandParams(range));
+    fireCommand(commands, XLSX_SCROLL_TO_CELL_COMMAND, scrollCommandParams(range));
   };
 
   return (

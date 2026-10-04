@@ -13,6 +13,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useState } from "react";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 import { selectionSpan } from "./structure-insert";
 
 export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
@@ -25,7 +26,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
   const [removeName, setRemoveName] = useState("");
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
   // Remove is name-driven: it must not inherit `run`'s `!span` gate, or a
   // visible-but-enabled control would silently no-op without a selection.
@@ -33,7 +34,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
     if (removeBlocked) return;
     const name = removeName.trim();
     if (!name) return;
-    commands?.execute("sheet.command.delete-table", { name });
+    fireCommand(commands, "sheet.command.delete-table", { name });
   };
   const range = span === null ? undefined : {
     range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },

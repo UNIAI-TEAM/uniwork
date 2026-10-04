@@ -8,6 +8,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** The insert commands' count ceiling (Univer's own menu cap), mirrored by
  *  the renderer policy's param validation. */
@@ -67,7 +68,7 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
   const colCount = normalizeRowColCount(colCountDraft) ?? span?.columns ?? 1;
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
   const removeParams = span === null ? undefined : {
     range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },

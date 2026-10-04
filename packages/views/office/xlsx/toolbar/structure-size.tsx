@@ -7,6 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { selectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** Excel's own ceilings: row height 409.5 points, column width 255 character
  *  units. The top of the row range is clamped to a whole point. */
@@ -54,7 +55,7 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
 
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
   const ranges = span === null ? [] : [
     { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },

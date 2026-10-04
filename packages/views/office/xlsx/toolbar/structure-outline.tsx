@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { selectionSpan, type XlsxSelectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** One outline action per axis, resolved by the controller's registered
  *  command (the pinned Univer has no outline model, so these two commands
@@ -35,7 +36,7 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
 
   const run = (axis: "rows" | "cols", action: XlsxOutlineAction) => {
     if (blocked || span === null) return;
-    commands?.execute(outlineCommandId(axis), outlineCommandParams(span, axis, action));
+    fireCommand(commands, outlineCommandId(axis), outlineCommandParams(span, axis, action));
   };
 
   return (

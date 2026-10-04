@@ -20,6 +20,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 import {
   selectionSortRange,
   sortWithinOpLimit,
@@ -65,19 +66,15 @@ export function XlsxSortGroup({
       setLimitError(true);
       return;
     }
-    try {
-      commands.execute(XLSX_SORT_COMMAND, {
-        unitId,
-        subUnitId: sheetId,
-        range: { ...range },
-        orderRules: [{ type: direction, colIndex: range.startColumn }],
-        hasTitle: false,
-      });
-    } catch {
-      // The pinned sort handler is async and the sync port may refuse it until
-      // the lane's command-port widening lands; a refused command must not
-      // unmount the toolbar.
-    }
+    // The pinned sort handler is async; the helper reports a refusal or
+    // rejection without unmounting the toolbar.
+    fireCommand(commands, XLSX_SORT_COMMAND, {
+      unitId,
+      subUnitId: sheetId,
+      range: { ...range },
+      orderRules: [{ type: direction, colIndex: range.startColumn }],
+      hasTitle: false,
+    });
   };
 
   return (

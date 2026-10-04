@@ -11,6 +11,7 @@ import { Filter, ListFilter, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 import {
   XLSX_FILTER_CLEAR_COMMAND,
   XLSX_FILTER_TOGGLE_COMMAND,
@@ -25,13 +26,9 @@ export function XlsxFilterGroup({
   const blocked = readOnly || !commands;
   const run = (id: string) => {
     if (blocked) return;
-    try {
-      commands?.execute(id);
-    } catch {
-      // The pinned smart-toggle handler is async and the sync port refuses it
-      // until the lane's command-port widening lands; a refused command must
-      // not unmount the toolbar.
-    }
+    // The pinned smart-toggle handler is async; the helper reports a refusal
+    // or rejection without unmounting the toolbar.
+    fireCommand(commands, id);
   };
   return (
     <>

@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { XLSX_HORIZONTAL_ALIGN, XLSX_TEXT_ROTATIONS, XLSX_VERTICAL_ALIGN, XLSX_WRAP_STRATEGY } from "./home-format";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 const HORIZONTAL_ALIGNMENTS = [
   { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: AlignStartHorizontal },
@@ -25,7 +26,7 @@ export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, form
   const blocked = readOnly || !canFormat || !commands;
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
-    commands?.execute(id, params);
+    fireCommand(commands, id, params);
   };
 
   return (

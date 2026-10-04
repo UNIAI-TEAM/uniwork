@@ -25,6 +25,7 @@ import {
   type XlsxContextMenuEntry,
   type XlsxContextMenuState,
 } from "./menu-items";
+import { fireCommand } from "../fire-command";
 
 /** A zero-size virtual anchor at the right-click point. The DOMRect is built
  *  by hand so the menu never depends on `DOMRect.fromRect` (absent in jsdom). */
@@ -63,15 +64,11 @@ export function XlsxContextMenu({ point, state, focusTarget, onClose, onRunCallb
       if (entry.disabled || !entry.action) return;
       const action = entry.action;
       if (action.kind === "command") {
-        try {
-          state.commands?.execute(action.id, action.params);
-        } catch {
-          // Eight of the menu's items target pinned handlers that are async in
-          // the built bundle; the synchronous port throws the known TypeError
-          // after the edit has already applied and journalled. Absorb it here
-          // (mirroring toolbar/sort-group.tsx and toolbar/filter-group.tsx) so
-          // the throw never escapes the item's React onClick.
-        }
+        // Eight of the menu's items target pinned handlers that are async in
+        // the built bundle; the helper absorbs the known synchronous TypeError
+        // (the edit has already applied and journalled) and reports any async
+        // refusal, so nothing escapes the item's React onClick.
+        fireCommand(state.commands, action.id, action.params);
       } else {
         onRunCallback(action.callback);
       }

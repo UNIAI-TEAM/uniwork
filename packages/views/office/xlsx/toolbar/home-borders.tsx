@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
 
 /** Pinned Univer BorderType / BorderStyleTypes values; a thin black stroke is
  *  the Excel default the presets apply. */
@@ -32,7 +33,7 @@ export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: Xlsx
   const [open, setOpen] = useState(false);
   const run = (type: string) => {
     if (blocked) return;
-    commands?.execute("sheet.command.set-border-basic", {
+    fireCommand(commands, "sheet.command.set-border-basic", {
       value: { type, style: BORDER_STYLE_THIN, color: BORDER_COLOR },
     });
   };
