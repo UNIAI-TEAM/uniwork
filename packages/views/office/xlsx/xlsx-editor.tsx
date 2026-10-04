@@ -12,6 +12,7 @@ import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { XlsxFormulaBar } from "./formulas/formula-bar";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
+import { useXlsxProtectNames } from "./protect/use-protect-names";
 import { XlsxGridSurface, type XlsxGridHandle, type XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
 import {
@@ -548,6 +549,17 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onError: setRecalcError,
   });
 
+  // Sheet protection + the name manager (B7): the hook owns the dialog state
+  // and the two new ops; see protect/.
+  const protectNames = useXlsxProtectNames({
+    activeSheet,
+    readOnly,
+    canEdit,
+    edit: editor.edit,
+    onApplied: () => { markDirty(); refreshSnapshot(); },
+    onError: setRecalcError,
+  });
+
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
     const modifier = event.metaKey || event.ctrlKey;
@@ -663,6 +675,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onShowSheets={() => sheetTabsRef.current?.focus()}
             onOpenFind={rendererHost ? () => setFindOpen(true) : undefined}
             onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
+            onOpenProtect={rendererHost ? protectNames.openProtect : undefined}
             onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
             onPrint={rendererHost ? pageSetup.print : undefined}
             onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
@@ -706,6 +719,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             readOnly={readOnly}
             onClose={() => setFunctionLibraryOpen(false)}
           />
+          {protectNames.dialog}
           {pageSetup.dialog}
           {shortcutsOpen ? <XlsxShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
           {contextMenu.node}

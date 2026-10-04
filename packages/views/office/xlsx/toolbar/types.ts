@@ -53,6 +53,8 @@ export interface XlsxToolbarGroupProps {
    *  mounted grid: its column provider reads the header row from the renderer
    *  host. */
   onOpenAdvancedFilter?: () => void;
+  /** Opens the editor-owned Protect + Name manager dialog (B7). */
+  onOpenProtect?: () => void;
   /** Opens the editor-owned Page Setup dialog. */
   onOpenPageSetup?: () => void;
   /** Prints the document through the host print path. */
