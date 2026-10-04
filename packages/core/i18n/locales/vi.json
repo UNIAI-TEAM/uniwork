@@ -7042,6 +7042,20 @@
       "save_to_cloud": "Lưu vào UniWork",
       "save_to_device": "Lưu vào máy"
     },
+    "ribbon": {
+      "label": "Dải lệnh",
+      "tabs": "Các thẻ dải lệnh",
+      "quickAccess": "Truy cập nhanh",
+      "collapse": "Thu gọn dải lệnh",
+      "expand": "Hiện dải lệnh",
+      "pin": "Ghim dải lệnh",
+      "withShortcut": "{{label}} ({{shortcut}})",
+      "options": "Tùy chọn {{label}}",
+      "more": "Thêm",
+      "moreCards": "Thêm {{label}}",
+      "groups": "Nhóm lệnh",
+      "groupPanel": "Lệnh {{label}}"
+    },
     "desktop": {
       "action": "Mở bằng UniWork Office",
       "menu": "Tùy chọn UniWork Office",
