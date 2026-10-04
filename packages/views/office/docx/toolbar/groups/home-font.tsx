@@ -291,8 +291,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       labelKey: "office.docx.character.fontSize",
       width: 128,
       disabled: blocked,
-      // The picker itself renders the mixed placeholder; the group's
-      // docxFontSizeDisplay read is only needed for the disabled value prop.
+      // docxFontSizeDisplay drives the picker's displayed value/mixed state;
+      // the picker renders the mixed placeholder itself.
       render: () => (
         <FontSizePicker
           value={sizeDisplay.mixed ? null : sizeDisplay.value}

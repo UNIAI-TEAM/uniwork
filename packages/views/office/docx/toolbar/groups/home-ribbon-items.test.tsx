@@ -1,8 +1,8 @@
 // Typed Home-tab items (R7): the Clipboard group's paste/cut/copy and the Font
-// group's combos/toggles/dropdown must call exactly the commands the pre-typed
-// controls called, and the size combo must show the effective size or the mixed
-// placeholder. The items are pure data, so the test reads them straight off the
-// two `ribbonItems` factories with a real command runtime over a TipTap editor.
+// group's pickers/toggles must call exactly the commands the pre-typed controls
+// called, and the size picker must show the effective size or the mixed
+// placeholder. The custom items are exercised through RTL renders with a real
+// command runtime over a TipTap editor.
 import { Editor } from "@tiptap/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
