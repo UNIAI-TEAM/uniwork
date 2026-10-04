@@ -17,3 +17,4 @@ export * from "./edits/text-edits";
 export * from "./edits/notes-comment-edits";
 export * from "./edits/headerfooter-edits";
 export * from "./edits/media-edits";
+export * from "./edits/format-edits";
