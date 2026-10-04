@@ -179,6 +179,88 @@ describe("html visual ops: one test per op", () => {
     expect(() => insertHtml(context(f), "<b>x</b>", { after: { sid: img.sid } })).not.toThrow();
   });
 
+  // NF1: `endTag` is null for void elements AND for implied-end elements
+  // (`<li>`, `<p>`, `<td>` ...). Gating on `!endTag` made set_inner_html /
+  // appendTo / unwrap throw on the most common legal HTML5 markup. The guard is
+  // now by void tag name, so implied-end elements work and void elements still
+  // reject.
+  describe("implied-end elements are editable, void elements are not", () => {
+    async function byTag(source: string, tag: string): Promise<OpenFixture> {
+      const f = await openFixture(source);
+      const found = f.map.elements.filter((element) => element.tag === tag);
+      expect(found.length).toBeGreaterThan(0);
+      return f;
+    }
+
+    it("set_inner_html replaces the content of an unclosed <li>", async () => {
+      const source = "<ul><li>a<li>b</ul>";
+      const f = await byTag(source, "li");
+      const [li1, li2] = f.map.elements.filter((element) => element.tag === "li");
+      expect(li1!.endTag).toBeNull();
+      expect(li2!.endTag).toBeNull();
+      const after = applyOp(f, setInnerHtml(context(f), { sid: li1!.sid }, "NEW"));
+      expectByteIdentical(source, after, [{ from: li1!.inner[0], to: li1!.inner[1], text: "NEW" }], "set_inner_html:implied-li");
+      expect(after).toBe("<ul><li>NEW<li>b</ul>");
+    });
+
+    it("set_inner_html replaces the content of an unclosed <p>", async () => {
+      const source = "<div><p>tail";
+      const f = await byTag(source, "p");
+      const p = f.map.elements.find((element) => element.tag === "p")!;
+      expect(p.endTag).toBeNull();
+      const after = applyOp(f, setInnerHtml(context(f), { sid: p.sid }, "NEW"));
+      expectByteIdentical(source, after, [{ from: p.inner[0], to: p.inner[1], text: "NEW" }], "set_inner_html:implied-p");
+      expect(after).toBe("<div><p>NEW");
+    });
+
+    it("insert_html appendTo inserts inside an implied-end <li>, not after it", async () => {
+      const source = "<ul><li>a<li>b</ul>";
+      const f = await byTag(source, "li");
+      const li1 = f.map.elements.filter((element) => element.tag === "li")[0]!;
+      const after = applyOp(f, insertHtml(context(f), "<i>x</i>", { appendTo: { sid: li1.sid } }));
+      expectByteIdentical(source, after, [{ from: li1.inner[1], to: li1.inner[1], text: "<i>x</i>" }], "insert_html:implied-li");
+      expect(after).toBe("<ul><li>a<i>x</i><li>b</ul>");
+    });
+
+    it("set_text writes inside an implied-end <td>", async () => {
+      const source = "<table><tr><td>a<td>b</tr></table>";
+      const f = await byTag(source, "td");
+      const td = f.map.elements.filter((element) => element.tag === "td")[0]!;
+      const after = applyOp(f, setText(context(f), { sid: td.sid }, "X"));
+      expectByteIdentical(source, after, [{ from: td.inner[0], to: td.inner[1], text: "X" }], "set_text:implied-td");
+      expect(after).toBe("<table><tr><td>X<td>b</tr></table>");
+    });
+
+    it("unwrap unwraps an implied-end element", async () => {
+      const source = "<ul><li>a<li>b</ul>";
+      const f = await byTag(source, "li");
+      const li1 = f.map.elements.filter((element) => element.tag === "li")[0]!;
+      const after = applyOp(f, unwrap(context(f), { sid: li1.sid }));
+      expectByteIdentical(source, after, [{ from: li1.range[0], to: li1.range[1], text: "a" }], "unwrap:implied-li");
+      expect(after).toBe("<ul>a<li>b</ul>");
+    });
+
+    it("still refuses a void element for set_inner_html, set_text, appendTo and unwrap", async () => {
+      const f = await fixture();
+      const img = elementByPath(f.map, IMG)!;
+      for (const op of [
+        () => setInnerHtml(context(f), { sid: img.sid }, "x"),
+        () => setText(context(f), { sid: img.sid }, "x"),
+        () => insertHtml(context(f), "x", { appendTo: { sid: img.sid } }),
+        () => unwrap(context(f), { sid: img.sid }),
+      ]) {
+        expect(op).toThrow(HtmlOpError);
+        try {
+          op();
+        } catch (error) {
+          expect((error as HtmlOpError).code).toBe("invalid_target");
+        }
+      }
+      // before/after on the same void element remain valid.
+      expect(() => insertHtml(context(f), "<b>x</b>", { after: { sid: img.sid } })).not.toThrow();
+    });
+  });
+
   it("remove: deletes exactly the element range", async () => {
     const f = await fixture();
     const element = elementByPath(f.map, H1)!;

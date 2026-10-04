@@ -9,13 +9,15 @@
 //
 // Divergences from parse5 that stay (the shipped fixture does not exercise
 // them, and no op is asserted against their offsets):
-//   - rawtext/RCDATA bodies (script, style, title, textarea) are scanned as raw
-//     text, not markup, so their content registers no child elements;
 //   - `<template>` children are ordinary descendants here, while parse5 keeps
 //     them in a separate content fragment;
-//   - an unclosed NON-rawtext element keeps `range[1]` at its start-tag end
-//     (only `inner[1]` extends to EOF); an unclosed rawtext element extends
-//     both to EOF.
+//   - implied end tags are modelled for the common list / paragraph / table
+//     cases (`<ul><li>a<li>b</ul>`, `<div><p>tail`, `<td>` / `<tr>` / `<p>`
+//     omissions); the full HTML5 tree-construction algorithm, foster parenting
+//     and the adoption agency are not modelled, so malformed nesting that needs
+//     them still diverges.
+// An unclosed element at EOF extends both `range[1]` and `inner[1]` to EOF, the
+// way parse5's `endOffset` does.
 
 import { createHtmlEngine, type HtmlEngine, type HtmlUpstream, type UpstreamParseMap, type UpstreamPatch, type UpstreamPatchError, type UpstreamPatchSet } from "@uniwork/office-engine/html";
 
@@ -34,13 +36,43 @@ interface FixtureEntry {
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
 // Rawtext/RCDATA elements whose content is text, never markup.
-const RAWTEXT = new Set(["script", "style", "title", "textarea"]);
+const RAWTEXT = new Set(["script", "style", "title", "textarea", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext"]);
+// Foreign-content roots: inside them a trailing `/` self-closes a start tag.
+const FOREIGN = new Set(["svg", "math"]);
+// Elements whose end tag the HTML5 parser may omit; "generate implied end tags"
+// pops these before a start tag that closes an ancestor.
+const IMPLIED_END = new Set(["dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc"]);
+// Block-level start tags that close an open <p>.
+const P_CLOSERS = new Set([
+  "address", "article", "aside", "blockquote", "details", "div", "dl", "fieldset", "figcaption",
+  "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main",
+  "menu", "nav", "ol", "p", "pre", "section", "table", "ul",
+]);
+// Elements an end tag may pop on its way to the matching open element.
+const END_TAG_IMPLIED = new Set([...IMPLIED_END, "td", "th", "tr", "thead", "tbody", "tfoot", "caption", "colgroup"]);
+
+/** The tags a start tag `tag` closes on the open-element stack, after implied
+ * end tags are generated. Mirrors the parse5 rules for the common cases. */
+function closeSetFor(tag: string): ReadonlySet<string> | null {
+  switch (tag) {
+    case "li": return new Set(["li"]);
+    case "dt": case "dd": return new Set(["dt", "dd"]);
+    case "option": return new Set(["option"]);
+    case "optgroup": return new Set(["option", "optgroup"]);
+    case "td": case "th": return new Set(["td", "th"]);
+    case "tr": return new Set(["td", "th", "tr"]);
+    case "thead": case "tbody": case "tfoot": return new Set(["td", "th", "tr", "thead", "tbody", "tfoot", "caption", "colgroup"]);
+    case "caption": case "colgroup": return new Set(["caption", "colgroup"]);
+    default: return P_CLOSERS.has(tag) ? new Set(["p"]) : null;
+  }
+}
 
 interface Open {
   entry: FixtureEntry;
   children: FixtureEntry[];
   textNodes: Array<[number, number]>;
   textStart: number | null;
+  foreign: boolean;
 }
 
 function tagEnd(text: string, from: number): number {
@@ -86,13 +118,29 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
       if (text.startsWith("</", i)) {
         const end = tagEnd(text, i);
         const name = /^<\/\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(text.slice(i, end))?.[1]?.toLowerCase();
-        const top = stack[stack.length - 1];
-        if (name && top && top.entry.tag === name) {
-          top.entry.endTag = [i, end];
-          top.entry.range[1] = end;
-          top.entry.inner[1] = i;
-          top.entry.textNodes = top.textNodes;
-          stack.pop();
+        // An end tag closes the nearest matching open element, popping the
+        // elements an end tag may imply on the way (e.g. `</ul>` closes an
+        // open `<li>`; `</table>` closes open `<td>`/`<tr>`).
+        const matchAt = name
+          ? stack.map((open) => open.entry.tag).lastIndexOf(name)
+          : -1;
+        if (matchAt !== -1) {
+          const closable =
+            matchAt === stack.length - 1 ||
+            stack.slice(matchAt + 1).every((open) => END_TAG_IMPLIED.has(open.entry.tag));
+          if (closable) {
+            while (stack.length > matchAt + 1) {
+              const open = stack.pop()!;
+              // An implied end leaves `endTag` null (parse5 does the same);
+              // only the matched element below takes the real end tag.
+              if (open.entry.inner[1] < i) open.entry.inner[1] = i;
+              if (open.entry.range[1] < i) open.entry.range[1] = i;
+            }
+            const matched = stack.pop()!;
+            matched.entry.endTag = [i, end];
+            matched.entry.range[1] = end;
+            matched.entry.inner[1] = i;
+          }
         }
         i = end;
         continue;
@@ -104,11 +152,28 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
         continue;
       }
       const tag = nameMatch[1]!.toLowerCase();
-      const selfClosing = /\/\s*>$/.test(text.slice(i, end));
+      // HTML5 ignores a self-closing slash on HTML elements; only foreign
+      // content (svg/math) honours it.
+      const selfClosing = /\/\s*>$/.test(text.slice(i, end)) && FOREIGN.has(tag);
+      // Close the elements this start tag implies closed (generate implied end
+      // tags, then pop the named set). Closed elements take an end tag at this
+      // start tag's offset, exactly like parse5's `endOffset`.
+      const closeSet = closeSetFor(tag);
+      if (closeSet) {
+        while (stack.length) {
+          const top = stack[stack.length - 1]!;
+          if (!closeSet.has(top.entry.tag)) break;
+          stack.pop();
+          // Implied end: `endTag` stays null, the ranges stop here.
+          if (top.entry.range[1] < i) top.entry.range[1] = i;
+          if (top.entry.inner[1] < i) top.entry.inner[1] = i;
+        }
+      }
+      const parent = stack.length ? stack[stack.length - 1] : null;
       const entry: FixtureEntry = {
         sid: nextSid++,
         tag,
-        parentSid: parentOf()?.sid ?? null,
+        parentSid: parent?.entry.sid ?? null,
         depth: stack.length,
         range: [i, end],
         startTag: [i, end],
@@ -123,8 +188,9 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
       if (!selfClosing && !VOID.has(tag)) {
         if (RAWTEXT.has(tag)) {
           // Everything up to the matching close tag is text: register no child
-          // elements and record the body as one text node.
-          const close = new RegExp("</" + tag + "(?=[\\s/>])", "i").exec(text.slice(end));
+          // elements and record the body as one text node. `<plaintext>` never
+          // closes, so its body runs to EOF.
+          const close = tag === "plaintext" ? null : new RegExp("</" + tag + "(?=[\\s/>])", "i").exec(text.slice(end));
           const innerEnd = close ? end + close.index : text.length;
           entry.inner = [end, innerEnd];
           if (innerEnd > end) entry.textNodes = [[end, innerEnd]];
@@ -139,7 +205,7 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
           }
           continue;
         }
-        stack.push({ entry, children: [], textNodes: [], textStart: null });
+        stack.push({ entry, children: [], textNodes: [], textStart: null, foreign: FOREIGN.has(tag) || (parent?.foreign ?? false) });
       }
       continue;
     }
@@ -153,9 +219,13 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
     }
     i = stop;
   }
-  // An unclosed element ends at the end of the document.
+  // An unclosed element ends at the end of the document: parse5 reports
+  // `endOffset` as the source length for both `range[1]` and `inner[1]`.
   for (const open of stack) {
-    if (open.entry.endTag === null) open.entry.inner[1] = text.length;
+    if (open.entry.endTag === null) {
+      open.entry.range[1] = text.length;
+      open.entry.inner[1] = text.length;
+    }
   }
 
   const pathOf = (entry: FixtureEntry): string => {

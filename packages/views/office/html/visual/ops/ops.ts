@@ -127,6 +127,18 @@ export function strReplace(context: HtmlOpContext, search: string, replacement: 
   return patchSet(context.version, patches, "inspector", "str_replace");
 }
 
+/**
+ * HTML5 void elements. Their `inner` is an empty point after the tag, so an op
+ * that writes "inside" one would land AFTER the tag instead. `endTag` is null
+ * for void elements AND for every element with an implied/missing end tag
+ * (`<li>`, `<p>`, `<td>`, ...), so the void check must be by tag name - gating
+ * on `!endTag` rejects the common implied-end markup that is legal HTML5.
+ */
+const VOID_TAGS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
 /** Replace an element (its whole range, tags included) with new markup. */
 export function replaceElement(context: HtmlOpContext, target: HtmlTarget, html: string): UpstreamPatchSet {
   const element = requireElement(context.map, target);
@@ -136,9 +148,10 @@ export function replaceElement(context: HtmlOpContext, target: HtmlTarget, html:
 /** Replace an element's content, leaving its start and end tags untouched. */
 export function setInnerHtml(context: HtmlOpContext, target: HtmlTarget, html: string): UpstreamPatchSet {
   const element = requireElement(context.map, target);
-  if (!element.endTag) {
+  if (VOID_TAGS.has(element.tag)) {
     // A void element's inner range is empty, so its "inner html" would land
-    // AFTER the tag - silently the wrong op. Reject like `unwrap` does.
+    // AFTER the tag - silently the wrong op. Only void elements are rejected;
+    // an implied-end element (`<li>`, `<p>`, ...) has real inner content.
     throw new HtmlOpError("invalid_target", "cannot set the inner html of a void element", { tag: element.tag });
   }
   return replaceRange(context.version, element.inner[0], element.inner[1], html, "inspector", "set_inner_html");
@@ -147,6 +160,11 @@ export function setInnerHtml(context: HtmlOpContext, target: HtmlTarget, html: s
 /** Replace an element's content with escaped plain text. */
 export function setText(context: HtmlOpContext, target: HtmlTarget, text: string): UpstreamPatchSet {
   const element = requireElement(context.map, target);
+  if (VOID_TAGS.has(element.tag)) {
+    // Same defect as set_inner_html: a void element's inner is a point after
+    // the tag, so the text would be appended AFTER it, not inside it.
+    throw new HtmlOpError("invalid_target", "cannot set the text of a void element", { tag: element.tag });
+  }
   return replaceRange(context.version, element.inner[0], element.inner[1], escapeHtmlText(text), "inspector", "set_text");
 }
 
@@ -161,7 +179,7 @@ export function insertHtml(context: HtmlOpContext, html: string, position: Inser
   }
   const target: HtmlTarget = "before" in position ? position.before : "after" in position ? position.after : position.appendTo;
   const element = requireElement(context.map, target);
-  if ("appendTo" in position && !element.endTag) {
+  if ("appendTo" in position && VOID_TAGS.has(element.tag)) {
     // appendTo on a void element would insert AFTER it, not inside it.
     throw new HtmlOpError("invalid_target", "cannot append inside a void element", { tag: element.tag });
   }
@@ -331,7 +349,7 @@ export function wrapText(context: HtmlOpContext, range: SourceRange, tag: string
 /** Replace an element with its own inner content, dropping its tags. */
 export function unwrap(context: HtmlOpContext, target: HtmlTarget): UpstreamPatchSet {
   const element = requireElement(context.map, target);
-  if (!element.endTag) throw new HtmlOpError("invalid_target", "cannot unwrap a void element", { tag: element.tag });
+  if (VOID_TAGS.has(element.tag)) throw new HtmlOpError("invalid_target", "cannot unwrap a void element", { tag: element.tag });
   return replaceRange(
     context.version,
     element.range[0],
