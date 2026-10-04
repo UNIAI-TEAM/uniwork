@@ -1,4 +1,4 @@
-﻿import { HomeClipboardGroup, homeClipboardRibbonItems } from "../groups/home-clipboard";
+import { HomeClipboardGroup, homeClipboardRibbonItems } from "../groups/home-clipboard";
 import { HomeFontGroup, homeFontRibbonItems } from "../groups/home-font";
 import { HomeListsGroup } from "../../lists/home-lists";
 import { HomeParagraphGroup } from "../groups/home-paragraph";
@@ -41,7 +41,9 @@ export const homeTab: DocxToolbarTab = {
       labelKey: "office.docx.toolbar.groups.clipboard",
       component: HomeClipboardGroup,
       ribbonItems: homeClipboardRibbonItems,
-      collapseAt: 620,
+      // Lower than Font's 560 so the leftmost group is the last to collapse
+      // (Word keeps the leftmost controls visible longest) - F10.
+      collapseAt: 500,
     }),
     typed({
       id: "home-font",

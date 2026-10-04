@@ -1,10 +1,11 @@
-﻿// Typed Home-tab items (R7): the Clipboard group's paste/cut/copy and the Font
+// Typed Home-tab items (R7): the Clipboard group's paste/cut/copy and the Font
 // group's combos/toggles/dropdown must call exactly the commands the pre-typed
 // controls called, and the size combo must show the effective size or the mixed
 // placeholder. The items are pure data, so the test reads them straight off the
 // two `ribbonItems` factories with a real command runtime over a TipTap editor.
 import { Editor } from "@tiptap/core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { RibbonItem } from "../../../ribbon";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../../commands";
@@ -21,6 +22,13 @@ beforeEach(async () => {
 });
 
 const editors: Editor[] = [];
+
+// F12: every test destroys its TipTap editors and clears the published editor,
+// so no editor (or live-editor subscription) leaks into the next test.
+afterEach(() => {
+  publishDocxEditor(null);
+  for (const editor of editors.splice(0)) editor.destroy();
+});
 
 function editorWith(text: string): Editor {
   const editor = new Editor({
@@ -53,6 +61,12 @@ function item(items: readonly RibbonItem[], id: string): RibbonItem {
   const found = items.find((entry) => entry.id === id);
   if (!found) throw new Error(`missing item ${id}`);
   return found;
+}
+
+/** Mounts a typed item's rendered node (the custom controls are components). */
+function renderItem(entry: RibbonItem): void {
+  if (entry.kind !== "custom") throw new Error(`item ${entry.id} is not custom`);
+  render(<>{entry.render({ size: "small", inPanel: false })}</>);
 }
 
 describe("Home clipboard typed items", () => {
@@ -101,29 +115,21 @@ describe("Home clipboard typed items", () => {
 });
 
 describe("Home font typed items", () => {
-  it("keeps every command call identical to the pre-typed group", () => {
+  it("keeps every non-typed command call identical to the pre-typed group", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
     publishDocxEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const spies = {
-      setFontFamily: vi.spyOn(runtime, "setFontFamily"),
       toggleBold: vi.spyOn(runtime, "toggleBold"),
       toggleItalic: vi.spyOn(runtime, "toggleItalic"),
       toggleUnderline: vi.spyOn(runtime, "toggleUnderline"),
       toggleStrike: vi.spyOn(runtime, "toggleStrike"),
       setVerticalAlign: vi.spyOn(runtime, "setVerticalAlign"),
-      setTextColor: vi.spyOn(runtime, "setTextColor"),
-      setHighlight: vi.spyOn(runtime, "setHighlight"),
       changeCase: vi.spyOn(runtime, "changeCase"),
       clearCharacterFormatting: vi.spyOn(runtime, "clearCharacterFormatting"),
     };
     const items = homeFontRibbonItems(context(editor, runtime));
-
-    const family = item(items, "docx-font-family");
-    if (family.kind !== "combo") throw new Error("family not a combo");
-    family.onChange("Arial");
-    expect(spies.setFontFamily).toHaveBeenCalledWith("Arial");
 
     for (const [id, spy] of [
       ["docx-bold", spies.toggleBold],
@@ -149,33 +155,108 @@ describe("Home font typed items", () => {
     expect(spies.changeCase).toHaveBeenCalledWith("upper");
   });
 
-  it("shows the effective size in the size combo and null when mixed", () => {
-    const editor = editorWith("hello world");
-    editor.chain().setTextSelection({ from: 1, to: 6 }).setMark("docTextStyle", { sizeHalfPoints: 28 }).run();
-    publishDocxEditor(editor);
-
-    editor.commands.setTextSelection(3);
-    const runtime = createDocxCommandRuntime(() => editor);
-    const single = item(homeFontRibbonItems(context(editor, runtime)), "docx-font-size");
-    if (single.kind !== "combo") throw new Error("size not a combo");
-    expect(single.value).toBe("14");
-    expect(single.options.length).toBeGreaterThan(0);
-
-    editor.commands.setTextSelection({ from: 1, to: 12 });
-    const mixed = item(homeFontRibbonItems(context(editor, runtime)), "docx-font-size");
-    if (mixed.kind !== "combo") throw new Error("size not a combo");
-    expect(mixed.value).toBeNull();
-  });
-
-  it("sets the font size through setFontSizePt", () => {
+  it("exposes the size control as an editable custom picker (F3)", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
     publishDocxEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
-    const setFontSizePt = vi.spyOn(runtime, "setFontSizePt");
-    const size = item(homeFontRibbonItems(context(editor, runtime)), "docx-font-size");
-    if (size.kind !== "combo") throw new Error("size not a combo");
-    size.onChange("18");
-    expect(setFontSizePt).toHaveBeenCalledWith(18);
+    const items = homeFontRibbonItems(context(editor, runtime));
+    const size = item(items, "docx-font-size");
+    expect(size.kind).toBe("custom");
+    if (size.kind !== "custom") throw new Error("size not custom");
+
+    renderItem(size);
+    // The legacy -[input]+ control is back: typing a non-preset size commits it.
+    const input = screen.getByTestId("docx-font-size");
+    fireEvent.change(input, { target: { value: "13.5" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect((editor.getAttributes("docTextStyle") as { sizeHalfPoints?: number }).sizeHalfPoints).toBe(27);
+    expect(screen.getByTestId("docx-font-size-decrease")).toBeInTheDocument();
+    expect(screen.getByTestId("docx-font-size-increase")).toBeInTheDocument();
+  });
+
+  it("steps the size through stepFontSize from the -/+ pair (F3)", () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    publishDocxEditor(editor);
+    const runtime = createDocxCommandRuntime(() => editor);
+    const stepFontSize = vi.spyOn(runtime, "stepFontSize");
+    const items = homeFontRibbonItems(context(editor, runtime));
+    const size = item(items, "docx-font-size");
+    if (size.kind !== "custom") throw new Error("size not custom");
+
+    renderItem(size);
+    fireEvent.click(screen.getByTestId("docx-font-size-increase"));
+    expect(stepFontSize).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByTestId("docx-font-size-decrease"));
+    expect(stepFontSize).toHaveBeenCalledWith(-1);
+  });
+
+  it("shows the effective size and the mixed placeholder in the picker (F3)", async () => {
+    const editor = editorWith("hello world");
+    editor.chain().setTextSelection({ from: 1, to: 6 }).setMark("docTextStyle", { sizeHalfPoints: 28 }).run();
+    publishDocxEditor(editor);
+    editor.commands.setTextSelection(3);
+    const runtime = createDocxCommandRuntime(() => editor);
+
+    const single = item(homeFontRibbonItems(context(editor, runtime)), "docx-font-size");
+    if (single.kind !== "custom") throw new Error("size not custom");
+    const { unmount } = render(<>{single.render({ size: "small", inPanel: false })}</>);
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("14");
+    unmount();
+
+    editor.commands.setTextSelection({ from: 1, to: 12 });
+    const mixed = item(homeFontRibbonItems(context(editor, runtime)), "docx-font-size");
+    if (mixed.kind !== "custom") throw new Error("size not custom");
+    renderItem(mixed);
+    await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue(""));
+    expect(screen.getByTestId("docx-font-size")).toHaveAttribute("aria-placeholder", "-");
+  });
+
+  it("restores the family picker and commits a typed family name (F4)", async () => {
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    publishDocxEditor(editor);
+    const runtime = createDocxCommandRuntime(() => editor);
+    const setFontFamily = vi.spyOn(runtime, "setFontFamily");
+    const items = homeFontRibbonItems(context(editor, runtime));
+    const family = item(items, "docx-font-family");
+    expect(family.kind).toBe("custom");
+    if (family.kind !== "custom") throw new Error("family not custom");
+
+    renderItem(family);
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    const search = await screen.findByTestId("docx-font-family-search");
+    fireEvent.change(search, { target: { value: "Aptos Display" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(setFontFamily).toHaveBeenCalledWith("Aptos Display");
+  });
+
+  it("reads documentFonts only when the family panel opens, and caches per document (F5)", async () => {
+    const editor = editorWith("hello world");
+    publishDocxEditor(editor);
+    const runtime = createDocxCommandRuntime(() => editor);
+    const documentFonts = vi.spyOn(runtime, "documentFonts");
+    const items = homeFontRibbonItems(context(editor, runtime));
+
+    // Building the items must not walk the document.
+    expect(documentFonts).not.toHaveBeenCalled();
+
+    const family = item(items, "docx-font-family");
+    if (family.kind !== "custom") throw new Error("family not custom");
+    renderItem(family);
+    expect(documentFonts).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    await screen.findByTestId("docx-font-family-list");
+    expect(documentFonts).toHaveBeenCalledTimes(1);
+
+    // Selection-only changes keep the same doc, so a second open reuses the
+    // cached list instead of walking the document again.
+    fireEvent.keyDown(screen.getByTestId("docx-font-family-search"), { key: "Escape" });
+    editor.commands.setTextSelection(3);
+    fireEvent.click(screen.getByTestId("docx-font-family"));
+    await screen.findByTestId("docx-font-family-list");
+    expect(documentFonts).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useSyncExternalStore } from "react";
+import type { Editor } from "@tiptap/core";
 import {
   ALargeSmall,
   Bold,
@@ -20,8 +21,6 @@ import { HighlightPicker, TextColorPicker } from "../../character/color-picker";
 import { FontFamilyPicker } from "../../character/font-family-picker";
 import { FontSizePicker } from "../../character/font-size-picker";
 import type { CaseCommandMode } from "../../character/case-transform";
-import { BUILTIN_FONT_FAMILIES } from "../../character/font-list";
-import { FONT_SIZES } from "../../character/font-size";
 import { useFormatPainter } from "../../character/format-painter";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../../editor-store";
 import type { RibbonItem } from "../../../ribbon";
@@ -50,7 +49,8 @@ export function HomeFontGroup({ editor, format, commands, readOnly, saving }: Do
   const sizeDisplay = docxFontSizeDisplay(live, format?.fontSizePt ?? null);
 
   const refreshDocumentFonts = useCallback(() => {
-    setDocumentFonts(commands?.documentFonts() ?? []);
+    const live = getDocxLiveEditor();
+    setDocumentFonts(live && !live.isDestroyed ? [...documentFontsFor(live, commands)] : []);
   }, [commands]);
 
   return (
@@ -216,49 +216,92 @@ function FormatPainterItem({
 }
 
 /**
+ * Fonts the open document declares, cached by document identity (W-FIX-A). A
+ * selection-only change keeps the same `editor.state.doc`, so the full-document
+ * walk `documentFonts()` performs runs once per document edit, not once per
+ * shell render. The entry is dropped when the editor is destroyed.
+ */
+const documentFontsCache = new WeakMap<Editor, { doc: unknown; fonts: readonly string[] }>();
+
+function documentFontsFor(editor: Editor, commands: DocxToolbarGroupContext["commands"]): readonly string[] {
+  const cached = documentFontsCache.get(editor);
+  if (cached && cached.doc === editor.state.doc) return cached.fonts;
+  const fonts = commands?.documentFonts() ?? [];
+  documentFontsCache.set(editor, { doc: editor.state.doc, fonts });
+  return fonts;
+}
+
+/**
+ * The family control as a `custom` item: the legacy FontFamilyPicker keeps the
+ * typed-name commit the closed-list combo dropped (F4). The document-font read
+ * only happens when the panel opens, so building the items is allocation-free.
+ */
+function FontFamilyItem({
+  value,
+  commands,
+  disabled,
+}: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; disabled: boolean }) {
+  const [documentFonts, setDocumentFonts] = useState<readonly string[]>([]);
+  const refreshDocumentFonts = useCallback(() => {
+    const live = getDocxLiveEditor();
+    if (live && !live.isDestroyed) setDocumentFonts([...documentFontsFor(live, commands)]);
+  }, [commands]);
+  return (
+    <FontFamilyPicker
+      value={value}
+      documentFonts={documentFonts}
+      disabled={disabled}
+      onPick={(family) => commands?.setFontFamily(family)}
+      onOpen={refreshDocumentFonts}
+    />
+  );
+}
+
+/**
  * The typed Font-group items (R7/R8). Every command is the one the pre-typed
- * group already called, in Word's order: family combo, size combo, B/I/U/S/x2
+ * group already called, in Word's order: family picker, size picker, B/I/U/S/x2
  * toggles, colour/highlight custom pickers, case dropdown, clear, painter.
+ *
+ * The family and size controls are `custom` items that re-mount the legacy
+ * FontFamilyPicker/FontSizePicker (W-FIX-A): the closed-list combo could not
+ * reach `stepFontSize` or accept a typed family/size, both of which the
+ * pre-typed group supported. The family item defers its `documentFonts` read to
+ * the panel opening and caches it per document, so no shell render walks the doc.
  */
 export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { editor, format, commands, readOnly, saving } = context;
   const blocked = readOnly || saving || !commands || !format;
   const verticalAlign = format?.verticalAlign ?? null;
   const sizeDisplay = docxFontSizeDisplay(getDocxLiveEditor(), format?.fontSizePt ?? null);
-  const fonts = [...BUILTIN_FONT_FAMILIES];
-  for (const font of commands?.documentFonts() ?? []) {
-    if (!fonts.includes(font)) fonts.push(font);
-  }
 
   return [
     {
-      kind: "combo",
+      kind: "custom",
       id: "docx-font-family",
       labelKey: "office.docx.character.fontFamily",
-      tooltipKey: "office.docx.character.fontFamily",
-      value: format?.fontFamily ?? "",
       width: 128,
       disabled: blocked,
-      options: [
-        { value: "", labelKey: "office.docx.character.fontFamilyDefault" },
-        ...fonts.map((font) => ({ value: font, label: font })),
-      ],
-      onChange: (value) => commands?.setFontFamily(value === "" ? null : value),
+      render: () => (
+        <FontFamilyItem value={format?.fontFamily ?? null} commands={commands} disabled={blocked} />
+      ),
     },
     {
-      kind: "combo",
+      kind: "custom",
       id: "docx-font-size",
       labelKey: "office.docx.character.fontSize",
-      tooltipKey: "office.docx.character.fontSize",
-      // Mixed selections keep the picker's empty placeholder by passing null.
-      value: sizeDisplay.mixed || sizeDisplay.value === null ? null : String(sizeDisplay.value),
-      width: 72,
+      width: 128,
       disabled: blocked,
-      options: FONT_SIZES.map((size) => ({ value: String(size), label: String(size) })),
-      onChange: (value) => {
-        const parsed = Number.parseFloat(value);
-        if (Number.isFinite(parsed)) commands?.setFontSizePt(parsed);
-      },
+      // The picker itself renders the mixed placeholder; the group's
+      // docxFontSizeDisplay read is only needed for the disabled value prop.
+      render: () => (
+        <FontSizePicker
+          value={sizeDisplay.mixed ? null : sizeDisplay.value}
+          mixed={sizeDisplay.mixed}
+          disabled={blocked}
+          onSet={(pt) => commands?.setFontSizePt(pt)}
+          onStep={(direction) => commands?.stepFontSize(direction)}
+        />
+      ),
     },
     {
       kind: "toggle",
