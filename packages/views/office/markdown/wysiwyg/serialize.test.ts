@@ -176,6 +176,24 @@ describe("Markdown source round-trip", () => {
     }
   });
 
+  it("does not escape an EDITED paragraph (the escaper runs on the write path)", () => {
+    // Regression: the selective escaper used to be installed only on the
+    // TipTap editor's manager (an Editor lifecycle hook), so the codec's own
+    // manager fell back to the stock blanket escaper. A paragraph the user
+    // actually edited therefore gained a backslash per `_ * ~ \` [`.
+    const source = codec();
+    const doc = source.parse("snake_case_name first\n\nsecond\n");
+    const edited = JSON.parse(JSON.stringify(doc)) as typeof doc;
+    edited.content![0] = {
+      type: "paragraph",
+      attrs: { mdLead: "" },
+      content: [{ type: "text", text: "snake_case_name first" }],
+    };
+    const out = source.serialize(edited);
+    expect(out).toBe("snake_case_name first\n\nsecond\n");
+    expect(out).not.toContain("\\");
+  });
+
   it("keeps footnote syntax as an opaque raw block instead of escaping it", () => {
     const source = codec();
     const text = "Footnote reference[^1] here.\n";

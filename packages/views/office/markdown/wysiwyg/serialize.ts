@@ -38,6 +38,7 @@ import { MarkdownManager } from "@tiptap/markdown";
 import type { AnyExtension } from "@tiptap/core";
 import { findFrontmatter } from "@uniwork/office-engine/markdown";
 import { MARKDOWN_LEAD_ATTRIBUTE, MARKDOWN_LIST_INDENT } from "./extensions";
+import { installSelectiveEscaper } from "./escape";
 import { MARKDOWN_RAW_NODE_NAME, rawNodeSource } from "./raw-node";
 
 /** Separator used between blocks whose source had no explicit separator. */
@@ -244,9 +245,19 @@ export function fromEditorDocument(doc: JSONContent, manager: MarkdownManager): 
   return out + (typeof tail === "string" ? tail : "");
 }
 
-/** The Markdown manager bound to one extension set and the 4-space indent. */
+/**
+ * The Markdown manager bound to one extension set and the 4-space indent.
+ *
+ * The selective escaper is installed here, not only on the editor's manager:
+ * `SelectiveMarkdown.onBeforeCreate` fires for a TipTap editor, but the codec
+ * builds its own manager, so without this assignment `serialize()` (the write
+ * path) would use the stock blanket escaper and pollute edited text with
+ * backslashes. The editor's manager gets it via `SelectiveMarkdown`.
+ */
 export function createMarkdownSourceManager(extensions: AnyExtension[]): MarkdownManager {
-  return new MarkdownManager({ extensions, indentation: { style: "space", size: MARKDOWN_LIST_INDENT } });
+  const manager = new MarkdownManager({ extensions, indentation: { style: "space", size: MARKDOWN_LIST_INDENT } });
+  installSelectiveEscaper(manager);
+  return manager;
 }
 
 /** The parse/serialise pair an editor mounts with, bound to one extension set. */

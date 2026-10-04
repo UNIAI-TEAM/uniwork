@@ -94,3 +94,32 @@ export function escapeSelectiveMarkdownText(text: string): string {
   }
   return escaped;
 }
+
+/**
+ * The minimal manager shape the selective escaper patches. `escapeMarkdownSyntax`
+ * is a private member of `@tiptap/markdown`'s `MarkdownManager` (3.30.6), not in
+ * its public type, so it is assigned through this structural view.
+ */
+interface EscaperHost {
+  escapeMarkdownSyntax?: (text: string) => string;
+}
+
+/**
+ * Install the selective escaper on a MarkdownManager.
+ *
+ * `@tiptap/markdown`'s `encodeTextForMarkdown` calls the private
+ * `this.escapeMarkdownSyntax` for every text node it renders, so assigning the
+ * member here is the only seam that reaches the serialisation path. Both
+ * managers in this module must be patched: the editor's own (via
+ * `SelectiveMarkdown.onBeforeCreate`) and the codec's (built in
+ * `createMarkdownSourceManager`), or `publish()` would fall back to the stock
+ * blanket escaper and every `_ * ~ \` [` in an edited paragraph would gain a
+ * backslash. `serialize.test.ts` pins the codec path; a rename of the private
+ * member makes both that test and the editor mount fail.
+ */
+export function installSelectiveEscaper(manager: object): void {
+  // The member is private in the manager's declared type, so the structural
+  // view is reached through `unknown`; the runtime shape is the only contract.
+  (manager as unknown as EscaperHost).escapeMarkdownSyntax = (text: string) =>
+    escapeSelectiveMarkdownText(text);
+}

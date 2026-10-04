@@ -20,7 +20,7 @@ import { Extension, splitExtensions } from "@tiptap/core";
 import type { AnyExtension } from "@tiptap/core";
 import { Markdown } from "@tiptap/markdown";
 import { createEditorExtensions, type EditorExtensionsOptions } from "../../../editor/extensions";
-import { escapeSelectiveMarkdownText } from "./escape";
+import { installSelectiveEscaper } from "./escape";
 import { MarkdownRawExtension } from "./raw-node";
 
 export { MarkdownRawExtension };
@@ -53,16 +53,13 @@ export const MarkdownSourceGapsExtension = Extension.create({
 });
 
 /**
- * `@tiptap/markdown` with the selective escaper installed. The manager is
- * rebuilt on `onBeforeCreate` (the base extension does the same) so the
- * selective method replaces the stock blanket escape before any parse.
+ * `@tiptap/markdown` with the selective escaper installed. The base extension
+ * rebuilds its manager on `onBeforeCreate`, so the selective method must be
+ * (re)installed there — after the rebuild, before any parse.
  */
 export const SelectiveMarkdown = Markdown.extend({
   onBeforeCreate() {
-    const manager = this.storage.manager as unknown as {
-      escapeMarkdownSyntax?: (text: string) => string;
-    };
-    manager.escapeMarkdownSyntax = (text: string) => escapeSelectiveMarkdownText(text);
+    installSelectiveEscaper(this.storage.manager);
   },
 });
 
