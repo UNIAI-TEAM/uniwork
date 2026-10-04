@@ -392,7 +392,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
             Source | Visual control. The host owns the mode so the control stays
             reachable while the visual canvas is unmounted (source mode).
           */}
-          <MarkdownRibbon editor={instance} editable={!readOnly} viewMode={mode} onViewModeChange={setMode} scope="markdown" />
+          <MarkdownRibbon editor={instance} editable={!readOnly && mode === "visual"} viewMode={mode} onViewModeChange={setMode} scope="markdown" />
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="md-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
             {mode === "source" ? (
               <>

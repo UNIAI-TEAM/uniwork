@@ -122,6 +122,16 @@ describe("MarkdownEditor (production surface)", () => {
 });
 
 describe("MarkdownEditor source mode", () => {
+  it("disables the ribbon commands while source mode is showing (no editor instance)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const bold = () => document.querySelector<HTMLElement>('[data-ribbon-item="bold"]')!;
+    expect(bold()).not.toHaveAttribute("aria-disabled");
+    switchToSource();
+    await screen.findByTestId("md-source");
+    expect(bold()).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("does not checkpoint during IME composition and reports unavailable without a preview port", async () => {
     const { saveCoordinator } = renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
