@@ -11,8 +11,8 @@ import { EngineBoundaryError } from "@uniwork/office-contracts";
 import { Notice } from "../../common/notice";
 import { PdfErrorState } from "./pdf-error-state";
 import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
-import { PdfPagePanel } from "./pdf-page-panel";
-import { PdfToolbar } from "./pdf-toolbar";
+import { PdfRibbonBar, PdfStatusBar, PdfThumbnailsRail } from "./chrome";
+import { PdfEditorPanels, type PdfEditorPanelId } from "./pdf-editor-panels";
 import { PdfPrintButton } from "./print";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
 
@@ -47,6 +47,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [passwordPending, setPasswordPending] = useState(false);
   const [textDraft, setTextDraft] = useState("");
   const [imageAssetId, setImageAssetId] = useState("");
+  const [activePanel, setActivePanel] = useState<PdfEditorPanelId | null>(null);
   const disposedRef = useRef(false);
   const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
@@ -242,17 +243,31 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
   const canReplaceImage = canEditText;
   const canPageOps = canEditText;
-  const canAnnotate = false;
+  const canAnnotate = capability?.operation === "serialize" && capability.status === "available";
   const promptMode = failure ? passwordMode(failure) : null;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><div className="flex items-center gap-2"><span className="text-caption text-muted-foreground" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span><PdfPrintButton surfaceRef={surfaceRef} disabled={viewState !== "ready"} /></div></header>
+      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><div className="flex items-center gap-2"><span className="text-caption text-muted-foreground" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span></div></header>
+      {viewState === "ready" ? (
+        <PdfRibbonBar
+          activeTab={"home"}
+          onTabChange={() => undefined}
+          onCommand={(id: string) => {
+            if (id === "save") save("button");
+            else if (id === "undo") undo();
+            else if (id === "redo") redo();
+            else if (id === "annotate" || id === "notes" || id === "forms" || id === "stamps" || id === "signatures" || id === "page-ops" || id === "page-box" || id === "properties" || id === "text" || id === "image") setActivePanel(id as PdfEditorPanelId);
+          }}
+          findOpen={false}
+          onFindToggle={() => undefined}
+          commands={[]}
+        />
+      ) : null}
       {viewState === "ready" ? (
         <>
-          <PdfToolbar coordinator={coordinator} dirty={dirty} saving={saving} readOnly={readOnly} selection={selection} canUndo={typeof editor.undo === "function"} canRedo={typeof editor.redo === "function"} canEditText={canEditText} canReplaceImage={canReplaceImage} canPageOps={canPageOps} canAnnotate={canAnnotate} onUndo={undo} onRedo={redo} onEditText={() => { if (selection?.kind === "text") setTextDraft(""); }} onReplaceImage={() => { setImageAssetId(""); }} onInsertPage={() => void applyEdit({ op: "insert_page", target: { index: pages.length } })} onDeletePage={() => { if (selectedPage !== null) void applyEdit({ op: "delete_page", target: { page: selectedPage } }); }} onRotatePage={() => { if (selectedPage !== null) void applyEdit({ op: "rotate_page", target: { page: selectedPage }, degrees: 90 }); }} onReorderPage={() => { if (selectedPage !== null) void applyEdit({ op: "reorder_page", target: { page: selectedPage }, index: Math.max(0, selectedPage - 2) }); }} onExtractPage={() => { if (selectedPage !== null) void applyEdit({ op: "extract_page", target: { page: selectedPage } }); }} onMergePages={() => void applyEdit({ op: "merge_pages", target: { pages: pages.map((page) => page.pageNumber) } })} onSave={() => save("button")} />
           <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
-            <PdfPagePanel pages={pages} selectedPage={selectedPage} disabled={readOnly} onSelect={selectPage} onReorder={(page, index) => void applyEdit({ op: "reorder_page", target: { page }, index })} onExtract={(page) => void applyEdit({ op: "extract_page", target: { page } })} />
+            <PdfThumbnailsRail pages={pages} activePage={selectedPage ?? undefined} onSelect={selectPage} />
             <div className="min-h-64 min-w-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-8">
               {editFailure ? <Notice tone="destructive" icon={AlertTriangle} live="assertive" className="mb-3">{t("office.pdf.errors.editFailed")}</Notice> : null}
               {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite" className="mb-3">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
@@ -260,6 +275,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
               {selection?.kind === "text" && !readOnly ? <div className="mt-3 flex gap-2"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) void applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div> : null}
               {selection?.kind === "image" && !readOnly ? <div className="mt-3 flex gap-2"><label htmlFor="pdf-image-asset" className="sr-only">{t("office.pdf.edit.imageLabel")}</label><input id="pdf-image-asset" value={imageAssetId} onChange={(event) => setImageAssetId(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.imagePlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId && imageAssetId) void applyEdit({ op: "replace_image", target: { page: selection.page, objectId: selection.objectId }, assetId: imageAssetId }); }}>{t("office.pdf.edit.applyImage")}</Button></div> : null}
             </div>
+            <PdfEditorPanels activePanel={activePanel} onActivePanelChange={setActivePanel} />
           </div>
         </>
       ) : viewState === "error" && failure ? (
@@ -271,6 +287,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
         )
       ) : <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
+      {viewState === "ready" ? <PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} counts={{}} language={undefined} selection={selection ? String(selection.kind) : null} zoom={1} onZoomChange={() => undefined} /> : null}
     </div>
   );
 }
