@@ -58,6 +58,7 @@
     "./office/error-state": "./office/error-state.ts",
     "./office/save-coordinator": "./office/save-coordinator.ts",
     "./office/store": "./office/store.ts",
+    "./office/ribbon-preferences": "./office/ribbon-preferences.ts",
     "./office/draft-key-port": "./office/draft-key-port.ts",
     "./drafts/cleanup-registry": "./drafts/cleanup-registry.ts",
     "./documents/errors": "./documents/errors.ts",
