@@ -87,7 +87,7 @@ describe("HtmlEditor", () => {
     expect(screen.queryByTestId("html-source")).toBeNull();
   });
 
-  it("still renders the textarea for Markdown", async () => {
+  it("renders the Markdown WYSIWYG surface (M-WIRE) and not CodeMirror", async () => {
     let text = "# Keep";
     const editor: MarkdownEditorHandle = {
       format: "md",
@@ -103,7 +103,7 @@ describe("HtmlEditor", () => {
     };
     const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
     render(<MarkdownEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "md", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
-    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
     expect(screen.queryByTestId("html-codemirror")).toBeNull();
   });
 
