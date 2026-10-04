@@ -251,3 +251,42 @@ describe("MarkdownWysiwygEditor", () => {
     expect(source.getText()).toContain("dang g");
   });
 });
+
+describe("MarkdownWysiwygEditor image pipeline", () => {
+  it("leaves the extension set untouched when no image option is given", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    // The upload plugin only exists when a host wires the pipeline.
+    expect(live!.state.plugins.some((plugin) => plugin.key.startsWith("markdownImageUpload"))).toBe(false);
+  });
+
+  it("mounts the upload plugin and authors the relative path the host returns", async () => {
+    const uploader = vi.fn(async () => ({ path: "assets/pasted.png", assetId: "asset-pasted" }));
+    const manifest = { entries: [{ path: "assets/pasted.png", asset_id: "asset-pasted", status: "ready" as const }] };
+    const port = { displayUrl: (id: string) => `blob:${id}` };
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    render(
+      <MarkdownWysiwygEditor
+        documentKey="doc"
+        editor={handle}
+        onEditorReady={(editor) => { live = editor; }}
+        image={{ manifest, port, uploader }}
+      />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(live!.state.plugins.some((plugin) => plugin.key.startsWith("markdownImageUpload"))).toBe(true);
+
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: { files: [new File(["png"], "pasted.png", { type: "image/png" })], getData: () => "" },
+    });
+    await act(async () => { live!.view.dom.dispatchEvent(event); });
+
+    await waitFor(() => expect(uploader).toHaveBeenCalledTimes(1));
+    // Only the RELATIVE path the host returned is authored into the Markdown.
+    await waitFor(() => expect(handle.source!.getText()).toContain("assets/pasted.png"));
+  });
+});

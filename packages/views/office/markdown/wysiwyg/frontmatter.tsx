@@ -50,6 +50,22 @@ export function replaceFrontmatterSpan(text: string, span: FrontmatterSpan, next
   return text.slice(0, span.start) + nextYaml + text.slice(span.end);
 }
 
+/**
+ * A best-effort span for a HALF-WRITTEN front matter. `findFrontmatter` returns
+ * null once either fence is damaged (the user deleted the opening or closing
+ * `---`, or is midway through typing one). Swapping in the empty state at that
+ * keystroke would unmount the field the user is typing into, so while the field
+ * has focus we fall back to the leading block: from the start of the document
+ * up to the first blank line (or the whole text when there is none). That keeps
+ * the field mounted and the next keystroke writable. Returns null for empty text.
+ */
+export function readFrontmatterDraftSpan(text: string): FrontmatterSpan | null {
+  if (text.length === 0) return null;
+  const blank = /(\r?\n)[ \t]*\r?\n/.exec(text);
+  const end = blank ? blank.index + blank[1]!.length : text.length;
+  return { start: 0, end, yaml: text.slice(0, end) };
+}
+
 export interface MarkdownFrontmatterPanelProps {
   /** The shared editor handle; its `source` port is the one text source. */
   editor: TextEditorHandle;
@@ -78,6 +94,10 @@ export function MarkdownFrontmatterPanel({
 }: MarkdownFrontmatterPanelProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.markdown.frontmatter" });
   const [text, setText] = useState(() => readText(editor));
+  // True while the field holds focus. It keeps a half-written front matter
+  // mounted (see `active` below) instead of unmounting it on the keystroke that
+  // removes the closing fence.
+  const [editing, setEditing] = useState(false);
 
   // Follow the shared source: a body edit (or a source-editor change) arrives
   // here, and the panel re-reads the span from the new bytes.
@@ -89,17 +109,27 @@ export function MarkdownFrontmatterPanel({
   }, [editor]);
 
   const span = useMemo(() => readFrontmatterSpan(text), [text]);
+  // While the user is editing, a null `span` is not "no front matter" - it is a
+  // fence being repaired. Fall back to the raw leading block so the field stays
+  // mounted and the next keystroke can still be written back.
+  const draftSpan = useMemo(
+    () => (editing && !span ? readFrontmatterDraftSpan(text) : null),
+    [editing, span, text],
+  );
+  const active = span ?? draftSpan;
 
   const onEdit = useCallback(
     (nextYaml: string) => {
       const current = readText(editor);
-      const live = readFrontmatterSpan(current);
+      const live =
+        readFrontmatterSpan(current) ??
+        (editing ? readFrontmatterDraftSpan(current) : null);
       if (!live) return;
       writeText(editor, replaceFrontmatterSpan(current, live, nextYaml));
       setText(readText(editor));
       onChange?.(nextYaml);
     },
-    [editor, onChange],
+    [editor, editing, onChange],
   );
 
   return (
@@ -109,18 +139,23 @@ export function MarkdownFrontmatterPanel({
       data-testid="md-frontmatter"
     >
       <h2 className="px-1 text-label font-medium">{t("title")}</h2>
-      {span ? (
+      {active ? (
         <>
           <Textarea
             aria-label={t("title")}
+            aria-invalid={span ? undefined : true}
             data-testid="md-frontmatter-text"
             className="min-h-24 font-mono text-caption"
-            value={span.yaml}
+            value={active.yaml}
             readOnly={!editable}
             spellCheck={false}
+            onFocus={() => setEditing(true)}
+            onBlur={() => setEditing(false)}
             onChange={(event) => onEdit(event.target.value)}
           />
-          <p className="px-1 text-caption text-muted-foreground">{t("preserved")}</p>
+          {/* A damaged fence has no helper copy of its own; `aria-invalid` is
+              the state, and the field stays mounted so the user can repair it. */}
+          {span ? <p className="px-1 text-caption text-muted-foreground">{t("preserved")}</p> : null}
         </>
       ) : (
         <p className="px-1 text-caption text-muted-foreground" data-testid="md-frontmatter-empty">

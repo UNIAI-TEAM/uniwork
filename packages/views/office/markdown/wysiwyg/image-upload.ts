@@ -112,6 +112,12 @@ export function createMarkdownImageUploadExtension(options: MarkdownImageUploadO
         else editor.chain().focus().insertContent({ type: "image", attrs }).run();
 
         notify(1);
+        // Fire-and-forget: the upload outlives the mount. If this editor is
+        // destroyed before it settles the result is dropped - the placeholder
+        // went with the destroyed document, and the write-back path owns
+        // delivery for a dead editor (the same rule as the shared uploader).
+        // `onPendingChange` still fires with -1 in the `finally` below, so a
+        // host counting in-flight uploads cannot be left stuck.
         void (async () => {
           try {
             const result = await uploader(file, uploadId);

@@ -65,6 +65,9 @@ export function resolveImageSource(
   if (row.status === "ready" && row.assetId !== null) {
     return { status: "manifest", path, assetId: row.assetId };
   }
+  // A `ready` row with no opaque id is not resolvable, but it is not a failed
+  // asset either: report it as absent from the manifest rather than inventing a
+  // `failed` status the host never set.
   return { status: "unavailable", path, reason: row.status === "ready" ? "not_in_manifest" : row.status };
 }
 

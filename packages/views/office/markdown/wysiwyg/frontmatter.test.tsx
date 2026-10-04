@@ -4,7 +4,12 @@ import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { findFrontmatter } from "@uniwork/office-engine/markdown";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { MarkdownFrontmatterPanel, readFrontmatterSpan, replaceFrontmatterSpan } from "./frontmatter";
+import {
+  MarkdownFrontmatterPanel,
+  readFrontmatterDraftSpan,
+  readFrontmatterSpan,
+  replaceFrontmatterSpan,
+} from "./frontmatter";
 import { MarkdownWysiwygEditor } from "./editor";
 import type { Editor } from "@tiptap/react";
 import type { TextEditorHandle } from "../../source-editor-types";
@@ -65,6 +70,19 @@ describe("findFrontmatter span", () => {
     expect(readFrontmatterSpan("intro\n\n---\ntitle: late\n---\n")).toBeNull();
   });
 
+  it("keeps a CRLF front matter byte-identical", () => {
+    const crlf = "---\r\ntitle: Kitchen sink\r\n---\r\n";
+    const span = readFrontmatterSpan(crlf + "\r\nBody.\r\n");
+    expect(span?.yaml).toBe(crlf);
+    // The separator the lexer saw is CRLF, so the draft fallback must stop on a
+    // CRLF blank line too - never on the LF inside it.
+    expect(readFrontmatterDraftSpan("---\r\ntitle: x\r\n\r\nBody")).toEqual({
+      start: 0,
+      end: "---\r\ntitle: x\r\n".length,
+      yaml: "---\r\ntitle: x\r\n",
+    });
+  });
+
   it("replaces exactly the span and leaves every other byte alone", () => {
     const span = readFrontmatterSpan(FIXTURE)!;
     const next = replaceFrontmatterSpan(FIXTURE, span, "---\ntitle: Renamed\n---\n");
@@ -103,6 +121,29 @@ describe("MarkdownFrontmatterPanel", () => {
     await waitFor(() => expect(source.getText()).toContain("Appended."));
     expect(source.getText().startsWith(FRONTMATTER)).toBe(true);
     expect(source.getText().slice(0, findFrontmatter(source.getText())!.end)).toBe(FRONTMATTER);
+  });
+
+  it("keeps the field mounted when a fence is deleted mid-edit", () => {
+    // Deleting the closing `---` makes `findFrontmatter` return null. Without
+    // the draft fallback the panel would swap to the empty state and unmount the
+    // textarea the user is typing into.
+    expect(readFrontmatterSpan("---\ntitle: x\n")).toBeNull();
+    expect(readFrontmatterDraftSpan("---\ntitle: x\n")?.yaml).toBe("---\ntitle: x\n");
+
+    // Start from a valid document, focus the field, then break the fence the
+    // way the keystroke that deletes it would.
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    render(<MarkdownFrontmatterPanel editor={handle} />);
+    const field = screen.getByTestId("md-frontmatter-text") as HTMLTextAreaElement;
+
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "---\ntitle: x\n" } });
+
+    // The field is still there, marked invalid, not replaced by the empty state.
+    expect(screen.getByTestId("md-frontmatter-text")).toBeInTheDocument();
+    expect(screen.queryByTestId("md-frontmatter-empty")).toBeNull();
+    expect(screen.getByTestId("md-frontmatter-text")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("replaces exactly the front-matter span on a front-matter edit", () => {

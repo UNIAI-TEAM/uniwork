@@ -16,9 +16,11 @@ export interface MarkdownImageScope {
   manifest: AssetManifestLike | null;
   /** Host port: asset id -> display URL. Absent outside a host. */
   port?: ImageAssetPort;
-  /** Recorded upload failures, keyed by the authored name/path. */
-  failures?: Readonly<Record<string, AssetStatus | boolean>>;
-  /** Called when a paste/drop upload fails, so the doc stays unsavable. */
+  /**
+   * Called when a paste/drop upload fails, so the doc stays unsavable. The
+   * editor routes it into the upload plugin; the recorded failures themselves
+   * live in the caller's save-blocking state (`imageSaveBlocked`), not here.
+   */
   onAssetFailure?: (name: string, status: AssetStatus) => void;
 }
 
