@@ -264,6 +264,11 @@ describe("XlsxEditor context menu and shortcuts", () => {
     // Ctrl+PageDown: activate the next visible sheet tab.
     fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "PageDown", ctrlKey: true });
     expect(grid.handle.selectSheet).toHaveBeenLastCalledWith("sheet-2");
+    // Ctrl+Shift+Z: the advertised redo alternate chord (upstream binds only
+    // Ctrl+Y), routed to the live grid's redo stack.
+    grid.handle.redo.mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "Z", ctrlKey: true, shiftKey: true });
+    expect(grid.handle.redo).toHaveBeenCalledOnce();
   });
 
   it("leaves catalog keys to the cell editor while it owns the keyboard", async () => {

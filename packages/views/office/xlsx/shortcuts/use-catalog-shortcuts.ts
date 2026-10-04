@@ -1,10 +1,12 @@
-﻿// Wave A / A9 r3 (UNI-926): the editor-side binding for the shortcuts the help
+// Wave A / A9 r3 (UNI-926): the editor-side binding for the shortcuts the help
 // catalog advertises. The catalog must list only keys that really answer, so
 // the keys the pinned sheets-ui does NOT bind (Ctrl+F is policy-denied,
 // Shift+F11 and Ctrl+PageUp/Down have no upstream binding) are captured here
 // on the native path - the Univer input is a nested React root, so a JSX
-// handler would miss it. Kept out of `xlsx-editor.tsx` so the shared file
-// gains only a one-line mount.
+// handler would miss it. The redo alternate chord Ctrl+Shift+Z is captured
+// here too: the pinned bundle binds only Ctrl+Y for redo, so on the live grid
+// the advertised alternative would otherwise be dead. Kept out of
+// `xlsx-editor.tsx` so the shared file gains only a one-line mount.
 
 import { useEffect, type RefObject } from "react";
 import { uniqueSheetName } from "../sheet-tabs";
@@ -27,6 +29,8 @@ export interface XlsxCatalogShortcutOptions {
   canFind: boolean;
   /** The grid accepts edits (Shift+F11 insert-sheet). */
   canEdit: boolean;
+  /** The grid has a live undo stack, so the redo alternate chord answers. */
+  canRedo: boolean;
   /** Visible + hidden tabs in strip order (the active sheet is matched by name). */
   sheets: readonly XlsxCatalogShortcutSheet[];
   activeSheet: string | null;
@@ -36,6 +40,8 @@ export interface XlsxCatalogShortcutOptions {
   /** Insert a sheet with the given (unique) name. */
   onInsertSheet: (name: string) => void;
   onSelectSheet: (name: string) => void;
+  /** Redo the last undone edit (the Ctrl+Shift+Z alternate chord). */
+  onRedo: () => void;
 }
 
 /** True while a form control (the formula bar, a native input) owns the
@@ -48,12 +54,13 @@ function ownsKeyboard(target: EventTarget | null): boolean {
 }
 
 /** Binds the catalog keys the pinned UI does not: Ctrl/Cmd+F (editor find),
- *  Shift+F11 (insert sheet) and Ctrl/Cmd+PageDown/PageUp (next/previous
- *  visible sheet). Excel does not wrap at either end. */
+ *  Shift+F11 (insert sheet), Ctrl/Cmd+PageDown/PageUp (next/previous visible
+ *  sheet) and Ctrl/Cmd+Shift+Z (redo; upstream binds only Ctrl+Y). Excel does
+ *  not wrap at either end. */
 export function useXlsxCatalogShortcuts(options: XlsxCatalogShortcutOptions): void {
   const {
-    enabled, rootRef, documentKey, canFind, canEdit, sheets, activeSheet, defaultSheetName,
-    onOpenFind, onInsertSheet, onSelectSheet,
+    enabled, rootRef, documentKey, canFind, canEdit, canRedo, sheets, activeSheet, defaultSheetName,
+    onOpenFind, onInsertSheet, onSelectSheet, onRedo,
   } = options;
 
   useEffect(() => {
@@ -72,6 +79,15 @@ export function useXlsxCatalogShortcuts(options: XlsxCatalogShortcutOptions): vo
         return;
       }
       if (!(event.metaKey || event.ctrlKey)) return;
+      // The redo alternate chord: the pinned bundle binds only Ctrl+Y, so the
+      // advertised Ctrl+Shift+Z is dead on the live grid without this.
+      if ((key === "z" || key === "Z") && event.shiftKey) {
+        if (!canRedo) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onRedo();
+        return;
+      }
       if ((key === "f" || key === "F") && !event.shiftKey) {
         if (!canFind) return;
         event.preventDefault();
@@ -92,7 +108,7 @@ export function useXlsxCatalogShortcuts(options: XlsxCatalogShortcutOptions): vo
     root.addEventListener("keydown", onKeyDown, true);
     return () => root.removeEventListener("keydown", onKeyDown, true);
   }, [
-    activeSheet, canEdit, canFind, defaultSheetName, documentKey, enabled,
-    onInsertSheet, onOpenFind, onSelectSheet, rootRef, sheets,
+    activeSheet, canEdit, canFind, canRedo, defaultSheetName, documentKey, enabled,
+    onInsertSheet, onOpenFind, onRedo, onSelectSheet, rootRef, sheets,
   ]);
 }

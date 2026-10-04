@@ -574,19 +574,23 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     return source.map((sheet) => ({ ...sheet, tabColor: colors.get(sheet.name) ?? null }));
   }, [liveSheets, rendererHost, sheets]);
 
-  // A9 r3: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11, Ctrl+PageUp/Down).
+  // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
+  // Ctrl+PageUp/Down, and the redo alternate chord Ctrl+Shift+Z - upstream
+  // binds only Ctrl+Y).
   useXlsxCatalogShortcuts({
     enabled: viewState === "ready",
     rootRef,
     documentKey,
     canFind: rendererHost !== undefined,
     canEdit,
+    canRedo: gridReady || typeof editor.redo === "function",
     sheets: sheetTabInfos,
     activeSheet: activeSheetModel?.name ?? null,
     defaultSheetName: t("office.xlsx.sheets.defaultName"),
     onOpenFind: () => setFindOpen(true),
     onInsertSheet: (name) => runSheetAction({ kind: "add", name }),
     onSelectSheet: selectSheet,
+    onRedo: redo,
   });
 
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
