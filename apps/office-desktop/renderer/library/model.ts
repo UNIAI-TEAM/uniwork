@@ -4,6 +4,7 @@ import type {
   DesktopLibraryDocument,
   DesktopLibraryResponse,
 } from "../../shared/ipc";
+import { DESKTOP_DOCUMENT_FORMATS } from "../../shared/document-format";
 
 export type LibraryMode = "list" | "recent" | "search";
 export type LibraryScope = Readonly<{
@@ -22,11 +23,11 @@ export type LibraryBridge = Readonly<{
  * Keep this filter in the desktop host as a second line of defence even when
  * the server already scopes the query. Unknown rows are dropped closed. */
 export function filterLibraryDocuments(documents: readonly DesktopLibraryDocument[]): DesktopLibraryDocument[] {
-  return documents.filter((document) => document.kind === "file" && document.format === "docx" && document.ownerKind !== "work_product");
+  return documents.filter((document) => document.kind === "file" && (DESKTOP_DOCUMENT_FORMATS as readonly string[]).includes(document.format) && document.ownerKind !== "work_product");
 }
 
 export function canDownloadDocument(document: DesktopLibraryDocument, engineAvailable: boolean): boolean {
-  return document.downloadAvailable && (engineAvailable || document.format === "docx");
+  return document.downloadAvailable && (engineAvailable || (DESKTOP_DOCUMENT_FORMATS as readonly string[]).includes(document.format));
 }
 
 /** Scope changes must invalidate the query cache before the next list is

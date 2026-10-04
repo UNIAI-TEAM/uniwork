@@ -2,7 +2,37 @@ import { useEffect, useRef, useState } from "react";
 import type { OfficeIdentity } from "@uniwork/core/office";
 import type { RendererBridge } from "../app";
 import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "../office/session";
+import { createPptxDocumentSession, type PptxDocumentSession } from "../office/pptx-session";
+import { createDesktopPptxSurface } from "../office/pptx-surface";
+import { PPTX_DESKTOP_ENGINE_BUILD } from "../office/pptx-surface";
 import { closeDocumentTab, cycleDocumentTab, openDocumentTab, selectDocumentTab, type DocumentTabState } from "./tab-model";
+
+/** A document session is format-specific: DOCX/XLSX share the byte session,
+ * PPTX owns the deck-journal session. The tab strip and shell treat both
+ * through this shared surface. */
+export type TabSession = ByteDocumentSession | PptxDocumentSession;
+
+/** The desktop pptx surface for one tab: the opened bytes are already in the
+ * renderer (main read them behind IPC), so readBytes replays them. */
+function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: (generation: number) => void) {
+  const decoded = Uint8Array.from(atob(bytes.dataBase64), (character) => character.charCodeAt(0));
+  return createDesktopPptxSurface({
+    documentId: input.identity.documentId,
+    readBytes: async () => decoded.slice(),
+    identity: input.identity,
+    capability: {
+      format: "pptx",
+      operation: "serialize",
+      host: "desktop",
+      engineBuild: PPTX_DESKTOP_ENGINE_BUILD,
+      contractRevision: "office-editor-host/1",
+      status: bytes.canSave === false ? "readonly" : "available",
+      fidelityWarnings: [],
+    },
+    readOnly: bytes.canSave === false,
+    onDirty,
+  });
+}
 
 export interface OpenTabInput {
   readonly kind: "local" | "cloud";
@@ -13,10 +43,10 @@ export interface OpenTabInput {
 }
 
 export interface TabDocument extends OpenTabInput {
-  readonly session: ByteDocumentSession;
+  readonly session: TabSession;
 }
 
-export function isDocumentDirty(session: ByteDocumentSession): boolean {
+export function isDocumentDirty(session: TabSession): boolean {
   const state = session.coordinator.getState();
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "saving";
 }
@@ -75,18 +105,19 @@ export function useDocumentTabs(bridge: RendererBridge) {
       const existing = current.current.tabs.find((tab) => tab.id === input.identity.documentId);
       if (existing) { commit(selectDocumentTab(current.current, existing.id)); return "focused"; }
       if (current.current.tabs.length >= 8) return "limit";
-      const session = createByteDocumentSession(bridge, input.identity, input.bytes, {
-        // Save As moves the document to a new handle: main rebinds its context
-        // and the tab follows, so later saves and draft lookups use the new id.
-        onLocalRebind: (next) => {
-          const live = current.current;
-          if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
-          commit({
-            tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
-            activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
-          });
-        },
-      });
+      // Save As moves the document to a new handle: main rebinds its context
+      // and the tab follows, so later saves and draft lookups use the new id.
+      const onLocalRebind = (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => {
+        const live = current.current;
+        if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
+        commit({
+          tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
+          activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
+        });
+      };
+      const session: TabSession = input.format === "pptx"
+        ? createPptxDocumentSession(bridge, input.identity, input.bytes, (onDirty) => createPptxTabSurface(input, input.bytes, onDirty), { onLocalRebind })
+        : createByteDocumentSession(bridge, input.identity, input.bytes, { onLocalRebind });
       const result = openDocumentTab(current.current, { id: input.identity.documentId, title: input.title, format: input.format, data: { ...input, session } });
       commit(result.state);
       return result.outcome;

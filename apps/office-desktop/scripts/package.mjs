@@ -18,8 +18,17 @@ const distDirectory = join(appDirectory, "dist");
 const outputDirectory = resolve(process.env.OFFICE_DESKTOP_OUTPUT ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "artifacts"));
 const cacheRoot = resolve(process.env.OFFICE_DESKTOP_CACHE ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "cache"));
 
-/** The single docx MIME the desktop app registers on Linux. */
+/** The docx MIME kept as a named export for existing callers/tests. */
 export const LINUX_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+/** The xlsx/pptx MIME types the desktop app registers beside the docx one. */
+export const LINUX_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const LINUX_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+/** One file association per accepted OOXML format (docx, xlsx, pptx). */
+export const DESKTOP_FILE_ASSOCIATIONS = [
+  { ext: "docx", name: "Word document", role: "Editor", mimeType: LINUX_DOCX_MIME },
+  { ext: "xlsx", name: "Excel spreadsheet", role: "Editor", mimeType: LINUX_XLSX_MIME },
+  { ext: "pptx", name: "PowerPoint presentation", role: "Editor", mimeType: LINUX_PPTX_MIME },
+];
 /** Electron 44.5.0 (pinned) requires macOS 13 Ventura; spec §6.6 pins the same floor. */
 export const MACOS_MINIMUM_SYSTEM_VERSION = "13.0";
 /** Extra package metadata is build-time provided, with the accepted product
@@ -79,7 +88,9 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
   const buildVersion = version.includes("-") ? version : channel === "stable" ? version : `${version}-${channel}.0`;
   const artifactBase = `${channelIdentity.artifactPrefix}_${buildVersion}_${artifactLabel}_${platform}_${arch}`;
   const protocols = [{ name: channelIdentity.product, schemes: [channelIdentity.userScheme] }];
-  const fileAssociations = [{ ext: "docx", name: "Word document", role: "Editor", ...(platform === "linux" ? { mimeType: LINUX_DOCX_MIME } : {}) }];
+  // Windows keeps the original association shape (no mimeType key); Linux adds
+  // the standard OOXML MIME so the desktop entry and mime package carry it.
+  const fileAssociations = DESKTOP_FILE_ASSOCIATIONS.map(({ mimeType, ...association }) => platform === "linux" ? { ...association, mimeType } : association);
   const packagingMetadata = linuxPackagingMetadata();
   return {
     appId: channelIdentity.appId,
@@ -109,8 +120,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     // its copies under `linux` because electron-builder concatenates the
     // top-level and platform lists (duplicate MimeType entries otherwise).
     protocols: platform === "linux" ? undefined : protocols,
-    // Windows keeps the original association (no mimeType key); Linux adds the
-    // standard docx MIME so the desktop entry and mime package carry it.
+    // Windows/Linux keep their own association lists (macOS uses protocols).
     fileAssociations: platform === "linux" ? undefined : fileAssociations,
     win: platform === "win32" ? { target: [{ target: "zip", arch: [arch] }, { target: "nsis", arch: [arch] }], signAndEditExecutable: false } : undefined,
     nsis: platform === "win32" ? {

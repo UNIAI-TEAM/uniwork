@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
 import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
+import { desktopFormatOfName } from "../shared/document-format";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
 import type { LoginScreenState } from "./login";
@@ -149,9 +150,10 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     }
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     const file = result.metadata;
-    if (!/\.docx$/i.test(file.name)) { setActionError(t("officeDesktop.local.unsupported")); return; }
+    const format = desktopFormatOfName(file.name);
+    if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
     const title = file.untitled ? t("officeDesktop.local.untitled") : file.name;
-    if (tabs.open({ kind: "local", title, format: "docx", bytes: { dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    if (tabs.open({ kind: "local", title, format, bytes: { dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
   const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void) => {

@@ -11,9 +11,24 @@ import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
+import type { PptxDocumentSession } from "./pptx-session";
+import { PptxEditorView } from "@uniwork/views/office/pptx";
 import { DOCX_DESKTOP_ENGINE_BUILD } from "./docx-surface";
+import { PPTX_DESKTOP_ENGINE_BUILD } from "./pptx-surface";
 
-export function OpenByteDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
+/** Format dispatcher: a tab's session already knows its format, so the DOCX
+ * byte shell and the PPTX deck shell each stay typed to their own session. */
+export function OpenByteDocument(props: {
+  bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession | PptxDocumentSession; title: string; onBack: () => void;
+  active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
+}) {
+  const { session, ...rest } = props;
+  return session.editor.format === "pptx"
+    ? <OpenPptxDocument {...rest} session={session as PptxDocumentSession} />
+    : <OpenDocxDocument {...rest} session={session as ByteDocumentSession} />;
+}
+
+function OpenDocxDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
@@ -83,4 +98,52 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
         <EditorSlot format="docx" host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
         {ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="docx-readonly-surface">{session.editor.renderSurface?.()}</section> : null}
       </>} /></>;
+}
+
+/** The PPTX tab shell: the shared PptxEditorView mounts the deck canvas and
+ * the same save coordinator that DOCX uses (upload + Documents version
+ * commit). The editor handle and the opened deck come from the desktop pptx
+ * surface; main still owns every file and cloud write. */
+function OpenPptxDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud" }: {
+  bridge: RendererBridge; identity: OfficeIdentity; session: PptxDocumentSession; title: string; onBack: () => void;
+  active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
+}) {
+  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
+  const [failure, setFailure] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [, setRevision] = useState(0);
+  const [openAttempt, setOpenAttempt] = useState(0);
+  useEffect(() => () => session.dispose(), [session]);
+  useEffect(() => {
+    if (!active) return undefined;
+    let alive = true;
+    void session.openEditor().then(() => { if (alive) setReady(true); }).catch((error: unknown) => { if (alive) setFailure(error instanceof Error ? error.message : String(error)); });
+    return () => { alive = false; };
+  }, [active, session, openAttempt]);
+  useEffect(() => session.coordinator.subscribe(() => setRevision((value) => value + 1)), [session]);
+  useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === identity.documentId) void session.coordinator.save("menu"); }), [active, bridge, identity.documentId, ready, session]);
+  const capability = useMemo(() => ({ format: "pptx" as const, operation: "serialize", host: "desktop", engineBuild: PPTX_DESKTOP_ENGINE_BUILD, contractRevision: "office-editor-host/1", status: session.canSave ? "available" as const : "readonly" as const, fidelityWarnings: [] }), [session]);
+  const host = useMemo<OfficeHost>(() => ({
+    read: { readDocument: async () => (await session.editor.captureSnapshot()).value as never, openDocument: async () => ({ outcome: "opened", document_id: identity.documentId, document_model_ref: identity.documentId, warnings: [] }) },
+    write: { writeOutput: async () => { throw new Error("use_save_coordinator"); } },
+    assets: { resolveFont: async () => null, resolveImage: async () => null, resolveAsset: async () => null },
+    ipc: { call: async () => { throw new Error("host_operation_unbound"); }, send: () => undefined, subscribe: () => () => undefined },
+  }), [identity.documentId, session]);
+  const deck = useMemo(() => ({ deck: session.editor.deck() ?? undefined, revision: session.editor.revision() }), [session]);
+  const slides = useMemo(() => session.editor.slides().map((slide, index) => ({ id: slide.id, label: String(index + 1), hidden: slide.hidden })), [session]);
+  return <PptxEditorView
+    title={title}
+    host={host}
+    editorHandle={session.editor}
+    capability={capability}
+    openState={failure ? "error" : ready ? "ready" : "loading"}
+    openError={failure ?? undefined}
+    onRetry={() => { setFailure(null); setOpenAttempt((value) => value + 1); }}
+    deck={deck}
+    slides={slides}
+    saveCoordinator={session.coordinator}
+    breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
+    fullscreen={false}
+  />;
 }

@@ -101,6 +101,10 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // Node/Electron import — node:crypto/node:zlib/Buffer are shimmed at build
   // time (scripts/office/build-pptx-browser.mjs).
   "@uniwork/office-upstream/pptx-renderer",
+  // UNI-927 D1: the desktop renderer mounts the shared PPTX view exactly as it
+  // mounts @uniwork/views/office/docx. The view graph is browser code (it binds
+  // the pptx artifact and office-engine/pptx, both already allowlisted).
+  "@uniwork/views/office/pptx",
 ]);
 const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 

@@ -55,6 +55,22 @@ describe("desktop IPC allowlist", () => {
     expect(guard.busy).toBe(false);
   });
 
+  it("accepts the three OOXML picks and refuses any other extension", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "Deck.pptx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
+    const registry = { openPath: async () => metadata, read: async () => new Uint8Array([1]) } as unknown as FileHandleRegistry;
+    for (const path of ["C:\\Deck.pptx", "C:\\Sheet.xlsx", "C:\\Plan.docx"]) {
+      const handlers = createFileIpcHandlers({ registry, pickOpen: async () => path });
+      await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toMatchObject({ opened: true, metadata });
+    }
+    const refused = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\notes.txt" });
+    await expect(refused["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ opened: false, unsupported: true });
+    const recents = { resolve: async () => ({ path: "C:\\Deck.pptx" }) };
+    const recentHandlers = createFileIpcHandlers({ registry, recents: recents as never });
+    await expect(recentHandlers["desktop:recent-open"]({ sessionGeneration: "session_1234", id: `recent_${"a".repeat(16)}` })).resolves.toMatchObject({ opened: true });
+    const refusedRecent = createFileIpcHandlers({ registry, recents: { resolve: async () => ({ path: "C:\\notes.txt" }) } as never });
+    await expect(refusedRecent["desktop:recent-open"]({ sessionGeneration: "session_1234", id: `recent_${"a".repeat(16)}` })).resolves.toEqual({ opened: false, unsupported: true });
+  });
+
   it("records a local open without a durable draft, and checkpoints only before a write", async () => {
     const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.docx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
     const checkpoint = vi.fn(async () => undefined);

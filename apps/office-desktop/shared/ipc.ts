@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { desktopDocumentFormatSchema, desktopMimeTypeSchema } from "./document-format";
 import { isAllowedExternalUrl } from "./external-url";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
@@ -134,7 +135,8 @@ export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status",
 ]);
 export const desktopDraftDiscardResponseSchema = z.object({ discarded: z.boolean() }).strict();
 const documentKindSchema = z.literal("file");
-const documentFormatSchema = z.literal("docx");
+const documentFormatSchema = desktopDocumentFormatSchema;
+const ooxmlMimeSchema = desktopMimeTypeSchema;
 const libraryDocumentSchema = z.object({
   id: documentIdSchema,
   workspaceId: opaqueHandleSchema,
@@ -168,7 +170,7 @@ export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
   version: z.number().int().nonnegative(),
   filename: z.string().min(1).max(255),
-  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  mimeType: ooxmlMimeSchema,
   dataBase64: base64BytesSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
@@ -177,7 +179,7 @@ export const desktopOfficeOpenResponseSchema = z.object({
   document: libraryDocumentSchema,
   dataBase64: base64BytesSchema,
   filename: z.string().min(1).max(255),
-  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  mimeType: ooxmlMimeSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
@@ -345,8 +347,8 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves carry the serialized DOCX in the same bounded byte class as
-  // local-file and draft payloads. Keep control calls at the smaller limit.
+  // Office saves carry the serialized document bytes in the same bounded byte
+  // class as local-file and draft payloads. Keep control calls at the smaller limit.
   const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };

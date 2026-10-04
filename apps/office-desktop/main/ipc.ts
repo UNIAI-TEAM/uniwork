@@ -13,6 +13,7 @@ import type { DeploymentProfile } from "../shared/deployment";
 import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import { sameDocumentSession } from "./opened-documents";
 import { blankDocxBytes } from "./files/blank-docx";
+import { isDesktopDocumentName, type DesktopDocumentFormat } from "../shared/document-format";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
@@ -26,7 +27,7 @@ export type DesktopOfficeTransport = Readonly<{
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
-  save(input: { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
+  save(input: { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string; format?: DesktopDocumentFormat }): Promise<DesktopOfficeSaveResponse>;
 }>;
 
 export interface OfficeIpcOptions {
@@ -49,6 +50,10 @@ export interface OfficeIpcOptions {
  * dispatcher validates request/response schemas after this function returns;
  * malformed provider answers therefore fail closed at the IPC boundary. */
 export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
+  // Main remembers the format of every document it opened; a Save uploads the
+  // bytes back under that document's own media type. The renderer never
+  // chooses it, and an unknown id falls back to the DOCX default.
+  const formatByDocument = new Map<string, DesktopDocumentFormat>();
   const requireSession = () => {
     if (options.isSignedIn && !options.isSignedIn()) throw new OfficeIpcError("login_required");
   };
@@ -78,6 +83,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       const session = options.session?.();
       const response = desktopOfficeOpenResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title }));
       assertSession(session);
+      formatByDocument.set(response.document.id, response.document.format);
       options.onDocumentOpened?.(response.document);
       return response;
     },
@@ -90,6 +96,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       const session = options.session?.();
       const response = desktopOfficeOpenResponseSchema.parse(await options.transport.open({ workspaceId: request.workspaceId, documentId: request.documentId, version: (request as { version?: number }).version }));
       assertSession(session);
+      formatByDocument.set(response.document.id, response.document.format);
       options.onDocumentOpened?.(response.document);
       return response;
     },
@@ -101,7 +108,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       if (options.saveGuard && !release) throw new OfficeIpcError("saving");
       const confirmSave = options.beginSave?.(request.documentId);
       try {
-        const response = desktopOfficeSaveResponseSchema.parse(await options.transport.save(request));
+        const response = desktopOfficeSaveResponseSchema.parse(await options.transport.save({ ...request, format: formatByDocument.get(request.documentId) }));
         assertSession(session);
         confirmSave?.();
         options.onSaveConfirmed?.(response.documentId);
@@ -176,9 +183,9 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       const path = await options.pickOpen();
       if (!path) return { opened: false };
-      // The desktop host is DOCX-only: a non-docx pick is refused here, before
-      // any handle, document context or recent row exists.
-      if (!/\.docx$/i.test(path)) return { opened: false, unsupported: true };
+      // The desktop host accepts the three OOXML formats; anything else is
+      // refused here, before any handle, document context or recent row exists.
+      if (!isDesktopDocumentName(path)) return { opened: false, unsupported: true };
       assertSession(session);
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
@@ -198,7 +205,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!options.recents) throw new FileIpcError("invalid_path");
       const entry = await options.recents.resolve(request.id);
       if (!entry) return { opened: false, missing: true };
-      if (!/\.docx$/i.test(entry.path)) return { opened: false, unsupported: true };
+      if (!isDesktopDocumentName(entry.path)) return { opened: false, unsupported: true };
       const session = options.session?.();
       let metadata: import("./files/registry").OpenFileMetadata;
       try {

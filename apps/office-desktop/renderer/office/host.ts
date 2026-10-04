@@ -1,6 +1,11 @@
 import type { OfficeFormat, OfficeHostAdapter, OpenOutcome } from "@uniwork/office-contracts";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import { DESKTOP_DOCUMENT_FORMATS } from "../../shared/document-format";
+
+function isDesktopFormat(format: string): boolean {
+  return (DESKTOP_DOCUMENT_FORMATS as readonly string[]).includes(format);
+}
 
 function decodeBase64(value: string): Uint8Array {
   if (typeof atob === "function") {
@@ -42,7 +47,7 @@ export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): Offi
     return decodeBase64(result.dataBase64);
   };
   const openDocument = async (documentId: string, format: OfficeFormat): Promise<OpenOutcome> => {
-    if (format !== "docx") return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "Desktop DOCX host only" };
+    if (!isDesktopFormat(format)) return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "Desktop OOXML host only" };
     try {
       const result = await call("desktop:office-open", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId, ...(options.context.version === undefined ? {} : { version: options.context.version }) }) as DesktopOfficeOpenResponse;
       return { outcome: "opened", document_id: documentId, document_model_ref: `desktop:${result.document.id}:${result.document.revision}`, warnings: [] };
