@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import { Notice } from "../../common/notice";
 import { PdfErrorState } from "./pdf-error-state";
+import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfPagePanel } from "./pdf-page-panel";
 import { PdfToolbar } from "./pdf-toolbar";
 import { PdfPrintButton } from "./print";
@@ -26,6 +27,12 @@ function isFailure(outcome: PdfOpenOutcome): outcome is PdfOpenFailure {
   return outcome.outcome === "failed";
 }
 
+function passwordMode(failure: PdfOpenFailure): PdfPasswordMode | null {
+  if (failure.failure_class === "password_required") return "required";
+  if (failure.failure_class === "wrong_password") return "wrong";
+  return null;
+}
+
 const DEFAULT_PAGE: PdfPage = { pageNumber: 1, rotation: 0 };
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
@@ -37,9 +44,11 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [fontReport, setFontReport] = useState(() => editor.getFontReport?.() ?? null);
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [retryToken, setRetryToken] = useState(0);
+  const [passwordPending, setPasswordPending] = useState(false);
   const [textDraft, setTextDraft] = useState("");
   const [imageAssetId, setImageAssetId] = useState("");
   const disposedRef = useRef(false);
+  const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
   const coordinatorRef = useRef(coordinator);
@@ -93,6 +102,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     disposedRef.current = false;
     setViewState("opening");
     setFailure(null);
+    setPasswordPending(false);
     setEditFailure(false);
     setSnapshot(null);
     setFontReport(activeEditor.getFontReport?.() ?? null);
@@ -132,11 +142,54 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     return () => {
       disposedRef.current = true;
       controller.abort();
+      passwordControllerRef.current?.abort();
+      passwordControllerRef.current = null;
       void activeEditor.cancel?.("document_changed");
       void activeCoordinator.cancel?.();
       void activeEditor.dispose();
     };
   }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
+
+  const submitPassword = useCallback(async (password: string) => {
+    const activeOpen = openRef.current;
+    const activeEditor = editorRef.current;
+    const activeOnOpen = onOpenRef.current;
+    const controller = new AbortController();
+    passwordControllerRef.current = controller;
+    setPasswordPending(true);
+    try {
+      const outcome = await activeOpen.open(controller.signal, password);
+      if (disposedRef.current) return;
+      activeOnOpen?.(outcome);
+      if (isFailure(outcome)) {
+        setFailure(outcome);
+        setViewState("error");
+        return;
+      }
+      await activeEditor.open();
+      if (disposedRef.current) return;
+      setFailure(null);
+      setSnapshot(activeEditor.getPdfSnapshot?.() ?? { pages: [DEFAULT_PAGE], pageCount: 1 });
+      setFontReport(activeEditor.getFontReport?.() ?? null);
+      setViewState("ready");
+    } catch (error) {
+      if (disposedRef.current) return;
+      const next = unexpectedFailure(documentKey, error);
+      setFailure(next);
+      setViewState("error");
+      activeOnOpen?.(next);
+    } finally {
+      if (passwordControllerRef.current === controller) passwordControllerRef.current = null;
+      if (!disposedRef.current) setPasswordPending(false);
+    }
+  }, [documentKey]);
+
+  const cancelPassword = useCallback(() => {
+    const next: PdfOpenFailure = { outcome: "failed", document_id: documentKey, format: "pdf", failure_class: "password_cancelled" };
+    setFailure(next);
+    setViewState("error");
+    onOpenRef.current?.(next);
+  }, [documentKey]);
 
   const refreshSnapshot = useCallback(() => {
     const next = editor.getPdfSnapshot?.();
@@ -190,6 +243,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canReplaceImage = canEditText;
   const canPageOps = canEditText;
   const canAnnotate = false;
+  const promptMode = failure ? passwordMode(failure) : null;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
@@ -208,7 +262,15 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
             </div>
           </div>
         </>
-      ) : viewState === "error" && failure ? <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} /> : <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
+      ) : viewState === "error" && failure ? (
+        promptMode ? (
+          <div className="flex min-h-64 flex-1 items-center justify-center" data-testid="pdf-password-prompt">
+            <PdfPasswordPrompt open mode={promptMode} pending={passwordPending} onSubmit={(password) => { void submitPassword(password); }} onCancel={cancelPassword} />
+          </div>
+        ) : (
+          <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
+        )
+      ) : <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
     </div>
   );
 }

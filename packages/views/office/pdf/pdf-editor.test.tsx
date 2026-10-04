@@ -213,6 +213,65 @@ describe("PdfEditor", () => {
     expect(handle.dispose).toHaveBeenCalledTimes(1);
   });
 
+  it("prompts for the password instead of the error state when the open needs one", async () => {
+    const open = vi.fn(async (): Promise<PdfOpenOutcome> => ({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "password_required" }));
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument());
+    expect(screen.queryByTestId("pdf-error-state")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-canvas")).not.toBeInTheDocument();
+  });
+
+  it("does not mount the password prompt for a non-password failure", async () => {
+    const open = vi.fn(async (): Promise<PdfOpenOutcome> => ({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "corrupted", message: "hỏng" }));
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
+    expect(screen.queryByTestId("pdf-password-prompt")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mật khẩu")).not.toBeInTheDocument();
+  });
+
+  it("opens with the typed password and keeps the session alive on submit", async () => {
+    const open = vi.fn()
+      .mockResolvedValueOnce({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "password_required" } satisfies PdfOpenOutcome)
+      .mockResolvedValueOnce(opened());
+    const handle = editor();
+    const local = vi.spyOn(Storage.prototype, "setItem");
+    render(<PdfEditor documentKey="doc" editor={handle} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "    " } });
+    fireEvent.click(screen.getByRole("button", { name: "Mở tài liệu" }));
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    expect(open).toHaveBeenNthCalledWith(2, expect.any(AbortSignal), "    ");
+    expect(handle.dispose).not.toHaveBeenCalled();
+    expect(handle.open).toHaveBeenCalledTimes(1);
+    expect(local).not.toHaveBeenCalled();
+    local.mockRestore();
+  });
+
+  it("re-prompts in wrong mode when the engine refuses the password", async () => {
+    const open = vi.fn()
+      .mockResolvedValueOnce({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "password_required" } satisfies PdfOpenOutcome)
+      .mockResolvedValueOnce({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "wrong_password" } satisfies PdfOpenOutcome);
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "sai" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mở tài liệu" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Mật khẩu không mở khóa được PDF này."));
+    expect(screen.getByLabelText("Mật khẩu")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByTestId("pdf-error-state")).not.toBeInTheDocument();
+  });
+
+  it("reports password_cancelled and shows the error state when the prompt is dismissed", async () => {
+    const open = vi.fn(async (): Promise<PdfOpenOutcome> => ({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: "password_required" }));
+    const onOpen = vi.fn();
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} onOpen={onOpen} />);
+    await waitFor(() => expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã hủy hộp thoại mật khẩu.");
+    expect(onOpen).toHaveBeenLastCalledWith(expect.objectContaining({ failure_class: "password_cancelled" }));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels and disposes an in-flight session", async () => {
     let resolveOpen: ((outcome: PdfOpenOutcome) => void) | undefined;
     const open = vi.fn(() => new Promise<PdfOpenOutcome>((resolve) => { resolveOpen = resolve; }));
