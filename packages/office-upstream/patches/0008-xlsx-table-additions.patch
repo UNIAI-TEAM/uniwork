@@ -9,7 +9,7 @@ diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-g
    formulaValues: readonly SheetFormulaValues[] = [],
  ): Promise<XlsxMutation> {
    const plan = await planCellEditsToXlsx(
-@@ -606,7 +607,8 @@ export async function applyCellEditsToXlsx(
+@@ -606,11 +607,11 @@ export async function applyCellEditsToXlsx(
      definedNamesState,
      [],
      pageSetupStates,
@@ -18,3 +18,7 @@ diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-g
      [],
      [],
      [],
+-    [],
+     [],
+     [],
+     formulaValues,

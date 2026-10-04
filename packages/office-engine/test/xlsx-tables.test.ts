@@ -187,4 +187,30 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx tables on the real gateway", () => 
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(reopened.snapshot.sheets[0]?.cells.D1?.value).toBe("Hoa don");
   });
+
+  it("saves a table then saves again on the rebased package without tripping the theme guard", async () => {
+    const engine = await load();
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes: fixture(COMPAT_EDIT), format: "xlsx", document_id: "tables-second-save" });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    adapter.edit(opened.document_model_ref, [
+      item({ name: "Sales", columnNames: ["Region", "Q1"], style: "TableStyleMedium2", bandedRows: true }, "A1:B3"),
+    ]);
+    const first = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    expect(await engine.readEntryText(first.bytes, "xl/tables/table1.xml")).toContain('name="Sales"');
+    // Second save on the rebased package. The inner planCellEditsToXlsx call must
+    // carry exactly 21 arguments with tableAdditions in its own slot: a stray
+    // trailing placeholder shifted formulaValues onto themeState, and the default
+    // `[]` is not null, so the theme branch threw "The workbook has no theme part"
+    // on every real-gateway save.
+    adapter.edit(opened.document_model_ref, [
+      { op: "set_cell", target: { sheet: "Data", cell: "D2" }, attributes: { value: "Second save" } },
+    ]);
+    const second = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    expect(second.bytes.length).toBeGreaterThan(0);
+    expect(await engine.readEntryText(second.bytes, "xl/tables/table1.xml")).toContain('name="Sales"');
+    const reopened = await engine.readWorkbook(second.bytes);
+    expect(reopened.snapshot.sheets[0]?.cells.D2?.value).toBe("Second save");
+    adapter.release(opened.document_model_ref);
+  });
 });
