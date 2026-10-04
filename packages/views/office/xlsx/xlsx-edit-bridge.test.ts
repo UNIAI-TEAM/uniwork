@@ -50,6 +50,7 @@ describe("rendererEditsToOperations", () => {
 
   it("selects the op kind through the named registry entries", () => {
     expect(XLSX_JOURNAL_OP_MAPPINGS.map((entry) => entry.op)).toEqual([
+      "set_hyperlink", "set_notes",
       "set_page_setup",
       "set_filter", "clear_filter",
       "clear_cell", "set_cell",
@@ -57,6 +58,7 @@ describe("rendererEditsToOperations", () => {
       "set_row_size", "set_col_size", "set_rows_hidden", "set_cols_hidden", "set_rows_outline", "set_cols_outline",
       "merge_cells", "unmerge_cells",
       "add_sheet", "duplicate_sheet", "remove_sheet", "rename_sheet", "reorder_sheet", "set_sheet_hidden",
+      "create_table", "remove_table",
     ]);
     const pick = (edit: XlsxGridEdit): string | undefined =>
       XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit))?.op;
