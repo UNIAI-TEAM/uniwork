@@ -44,6 +44,8 @@ export type MarkdownToolbarControlId =
   | "insertTable"
   | "insertImage"
   | "insertHr"
+  | "insertDiagram"
+  | "insertMath"
   | "viewOutline"
   | "viewFrontmatter";
 
@@ -74,6 +76,12 @@ export interface MarkdownToolbarGroupDefinition {
   controls: readonly MarkdownToolbarControlDefinition[];
 }
 
+/** The formula the cursor sits on (M4), or null when it is elsewhere. */
+export interface MarkdownToolbarMathState {
+  kind: "inline" | "block";
+  expression: string;
+}
+
 /** Editor state the controls read to show active state. */
 export interface MarkdownToolbarState {
   /** Read-only (no capability, or the editor is not editable). */
@@ -87,6 +95,8 @@ export interface MarkdownToolbarState {
   outline: boolean;
   /** Front-matter panel visible. */
   frontmatter: boolean;
+  /** Formula under the cursor, for the math control's edit mode (M4). */
+  math: MarkdownToolbarMathState | null;
 }
 
 /**
@@ -103,6 +113,10 @@ export interface MarkdownToolbarActions {
   /** Absent until the image task (M5) wires asset upload. */
   insertImage?: () => void;
   insertHorizontalRule(): void;
+  /** Insert a fenced `mermaid` block with the starter template (M4). */
+  insertDiagram(): void;
+  /** Insert or edit a formula: `inline` or `block` (M4). */
+  insertMath(kind: "inline" | "block", expression: string): void;
   setOutline(visible: boolean): void;
   setFrontmatter(visible: boolean): void;
 }

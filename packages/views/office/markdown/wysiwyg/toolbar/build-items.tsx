@@ -11,6 +11,7 @@
 import {
   Bold,
   Code,
+  Sigma,
   Image as ImageIcon,
   Italic,
   Link2,
@@ -22,8 +23,10 @@ import {
   Rows3,
   Strikethrough,
   Table2,
+  Workflow,
 } from "lucide-react";
 import type { RibbonIcon, RibbonItem } from "../../../ribbon/types";
+import { MathPopover } from "../math";
 import { BlockStyleDropdown } from "./block-style-dropdown";
 import { LinkPopover } from "./link-popover";
 import { MARKDOWN_TOOLBAR_GROUPS } from "./groups";
@@ -42,6 +45,8 @@ const ICONS: Record<string, RibbonIcon> = {
   insertTable: Table2,
   insertImage: ImageIcon,
   insertHr: Minus,
+  insertDiagram: Workflow,
+  insertMath: Sigma,
   viewOutline: Rows3,
   viewFrontmatter: Rows3,
 };
@@ -72,6 +77,7 @@ function executeControl(id: string, actions: MarkdownToolbarActions): void {
   else if (id === "insertTable") actions.insertTable();
   else if (id === "insertImage") actions.insertImage?.();
   else if (id === "insertHr") actions.insertHorizontalRule();
+  else if (id === "insertDiagram") actions.insertDiagram();
 }
 
 export interface BuildMarkdownToolbarItemsOptions {
@@ -112,6 +118,22 @@ export function buildMarkdownGroupItems(
         width: 40,
         render: () => (
           <LinkPopover link={state.link} disabled={readOnly} onApply={actions.applyLink} onRemove={actions.removeLink} />
+        ),
+      };
+    }
+    if (control.id === "insertMath") {
+      return {
+        kind: "custom",
+        id: control.id,
+        labelKey: control.labelKey,
+        icon,
+        width: 40,
+        render: () => (
+          <MathPopover
+            math={state.math}
+            disabled={readOnly}
+            onApply={(kind, expression) => actions.insertMath(kind, expression)}
+          />
         ),
       };
     }

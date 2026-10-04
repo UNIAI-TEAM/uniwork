@@ -12,6 +12,8 @@
 import { useMemo } from "react";
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
+import { insertMermaidDiagram } from "../diagram";
+import { applyMath, readMathSelection } from "../math";
 import { blockStyleOf, headingLevelOf } from "./groups";
 import type {
   MarkdownBlockStyle,
@@ -30,6 +32,7 @@ export const EMPTY_MARKDOWN_TOOLBAR_STATE: MarkdownToolbarState = {
   lists: { bullet: false, ordered: false, task: false },
   outline: false,
   frontmatter: false,
+  math: null,
 };
 
 /** The state the editor reports on its own; the pane toggles are the caller's. */
@@ -58,6 +61,7 @@ function readEditorState(editor: Editor): MarkdownEditorToolbarState {
       ordered: editor.isActive("orderedList"),
       task: editor.isActive("taskList"),
     },
+    math: readMathSelection(editor),
   };
 }
 
@@ -126,6 +130,12 @@ export function useMarkdownToolbarActions(editor: Editor | null, options: { inse
         : undefined,
       insertHorizontalRule() {
         editor?.chain().focus().setHorizontalRule().run();
+      },
+      insertDiagram() {
+        insertMermaidDiagram(editor);
+      },
+      insertMath(kind, expression) {
+        applyMath(editor, kind, expression);
       },
       setOutline() {
         // Pane visibility is the caller's state (M6 owns the panes).

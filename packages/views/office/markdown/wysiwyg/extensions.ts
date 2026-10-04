@@ -21,6 +21,7 @@ import type { AnyExtension } from "@tiptap/core";
 import { Markdown } from "@tiptap/markdown";
 import { createEditorExtensions, type EditorExtensionsOptions } from "../../../editor/extensions";
 import { installSelectiveEscaper } from "./escape";
+import { createMathPasteExtension } from "./math";
 import { MarkdownRawExtension } from "./raw-node";
 
 export { MarkdownRawExtension };
@@ -104,6 +105,10 @@ export function createMarkdownEditorExtensions(
   );
   return [
     ...base,
+    // M4: a pasted formula written with LaTeX delimiters becomes a math node.
+    // It carries priority 1000 so its handlePaste runs before the shared
+    // markdown-paste catch-all, which claims nearly every paste.
+    createMathPasteExtension(),
     MarkdownRawExtension,
     MarkdownSourceGapsExtension,
     SelectiveMarkdown.configure({

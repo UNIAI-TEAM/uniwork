@@ -76,6 +76,10 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
       { id: "insertTable", labelKey: "office.markdown.wysiwyg.insertTable", kind: "button" },
       { id: "insertImage", labelKey: "office.markdown.wysiwyg.insertImage", kind: "button" },
       { id: "insertHr", labelKey: "office.markdown.wysiwyg.insertHr", kind: "button" },
+      // M4: the two insertable rich blocks. The code-block language picker is
+      // contextual (it appears inside a code block), not a group item.
+      { id: "insertDiagram", labelKey: "office.markdown.diagram.template", kind: "button" },
+      { id: "insertMath", labelKey: "office.markdown.math.blockLabel", kind: "custom" },
     ],
   },
   {
