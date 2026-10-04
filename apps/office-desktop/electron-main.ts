@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
-import { formatFromFilename, isLocalDocumentFormat } from "./shared/document-format";
+import { desktopLocalDocumentFormats, desktopFormatProfile, formatFromFilename, isLocalDocumentFormat } from "./shared/document-format";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
@@ -42,6 +42,15 @@ const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 const nativeFiles: string[] = [];
 app.on("open-file", (event, path) => { event.preventDefault(); nativeFiles.push(path); });
+
+/** Open/Save dialog filters for the locally editable formats. Derived from the
+ *  ONE local-format seam so C1b (local xlsx) widens the dialogs for free. */
+function localFormatDialogFilters(): { name: string; extensions: string[] }[] {
+  return desktopLocalDocumentFormats.map((format) => {
+    const profile = desktopFormatProfile(format);
+    return { name: profile.associationName, extensions: [profile.extension] };
+  });
+}
 
 // macOS delivers a cold-start deep link through open-url, which can fire before
 // the app is ready and the host has attached its handler. Queue those URLs at
@@ -483,11 +492,13 @@ async function startElectronHost(): Promise<void> {
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
     localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
-        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
+        // Derive the filter from the local-format seam so C1b flips xlsx local
+        // without another dialog sweep; "Files" still lets the user see anything.
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...localFormatDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickSaveAs: async () => {
-        const result = await dialog.showSaveDialog(window, { filters: [{ name: "Word", extensions: ["docx"] }] });
+        const result = await dialog.showSaveDialog(window, { filters: localFormatDialogFilters() });
         return result.canceled ? undefined : result.filePath;
       },
     },

@@ -19,6 +19,13 @@ export interface TabDocument extends OpenTabInput {
   readonly session: TabSession;
 }
 
+/** F2: the workspace dispatches the surface on the session's OWN format field
+ *  instead of probing its shape, so a future pptx session that also carries a
+ *  renderer host cannot silently mount the xlsx surface. */
+export function isXlsxTabSession(session: TabSession): session is DesktopXlsxSession {
+  return (session as { format?: unknown }).format === "xlsx";
+}
+
 export function isDocumentDirty(session: TabSession): boolean {
   const state = session.coordinator.getState();
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "saving";
@@ -78,9 +85,10 @@ export function useDocumentTabs(bridge: RendererBridge) {
       const existing = current.current.tabs.find((tab) => tab.id === input.identity.documentId);
       if (existing) { commit(selectDocumentTab(current.current, existing.id)); return "focused"; }
       if (current.current.tabs.length >= 8) return "limit";
-      // Cloud xlsx mounts the shared editor through the server job seams; the
-      // byte session stays the docx path (and every local file). Both expose
-      // the same coordinator/keepDraft/discardDraft surface the tab layer uses.
+      // The ONE format->editor mapping: cloud xlsx mounts the shared editor
+      // through the server job seams; every other format (and every local file)
+      // stays the byte/docx path. Both expose the same coordinator surface the
+      // tab layer uses, and the surface dispatches on tab.data.format.
       const session: TabSession = input.format === "xlsx" && input.kind === "cloud"
         ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
         : createByteDocumentSession(bridge, input.identity, input.bytes, {

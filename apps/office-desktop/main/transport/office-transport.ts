@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
-import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
+import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeContextResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
@@ -58,12 +58,23 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? "document.docx";
     return { data, filename: filename.replace(/[\\/\r\n]/g, "_"), mimeType: response.headers.get("Content-Type")?.split(";", 1)[0] ?? DOCX_MIME };
   }
+  async function readDocumentDetail(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDocument | undefined> {
+    const raw = await json(`/documents/${encodeURIComponent(input.documentId)}`);
+    const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;
+    const document = toLibraryDocument(body, input.workspaceId);
+    if (!document) return undefined;
+    return input.version === undefined ? document : { ...document, version: input.version };
+  }
   async function download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse> {
     void input.workspaceId;
     const path = `/documents/${encodeURIComponent(input.documentId)}/download${input.version === undefined ? "" : `?version=${input.version}`}`;
     // One Accept header per carried format; the response MIME decides which one
     // the downloaded bytes belong to. An unknown/absent MIME falls back to the
     // filename extension so a correct document is never refused for a header.
+    // Accept every carried MIME and let the response choose: a known MIME wins,
+    // otherwise the filename extension. Slightly looser than a strict MIME match
+    // (a wrong-but-known MIME plus a good extension is accepted) so a correct
+    // document is never refused for a header.
     const result = await bytes(path, DESKTOP_FORMAT_PROFILES.map((profile) => profile.mimeType).join(", "));
     const format = formatFromMimeType(result.mimeType, result.filename);
     if (!format) throw new Error("document_format_unsupported");
@@ -144,9 +155,9 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     // existing desktop:office-save command still owns upload+commit. The
     // renderer never sees the engine address or a grant - main polls and
     // returns only the bounded output bytes plus the pinned job id.
-    async officeJob(input: { workspaceId: string; documentId: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse> {
+    async officeJob(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse> {
       const base = `/documents/${encodeURIComponent(input.documentId)}/office/jobs`;
-      const body = { operation: input.operation, format: "xlsx" as const, base_revision: input.baseRevision, ...(input.edits === undefined ? {} : { edits: input.edits }) };
+      const body = { operation: input.operation, format: input.format, base_revision: input.baseRevision, ...(input.edits === undefined ? {} : { edits: input.edits }) };
       const startRaw = await json(base, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": `desktop-job-${crypto.randomUUID()}` }, body: JSON.stringify(body) });
       const start = startRaw && typeof startRaw === "object" ? startRaw as Record<string, unknown> : {};
       const jobId = typeof start.job_id === "string" ? start.job_id : undefined;
@@ -169,11 +180,16 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       return { jobId, documentId: input.documentId, state: "completed", outputBase64: Buffer.from(data).toString("base64"), outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
     },
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {
-      const [downloaded, raw] = await Promise.all([download(input), json(`/documents/${encodeURIComponent(input.documentId)}`)]);
-      const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;
-      const document = toLibraryDocument(body, input.workspaceId);
+      const [downloaded, document] = await Promise.all([download(input), readDocumentDetail(input)]);
       if (!document) throw new Error("document_invalid");
-      return { document: { ...document, version: input.version ?? document.version }, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+    },
+    /** Metadata-only open: register the context for a format whose editor opens
+     *  through the server job and never reads the raw bytes (no byte haul). */
+    async openContext(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeContextResponse> {
+      const document = await readDocumentDetail(input);
+      if (!document) throw new Error("document_invalid");
+      return { document };
     },
     async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse> {
       void input.workspaceId;

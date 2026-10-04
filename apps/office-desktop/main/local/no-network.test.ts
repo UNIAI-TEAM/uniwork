@@ -39,13 +39,14 @@ describe("local mode opens no network connection", () => {
     const transport = new Proxy({}, { get: () => (..._args: unknown[]) => { calls += 1; return Promise.reject(new Error("network attempted")); } });
     const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
     const dispatch = createIpcDispatcher(handlers, sender);
-    for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save"]) {
+    for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-job", "desktop:office-save"]) {
       const payload = channel === "desktop:office-save"
         ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "docx", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", dataBase64: "b2s=", checksum: `sha256:${"a".repeat(64)}` }
+        : channel === "desktop:office-job" ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "xlsx", operation: "open", baseRevision: "1" }
         : channel === "desktop:library-create" ? { sessionGeneration, workspaceId: "ws", title: "Plan.docx" }
         : channel === "desktop:library-search" ? { sessionGeneration, workspaceId: "ws", query: "plan" }
         : channel === "desktop:library-context" ? { sessionGeneration }
-        : { sessionGeneration, workspaceId: "ws", ...(channel === "desktop:office-open" || channel === "desktop:library-download" ? { documentId: "doc" } : {}) };
+        : { sessionGeneration, workspaceId: "ws", ...(channel === "desktop:office-open" || channel === "desktop:office-context" || channel === "desktop:library-download" ? { documentId: "doc" } : {}) };
       await expect(dispatch(channel, payload)).rejects.toMatchObject({ code: "login_required" });
     }
     expect(calls).toBe(0);

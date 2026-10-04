@@ -1,7 +1,7 @@
 ﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopOfficeJobResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata, type DesktopOfficeJobRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -48,6 +48,9 @@ export interface DesktopXlsxSessionOptions {
 }
 
 export interface DesktopXlsxSession {
+  /** The carried format this session edits; the workspace dispatches the
+   *  surface on this field instead of probing the session's shape. */
+  readonly format: "xlsx";
   readonly editor: import("@uniwork/views/office/xlsx").XlsxEditorHandle<XlsxWorkbookSnapshot>;
   readonly coordinator: ReturnType<typeof createOfficeSaveCoordinator<XlsxWorkbookSnapshot>>;
   readonly open: { open(signal?: AbortSignal): Promise<XlsxOpenOutcome> };
@@ -94,8 +97,8 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     const value = structuredClone(snapshot);
     for (const listener of snapshotListeners) listener(value);
   };
-  const callJob = async (body: Omit<DesktopOfficeJobRequest, "sessionGeneration" | "workspaceId" | "documentId">) => {
-    const response = desktopOfficeJobResponseSchema.parse(await options.bridge.call("desktop:office-job", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, ...body }));
+  const callJob = async (body: Omit<DesktopOfficeJobRequest, "sessionGeneration" | "workspaceId" | "documentId" | "format">) => {
+    const response = desktopOfficeJobResponseSchema.parse(await options.bridge.call("desktop:office-job", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", ...body }));
     if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`office_job_${response.state}`);
     return response;
   };
@@ -105,7 +108,11 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     try { parsed = JSON.parse(decodeText(response.outputBase64!)); } catch { throw new Error("office_open_snapshot_invalid"); }
     const value = parsed && typeof parsed === "object" ? parsed as { snapshot?: unknown; render_model?: unknown } : {};
     if (!isXlsxWorkbookSnapshot(value.snapshot)) throw new Error("office_open_snapshot_invalid");
-    return { snapshot: value.snapshot, renderModel: value.render_model as XlsxRenderModel };
+    // F3: validate the render model with the SAME guard web applies, so a
+    // malformed model fails with the shared named error instead of silently
+    // degrading to the value-only table.
+    if (!isRenderModel(value.render_model)) throw new Error("office_open_render_model_invalid");
+    return { snapshot: value.snapshot, renderModel: value.render_model };
   };
 
   const editor: import("@uniwork/views/office/xlsx").XlsxEditorHandle<XlsxWorkbookSnapshot> = {
@@ -162,6 +169,9 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       if (!candidate) {
         if (stable.value.revision < committed.revision || stable.value.revision > snapshot.revision) throw new Error("xlsx_save_snapshot_invalid");
         const prefix = pending.filter((entry) => entry.revision <= stable.value.revision).map((entry) => entry.operation);
+        // F4: the web guard - prove the displayed snapshot still matches the
+        // pending op journal before spending an edit job.
+        if (stableJson(applyXlsxJournalToSnapshot(committed, prefix).sheets) !== stableJson(stable.value.sheets)) throw new Error("xlsx_save_snapshot_invalid");
         candidate = { baseRevision, snapshot: structuredClone(stable.value), operations: structuredClone(prefix) };
         candidates.set(intent.intentId, candidate);
       }
@@ -265,6 +275,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   };
 
   return {
+    format: "xlsx",
     editor,
     coordinator,
     open,

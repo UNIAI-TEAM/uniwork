@@ -37,6 +37,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:library-create",
   "desktop:library-download",
   "desktop:office-open",
+  "desktop:office-context",
   "desktop:office-save",
   "desktop:office-job",
   "desktop:leave-resolved",
@@ -184,6 +185,11 @@ export const desktopOfficeOpenResponseSchema = z.object({
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
 export type DesktopLibraryCreateResponse = DesktopOfficeOpenResponse;
+/** A metadata-only open: it registers the main-owned document context without
+ *  downloading bytes. The xlsx editor opens through the server job and never
+ *  reads the raw bytes, so a cloud xlsx open uses this instead of office-open. */
+export const desktopOfficeContextResponseSchema = z.object({ document: libraryDocumentSchema }).strict();
+export type DesktopOfficeContextResponse = z.infer<typeof desktopOfficeContextResponseSchema>;
 export const desktopOfficeSaveResponseSchema = z.object({
   documentId: documentIdSchema,
   intentId: z.string().min(1).max(160),
@@ -194,14 +200,16 @@ export const desktopOfficeSaveResponseSchema = z.object({
 }).strict();
 export type DesktopOfficeSaveResponse = z.infer<typeof desktopOfficeSaveResponseSchema>;
 /** The server office-job surface for a carried non-docx format (xlsx today).
- *  The renderer names only ids, a bounded operation and the op list; main owns
- *  the bearer token, the base revision and every network call. The edits list
- *  stays opaque here and is validated by the engine op parser in main. */
+ *  The renderer names only ids, a carried format, a bounded operation and the
+ *  op list; main owns the bearer token, the base revision and every network
+ *  call. The edits list stays opaque here: main validates the envelope only,
+ *  and the engine op parser on the server validates each op. */
 export const desktopOfficeJobOperationSchema = z.enum(["open", "edit"]);
 export const desktopOfficeJobRequestSchema = z.object({
   sessionGeneration: sessionGenerationSchema,
   workspaceId: opaqueHandleSchema,
   documentId: documentIdSchema,
+  format: documentFormatSchema,
   operation: desktopOfficeJobOperationSchema,
   baseRevision: z.string().regex(/^\d+$/),
   edits: z.array(z.record(z.string(), z.unknown())).max(10_000).optional(),
@@ -261,6 +269,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:library-create": desktopOfficeOpenResponseSchema,
   "desktop:library-download": desktopLibraryDownloadResponseSchema,
   "desktop:office-open": desktopOfficeOpenResponseSchema,
+  "desktop:office-context": desktopOfficeContextResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
   "desktop:office-job": desktopOfficeJobResponseSchema,
   "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
@@ -317,6 +326,7 @@ const requestSchemas = {
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255) }).strict(),
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
+  "desktop:office-context": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-job": desktopOfficeJobRequestSchema,
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),

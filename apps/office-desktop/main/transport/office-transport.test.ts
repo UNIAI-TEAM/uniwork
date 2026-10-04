@@ -167,10 +167,23 @@ describe("desktop office HTTP transport", () => {
       throw new Error("unexpected " + url);
     });
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
-    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
+    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
     expect(result.state).toBe("completed");
     expect(Buffer.from(result.outputBase64 ?? "", "base64")).toEqual(Buffer.from(output));
     expect(result.outputChecksum).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(polls).toBe(2);
   }, 20_000);
+
+  it("registers a document context without downloading bytes for a metadata-only open", async () => {
+    const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
+    const fetchImpl = vi.fn(async (input: string) => {
+      if (input.endsWith("/documents/doc-x")) return new Response(JSON.stringify({ document: summaryRow }), { status: 200 });
+      throw new Error("unexpected " + input);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.openContext({ workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ document: { id: "doc-x", format: "xlsx" } });
+    // No /download call: the metadata-only open never hauls the raw bytes.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes("/download"))).toBe(false);
+  });
 });

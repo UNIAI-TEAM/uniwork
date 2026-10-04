@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { createIpcDispatcher, validateIpcRequest } from "./ipc";
-import { desktopLibraryResponseSchema, desktopOfficeOpenResponseSchema } from "./ipc";
+import { desktopLibraryResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema } from "./ipc";
 
 const sender = { senderId: 1, expectedSenderId: 1, frameId: 0, expectedFrameId: 0, origin: "uniwork-office-app://app", expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const tabs = { sessionGeneration: sender.sessionGeneration, documentIds: ["a", "b"], activeDocumentId: "b" };
@@ -56,6 +56,13 @@ it("accepts one of the two carried MIME types on an office-open response and ref
   expect(desktopOfficeOpenResponseSchema.safeParse({ ...response, mimeType: "application/pdf" }).success).toBe(false);
 });
 
+it("validates the metadata-only office-context open surface", () => {
+  const document = { id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
+  expect(desktopOfficeContextResponseSchema.safeParse({ document }).success).toBe(true);
+  expect(desktopOfficeContextResponseSchema.safeParse({ document, dataBase64: "aGVsbG8=" }).success).toBe(false);
+  expect(() => validateIpcRequest("desktop:office-context", { sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1" }, sender)).not.toThrow();
+});
+
 it("requires a carried format on an office-save request", () => {
   const save = (format: string) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` });
   for (const format of ["docx", "xlsx"]) expect(() => validateIpcRequest("desktop:office-save", save(format), sender)).not.toThrow();
@@ -63,11 +70,15 @@ it("requires a carried format on an office-save request", () => {
 });
 
 it("validates the office-job request surface in main", () => {
-  const job = (overrides: Record<string, unknown> = {}) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", operation: "edit", baseRevision: "9", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }], ...overrides });
+  const job = (overrides: Record<string, unknown> = {}) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format: "xlsx", operation: "edit", baseRevision: "9", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }], ...overrides });
   expect(() => validateIpcRequest("desktop:office-job", job(), sender)).not.toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ operation: "open", edits: undefined }), sender)).not.toThrow();
   // Unknown operations, a non-decimal base and a non-array edit list all refuse.
   expect(() => validateIpcRequest("desktop:office-job", job({ operation: "serialize" }), sender)).toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ baseRevision: "nine" }), sender)).toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ edits: "set_cell" }), sender)).toThrow();
+  // The job carries a carried format and refuses one the host does not carry.
+  expect(() => validateIpcRequest("desktop:office-job", job({ format: "docx" }), sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:office-job", job({ format: "pptx" }), sender)).toThrow();
+  expect(() => validateIpcRequest("desktop:office-job", job({ format: undefined }), sender)).toThrow();
 });

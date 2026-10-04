@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -27,10 +27,15 @@ export type DesktopOfficeTransport = Readonly<{
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
-  /** The server edit/open job for a carried non-docx format (xlsx today). The
-   *  renderer never names an engine or a grant; main polls and returns bounded
-   *  output bytes that then ride the ordinary desktop:office-save command. */
-  officeJob(input: { workspaceId: string; documentId: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse>;
+  /** Metadata-only open for a carried format whose editor opens through the
+   *  server job and never reads raw bytes (xlsx today): it registers the
+   *  main-owned document context without downloading the file. */
+  openContext(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeContextResponse>;
+  /** The server edit/open job for a carried format (xlsx today). The renderer
+   *  names the format but never an engine or a grant; main polls and returns
+   *  bounded output bytes that then ride the ordinary desktop:office-save
+   *  command. */
+  officeJob(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse>;
   save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
 }>;
 
@@ -94,6 +99,14 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       const session = options.session?.();
       const response = desktopOfficeOpenResponseSchema.parse(await options.transport.open({ workspaceId: request.workspaceId, documentId: request.documentId, version: (request as { version?: number }).version }));
+      assertSession(session);
+      options.onDocumentOpened?.(response.document);
+      return response;
+    },
+    "desktop:office-context": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; version?: number }>) => {
+      requireSession();
+      const session = options.session?.();
+      const response = desktopOfficeContextResponseSchema.parse(await options.transport.openContext({ workspaceId: request.workspaceId, documentId: request.documentId, version: (request as { version?: number }).version }));
       assertSession(session);
       options.onDocumentOpened?.(response.document);
       return response;
