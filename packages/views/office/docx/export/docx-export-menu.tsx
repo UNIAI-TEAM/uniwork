@@ -1,44 +1,84 @@
-"use client";
+﻿"use client";
 
-// C1 (UNI-924): the toolbar entry for print/export. One dropdown owns the
-// three document outputs: Print (browser dialog on the paginated surface),
-// Export HTML (standalone file through a Blob) and Export PDF (honest
-// guidance dialog — no docx->pdf engine op is bound, see worker-C1 report).
-// The group is disabled until the command runtime reports an open document.
+// C1 (UNI-924): the toolbar entry for print/export. W-H adds a typed ribbon
+// dropdown: Print (browser dialog on the paginated surface), Export HTML
+// (standalone file through a Blob) and Export PDF (honest guidance dialog - no
+// docx->pdf engine op is bound, see worker-C1 report). The same commands the
+// old dropdown ran. The group is disabled until the command runtime reports an
+// open document. A zero-width host item keeps this component (which mounts the
+// PDF dialog) mounted next to the typed dropdown.
 
 import { FileDown, FileOutput, FileText, Printer } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import type { RibbonItem } from "../../ribbon";
+import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportPdfDialog } from "./docx-export-pdf-dialog";
 import { installDocxPrintStyles } from "./docx-print";
 
+/** Shared open state of the PDF guidance dialog. */
+const pdfDialog = createRibbonOpenStore();
+
+/** The typed ribbon items for the View > export group. */
+export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { commands, format } = context;
+  const disabled = !commands || !(format?.docxExportReady ?? false);
+  return [
+    {
+      kind: "dropdown",
+      id: "export",
+      labelKey: "office.docx.export.menuLabel",
+      icon: FileOutput,
+      size: "large",
+      collapseAs: "small",
+      disabled,
+      menu: [
+        {
+          id: "export-print",
+          labelKey: "office.docx.export.print",
+          icon: Printer,
+          disabled,
+          onSelect: () => {
+            commands?.printDocx();
+          },
+        },
+        {
+          id: "export-html",
+          labelKey: "office.docx.export.html",
+          icon: FileDown,
+          disabled,
+          onSelect: () => {
+            commands?.downloadDocxHtml("office.docx.export.fileName", "office.docx.export.documentTitle");
+          },
+        },
+        {
+          id: "export-pdf",
+          labelKey: "office.docx.export.pdf.label",
+          icon: FileText,
+          disabled,
+          onSelect: () => pdfDialog.open(),
+        },
+      ],
+    },
+    ribbonHostItem("export-host", "office.docx.toolbar.groups.export", DocxExportGroup, context),
+  ];
+}
+
+/** View > export: the typed items live on the registry entry; this component
+ * keeps the PDF dialog mount and stays exported for direct use. */
 export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
-  const [pdfOpen, setPdfOpen] = useState(false);
-  const ready = format?.docxExportReady ?? false;
-  const disabled = !commands || !ready;
+  const [pdfOpen] = useRibbonOpen(pdfDialog);
+  const disabled = !commands || !(format?.docxExportReady ?? false);
 
   // Installing here (the group mounts with the ready toolbar) also arms the
   // beforeprint hook, so a native Ctrl+P prints the document alone.
   useEffect(() => {
     installDocxPrintStyles();
   }, []);
-
-  const print = () => {
-    commands?.printDocx();
-  };
-
-  const exportHtml = () => {
-    commands?.downloadDocxHtml(t("office.docx.export.fileName"), t("office.docx.export.documentTitle"));
-  };
 
   return (
     <>
@@ -52,6 +92,7 @@ export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
               disabled={disabled}
               aria-label={t("office.docx.export.menuLabel")}
               aria-haspopup="menu"
+              className="sr-only"
               data-testid="docx-export-menu"
             />
           }
@@ -59,30 +100,46 @@ export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
           <FileOutput aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem data-testid="docx-export-print" onClick={print}>
+          <DropdownMenuItem
+            data-testid="docx-export-print"
+            onClick={() => {
+              commands?.printDocx();
+            }}
+          >
             <Printer aria-hidden />
             {t("office.docx.export.print")}
           </DropdownMenuItem>
-          <DropdownMenuItem data-testid="docx-export-html" onClick={exportHtml}>
+          <DropdownMenuItem
+            data-testid="docx-export-html"
+            onClick={() => {
+              commands?.downloadDocxHtml(t("office.docx.export.fileName"), t("office.docx.export.documentTitle"));
+            }}
+          >
             <FileDown aria-hidden />
             {t("office.docx.export.html")}
           </DropdownMenuItem>
-          <DropdownMenuItem data-testid="docx-export-pdf" onClick={() => setPdfOpen(true)}>
+          <DropdownMenuItem data-testid="docx-export-pdf" onClick={() => pdfDialog.open()}>
             <FileText aria-hidden />
             {t("office.docx.export.pdf.label")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {pdfOpen ? (
-        <DocxExportPdfDialog
-          open
-          onOpenChange={setPdfOpen}
-          onPrint={() => {
-            setPdfOpen(false);
-            print();
-          }}
-        />
+    <DocxExportPdfDialog
+      open
+      onOpenChange={pdfDialog.set}
+      onPrint={() => {
+        pdfDialog.close();
+        commands?.printDocx();
+      }}
+    />
       ) : null}
     </>
   );
 }
+
+DocxExportGroup.ribbonItems = docxExportRibbonItems;
+
+
+
+

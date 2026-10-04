@@ -1,23 +1,49 @@
-"use client";
+﻿"use client";
 
-// C2 (UNI-924): Review ▸ Compare. The toolbar entry owns the dialog's open
-// state; the dialog reads the live document through the command runtime and
-// parses the picked file off-session, so nothing here touches the save path.
-// Comparison stays available on a read-only document — it only reads.
+// C2 (UNI-924): Review > Compare. W-H adds a typed ribbon button: the entry
+// opens the dialog (the same command the old toolbar button ran). The dialog
+// reads the live document through the command runtime and parses the picked
+// file off-session, so nothing here touches the save path. Comparison stays
+// available on a read-only document - it only reads. A zero-width host item
+// keeps this component (which mounts the dialog) mounted next to the button.
 import { GitCompareArrows } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import type { RibbonItem } from "../../../ribbon";
 import { DocxCompareDialog } from "../../compare/compare-dialog";
 import type { DocxToolbarGroupContext } from "../types";
+import { createRibbonOpenStore, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
-export function ReviewCompareGroup({ format, commands }: DocxToolbarGroupContext) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+/** Shared open state of the compare dialog. */
+const compareDialog = createRibbonOpenStore();
+
+/** The typed ribbon items for the Review > compare group. */
+export function reviewCompareRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands } = context;
   // Both halves matter: without a command runtime the dialog has no live-text
   // reader, and every compared block would read as "added".
   const ready = format?.docxCompareReady === true && commands != null;
+  return [
+    {
+      kind: "button",
+      id: "review-compare",
+      labelKey: "office.docx.compare.action",
+      icon: GitCompareArrows,
+      size: "large",
+      collapseAs: "small",
+      disabled: !ready,
+      onExecute: () => compareDialog.open(),
+    },
+    ribbonHostItem("review-compare-host", "office.docx.toolbar.groups.compare", ReviewCompareGroup, context),
+  ];
+}
 
+/** Review > Compare: the typed items live on the registry entry; this
+ * component keeps the dialog mount and stays exported for direct use. */
+export function ReviewCompareGroup({ format, commands }: DocxToolbarGroupContext) {
+  const { t } = useTranslation();
+  const [open] = useRibbonOpen(compareDialog);
+  const ready = format?.docxCompareReady === true && commands != null;
   return (
     <>
       <Button
@@ -27,14 +53,21 @@ export function ReviewCompareGroup({ format, commands }: DocxToolbarGroupContext
         aria-label={t("office.docx.compare.action")}
         aria-haspopup="dialog"
         disabled={!ready}
-        onClick={() => setOpen(true)}
+        className="sr-only"
+        onClick={() => compareDialog.open()}
         data-testid="docx-compare-toggle"
       >
         <GitCompareArrows aria-hidden />
       </Button>
       {open && ready ? (
-        <DocxCompareDialog open onOpenChange={setOpen} currentTexts={() => commands?.compareDocumentTexts() ?? []} />
+        <DocxCompareDialog open onOpenChange={compareDialog.set} currentTexts={() => commands?.compareDocumentTexts() ?? []} />
       ) : null}
     </>
   );
 }
+
+ReviewCompareGroup.ribbonItems = reviewCompareRibbonItems;
+
+
+
+
