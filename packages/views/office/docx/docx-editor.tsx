@@ -2,11 +2,12 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor application landmark captures the host Save shortcut */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
-import { DocxContextMenu } from "./context-menu/docx-context-menu";
+import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
+import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -77,6 +78,9 @@ export function DocxEditor<TSnapshot = unknown>({
   translateRef.current = t;
 
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available";
+  // The context menu needs a TipTap Editor, not the host handle: read the
+  // editor the lane publishes from its schema extension (./editor-store).
+  const liveEditor = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
   // Capability identity is semantic input to the session. Keep the object and
   // callbacks in refs so shell identity churn does not restart an active open.
   const capabilityStatus = capability?.status;
@@ -230,7 +234,7 @@ export function DocxEditor<TSnapshot = unknown>({
   };
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {showDocumentControls ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="docx-open-state">
@@ -241,14 +245,23 @@ export function DocxEditor<TSnapshot = unknown>({
         <>
           <DocxToolbar {...sharedContext} />
           <DocxFindPanel {...sharedContext} />
-          <div className="flex min-h-64 min-w-0 flex-1 flex-col" data-testid="docx-canvas">
-            <DocxContextMenu {...sharedContext} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto" data-testid="docx-canvas">
             {/* A6-wire: attaches the zoom controller to the surface below and
                 draws the ruler above the pages; resolves the surface from the
                 DOM because the handle exposes no engine accessors. */}
             <DocxViewChrome />
             {editor.renderSurface ? (
-              editor.renderSurface()
+              // The real context menu wraps the mounted document surface; it
+              // needs the live TipTap editor, so it only appears once the
+              // schema extension has published one (the wrapper is skipped
+              // while a stub handle renders without an engine).
+              liveEditor ? (
+                <DocxContextMenuSurface editor={liveEditor} readOnly={readOnly}>
+                  {editor.renderSurface()}
+                </DocxContextMenuSurface>
+              ) : (
+                editor.renderSurface()
+              )
             ) : (
               <p className="p-8 text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
             )}

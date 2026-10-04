@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Editor } from "@tiptap/core";
 import { StrictMode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocxEditor } from "./docx-editor";
+import { docxExtensions } from "./docx-schema";
+import { publishDocxEditor } from "./editor-store";
 import type { DocxEditorHandle, DocxOpenFailure, DocxOpenOutcome, DocxSaveCoordinator } from "./types";
 
 function coordinator(overrides: Partial<DocxSaveCoordinator> = {}): DocxSaveCoordinator {
@@ -70,6 +73,13 @@ function renderEditor(outcome: DocxOpenOutcome, options?: { key?: string; open?:
   );
   return { handle, saveCoordinator, open };
 }
+
+const liveEditors: Editor[] = [];
+
+afterEach(() => {
+  for (const live of liveEditors.splice(0)) live.destroy();
+  publishDocxEditor(null);
+});
 
 describe("DocxEditor", () => {
   it("leaves document controls to the host while retaining the Save shortcut", async () => {
@@ -257,6 +267,42 @@ describe("DocxEditor", () => {
     expect(handle.cancel).toHaveBeenCalledWith("document_changed");
     expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
+  });
+
+  it("bounds the editor height and makes the canvas the scroller (M-5b)", async () => {
+    renderEditor(opened());
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("docx-editor");
+    expect(root.className).toContain("h-full");
+    expect(root.className).toContain("min-h-0");
+    expect(root.className).toContain("overflow-hidden");
+    const canvas = screen.getByTestId("docx-canvas");
+    expect(canvas.className).toContain("min-h-0");
+    expect(canvas.className).toContain("flex-1");
+    expect(canvas.className).toContain("overflow-auto");
+  });
+
+  it("opens the context menu on right click over a live document surface (M-2)", async () => {
+    const live = new Editor({
+      extensions: docxExtensions(),
+      content: { type: "doc", content: [{ type: "docParagraph", content: [{ type: "text", text: "Body" }] }] },
+    });
+    liveEditors.push(live);
+    publishDocxEditor(live);
+    const handle = editor();
+    handle.renderSurface = () => <div data-testid="surface-child">Body</div>;
+    render(
+      <DocxEditor
+        documentKey="doc"
+        editor={handle}
+        open={{ open: async () => opened() }}
+        coordinator={coordinator()}
+        capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    fireEvent.contextMenu(screen.getByTestId("surface-child"));
+    expect(await screen.findByTestId("docx-context-menu")).toBeInTheDocument();
   });
 
   it("does not reopen when shell callback identities change", async () => {
