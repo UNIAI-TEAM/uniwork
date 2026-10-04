@@ -12,6 +12,10 @@ export * from "./fields";
 // display) the editor inserts as a docProtected genXml node.
 export * from "./shapes";
 export * from "./password";
+// Comment/note edit families split out of ./model (500-line budget), the same
+// sibling pattern as ./protection and ./fields.
+export * from "./comments";
+export * from "./notes";
 export * from "./protection";
 export * from "./assets";
 export * from "./adapter";

@@ -29,7 +29,9 @@ import { DocxFieldEdits, isDocxFieldEdit, type DocxFieldEdit } from "./fields";
 import { DocxNumberingEdits } from "./numbering";
 import { visibleIndexes } from "./plan-view";
 import { DocxPageDecorState, isPageDecorEdit, type DocxPageBorders, type DocxPageDecorEdit, type DocxThemeColors, type DocxThemeFonts, type DocxWatermark } from "./page-decor";
-import { cloneNote, requireCommentEntry, requireImageBytes, requireNote } from "./payloads";
+import { requireImageBytes } from "./payloads";
+import { DocxCommentEdits } from "./comments";
+import { DocxNoteEdits } from "./notes";
 import { DocxProtectionEdits, isProtectionOp, type DocxProtectionOp } from "./protection";
 import {
   applySectionProperties,
@@ -108,6 +110,10 @@ export class DocxSessionModel {
   private readonly pageDecor = new DocxPageDecorState(() => { this.touched = true; this.revision += 1; });
   /** Pending protection edits (C3); see ./protection. */
   private readonly protection = new DocxProtectionEdits(() => { this.touched = true; this.revision += 1; });
+  /** Pending comment edits; see ./comments. */
+  private readonly commentEdits = new DocxCommentEdits(() => { this.touched = true; this.revision += 1; });
+  /** Pending footnote/endnote edits; see ./notes. */
+  private readonly noteEdits = new DocxNoteEdits(() => { this.touched = true; this.revision += 1; });
   /** TOC/caption edits (B7); see ./fields. The plan surface below is the only
    * way the field module reaches this session. */
   private readonly fieldEdits = new DocxFieldEdits({
@@ -372,176 +378,60 @@ export class DocxSessionModel {
    * replaces it. An untouched list never reaches SaveOptions, so a save keeps
    * word/comments.xml byte-identical (the byte-preservation rule). */
   get comments(): DocxCommentInfo[] {
-    const own = this.options.comments;
-    if (own) return own.map((comment) => ({ ...comment }));
-    const parsed = this.parsed.comments;
-    return Array.isArray(parsed) ? parsed.map((comment) => ({ ...comment })) : [];
+    return this.commentEdits.list(this.parsed);
   }
 
-  /** Replace the authoritative list — upstream SaveOptions.comments: the save
-   * regenerates word/comments.xml from it and removes body markers for ids no
-   * longer present. Ids must be unique and every reply must point at a listed
-   * parent; the caller's array is copied, never aliased into the plan. Entries
-   * are only structurally checked (see requireCommentEntry): a list seeded from
-   * the parse carries its own author-less/empty-text entries and must reach the
-   * save unchanged. */
+  /** Replace the authoritative list (see ./comments for the full contract). */
   setComments(comments: DocxCommentInfo[]): void {
-    if (!Array.isArray(comments)) {
-      throw new DocxEngineError("bad_comment", "set_comments needs a comment list");
-    }
-    const ids = new Set<string>();
-    for (const comment of comments) {
-      requireCommentEntry(comment, "set_comments", false);
-      if (ids.has(comment.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " appears twice");
-      ids.add(comment.id);
-    }
-    for (const comment of comments) {
-      if (comment.parentId !== undefined && !ids.has(comment.parentId)) {
-        throw new DocxEngineError("unknown_comment", "reply " + comment.id + " points at missing parent " + comment.parentId);
-      }
-    }
-    this.options.comments = comments.map((comment) => ({ ...comment }));
-    this.touched = true;
-    this.revision += 1;
+    this.commentEdits.set(comments);
   }
 
-  /** Every id in a comment's thread below it (the id plus its whole reply
-   * subtree, transitively — files can carry replies to replies). */
-  private threadSubtree(comments: readonly DocxCommentInfo[], id: string): Set<string> {
-    const ids = new Set([id]);
-    let size = 0;
-    while (size !== ids.size) {
-      size = ids.size;
-      for (const comment of comments) {
-        if (comment.parentId !== undefined && ids.has(comment.parentId)) ids.add(comment.id);
-      }
-    }
-    return ids;
-  }
-
-  /** Append one comment (the caller allocates the id; the save assigns the
-   * commentsExtended paraId for new entries). */
+  /** Append one comment (the caller allocates the id). */
   addComment(comment: DocxCommentInfo): void {
-    requireCommentEntry(comment, "add_comment", true);
-    if (this.comments.some((c) => c.id === comment.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + comment.id + " already exists");
-    this.setComments([...this.comments, { ...comment }]);
+    this.commentEdits.add(this.parsed, comment);
   }
 
-  /** Append a reply anchored to `parentId` (Word: a reply shares the parent
-   * comment's document range, so the anchor is the parent's). */
+  /** Append a reply anchored to `parentId`. */
   replyToComment(parentId: string, reply: DocxCommentInfo): void {
-    requireCommentEntry(reply, "reply_to_comment", true);
-    const list = this.comments;
-    if (!list.some((c) => c.id === parentId)) throw new DocxEngineError("unknown_comment", "no comment " + parentId + " to reply to");
-    if (reply.parentId !== undefined && reply.parentId !== parentId) {
-      throw new DocxEngineError("bad_comment", "reply " + reply.id + " carries parentId " + reply.parentId + ", not " + parentId);
-    }
-    if (list.some((c) => c.id === reply.id)) throw new DocxEngineError("duplicate_comment_id", "comment id " + reply.id + " already exists");
-    this.setComments([...list, { ...reply, parentId }]);
+    this.commentEdits.reply(this.parsed, parentId, reply);
   }
 
   /** Resolve/reopen a thread: the comment and every reply below it share the
    * flag (Word resolves a thread as a unit). */
   setCommentResolved(id: string, done: boolean): void {
-    const list = this.comments;
-    if (!list.some((c) => c.id === id)) throw new DocxEngineError("unknown_comment", "no comment " + id + " to resolve");
-    const ids = this.threadSubtree(list, id);
-    this.setComments(list.map((c) => (ids.has(c.id) ? { ...c, done } : c)));
+    this.commentEdits.resolve(this.parsed, id, done);
   }
 
-  /** Delete a comment; its whole reply subtree goes with it (Word deletes the
-   * thread). The body markers disappear because the save strips markers for ids
-   * no longer in the list (upstream removeDeletedCommentMarkers). */
+  /** Delete a comment; its whole reply subtree goes with it. */
   deleteComment(id: string): void {
-    const list = this.comments;
-    if (!list.some((c) => c.id === id)) throw new DocxEngineError("unknown_comment", "no comment " + id + " to delete");
-    const gone = this.threadSubtree(list, id);
-    this.setComments(list.filter((c) => !gone.has(c.id)));
-  }
-
-  private requireNoteKind(kind: DocxNoteKind, what: string): void {
-    if (kind !== "footnote" && kind !== "endnote") {
-      throw new DocxEngineError("bad_note_kind", what + " kind " + String(kind) + " is not footnote/endnote");
-    }
+    this.commentEdits.remove(this.parsed, id);
   }
 
   /** The authoritative note list of a kind: the edit's own list until one
    * replaces it, else the parse's list. An untouched list never reaches
    * SaveOptions, so a save keeps the notes part byte-identical. */
   notes(kind: DocxNoteKind): DocxNoteInfo[] {
-    this.requireNoteKind(kind, "notes");
-    const own = kind === "footnote" ? this.options.footnotes : this.options.endnotes;
-    if (own) return own.map(cloneNote);
-    const parsed = kind === "footnote" ? this.parsed.footnotes : this.parsed.endnotes;
-    return Array.isArray(parsed) ? parsed.map(cloneNote) : [];
+    return this.noteEdits.list(this.parsed, kind);
   }
 
-  /** Replace the authoritative list — upstream SaveOptions.footnotes/endnotes:
-   * the save regenerates the part from it in list order, and numbers follow
-   * that order, so a delete renumbers the survivors. Ids must be unique within
-   * the kind. */
+  /** Replace the authoritative list (see ./notes for the full contract). */
   setNotes(kind: DocxNoteKind, notes: DocxNoteInfo[]): void {
-    this.requireNoteKind(kind, "set_notes");
-    if (!Array.isArray(notes)) {
-      throw new DocxEngineError("bad_note", "set_notes needs a note list");
-    }
-    const ids = new Set<string>();
-    for (const note of notes) {
-      requireNote(note, "set_notes");
-      if (ids.has(note.id)) {
-        throw new DocxEngineError("duplicate_note_id", "note id " + note.id + " appears twice");
-      }
-      ids.add(note.id);
-    }
-    const copy = notes.map(cloneNote);
-    if (kind === "footnote") this.options.footnotes = copy;
-    else this.options.endnotes = copy;
-    this.touched = true;
-    this.revision += 1;
+    this.noteEdits.set(kind, notes);
   }
 
-  /** Append one note (the caller allocates the id; the display number follows
-   * list order). Blank bodies are refused: an inserted note is user text. */
+  /** Append one note (the caller allocates the id). */
   insertNote(kind: DocxNoteKind, note: DocxNoteInfo): void {
-    this.requireNoteKind(kind, "insert_note");
-    requireNote(note, "insert_note");
-    if (note.text.trim().length === 0) {
-      throw new DocxEngineError("empty_note_text", "insert_note note " + note.id + " needs non-blank text");
-    }
-    if (this.notes(kind).some((entry) => entry.id === note.id)) {
-      throw new DocxEngineError("duplicate_note_id", "note id " + note.id + " already exists");
-    }
-    this.setNotes(kind, [...this.notes(kind), note]);
+    this.noteEdits.insert(this.parsed, kind, note);
   }
 
-  /** Edit a note's text. The plain-text edit drops the measured rich runs: the
-   * vendored rebuild prefers richParas over text when it has to rebuild an
-   * entry (notes.ts:265), so keeping stale runs would silently revert the
-   * edit. The save still first tries an in-place w:t patch, which keeps the
-   * entry's inline formatting (notes.ts:329). */
+  /** Edit a note's text (drops stale rich runs; see ./notes). */
   setNoteText(kind: DocxNoteKind, id: string, text: string): void {
-    this.requireNoteKind(kind, "set_note_text");
-    if (typeof text !== "string" || text.trim().length === 0) {
-      throw new DocxEngineError("empty_note_text", "set_note_text needs non-blank text");
-    }
-    const list = this.notes(kind);
-    const at = list.findIndex((note) => note.id === id);
-    if (at < 0) throw new DocxEngineError("unknown_note", "no " + kind + " " + id + " to edit");
-    const next: DocxNoteInfo = { ...list[at]!, text };
-    delete next.richParas;
-    list[at] = next;
-    this.setNotes(kind, list);
+    this.noteEdits.setText(this.parsed, kind, id, text);
   }
 
-  /** Delete a note. The survivors keep their ids and order, so the saved part
-   * numbers them 1..N again (renumbering is part order, Word's own rule). */
+  /** Delete a note; the survivors renumber by part order. */
   deleteNote(kind: DocxNoteKind, id: string): void {
-    this.requireNoteKind(kind, "delete_note");
-    const list = this.notes(kind);
-    if (!list.some((note) => note.id === id)) {
-      throw new DocxEngineError("unknown_note", "no " + kind + " " + id + " to delete");
-    }
-    this.setNotes(kind, list.filter((note) => note.id !== id));
+    this.noteEdits.remove(this.parsed, kind, id);
   }
 
   /** Typed dispatch so the adapter's edit channel stays a single entry. */
@@ -587,7 +477,13 @@ export class DocxSessionModel {
    * An untouched plan is the all-original set — upstream answers the original
    * bytes (no-op save), which is the correct result, not a shortcut. */
   savePlan(): { finalBlocks: DocxSaveBlock[]; options: DocxSaveOptions } {
-    const options: DocxSaveOptions = { ...this.options, ...this.pageDecor.saveOptions(), ...this.protection.saveOptions() };
+    const options: DocxSaveOptions = {
+      ...this.options,
+      ...this.pageDecor.saveOptions(),
+      ...this.protection.saveOptions(),
+      ...this.commentEdits.saveOptions(),
+      ...this.noteEdits.saveOptions(),
+    };
     const numbering = this.numbering.options();
     if (numbering) options.numbering = numbering;
     const rewrites = this.sectionRewrites(options);
@@ -638,6 +534,8 @@ export class DocxSessionModel {
     this.sectionEdits.clear();
     this.pageDecor.clear();
     this.protection.clear();
+    this.commentEdits.clear();
+    this.noteEdits.clear();
     this.numbering = new DocxNumberingEdits(newParsed.numbering instanceof Map ? newParsed.numbering : undefined);
     this.touched = false;
   }
