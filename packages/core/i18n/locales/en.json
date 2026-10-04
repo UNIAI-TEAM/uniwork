@@ -8728,6 +8728,7 @@
         "details": "Details",
         "detailClass": "Class: {{className}}",
         "detailCode": "Code: {{code}}",
+        "saveReason": "Reason: {{reason}}",
         "unknown": "This workbook could not be opened. Try opening it again.",
         "corrupted": "The workbook package is corrupt or incomplete.",
         "password_cancelled": "The password prompt was cancelled.",
