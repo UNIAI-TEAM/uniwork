@@ -37,7 +37,8 @@ const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
   snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
-  sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText } = module.exports;
+  sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
+  sessionTableIdForName } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -915,4 +916,47 @@ test('sort commands and the reorder mutation pass only with a bounded range and 
   // Read-only refuses every sort surface (the generic gate runs first).
   assert.equal(canExecuteCommand(command({ range, orderRules: [{ type: 'asc', colIndex: 1 }] }), model, true), false);
   assert.equal(canExecuteCommand(mutation({ range, order: { 0: 1 } }), model, true), false);
+});
+
+test('table commands and mutations: add, delete by id or name, and undo without a subUnitId', () => {
+  const model = state();
+  const addCommand = (params) => ({ id: 'sheet.command.add-table', type: 0, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const deleteCommand = (params) => ({ id: 'sheet.command.delete-table', type: 0, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const addMutation = (params) => ({ id: 'sheet.mutation.add-table', type: 2, params: { unitId: 'file-sha', subUnitId: 's1', ...params } });
+  const deleteMutation = (params) => ({ id: 'sheet.mutation.delete-table', type: 2, params: { unitId: 'file-sha', ...params } });
+
+  const range = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 1 };
+  assert.equal(canExecuteCommand(addCommand({ range }), model, false), true);
+  assert.equal(canExecuteCommand(addCommand({ range, name: 'Sales' }), model, false), true);
+  assert.equal(canExecuteCommand(addCommand({ range, name: '1bad' }), model, false), false);
+  assert.equal(canExecuteCommand(addCommand({}), model, false), false);
+
+  // No session add yet: a delete (by id or by name) is refused.
+  assert.equal(canExecuteCommand(deleteCommand({ tableId: 't1' }), model, false), false);
+  assert.equal(canExecuteCommand(deleteCommand({ name: 'Sales' }), model, false), false);
+
+  const [edit] = ingestTableMutation(model, addMutation({ tableId: 't1', name: 'Sales', range, header: ['Region', 'Q1'] }));
+  assert.deepEqual(edit, {
+    sheetId: 's1', name: 'Sales',
+    table: { area: range, name: 'Sales', columnNames: ['Region', 'Q1'], bandedRows: true },
+  });
+  assert.equal(sessionTableIdForName('s1', 'sales'), 't1');
+
+  // The toolbar's Remove carries a name; the pinned command carries the id.
+  assert.equal(canExecuteCommand(deleteCommand({ name: 'Sales' }), model, false), true);
+  assert.equal(canExecuteCommand(deleteCommand({ name: 'Missing' }), model, false), false);
+  assert.equal(canExecuteCommand(deleteCommand({ tableId: 't1' }), model, false), true);
+  assert.equal(canExecuteCommand(deleteCommand({ tableId: 'ghost' }), model, false), false);
+
+  // Undo of the add: the mutation carries {tableId, unitId} and NO subUnitId.
+  assert.equal(canExecuteCommand(deleteMutation({ tableId: 't1' }), model, false), true);
+  assert.deepEqual(ingestTableMutation(model, deleteMutation({ tableId: 't1' })), [
+    { sheetId: 's1', table: null, name: 'Sales' },
+  ]);
+  // The add is cancelled: the table is gone from the save request.
+  assert.equal(model.editJournal.tableAdds.length, 0);
+
+  // Read-only refuses both surfaces.
+  assert.equal(canExecuteCommand(addCommand({ range }), model, true), false);
+  assert.equal(canExecuteCommand(deleteCommand({ tableId: 't1' }), model, true), false);
 });

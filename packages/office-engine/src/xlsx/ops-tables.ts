@@ -1,7 +1,7 @@
 ﻿// XLSX table op parser (create_table / remove_table, tableAdditions slot).
 // The typed ops and the fold live in tables.ts; this module holds the wire
 // parser only.
-import { XlsxOpError, isDict, int, str, parseStructuralTarget, parseStructuralAttributes, MAX_ROWS, MAX_COLS, type Dict, type XlsxEditOp, type XlsxSheetResolver } from "./ops-shared.ts";
+import { XlsxOpError, isDict, int, str, a1ToRowColumn, parseStructuralTarget, parseStructuralAttributes, MAX_ROWS, MAX_COLS, type Dict, type XlsxEditOp, type XlsxSheetResolver } from "./ops-shared.ts";
 import { TABLE_OP_KIND, TABLE_REMOVE_OP_KIND, type XlsxTableAddOp } from "./tables.ts";
 // ── table ops (create_table / remove_table) ─────────────────────────────────
 //
@@ -57,11 +57,23 @@ function parseColumnNames(raw: unknown, width: number, op: string): string[] {
 }
 
 function parseTableArea(raw: unknown, op: string): XlsxTableAddOp["area"] {
-  if (!isDict(raw)) throw new XlsxOpError(op, "range", "object required");
-  const startRow = int(raw.startRow, op, "range.startRow");
-  const endRow = int(raw.endRow, op, "range.endRow");
-  const startColumn = int(raw.startColumn, op, "range.startColumn");
-  const endColumn = int(raw.endColumn, op, "range.endColumn");
+  let startRow: number;
+  let startColumn: number;
+  let endRow: number;
+  let endColumn: number;
+  if (typeof raw === "string") {
+    const parts = raw.split(":");
+    if (parts.length !== 2) throw new XlsxOpError(op, "range", "expected A1:C5");
+    ({ row: startRow, column: startColumn } = a1ToRowColumn(parts[0] ?? "", op, "range"));
+    ({ row: endRow, column: endColumn } = a1ToRowColumn(parts[1] ?? "", op, "range"));
+  } else if (isDict(raw)) {
+    startRow = int(raw.startRow, op, "range.startRow");
+    endRow = int(raw.endRow, op, "range.endRow");
+    startColumn = int(raw.startColumn, op, "range.startColumn");
+    endColumn = int(raw.endColumn, op, "range.endColumn");
+  } else {
+    throw new XlsxOpError(op, "range", "A1:C5 string or {startRow,startColumn,endRow,endColumn} required");
+  }
   if (startRow < 0 || endRow < 0 || startColumn < 0 || endColumn < 0 ||
       startRow > endRow || startColumn > endColumn || endRow >= MAX_ROWS || endColumn >= MAX_COLS) {
     throw new XlsxOpError(op, "range", "range must be ordered and inside the OOXML grid");

@@ -18,7 +18,10 @@ import { selectionSpan } from "./structure-insert";
 export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const span = selectionSpan(selection);
+  // Create needs a selection (the range is the table); Remove only needs the
+  // table's name, so it must not be coupled to the selection span.
   const blocked = readOnly || !commands || !span;
+  const removeBlocked = readOnly || !commands;
   const [removeName, setRemoveName] = useState("");
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
@@ -27,7 +30,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
   const range = span === null ? undefined : {
     range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },
   };
-  const canRemove = !blocked && removeName.trim().length > 0;
+  const canRemove = !removeBlocked && removeName.trim().length > 0;
   return (
     <>
       <Button
@@ -44,7 +47,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
       <Input
         className="h-7 w-24 px-1 text-caption"
         aria-label={t("office.xlsx.table.namePlaceholder")}
-        disabled={blocked}
+        disabled={removeBlocked}
         value={removeName}
         onChange={(event) => setRemoveName(event.target.value)}
         data-testid="xlsx-table-remove-name"

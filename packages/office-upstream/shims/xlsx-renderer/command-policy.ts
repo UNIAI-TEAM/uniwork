@@ -5,6 +5,8 @@ import {
   CELL_MUTATIONS,
   isSheetMutation,
   liveSessionSheets,
+  sessionTableIdForName,
+  sessionTableSheetId,
   sheetNameShapeOK,
   type RendererCommand,
 } from "./edits";
@@ -671,16 +673,34 @@ function tableScopeOK(
 }
 
 function tableCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
-  const params = event.params as { unitId?: unknown; subUnitId?: unknown; range?: unknown; name?: unknown } | undefined;
-  if (!tableScopeOK(params, state) || !params || !filterAreaOK(params.range)) return false;
-  // A name is optional on add (the pinned command assigns Table1, Table2…).
-  return params.name === undefined || tableNameOK(params.name);
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; range?: unknown; name?: unknown; tableId?: unknown } | undefined;
+  if (!params || typeof params !== "object") return false;
+  if (params.unitId !== `file-${state.file.sha256}`) return false;
+  const sheetId = params.subUnitId;
+  if (typeof sheetId !== "string" || !liveSheetIds(state).has(sheetId)) return false;
+  if (event.id === "sheet.command.add-table") {
+    if (!filterAreaOK(params.range)) return false;
+    // A name is optional on add (the pinned command assigns Table1, Table2...).
+    return params.name === undefined || tableNameOK(params.name);
+  }
+  // delete-table: the pinned command takes {tableId}; the toolbar sends a name
+  // and the shim resolves the id for it. Either spelling is accepted, and the
+  // table must be a session add (a file-native table has no removal path).
+  if (typeof params.tableId === "string" && params.tableId.length > 0) return sessionTableSheetId(params.tableId) === sheetId;
+  if (typeof params.name === "string") return tableNameOK(params.name) && sessionTableIdForName(sheetId, params.name) !== undefined;
+  return false;
 }
 
 function tableMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
   const params = event.params as { unitId?: unknown; subUnitId?: unknown; tableId?: unknown } | undefined;
-  if (!tableScopeOK(params, state) || !params) return false;
-  return typeof params.tableId === "string" && params.tableId.length > 0;
+  if (!params || typeof params !== "object") return false;
+  if (params.unitId !== `file-${state.file.sha256}`) return false;
+  if (typeof params.tableId !== "string" || params.tableId.length === 0) return false;
+  // Undo of an add carries no subUnitId; resolve the sheet through the session
+  // map so the deletion is savable (the ingest path does the same).
+  const sheetId = typeof params.subUnitId === "string" ? params.subUnitId : sessionTableSheetId(params.tableId);
+  if (sheetId === undefined) return false;
+  return liveSheetIds(state).has(sheetId);
 }
 
 /** Original content must be installed before an undoable user edit. */

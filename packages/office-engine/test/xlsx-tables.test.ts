@@ -69,6 +69,22 @@ describe("XLSX table ops in the session model", () => {
     expect(modelWith([]).pendingTableAdditions()).toEqual([]);
   });
 
+  it("accepts both the A1:C5 string range and the {startRow,...} object form", () => {
+    const sheets = { sheetNames: () => ["Data"], nameForId: () => undefined };
+    const [fromString] = parseXlsxOps([item({ name: "T", columnNames: ["a", "b", "c"] }, "A1:C5")], sheets);
+    const [fromObject] = parseXlsxOps([
+      item({ name: "T", columnNames: ["a", "b", "c"] }, { startRow: 0, startColumn: 0, endRow: 4, endColumn: 2 }),
+    ], sheets);
+    if (!fromString || !isXlsxTableAddOp(fromString)) throw new Error("expected a table op");
+    if (!fromObject || !isXlsxTableAddOp(fromObject)) throw new Error("expected a table op");
+    expect(fromString.area).toEqual({ startRow: 0, startColumn: 0, endRow: 4, endColumn: 2 });
+    expect(fromString.area).toEqual(fromObject.area);
+    // A single-colon-less string, a reversed string and an out-of-grid string refuse.
+    for (const bad of ["A1", "B2:A1", "A0:B2", "A1:XFE3"]) {
+      expect(() => parseXlsxOps([item({ name: "T", columnNames: ["a", "b"] }, bad)], sheets), bad).toThrowError(XlsxOpError);
+    }
+  });
+
   it("defaults bandedRows to true and refuses total rows / header-less tables as unsupported", () => {
     const [op] = parseXlsxOps([item({ name: "T", columnNames: ["a", "b"] }, "A1:B2")], {
       sheetNames: () => ["Data"],

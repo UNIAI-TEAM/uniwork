@@ -132,37 +132,56 @@ export type XlsxRendererEdit =
  *  carries only the tableId) can name the table it cancels. */
 const pendingTableNames = new Map<string, { sheetId: string; name: string }>();
 
+/** The sheet a session-added table lives on, or undefined for a table the
+ *  session never added. Used by the policy/undo path, which must resolve the
+ *  sheet for a delete mutation that carries only {tableId, unitId}. */
+export function sessionTableSheetId(tableId: string): string | undefined {
+  return pendingTableNames.get(tableId)?.sheetId;
+}
+
+/** The tableId of a session add on \`sheetId\` with \`name\` (case-insensitive),
+ *  or undefined. The toolbar's Remove control sends a name, not an id. */
+export function sessionTableIdForName(sheetId: string, name: string): string | undefined {
+  const needle = name.toLowerCase();
+  for (const [tableId, entry] of pendingTableNames) {
+    if (entry.sheetId === sheetId && entry.name.toLowerCase() === needle) return tableId;
+  }
+  return undefined;
+}
+
 /** Ingest one table mutation (sheet.mutation.add-table / delete-table). The
  *  add carries the resolved name + header the pinned command built; the
- *  delete resolves the name through the add it is cancelling. */
+ *  delete resolves the name through the add it is cancelling. The delete of an
+ *  undone add carries only {tableId, unitId} (no subUnitId), so the sheet is
+ *  resolved through the session map. */
 export function ingestTableMutation(state: LazyWorkbookState | null, event: RendererCommand, suppressed = false): XlsxRendererTableEdit[] {
   if (!state || suppressed || event.options?.fromFormula) return [];
   const params = event.params as
     | { unitId?: string; subUnitId?: string; tableId?: string; name?: string; range?: AxisRange; header?: string[] }
     | undefined;
-  const sheetId = params?.subUnitId;
+  if (!params || params.unitId !== `file-${state.file.sha256}`) return [];
   const liveSheets = liveSessionSheets(state);
-  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
-      !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
-  const sheetName = liveSheets.find((sheet) => sheet.id === sheetId)?.name;
-  if (event.id === "sheet.mutation.add-table") {
-    const { tableId, name, range, header } = params;
-    if (!tableId || !name || !range || !Array.isArray(header) || header.length === 0) return [];
-    const table = { area: { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn }, name, columnNames: [...header], bandedRows: true };
-    recordTableAdd(state.editJournal, { sheetId, area: table.area, name, columnNames: [...header], bandedRows: true });
-    pendingTableNames.set(tableId, { sheetId, name });
-    return [{ sheetId, table, name }];
-  }
   if (event.id === "sheet.mutation.delete-table") {
     const { tableId } = params;
     if (!tableId) return [];
     const known = pendingTableNames.get(tableId);
-    if (!known || known.sheetId !== sheetId) return [];
+    if (!known) return [];
+    // Undo of an add carries no subUnitId: resolve the sheet through the map.
+    const sheetId = params.subUnitId ?? known.sheetId;
+    if (known.sheetId !== sheetId || !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
     if (!removeTableAdd(state.editJournal, sheetId, known.name)) return [];
     pendingTableNames.delete(tableId);
     return [{ sheetId, table: null, name: known.name }];
   }
-  return [];
+  if (event.id !== "sheet.mutation.add-table") return [];
+  const sheetId = params.subUnitId;
+  if (!sheetId || !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
+  const { tableId, name, range, header } = params;
+  if (!tableId || !name || !range || !Array.isArray(header) || header.length === 0) return [];
+  const table = { area: { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn }, name, columnNames: [...header], bandedRows: true };
+  recordTableAdd(state.editJournal, { sheetId, area: table.area, name, columnNames: [...header], bandedRows: true });
+  pendingTableNames.set(tableId, { sheetId, name });
+  return [{ sheetId, table, name }];
 }
 
 export interface RendererCommand {
