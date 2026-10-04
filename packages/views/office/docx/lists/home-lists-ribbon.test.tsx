@@ -1,7 +1,7 @@
 ﻿// W-F (UNI-924): the list group's typed ribbon items. Each menu row must call
 // the same numbering command the legacy menus called.
 import { describe, expect, it, vi } from "vitest";
-import type { RibbonItem } from "../ribbon";
+import type { RibbonItem } from "../../ribbon";
 import type { DocxCommandRuntime } from "../commands";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { homeListsRibbonItems } from "./home-lists";
@@ -91,3 +91,5 @@ describe("homeListsRibbonItems", () => {
     expect(items.every((item) => item.disabled === true)).toBe(true);
   });
 });
+
+
