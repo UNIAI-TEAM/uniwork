@@ -3,6 +3,7 @@ import type { OfficeIdentity } from "@uniwork/core/office";
 import type { RendererBridge } from "../app";
 import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "../office/session";
 import { createDesktopXlsxSession, type DesktopXlsxSession } from "../office/xlsx-session";
+import { createDesktopLocalXlsxSession, type DesktopLocalXlsxSession } from "../office/xlsx-local-session";
 import { closeDocumentTab, cycleDocumentTab, openDocumentTab, selectDocumentTab, type DocumentTabState } from "./tab-model";
 
 export interface OpenTabInput {
@@ -13,7 +14,7 @@ export interface OpenTabInput {
   readonly format: string;
 }
 
-export type TabSession = ByteDocumentSession | DesktopXlsxSession;
+export type TabSession = ByteDocumentSession | DesktopXlsxSession | DesktopLocalXlsxSession;
 
 export interface TabDocument extends OpenTabInput {
   readonly session: TabSession;
@@ -91,6 +92,11 @@ export function useDocumentTabs(bridge: RendererBridge) {
       // tab layer uses, and the surface dispatches on tab.data.format.
       const session: TabSession = input.format === "xlsx" && input.kind === "cloud"
         ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
+        // C1b: a local .xlsx uses the SAME main-owned local file path docx
+        // uses; its engine job rides desktop:file-xlsx and its Save writes the
+        // opaque local handle through desktop:file-save (no network).
+        : input.format === "xlsx" && input.kind === "local" && input.bytes.localHandle
+        ? createDesktopLocalXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId, localHandle: input.bytes.localHandle })
         : createByteDocumentSession(bridge, input.identity, input.bytes, {
             // Save As moves the document to a new handle: main rebinds its context
             // and the tab follows, so later saves and draft lookups use the new id.

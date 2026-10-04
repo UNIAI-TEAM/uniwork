@@ -68,7 +68,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
       onKeep={async () => { setOffer(null); return true; }}
       onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
     <OfficeShell title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={saveCoordinator} editorReady={active && session.canSave}
-      saveDestination="cloud"
+      saveDestination={kind === "local" ? "local" : "cloud"}
       actions={<>{kind === "local" ? <LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /> : null}<Button type="button" variant="outline" disabled={saveState === "saving"} onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}

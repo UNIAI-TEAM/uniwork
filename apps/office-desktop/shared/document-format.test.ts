@@ -28,9 +28,10 @@ describe("desktop document format seam", () => {
     expect(isDesktopDocumentFormat("")).toBe(false);
   });
 
-  it("opens only docx locally in C1a and reserves xlsx for the cloud lane", () => {
+  it("opens docx and xlsx locally in C1b and still refuses an un-carried format", () => {
     expect(isLocalDocumentFormat("docx")).toBe(true);
-    expect(isLocalDocumentFormat("xlsx")).toBe(false);
+    expect(isLocalDocumentFormat("xlsx")).toBe(true);
+    expect(isLocalDocumentFormat("pptx" as never)).toBe(false);
   });
 
   it("resolves a filename by extension case-insensitively and refuses unknown ones", () => {

@@ -8,10 +8,10 @@ export const desktopDocumentFormats = ["docx", "xlsx"] as const;
 export type DesktopDocumentFormat = (typeof desktopDocumentFormats)[number];
 export const desktopDocumentFormatSchema = z.enum(desktopDocumentFormats);
 
-/** Formats a local (on-device) file may open into today. C1a mounts the shared
- *  editor for cloud documents only; the bundled local engine (C1b) widens this
- *  list without touching any other site. */
-export const desktopLocalDocumentFormats = ["docx"] as const;
+/** Formats a local (on-device) file may open into today. C1b binds the bundled
+ *  local engine for xlsx, so a local .xlsx opens/saves through the same
+ *  main-owned file path docx uses; the bundled engine opens no network. */
+export const desktopLocalDocumentFormats = ["docx", "xlsx"] as const;
 export type DesktopLocalDocumentFormat = (typeof desktopLocalDocumentFormats)[number];
 
 export type DesktopFormatProfile = Readonly<{
@@ -21,7 +21,7 @@ export type DesktopFormatProfile = Readonly<{
   mimeType: string;
   /** File-association label shown by the OS (Windows/macOS/Linux). */
   associationName: string;
-  /** Locally editable today; C1b flips xlsx to true. */
+  /** Locally editable today. */
   local: boolean;
 }>;
 
@@ -39,7 +39,7 @@ export const DESKTOP_FORMAT_PROFILES: readonly DesktopFormatProfile[] = [
     extension: "xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     associationName: "Excel spreadsheet",
-    local: false,
+    local: true,
   },
 ];
 

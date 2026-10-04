@@ -21,6 +21,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:file-open",
   "desktop:file-save",
   "desktop:file-save-as",
+  "desktop:file-xlsx",
   "desktop:draft-checkpoint",
   "desktop:draft-list",
   "desktop:draft-recover",
@@ -224,6 +225,25 @@ export const desktopOfficeJobResponseSchema = z.object({
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
 }).strict();
 export type DesktopOfficeJobResponse = z.infer<typeof desktopOfficeJobResponseSchema>;
+/** The local xlsx engine job (C1b): the SAME shape as the cloud office-job
+ *  response, but keyed by an opaque local file handle instead of a workspace
+ *  document. Main owns the bytes and the bundled IronCalc sidecar + xlsx
+ *  gateway; the renderer never names a path, an engine or a grant. */
+export const desktopFileXlsxRequestSchema = z.object({
+  sessionGeneration: sessionGenerationSchema,
+  handle: fileHandleSchema,
+  operation: desktopOfficeJobOperationSchema,
+  baseRevision: z.string().regex(/^\d+$/),
+  edits: z.array(z.record(z.string(), z.unknown())).max(10_000).optional(),
+}).strict();
+export type DesktopFileXlsxRequest = z.infer<typeof desktopFileXlsxRequestSchema>;
+export const desktopFileXlsxResponseSchema = z.object({
+  state: z.enum(["completed", "failed"]),
+  /** The JSON snapshot (open) or the produced bytes (edit), base64. */
+  outputBase64: base64BytesSchema.optional(),
+  outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+}).strict();
+export type DesktopFileXlsxResponse = z.infer<typeof desktopFileXlsxResponseSchema>;
 export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 export const leaveRequestedEventSchema = z.object({ requestId: opaqueHandleSchema, reason: z.enum(["close", "logout", "update"]) }).strict();
@@ -272,6 +292,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:office-context": desktopOfficeContextResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
   "desktop:office-job": desktopOfficeJobResponseSchema,
+  "desktop:file-xlsx": desktopFileXlsxResponseSchema,
   "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
@@ -328,6 +349,7 @@ const requestSchemas = {
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-context": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-job": desktopOfficeJobRequestSchema,
+  "desktop:file-xlsx": desktopFileXlsxRequestSchema,
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
 } as const;

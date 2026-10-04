@@ -17,6 +17,7 @@ import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
 import { formatFromFilename, isLocalDocumentFormat, type DesktopDocumentFormat } from "../shared/document-format";
+import type { LocalXlsxEngine } from "./xlsx-engine";
 
 /** Main-process transport for cloud Documents and Office operations. The
  * implementation owns the bearer token and is injected by the Electron
@@ -187,6 +188,9 @@ export interface FileIpcOptions {
   readonly beginSave?: (documentId: string) => (confirmed?: boolean) => void;
   /** Main-owned recent list; recent opens resolve an opaque id to a path here. */
   readonly recents?: RecentFilesStore;
+  /** Bundled local xlsx engine (C1b). Absent = the local xlsx lane is unbound
+   *  and a local .xlsx answers a typed refusal rather than a fake snapshot. */
+  readonly xlsx?: LocalXlsxEngine;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -296,6 +300,24 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
         }
         finally { confirmSave?.(false); }
       });
+    },
+    // C1b: the local xlsx engine job. The renderer names an opaque handle and
+    // a bounded operation; main reads the bytes, drives the bundled gateway +
+    // sidecar and returns a bounded snapshot/byte answer. The renderer never
+    // reads the file and never names an engine or a path.
+    "desktop:file-xlsx": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly Record<string, unknown>[] }>) => {
+      requireOpened(request.handle);
+      const session = options.session?.();
+      if (!options.xlsx) throw new FileIpcError("write_failed");
+      const bytes = await safeFile(() => options.registry.read(request.handle));
+      if (request.operation === "open") {
+        const opened = await options.xlsx.open(bytes);
+        assertSession(session);
+        return { state: "completed" as const, outputBase64: Buffer.from(JSON.stringify({ snapshot: opened.snapshot, render_model: opened.renderModel })).toString("base64") };
+      }
+      const result = await options.xlsx.edit(bytes, request.edits ?? []);
+      assertSession(session);
+      return { state: "completed" as const, outputBase64: Buffer.from(result.bytes).toString("base64"), outputChecksum: result.checksum };
     },
   };
 }
