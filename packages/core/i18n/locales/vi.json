@@ -8716,6 +8716,9 @@
       "errors": {
         "title": "Không mở được sổ tính XLSX này",
         "reason": "Lý do: {{reason}}",
+        "details": "Chi tiết",
+        "detailClass": "Lớp: {{className}}",
+        "detailCode": "Mã: {{code}}",
         "unknown": "Không thể mở sổ tính này. Thử mở lại.",
         "corrupted": "Gói sổ tính bị hỏng hoặc chưa đầy đủ.",
         "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",

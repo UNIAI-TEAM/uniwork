@@ -8723,6 +8723,9 @@
       "errors": {
         "title": "This XLSX workbook could not be opened",
         "reason": "Reason: {{reason}}",
+        "details": "Details",
+        "detailClass": "Class: {{className}}",
+        "detailCode": "Code: {{code}}",
         "unknown": "This workbook could not be opened. Try opening it again.",
         "corrupted": "The workbook package is corrupt or incomplete.",
         "password_cancelled": "The password prompt was cancelled.",
