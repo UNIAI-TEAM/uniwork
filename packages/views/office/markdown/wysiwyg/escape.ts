@@ -40,11 +40,11 @@ const TILDE = "~";
 const OPEN_BRACKET = "[";
 
 /** A `*…*` / `**…**` emphasis or strong pair around non-space content. */
-const ASTERISK_PAIR = /\*\*?[^\s*][\s\S]*?[^\s*]\*\*?/;
+const ASTERISK_PAIR = /\*{1,2}[^\s*](?:[\s\S]*?[^\s*])?\*{1,2}/;
 /** An `_…_` pair that is not intraword (word characters on both sides). */
 const UNDERSCORE_PAIR = /(?<![\w_])_[^\s_][^_]*_(?![\w_])/;
 /** A GFM `~~…~~` strikethrough pair. */
-const TILDE_PAIR = /~~[^\s~][^~]*~~/;
+const TILDE_PAIR = /~~[^\s~](?:[^~]*[^\s~])?~~/;
 /** A `[label](` link or image opener. */
 const LINK_OPENER = /\[[^\]]*\]\(/;
 
@@ -69,14 +69,24 @@ function needsEscaping(character: string, text: string): boolean {
 const ESCAPABLE = new Set([BACKSLASH, BACKTICK, ASTERISK, UNDERSCORE, TILDE, OPEN_BRACKET]);
 
 /**
+ * Above this length the pair probes are skipped and every escapable character
+ * is escaped. The pair probes are linear on ordinary text but a pathological
+ * run of delimiters could make them quadratic; over-escaping is never a
+ * corruption (it only sends that block to the opaque raw node, which preserves
+ * it byte-identically), so the bound costs nothing and removes the tail risk.
+ */
+const SELECTIVE_ESCAPE_SCAN_LIMIT = 8 * 1024;
+
+/**
  * Escape only the Markdown-significant characters that would otherwise change
  * the meaning of `text`. Byte-stable for text with no live delimiter pair, so a
  * paragraph the user never touched serialises back exactly as it was read.
  */
 export function escapeSelectiveMarkdownText(text: string): string {
+  const selective = text.length <= SELECTIVE_ESCAPE_SCAN_LIMIT;
   let escaped = "";
   for (const character of text) {
-    if (ESCAPABLE.has(character) && needsEscaping(character, text)) {
+    if (ESCAPABLE.has(character) && (!selective || needsEscaping(character, text))) {
       escaped += BACKSLASH + character;
     } else {
       escaped += character;
