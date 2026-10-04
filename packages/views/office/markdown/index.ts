@@ -3,3 +3,4 @@ export { createMarkdownCommandMap, type MarkdownClipboardPermissions, type Markd
 export { createMarkdownEditorLoader, type MarkdownEditorSlotConfig } from "./editor-slot";
 export type { MarkdownCapability, MarkdownEditorHandle, MarkdownEditorProps, MarkdownOpenOutcome, MarkdownOpenPort, MarkdownSaveCoordinator } from "./types";
 export { MarkdownWysiwygEditor, type MarkdownWysiwygEditorProps } from "./wysiwyg/editor";
+export { MARKDOWN_RIBBON_KEYS, MarkdownRibbon, useMarkdownRibbonTabs, type MarkdownRibbonOptions, type MarkdownRibbonProps } from "./wysiwyg/ribbon";
