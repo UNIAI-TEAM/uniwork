@@ -13,6 +13,7 @@ import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type IsolatedPreviewP
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
 import { createTextDocumentsTransport, createTextSaveTransport, TEXT_ENGINE_NAME, type TextDocumentSnapshot, type TextDocumentsTransport, type TextFormat } from "./text-save-transport";
+import { renderMarkdownPreview } from "./markdown-preview-copy";
 import { createHttpPreviewAssetProxy, createOfficePreviewPort } from "./preview-port";
 
 // The web host's Markdown/HTML format adapter (S3, UNI-928). It mirrors
@@ -293,14 +294,12 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
  * HTML is fully wired: the engine builds the preview copy inside the isolated
  * frame (buildHtmlPreviewCopy), so preview / split / present all render.
  *
- * Markdown gets no `renderMarkdown` yet, so the port refuses an `md` mount
- * and the view keeps its typed "Preview unavailable" state instead of
- * fabricating a copy. The lane has no browser-safe markdown->HTML renderer:
- * the office boundary gate (scripts/office/check-boundaries.mjs) rejects
- * `@tiptap/*`, `@uniwork/views/office/markdown` and `marked` from
- * apps/web/platform/office, and this host must not vendor a second markdown
- * parser. Wiring it needs a lead-approved gate/dep change or a browser-safe
- * renderer in the engine lane.
+ * Markdown is wired too: `renderMarkdown` renders the source to safe HTML in
+ * the engine lane (buildMarkdownPreviewCopy - a dependency-free subset
+ * renderer, because the office boundary gate rejects `@tiptap/*`,
+ * `@uniwork/views/office/markdown` and `marked` from apps/web/platform/office),
+ * and the same frame pass then resolves local images and applies the isolation
+ * policy. An `md` mount renders instead of showing "Preview unavailable".
  */
 function createPreviewPort(identity: OfficeIdentity, format: TextFormat): IsolatedPreviewPort {
   return createOfficePreviewPort({
@@ -308,6 +307,10 @@ function createPreviewPort(identity: OfficeIdentity, format: TextFormat): Isolat
     proxy: createHttpPreviewAssetProxy(identity.documentId),
     // Visual-edit (ADR 0026) is HTML-only; the Markdown surface never asks.
     allowVisualEdit: format === "html",
+    // Markdown has no engine-side source the frame can render: the host hands
+    // the port the engine's browser-safe renderer. HTML already IS its own
+    // preview copy, so it takes none.
+    renderMarkdown: format === "md" ? renderMarkdownPreview : undefined,
     color_scheme: previewColorScheme(),
   });
 }

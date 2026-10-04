@@ -7,6 +7,19 @@ import type { IndexedDbDraftStore } from "./draft-store";
 import { createTextFormatAdapter } from "./md-html-adapter";
 import type { TextDocumentsTransport } from "./text-save-transport";
 
+// S3c: an md mount now really mounts the isolated frame, which opens an asset
+// scope through the authenticated transport. Mock that one endpoint so the
+// test exercises the renderer + frame policy without a live server; the real
+// schemas stay in the loop everywhere else.
+vi.mock("@uniwork/core/api/endpoints/office", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/office")>()),
+  createPreviewScope: vi.fn(async () => ({
+    origin: "https://preview-assets.example",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    assets: [],
+  })),
+}));
+
 // A kitchen-sink source: YAML frontmatter, a GFM table, fenced code, raw HTML
 // and an HTML comment. Opening and serialising it without an edit must return
 // the exact same bytes - the text lane never parses or normalises.
@@ -227,21 +240,24 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
-  it("keeps the typed unavailable state for Markdown, whose port has no renderer", async () => {
-    // The lane has no browser-safe markdown->HTML renderer (the office
-    // boundary gate rejects @tiptap/*, @uniwork/views/office/markdown and
-    // marked here). The port must therefore refuse an md mount so the view
-    // degrades to its "Preview unavailable" state instead of a fake copy.
+  it("gives the Markdown port a renderer so an md mount renders instead of refusing (S3c)", async () => {
+    // S3c: the host passes renderMarkdown into createOfficePreviewPort, backed
+    // by the engine's browser-safe buildMarkdownPreviewCopy. The port therefore
+    // accepts an md mount (no "preview runtime is unavailable") and the frame
+    // receives safe HTML, not the typed unavailable state.
     const { adapter: created } = adapter("md");
     const props = (created.editorView as { props: Record<string, unknown> }).props;
-    const preview = props.preview as { mount(input: unknown): Promise<unknown> };
-    await expect(preview.mount({
+    const preview = props.preview as { mount(input: unknown): Promise<{ iframe: HTMLIFrameElement; dispose(): void }> };
+    const session = await preview.mount({
       container: document.createElement("div"),
       format: "md",
       title: "Notes",
-      text: "# source",
+      text: "# heading\n\n<script>alert(1)</script>",
       manifest: { entries: [] },
-    })).rejects.toThrow("preview runtime is unavailable for Markdown");
+    });
+    expect(session.iframe.srcdoc).toContain("<h1>heading</h1>");
+    expect(session.iframe.srcdoc).not.toMatch(/<script>alert/);
+    session.dispose();
     await created.session.dispose();
   });
 
