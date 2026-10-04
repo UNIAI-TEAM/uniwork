@@ -54,7 +54,7 @@ function stateIsDirty(state: SaveCoordinatorState): boolean {
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "dirty" || state.state === "saving" || state.state === "error" || state.state === "conflict";
 }
 
-function documentFormat(document: Document): OfficeCapabilityEntry["format"] {
+export function documentFormat(document: Document): OfficeCapabilityEntry["format"] {
   const filename = document.file?.filename.toLowerCase() ?? "";
   const mime = document.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
