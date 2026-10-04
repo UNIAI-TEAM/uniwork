@@ -33,7 +33,14 @@ function failureKey(failureClass: string): keyof typeof FAILURE_ICON {
 function sanitizeDetail(value: string | undefined): string | null {
   if (!value) return null;
   const firstLine = value.split(/\r?\n/, 1)[0] ?? "";
-  const collapsed = firstLine.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  const collapsed = Array.from(firstLine)
+    .map((ch) => {
+      const code = ch.charCodeAt(0);
+      return code < 32 || code === 127 ? " " : ch;
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!collapsed) return null;
   return collapsed.length > 500 ? `${collapsed.slice(0, 500)}...` : collapsed;
 }
