@@ -7773,7 +7773,7 @@
         },
         "kind": {
           "bar": "Clustered column",
-          "barStacked": "Stacked column",
+          "bar_stacked": "Stacked column",
           "barPercentStacked": "100% stacked column",
           "line": "Line",
           "area": "Area",
@@ -8168,7 +8168,7 @@
         "target": "Table {{rows}} x {{cols}}",
         "cell_label": "Cell ({{row}}, {{col}})",
         "insert": {
-          "label": "Insert table",
+          "label": "New table",
           "rows": "Rows",
           "cols": "Columns",
           "apply": "Insert table",
@@ -8324,7 +8324,7 @@
           "solid": "Solid",
           "dash": "Dash",
           "dot": "Dot",
-          "lgDash": "Long dash",
+          "lg_dash": "Long dash",
           "lgDashDot": "Long dash dot",
           "lgDashDotDot": "Long dash dot dot",
           "sysDash": "System dash",

@@ -340,10 +340,28 @@ describe("PptxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1"));
   });
 
+  it("advances with the presenter nav keys and never exits on Space (F1)", async () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1");
+    // ArrowRight advances the show (the presenter owns the nav contract now).
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 2"));
+    // F1: Space is a nav key on the presenter surface, never the exit control.
+    fireEvent.keyDown(window, { key: " " });
+    expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1"));
+  });
+
   it("exits the presenter on Escape and returns focus to the trigger", async () => {
     renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
     const trigger = screen.getByRole("button", { name: "Presenter" });
+    // F2: fireEvent.click never moves focus in jsdom; focus the trigger for real
+    // so the focus-return assertion tests the product behaviour, not the harness.
+    trigger.focus();
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
@@ -354,7 +372,9 @@ describe("PptxEditor", () => {
   it("opens a contextual tab only while the matching object is selected (R4)", async () => {
     const { module } = tableRendererModule();
     render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} loadRendererModule={async () => module} slides={[{ id: "s1" }]} deck={deck} />);
-    await waitFor(() => expect(screen.getByText("Cell A1")).toBeInTheDocument());
+    // The table fixture renders the real cell text "A1"; asserting it proves the
+    // table node is actually painted (the contextual tab is gated on its selection).
+    await waitFor(() => expect(screen.getByText("A1")).toBeInTheDocument());
     expect(screen.queryByRole("tab", { name: "Table Design" })).not.toBeInTheDocument();
     const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
     vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);

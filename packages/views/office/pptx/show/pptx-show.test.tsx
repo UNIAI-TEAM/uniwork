@@ -144,6 +144,13 @@ describe("PptxPresenterView", () => {
     }
   });
 
+  it("says the show has ended instead of claiming the renderer is unbound (F4)", () => {
+    render(<PptxPresenterView slideCount={1} index={0} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Only")} now={() => 0} />);
+    const next = screen.getByTestId("pptx-presenter-next");
+    expect(next).toHaveTextContent("End of show - no next slide.");
+    expect(next).not.toHaveTextContent("not connected to this application");
+  });
+
   it("moves to the next slide and exits from the presenter controls", () => {
     const onIndexChange = vi.fn();
     const onExit = vi.fn();

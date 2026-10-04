@@ -38,7 +38,7 @@ export interface PptxPresenterViewProps {
 }
 
 /** A framed SVG rendition; the current slide and the next-slide preview share it. */
-function SlideFrame({ content, building, label, testId }: { content: PptxCanvasContent | null; building: boolean; label: string; testId: string }) {
+function SlideFrame({ content, building, label, testId, emptyMessage }: { content: PptxCanvasContent | null; building: boolean; label: string; testId: string; emptyMessage?: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-1" data-testid={testId}>
@@ -55,7 +55,7 @@ function SlideFrame({ content, building, label, testId }: { content: PptxCanvasC
           <SvgNodeView node={content.root} />
         </svg>
       ) : (
-        <span className="text-caption text-meeting-bar-muted-foreground">{t(building ? "render_building" : "render_pending")}</span>
+        <span className="text-caption text-meeting-bar-muted-foreground">{t(building ? "render_building" : (emptyMessage ?? "render_pending"))}</span>
       )}
     </div>
   );
@@ -122,7 +122,7 @@ export function PptxPresenterView({
         </div>
         <div className="flex min-h-0 min-w-0 flex-[2] flex-col gap-2">
           <div className="flex min-h-0 flex-1 flex-col rounded-md border border-meeting-bar-border bg-meeting-video-bg p-2">
-            <SlideFrame content={nextContent} building={building} label={nextLabel} testId="pptx-presenter-next" />
+            <SlideFrame content={nextContent} building={building} label={nextLabel} testId="pptx-presenter-next" emptyMessage="show.end_of_show" />
           </div>
           <section aria-label={t("show.notes")} className="min-h-0 flex-1 overflow-auto rounded-md border border-meeting-bar-border bg-meeting-bar-chip-bg p-2" data-testid="pptx-presenter-notes">
             <h2 className="mb-1 text-label">{t("show.notes")}</h2>

@@ -13,6 +13,8 @@ export {
   applyShowNavAction,
   clampSlideIndex,
   formatElapsedClock,
+  isShowActivationKey,
+  isShowInteractiveTarget,
   isShowNavNoop,
   resolveShowNavAction,
   type PptxShowNavAction,

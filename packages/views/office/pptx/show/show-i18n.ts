@@ -28,6 +28,7 @@ export const PPTX_SHOW_I18N: Record<string, PptxShowI18nEntry> = {
   "office.pptx.show.notes_empty": { en: "No speaker notes for this slide.", vi: "Trang chiếu này chưa có ghi chú." },
   "office.pptx.show.current_slide": { en: "Current slide {{index}}", vi: "Trang hiện tại {{index}}" },
   "office.pptx.show.next_slide": { en: "Next slide {{index}}", vi: "Trang kế tiếp {{index}}" },
+  "office.pptx.show.end_of_show": { en: "End of show - no next slide.", vi: "Kết thúc trình chiếu - không còn trang tiếp theo." },
 };
 
 /** Flat keys nested by dot, for one locale: { office: { pptx: { ... } } }. */

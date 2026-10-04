@@ -15,6 +15,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { PptxCanvasContent } from "./canvas/pptx-canvas-surface";
 import { PptxPresenterView } from "./show";
+import { applyShowNavAction, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction } from "./show/show-nav";
 
 export interface PptxPresenterProps {
   /** Slide count of the deck being presented. */
@@ -53,18 +54,32 @@ export function PptxPresenter({
 }: PptxPresenterProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const closeRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  // WIRE-CANVAS-BIND F1: the presenter is the only mounted show surface, so the
+  // full nav contract (not Escape alone) lives here. Focus goes to the surface
+  // itself - never the "Close presenter" button - so Space/Enter advance the
+  // show instead of activating the exit control.
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
+    surfaceRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (isShowActivationKey(event.key) && isShowInteractiveTarget(event.target)) return;
+      const action = resolveShowNavAction(event.key);
+      if (!action) return;
+      event.preventDefault();
+      if (action === "exit") {
+        onClose();
+        return;
+      }
+      const moved = applyShowNavAction(action, selectedIndex, slideCount);
+      if (moved !== selectedIndex) onIndexChange?.(moved);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, open]);
+  }, [onClose, onIndexChange, open, selectedIndex, slideCount]);
   if (!open) return null;
   return (
-    <div className={cn("fixed inset-0 z-50", className)} data-pptx-presenter>
+    <div ref={surfaceRef} tabIndex={-1} className={cn("fixed inset-0 z-50 outline-none", className)} data-pptx-presenter>
       <PptxPresenterView
         slideCount={slideCount}
         index={selectedIndex}

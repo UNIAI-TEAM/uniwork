@@ -199,6 +199,8 @@ export function PptxHeaderFooterPanel({
         </span>
         <Switch
           id="pptx-hf-slide-number"
+          nativeButton
+          render={<button type="button" />}
           checked={draft.slideNum}
           disabled={blocked}
           aria-label={t("headerfooter.slide_number_label")}
@@ -229,6 +231,8 @@ export function PptxHeaderFooterPanel({
         </span>
         <Switch
           id="pptx-hf-date-auto"
+          nativeButton
+          render={<button type="button" />}
           checked={draft.dateAuto}
           disabled={blocked}
           aria-label={t("headerfooter.date_auto_label")}

@@ -42,6 +42,24 @@ export function resolveShowNavAction(key: string): PptxShowNavAction | null {
   }
 }
 
+/**
+ * Space and Enter also activate a focused control; those two stay with the
+ * control, every other show key is handled by the show surface. Shared by the
+ * slide-show surface and the presenter overlay so the keyboard contract cannot
+ * drift between the two.
+ */
+export function isShowActivationKey(key: string): boolean {
+  return key === " " || key === "Spacebar" || key === "Enter";
+}
+
+/** A focused control (button, link, field, contenteditable) owns its own keys. */
+export function isShowInteractiveTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element || typeof element.tagName !== "string") return false;
+  const tag = element.tagName.toLowerCase();
+  return tag === "button" || tag === "a" || tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable;
+}
+
 /** Bound an index into `[0, count - 1]`; an empty deck stays at 0. */
 export function clampSlideIndex(index: number, count: number): number {
   if (!Number.isFinite(index)) return 0;

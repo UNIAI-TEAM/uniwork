@@ -19,7 +19,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { SvgNodeView, type PptxCanvasContent } from "../canvas/pptx-canvas-surface";
-import { applyShowNavAction, resolveShowNavAction } from "./show-nav";
+import { applyShowNavAction, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction } from "./show-nav";
 
 export interface PptxSlideShowProps {
   /** Slide count of the deck being shown. */
@@ -34,19 +34,6 @@ export interface PptxSlideShowProps {
   /** A deck is bound and its rendition is still being built. */
   building?: boolean;
   className?: string;
-}
-
-/** Space and Enter also activate a focused control; those two stay with the
- *  control, every other show key is handled here. */
-function isActivationKey(key: string): boolean {
-  return key === " " || key === "Spacebar" || key === "Enter";
-}
-
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null;
-  if (!element || typeof element.tagName !== "string") return false;
-  const tag = element.tagName.toLowerCase();
-  return tag === "button" || tag === "a" || tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable;
 }
 
 export function PptxSlideShow({
@@ -67,7 +54,7 @@ export function PptxSlideShow({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isActivationKey(event.key) && isInteractiveTarget(event.target)) return;
+      if (isShowActivationKey(event.key) && isShowInteractiveTarget(event.target)) return;
       const action = resolveShowNavAction(event.key);
       if (!action) return;
       event.preventDefault();
