@@ -82,3 +82,11 @@ export {
   type BrowserPdfium,
   type BrowserPdfRenderedPage,
 } from "./pdfium";
+export {
+  readPdfNotes,
+  type BrowserPdfNoteRect,
+  type BrowserPdfNoteRow,
+  type BrowserPdfNoteSkip,
+  type BrowserPdfNotesRead,
+  type BrowserPdfNoteThread,
+} from "./notes-reader";
