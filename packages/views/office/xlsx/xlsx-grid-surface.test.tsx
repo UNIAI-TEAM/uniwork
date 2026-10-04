@@ -124,6 +124,17 @@ describe("XlsxGridSurface", () => {
     expect(ref.current?.getActiveFormatState()).toBe(state);
   });
 
+  it("reports the right-click point to the host and suppresses the browser menu", async () => {
+    const { module } = fakeModule();
+    const onContextMenu = vi.fn();
+    render(<XlsxGridSurface documentKey="menu-doc" host={host} loadModule={async () => module} onContextMenu={onContextMenu} />);
+    const surface = screen.getByTestId("xlsx-grid-surface");
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 33, clientY: 44 });
+    surface.dispatchEvent(event);
+    expect(onContextMenu).toHaveBeenCalledWith({ x: 33, y: 44 }, surface);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it("shows a typed failure when the artifact cannot load", async () => {
     const onFailure = vi.fn();
     render(<XlsxGridSurface documentKey="doc-3" host={host} loadModule={async () => { throw new Error("chunk_unavailable"); }} onFailure={onFailure} />);

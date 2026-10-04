@@ -70,6 +70,8 @@ export interface XlsxToolbarGroupProps {
   resolveSheetId?: (liveName: string) => string | undefined;
   /** Opens the editor-owned Function Library dialog. Absent without a grid. */
   onOpenFunctionLibrary?: () => void;
+  /** Opens the editor-owned shortcuts map/help dialog. */
+  onOpenShortcuts?: () => void;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

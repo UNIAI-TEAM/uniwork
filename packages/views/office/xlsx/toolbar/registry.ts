@@ -20,6 +20,7 @@ import { XlsxStructureOutlineGroup } from "./structure-outline";
 import { XlsxStructureSizeGroup } from "./structure-size";
 import { XlsxViewDisplayGroup } from "./view-display";
 import { XlsxViewGoToGroup } from "./view-goto";
+import { XlsxViewShortcutsGroup } from "./view-shortcuts";
 import { XlsxViewZoomGroup } from "./view-zoom";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
@@ -72,4 +73,5 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
   { id: "page-setup", tab: "view", order: 40, labelKey: "office.xlsx.pageSetup.groups.view", Component: XlsxPageSetupGroup },
   { id: "sort", tab: "data", order: 30, labelKey: "office.xlsx.sort.groups.data", Component: XlsxSortGroup },
+  { id: "view-shortcuts", tab: "view", order: 50, labelKey: "office.xlsx.toolbar.groups.view.shortcuts.label", Component: XlsxViewShortcutsGroup },
 ];

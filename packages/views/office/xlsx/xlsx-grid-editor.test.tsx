@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { XlsxEditor } from "./xlsx-editor";
@@ -68,10 +68,11 @@ describe("XlsxEditor live grid commands", () => {
     const { handle } = setup();
     await screen.findByTestId("live-grid");
     act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 } }));
-    fireEvent.click(screen.getByRole("button", { name: /^Sao chép/ }));
+    const toolbar = within(screen.getByTestId("xlsx-toolbar"));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2\t\n\t");
     grid.handle.setCellText.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Dán/ }));
     await waitFor(() => expect(grid.handle.setCellText).toHaveBeenCalledTimes(4));
     expect(grid.handle.setCellText.mock.calls).toEqual([["sheet-1", 0, 0, "3"], ["sheet-1", 0, 1, "4"], ["sheet-1", 1, 0, "5"], ["sheet-1", 1, 1, "6"]]);
   });
@@ -191,9 +192,10 @@ describe("XlsxEditor live grid commands", () => {
     const { handle } = setup(undefined, true);
     await screen.findByTestId("live-grid");
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
-    fireEvent.click(screen.getByRole("button", { name: /^Sao chép/ }));
+    const toolbar = within(screen.getByTestId("xlsx-toolbar"));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2");
-    const paste = screen.getByRole("button", { name: /^Dán/ });
+    const paste = toolbar.getByRole("button", { name: /^Dán/ });
     expect(paste).toHaveAttribute("aria-disabled", "true");
     expect(paste).not.toBeDisabled();
     fireEvent.click(paste);
@@ -205,7 +207,7 @@ describe("XlsxEditor live grid commands", () => {
     await screen.findByTestId("live-grid");
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     vi.mocked(handle.clipboard!.readText!).mockRejectedValueOnce(new Error("NotAllowedError: internal browser diagnostic"));
-    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    fireEvent.click(within(screen.getByTestId("xlsx-toolbar")).getByRole("button", { name: /^Dán/ }));
     expect(await screen.findByTestId("xlsx-recalc-error")).toHaveTextContent("Kiểm tra quyền của trình duyệt");
     expect(screen.getByTestId("xlsx-recalc-error")).not.toHaveTextContent("NotAllowedError");
   });
@@ -218,5 +220,40 @@ describe("XlsxEditor live grid commands", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Redo" })).toBeInTheDocument();
     expect(screen.getByTestId("xlsx-save")).toHaveTextContent("Save");
+  });
+});
+
+describe("XlsxEditor context menu and shortcuts", () => {
+  it("opens the context menu from a right-click and runs a command through the grid port", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 } }));
+    const container = screen.getByTestId("live-grid");
+    act(() => grid.props?.onContextMenu?.({ x: 10, y: 20 }, container));
+    const menu = await screen.findByTestId("xlsx-context-menu");
+    grid.handle.executeCommand.mockClear();
+    fireEvent.click(within(menu).getByTestId("xlsx-context-insert-row-above"));
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 2 });
+  });
+
+  it("cuts by copying the selection then clearing it through the allowlisted command", async () => {
+    const { handle } = setup();
+    await screen.findByTestId("live-grid");
+    act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 0, endColumn: 0 } }));
+    const container = screen.getByTestId("live-grid");
+    act(() => grid.props?.onContextMenu?.({ x: 1, y: 1 }, container));
+    const menu = await screen.findByTestId("xlsx-context-menu");
+    grid.handle.executeCommand.mockClear();
+    fireEvent.click(within(menu).getByTestId("xlsx-context-cut"));
+    await waitFor(() => expect(handle.clipboard?.writeText).toHaveBeenCalled());
+    await waitFor(() => expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.clear-selection-content", undefined));
+  });
+
+  it("opens the shortcuts dialog from the View tab entry", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    fireEvent.click(screen.getByTestId("xlsx-toolbar-tab-view"));
+    fireEvent.click(screen.getByTestId("xlsx-shortcuts-open"));
+    expect(await screen.findByTestId("xlsx-shortcuts")).toBeInTheDocument();
   });
 });

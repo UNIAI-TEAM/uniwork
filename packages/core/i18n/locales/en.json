@@ -7318,6 +7318,9 @@
             },
             "goto": {
               "label": "Go to"
+            },
+            "shortcuts": {
+              "label": "Shortcuts"
             }
           }
         },
@@ -7708,6 +7711,72 @@
           "replacedAll": "Replaced {{count}} cells.",
           "noChange": "No cell needed replacing.",
           "failed": "Could not replace — the cells may be outside the loaded area, or the document is read-only."
+        }
+      },
+      "contextMenu": {
+        "items": {
+          "cut": "Cut",
+          "copy": "Copy",
+          "paste": "Paste",
+          "clearContent": "Clear contents",
+          "clearFormat": "Clear formats",
+          "insertRowAbove": "Insert row above",
+          "insertRowBelow": "Insert row below",
+          "insertColLeft": "Insert column left",
+          "insertColRight": "Insert column right",
+          "deleteRows": "Delete rows",
+          "deleteColumns": "Delete columns",
+          "mergeCells": "Merge cells",
+          "mergeAcross": "Merge across",
+          "unmergeCells": "Unmerge cells",
+          "numberFormat": "Number format",
+          "filterToggle": "Filter",
+          "filterClear": "Clear filter",
+          "find": "Find and replace"
+        }
+      },
+      "shortcuts": {
+        "open": "Keyboard shortcuts",
+        "openHint": "See all keyboard shortcuts",
+        "title": "Keyboard shortcuts",
+        "close": "Close",
+        "search": "Search",
+        "searchPlaceholder": "Search shortcuts",
+        "empty": "No shortcuts match.",
+        "categories": {
+          "general": "General",
+          "navigation": "Navigation",
+          "editing": "Editing",
+          "formatting": "Formatting",
+          "sheets": "Sheets",
+          "view": "View"
+        },
+        "items": {
+          "save": "Save",
+          "undo": "Undo",
+          "redo": "Redo",
+          "find": "Find and replace",
+          "help": "Keyboard shortcuts",
+          "moveUp": "Move up",
+          "moveDown": "Move down",
+          "moveLeft": "Move left",
+          "moveRight": "Move right",
+          "moveToEdge": "Move to the edge of the data",
+          "selectAll": "Select all",
+          "nextSheet": "Next sheet",
+          "previousSheet": "Previous sheet",
+          "editCell": "Edit the active cell",
+          "cancelEdit": "Cancel the entry",
+          "cut": "Cut",
+          "copy": "Copy",
+          "paste": "Paste",
+          "clearContent": "Clear contents",
+          "bold": "Bold",
+          "italic": "Italic",
+          "underline": "Underline",
+          "insertSheet": "Insert sheet",
+          "zoomIn": "Zoom in",
+          "zoomOut": "Zoom out"
         }
       },
       "editor": {

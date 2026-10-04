@@ -106,6 +106,9 @@ export interface XlsxGridSurfaceProps {
   onSelectionChange?: (selection: XlsxGridSelection | null) => void;
   onReady?: () => void;
   onFailure?: (message: string) => void;
+  /** Right-click on the grid: the editor opens its context menu at the point
+   *  and returns focus to `container` when the menu closes. Absent = no menu. */
+  onContextMenu?: (point: { x: number; y: number }, container: HTMLElement) => void;
   /** Test seam: resolves the artifact without the real chunk. */
   loadModule?: () => Promise<XlsxRendererModule>;
   ref?: Ref<XlsxGridHandle>;
@@ -128,6 +131,7 @@ export function XlsxGridSurface({
   onSelectionChange,
   onReady,
   onFailure,
+  onContextMenu,
   loadModule = loadXlsxRendererModule,
   ref,
 }: XlsxGridSurfaceProps) {
@@ -139,6 +143,8 @@ export function XlsxGridSurface({
   const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule });
   callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule };
   const [failed, setFailed] = useState(false);
+  const contextMenuRef = useRef(onContextMenu);
+  contextMenuRef.current = onContextMenu;
 
   useImperativeHandle(
     ref,
@@ -209,6 +215,21 @@ export function XlsxGridSurface({
   }, [documentKey, host, readOnly]);
 
   useEffect(() => { handleRef.current?.setDarkMode(dark); }, [dark]);
+
+  // The Univer input lives in a nested React root, so the right click is caught
+  // natively in the capture phase: it cannot be swallowed by a child handler
+  // and it reaches us before the browser menu would open.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const onNativeContextMenu = (event: MouseEvent) => {
+      if (!contextMenuRef.current) return;
+      event.preventDefault();
+      contextMenuRef.current({ x: event.clientX, y: event.clientY }, container);
+    };
+    container.addEventListener("contextmenu", onNativeContextMenu, true);
+    return () => container.removeEventListener("contextmenu", onNativeContextMenu, true);
+  }, []);
 
   return (
     <div

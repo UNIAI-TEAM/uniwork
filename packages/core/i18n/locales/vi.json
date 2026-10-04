@@ -7312,6 +7312,9 @@
             },
             "goto": {
               "label": "Đi tới"
+            },
+            "shortcuts": {
+              "label": "Phím tắt"
             }
           }
         },
@@ -7702,6 +7705,72 @@
           "replacedAll": "Đã thay thế {{count}} ô.",
           "noChange": "Không có ô nào cần thay thế.",
           "failed": "Không thay thế được — ô có thể nằm ngoài vùng đã nạp hoặc tài liệu chỉ cho đọc."
+        }
+      },
+      "contextMenu": {
+        "items": {
+          "cut": "Cắt",
+          "copy": "Sao chép",
+          "paste": "Dán",
+          "clearContent": "Xóa nội dung",
+          "clearFormat": "Xóa định dạng",
+          "insertRowAbove": "Chèn hàng bên trên",
+          "insertRowBelow": "Chèn hàng bên dưới",
+          "insertColLeft": "Chèn cột bên trái",
+          "insertColRight": "Chèn cột bên phải",
+          "deleteRows": "Xóa hàng",
+          "deleteColumns": "Xóa cột",
+          "mergeCells": "Gộp ô",
+          "mergeAcross": "Gộp theo hàng",
+          "unmergeCells": "Bỏ gộp ô",
+          "numberFormat": "Định dạng số",
+          "filterToggle": "Lọc",
+          "filterClear": "Xóa bộ lọc",
+          "find": "Tìm và thay thế"
+        }
+      },
+      "shortcuts": {
+        "open": "Phím tắt",
+        "openHint": "Xem tất cả phím tắt",
+        "title": "Phím tắt",
+        "close": "Đóng",
+        "search": "Tìm kiếm",
+        "searchPlaceholder": "Tìm phím tắt",
+        "empty": "Không có phím tắt nào khớp.",
+        "categories": {
+          "general": "Chung",
+          "navigation": "Điều hướng",
+          "editing": "Chỉnh sửa",
+          "formatting": "Định dạng",
+          "sheets": "Trang tính",
+          "view": "Xem"
+        },
+        "items": {
+          "save": "Lưu",
+          "undo": "Hoàn tác",
+          "redo": "Làm lại",
+          "find": "Tìm và thay thế",
+          "help": "Phím tắt",
+          "moveUp": "Di chuyển lên",
+          "moveDown": "Di chuyển xuống",
+          "moveLeft": "Di chuyển sang trái",
+          "moveRight": "Di chuyển sang phải",
+          "moveToEdge": "Di chuyển tới rìa vùng dữ liệu",
+          "selectAll": "Chọn tất cả",
+          "nextSheet": "Trang tính kế tiếp",
+          "previousSheet": "Trang tính trước",
+          "editCell": "Sửa ô đang chọn",
+          "cancelEdit": "Hủy nhập",
+          "cut": "Cắt",
+          "copy": "Sao chép",
+          "paste": "Dán",
+          "clearContent": "Xóa nội dung",
+          "bold": "Đậm",
+          "italic": "Nghiêng",
+          "underline": "Gạch chân",
+          "insertSheet": "Chèn trang tính",
+          "zoomIn": "Phóng to",
+          "zoomOut": "Thu nhỏ"
         }
       },
       "editor": {

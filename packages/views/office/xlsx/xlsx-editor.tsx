@@ -27,6 +27,9 @@ import {
 } from "./sheet-commands";
 import { XlsxSheetTabs } from "./sheet-tabs";
 import { XlsxStatusBar } from "./status-bar";
+import { XLSX_CONTEXT_CLEAR_CONTENT_COMMAND } from "./context-menu/menu-items";
+import { useXlsxContextMenu } from "./context-menu/use-context-menu";
+import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
 import { addressParts, cellEditOperation, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
@@ -91,6 +94,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const rootRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<XlsxGridHandle | null>(null);
   const [gridReady, setGridReady] = useState(false);
+  // The right-click context menu and the shortcuts help dialog are UI-only.
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
   const translationRef = useRef(t);
   const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
@@ -470,6 +475,34 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
   }, [t]);
 
+  // Cut = copy the selection, then clear its content through the allowlisted
+  // clear command (no new op, no second save path). The clipboard write must
+  // succeed before anything is cleared.
+  const cut = useCallback(async () => {
+    if (!selection || readOnly || !canEdit || permissions.canCopy === false || !editor.clipboard?.writeText) return;
+    await editor.clipboard.writeText(selectionClipboardText(snapshot, selection));
+    gridCommands.execute(XLSX_CONTEXT_CLEAR_CONTENT_COMMAND);
+  }, [canEdit, editor.clipboard, gridCommands, permissions.canCopy, readOnly, selection, snapshot]);
+
+  // The grid context menu (A9): the hook owns the anchor point, the disabled
+  // state and the focus return; every item dispatches through the same port and
+  // callbacks as the toolbar.
+  const contextMenu = useXlsxContextMenu({
+    readOnly,
+    selection,
+    canFormat: gridReady && selection !== null,
+    commands: gridCommands,
+    permissions,
+    canCut: canEdit && permissions.canCopy !== false && typeof editor.clipboard?.writeText === "function",
+    canFind: rendererHost !== undefined,
+    unitId: rendererHost ? `file-${rendererHost.file.sha256}` : null,
+    resolveSheetId: gridSheetId,
+    onCut: () => { void cut().catch(clipboardFailure); },
+    onCopy: () => { void copy().catch(clipboardFailure); },
+    onPaste: () => { void paste().catch(clipboardFailure); },
+    onFind: () => setFindOpen(true),
+  });
+
   // Page Setup, Print and Export CSV (C2): the hook owns the dialog state,
   // the set_page_setup op and the two host actions; see page-setup/.
   const pageSetup = useXlsxPageSetup({
@@ -580,6 +613,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             sheetName={selection?.sheet ?? activeSheet}
             resolveSheetId={gridSheetId}
             onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
+            onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
             onSave={() => save("button")}
             onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
           />
@@ -615,6 +649,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onClose={() => setFunctionLibraryOpen(false)}
           />
           {pageSetup.dialog}
+          {shortcutsOpen ? <XlsxShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+          {contextMenu.node}
           {recalcProgress !== null ? (
             <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
               <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>
@@ -648,6 +684,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 host={rendererHost}
                 dark={dark}
                 readOnly={readOnly || !canEdit}
+                onContextMenu={contextMenu.open}
                 onEdits={(edits) => { gridEdits.onEdits(edits); refreshFormatState(); refreshSheets(); }}
                 onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                 onFailure={(message) => {
