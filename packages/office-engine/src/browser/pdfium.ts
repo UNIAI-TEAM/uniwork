@@ -10,6 +10,8 @@ const FPDF_ERR_PASSWORD = 4;
 /** The slice of the emscripten module this file calls into. */
 export interface BrowserPdfiumModule {
   HEAPU8: Uint8Array;
+  HEAPF32: Float32Array;
+  HEAPF64: Float64Array;
   _malloc(size: number): number;
   _free(ptr: number): void;
   _PDFiumExt_Init(): void;
@@ -39,6 +41,10 @@ export interface BrowserPdfiumModule {
   _FPDFText_CountChars(textPage: number): number;
   /** embedpdf's build drops buffer_size: it copies exactly `count` chars (+ NUL) into `buffer`. */
   _FPDFText_GetText(textPage: number, startIndex: number, count: number, buffer: number): number;
+  /** FS_RECTF* (4 floats: left, top, right, bottom) in PDF points. */
+  _FPDFText_GetLooseCharBox(textPage: number, index: number, rect: number): number;
+  /** FPDFText_GetCharOrigin: writes two doubles (x, y) in PDF points. */
+  _FPDFText_GetCharOrigin(textPage: number, index: number, x: number, y: number): number;
 }
 
 export interface BrowserPdfRenderedPage {
@@ -54,7 +60,12 @@ export interface BrowserPdfDocument {
   pageSize(index: number): { width: number; height: number };
   /** Pixel size = round(points * scale); annotations are drawn (FPDF_ANNOT). */
   renderPage(index: number, options: { scale: number }): BrowserPdfRenderedPage;
+  /** Text of the page; line breaks are normalised to \n. */
   pageText(index: number): string;
+  /** One box per character of pageText(index), in that same index space: a
+   * top-left-origin rectangle in PDF points. A char with no box is reported
+   * as a zero-size box so offsets stay aligned with pageText. */
+  pageCharBoxes(index: number): readonly { x: number; y: number; width: number; height: number }[];
   close(): void;
 }
 
@@ -87,6 +98,46 @@ function withPage<T>(m: BrowserPdfiumModule, doc: number, index: number, fn: (pa
 function readUtf16(m: BrowserPdfiumModule, ptr: number, units: number): string {
   const view = m.HEAPU8.subarray(ptr, ptr + units * 2);
   return new TextDecoder("utf-16le").decode(view);
+}
+
+/** Whole-textpage text (UTF-16LE, NUL-trimmed) exactly as pdfium reports it. */
+function readRawPageText(m: BrowserPdfiumModule, textPage: number): string {
+  const count = m._FPDFText_CountChars(textPage);
+  if (count <= 0) return "";
+  // GetText writes `count` units AND the trailing NUL: one extra unit.
+  const buf = m._malloc((count + 1) * 2);
+  if (!buf) return "";
+  try {
+    const written = m._FPDFText_GetText(textPage, 0, count, buf);
+    if (written <= 0) return "";
+    return readUtf16(m, buf, written).replace(/\0+$/, "");
+  } finally {
+    m._free(buf);
+  }
+}
+
+/** Normalise a raw textpage string the way pageText does, keeping the mapping
+ * from each normalised character back to its raw char index so char boxes stay
+ * in the same index space as pageText (pdfium emits \r\n, pageText emits \n). */
+function normalizePageText(raw: string): { text: string; rawIndex: number[] } {
+  let text = "";
+  const rawIndex: number[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i]!;
+    if (ch === "\r") {
+      // \r\n and a lone \r both collapse to one \n (the \n is skipped).
+      text += "\n";
+      rawIndex.push(i);
+      if (raw[i + 1] === "\n") i += 1;
+    } else {
+      text += ch;
+      rawIndex.push(i);
+    }
+  }
+  // pageText trims trailing whitespace; drop the same tail from the map.
+  let end = text.length;
+  while (end > 0 && /\s/.test(text[end - 1]!)) end -= 1;
+  return { text: text.slice(0, end), rawIndex: rawIndex.slice(0, end) };
 }
 
 /** Wrap an initialised module. Exported for tests that inject a fake module. */
@@ -178,21 +229,51 @@ export function createBrowserPdfium(m: BrowserPdfiumModule): BrowserPdfium {
             const textPage = m._FPDFText_LoadPage(page);
             if (!textPage) return "";
             try {
-              const count = m._FPDFText_CountChars(textPage);
-              if (count <= 0) return "";
-              // GetText writes `count` units AND the trailing NUL: one extra unit.
-              const buf = m._malloc((count + 1) * 2);
-              if (!buf) return "";
+              return normalizePageText(readRawPageText(m, textPage)).text;
+            } finally {
+              m._FPDFText_ClosePage(textPage);
+            }
+          });
+        },
+        pageCharBoxes(index) {
+          live();
+          return withPage(m, doc, index, (page) => {
+            const textPage = m._FPDFText_LoadPage(page);
+            if (!textPage) return [];
+            try {
+              const { rawIndex } = normalizePageText(readRawPageText(m, textPage));
+              if (rawIndex.length === 0) return [];
+              const pageHeight = m._FPDF_GetPageHeightF(page);
+              const rectPtr = m._malloc(16);
+              const xPtr = m._malloc(8);
+              const yPtr = m._malloc(8);
               try {
-                const written = m._FPDFText_GetText(textPage, 0, count, buf);
-                if (written <= 0) return "";
-                return readUtf16(m, buf, written)
-                  .replace(/\0+$/, "")
-                  .replace(/\r\n/g, "\n")
-                  .replace(/\r/g, "\n")
-                  .trimEnd();
+                if (!rectPtr || !xPtr || !yPtr) return [];
+                const boxes: { x: number; y: number; width: number; height: number }[] = [];
+                for (const rawCharIndex of rawIndex) {
+                  if (m._FPDFText_GetLooseCharBox(textPage, rawCharIndex, rectPtr)) {
+                    const left = m.HEAPF32[rectPtr >> 2]!;
+                    const top = m.HEAPF32[(rectPtr >> 2) + 1]!;
+                    const right = m.HEAPF32[(rectPtr >> 2) + 2]!;
+                    const bottom = m.HEAPF32[(rectPtr >> 2) + 3]!;
+                    // PDF user space is bottom-left; report a top-left-origin box.
+                    boxes.push({ x: left, y: pageHeight - top, width: right - left, height: top - bottom });
+                    continue;
+                  }
+                  // No box: keep the offset aligned with a zero-size box.
+                  let x = 0;
+                  let y = 0;
+                  if (m._FPDFText_GetCharOrigin(textPage, rawCharIndex, xPtr, yPtr)) {
+                    x = m.HEAPF64[xPtr >> 3]!;
+                    y = pageHeight - m.HEAPF64[yPtr >> 3]!;
+                  }
+                  boxes.push({ x, y, width: 0, height: 0 });
+                }
+                return boxes;
               } finally {
-                m._free(buf);
+                if (rectPtr) m._free(rectPtr);
+                if (xPtr) m._free(xPtr);
+                if (yPtr) m._free(yPtr);
               }
             } finally {
               m._FPDFText_ClosePage(textPage);

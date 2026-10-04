@@ -7,6 +7,7 @@ import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, StableSnapshot } 
 import {
   bridgePdfOperations,
   createPdfEditorLoader,
+  quadsForRange,
   type PdfCapability,
   type PdfEditOperation,
   type PdfEditorHandle,
@@ -242,12 +243,26 @@ function createPdfEditorSurface(options: {
       const needle = query.trim().toLowerCase();
       const session = render;
       if (!needle || !session) return [];
-      const hits: { id: string; page: number; start: number; end: number; text: string }[] = [];
-      for (const { pageNumber } of session.pages()) {
-        const text = session.pageText(pageNumber);
+      const hits: SearchHits[number][] = [];
+      for (const page of session.pages()) {
+        const text = session.pageText(page.pageNumber);
         const haystack = text.toLowerCase();
+        // Page geometry is read once per page, lazily: a host that cannot read it
+        // simply leaves the hit without quads, so it paints nothing.
+        let charBoxes: readonly { x: number; y: number; width: number; height: number }[] | null = null;
         for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) {
-          hits.push({ id: `${pageNumber}:${at}`, page: pageNumber, start: at, end: at + needle.length, text: text.slice(at, at + needle.length) });
+          const end = at + needle.length;
+          if (charBoxes === null) {
+            try {
+              charBoxes = session.pageCharBoxes(page.pageNumber);
+            } catch {
+              charBoxes = [];
+            }
+          }
+          const hit: SearchHits[number] = { id: `${page.pageNumber}:${at}`, page: page.pageNumber, start: at, end, text: text.slice(at, end) };
+          const quads = quadsForRange(charBoxes, at, end, page.height);
+          if (quads.length > 0) hit.quads = quads;
+          hits.push(hit);
         }
       }
       return hits;

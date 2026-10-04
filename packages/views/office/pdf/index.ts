@@ -175,4 +175,5 @@ export type {
   PdfPageBoxSetPageBoxInput,
   PdfPageSizeDialogProps,
 } from "./page-box";
+export { quadsForRange } from "./find/search-model";
 export * from "./chrome";

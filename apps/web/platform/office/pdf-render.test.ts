@@ -13,6 +13,7 @@ function fakeDoc(label: string, sizes: Array<{ width: number; height: number }>)
       height: Math.round(sizeOf(i).height * o.scale),
     })),
     pageText: vi.fn((i: number) => `${label} text ${i}`),
+    pageCharBoxes: vi.fn((i: number) => [{ x: i, y: i, width: 4, height: 6 }]),
     close: vi.fn(),
   };
   return doc satisfies BrowserPdfDocument;
@@ -48,7 +49,9 @@ describe("createPdfRenderSession", () => {
       { pageNumber: 2, width: 50, height: 60, rotation: 0 },
     ]);
     expect(session.pageText(2)).toBe("a text 1");
+    expect(session.pageCharBoxes(2)).toEqual([{ x: 1, y: 1, width: 4, height: 6 }]);
     expect(() => session.pageText(3)).toThrow("pdf_render_page_out_of_range");
+    expect(() => session.pageCharBoxes(3)).toThrow("pdf_render_page_out_of_range");
   });
 
   it("renders at scale times pixel ratio capped at 3 and caches", async () => {

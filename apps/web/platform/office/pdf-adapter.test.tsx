@@ -67,6 +67,7 @@ function fakeSession(bytes: Uint8Array, pageTexts: string[]): FakeSession {
     disposed: false,
     pages: () => texts.map((_, index) => ({ pageNumber: index + 1, width: 612, height: 792 })),
     pageText: (page) => texts[page - 1] ?? "",
+    pageCharBoxes: (page) => (texts[page - 1] ?? "").split("").map((_c, index) => ({ x: index, y: 0, width: 1, height: 1 })),
     renderPage: vi.fn(async (request) => ({ src: `blob:page-${request.pageNumber}`, width: 612, height: 792 })),
     replaceBytes: vi.fn(async (next: Uint8Array) => { session.bytesSeen.push(next); if (next.length > 6) texts = [...texts, "extra"]; }),
     dispose: () => { session.disposed = true; },
@@ -177,6 +178,16 @@ describe("web PDF format adapter", () => {
     const hits = await editor.searchText?.("HELLO");
     expect(hits?.map((hit) => [hit.page, hit.start, hit.text])).toEqual([[1, 0, "Hello"], [2, 7, "hello"]]);
     expect(await editor.searchText?.("   ")).toEqual([]);
+    await adapter.session.dispose();
+  });
+
+  it("attaches per-line quads to each hit from the page's char boxes", async () => {
+    const { adapter, editor } = setup();
+    await adapter.open.open();
+    const hits = await editor.searchText?.("HELLO");
+    // Page text is "Hello World": the hit covers chars 0-4 -> one quad in
+    // bottom-left space (page height 792; box top-left y=0, height=1).
+    expect(hits?.[0]?.quads).toEqual([[0, 791, 5, 792]]);
     await adapter.session.dispose();
   });
 

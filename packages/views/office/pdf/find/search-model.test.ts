@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPdfTextHits, getPdfSearchHighlightProps } from "./search-model";
+import { findPdfTextHits, getPdfSearchHighlightProps, quadsForRange } from "./search-model";
 import type { PdfTextDocument } from "./types";
 
 const doc: PdfTextDocument = {
@@ -34,6 +34,27 @@ describe("findPdfTextHits", () => {
     };
     expect(findPdfTextHits(decomposed, "x")).toEqual([
       { id: "1:2:3", page: 1, start: 2, end: 3, text: "x" },
+    ]);
+  });
+
+  it("unions covered char boxes into one quad per line in bottom-left space", () => {
+    // Two boxes on one line (top-left origin, page height 100).
+    const boxes = [
+      { x: 10, y: 20, width: 10, height: 8 },
+      { x: 20, y: 20, width: 10, height: 8 },
+    ];
+    expect(quadsForRange(boxes, 0, 2, 100)).toEqual([[10, 72, 30, 80]]);
+  });
+
+  it("splits a quad when the y baseline jumps and skips zero-size boxes", () => {
+    const boxes = [
+      { x: 10, y: 20, width: 10, height: 8 },
+      { x: 20, y: 60, width: 10, height: 8 },
+      { x: 0, y: 0, width: 0, height: 0 },
+    ];
+    expect(quadsForRange(boxes, 0, 3, 100)).toEqual([
+      [10, 72, 20, 80],
+      [20, 32, 30, 40],
     ]);
   });
 
