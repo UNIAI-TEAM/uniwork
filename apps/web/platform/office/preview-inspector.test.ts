@@ -8,7 +8,6 @@ import {
   injectInspector,
   inspectorCommandSchema,
   inspectorInboundSchema,
-  inspectorScriptTag,
   isInspectorNonce,
   sealInspectorCommand,
 } from "./preview-inspector";
@@ -59,9 +58,9 @@ describe("inspector source is UniWork-owned and self-contained", () => {
   });
 
   it("puts the nonce in the attribute, never in the body", () => {
-    const tag = inspectorScriptTag(NONCE);
-    expect(tag).toBe('<script nonce="' + NONCE + '">' + INSPECTOR_SCRIPT_BODY + "</script>");
     expect(INSPECTOR_SCRIPT_BODY).not.toContain(NONCE);
+    const out = injectInspector("<p>x</p>", NONCE);
+    expect(out).toContain('<script nonce="' + NONCE + '">' + INSPECTOR_SCRIPT_BODY + "</script>");
   });
 });
 
@@ -92,7 +91,6 @@ describe("injectInspector runs after the gate", () => {
 
   it("rejects a malformed nonce before it can reach a policy or a tag", () => {
     expect(() => injectInspector("<p>x</p>", "bad")).toThrow();
-    expect(() => inspectorScriptTag("bad")).toThrow();
   });
 });
 

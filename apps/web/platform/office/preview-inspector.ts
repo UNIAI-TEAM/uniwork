@@ -159,13 +159,6 @@ export const INSPECTOR_SCRIPT_BODY = [
   "})();",
 ].join("");
 
-/** The injected element: the body plus the per-render nonce as an attribute.
- * The nonce never appears in the body, so the body is a constant. */
-export function inspectorScriptTag(nonce: string): string {
-  assertInspectorNonce(nonce);
-  return '<script nonce="' + nonce + '">' + INSPECTOR_SCRIPT_BODY + "</scr" + "ipt>";
-}
-
 /**
  * Insert the inspector into an ALREADY-GATED copy. Runs after gatePreviewCopy,
  * so the document's own scripts are gone and cannot be mistaken for this one;

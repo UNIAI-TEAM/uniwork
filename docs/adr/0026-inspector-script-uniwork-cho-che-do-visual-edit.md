@@ -62,9 +62,17 @@ Cụ thể trong mã nguồn:
 - Chế độ preview thường (`{ scripts: false }`, mặc định sản xuất) và preview
   Markdown giữ **đúng** hành vi hôm nay: không script, `script-src 'none'`.
 
-`preview-gate.ts` **không đổi**. Cổng đã giữ nguyên thuộc tính `data-sid` (đã
-kiểm bằng test) và inspector chỉ đọc nó khi có; việc gắn `data-sid` từ parse map
-là phạm vi của H5, không cần nới bất kỳ luật loại/cho phép nào ở đây.
+`preview-gate.ts` chỉ thêm **một** tuỳ chọn, `stripScripts` (mặc định tắt).
+Bật nó ở chế độ visual-edit là yêu cầu bắt buộc của chính quyết định này: nếu
+script của tài liệu vẫn nằm trong bản copy, frame có `allow-scripts` sẽ chạy nó,
+và "chỉ một script do UniWork sở hữu" sẽ không còn đúng. Khi bật, cổng loại mọi
+`<script>` (mọi namespace, kể cả trong SVG) và mọi thuộc tính `on*`; khi tắt,
+đường preview thường giữ **nguyên từng byte** như trước. Thay đổi này không nới
+một luật loại/cho phép nào đang có: nó chỉ thêm một lượt loại nữa, và vì cổng đã
+chứng minh bản serialisation ổn định qua lần phân tích lại, việc chèn inspector
+sau đó (một lần phân tích lại + nối vào `<head>`) không mở lại đường nào. Thuộc
+tính `data-sid` vốn đã được cổng giữ nguyên (đã kiểm bằng test), nên việc gắn
+`data-sid` từ parse map là phạm vi của H5, không cần thêm gì ở cổng.
 
 ## Hệ quả
 
