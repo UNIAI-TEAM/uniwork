@@ -87,6 +87,16 @@ if [ "$fresh_install" = false ] && ! sha256sum -c --quiet "$state/locks" > /dev/
   sha256sum pnpm-lock.yaml server/go.sum > "$state/locks"
 fi
 
+# packages/office-upstream/dist is gitignored, so the git clean above wipes it on a warm
+# VM and every suite importing @uniwork/office-upstream/* fails to resolve. Rebuild the
+# browser artifacts the branch knows how to build before any spec command runs.
+for builder in "build-upstream.mjs --docx-browser" "build-xlsx-browser.mjs" "build-pptx-browser.mjs"; do
+  [ -f "scripts/office/${builder%% *}" ] || continue
+  if ! node scripts/office/$builder > /tmp/runner-upstream.log 2>&1; then
+    notes="office-upstream build failed (${builder%% *}): $(tail -3 /tmp/runner-upstream.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+  fi
+done
+
 t0=$(date +%s)
 if ! bash "$here/start.sh" > /tmp/runner-start.log 2>&1; then
   notes="start.sh failed: $(tail -3 /tmp/runner-start.log | tr '\n' ' ')"; report failed blocked ""; exit 0
