@@ -141,6 +141,8 @@ function OverflowMenu({
   indexes: readonly number[];
   label: string;
 }) {
+  // Development-only contract check; a no-op in production builds.
+  warnMissingOnSelect(groups, indexes);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -158,7 +160,6 @@ function OverflowMenu({
         <ChevronsRight aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52" data-chrome-overflow-menu>
-        {warnMissingOnSelect(groups, indexes)}
         {indexes.map((index, position) => {
           const group = groups[index];
           if (!group) return null;
