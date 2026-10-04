@@ -1,0 +1,183 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { MarkdownPrintMenuItems } from "./print-menu";
+import { printMarkdownDocument, sanitizePrintCopy, type MarkdownPrintPort } from "./print";
+
+const { t } = initI18n();
+
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+/** Hostile source: every construct the print copy must neutralise. */
+const HOSTILE = `
+<h1>Báo cáo</h1>
+<script>parent.postMessage("exfiltrate", "*")</script>
+<img src="x" onerror="alert(1)">
+<a href="javascript:alert(2)">click</a>
+<a href="https://evil.example/leak">external</a>
+<img src="https://tracker.example/p.gif">
+<img src="assets/missing.png">
+<iframe src="https://evil.example/frame"></iframe>
+<base href="https://evil.example/">
+`;
+
+/** The payloads one port call captured, so tests can inspect the copy. */
+function capturePort() {
+  const calls: { html: string; title: string }[] = [];
+  const port: MarkdownPrintPort = {
+    print(request) {
+      calls.push({ html: request.html, title: request.title });
+      return { outcome: "printed" };
+    },
+  };
+  return { port, calls };
+}
+
+describe("sanitizePrintCopy", () => {
+  it("strips scripts, on* handlers and browsing-context elements the parser sees", () => {
+    const copy = sanitizePrintCopy(HOSTILE);
+    expect(copy).not.toMatch(/<script/i);
+    expect(copy).not.toMatch(/onerror/i);
+    expect(copy).not.toMatch(/<iframe|<base|<object|<embed/i);
+    // Prose survives: the copy is the document, not an empty page.
+    expect(copy).toContain("Báo cáo");
+  });
+
+  it("neutralises every URL the preview policy refuses", () => {
+    const copy = sanitizePrintCopy(HOSTILE);
+    expect(copy).not.toContain("evil.example");
+    expect(copy).not.toContain("tracker.example");
+    expect(copy).not.toContain("javascript:");
+    expect(copy).not.toContain("assets/missing.png");
+  });
+
+  it("points a granted asset at the scoped proxy and blocks a refused one", () => {
+    const manifest = {
+      version: 1 as const,
+      document_path: "document.md",
+      entries: [
+        { key: "assets/logo.png", sha256: "a".repeat(64), byte_length: 1, media_type: "image/png", origin: "imported" as const },
+        { key: "assets/secret.png", sha256: "b".repeat(64), byte_length: 1, media_type: "image/png", origin: "imported" as const },
+      ],
+    };
+    const copy = sanitizePrintCopy(`<img src="assets/logo.png"><img src="assets/secret.png">`, {
+      manifest,
+      assetUrl: (key) => (key === "assets/logo.png" ? "https://proxy.example/s/logo.png" : null),
+    });
+    expect(copy).toContain("https://proxy.example/s/logo.png");
+    expect(copy).not.toContain("assets/secret.png");
+  });
+});
+
+/** A Markdown source with a raw HTML block and a javascript: link. */
+const HOSTILE_SOURCE = [
+  "# Báo cáo",
+  "",
+  "<script>parent.postMessage(\"exfiltrate\", \"*\")</script>",
+  "",
+  "[click](javascript:alert(2))",
+  "",
+  "<img src=x onerror=\"alert(1)\">",
+  "",
+].join("\n");
+
+/** Stands in for the host's Markdown render: it turns the source into real
+ * elements (a link becomes an <a href>), which is exactly the case the print
+ * copy has to survive - the render step is NOT the sanitizer. */
+const naiveRender = (source: string): string =>
+  source
+    .split("\n")
+    .map((line) => {
+      const link = /^\[(.*)\]\((.*)\)$/.exec(line);
+      return link ? `<p><a href="${link[2]}">${link[1]}</a></p>` : line;
+    })
+    .join("\n");
+
+describe("printMarkdownDocument", () => {
+  it("sends the SANITIZED copy, never the raw source, to the injected port", async () => {
+    const { port, calls } = capturePort();
+    const outcome = await printMarkdownDocument({ port, renderHtml: () => HOSTILE, title: "Báo cáo" });
+    expect(outcome).toEqual({ outcome: "printed" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.title).toBe("Báo cáo");
+    // The payload is the sanitized copy: no script, no javascript: URL, no
+    // external host, no on* handler.
+    expect(calls[0]!.html).not.toMatch(/<script|onerror|javascript:|evil\.example|tracker\.example/i);
+  });
+
+  it("keeps a raw <script> and a javascript: href in the SOURCE out of the payload", async () => {
+    const { port, calls } = capturePort();
+    await printMarkdownDocument({ port, renderHtml: () => naiveRender(HOSTILE_SOURCE), title: "Báo cáo" });
+    const html = calls[0]!.html;
+    // The raw HTML block's script and the on* handler never reach the copy.
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/onerror/i);
+    // The link is a real element by then, and its javascript: URL is gone.
+    expect(html).not.toMatch(/href="javascript:/i);
+    expect(html).not.toMatch(/javascript:/i);
+    // The rendered prose is still there.
+    expect(html).toContain("Báo cáo");
+  });
+
+  it("turns a throwing port into a typed failure instead of crashing", async () => {
+    const port: MarkdownPrintPort = { print: () => { throw new Error("no printer"); } };
+    await expect(printMarkdownDocument({ port, renderHtml: () => "<p>x</p>", title: "x" })).resolves.toEqual({
+      outcome: "failed",
+      reason: "no printer",
+    });
+  });
+});
+
+function renderMenu(props: Parameters<typeof MarkdownPrintMenuItems>[0]) {
+  return render(
+    <DropdownMenu open>
+      <DropdownMenuContent>
+        <MarkdownPrintMenuItems {...props} />
+      </DropdownMenuContent>
+    </DropdownMenu>,
+  );
+}
+
+describe("MarkdownPrintMenuItems", () => {
+  it("calls the injected print port with the sanitized copy, never window.print()", async () => {
+    const windowPrint = vi.fn();
+    const original = window.print;
+    window.print = windowPrint;
+    try {
+      const { port, calls } = capturePort();
+      renderMenu({ port, renderHtml: () => HOSTILE, title: "Báo cáo" });
+      fireEvent.click(screen.getByRole("menuitem", { name: t("office.markdown.print.title") }));
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]!.html).not.toMatch(/<script|javascript:|evil\.example/i);
+      // The view never reaches for the browser dialog directly.
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      window.print = original;
+    }
+  });
+
+  it("offers no Print entry when the host injected no print port", () => {
+    renderMenu({ renderHtml: () => "<p>x</p>", title: "x" });
+    expect(screen.queryByRole("menuitem", { name: t("office.markdown.print.title") })).toBeNull();
+  });
+
+  it("renders the export entries disabled with the not-available-yet tooltip", () => {
+    const { port, calls } = capturePort();
+    renderMenu({ port, renderHtml: () => "<p>x</p>", title: "x" });
+    for (const label of [t("office.markdown.print.exportPdf"), t("office.markdown.print.exportDocx")]) {
+      const item = screen.getByRole("menuitem", { name: label });
+      // Disabled in the accessibility tree, in Base UI's state, and on the
+      // native tooltip - the entry says why it is not available.
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      expect(item).toHaveAttribute("data-disabled");
+      expect(item).toHaveAttribute("title", t("office.markdown.print.exportNotAvailable"));
+      // A click on a disabled export does nothing: it never fakes an export.
+      fireEvent.click(item);
+    }
+    expect(calls).toHaveLength(0);
+  });
+});
