@@ -62,25 +62,68 @@ function searchRange(context: HtmlOpContext, target: HtmlTarget | undefined): So
   return target === undefined ? [0, context.text.length] : innerRangeOf(context, target);
 }
 
+interface FoldedText {
+  folded: string;
+  /** For each code unit of `folded`, the source code-unit index it came from. */
+  sourceIndex: number[];
+}
+
+/**
+ * Lowercase `text` while remembering which source index each folded code unit
+ * came from. Folding per code unit keeps the mapping exact even when one code
+ * unit lowercases to several ("İ" U+0130 -> "i" + U+0307, also "ŉ", "ǰ", the
+ * Greek and Armenian specials). Searching a folded copy without that map is
+ * what let a case-insensitive match report offsets that are not source offsets.
+ */
+function foldText(text: string): FoldedText {
+  let folded = "";
+  const sourceIndex: number[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    const lower = text[i]!.toLowerCase();
+    folded += lower;
+    for (let k = 0; k < lower.length; k += 1) sourceIndex.push(i);
+  }
+  return { folded, sourceIndex };
+}
+
 /** Literal find/replace inside a range; only the matched bytes change. */
 export function strReplace(context: HtmlOpContext, search: string, replacement: string, options: StrReplaceOptions = {}): UpstreamPatchSet {
   if (search === "") throw new HtmlOpError("no_op", "str_replace needs a non-empty search");
   const [from, to] = searchRange(context, options.target);
   const haystack = context.text.slice(from, to);
-  const needle = options.caseSensitive ? search : search.toLowerCase();
-  const folded = options.caseSensitive ? haystack : haystack.toLowerCase();
-  const matches: number[] = [];
-  let cursor = 0;
-  for (;;) {
-    const at = folded.indexOf(needle, cursor);
-    if (at === -1) break;
-    matches.push(at);
-    cursor = at + needle.length;
+  // Match on the ORIGINAL haystack: a case-insensitive search folds both sides
+  // but every reported range is mapped back to source coordinates, so a
+  // length-changing fold ("İ" U+0130 -> "i̇") can never shift the patch.
+  const matches: Array<readonly [number, number]> = [];
+  if (options.caseSensitive) {
+    let cursor = 0;
+    for (;;) {
+      const at = haystack.indexOf(search, cursor);
+      if (at === -1) break;
+      matches.push([at, search.length]);
+      cursor = at + search.length;
+    }
+  } else {
+    const { folded, sourceIndex } = foldText(haystack);
+    const needle = search.toLowerCase();
+    let cursor = 0;
+    for (;;) {
+      const at = folded.indexOf(needle, cursor);
+      if (at === -1) break;
+      const start = sourceIndex[at]!;
+      const end = sourceIndex[at + needle.length - 1]! + 1;
+      matches.push([start, end - start]);
+      cursor = at + needle.length;
+    }
   }
   if (matches.length === 0) throw new HtmlOpError("no_op", "search text not found");
-  const chosen = options.all ? matches : [matches[options.nth ?? 0]!].filter((at) => at !== undefined);
+  const chosen: Array<readonly [number, number]> = options.all
+    ? matches
+    : matches[options.nth ?? 0] !== undefined
+      ? [matches[options.nth ?? 0]!]
+      : [];
   if (chosen.length === 0) throw new HtmlOpError("no_op", "no occurrence at that index");
-  const patches: UpstreamPatch[] = chosen.map((at) => ({ from: from + at, to: from + at + search.length, text: replacement }));
+  const patches: UpstreamPatch[] = chosen.map(([at, length]) => ({ from: from + at, to: from + at + length, text: replacement }));
   return patchSet(context.version, patches, "inspector", "str_replace");
 }
 

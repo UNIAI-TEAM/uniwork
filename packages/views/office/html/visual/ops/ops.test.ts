@@ -77,6 +77,46 @@ describe("html visual ops: one test per op", () => {
     expect(after).toContain("Chào");
   });
 
+  // A case-insensitive match must report SOURCE offsets. "İ" (U+0130) folds to
+  // two code units ("i" + U+0307), so reading positions off a folded haystack
+  // used to shift every later match and to size the patch from the needle
+  // rather than the matched span. Each case below is a reviewer repro.
+  describe("str_replace: case-insensitive matches never drift off the source", () => {
+    it("replaces a match after a length-expanding fold", async () => {
+      const source = "<p>İstanbul and apples</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "apples", "ORANGES"));
+      const at = source.indexOf("apples");
+      expectByteIdentical(source, after, [{ from: at, to: at + "apples".length, text: "ORANGES" }], "str_replace:after-fold");
+      expect(after).toBe("<p>İstanbul and ORANGES</p>");
+    });
+
+    it("replaces every match after a length-expanding fold", async () => {
+      const source = "<p>cat İ cat cat</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "cat", "dog", { all: true }));
+      const edits = [...source.matchAll(/cat/g)].map((m) => ({ from: m.index!, to: m.index! + 3, text: "dog" }));
+      expectByteIdentical(source, after, edits, "str_replace:all-after-fold");
+      expect(after).toBe("<p>dog İ dog dog</p>");
+    });
+
+    it("patches the whole source span when the needle folds to two code units", async () => {
+      const source = "<p>i\u0307x done</p>"; // i + U+0307, the fold of İ
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "İ", "Q"));
+      expectByteIdentical(source, after, [{ from: 3, to: 5, text: "Q" }], "str_replace:expanding-span");
+      expect(after).toBe("<p>Qx done</p>");
+    });
+
+    it("patches the one-code-unit source span when the needle is the fold", async () => {
+      const source = "<p>İx end</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "i\u0307", "Q"));
+      expectByteIdentical(source, after, [{ from: 3, to: 4, text: "Q" }], "str_replace:contracting-span");
+      expect(after).toBe("<p>Qx end</p>");
+    });
+  });
+
   it("replace_element: swaps the whole element, tags included", async () => {
     const f = await fixture();
     const element = elementByPath(f.map, H1)!;
