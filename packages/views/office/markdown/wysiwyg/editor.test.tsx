@@ -173,6 +173,26 @@ describe("MarkdownWysiwygEditor", () => {
     expect(source.getText().endsWith("Final line.\n")).toBe(true);
   });
 
+
+  it("mounts the new document when documentKey changes in place", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    const { container, rerender } = render(
+      <MarkdownWysiwygEditor documentKey="doc-a" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(container.querySelector(".ProseMirror")!.textContent).toContain("Body paragraph.");
+
+    source.setText("# Second document\n\nDifferent body.\n");
+    rerender(<MarkdownWysiwygEditor documentKey="doc-b" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => {
+      const surface = container.querySelector(".ProseMirror");
+      expect(surface?.textContent).toContain("Different body.");
+    });
+    expect(container.querySelector(".ProseMirror")!.textContent).not.toContain("Body paragraph.");
+  });
+
   it("does not checkpoint mid-IME composition, and checkpoints on composition end", async () => {
     const source = createTextSource(FIXTURE);
     const handle = createHandle(source);
