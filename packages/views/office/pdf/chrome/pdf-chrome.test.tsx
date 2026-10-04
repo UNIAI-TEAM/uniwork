@@ -126,6 +126,10 @@ describe("PdfRibbonBar", () => {
       "pages",
       "view",
     ]);
+    // The chrome re-exposes the shared ribbon's tab buttons under the legacy
+    // pdf-chrome-tab-<id> ids the consumers click, and the body as the command row.
+    expect(screen.getByTestId("pdf-chrome-tab-pages")).toHaveAttribute("data-ribbon-tab", "pages");
+    expect(screen.getByTestId("pdf-chrome-command-row")).toHaveAttribute("data-ribbon-body", "");
 
     const quickAccess = within(tabRow).getByRole("toolbar", { name: "Quick access" });
     expect(within(quickAccess).getByTestId("pdf-chrome-undo")).toBeInTheDocument();

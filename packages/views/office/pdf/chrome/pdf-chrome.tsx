@@ -1,7 +1,7 @@
 "use client";
 
 import { Redo2, Search, Undo2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
@@ -37,6 +37,7 @@ export function PdfRibbonBar({
   onFindToggle,
 }: PdfRibbonBarProps) {
   const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const commandById = useMemo(() => new Map(commands.map((command) => [command.id, command] as const)), [commands]);
 
   const runCommand = useCallback(
@@ -105,8 +106,22 @@ export function PdfRibbonBar({
     [findOpen, onFindToggle, t],
   );
 
+  // The shared ribbon owns its tab buttons and body and exposes no per-tab test
+  // id, so the PDF chrome annotates them after commit to keep the long-standing
+  // pdf-chrome-tab-<id> / pdf-chrome-command-row consumer contract. Additive and
+  // idempotent: React never manages these attributes, so a re-render keeps them.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>("[data-ribbon-tab]").forEach((tab) => {
+      const id = tab.dataset.ribbonTab;
+      if (id) tab.dataset.testid = `pdf-chrome-tab-${id}`;
+    });
+    root.querySelector<HTMLElement>("[data-ribbon-body]")?.setAttribute("data-testid", "pdf-chrome-command-row");
+  });
+
   return (
-    <div data-testid="pdf-ribbon-bar">
+    <div data-testid="pdf-ribbon-bar" ref={rootRef}>
       <OfficeRibbon
         tabs={tabs}
         scope={PDF_RIBBON_SCOPE}
