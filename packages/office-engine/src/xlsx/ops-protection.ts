@@ -1,4 +1,4 @@
-﻿// XLSX sheet-protection op parser + fold (sheetProtections slot). A sibling of
+// XLSX sheet-protection op parser + fold (sheetProtections slot). A sibling of
 // the other op-family modules (ops-structure / ops-filter / ops-page-setup).
 //
 // Wire shape: { op: "set_sheet_protection", target: { sheet }, attributes:

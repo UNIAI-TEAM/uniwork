@@ -704,6 +704,7 @@ func TestValidateOfficeJobEdits(t *testing.T) {
 		{"set_defined_names duplicate scope", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1"},{"name":"N","formula":"A2"}]}`)}}, false},
 		{"set_defined_names out-of-grid sheetIndex", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1","sheetIndex":16384}]}`)}}, false},
 		{"set_defined_names unknown field", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[],"junk":1}`)}}, false},
+		{"set_defined_names name also preserved", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1"}],"preserveNames":["N"]}`)}}, false},
 		{"edits on a non-edit operation", office.OperationSerialize, []office.EditOp{edit("clear_cell", nil)}, false},
 		{"over the op count", office.OperationEdit, tooMany, false},
 		{"over the marshalled size", office.OperationEdit, bigEdits, false},

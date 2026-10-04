@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
@@ -549,10 +549,17 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onError: setRecalcError,
   });
 
+  // F1/F4: resolve the active sheet through the LIVE name before any action
+  // reads it. A session rename keeps the grid id but changes the name, so the
+  // raw activeSheet may already have fallen back to sheets[0] - the hazard
+  // useXlsxPageSetup shields with selection?.sheet. Protect/name actions read
+  // this resolved value so they cannot aim at the wrong sheet.
+  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
+
   // Sheet protection + the name manager (B7): the hook owns the dialog state
   // and the two new ops; see protect/.
   const protectNames = useXlsxProtectNames({
-    activeSheet,
+    activeSheet: resolvedActiveSheet,
     readOnly,
     canEdit,
     edit: editor.edit,
@@ -610,11 +617,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       : sheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden ?? false }));
     return source.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden, tabColor: colors.get(sheet.id) ?? null }));
   }, [liveSheets, rendererHost, sheets]);
-  // F1: the strip must resolve "active" through the LIVE name. The mounted
-  // grid id is stable across a rename; the snapshot keeps file names all
-  // session, so resolving through it would wedge or mis-aim the actions.
-  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
-
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
   // Ctrl+PageUp/Down, and the redo alternate chord Ctrl+Shift+Z - upstream
   // binds only Ctrl+Y).

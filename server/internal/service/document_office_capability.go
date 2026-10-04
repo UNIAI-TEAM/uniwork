@@ -1948,13 +1948,25 @@ func officeSetDefinedNamesValid(edit office.EditOp) bool {
 	if !officeDefinedNamesListOK(attributes["names"]) {
 		return false
 	}
+	preserved := make(map[string]bool)
 	if raw, present := attributes["preserveNames"]; present {
-		var preserved []string
-		if json.Unmarshal(raw, &preserved) != nil || len(preserved) > maxOfficeDefinedNames {
+		var list []string
+		if json.Unmarshal(raw, &list) != nil || len(list) > maxOfficeDefinedNames {
 			return false
 		}
-		for _, name := range preserved {
+		for _, name := range list {
 			if name == "" || len(name) > 255 {
+				return false
+			}
+			preserved[name] = true
+		}
+	}
+	// A name cannot be both modeled and preserved (mirrors ops-names.ts:111-115).
+	var modeled []map[string]json.RawMessage
+	if json.Unmarshal(attributes["names"], &modeled) == nil {
+		for _, entry := range modeled {
+			var name string
+			if json.Unmarshal(entry["name"], &name) == nil && preserved[name] {
 				return false
 			}
 		}

@@ -1,4 +1,4 @@
-﻿// XLSX defined-names op parser + fold (definedNamesState slot). A sibling of
+// XLSX defined-names op parser + fold (definedNamesState slot). A sibling of
 // the other op-family modules (ops-structure / ops-filter / ops-page-setup).
 //
 // Wire shape: { op: "set_defined_names", attributes: { names, preserveNames } }.
