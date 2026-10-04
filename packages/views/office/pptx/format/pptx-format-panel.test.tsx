@@ -1,0 +1,296 @@
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import type { FormatEdit } from "@uniwork/office-engine/pptx";
+import { formatPanelDictionary } from "./format-i18n";
+import { PptxFormatPanel, type PptxFormatPanelProps } from "./pptx-format-panel";
+
+// The panel carries its own keys; install them into the shared instance the way
+// the serialized UI-wire round will by merging the same entries into the locale
+// files.
+const instance = initI18n();
+for (const locale of ["en", "vi"] as const) {
+  instance.addResourceBundle(locale, "translation", formatPanelDictionary(locale), true, true);
+}
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+function renderPanel(overrides: Partial<PptxFormatPanelProps> = {}) {
+  const onApplyEdit = vi.fn(async (_edit: FormatEdit) => undefined);
+  const onError = vi.fn();
+  const element = (extra: Partial<PptxFormatPanelProps> = {}) => (
+    <PptxFormatPanel
+      onApplyEdit={onApplyEdit}
+      onError={onError}
+      slideIndex={1}
+      selectedElementId="sh1"
+      selectedElementType="shape"
+      selectedIds={["sh1"]}
+      {...overrides}
+      {...extra}
+    />
+  );
+  const view = render(element());
+  return {
+    view,
+    rerender: (extra: Partial<PptxFormatPanelProps> = {}) => view.rerender(element(extra)),
+    onApplyEdit,
+    onError,
+  };
+}
+
+const panel = () => document.querySelector("[data-pptx-format-panel]") as HTMLElement;
+
+describe("PptxFormatPanel", () => {
+  it("mounts the six format sections in one labelled panel", () => {
+    renderPanel();
+    expect(panel()).toHaveAttribute("data-state", "ready");
+    expect(screen.getByRole("region", { name: "Format" })).toBeInTheDocument();
+    for (const section of ["fill", "line", "effects", "geometry", "arrange", "text"]) {
+      expect(document.querySelector(`[data-pptx-format-section="${section}"]`)).not.toBeNull();
+    }
+  });
+
+  it("applies a solid fill as one set_fill edit", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.change(screen.getByTestId("pptx-format-fill-hex"), { target: { value: "#445566" } });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(1));
+    expect(onApplyEdit.mock.calls[0]![0]).toEqual({
+      op: "set_fill",
+      slideIndex: 1,
+      elementId: "sh1",
+      fill: "#445566",
+    });
+  });
+
+  it("applies a gradient fill with the engine's angle unit", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("radio", { name: "Gradient fill" }));
+    fireEvent.change(screen.getByTestId("pptx-format-gradient-angle"), { target: { value: "90" } });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "set_fill",
+        slideIndex: 1,
+        elementId: "sh1",
+        fill: {
+          stops: [
+            { pos: 0, color: "#4472C4" },
+            { pos: 1, color: "#FFFFFF" },
+          ],
+          angle: 5400000,
+        },
+      }),
+    );
+  });
+
+  it("applies no fill as the engine's 'none'", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("radio", { name: "No fill" }));
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({ op: "set_fill", slideIndex: 1, elementId: "sh1", fill: "none" }),
+    );
+  });
+
+  it("applies an outline as set_stroke with the EMU width and a dash", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.change(screen.getByTestId("pptx-format-line-width"), { target: { value: "2" } });
+    fireEvent.change(screen.getByTestId("pptx-format-line-dash"), { target: { value: "dash" } });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-line"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "set_stroke",
+        slideIndex: 1,
+        elementId: "sh1",
+        stroke: { color: "#000000", widthEmu: 25400, dash: "dash" },
+      }),
+    );
+  });
+
+  it("applies no outline as the engine's null stroke", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("radio", { name: "No outline" }));
+    fireEvent.click(screen.getByTestId("pptx-format-apply-line"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({ op: "set_stroke", slideIndex: 1, elementId: "sh1", stroke: null }),
+    );
+  });
+
+  it("applies a shadow through set_effects", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Drop shadow" }));
+    fireEvent.click(screen.getByTestId("pptx-format-apply-effects"));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(1));
+    const edit = onApplyEdit.mock.calls[0]![0];
+    expect(edit.op).toBe("set_effects");
+    expect(edit).toMatchObject({
+      op: "set_effects",
+      slideIndex: 1,
+      elementId: "sh1",
+      effects: { shadow: { color: "#000000", blurRad: 50800, dist: 25400, dirDeg: 2700000 }, glow: null, softEdge: 0 },
+    });
+  });
+
+  it("applies a preset geometry and a shape adjustment", async () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.change(screen.getByTestId("pptx-format-prst"), { target: { value: "roundRect" } });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-prst"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "set_shape_geometry",
+        slideIndex: 1,
+        elementId: "sh1",
+        prst: "roundRect",
+      }),
+    );
+    fireEvent.change(screen.getByTestId("pptx-format-adjust"), { target: { value: "adj=0.25" } });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-adjust"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "set_shape_adjust",
+        slideIndex: 1,
+        elementId: "sh1",
+        adjust: { adj: 0.25 },
+      }),
+    );
+  });
+
+  it("refuses a malformed adjustment field before it reaches the deck", () => {
+    const { onApplyEdit } = renderPanel();
+    fireEvent.change(screen.getByTestId("pptx-format-adjust"), { target: { value: "adj" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("name=value");
+    expect(screen.getByTestId("pptx-format-apply-adjust")).toBeDisabled();
+    expect(onApplyEdit).not.toHaveBeenCalled();
+  });
+
+  it("groups, flips and aligns the selection through arrange ops", async () => {
+    const { onApplyEdit } = renderPanel({ selectedIds: ["sh1", "sh2"] });
+    fireEvent.click(screen.getByTestId("pptx-format-group"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "group_elements",
+        slideIndex: 1,
+        elementIds: ["sh1", "sh2"],
+      }),
+    );
+    fireEvent.click(screen.getByTestId("pptx-format-flip-h"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({ op: "flip_elements", slideIndex: 1, elementIds: ["sh1", "sh2"], axis: "h" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Align center" }));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "align_elements",
+        slideIndex: 1,
+        elementIds: ["sh1", "sh2"],
+        mode: "centerH",
+        to: "selection",
+      }),
+    );
+  });
+
+  it("distributes three selected elements", async () => {
+    const { onApplyEdit } = renderPanel({ selectedIds: ["a", "b", "c"] });
+    fireEvent.click(screen.getByTestId("pptx-format-distribute-h"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "distribute_elements",
+        slideIndex: 1,
+        elementIds: ["a", "b", "c"],
+        axis: "horizontal",
+        to: "selection",
+      }),
+    );
+  });
+
+  it("ungroups only when the selection is a single group", () => {
+    renderPanel({ selectedElementType: "shape" });
+    expect(screen.getByTestId("pptx-format-ungroup")).toBeDisabled();
+  });
+
+  it("applies a text anchor and an autofit mode", async () => {
+    const { onApplyEdit } = renderPanel({ selectedElementType: "text", selectedElementId: "t1" });
+    fireEvent.click(screen.getByRole("radio", { name: "Middle" }));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({ op: "set_text_anchor", slideIndex: 1, elementId: "t1", anchor: "middle" }),
+    );
+    fireEvent.change(screen.getByTestId("pptx-format-autofit"), { target: { value: "shrink" } });
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({
+        op: "set_text_body_props",
+        slideIndex: 1,
+        elementId: "t1",
+        props: { autofit: "shrink" },
+      }),
+    );
+  });
+
+  it("disables the fill section on an element type the engine refuses", () => {
+    renderPanel({ selectedElementType: "picture" });
+    expect(screen.getByTestId("pptx-format-apply-fill")).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Solid fill" })).toBeDisabled();
+    // a picture border is still strokable
+    expect(screen.getByTestId("pptx-format-apply-line")).not.toBeDisabled();
+  });
+
+  it("shows the empty state and disables every control when nothing is selected", () => {
+    renderPanel({ selectedElementId: null, selectedIds: [] });
+    expect(panel()).toHaveAttribute("data-state", "empty");
+    expect(screen.getByTestId("pptx-format-empty")).toHaveTextContent("Select an element");
+    expect(screen.getByTestId("pptx-format-apply-fill")).toBeDisabled();
+  });
+
+  it("disables every control and says so when no edit channel is bound", () => {
+    renderPanel({ onApplyEdit: undefined });
+    expect(screen.getByTestId("pptx-format-unbound")).toHaveTextContent("not connected to this editor yet");
+    expect(screen.getByTestId("pptx-format-apply-fill")).toBeDisabled();
+  });
+
+  it("disables every control in read-only mode and explains why", () => {
+    const { onApplyEdit } = renderPanel({ disabled: true });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    expect(onApplyEdit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pptx-format-unbound")).toHaveTextContent("read-only");
+  });
+
+  it("shows the busy state while an edit is in flight and refuses a duplicate", async () => {
+    let resolve!: () => void;
+    const onApplyEdit = vi.fn((_edit: FormatEdit) => new Promise<void>((done) => { resolve = done; }));
+    renderPanel({ onApplyEdit });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    expect(screen.getByTestId("pptx-format-busy")).toHaveTextContent("Applying");
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    expect(onApplyEdit).toHaveBeenCalledTimes(1);
+    resolve();
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("reports a refused edit as an error and keeps the document claim honest", async () => {
+    const onApplyEdit = vi.fn(async () => { throw new Error("fmt_bad_color"); });
+    const onError = vi.fn();
+    renderPanel({ onApplyEdit, onError });
+    fireEvent.click(screen.getByTestId("pptx-format-apply-fill"));
+    const alert = await screen.findByTestId("pptx-format-error");
+    expect(alert).toHaveTextContent("could not be applied");
+    expect(alert).toHaveTextContent("fmt_bad_color");
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(panel()).toHaveAttribute("data-state", "ready");
+  });
+
+  it("renders the loading state as a busy status region", () => {
+    renderPanel({ loading: true });
+    expect(panel()).toHaveAttribute("data-state", "loading");
+    expect(screen.getByRole("status", { name: "Loading the format tools..." })).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelector("[data-pptx-format-section]")).toBeNull();
+  });
+
+  it("renders vi copy when the locale is Vietnamese", async () => {
+    await setLocale("vi");
+    renderPanel();
+    expect(screen.getByRole("region", { name: "Äá»‹nh dáº¡ng" })).toBeInTheDocument();
+    await setLocale("en");
+  });
+});
