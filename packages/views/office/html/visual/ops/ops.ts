@@ -136,6 +136,11 @@ export function replaceElement(context: HtmlOpContext, target: HtmlTarget, html:
 /** Replace an element's content, leaving its start and end tags untouched. */
 export function setInnerHtml(context: HtmlOpContext, target: HtmlTarget, html: string): UpstreamPatchSet {
   const element = requireElement(context.map, target);
+  if (!element.endTag) {
+    // A void element's inner range is empty, so its "inner html" would land
+    // AFTER the tag - silently the wrong op. Reject like `unwrap` does.
+    throw new HtmlOpError("invalid_target", "cannot set the inner html of a void element", { tag: element.tag });
+  }
   return replaceRange(context.version, element.inner[0], element.inner[1], html, "inspector", "set_inner_html");
 }
 
@@ -156,6 +161,10 @@ export function insertHtml(context: HtmlOpContext, html: string, position: Inser
   }
   const target: HtmlTarget = "before" in position ? position.before : "after" in position ? position.after : position.appendTo;
   const element = requireElement(context.map, target);
+  if ("appendTo" in position && !element.endTag) {
+    // appendTo on a void element would insert AFTER it, not inside it.
+    throw new HtmlOpError("invalid_target", "cannot append inside a void element", { tag: element.tag });
+  }
   const at = "before" in position ? element.range[0] : "after" in position ? element.range[1] : element.inner[1];
   return insertAt(context.version, at, html, "inspector", "insert_html");
 }
@@ -237,7 +246,8 @@ export function setStyle(
   const element = requireElement(context.map, target);
   const attrs = parseStartTagAttributes(context.text, element.startTag);
   const existing = findAttribute(attrs, "style");
-  const declarations = imageStyleValue(style) === "" ? [] : imageStyleValue(style).split(";");
+  const styleValue = imageStyleValue(style);
+  const declarations = styleValue === "" ? [] : styleValue.split(";");
   const merged = mergeImageStyle(existing ? decodeAttributeValue(existing.value) : "", declarations, options.drop ?? []);
   if (merged === "" && !existing) throw new HtmlOpError("no_op", "set_style has nothing to apply");
   const encoded = encodeAttributeValue(merged, existing?.quote ?? '"');
@@ -281,6 +291,24 @@ export interface WrapTextOptions {
   origin?: PatchOrigin;
 }
 
+/**
+ * Reject a range that cuts through a tag or splits an element. A range is
+ * wrappable when every element it overlaps is either fully inside it or fully
+ * contains it (i.e. the range sits in one element's content or spans a
+ * balanced run of whole elements). Wrapping `<p>aa</p><p>bb</p>` across both
+ * paragraphs otherwise emits overlapping tags.
+ */
+function assertBalancedRange(context: HtmlOpContext, from: number, to: number): void {
+  for (const element of context.map.elements) {
+    if (element.range[0] >= to || element.range[1] <= from) continue;
+    const contained = element.range[0] >= from && element.range[1] <= to;
+    const contains = element.inner[0] <= from && element.inner[1] >= to;
+    if (!contained && !contains) {
+      throw new HtmlOpError("invalid_range", "wrap range splits an element", { from, to, tag: element.tag });
+    }
+  }
+}
+
 /** Wrap a source range in a new element: an opening tag at its start and a
  * closing tag at its end, leaving the wrapped bytes untouched. */
 export function wrapText(context: HtmlOpContext, range: SourceRange, tag: string, options: WrapTextOptions = {}): UpstreamPatchSet {
@@ -291,6 +319,7 @@ export function wrapText(context: HtmlOpContext, range: SourceRange, tag: string
     throw new HtmlOpError("invalid_range", "wrap range is out of bounds", { from, to });
   }
   if (from === to) throw new HtmlOpError("no_op", "wrap range is empty");
+  assertBalancedRange(context, from, to);
   const attributes = options.attributes ? " " + options.attributes : "";
   const patches: UpstreamPatch[] = [
     { from, to: from, text: "<" + name + attributes + ">" },

@@ -44,6 +44,9 @@ export function imageStyleDeclarations(input: ImageStyleInput): string[] {
   const out: string[] = [];
   if (typeof input.width === "number") out.push("width:" + dimension(input.width, input.widthUnit ?? "px"));
   if (typeof input.height === "number") out.push("height:" + dimension(input.height, input.heightUnit ?? "px"));
+  // aspectLock overrides an explicit height: both push a `height:` declaration
+  // and the merge keeps the last, so the locked dimension wins when both are
+  // given.
   if (input.aspectLock && typeof input.width === "number" && typeof input.aspectRatio === "number" && input.aspectRatio > 0) {
     out.push("height:" + dimension(Math.round(input.width / input.aspectRatio), input.widthUnit ?? "px"));
   }

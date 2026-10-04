@@ -144,4 +144,13 @@ describe("match: parse-map target resolution", () => {
     expect(fixture.version).toBe(0);
     expect(utf8(SOURCE).length).toBeGreaterThan(0);
   });
+
+  it("scans a rawtext body as text, never as markup", () => {
+    const source = '<head><script>var s = "<b>not-an-element</b>";</script><style>.x{}</style></head>';
+    const map = buildFixtureParseMap(source, 1);
+    expect(map.elements.map((element) => element.tag)).toEqual(["head", "script", "style"]);
+    const script = elementByPath(map, "head > script:nth-of-type(1)")!;
+    expect(source.slice(script.inner[0], script.inner[1])).toBe('var s = "<b>not-an-element</b>";');
+    expect(source.slice(script.range[0], script.range[1])).toBe('<script>var s = "<b>not-an-element</b>";</script>');
+  });
 });

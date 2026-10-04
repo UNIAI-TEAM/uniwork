@@ -6,6 +6,16 @@
 //
 // This is not a second engine: nothing in production imports it, and the ops
 // under test only read range/startTag/endTag/inner/textNodes/path/sid/parentSid.
+//
+// Divergences from parse5 that stay (the shipped fixture does not exercise
+// them, and no op is asserted against their offsets):
+//   - rawtext/RCDATA bodies (script, style, title, textarea) are scanned as raw
+//     text, not markup, so their content registers no child elements;
+//   - `<template>` children are ordinary descendants here, while parse5 keeps
+//     them in a separate content fragment;
+//   - an unclosed NON-rawtext element keeps `range[1]` at its start-tag end
+//     (only `inner[1]` extends to EOF); an unclosed rawtext element extends
+//     both to EOF.
 
 import { createHtmlEngine, type HtmlEngine, type HtmlUpstream, type UpstreamParseMap, type UpstreamPatch, type UpstreamPatchError, type UpstreamPatchSet } from "@uniwork/office-engine/html";
 
@@ -23,6 +33,8 @@ interface FixtureEntry {
 }
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+// Rawtext/RCDATA elements whose content is text, never markup.
+const RAWTEXT = new Set(["script", "style", "title", "textarea"]);
 
 interface Open {
   entry: FixtureEntry;
@@ -108,7 +120,27 @@ export function buildFixtureParseMap(text: string, version: number): UpstreamPar
       attach(entry);
       entries.push(entry);
       i = end;
-      if (!selfClosing && !VOID.has(tag)) stack.push({ entry, children: [], textNodes: [], textStart: null });
+      if (!selfClosing && !VOID.has(tag)) {
+        if (RAWTEXT.has(tag)) {
+          // Everything up to the matching close tag is text: register no child
+          // elements and record the body as one text node.
+          const close = new RegExp("</" + tag + "(?=[\\s/>])", "i").exec(text.slice(end));
+          const innerEnd = close ? end + close.index : text.length;
+          entry.inner = [end, innerEnd];
+          if (innerEnd > end) entry.textNodes = [[end, innerEnd]];
+          if (close) {
+            const closeEnd = tagEnd(text, innerEnd);
+            entry.endTag = [innerEnd, closeEnd];
+            entry.range[1] = closeEnd;
+            i = closeEnd;
+          } else {
+            entry.range[1] = text.length;
+            i = text.length;
+          }
+          continue;
+        }
+        stack.push({ entry, children: [], textNodes: [], textStart: null });
+      }
       continue;
     }
     const next = text.indexOf("<", i);

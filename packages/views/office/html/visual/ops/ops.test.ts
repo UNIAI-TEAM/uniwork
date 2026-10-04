@@ -134,6 +134,12 @@ describe("html visual ops: one test per op", () => {
     expect(after.startsWith('<p class="a">Mới <i>in</i></p>', element.range[0])).toBe(true);
   });
 
+  it("set_inner_html: refuses a void element", async () => {
+    const f = await fixture();
+    const img = elementByPath(f.map, IMG)!;
+    expect(() => setInnerHtml(context(f), { sid: img.sid }, "<b>in</b>")).toThrow(HtmlOpError);
+  });
+
   it("set_text: escapes the text it writes into the element", async () => {
     const f = await fixture();
     const element = elementByPath(f.map, P)!;
@@ -158,6 +164,19 @@ describe("html visual ops: one test per op", () => {
       const after = applyOp(f, insertHtml(context(f), "<hr>", position(p)));
       expectByteIdentical(SOURCE, after, [{ from: at, to: at, text: "<hr>" }], "insert_html:" + label);
     }
+  });
+
+  it("insert_html: refuses to appendTo a void element", async () => {
+    const f = await fixture();
+    const img = elementByPath(f.map, IMG)!;
+    expect(() => insertHtml(context(f), "<b>x</b>", { appendTo: { sid: img.sid } })).toThrow(HtmlOpError);
+    try {
+      insertHtml(context(f), "<b>x</b>", { appendTo: { sid: img.sid } });
+    } catch (error) {
+      expect((error as HtmlOpError).code).toBe("invalid_target");
+    }
+    // before/after on the same void element are still valid.
+    expect(() => insertHtml(context(f), "<b>x</b>", { after: { sid: img.sid } })).not.toThrow();
   });
 
   it("remove: deletes exactly the element range", async () => {
@@ -331,6 +350,23 @@ describe("html visual ops: one test per op", () => {
       { from: b.inner[1], to: b.inner[1], text: "</strong>" },
     ], "wrap_text");
     expect(after).toContain("<strong>đậm</strong>");
+  });
+
+  it("wrap_text: refuses a range that spans two sibling elements", async () => {
+    const source = "<div><p>aa</p><p>bb</p></div>";
+    const f = await openFixture(source);
+    const ps = f.map.elements.filter((element) => element.tag === "p");
+    const range: [number, number] = [ps[0]!.inner[0], ps[1]!.inner[1]];
+    expect(() => wrapText(context(f), range, "em")).toThrow(HtmlOpError);
+    try {
+      wrapText(context(f), range, "em");
+    } catch (error) {
+      expect((error as HtmlOpError).code).toBe("invalid_range");
+    }
+    // A range inside one element's content, or a balanced run of whole
+    // elements, is still accepted.
+    expect(() => wrapText(context(f), [ps[0]!.inner[0], ps[0]!.inner[1]], "em")).not.toThrow();
+    expect(() => wrapText(context(f), [ps[0]!.range[0], ps[1]!.range[1]], "em")).not.toThrow();
   });
 
   it("unwrap: replaces the element with its own inner content", async () => {

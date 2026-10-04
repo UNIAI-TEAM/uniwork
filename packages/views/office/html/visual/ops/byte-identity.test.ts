@@ -138,13 +138,16 @@ describe("byte identity outside the edited range (kitchen-sink fixture)", () => 
     expect(after).toContain("width=320");
   });
 
-  it("set_inner_html keeps the exact start tag including unquoted attributes", async () => {
+  it("set_inner_html rejects a void element instead of appending after it", async () => {
     const f = await openFixture(FIXTURE);
     const img = element(f, IMG);
-    const after = applyOp(f, setInnerHtml(context(f), { sid: img.sid }, ""));
-    // img is void: its inner is empty, so this is a genuine no-op patch set.
-    expect(after).toBe(FIXTURE);
     expect(img.endTag).toBeNull();
+    expect(() => setInnerHtml(context(f), { sid: img.sid }, "")).toThrow(HtmlOpError);
+    try {
+      setInnerHtml(context(f), { sid: img.sid }, "");
+    } catch (error) {
+      expect((error as HtmlOpError).code).toBe("invalid_target");
+    }
   });
 
   it("set_text escapes markup and touches only the element content", async () => {
