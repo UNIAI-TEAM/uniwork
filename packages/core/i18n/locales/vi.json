@@ -7065,6 +7065,17 @@
         "tabLayout": "Bố cục",
         "tabReview": "Xem lại",
         "tabView": "Xem",
+        "tabTableDesign": "Thiết kế bảng",
+        "tabTableLayout": "Bố trí bảng",
+        "tabPictureFormat": "Định dạng ảnh",
+        "tabShapeFormat": "Định dạng hình",
+        "contextual": {
+          "tableHeader": "Tùy chọn kiểu bảng",
+          "tableCells": "Ô",
+          "tableAlign": "Căn chỉnh",
+          "pictureTransform": "Xoay và lật",
+          "colorSwatch": "Màu {{value}}"
+        },
         "overflow": "Thêm lệnh",
         "groups": {
           "baseFormat": "Định dạng",
@@ -7080,6 +7091,8 @@
           "headerFooter": "Đầu trang và chân trang",
           "pageSetup": "Thiết lập trang",
           "pageDecor": "Trang trí trang",
+          "pageSetupDialog": "Hộp thoại thiết lập trang",
+          "pageDecorDialog": "Hộp thoại trang trí trang",
           "trackChanges": "Theo dõi thay đổi",
           "comments": "Bình luận",
           "notes": "Chú thích",

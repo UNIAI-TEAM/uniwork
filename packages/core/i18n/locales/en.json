@@ -7071,6 +7071,17 @@
         "tabLayout": "Layout",
         "tabReview": "Review",
         "tabView": "View",
+        "tabTableDesign": "Table Design",
+        "tabTableLayout": "Table Layout",
+        "tabPictureFormat": "Picture Format",
+        "tabShapeFormat": "Shape Format",
+        "contextual": {
+          "tableHeader": "Table style options",
+          "tableCells": "Cells",
+          "tableAlign": "Alignment",
+          "pictureTransform": "Rotate and flip",
+          "colorSwatch": "Colour {{value}}"
+        },
         "overflow": "More commands",
         "groups": {
           "baseFormat": "Formatting",
@@ -7086,6 +7097,8 @@
           "headerFooter": "Header and footer",
           "pageSetup": "Page setup",
           "pageDecor": "Page decoration",
+          "pageSetupDialog": "Page setup dialog",
+          "pageDecorDialog": "Page decoration dialog",
           "trackChanges": "Track changes",
           "comments": "Comments",
           "notes": "Notes",

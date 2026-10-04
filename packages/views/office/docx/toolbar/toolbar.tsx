@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeRibbon } from "../../ribbon";
 import { HomeFindGroup } from "./groups/home-find";
+import { buildDocxContextualTabs } from "./contextual-tabs";
 import { buildDocxRibbonTabs } from "./ribbon-tabs";
 import type { DocxToolbarProps } from "./types";
 
@@ -27,7 +28,7 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
   return (
     <div data-testid="docx-toolbar">
       <OfficeRibbon
-        tabs={buildDocxRibbonTabs(context)}
+        tabs={[...buildDocxRibbonTabs(context), ...buildDocxContextualTabs(context)]}
         scope="docx"
         labelKey="office.ribbon.label"
         quickAccess={
