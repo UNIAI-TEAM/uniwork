@@ -9,10 +9,11 @@ import { sha256Hex } from "@uniwork/office-contracts";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities, type OfficeCapabilities } from "@uniwork/core/api/endpoints/office";
 import type { OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type MarkdownEditorProps, type TextEditorHandle, type TextOpenFailure, type TextOpenOutcome } from "@uniwork/views/office";
+import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type IsolatedPreviewPort, type MarkdownEditorProps, type TextEditorHandle, type TextOpenFailure, type TextOpenOutcome } from "@uniwork/views/office";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
 import { createTextDocumentsTransport, createTextSaveTransport, TEXT_ENGINE_NAME, type TextDocumentSnapshot, type TextDocumentsTransport, type TextFormat } from "./text-save-transport";
+import { createHttpPreviewAssetProxy, createOfficePreviewPort } from "./preview-port";
 
 // The web host's Markdown/HTML format adapter (S3, UNI-928). It mirrors
 // docx-adapter.tsx: an engine-backed EditorHandle, the real save transport,
@@ -280,6 +281,43 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
   return handle;
 }
 
+/**
+ * The isolated preview port for one adapter (S3b-preview, UNI-928).
+ *
+ * Built once per adapter - the views call `mount` when a preview pane becomes
+ * visible and `dispose` on unmount - so a re-render never rebuilds the iframe
+ * policy. The host owns every sandbox/CSP/asset decision (preview.ts); this
+ * only supplies the document scope, the authenticated asset proxy, the theme
+ * and the ADR 0026 opt-in. No new dependency, no second iframe policy.
+ *
+ * HTML is fully wired: the engine builds the preview copy inside the isolated
+ * frame (buildHtmlPreviewCopy), so preview / split / present all render.
+ *
+ * Markdown gets no `renderMarkdown` yet, so the port refuses an `md` mount
+ * and the view keeps its typed "Preview unavailable" state instead of
+ * fabricating a copy. The lane has no browser-safe markdown->HTML renderer:
+ * the office boundary gate (scripts/office/check-boundaries.mjs) rejects
+ * `@tiptap/*`, `@uniwork/views/office/markdown` and `marked` from
+ * apps/web/platform/office, and this host must not vendor a second markdown
+ * parser. Wiring it needs a lead-approved gate/dep change or a browser-safe
+ * renderer in the engine lane.
+ */
+function createPreviewPort(identity: OfficeIdentity, format: TextFormat): IsolatedPreviewPort {
+  return createOfficePreviewPort({
+    scope: { document_id: identity.documentId, job_id: `preview:${identity.documentId}` },
+    proxy: createHttpPreviewAssetProxy(identity.documentId),
+    // Visual-edit (ADR 0026) is HTML-only; the Markdown surface never asks.
+    allowVisualEdit: format === "html",
+    color_scheme: previewColorScheme(),
+  });
+}
+
+/** Dark mode is a `.dark` subtree class in this app (globals.css), not a media
+ *  query, so read it once when the port is built. */
+function previewColorScheme(): "light" | "dark" {
+  return typeof document !== "undefined" && document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
 export function createTextFormatAdapter(options: TextFormatAdapterOptions): TextFormatAdapter {
   const engine = createEngine(options.format);
   const editor = createTextHandle({ engine, format: options.format, documentId: options.identity.documentId, readBytes: options.documents.read });
@@ -316,6 +354,8 @@ export function createTextFormatAdapter(options: TextFormatAdapterOptions): Text
     open: open as { open(signal?: AbortSignal): Promise<TextOpenOutcome> },
     coordinator: session.coordinator,
     title: options.title,
+    // The ONE preview runtime; the view mounts it, this adapter never does.
+    preview: createPreviewPort(options.identity, options.format),
   };
   const editorView = options.format === "md"
     ? createElement(MarkdownEditor<TextDocumentSnapshot>, { ...viewProps, capability: { ...capability, format: "md" }, open: open as MarkdownEditorProps<TextDocumentSnapshot>["open"] })

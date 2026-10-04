@@ -215,6 +215,36 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it("passes an isolated preview port to the HTML view so preview modes are live", async () => {
+    // S3b-preview: without this the HTML surface shows "Preview unavailable"
+    // in preview / split / present. The adapter builds the port; the view
+    // mounts it. HTML gets a renderer-free port: the engine makes the copy.
+    const { adapter: created } = adapter("html");
+    const props = (created.editorView as { props: Record<string, unknown> }).props;
+    const preview = props.preview as { mount?: unknown } | undefined;
+    expect(preview).toBeDefined();
+    expect(typeof preview?.mount).toBe("function");
+    await created.session.dispose();
+  });
+
+  it("keeps the typed unavailable state for Markdown, whose port has no renderer", async () => {
+    // The lane has no browser-safe markdown->HTML renderer (the office
+    // boundary gate rejects @tiptap/*, @uniwork/views/office/markdown and
+    // marked here). The port must therefore refuse an md mount so the view
+    // degrades to its "Preview unavailable" state instead of a fake copy.
+    const { adapter: created } = adapter("md");
+    const props = (created.editorView as { props: Record<string, unknown> }).props;
+    const preview = props.preview as { mount(input: unknown): Promise<unknown> };
+    await expect(preview.mount({
+      container: document.createElement("div"),
+      format: "md",
+      title: "Notes",
+      text: "# source",
+      manifest: { entries: [] },
+    })).rejects.toThrow("preview runtime is unavailable for Markdown");
+    await created.session.dispose();
+  });
+
   it("reports a corrupted source as a typed open failure, never a blank", async () => {
     const { adapter: created } = adapter("md", new Uint8Array([0xc3, 0x28]));
     expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "corrupted", format: "md" });
