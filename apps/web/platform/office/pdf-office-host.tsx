@@ -52,7 +52,7 @@ export function PdfOfficeEditorHost(props: OfficeEditorHostProps) {
     const load = async () => {
       if (!identity) return;
       let capability: OfficeCapabilityEntry = {
-        format: "pdf", operation: "edit", host: "web",
+        format: "pdf", operation: "serialize", host: "web",
         engineBuild: PDF_WEB_ENGINE_BUILD, contractRevision: "office-editor-host/1",
         status: readonly ? "readonly" : "available",
         reason: readonly ? presentation.current.unavailable : null,

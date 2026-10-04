@@ -1,4 +1,4 @@
-import { act, createElement } from "react";
+import { act, createElement, type ComponentType } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
@@ -9,7 +9,19 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock("@uniwork/core/api/endpoints/office", () => ({ getOfficeCapabilities: mocks.capabilities }));
 vi.mock("./pdf-adapter", () => ({ createPdfFormatAdapter: mocks.adapter }));
 vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: unknown; capability?: { status: string; fidelityWarnings?: string[] } }) => createElement("div", { "data-testid": "host", "data-bound": Boolean(props.formatAdapter), "data-capability": props.capability?.status ?? "unknown", "data-warnings": (props.capability?.fidelityWarnings ?? []).join("|") }) }));
+// The app resolves each format host through next/dynamic; the test resolves the
+// same loader synchronously behind Suspense so the routing host can mount.
+vi.mock("next/dynamic", async () => {
+  const React = await import("react");
+  return {
+    default: (loader: () => Promise<unknown>) => {
+      const LazyHost = React.lazy(async () => ({ default: (await loader()) as ComponentType<Record<string, unknown>> }));
+      return (props: Record<string, unknown>) => React.createElement(React.Suspense, { fallback: null }, React.createElement(LazyHost, props));
+    },
+  };
+});
 
+import { DocumentOfficeEditorHost } from "./document-office-host";
 import { PdfOfficeEditorHost } from "./pdf-office-host";
 
 const documentFor = (id: string) => ({ id, title: "Spec", organization_id: "org", workspace_id: "ws", revision: "1", file: { version_id: "version-1", filename: "spec.pdf", mime_type: "application/pdf" } }) as Document;
@@ -53,7 +65,7 @@ describe("PDF web host", () => {
     expect(mocks.adapter).toHaveBeenCalledWith(expect.objectContaining({
       identity: expect.objectContaining({ accountId: "account-1", organizationId: "org", workspaceId: "ws", documentId: "doc-1", baseVersionId: "version-1", baseRevision: "1" }),
       capability: expect.objectContaining({
-        format: "pdf", operation: "edit", host: "web", status: "available", reason: null,
+        format: "pdf", operation: "serialize", host: "web", status: "available", reason: null,
         fidelityWarnings: ["open: not bound in this service build", "edit: not bound in this service build", "serialize: not bound in this service build"],
       }),
     }));
@@ -97,5 +109,17 @@ describe("PDF web host", () => {
     expect(mocks.dispose).toHaveBeenCalledTimes(1);
     expect(mocks.adapter).toHaveBeenCalledTimes(2);
     expect(mocks.adapter).toHaveBeenLastCalledWith(expect.objectContaining({ identity: expect.objectContaining({ documentId: "doc-2" }) }));
+  });
+
+  it("routes a .pdf document to the PDF host", async () => {
+    await act(async () => {
+      root.render(createElement(DocumentOfficeEditorHost, { document: documentFor("doc-1"), wsId: "ws", readonly: false }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(mocks.adapter).toHaveBeenCalledWith(expect.objectContaining({
+      identity: expect.objectContaining({ documentId: "doc-1" }),
+      capability: expect.objectContaining({ format: "pdf", operation: "serialize" }),
+    }));
   });
 });
