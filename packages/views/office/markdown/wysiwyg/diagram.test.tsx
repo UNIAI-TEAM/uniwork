@@ -1,16 +1,10 @@
 // @vitest-environment jsdom
-import { useEffect, useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
-import {
-  MERMAID_TEMPLATE,
-  MermaidBlockPreview,
-  insertMermaidDiagram,
-  validateMermaidSource,
-} from "./diagram";
+import { MERMAID_TEMPLATE, insertMermaidDiagram } from "./diagram";
 import type { TextEditorHandle } from "../../source-editor-types";
 
 initI18n();
@@ -63,24 +57,32 @@ describe("insertMermaidDiagram", () => {
     const inserted = live!.getJSON().content?.find((node) => node.type === "codeBlock");
     expect(inserted?.attrs?.language).toBe("mermaid");
   });
-});
 
-describe("validateMermaidSource", () => {
-  it("accepts a real diagram and reports the parser message on invalid source", async () => {
-    expect(await validateMermaidSource(MERMAID_TEMPLATE)).toEqual({ status: "valid" });
-    const invalid = await validateMermaidSource("this is not a diagram");
-    expect(invalid.status).toBe("invalid");
-    if (invalid.status === "invalid") expect(invalid.message.length).toBeGreaterThan(0);
+  it("does nothing on a read-only editor", async () => {
+    const handle = createHandle(FIXTURE);
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} editable={false} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    const before = handle.source!.getText();
+    await act(async () => {
+      insertMermaidDiagram(live);
+    });
+    expect(handle.source!.getText()).toBe(before);
   });
 });
 
-describe("MermaidBlockPreview", () => {
-  it("surfaces the typed error state for invalid source", async () => {
-    render(<MermaidBlockPreview source="not a diagram" />);
-    const error = await screen.findByRole("alert");
-    expect(error).toHaveAttribute("data-mermaid-error");
-    expect(screen.getByText("The diagram could not be rendered. Check the Mermaid syntax.")).toBeTruthy();
+describe("diagram error surface", () => {
+  it("surfaces the parser's own message for invalid source, through the shared renderer", async () => {
+    // The production error state belongs to the shared `MermaidDiagram` the
+    // code-block node view mounts — not a second wrapper. Invalid source shows
+    // the parser message instead of a broken canvas.
+    const handle = createHandle("# Title\n\n```mermaid\nnot a diagram\n```\n");
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    const error = await screen.findByText("Unable to render Mermaid diagram.");
+    expect(error).toBeTruthy();
     // The parser's own message is shown: it is the only clue about the line.
-    await waitFor(() => expect(document.querySelector("[data-mermaid-error-detail]")?.textContent?.length ?? 0).toBeGreaterThan(0));
+    await waitFor(() => expect(document.querySelector(".mermaid-diagram-error-detail")?.textContent?.length ?? 0).toBeGreaterThan(0));
   });
 });
