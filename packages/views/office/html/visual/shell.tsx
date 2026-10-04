@@ -269,7 +269,10 @@ function PreviewPane({
   }, [manifest, text]);
 
   return (
-    <div ref={containerRef} className="h-full w-full overflow-hidden rounded-md border border-border bg-muted/10" data-testid="html-preview">
+    // `data-html-preview-frame` is the selection bridge's structural hook; it
+    // is separate from the `html-preview` testid so a test-only rename cannot
+    // move the outline.
+    <div ref={containerRef} className="h-full w-full overflow-hidden rounded-md border border-border bg-muted/10" data-testid="html-preview" data-html-preview-frame>
       {state === "unavailable" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.unavailable")}</p> : null}
       {state === "idle" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.loading")}</p> : null}
     </div>
@@ -313,6 +316,7 @@ export function HtmlVisualShell({
   const presenting = viewMode === "present";
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
   // The selection bridge's event stream lives OUTSIDE React state: a
   // hover-frequency event re-renders the overlay alone, never the shell, the
   // preview pane or the source editor. `useState` holds the instance so it
@@ -354,6 +358,7 @@ export function HtmlVisualShell({
 
   const previewPane = showPreview ? (
     <div
+      ref={previewScrollRef}
       className="flex min-h-0 min-w-0 flex-1 items-start justify-center overflow-auto p-1"
       data-testid="html-preview-scroll"
       data-html-zoom={clampedZoom}
@@ -420,6 +425,8 @@ export function HtmlVisualShell({
           <HtmlSelectionOverlay
             sink={previewEvents}
             canvasRef={canvasRef}
+            zoom={clampedZoom}
+            scrollRef={previewScrollRef}
             onSelectionChange={handlePreviewSelection}
           />
         ) : null}

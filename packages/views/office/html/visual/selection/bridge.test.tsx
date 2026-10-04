@@ -1,5 +1,5 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlVisualShell } from "../shell";
 import { HTML_SELECTION_FLAG, type HtmlSelection } from "./model";
@@ -16,6 +16,9 @@ initI18n();
 beforeEach(async () => {
   flagMock.value = false;
   await setLocale("en");
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 /** A preview port that captures the shell's forwarded events and hands back a
@@ -36,19 +39,68 @@ function previewPort() {
   };
 }
 
-function renderShell(preview: IsolatedPreviewPort, onPreviewSelection?: (selection: HtmlSelection | null) => void) {
-  return render(
+type Box = { left: number; top: number; width: number; height: number };
+
+const CANVAS_BOX: Box = { left: 0, top: 0, width: 800, height: 600 };
+const ZERO_BOX: Box = { left: 0, top: 0, width: 0, height: 0 };
+
+function domRect({ left, top, width, height }: Box): DOMRect {
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+/**
+ * jsdom has no layout: every `getBoundingClientRect` is zero, so the
+ * canvas-space math is dead unless it is stubbed. The two rects the bridge
+ * reads - the canvas and the preview frame - are answered with real numbers;
+ * the reader is a function so a re-probe test can move the frame between
+ * events. The frame is matched by its dedicated hook OR its testid, so the
+ * pre-fix selector also gets a non-zero offset and the failures below isolate
+ * the zoom / re-probe gaps rather than a missing attribute.
+ */
+function stubLayout(read: () => { frame: Box; canvas?: Box }) {
+  return vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const el = this as HTMLElement;
+    const { frame, canvas } = read();
+    const isFrame = el.hasAttribute("data-html-preview-frame") || el.dataset.testid === "html-preview";
+    if (isFrame) return domRect(frame);
+    if (el.dataset.testid === "html-canvas") return domRect(canvas ?? CANVAS_BOX);
+    return domRect(ZERO_BOX);
+  });
+}
+
+interface ShellOptions {
+  viewMode?: "split" | "preview";
+  zoom?: number;
+  onPreviewSelection?: (selection: HtmlSelection | null) => void;
+}
+
+function shellElement(preview: IsolatedPreviewPort, options: ShellOptions = {}) {
+  return (
     <HtmlVisualShell
       documentKey="doc"
       text="<p>hi</p>"
-      viewMode="preview"
+      viewMode={options.viewMode ?? "preview"}
       onViewModeChange={() => undefined}
       preview={preview}
-      zoom={100}
+      zoom={options.zoom ?? 100}
       onZoomChange={() => undefined}
-      onPreviewSelection={onPreviewSelection}
-    />,
+      onPreviewSelection={options.onPreviewSelection}
+    />
   );
+}
+
+function renderShell(preview: IsolatedPreviewPort, onPreviewSelection?: (selection: HtmlSelection | null) => void, options: ShellOptions = {}) {
+  return render(shellElement(preview, { ...options, onPreviewSelection }));
 }
 
 /** Wait for the port to be mounted, so the captured onEvent is wired. */
@@ -195,6 +247,155 @@ describe("HtmlSelectionOverlay behind the flag", () => {
     act(() => emit(SELECT));
 
     expect(onPreviewEvent).toHaveBeenCalledWith(SELECT);
+  });
+});
+
+/**
+ * The frame's rect arrives in the frame's INTERNAL viewport px; the shell
+ * renders the frame's content scaled by `clampedZoom/100` and, in split mode,
+ * offset from the canvas origin. The outline must therefore paint at
+ * `offset + zoom * rect` in canvas space. jsdom reports zero rects, so these
+ * cases stub the canvas and frame boxes.
+ */
+describe("HtmlSelectionOverlay canvas-space geometry", () => {
+  it("scales the rect by the shell zoom at 100% (the unchanged baseline)", async () => {
+    flagMock.value = true;
+    stubLayout(() => ({ frame: { left: 0, top: 0, width: 200, height: 400 } }));
+    const { port, emit } = previewPort();
+    renderShell(port);
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "10px", top: "20px", width: "30px", height: "40px" });
+  });
+
+  it("scales the rect by the shell zoom at 200% in preview mode", async () => {
+    flagMock.value = true;
+    stubLayout(() => ({ frame: { left: 0, top: 0, width: 200, height: 400 } }));
+    const { port, emit } = previewPort();
+    renderShell(port, undefined, { zoom: 200 });
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+
+    // 2 x (10,20,30,40) -> (20,40) 60x80; no frame offset in preview mode.
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "20px", top: "40px", width: "60px", height: "80px" });
+  });
+
+  it("adds the frame offset and applies the zoom scale in split mode at 150%", async () => {
+    flagMock.value = true;
+    stubLayout(() => ({ frame: { left: 300, top: 40, width: 200, height: 400 } }));
+    const { port, emit } = previewPort();
+    renderShell(port, undefined, { viewMode: "split", zoom: 150 });
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+
+    // offset (300,40) + 1.5 x (10,20,30,40) -> (315,70) 45x60.
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "315px", top: "70px", width: "45px", height: "60px" });
+  });
+
+  it("re-probes the offset when the preview scroll container scrolls", async () => {
+    flagMock.value = true;
+    let frame: Box = { left: 300, top: 40, width: 200, height: 400 };
+    stubLayout(() => ({ frame }));
+    const { port, emit } = previewPort();
+    renderShell(port, undefined, { viewMode: "split", zoom: 100 });
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "310px", top: "60px" });
+
+    // Scrolling the parent container (which happens exactly when zoom>100%
+    // makes the preview overflow) moves the frame and emits no inspector event.
+    frame = { left: 120, top: 5, width: 200, height: 400 };
+    act(() => {
+      fireEvent.scroll(screen.getByTestId("html-preview-scroll"));
+    });
+
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "130px", top: "25px" });
+  });
+
+  it("re-probes the offset when the frame resizes", async () => {
+    flagMock.value = true;
+    let frame: Box = { left: 300, top: 40, width: 200, height: 400 };
+    stubLayout(() => ({ frame }));
+
+    const callbacks: (() => void)[] = [];
+    class RecordingResizeObserver {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
+    try {
+      const { port, emit } = previewPort();
+      renderShell(port, undefined, { viewMode: "split", zoom: 100 });
+      await ready();
+
+      act(() => emit(SELECT));
+      act(() => emit(RECT));
+      expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "310px", top: "60px" });
+      expect(callbacks.length).toBeGreaterThan(0);
+
+      // A window / split-pane resize re-lays-out the frame; no inspector event.
+      frame = { left: 50, top: 10, width: 200, height: 400 };
+      act(() => callbacks.forEach((callback) => callback()));
+
+      expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "60px", top: "30px" });
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
+
+  it("re-probes the offset when the zoom changes", async () => {
+    flagMock.value = true;
+    let frame: Box = { left: 300, top: 40, width: 200, height: 400 };
+    stubLayout(() => ({ frame }));
+    const { port, emit } = previewPort();
+    const view = renderShell(port, undefined, { viewMode: "split", zoom: 100 });
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "310px", top: "60px" });
+
+    // A zoom change re-lays-out the frame; the offset must be re-measured, and
+    // the rect must be scaled by the new factor.
+    frame = { left: 150, top: 20, width: 200, height: 400 };
+    view.rerender(shellElement(port, { viewMode: "split", zoom: 50 }));
+
+    // 0.5 x (10,20) + (150,20) -> (155,30); 0.5 x (30,40) -> 15x20.
+    expect(screen.getByTestId("html-selection-outline")).toHaveStyle({ left: "155px", top: "30px", width: "15px", height: "20px" });
+  });
+});
+
+describe("HtmlSelectionOverlay when the flag turns off", () => {
+  it("clears the last published selection so the caller cannot act on it", async () => {
+    flagMock.value = true;
+    const onSelection = vi.fn();
+    const { port, emit } = previewPort();
+    const view = renderShell(port, onSelection);
+    await ready();
+
+    act(() => emit(SELECT));
+    act(() => emit(RECT));
+    expect(onSelection).toHaveBeenLastCalledWith(expect.objectContaining({ sid: 7 }));
+
+    flagMock.value = false;
+    view.rerender(shellElement(port, { onPreviewSelection: onSelection }));
+
+    expect(screen.queryByTestId("html-selection-outline")).toBeNull();
+    expect(onSelection).toHaveBeenLastCalledWith(null);
   });
 });
 
