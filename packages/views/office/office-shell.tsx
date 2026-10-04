@@ -5,6 +5,7 @@ import { Expand, Minimize2, PanelRight, Save, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../layout/header-actions-slot";
@@ -70,21 +71,6 @@ function useCoordinatorState(coordinator?: OfficeSaveCoordinatorLike, provided?:
     return coordinator.subscribe?.((next) => setState(next));
   }, [coordinator, provided]);
   return state;
-}
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia?.(query).matches === true);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia(query);
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    setMatches(media.matches);
-    media.addEventListener?.("change", onChange);
-    return () => media.removeEventListener?.("change", onChange);
-  }, [query]);
-
-  return matches;
 }
 
 function useDarkTheme(): boolean {
