@@ -8696,6 +8696,8 @@
         }
       },
       "formula": {
+        "nameBox": "Cell reference",
+        "fx": "fx",
         "label": "Formula or value"
       },
       "statusBar": {

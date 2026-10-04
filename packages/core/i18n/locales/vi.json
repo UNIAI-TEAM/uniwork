@@ -8689,6 +8689,8 @@
         }
       },
       "formula": {
+        "nameBox": "Tham chiếu ô",
+        "fx": "fx",
         "label": "Công thức hoặc giá trị"
       },
       "statusBar": {
