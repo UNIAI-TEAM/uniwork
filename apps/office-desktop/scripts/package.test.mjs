@@ -2,17 +2,27 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
+import { build } from "esbuild";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
 import packageJson from "../package.json" with { type: "json" };
 
 const appDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// package.mjs consumes the shared TS format table (../shared/document-format.ts);
+// Node cannot load a .ts module, so the suite loads the packaging script through
+// esbuild - the same loader the desktop build uses - into a sibling file whose
+// location preserves package.mjs's appDirectory/repositoryRoot resolution. The
+// bundle is removed on exit; the assertions still exercise the real script.
+const packageBundle = join(appDirectory, "scripts", `.package.test.bundle.${process.pid}.mjs`);
+await build({ entryPoints: [join(appDirectory, "scripts", "package.mjs")], bundle: true, platform: "node", format: "esm", packages: "external", outfile: packageBundle, logLevel: "silent" });
+process.on("exit", () => { try { rmSync(packageBundle, { force: true }); } catch { /* best effort */ } });
+const { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } = await import(pathToFileURL(packageBundle).href);
 
 function findBash() {
   for (const candidate of ["bash", "C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"]) {
