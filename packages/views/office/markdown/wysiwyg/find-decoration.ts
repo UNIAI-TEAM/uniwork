@@ -22,12 +22,20 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { FindMatch } from "../../common/find";
 
 /** Painted on every match. */
-export const MARKDOWN_FIND_MATCH_CLASS = "md-find-match";
+const MATCH_CLASS = "md-find-match";
 /** Painted on the active match as well, so it stands out from the rest. */
-export const MARKDOWN_FIND_ACTIVE_CLASS = "md-find-match-active";
-/** Marker attribute so the DOM can be asserted without reading classes. */
-export const MARKDOWN_FIND_MATCH_ATTRIBUTE = "data-find-match";
-export const MARKDOWN_FIND_ACTIVE_ATTRIBUTE = "data-find-active";
+const ACTIVE_CLASS = "md-find-match-active";
+/** Marker attributes so the DOM can be asserted without reading classes. */
+const MATCH_ATTRIBUTE = "data-find-match";
+const ACTIVE_ATTRIBUTE = "data-find-active";
+/**
+ * Inline paint, using the semantic token slots rather than a hardcoded colour.
+ * Inline (not a stylesheet rule) because this task owns only the `find*` files
+ * and must not edit a global stylesheet; the token custom properties are
+ * inherited, so `var(--warning-soft)` resolves in both themes.
+ */
+const MATCH_STYLE = "background-color: var(--warning-soft);";
+const ACTIVE_STYLE = "background-color: var(--brand); color: var(--brand-foreground);";
 
 export interface MarkdownFindRange {
   readonly from: number;
@@ -40,7 +48,7 @@ export interface MarkdownFindHighlight {
   readonly activeIndex: number;
 }
 
-export const EMPTY_MARKDOWN_FIND_HIGHLIGHT: MarkdownFindHighlight = { ranges: [], activeIndex: -1 };
+const EMPTY_MARKDOWN_FIND_HIGHLIGHT: MarkdownFindHighlight = { ranges: [], activeIndex: -1 };
 
 export interface FlattenedDoc {
   readonly text: string;
@@ -58,7 +66,10 @@ const BLOCK_SEPARATOR = "\n";
 function appendLeaf(out: { text: string; positions: (number | null)[] }, leaf: string, pos: number): void {
   for (let i = 0; i < leaf.length; i += 1) {
     out.text += leaf[i];
-    out.positions.push(pos);
+    // A text node's i-th code unit sits at `pos + i`; pushing `pos` for every
+    // character would collapse a whole node onto its first position and make
+    // every match inside it resolve to a one-character range.
+    out.positions.push(pos + i);
   }
 }
 
@@ -83,7 +94,11 @@ export function flattenDocText(doc: PMNode): FlattenedDoc {
     // one position past the node itself.
     const base = node.type.name === "doc" ? pos : pos + 1;
     node.forEach((child, offset, index) => {
-      if (index > 0 && node.isBlock) {
+      // The separator belongs between two BLOCK children, so the condition is
+      // the child's, not the parent's: the doc node is not itself a block, and
+      // keying on `node.isBlock` would silently concatenate every top-level
+      // block (`# Title` + `one two one` -> `Titleone two one`).
+      if (index > 0 && child.isBlock) {
         out.text += BLOCK_SEPARATOR;
         out.positions.push(null);
       }
@@ -140,18 +155,28 @@ export function createMarkdownFindPlugin(): Plugin<MarkdownFindHighlight> {
       decorations(state) {
         const highlight = markdownFindPluginKey.getState(state) ?? EMPTY_MARKDOWN_FIND_HIGHLIGHT;
         if (highlight.ranges.length === 0) return DecorationSet.empty;
+        // A stale highlight can outlive the document it was built for (a
+        // replacement shrinks it before the host repaints); a range past the
+        // end would make `DecorationSet.create` throw, so drop those.
+        const size = state.doc.content.size;
+        const live = highlight.ranges
+          .map((range, index) => ({ range, index }))
+          .filter(({ range }) => range.from >= 0 && range.from < range.to && range.to <= size);
+        if (live.length === 0) return DecorationSet.empty;
         return DecorationSet.create(
           state.doc,
-          highlight.ranges.map((range, index) =>
+          live.map(({ range, index }) =>
             index === highlight.activeIndex
               ? Decoration.inline(range.from, range.to, {
-                  class: `${MARKDOWN_FIND_MATCH_CLASS} ${MARKDOWN_FIND_ACTIVE_CLASS}`,
-                  [MARKDOWN_FIND_MATCH_ATTRIBUTE]: "1",
-                  [MARKDOWN_FIND_ACTIVE_ATTRIBUTE]: "1",
+                  class: `${MATCH_CLASS} ${ACTIVE_CLASS}`,
+                  style: ACTIVE_STYLE,
+                  [MATCH_ATTRIBUTE]: "1",
+                  [ACTIVE_ATTRIBUTE]: "1",
                 })
               : Decoration.inline(range.from, range.to, {
-                  class: MARKDOWN_FIND_MATCH_CLASS,
-                  [MARKDOWN_FIND_MATCH_ATTRIBUTE]: "1",
+                  class: MATCH_CLASS,
+                  style: MATCH_STYLE,
+                  [MATCH_ATTRIBUTE]: "1",
                 }),
           ),
         );
