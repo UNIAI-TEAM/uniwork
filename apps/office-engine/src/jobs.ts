@@ -21,7 +21,7 @@ import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
 import type { Metrics } from "./metrics.ts";
 import { measureOutput, putOutput } from "./output.ts";
-import { WorkerSandbox } from "./sandbox.ts";
+import { WorkerSandbox, type WorkerIdentity } from "./sandbox.ts";
 import { Supervisor } from "./supervisor.ts";
 
 const WORKER_CODES: ReadonlySet<string> = new Set([
@@ -213,8 +213,14 @@ export class JobManager {
     let dir: string | null = null;
     // One uid per worker slot: reserved before the dir exists so two jobs can
     // never share a uid, and held until the tree is dead and the dir is gone.
-    const identity = this.sandbox.acquire();
+    // Acquisition sits inside the try so a pool that cannot hand out a slot
+    // fails THIS job instead of rejecting execute() - the pump calls execute
+    // un-awaited, so a rejection there is an unhandled error that kills the
+    // whole service. Whatever the cause, one job's failure must never be able
+    // to take the pool (or the process) down.
+    let identity: WorkerIdentity | null = null;
     try {
+      identity = this.sandbox.acquire();
       dir = await createJobDir(this.config.tempRoot);
       const inputPath = job.input ? join(dir, INPUT_NAME) : null;
       if (inputPath && job.input) await writeFile(inputPath, job.input);
@@ -286,8 +292,10 @@ export class JobManager {
     } finally {
       if (dir) await removeJobDir(dir).catch(() => undefined);
       // The uid only goes back to the pool once nothing runs under it; a
-      // descendant that outlives the sweep quarantines the slot instead.
-      await this.sandbox.release(identity);
+      // descendant that outlives the sweep quarantines the slot instead. The
+      // release itself must never reject: it is the last step of a job that
+      // already settled, and a rejected finally would crash the service.
+      await this.sandbox.release(identity).catch(() => undefined);
     }
   }
 

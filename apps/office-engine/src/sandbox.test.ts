@@ -211,3 +211,43 @@ describe.skipIf(!CAN_SANDBOX)("per-job uid sandbox", () => {
     expect(isAlive(pid)).toBe(false);
   });
 });
+
+// F3 (UNI-926 FIX-ENGINE-POOL): a FAILED job must release its worker slot, so
+// N > MAX_WORKERS consecutive failures cannot exhaust the pool or crash the
+// service. A failure reaches the pool through two paths - a worker that
+// reports a typed failure, and a job that dies before/while the worker runs -
+// so both are exercised, and the pool must still serve a later job.
+describe("failed jobs release their worker slot (F3)", () => {
+  it("serves a later job after N > maxWorkers consecutive failing jobs", async () => {
+    const h = await startHarness({ maxWorkers: 2, maxQueue: 8 });
+    try {
+      // 4 consecutive failures over a 2-slot pool: the old leak quarantined a
+      // slot per failure and the 3rd acquire threw "worker slot pool
+      // exhausted", an unhandled rejection that killed the process.
+      for (let i = 0; i < 4; i++) {
+        const job = makeJob(h.target, { text: "uniwork-fault:code engine_result_invalid\n" });
+        expect((await submit(h, job)).status).toBe(202);
+        const done = await waitTerminal(h, job);
+        expect(done.body.state).toBe("failed");
+        expect((done.body.error as { code?: string }).code).toBe("engine_result_invalid");
+      }
+      // A failure that dies mid-flight (here: the worker reports crashed) must
+      // release its slot on the same finally path.
+      for (let i = 0; i < 4; i++) {
+        const job = makeJob(h.target, { text: "uniwork-fault:crash\n" });
+        expect((await submit(h, job)).status).toBe(202);
+        const done = await waitTerminal(h, job);
+        expect(done.body.state).toBe("crashed");
+      }
+      // The pool still has every slot: a normal job runs and completes.
+      const ok = makeJob(h.target, { text: "after-failures" });
+      expect((await submit(h, ok)).status).toBe(202);
+      expect((await waitTerminal(h, ok)).body.state).toBe("completed");
+      // No slot was permanently withheld by a corpse holding the uid.
+      expect(h.service.jobs.sandboxQuarantined).toBe(0);
+      expect(h.service.jobs.runningCount).toBe(0);
+    } finally {
+      await h.close();
+    }
+  });
+});
