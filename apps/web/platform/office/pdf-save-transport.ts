@@ -43,7 +43,7 @@ export function createPdfSaveTransport(options: {
     },
     async commit({ intent, upload }) {
       const receipt = await options.documents.commit(upload.uploadId, intent.identity.baseRevision, intent.idempotencyKey);
-      if (!receipt || receipt.document.id !== options.documentId || receipt.version.checksum_sha256 !== upload.checksumSha256 || receipt.version.size_bytes !== upload.sizeBytes) throw new Error("pdf_commit_receipt_mismatch");
+      if (!receipt || receipt.document?.id !== options.documentId || receipt.version?.checksum_sha256 !== upload.checksumSha256 || receipt.version?.size_bytes !== upload.sizeBytes) throw new Error("pdf_commit_receipt_mismatch");
       return {
         intentId: intent.intentId, idempotencyKey: intent.idempotencyKey,
         documentId: receipt.document.id, versionId: receipt.version.id, revision: receipt.document.revision,
