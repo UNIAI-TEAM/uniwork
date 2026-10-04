@@ -4,6 +4,9 @@
  * The ribbon tab strip: `role="tablist"` with one `role="tab"` per tab, roving
  * tab-index (arrows wrap, Home/End jump) and `aria-controls` pointing at the
  * panel the toolbar renders below it.
+ *
+ * C12: the strip is a horizontally scrollable row (`overflow-x-auto`), so at a
+ * phone width the tabs scroll instead of wrapping.
  */
 import { useRef, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -42,7 +45,7 @@ export function PptxTabStrip({ tabs, activeTab, onSelect, className }: PptxTabSt
     <div
       role="tablist"
       aria-label={t("toolbar_label")}
-      className={cn("flex min-h-8 items-end gap-1 overflow-x-auto", className)}
+      className={cn("flex h-10 min-w-0 items-end gap-1 overflow-x-auto overflow-y-hidden", className)}
       data-pptx-tabstrip
     >
       {tabs.map((tab, index) => {

@@ -7,6 +7,11 @@
  * `createPptxCommandMap` capabilities: this module only decides where a
  * command sits, never whether it is enabled (that stays the command map's job,
  * so a pending wave-B/C feature stays visibly disabled instead of faked).
+ *
+ * C6 puts four controls in the TAB ROW rather than in a tab's group: the
+ * quick-access undo/redo pair at the far left, Find at the far right and the
+ * presenter view toggle. `PPTX_TAB_ROW_COMMANDS` names them so
+ * `toolbarCommandIds` still lists every command exactly once.
  */
 import type { PptxCommandId } from "../command-map";
 
@@ -22,11 +27,9 @@ export type PptxTabId =
 
 export type PptxGroupId =
   | "file"
-  | "history"
   | "editing"
   | "insert"
   | "design"
-  | "transitions"
   | "animations"
   | "show"
   | "review"
@@ -37,6 +40,9 @@ export interface PptxToolbarGroup {
   /** i18next key under office.pptx. */
   labelKey: string;
   commands: readonly PptxCommandId[];
+  /** Stays first when the command row becomes one scrollable strip (C12, a
+   *  phone-width viewport): the group the user reaches for most on that tab. */
+  primary?: boolean;
 }
 
 export interface PptxToolbarTab {
@@ -46,10 +52,25 @@ export interface PptxToolbarTab {
   groups: readonly PptxToolbarGroup[];
 }
 
+/** Quick-access undo/redo, pinned at the far left of the tab row (C6). */
+export const PPTX_QUICK_ACCESS_COMMANDS: readonly PptxCommandId[] = ["undo", "redo"];
+/** Present/slideshow as a view toggle at the right of the tab row (C6). */
+export const PPTX_VIEW_TOGGLE_COMMAND: PptxCommandId = "presenter";
+/** Find entry point at the far right of the tab row (C6). */
+export const PPTX_FIND_COMMAND: PptxCommandId = "find";
+/** Every control the tab row owns, in render order. */
+export const PPTX_TAB_ROW_COMMANDS: readonly PptxCommandId[] = [
+  ...PPTX_QUICK_ACCESS_COMMANDS,
+  PPTX_VIEW_TOGGLE_COMMAND,
+  PPTX_FIND_COMMAND,
+];
+
 /**
  * Ribbon order. Every command the command map can produce appears exactly once
- * across these tabs; a tab whose wave-B/C family has not landed yet holds no
- * group and renders the honest empty note instead of a fake control.
+ * across the tab row plus these tabs; a tab whose wave-B/C family has not
+ * landed yet holds no group and renders the honest empty note instead of a
+ * fake control. Undo/redo and the presenter toggle live in the tab row, so no
+ * tab repeats them.
  */
 export const PPTX_TOOLBAR_TABS: readonly PptxToolbarTab[] = [
   {
@@ -57,19 +78,20 @@ export const PPTX_TOOLBAR_TABS: readonly PptxToolbarTab[] = [
     labelKey: "tabs.home",
     groups: [
       { id: "file", labelKey: "groups.file", commands: ["open", "save", "export-pdf"] },
-      { id: "history", labelKey: "groups.history", commands: ["undo", "redo"] },
-      { id: "editing", labelKey: "groups.editing", commands: ["edit-text", "edit-shape-image"] },
+      // Editing is the group a presenter reaches for first on Home, so it leads
+      // the single scrollable row at phone widths.
+      { id: "editing", labelKey: "groups.editing", commands: ["edit-text", "edit-shape-image"], primary: true },
     ],
   },
   {
     id: "insert",
     labelKey: "tabs.insert",
-    groups: [{ id: "insert", labelKey: "groups.insert", commands: ["charts", "tables"] }],
+    groups: [{ id: "insert", labelKey: "groups.insert", commands: ["charts", "tables"], primary: true }],
   },
   {
     id: "design",
     labelKey: "tabs.design",
-    groups: [{ id: "design", labelKey: "groups.design", commands: ["masters-layouts", "embedded-fonts"] }],
+    groups: [{ id: "design", labelKey: "groups.design", commands: ["masters-layouts", "embedded-fonts"], primary: true }],
   },
   // Transitions owns no command yet: `setTransition`/`setAdvanceTime` land with
   // wave B4, so the tab is present and reachable but honestly empty.
@@ -77,28 +99,37 @@ export const PPTX_TOOLBAR_TABS: readonly PptxToolbarTab[] = [
   {
     id: "animations",
     labelKey: "tabs.animations",
-    groups: [{ id: "animations", labelKey: "groups.animations", commands: ["animations"] }],
+    groups: [{ id: "animations", labelKey: "groups.animations", commands: ["animations"], primary: true }],
   },
   {
     id: "slide-show",
     labelKey: "tabs.slide_show",
-    groups: [{ id: "show", labelKey: "groups.show", commands: ["presenter", "fullscreen"] }],
+    groups: [{ id: "show", labelKey: "groups.show", commands: ["fullscreen"], primary: true }],
   },
   {
     id: "review",
     labelKey: "tabs.review",
-    groups: [{ id: "review", labelKey: "groups.review", commands: ["speaker-notes"] }],
+    groups: [{ id: "review", labelKey: "groups.review", commands: ["speaker-notes"], primary: true }],
   },
   {
     id: "view",
     labelKey: "tabs.view",
-    groups: [{ id: "view", labelKey: "groups.view", commands: ["render-fidelity"] }],
+    groups: [{ id: "view", labelKey: "groups.view", commands: ["render-fidelity"], primary: true }],
   },
 ];
 
-/** Every command id the shell places, in ribbon order. */
+/** Every command id the shell places (tab row + tabs), in render order. */
 export function toolbarCommandIds(tabs: readonly PptxToolbarTab[] = PPTX_TOOLBAR_TABS): PptxCommandId[] {
-  return tabs.flatMap((tab) => tab.groups.flatMap((group) => [...group.commands]));
+  return [...PPTX_TAB_ROW_COMMANDS, ...tabs.flatMap((tab) => tab.groups.flatMap((group) => [...group.commands]))];
+}
+
+/**
+ * Order for the single scrollable command strip (C12, phone widths): the
+ * tab's `primary` groups first, everything else after, each keeping its
+ * relative order so the fixed per-tab order still holds.
+ */
+export function orderGroupsForNarrow(groups: readonly PptxToolbarGroup[]): PptxToolbarGroup[] {
+  return [...groups.filter((group) => group.primary), ...groups.filter((group) => !group.primary)];
 }
 
 /** A tab is empty when none of its groups names a command. */

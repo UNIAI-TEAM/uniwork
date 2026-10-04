@@ -11,7 +11,6 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
 import { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument } from "./canvas/build-slide-svg";
 import { PptxCanvasSurface } from "./canvas/pptx-canvas-surface";
-import { PptxCanvasZoom } from "./canvas/pptx-canvas-zoom";
 import { loadPptxRendererModule, type PptxRendererModule } from "./canvas/renderer-module";
 import { usePptxDeckRenderer, usePptxPalette, usePptxRendererModule, useSlideRendition, type PptxDeckRendererInput } from "./canvas/use-canvas-host";
 import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
@@ -21,7 +20,9 @@ import { PptxPresenter } from "./presenter";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
 import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
+import { PptxStatusBar } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
+import { PptxFindBar } from "./toolbar/find-bar";
 
 export interface PptxEditorProps {
   host: OfficeHost;
@@ -41,6 +42,8 @@ export interface PptxEditorProps {
    *  own `edit` port; when neither exists Delete stays honestly unbound. */
   onDeleteElements?: (slideIndex: number, elementIds: readonly string[]) => Promise<unknown>;
   onTextEdit?: (slideIndex: number) => Promise<unknown>;
+  /** Find channel (C6). Absent leaves the find bar honest about being unbound. */
+  onFind?: (query: string) => void;
   onOpen?: () => void;
   onCommandError?: (error: unknown) => void;
   fullscreen?: boolean;
@@ -89,6 +92,7 @@ export function PptxEditor({
   transformRequest = null,
   onDeleteElements,
   onTextEdit,
+  onFind,
   onOpen,
   onCommandError,
   fullscreen = false,
@@ -103,6 +107,8 @@ export function PptxEditor({
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const [internalIndex, setInternalIndex] = useState(0);
   const [presenterOpen, setPresenterOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
   const [gesturePending, setGesturePending] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -266,6 +272,11 @@ export function PptxEditor({
     if (saveCoordinator) void saveCoordinator.save("button");
   }, [saveCoordinator]);
 
+  const openPresenter = useCallback(() => {
+    presenterTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPresenterOpen(true);
+  }, []);
+
   const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
   const deleteElements = useMemo(() => {
     if (onDeleteElements) return onDeleteElements;
@@ -303,7 +314,8 @@ export function PptxEditor({
       case "undo": requestHistory("undo"); break;
       case "redo": requestHistory("redo"); break;
       case "save": save(); break;
-      case "presenter": presenterTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setPresenterOpen(true); break;
+      case "find": setFindOpen((open) => !open); break;
+      case "presenter": openPresenter(); break;
       case "fullscreen": {
         if (onFullscreenChange) {
           onFullscreenChange(!fullscreen);
@@ -315,7 +327,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [fullscreen, onFullscreenChange, onOpen, reportCommandError, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
+  }, [fullscreen, onFullscreenChange, onOpen, openPresenter, reportCommandError, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
 
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const key = event.key.toLowerCase();
@@ -324,6 +336,7 @@ export function PptxEditor({
     if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); requestHistory(event.shiftKey ? "redo" : "undo"); }
     if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); requestHistory("redo"); }
     if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); save(); }
+    if ((event.ctrlKey || event.metaKey) && key === "f") { event.preventDefault(); setFindOpen(true); }
     if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); selection.selectAll(); }
     if (event.key === "Escape") { selection.clear(); }
     if ((event.key === "Delete" || event.key === "Backspace") && selection.canDelete) {
@@ -332,13 +345,24 @@ export function PptxEditor({
     }
   };
 
+  const selectedCount = selection.selection.ids.length;
+
   return (
     <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
       <PptxToolbar
         commands={commands}
         onCommand={onCommand}
+        presenterOpen={presenterOpen}
         {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
       />
+      {findOpen ? (
+        <PptxFindBar
+          query={findQuery}
+          onQueryChange={setFindQuery}
+          onClose={() => setFindOpen(false)}
+          {...(onFind ? { onSearch: onFind } : {})}
+        />
+      ) : null}
       {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
       {rendererState.status === "error" ? (
         <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error">
@@ -353,17 +377,11 @@ export function PptxEditor({
         </Alert>
       ) : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* C11: the slide rail stays on the LEFT. */}
         <PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />
         <div className="flex min-h-48 min-w-0 flex-1 flex-col p-3">
-          <div className="mb-2 flex items-center justify-between gap-2 text-caption text-muted-foreground">
-            <span>{t("slide_position", { current: slides.length ? selectedIndex + 1 : 0, total: slides.length })}</span>
-            <span className="flex items-center gap-3">
-              {gesturePending ? <span role="status" data-testid="pptx-gesture-pending">{t("gesture_pending")}</span> : null}
-              <PptxCanvasZoom zoom={zoom} onZoomChange={setZoom} />
-            </span>
-          </div>
-          {/* P0-2 F16: a bound deck that is still building reads as "building", not as
-              "rendering is not connected to this application". */}
+          {/* C9: no floating command buttons over the slide. The only floating
+              surface is the contextual selection overlay inside the slide box. */}
           <PptxCanvasSurface
             content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
             slideIndex={selectedIndex}
@@ -383,6 +401,16 @@ export function PptxEditor({
           />
         </div>
       </div>
+      {/* C10: the status bar owns slide x/y, counts, language, selection and zoom. */}
+      <PptxStatusBar
+        slideCurrent={slides.length ? selectedIndex + 1 : null}
+        slideTotal={slides.length || null}
+        language={typeof document !== "undefined" ? document.documentElement.lang || null : null}
+        selectionCount={selectedCount}
+        gesturePending={gesturePending}
+        zoom={zoom}
+        onZoomChange={setZoom}
+      />
       <PptxPresenter
         slides={presenterSlides}
         selectedIndex={selectedIndex}

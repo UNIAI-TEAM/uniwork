@@ -14,6 +14,7 @@ export type PptxCommandId =
   | "tables"
   | "embedded-fonts"
   | "render-fidelity"
+  | "find"
   | "undo"
   | "redo"
   | "presenter"
@@ -34,6 +35,8 @@ export interface PptxCommand {
   /** Shape movement/resizing must use the host transform channel. */
   gesture?: boolean;
   mandatoryRow?: string;
+  /** A real toggle command (aria-pressed), not a momentary action. */
+  toggle?: boolean;
 }
 
 export interface PptxCommandMapOptions {
@@ -43,7 +46,7 @@ export interface PptxCommandMapOptions {
   includePresentation?: boolean;
 }
 
-const ROWS: Array<Pick<PptxCommand, "id" | "labelKey" | "mandatoryRow" | "gesture">> = [
+const ROWS: Array<Pick<PptxCommand, "id" | "labelKey" | "mandatoryRow" | "gesture" | "toggle">> = [
   { id: "open", labelKey: "commands.open", mandatoryRow: "pptx-open" },
   { id: "edit-text", labelKey: "commands.edit_text", mandatoryRow: "pptx-edit-text" },
   { id: "edit-shape-image", labelKey: "commands.edit_shape_image", mandatoryRow: "pptx-edit-shape-image", gesture: true },
@@ -56,9 +59,10 @@ const ROWS: Array<Pick<PptxCommand, "id" | "labelKey" | "mandatoryRow" | "gestur
   { id: "tables", labelKey: "commands.tables", mandatoryRow: "pptx-tables" },
   { id: "embedded-fonts", labelKey: "commands.embedded_fonts", mandatoryRow: "pptx-embedded-fonts" },
   { id: "render-fidelity", labelKey: "commands.render_fidelity", mandatoryRow: "pptx-render-fidelity" },
+  { id: "find", labelKey: "commands.find" },
   { id: "undo", labelKey: "commands.undo" },
   { id: "redo", labelKey: "commands.redo" },
-  { id: "presenter", labelKey: "commands.presenter" },
+  { id: "presenter", labelKey: "commands.presenter", toggle: true },
   { id: "fullscreen", labelKey: "commands.fullscreen" },
 ];
 
@@ -94,6 +98,7 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
     tables: { status: "unavailable", reason: "Tables are pending the PPTX acceptance cycle" },
     "embedded-fonts": { status: "unavailable", reason: "Embedded fonts are pending the PPTX acceptance cycle" },
     "render-fidelity": { status: "unknown", reason: "Render fidelity is measured in 06b against the genoffice oracle" },
+    find: { status: "available" },
     undo: { status: "available" },
     redo: { status: "available" },
     presenter: { status: "available" },
@@ -109,4 +114,3 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
 export function findPptxCommand(commands: readonly PptxCommand[], id: PptxCommandId): PptxCommand | undefined {
   return commands.find((command) => command.id === id);
 }
-

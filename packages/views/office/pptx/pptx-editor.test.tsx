@@ -224,4 +224,50 @@ describe("PptxEditor", () => {
     await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(editorHandle.dispose).toHaveBeenCalledTimes(1);
   });
+  it("renders the C10 status bar with slide x/y, counts, language, selection and zoom", () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }] });
+    const bar = screen.getByRole("group", { name: "Presentation status" });
+    expect(bar).toHaveAttribute("data-pptx-status-bar");
+    expect(screen.getByTestId("pptx-status-slide")).toHaveTextContent("Slide 1 / 2");
+    expect(screen.getByTestId("pptx-status-language")).toHaveTextContent("Language:");
+    expect(screen.getByTestId("pptx-status-selection")).toHaveTextContent("No selection");
+    expect(bar.querySelector("[data-pptx-zoom]")).not.toBeNull();
+  });
+
+  it("keeps the ribbon free of the selection/position readout that the status bar owns (C6)", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    const toolbar = document.querySelector("[data-pptx-toolbar]") as HTMLElement;
+    expect(toolbar.textContent ?? "").not.toMatch(/Selection \d/);
+    expect(toolbar.textContent ?? "").not.toMatch(/Slide \d+ of \d+/);
+  });
+
+  it("has no floating command button over the slide, only the contextual selection overlay (C9)", async () => {
+    renderEditor({ slides: [{ id: "s1" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    const slideBox = screen.getByRole("application").querySelector("[data-slide-canvas]") as HTMLElement;
+    // The only absolutely positioned child inside the slide box is the selection overlay.
+    expect(slideBox.querySelector("[data-pptx-selection-overlay]")).not.toBeNull();
+    expect(slideBox.querySelector("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert image" })).not.toBeInTheDocument();
+  });
+
+  it("toggles the find bar from the ribbon and Ctrl+F (C6)", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "f", ctrlKey: true });
+    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+  });
+
+  it("marks the presenter view toggle pressed while the presenter is open (C6)", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    const toggle = screen.getByRole("button", { name: "Presenter" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close presenter" }));
+    expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "false");
+  });
 });

@@ -1,11 +1,14 @@
 export { createPptxCommandMap, findPptxCommand, type PptxCommand, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 export { PptxSlideRail, type PptxSlideRailProps, type PptxSlideView } from "./slide-rail";
 export { PptxPresenter, type PptxPresenterProps } from "./presenter";
+export { PptxStatusBar, pptxLanguageLabel, type PptxStatusBarProps, type PptxStatusCounts } from "./status-bar";
 export { PptxToolbar, type PptxToolbarProps } from "./toolbar";
 export { PptxTabStrip, pptxTabDomId, pptxTabPanelId, type PptxTabStripProps } from "./toolbar/pptx-tab-strip";
-export { PptxCommandGroups, type PptxCommandGroupsProps } from "./toolbar/command-groups";
+export { PptxCommandGroups, PPTX_NARROW_COMMAND_QUERY, type PptxCommandGroupsProps } from "./toolbar/command-groups";
 export { PptxCommandButton, type PptxCommandButtonProps } from "./toolbar/command-button";
-export { PPTX_TOOLBAR_TABS, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, tabIsEmpty, toolbarCommandIds, type PptxGroupId, type PptxTabId, type PptxToolbarGroup, type PptxToolbarOverflow, type PptxToolbarTab } from "./toolbar/tabs";
+export { PptxQuickAccess, PptxTabRowTrailing, type PptxQuickAccessProps, type PptxTabRowTrailingProps } from "./toolbar/tab-row-controls";
+export { PptxFindBar, type PptxFindBarProps } from "./toolbar/find-bar";
+export { PPTX_FIND_COMMAND, PPTX_QUICK_ACCESS_COMMANDS, PPTX_TAB_ROW_COMMANDS, PPTX_TOOLBAR_TABS, PPTX_VIEW_TOGGLE_COMMAND, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, orderGroupsForNarrow, tabIsEmpty, toolbarCommandIds, type PptxGroupId, type PptxTabId, type PptxToolbarGroup, type PptxToolbarOverflow, type PptxToolbarTab } from "./toolbar/tabs";
 export { PptxSelectionOverlay, type PptxSelectionOverlayProps } from "./selection/pptx-selection-overlay";
 export { usePptxSelection, type PptxSelectionController, type PptxSelectionPreviewBox, type UsePptxSelectionOptions } from "./selection/use-pptx-selection";
 export { applyGesture, beginGesture, gestureCommitRequests, gestureHandleAt, gestureIsNoop, type PptxGesture, type PptxGestureContext, type PptxGestureKind, type PptxGestureMember, type PptxPreviewBox } from "./selection/gesture";

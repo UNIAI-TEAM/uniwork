@@ -1,16 +1,23 @@
 "use client";
 
 /**
- * One tab's command groups: labelled group boxes separated by a hairline, with
- * the measured overflow collapsing trailing groups into a "more" menu, and a
- * roving tab-index so Tab enters the panel once and arrows move inside it.
+ * One tab's command row: exactly ONE row of labelled groups separated by a
+ * hairline, with a roving tab-index so Tab enters the panel once and arrows
+ * move inside it.
+ *
+ * Two responsive behaviours, never a ragged second row (C7, C12):
+ * - wide (>= 768 px): whole trailing groups collapse into a trailing ">>"
+ *   overflow menu, measured against the real container width;
+ * - narrow (< 768 px): the row becomes a single horizontally scrollable strip
+ *   with the tab's `primary` group first, so the most used control is reachable
+ *   without opening a menu.
  *
  * Disabled controls stay in the DOM (with their reason) so a keyboard user can
  * hear why a wave-B/C command is not available yet; the roving focus skips them
  * because a disabled button cannot take focus.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { ChevronsRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -18,15 +25,19 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { findPptxCommand, type PptxCommand, type PptxCommandId } from "../command-map";
 import { PptxCommandButton } from "./command-button";
 import { pptxTabDomId, pptxTabPanelId } from "./pptx-tab-strip";
-import { computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, type PptxToolbarGroup, type PptxToolbarTab } from "./tabs";
+import { computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, orderGroupsForNarrow, type PptxToolbarGroup, type PptxToolbarTab } from "./tabs";
 
 /** Width reserved for the overflow button when deciding how many groups fit. */
 const MORE_WIDTH_PX = 40;
+/** C12: below this viewport width the command row is one scrollable strip. */
+export const PPTX_NARROW_COMMAND_QUERY = "(max-width: 767px)";
 
 export interface PptxCommandGroupsProps {
   tab: PptxToolbarTab;
   commands: readonly PptxCommand[];
   activeCommand?: PptxCommandId | null;
+  /** Narrow viewport: one scrollable row with the primary group first (C12). */
+  narrow?: boolean;
   onCommand: (id: PptxCommandId) => void;
   className?: string;
 }
@@ -36,20 +47,19 @@ interface ResolvedGroup {
   items: PptxCommand[];
 }
 
-export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, className }: PptxCommandGroupsProps) {
+export function PptxCommandGroups({ tab, commands, activeCommand, narrow = false, onCommand, className }: PptxCommandGroupsProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
-  const groups = useMemo<ResolvedGroup[]>(
-    () =>
-      tab.groups
-        .map((group) => ({
-          group,
-          items: group.commands
-            .map((id) => findPptxCommand(commands, id))
-            .filter((command): command is PptxCommand => Boolean(command)),
-        }))
-        .filter((entry) => entry.items.length > 0),
-    [commands, tab],
-  );
+  const groups = useMemo<ResolvedGroup[]>(() => {
+    const ordered = narrow ? orderGroupsForNarrow(tab.groups) : [...tab.groups];
+    return ordered
+      .map((group) => ({
+        group,
+        items: group.commands
+          .map((id) => findPptxCommand(commands, id))
+          .filter((command): command is PptxCommand => Boolean(command)),
+      }))
+      .filter((entry) => entry.items.length > 0);
+  }, [commands, narrow, tab]);
   const containerRef = useRef<HTMLDivElement>(null);
   const groupRefs = useRef<Array<HTMLDivElement | null>>([]);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -82,7 +92,7 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
         role="tabpanel"
         id={pptxTabPanelId(tab.id)}
         aria-labelledby={pptxTabDomId(tab.id)}
-        className={cn("min-h-9 px-2 py-1.5 text-caption text-muted-foreground", className)}
+        className={cn("min-h-11 px-2 py-1.5 text-caption text-muted-foreground", className)}
         data-pptx-tab-panel={tab.id}
         data-pptx-tab-empty
       >
@@ -91,10 +101,11 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
     );
   }
 
-  const { visible } = computeToolbarOverflow(sizes.groups, sizes.container, MORE_WIDTH_PX);
+  // Narrow is one scrollable strip: every group stays inline and the row scrolls.
+  const { visible } = narrow ? { visible: groups.length } : computeToolbarOverflow(sizes.groups, sizes.container, MORE_WIDTH_PX);
   const inlineCount = Math.max(1, visible);
   const inline = groups.slice(0, inlineCount);
-  const overflow = groups.slice(inlineCount);
+  const overflow = narrow ? [] : groups.slice(inlineCount);
   // Roving focus covers the controls actually rendered inline; the overflow
   // menu is a popup with its own focus management.
   const flat = inline.flatMap((entry) => entry.items);
@@ -115,8 +126,15 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
         role="tabpanel"
         id={pptxTabPanelId(tab.id)}
         aria-labelledby={pptxTabDomId(tab.id)}
-        className={cn("flex min-h-9 items-stretch gap-1 overflow-hidden px-2 py-1.5", className)}
+        // ONE row, never wrapping: `flex-nowrap` plus a scroll on narrow keeps a
+        // ragged second row from ever forming (C7).
+        className={cn(
+          "flex min-h-11 items-stretch gap-1 overflow-x-auto overflow-y-hidden px-2 py-1.5",
+          narrow ? "flex-nowrap" : "overflow-hidden",
+          className,
+        )}
         data-pptx-tab-panel={tab.id}
+        data-pptx-command-row={narrow ? "scroll" : "overflow"}
       >
         {inline.map((entry, groupIndex) => (
           <div key={entry.group.id} className="flex shrink-0 items-center gap-1" data-pptx-group={entry.group.id}>
@@ -144,9 +162,9 @@ export function PptxCommandGroups({ tab, commands, activeCommand, onCommand, cla
             <DropdownMenuTrigger
               render={<Button type="button" size="sm" variant="ghost" aria-label={t("overflow_label")} data-pptx-overflow-trigger />}
             >
-              <MoreHorizontal aria-hidden />
+              <ChevronsRight aria-hidden />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-auto min-w-44">
+            <DropdownMenuContent align="end" className="w-auto min-w-44">
               {overflow.map((entry) => (
                 <DropdownMenuGroup key={entry.group.id} data-pptx-overflow-group={entry.group.id}>
                   <DropdownMenuLabel>{t(entry.group.labelKey)}</DropdownMenuLabel>

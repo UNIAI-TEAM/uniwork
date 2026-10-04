@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PPTX_TOOLBAR_TABS, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, tabIsEmpty, toolbarCommandIds } from "./tabs";
+import { PPTX_FIND_COMMAND, PPTX_QUICK_ACCESS_COMMANDS, PPTX_TAB_ROW_COMMANDS, PPTX_TOOLBAR_TABS, PPTX_VIEW_TOGGLE_COMMAND, computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, nextTabIndex, orderGroupsForNarrow, tabIsEmpty, toolbarCommandIds } from "./tabs";
 
 describe("PPTX toolbar tab model", () => {
   it("lists the eight ribbon tabs in order", () => {
@@ -15,7 +15,7 @@ describe("PPTX toolbar tab model", () => {
     ]);
   });
 
-  it("places every command id exactly once across the tabs", () => {
+  it("places every command id exactly once across the tab row and the tabs", () => {
     const ids = toolbarCommandIds();
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain("save");
@@ -24,6 +24,18 @@ describe("PPTX toolbar tab model", () => {
     expect(ids).toContain("presenter");
     expect(ids).toContain("fullscreen");
     expect(ids).toContain("render-fidelity");
+    expect(ids).toContain("find");
+  });
+
+  it("keeps undo/redo out of the tabs so the tab row owns them (C6)", () => {
+    const tabOnly = PPTX_TOOLBAR_TABS.flatMap((tab) => tab.groups.flatMap((group) => [...group.commands]));
+    expect(tabOnly).not.toContain("undo");
+    expect(tabOnly).not.toContain("redo");
+    expect(tabOnly).not.toContain("presenter");
+    expect(PPTX_QUICK_ACCESS_COMMANDS).toEqual(["undo", "redo"]);
+    expect(PPTX_VIEW_TOGGLE_COMMAND).toBe("presenter");
+    expect(PPTX_FIND_COMMAND).toBe("find");
+    expect(PPTX_TAB_ROW_COMMANDS).toEqual(["undo", "redo", "presenter", "find"]);
   });
 
   it("marks a tab with no commands as honestly empty", () => {
@@ -31,6 +43,21 @@ describe("PPTX toolbar tab model", () => {
     expect(transitions).toBeDefined();
     expect(tabIsEmpty(transitions!)).toBe(true);
     expect(tabIsEmpty(PPTX_TOOLBAR_TABS.find((tab) => tab.id === "home")!)).toBe(false);
+  });
+});
+
+describe("narrow command row order (C12)", () => {
+  it("moves the tab's primary group first and keeps the rest in order", () => {
+    const home = PPTX_TOOLBAR_TABS.find((tab) => tab.id === "home")!;
+    const ordered = orderGroupsForNarrow(home.groups);
+    expect(ordered.map((group) => group.id)).toEqual(["editing", "file"]);
+    // Stable: an already-primary-first list is unchanged.
+    expect(orderGroupsForNarrow(ordered).map((group) => group.id)).toEqual(["editing", "file"]);
+  });
+
+  it("keeps every group when none is primary", () => {
+    const groups = [{ id: "file" as const, labelKey: "groups.file", commands: ["save" as const] }];
+    expect(orderGroupsForNarrow(groups).map((group) => group.id)).toEqual(["file"]);
   });
 });
 
