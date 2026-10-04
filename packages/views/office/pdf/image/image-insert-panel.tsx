@@ -66,6 +66,7 @@ export function PdfImageInsertPanel({ page, provider, disabled = false, rect = D
 
   return (
     <section className="mt-3 grid gap-2" data-testid="pdf-image-insert-panel">
+      <label className="sr-only" htmlFor="pdf-image-insert-file">{title}</label>
       <input id="pdf-image-insert-file" type="file" accept="image/png,image/jpeg" className="sr-only" ref={inputRef} onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={disabled || pending} />
       <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={disabled || pending}>{title}</Button>
       {file ? <p className="min-w-0 truncate text-caption text-muted-foreground">{file.name}</p> : null}
