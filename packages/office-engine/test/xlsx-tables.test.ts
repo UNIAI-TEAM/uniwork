@@ -181,9 +181,9 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx tables on the real gateway", () => 
     const engine = await load();
     const saved = await saveOps(engine, fixture(COMPAT_EDIT), [
       { op: "set_cell", target: { sheet: "Data", cell: "D1" }, attributes: { value: "Hoa don" } },
-      item({ name: "T2", columnNames: ["Region", "Q1"] }, "A1:B3"),
+      item({ name: "Table1", columnNames: ["Region", "Q1"] }, "A1:B3"),
     ]);
-    expect(await engine.readEntryText(saved.bytes, "xl/tables/table1.xml")).toContain('name="T2"');
+    expect(await engine.readEntryText(saved.bytes, "xl/tables/table1.xml")).toContain('name="Table1"');
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(reopened.snapshot.sheets[0]?.cells.D1?.value).toBe("Hoa don");
   });
