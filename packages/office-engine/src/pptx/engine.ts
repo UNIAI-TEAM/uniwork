@@ -149,6 +149,11 @@ export interface PptxEngineFunctions {
   listSlideLayouts?(archive: unknown): Array<{ name: string; path: string }>;
   shouldOfferBuiltinLayouts?(layouts: Array<{ name: string; path: string }>): boolean;
   builtinLayoutInfos?(size: { cx: number; cy: number }, existing: Set<string>): Array<{ name: string; path: string }>;
+  /** Speaker-notes text of a slide part (notes.ts:66) - '' when the slide
+   * carries no notesSlide. Optional: a host that never wires the vendored
+   * read leaves it unbound and the adapter refuses with a typed
+   * notes_unbound, never a fabricated empty string. */
+  getSlideNotes?(archive: unknown, slidePath: string): string;
 }
 
 /** packages/pptx-ops executor (executor.ts:160). */

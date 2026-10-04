@@ -26,6 +26,7 @@ import type {
   PptxParagraphLike,
   PptxRenderPort,
 } from "./engine";
+import { PptxEngineError } from "./engine";
 import { PptxSessionModel, type PptxEdit } from "./model";
 import { inventoryPptxAssets, unsupportedPptxWarnings, type PptxAssetInventory } from "./assets";
 import { isEncryptedOoxml } from "../docx/adapter";
@@ -163,6 +164,27 @@ export class PptxAdapter {
 
   release(documentModelRef: string): boolean {
     return this.sessions.delete(documentModelRef);
+  }
+
+  /** Speaker-notes text of one slide of the held deck (notes.ts:66). The
+   * vendored read is archive surgery keyed by the slide's PART PATH, so this
+   * resolves the path from the live deck exactly as the vendored
+   * `notesPathForSlide` expects (Slide.path, or the conventional
+   * ppt/slides/slide<N>.xml when the model carries no path). '' means the
+   * slide has no notesSlide; a missing bound read is a typed refusal, never
+   * a fabricated empty string. */
+  slideNotes(documentModelRef: string, slideIndex: number): string {
+    const session = this.sessionOf(documentModelRef);
+    const slide = Number.isInteger(slideIndex) && slideIndex >= 0 ? session.model.opened.deck.slides[slideIndex] : undefined;
+    if (!slide) {
+      throw new PptxEngineError("no_slide", "slideNotes: slide index " + String(slideIndex) + " does not exist");
+    }
+    const getSlideNotes = this.deps.engine.getSlideNotes;
+    if (!getSlideNotes) {
+      throw new PptxEngineError("notes_unbound", "slideNotes: no speaker-notes read is bound for this engine");
+    }
+    const path = typeof slide.path === "string" && slide.path.length > 0 ? slide.path : "ppt/slides/slide" + (slideIndex + 1) + ".xml";
+    return getSlideNotes(session.model.opened.archive, path);
   }
 
   async serialize(input: {

@@ -16,8 +16,20 @@ import {
   runTxn,
   savePptx,
 } from "@uniwork/office-upstream/pptx-renderer";
+// The notes read is an OPTIONAL member of the generated artifact: it exists
+// once shims/pptx-renderer-entry.ts re-exports getSlideNotes (a package we do
+// not own). Reading it off the namespace keeps this host compiling and makes
+// the feature live the moment the artifact carries it - never a fake read.
+import * as pptxUpstream from "@uniwork/office-upstream/pptx-renderer";
 import type { StableSnapshot } from "@uniwork/core/office";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+
+/** The generated artifact's optional speaker-notes read. Undefined until the
+ * artifact exports getSlideNotes; the adapter then refuses with a typed
+ * notes_unbound instead of inventing notes. */
+const upstreamNotesRead = typeof (pptxUpstream as { getSlideNotes?: unknown }).getSlideNotes === "function"
+  ? (pptxUpstream as unknown as { getSlideNotes(archive: unknown, slidePath: string): string }).getSlideNotes
+  : undefined;
 
 /** One applied edit, JSON-safe (byte payloads become base64). */
 export interface PptxJournalEntry {
@@ -79,6 +91,10 @@ export interface PptxSessionRuntime {
   slides(documentModelRef: string): PptxSlideSummary[];
   /** The opened engine deck the shared canvas renders (EMU size included). */
   deck(documentModelRef: string): PptxDeckModel;
+  /** Speaker-notes text of one slide of the LIVE engine session ('' when the
+   * slide carries none). Optional on the seam so a hand-built test double that
+   * predates this read stays assignable; both shipped runtimes implement it. */
+  slideNotes?(documentModelRef: string, slideIndex: number): string;
   release(documentModelRef: string): Promise<void>;
 }
 
@@ -194,7 +210,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
   function engineAdapter(): PptxAdapter {
     adapter ??= createPptxAdapter({
-      engine: bindPptxEngine({ openPptx, savePptx, commitSaved, reparseDeck, listSlideLayouts }),
+      engine: bindPptxEngine({
+        openPptx,
+        savePptx,
+        commitSaved,
+        reparseDeck,
+        listSlideLayouts,
+        ...(upstreamNotesRead ? { getSlideNotes: upstreamNotesRead } : {}),
+      }),
       ops: bindPptxOps({ runTxn }),
       render: bindPptxRender({ buildRenderSlide, HeuristicMetrics }),
       sha256: sha256Hex,
@@ -379,6 +402,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       // the live `slides`; the PptxSessionModel wrapper only proxies `slides`
       // and has no `size`, which made the canvas fall back to 16:9.
       return liveSession(documentModelRef).model.opened.deck as unknown as PptxDeckModel;
+    },
+
+    slideNotes(documentModelRef, slideIndex) {
+      // The adapter resolves the slide's part path from the LIVE deck and
+      // reads the notes part off the live archive, so an undo's reopen is
+      // reflected exactly like deck()/slides(). A released session refuses
+      // through currentEngineRef (pptx_runtime_not_open).
+      return engineAdapter().slideNotes(currentEngineRef(documentModelRef), slideIndex);
     },
 
     slides(documentModelRef) {

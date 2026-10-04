@@ -33,13 +33,24 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
   return {
     openPptx: async (bytes: Uint8Array) => {
       seam.events.push("open");
-      return engine.openPptx(bytes);
+      const opened = await engine.openPptx(bytes);
+      // The fake engine keeps notes on the opened handle (setNotes writes
+      // __notes[index]); the vendored read is archive-keyed, so link the two
+      // the way the real PackageArchive + notes.ts pair does.
+      (opened.archive as unknown as Record<string, unknown>).__opened = opened;
+      return opened;
     },
     savePptx: async (opened: OpenedPptxLike) => {
       seam.events.push("save:start");
       if (seam.gate) await seam.gate.promise;
       seam.events.push("save:end");
       return engine.savePptx(opened);
+    },
+    getSlideNotes: (archive: unknown, slidePath: string) => {
+      const opened = (archive as { __opened?: { __notes?: Record<string, string> } }).__opened;
+      const index = /slide(\d+)\.xml$/.exec(slidePath)?.[1];
+      if (!opened || index === undefined) return "";
+      return opened.__notes?.[String(Number(index) - 1)] ?? "";
     },
     commitSaved: (opened: OpenedPptxLike) => engine.commitSaved?.(opened),
     reparseDeck: (opened: OpenedPptxLike) => engine.reparseDeck?.(opened) ?? opened,
@@ -298,6 +309,24 @@ describe("web PPTX session runtime", () => {
     // A released session refuses the read instead of returning a stale deck.
     await runtime.release(ref);
     expect(() => runtime.deck(ref)).toThrow("pptx_runtime_not_open");
+  });
+
+  it("reads the live session's speaker notes and refuses after release", async () => {
+    const { runtime, ref } = await opened();
+    // A deck without a notesSlide reads the honest empty string.
+    expect(runtime.slideNotes!(ref, 0)).toBe("");
+    // set_notes lands the text on the live notes part; the read reflects it.
+    await runtime.edit(ref, [{ op: "set_notes", slideIndex: 0, text: "Opening remarks" }]);
+    expect(runtime.slideNotes!(ref, 0)).toBe("Opening remarks");
+    expect(runtime.slideNotes!(ref, 1)).toBe("");
+    // Undo reopens the base: the read follows the LIVE engine session.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.slideNotes!(ref, 0)).toBe("");
+    // A missing slide is a typed refusal, never a silent ''. 
+    expect(() => runtime.slideNotes!(ref, 9)).toThrow(/no_slide/);
+    // A released session refuses instead of returning stale notes.
+    await runtime.release(ref);
+    expect(() => runtime.slideNotes!(ref, 0)).toThrow("pptx_runtime_not_open");
   });
 
   it("keeps revision and fingerprint consistent across history", async () => {

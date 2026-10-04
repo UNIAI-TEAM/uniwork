@@ -108,6 +108,21 @@ describe("bindPptx* ", () => {
     expect(bound.reparseDeck?.(opened)).toBe(opened);
   });
 
+  it("binds the speaker-notes read only when the vendored module carries it", () => {
+    const archive = { entries: new Map() };
+    const withNotes = bindPptxEngine({
+      openPptx: async () => opened,
+      savePptx: async () => new Uint8Array([5]),
+      commitSaved: () => undefined,
+      getSlideNotes: (a, path) => (a === archive ? "Notes for " + path : ""),
+    });
+    expect(withNotes.getSlideNotes?.(archive, "ppt/slides/slide1.xml")).toBe("Notes for ppt/slides/slide1.xml");
+    // An engine without the vendored read must not fabricate one: the member
+    // stays absent so the adapter answers a typed notes_unbound.
+    const withoutNotes = bindPptxEngine({ openPptx: async () => opened, savePptx: async () => new Uint8Array([5]), commitSaved: () => undefined });
+    expect(withoutNotes.getSlideNotes).toBeUndefined();
+  });
+
   it("forwards runTxn and builds render slides through the render bundle", async () => {
     const ops = bindPptxOps({ runTxn: (_o, req) => ({ applied: req.ops.length > 0, records: [] }) });
     const result = ops.runTxn(opened, { ops: [{ op: "setHidden", target: { slide: 0 }, hidden: true }], dryRun: false });
