@@ -91,4 +91,41 @@ describe("PdfRibbonBar", () => {
     fireEvent.click(find);
     expect(onFindToggle).toHaveBeenCalledOnce();
   });
+
+  it("disables a quick undo whose command is disabled and does not execute it", () => {
+    window.innerWidth = 1400;
+    const onCommand = vi.fn();
+    const onExecute = vi.fn();
+    render(
+      <PdfRibbonBar
+        {...baseProps}
+        onCommand={onCommand}
+        activeTab="home"
+        commands={[{ id: PDF_COMMANDS.undo, label: "Undo", disabled: true, onExecute }]}
+      />,
+    );
+    const undo = screen.getByTestId("pdf-chrome-undo");
+    expect(undo).toBeDisabled();
+    fireEvent.click(undo);
+    expect(onExecute).not.toHaveBeenCalled();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("runs an enabled quick undo through onExecute then onCommand", () => {
+    window.innerWidth = 1400;
+    const onCommand = vi.fn();
+    const onExecute = vi.fn();
+    render(
+      <PdfRibbonBar
+        {...baseProps}
+        onCommand={onCommand}
+        activeTab="home"
+        commands={[{ id: PDF_COMMANDS.undo, label: "Undo", onExecute }]}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("pdf-chrome-undo"));
+    expect(onExecute).toHaveBeenCalledOnce();
+    expect(onCommand).toHaveBeenCalledWith(PDF_COMMANDS.undo);
+    expect(onExecute.mock.invocationCallOrder[0]).toBeLessThan(onCommand.mock.invocationCallOrder[0]!);
+  });
 });

@@ -1,6 +1,22 @@
 "use client";
 
-import { ChevronsRight, Redo2, Search, Undo2 } from "lucide-react";
+import {
+  ChevronsRight,
+  Combine,
+  FilePlus2,
+  ImagePlus,
+  ListRestart,
+  MessageSquareText,
+  Redo2,
+  RotateCw,
+  Save,
+  Scissors,
+  Search,
+  Trash2,
+  Type,
+  Undo2,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -60,6 +76,22 @@ const COMMAND_GROUPS: Readonly<Record<PdfToolbarTab, readonly (readonly PdfComma
   view: [],
 };
 
+/** Mirrors the toolbar's fallback so an iconless command still reads below 768px. */
+const DEFAULT_ICONS: Readonly<Partial<Record<PdfCommandId, ReactNode>>> = {
+  [PDF_COMMANDS.undo]: <Undo2 aria-hidden />,
+  [PDF_COMMANDS.redo]: <Redo2 aria-hidden />,
+  [PDF_COMMANDS.save]: <Save aria-hidden />,
+  [PDF_COMMANDS.annotations]: <MessageSquareText aria-hidden />,
+  [PDF_COMMANDS.editText]: <Type aria-hidden />,
+  [PDF_COMMANDS.replaceImage]: <ImagePlus aria-hidden />,
+  [PDF_COMMANDS.insertPage]: <FilePlus2 aria-hidden />,
+  [PDF_COMMANDS.deletePage]: <Trash2 aria-hidden />,
+  [PDF_COMMANDS.rotatePage]: <RotateCw aria-hidden />,
+  [PDF_COMMANDS.reorderPage]: <ListRestart aria-hidden />,
+  [PDF_COMMANDS.extractPage]: <Scissors aria-hidden />,
+  [PDF_COMMANDS.mergePages]: <Combine aria-hidden />,
+};
+
 /** Below the 768px breakpoint whole groups move into the trailing overflow menu. */
 function useWideCommandRow(): boolean {
   const [wide, setWide] = useState(
@@ -104,7 +136,9 @@ export function PdfRibbonBar({
   const { t } = useTranslation();
   const wide = useWideCommandRow();
   const commandById = new Map(commands.map((command) => [command.id, command] as const));
-  const groups = COMMAND_GROUPS[activeTab];
+  const groups = COMMAND_GROUPS[activeTab]
+    .map((group) => group.filter((id) => commandById.has(id)))
+    .filter((group) => group.length > 0);
   const visibleGroups = wide ? groups : groups.slice(0, 1);
   const overflowGroups = wide ? [] : groups.slice(1);
 
@@ -112,6 +146,9 @@ export function PdfRibbonBar({
     command.onExecute?.();
     onCommand?.(command.id);
   };
+
+  const undo = commandById.get(PDF_COMMANDS.undo);
+  const redo = commandById.get(PDF_COMMANDS.redo);
 
   const labelFor = (id: PdfCommandId) => commandById.get(id)?.label ?? t(COMMAND_LABEL_KEYS[id]);
 
@@ -130,7 +167,7 @@ export function PdfRibbonBar({
         disabled={command.disabled}
         onClick={() => runCommand(command)}
       >
-        {command.icon}
+        {command.icon ?? DEFAULT_ICONS[id]}
         <span className="hidden md:inline">{label}</span>
       </Button>
     );
@@ -149,8 +186,8 @@ export function PdfRibbonBar({
                   size="icon-sm"
                   data-testid="pdf-chrome-undo"
                   aria-label={t("office.pdf.chrome.undo")}
-                  disabled={!commandById.has(PDF_COMMANDS.undo)}
-                  onClick={() => onCommand?.(PDF_COMMANDS.undo)}
+                  disabled={!undo || undo.disabled}
+                  onClick={() => undo && runCommand(undo)}
                 />
               }
             >
@@ -167,8 +204,8 @@ export function PdfRibbonBar({
                   size="icon-sm"
                   data-testid="pdf-chrome-redo"
                   aria-label={t("office.pdf.chrome.redo")}
-                  disabled={!commandById.has(PDF_COMMANDS.redo)}
-                  onClick={() => onCommand?.(PDF_COMMANDS.redo)}
+                  disabled={!redo || redo.disabled}
+                  onClick={() => redo && runCommand(redo)}
                 />
               }
             >
@@ -243,7 +280,7 @@ export function PdfRibbonBar({
                         if (!command) return null;
                         return (
                           <DropdownMenuItem key={id} disabled={command.disabled} onClick={() => runCommand(command)}>
-                            {command.icon}
+                            {command.icon ?? DEFAULT_ICONS[id]}
                             {labelFor(id)}
                           </DropdownMenuItem>
                         );
