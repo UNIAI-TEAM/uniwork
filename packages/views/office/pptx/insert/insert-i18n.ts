@@ -118,6 +118,10 @@ export const PPTX_INSERT_I18N: Readonly<Record<string, PptxInsertI18nEntry>> = {
     en: "{{ext}} is not a supported image format.",
     vi: "{{ext}} không phải định dạng ảnh được hỗ trợ.",
   },
+  "office.pptx.insert.image.read_failed": {
+    en: "The picture could not be read.",
+    vi: "Không đọc được hình ảnh.",
+  },
 
   // WordArt
   "office.pptx.insert.wordart.title": { en: "WordArt", vi: "WordArt" },

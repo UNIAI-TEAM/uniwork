@@ -50,7 +50,11 @@ export interface PptxInsertPanelProps {
   elements?: readonly PptxInsertElementRef[];
   /** Element ids selected on the canvas. */
   selectedIds?: readonly string[];
-  /** The selected picture, when the selection is exactly one picture. */
+  /**
+   * The selected picture, when the selection is exactly one picture. `null`
+   * means the host reports no picture selected, so Replace disables; omit it
+   * when the host does not track the picture selection, leaving Replace usable.
+   */
   pictureId?: string | null;
   /** The engine render tree is still building. */
   loading?: boolean;
@@ -75,7 +79,7 @@ export function PptxInsertPanel({
   slideIndex,
   elements = [],
   selectedIds = [],
-  pictureId = null,
+  pictureId,
   loading = false,
   disabled = false,
   disabledReason = null,

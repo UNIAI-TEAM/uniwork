@@ -32,19 +32,43 @@ export interface PptxImageInsertProps {
   mode: "insert" | "replace";
   disabled?: boolean;
   busy?: boolean;
-  /** Replace mode only: the picture to swap; absent leaves the action honest. */
+  /**
+   * Replace mode only: the picture to swap. `null` means the host tracked the
+   * selection and found no picture, so the control disables and explains
+   * itself; omit it when the host does not track the picture selection at all,
+   * leaving Replace available.
+   */
   targetId?: string | null;
   /** The mode travels with the file so the host never guesses which op to emit. */
   onSelect: (mode: "insert" | "replace", file: PptxImageBytes) => void;
   className?: string;
 }
 
-export function PptxImageInsert({ mode, disabled = false, busy = false, targetId = null, onSelect, className }: PptxImageInsertProps) {
+/**
+ * Read a picked file to bytes. `File.arrayBuffer()` is the browser path; jsdom's
+ * `File` does not implement it, so fall back to `FileReader`, which jsdom does.
+ */
+async function readFileBytes(file: File): Promise<Uint8Array> {
+  if (typeof file.arrayBuffer === "function") {
+    return new Uint8Array(await file.arrayBuffer());
+  }
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      resolve(result ? new Uint8Array(result as ArrayBuffer) : new Uint8Array());
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("pptx image read failed"));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+export function PptxImageInsert({ mode, disabled = false, busy = false, targetId, onSelect, className }: PptxImageInsertProps) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const replace = mode === "replace";
-  const noTarget = replace && !targetId;
+  const noTarget = replace && targetId === null;
   const blocked = disabled || busy || noTarget;
   const label = replace ? t("office.pptx.insert.image.replace") : t("office.pptx.insert.image.insert");
   const hint = noTarget ? t("office.pptx.insert.image.no_target") : replace ? t("office.pptx.insert.image.replace_hint") : null;
@@ -57,7 +81,13 @@ export function PptxImageInsert({ mode, disabled = false, busy = false, targetId
       return;
     }
     setError(null);
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bytes: Uint8Array;
+    try {
+      bytes = await readFileBytes(file);
+    } catch {
+      setError(t("office.pptx.insert.image.read_failed"));
+      return;
+    }
     if (bytes.length === 0) {
       setError(t("office.pptx.insert.image.unsupported", { ext }));
       return;
