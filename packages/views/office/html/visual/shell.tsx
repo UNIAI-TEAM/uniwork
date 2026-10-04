@@ -19,8 +19,11 @@
  *   H3 ops / H4 insert ribbon -> the caller passes `HtmlRibbonCommands` to
  *     `<HtmlRibbon>` and applies each intent through H3's pure ops; the shell
  *     only renders the canvas the ribbon sits above.
- *   H5 selection bridge -> `onPreviewSession` (the live port session) and
- *     `onPreviewEvent` (forwarded preview events).
+ *   H5 selection bridge -> the shell forwards every validated preview event
+ *     into a `PreviewEventSink` (`onPreviewEvent` still sees each one) and
+ *     mounts `HtmlSelectionOverlay` in the overlay slot; the committed
+ *     selection is published through `onPreviewSelection`. The whole surface
+ *     is behind the selection flag and is inert (read-only) when it is on.
  *   H6 float toolbar / H7 style panel / H8 inline edit -> the `overlay` slot,
  *     rendered above the canvas in every mode.
  *
@@ -41,6 +44,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { HtmlSourceEditor } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
+import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
+import { HtmlSelectionOverlay } from "./selection/bridge";
 import {
   clampZoom,
   HTML_ZOOM_DEFAULT,
@@ -71,6 +76,13 @@ export interface HtmlVisualShellProps {
   onPreviewSession?(session: PreviewSession | null): void;
   /** Forwarded preview events (selection bridge / inspector, H5-H8). */
   onPreviewEvent?(event: { type: string }): void;
+  /**
+   * The H5 selection bridge's published selection: the committed `select`
+   * element and its rect (or null when nothing is selected). Hover is
+   * deliberately not reported here - it is tracking feedback, not a target
+   * for H6-H8. Only ever called while the selection flag is on.
+   */
+  onPreviewSelection?(selection: HtmlSelection | null): void;
   /** The document title: the isolated preview iframe's accessible name. */
   title?: string;
   /** Zoom ladder value in percent; owned by the caller for the status bar. */
@@ -284,6 +296,7 @@ export function HtmlVisualShell({
   manifest,
   onPreviewSession,
   onPreviewEvent,
+  onPreviewSelection,
   title,
   zoom,
   onZoomChange,
@@ -299,6 +312,25 @@ export function HtmlVisualShell({
   const showPreview = previewVisibleIn(viewMode);
   const presenting = viewMode === "present";
   const rootRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  // The selection bridge's event stream lives OUTSIDE React state: a
+  // hover-frequency event re-renders the overlay alone, never the shell, the
+  // preview pane or the source editor. `useState` holds the instance so it
+  // survives every render without a ref that could be re-created.
+  const [previewEvents] = useState<PreviewEventSink>(createPreviewEventSink);
+  const onPreviewEventRef = useRef(onPreviewEvent);
+  onPreviewEventRef.current = onPreviewEvent;
+  const onPreviewSelectionRef = useRef(onPreviewSelection);
+  onPreviewSelectionRef.current = onPreviewSelection;
+  // Stable identity: the preview port is mounted once and must not be
+  // re-mounted because a parent passed a fresh inline callback.
+  const handlePreviewEvent = useCallback((event: { type: string }) => {
+    previewEvents.emit(event);
+    onPreviewEventRef.current?.(event);
+  }, [previewEvents]);
+  const handlePreviewSelection = useCallback((selection: HtmlSelection | null) => {
+    onPreviewSelectionRef.current?.(selection);
+  }, []);
 
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);
@@ -333,7 +365,7 @@ export function HtmlVisualShell({
           text={text}
           manifest={safeManifest}
           onSession={onPreviewSession}
-          onEvent={onPreviewEvent}
+          onEvent={handlePreviewEvent}
         />
       </div>
     </div>
@@ -375,9 +407,22 @@ export function HtmlVisualShell({
           showSource && showPreview ? "flex-col lg:flex-row" : "flex-col",
         )}
         data-testid="html-canvas"
+        ref={canvasRef}
       >
         {sourcePane}
         {previewPane}
+        {/*
+          H5 selection bridge: inert, flag-gated, and only meaningful when a
+          preview is on screen. It renders in the same `overlay` slot H6-H8
+          use, ahead of the caller's children so a toolbar draws above it.
+        */}
+        {showPreview ? (
+          <HtmlSelectionOverlay
+            sink={previewEvents}
+            canvasRef={canvasRef}
+            onSelectionChange={handlePreviewSelection}
+          />
+        ) : null}
         {overlay}
         {presenting ? (
           // A visible exit (F3): the preview iframe swallows keydown, so Esc
