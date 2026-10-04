@@ -64,26 +64,37 @@ function searchRange(context: HtmlOpContext, target: HtmlTarget | undefined): So
 
 interface FoldedText {
   folded: string;
-  /** For each code unit of `folded`, the source code-unit index it came from. */
-  sourceIndex: number[];
+  /** For each code unit of `folded`, the source offset of the code point it came from. */
+  sourceStart: number[];
+  /** For each code unit of `folded`, the source END offset of that code point. */
+  sourceEnd: number[];
 }
 
 /**
- * Lowercase `text` while remembering which source index each folded code unit
- * came from. Folding per code unit keeps the mapping exact even when one code
- * unit lowercases to several ("İ" U+0130 -> "i" + U+0307, also "ŉ", "ǰ", the
- * Greek and Armenian specials). Searching a folded copy without that map is
- * what let a case-insensitive match report offsets that are not source offsets.
+ * Lowercase `text` while remembering which source offsets each folded code unit
+ * came from. Folding per code POINT (not per UTF-16 code unit) keeps the
+ * mapping exact in both directions: a BMP char that expands to several units
+ * ("İ" U+0130 -> "i" + U+0307) and a supplementary cased letter that is two
+ * code units but must fold as one ("𐐀" U+10400 -> "𐐨" U+10428). Folding per
+ * code unit left each surrogate lone, so supplementary letters never folded and
+ * a literal case-insensitive search silently missed them.
  */
 function foldText(text: string): FoldedText {
-  let folded = "";
-  const sourceIndex: number[] = [];
-  for (let i = 0; i < text.length; i += 1) {
-    const lower = text[i]!.toLowerCase();
-    folded += lower;
-    for (let k = 0; k < lower.length; k += 1) sourceIndex.push(i);
+  const parts: string[] = [];
+  const sourceStart: number[] = [];
+  const sourceEnd: number[] = [];
+  let at = 0;
+  for (const ch of text) {
+    const lower = ch.toLowerCase();
+    parts.push(lower);
+    const end = at + ch.length;
+    for (let k = 0; k < lower.length; k += 1) {
+      sourceStart.push(at);
+      sourceEnd.push(end);
+    }
+    at = end;
   }
-  return { folded, sourceIndex };
+  return { folded: parts.join(""), sourceStart, sourceEnd };
 }
 
 /** Literal find/replace inside a range; only the matched bytes change. */
@@ -104,16 +115,22 @@ export function strReplace(context: HtmlOpContext, search: string, replacement: 
       cursor = at + search.length;
     }
   } else {
-    const { folded, sourceIndex } = foldText(haystack);
+    const { folded, sourceStart, sourceEnd } = foldText(haystack);
     const needle = search.toLowerCase();
     let cursor = 0;
+    let lastEnd = -1;
     for (;;) {
       const at = folded.indexOf(needle, cursor);
       if (at === -1) break;
-      const start = sourceIndex[at]!;
-      const end = sourceIndex[at + needle.length - 1]! + 1;
-      matches.push([start, end - start]);
+      const start = sourceStart[at]!;
+      const end = sourceEnd[at + needle.length - 1]!;
       cursor = at + needle.length;
+      // A needle that starts or ends inside one code point's fold can map two
+      // adjacent folded matches onto the same source span; keep the first so
+      // `{all:true}` never emits overlapping patches (which the engine rejects).
+      if (start < lastEnd) continue;
+      matches.push([start, end - start]);
+      lastEnd = end;
     }
   }
   if (matches.length === 0) throw new HtmlOpError("no_op", "search text not found");

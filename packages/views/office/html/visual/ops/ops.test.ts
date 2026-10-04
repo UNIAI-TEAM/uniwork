@@ -117,6 +117,49 @@ describe("html visual ops: one test per op", () => {
     });
   });
 
+  // NF3: supplementary-plane cased letters are two UTF-16 code units; folding
+  // per code UNIT left both surrogates lone, so a literal case-insensitive
+  // search for "𐐀" (U+10400) never matched. Folding per code POINT fixes it.
+  // NF5: a needle that starts/ends inside one code point's fold must not emit
+  // overlapping source patches.
+  describe("str_replace: supplementary folds and mid-fold needles", () => {
+    it("matches a supplementary cased letter case-insensitively", async () => {
+      const source = "<p>𐐀 and 𐐀</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "𐐀", "X", { all: true }));
+      const edits = [...source.matchAll(/𐐀/g)].map((m) => ({ from: m.index!, to: m.index! + "𐐀".length, text: "X" }));
+      expect(edits).toHaveLength(2);
+      expectByteIdentical(source, after, edits, "str_replace:supplementary-all");
+      expect(after).toBe("<p>X and X</p>");
+    });
+
+    it("matches the folded form of a supplementary letter", async () => {
+      const source = "<p>𐐀 and 𐐀</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "𐐨", "X", { all: true }));
+      expect(after).toBe("<p>X and X</p>");
+    });
+
+    it("keeps the case-sensitive path on the exact code units", async () => {
+      const source = "<p>𐐀 and 𐐨</p>";
+      const f = await openFixture(source);
+      const after = applyOp(f, strReplace(context(f), "𐐀", "X", { all: true, caseSensitive: true }));
+      expect(after).toBe("<p>X and 𐐨</p>");
+    });
+
+    it("does not emit overlapping patches for a needle that ends mid-fold", async () => {
+      const source = "<p>İİİ</p>";
+      const f = await openFixture(source);
+      const set = strReplace(context(f), "\u0307i", "X", { all: true });
+      const patches = [...set.patches].sort((a, b) => a.from - b.from);
+      for (let i = 1; i < patches.length; i += 1) {
+        expect(patches[i]!.from).toBeGreaterThanOrEqual(patches[i - 1]!.to);
+      }
+      // And the set applies through the engine without an overlap error.
+      expect(() => applyOp(f, set)).not.toThrow();
+    });
+  });
+
   it("replace_element: swaps the whole element, tags included", async () => {
     const f = await fixture();
     const element = elementByPath(f.map, H1)!;
