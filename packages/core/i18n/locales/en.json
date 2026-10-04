@@ -7427,7 +7427,7 @@
         "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked",
         "readonly": "Read-only", "incompatible": "Editing unavailable"
       },
-      "surface": { "ready": "PDF canvas is ready for the host renderer.", "page": "Showing page {{page}} of {{count}}" },
+      "surface": { "ready": "PDF canvas is ready for the host renderer.", "page": "Showing page {{page}} of {{count}}", "areaSelected": "Area selected on page {{page}}. Choose a markup.", "hintRegion": "Drag on a page to select the area to highlight.", "hintNote": "Click a page to place the note, then write it.", "hintStamp": "Click a page to choose where the stamp goes." },
       "search": {
         "label": "Find in PDF", "placeholder": "Search this PDF", "inputLabel": "Search PDF text", "loading": "Searching…",
         "matches": "{{current}} of {{count}} matches", "previous": "Previous match", "next": "Next match", "close": "Close search"
@@ -7638,7 +7638,6 @@
         "saveCopy": "Save a copy", "savingCopy": "Saving…",
         "saveCopyUnavailable": "Saving a copy is not available yet.", "copyFailed": "The copy could not be saved."
       },
-      "surface": { "areaSelected": "Area selected on page {{page}}. Choose a markup.", "hintRegion": "Drag on a page to select the area to highlight.", "hintNote": "Click a page to place the note, then write it.", "hintStamp": "Click a page to choose where the stamp goes." },
       "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
       "errors": {
         "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",

@@ -7403,7 +7403,7 @@
         "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork",
         "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa"
       },
-      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang" },
+      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang", "areaSelected": "Đã chọn vùng trên trang {{page}}. Chọn kiểu đánh dấu.", "hintRegion": "Kéo trên trang để chọn vùng cần tô sáng.", "hintNote": "Bấm vào trang để đặt ghi chú, rồi viết nội dung.", "hintStamp": "Bấm vào trang để chọn vị trí đóng dấu." },
       "search": {
         "label": "Tìm trong PDF", "placeholder": "Tìm trong PDF này", "inputLabel": "Tìm chữ trong PDF", "loading": "Đang tìm…",
         "matches": "{{current}} trên {{count}} kết quả", "previous": "Kết quả trước", "next": "Kết quả tiếp theo", "close": "Đóng tìm kiếm"
@@ -7614,7 +7614,6 @@
         "saveCopy": "Lưu bản sao", "savingCopy": "Đang lưu…",
         "saveCopyUnavailable": "Chưa thể lưu bản sao.", "copyFailed": "Không thể lưu bản sao."
       },
-      "surface": { "areaSelected": "Đã chọn vùng trên trang {{page}}. Chọn kiểu đánh dấu.", "hintRegion": "Kéo trên trang để chọn vùng cần tô sáng.", "hintNote": "Bấm vào trang để đặt ghi chú, rồi viết nội dung.", "hintStamp": "Bấm vào trang để chọn vị trí đóng dấu." },
       "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {
         "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
