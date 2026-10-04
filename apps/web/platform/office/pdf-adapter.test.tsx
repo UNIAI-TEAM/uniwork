@@ -82,7 +82,7 @@ describe("web PDF format adapter", () => {
     const outcome = await adapter.open.open();
     expect(outcome).toMatchObject({ outcome: "opened", document_id: "doc" });
     expect(documents.read).toHaveBeenCalledTimes(1);
-    expect(createRenderSession).toHaveBeenCalledWith(original);
+    expect(createRenderSession).toHaveBeenCalledWith(original, undefined);
     expect(editor.getPdfSnapshot?.()).toEqual({ pages: [{ pageNumber: 1, rotation: 0 }, { pageNumber: 2, rotation: 0 }], pageCount: 2 });
     expect(editor.getCanvasPages?.()).toEqual([{ pageNumber: 1, width: 612, height: 792 }, { pageNumber: 2, width: 612, height: 792 }]);
     expect(await editor.renderer?.renderPage({ pageNumber: 1, width: 612, height: 792, scale: 1 })).toMatchObject({ src: "blob:page-1" });
@@ -207,5 +207,42 @@ describe("web PDF format adapter", () => {
     const { adapter } = setup({ documents: { read: vi.fn(async () => { throw new Error("network"); }), upload: vi.fn(), commit: vi.fn() } });
     expect(await adapter.open.open()).toMatchObject({ outcome: "failed", failure_class: "engine_error", message: "network" });
     await adapter.session.dispose();
+  });
+
+  it("threads the password through open so a protected file opens, and a retry re-runs with the new password", async () => {
+    const password = "s3cret";
+    const openedSessions: FakeSession[] = [];
+    const createRenderSession = vi.fn(async (bytes: Uint8Array, deps?: { password?: string }) => {
+      if (deps?.password === undefined) throw Object.assign(new Error("password needed"), { code: "password_required" });
+      if (deps.password !== password) throw Object.assign(new Error("bad password"), { code: "wrong_password" });
+      const session = fakeSession(bytes, ["Hello World"]);
+      openedSessions.push(session);
+      return session;
+    });
+    const { adapter, editor } = setup({ createRenderSession });
+
+    const required = await adapter.open.open();
+    expect(required).toMatchObject({ outcome: "failed", format: "pdf", failure_class: "password_required" });
+
+    const wrong = await adapter.open.open(undefined, "nope");
+    expect(wrong).toMatchObject({ outcome: "failed", format: "pdf", failure_class: "wrong_password" });
+
+    const result = await adapter.open.open(undefined, password);
+    expect(result).toMatchObject({ outcome: "opened", document_id: "doc" });
+    expect(editor.getPdfSnapshot?.()).toEqual({ pages: [{ pageNumber: 1, rotation: 0 }], pageCount: 1 });
+
+    // Every submit is a fresh attempt: the cached failed open is not reused.
+    expect(createRenderSession).toHaveBeenCalledTimes(3);
+    expect(createRenderSession.mock.calls[2]).toEqual([original, { password }]);
+    expect(openedSessions).toHaveLength(1);
+    await adapter.session.dispose();
+  });
+
+  it("leaves disposal terminal after a wrong password so cancel still exits", async () => {
+    const createRenderSession = vi.fn(async () => { throw Object.assign(new Error("bad password"), { code: "wrong_password" }); });
+    const { adapter, editor } = setup({ createRenderSession });
+    expect(await adapter.open.open(undefined, "wrong")).toMatchObject({ outcome: "failed", failure_class: "wrong_password" });
+    await adapter.session.dispose();
+    await expect(editor.open()).rejects.toThrow("pdf_editor_disposed");
   });
 });

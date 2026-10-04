@@ -29,6 +29,8 @@ export interface PdfRenderDeps {
   loadPdfium?: () => Promise<BrowserPdfium>;
   toImageUrl?: (page: BrowserPdfRenderedPage) => Promise<string>;
   revokeImageUrl?: (url: string) => void;
+  /** Required only for an encrypted document; pdfium answers password_required without one. */
+  password?: string;
 }
 
 function abortError(): DOMException {
@@ -61,8 +63,9 @@ export async function createPdfRenderSession(
   const toImageUrl = deps.toImageUrl ?? canvasImageUrl;
   const revokeImageUrl = deps.revokeImageUrl ?? ((url: string) => URL.revokeObjectURL(url));
   const pdfium = await loadPdfium();
+  const password = deps.password;
 
-  let doc: BrowserPdfDocument | null = pdfium.openDocument(bytes);
+  let doc: BrowserPdfDocument | null = pdfium.openDocument(bytes, password);
   let version = 0;
   let disposed = false;
   // Cache holds in-flight and settled renders; every url is revoked on swap.
@@ -131,7 +134,7 @@ export async function createPdfRenderSession(
     async replaceBytes(next) {
       requireDoc();
       // Open first: a bad document leaves the current one usable.
-      const opened = pdfium.openDocument(next);
+      const opened = pdfium.openDocument(next, password);
       if (disposed) {
         opened.close();
         throw new Error("pdf_render_disposed");

@@ -99,14 +99,17 @@ function createPdfEditorSurface(options: {
     notify();
   };
 
-  const load = async (signal?: AbortSignal) => {
+  const load = async (signal?: AbortSignal, password?: string) => {
     if (terminated) throw new Error("pdf_editor_disposed");
+    // A password retry must re-run the open: a cached attempt already failed
+    // with password_required/wrong_password, so reuse would loop the prompt.
+    if (password !== undefined) opening = null;
     opening ??= (async () => {
       const myEpoch = epoch;
       try {
         const bytes = original ?? await options.documents.read();
         if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
-        const session = await options.createRenderSession(bytes);
+        const session = await options.createRenderSession(bytes, password === undefined ? undefined : { password });
         if (myEpoch !== epoch || terminated) { session.dispose(); throw new Error("pdf_editor_disposed"); }
         original = bytes;
         current = bytes;
@@ -155,7 +158,7 @@ function createPdfEditorSurface(options: {
 
   return {
     format: "pdf",
-    open: () => load(),
+    open: (password?: string) => load(undefined, password),
     openOutcome: () => outcome,
     openFailureClass: () => lastFailure,
     getDirtyGeneration: () => generation,
@@ -231,10 +234,10 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
   const session = createOfficeEditorSession({ ...options, editor, transport });
   session.coordinator.setCapability(options.capability);
   const open: PdfOpenPort = {
-    async open(signal?: AbortSignal): Promise<PdfOpenOutcome> {
+    async open(signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome> {
       if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
       try {
-        await editor.open();
+        await editor.open(password);
         if (signal?.aborted) throw new DOMException("Open cancelled", "AbortError");
         const result = editor.openOutcome();
         if (!result) throw new Error("pdf_open_outcome_missing");

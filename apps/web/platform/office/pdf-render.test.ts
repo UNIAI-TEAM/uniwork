@@ -112,6 +112,26 @@ describe("createPdfRenderSession", () => {
     expect(s.docs[0].close).not.toHaveBeenCalled();
   });
 
+  it("forwards the password to pdfium so a protected document opens", async () => {
+    const s = setup();
+    const session = await createPdfRenderSession(new Uint8Array(1), { ...s.deps, password: "s3cret" });
+    expect(s.openDocument).toHaveBeenCalledWith(expect.any(Uint8Array), "s3cret");
+    expect(session.pages()).toHaveLength(2);
+  });
+
+  it("opens without a password when none is given, leaving the class to pdfium", async () => {
+    const s = setup();
+    await createPdfRenderSession(new Uint8Array(1), s.deps);
+    expect(s.openDocument).toHaveBeenCalledWith(expect.any(Uint8Array), undefined);
+  });
+
+  it("reopens a replacement document with the same password", async () => {
+    const s = setup();
+    const session = await createPdfRenderSession(new Uint8Array(1), { ...s.deps, password: "s3cret" });
+    await session.replaceBytes(new Uint8Array(2));
+    expect(s.openDocument).toHaveBeenLastCalledWith(expect.any(Uint8Array), "s3cret");
+  });
+
   it("dispose closes the document, revokes urls and rejects later renders", async () => {
     const s = setup();
     const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
