@@ -85,12 +85,16 @@ describe('pptx browser shims match the node implementations', () => {
     fs.mkdirSync(SHIM_VERIFY_DIR, { recursive: true });
     const shimDir = path.join(SHIM_VERIFY_DIR, 'shims');
     fs.cpSync(path.join(PACKAGE_DIR, 'shims', 'pptx-renderer'), shimDir, { recursive: true });
+    // esbuild resolves entry imports as module specifiers, not URLs: a `file://`
+    // href fails with "Could not resolve". The copied shims sit beside the
+    // entry, so relative specifiers bundle exactly the same files.
+    const shim = (file) => `./shims/${file}`;
     const entry = [
-      `export { createHash, randomUUID } from ${JSON.stringify(pathToFileURL(path.join(shimDir, 'crypto.ts')).href)};`,
-      `export { deflateSync } from ${JSON.stringify(pathToFileURL(path.join(shimDir, 'zlib.ts')).href)};`,
-      `export { Buffer } from ${JSON.stringify(pathToFileURL(path.join(shimDir, 'buffer.ts')).href)};`,
-      `export { default as bidiFactory } from ${JSON.stringify(pathToFileURL(path.join(shimDir, 'bidi.ts')).href)};`,
-      `export { createWriteStream, pipeline } from ${JSON.stringify(pathToFileURL(path.join(shimDir, 'node-file-io.ts')).href)};`,
+      `export { createHash, randomUUID } from ${JSON.stringify(shim('crypto.ts'))};`,
+      `export { deflateSync } from ${JSON.stringify(shim('zlib.ts'))};`,
+      `export { Buffer } from ${JSON.stringify(shim('buffer.ts'))};`,
+      `export { default as bidiFactory } from ${JSON.stringify(shim('bidi.ts'))};`,
+      `export { createWriteStream, pipeline } from ${JSON.stringify(shim('node-file-io.ts'))};`,
     ].join('\n');
     const entryPath = path.join(SHIM_VERIFY_DIR, 'entry.mjs');
     fs.writeFileSync(entryPath, entry);
@@ -146,16 +150,18 @@ describe('pptx browser shims match the node implementations', () => {
     const bidi = shims.bidiFactory();
     assert.ok(Array.from(bidi.getEmbeddingLevels('Hello world').levels).every((level) => level === 0));
     assert.ok(Array.from(bidi.getEmbeddingLevels('مرحبا بالعالم').levels).every((level) => level === 1));
-    const mixed = bidi.getEmbeddingLevels('Hello مرحبا 42');
+    const mixedText = 'Hello مرحبا 42';
+    const mixed = bidi.getEmbeddingLevels(mixedText);
     assert.equal(mixed.levels[0], 0);
     assert.equal(mixed.levels[6], 1);
     assert.equal(mixed.levels[13], 2);
-    assert.deepEqual(mixed.paragraphs, [{ start: 0, end: 15, level: 0 }]);
+    assert.deepEqual(mixed.paragraphs, [{ start: 0, end: mixedText.length, level: 0 }]);
   });
 
-  it('the node file-io shim refuses instead of silently writing nothing', () => {
+  it('the node file-io shim refuses instead of silently writing nothing', async () => {
     assert.throws(() => shims.createWriteStream(), /not available in the browser/);
-    assert.throws(() => shims.pipeline(), /not available in the browser/);
+    // `pipeline` is async: it rejects rather than throwing synchronously.
+    await assert.rejects(() => shims.pipeline(), /not available in the browser/);
   });
 });
 
