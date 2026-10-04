@@ -36,7 +36,7 @@ export interface CanvasBox {
 export interface HtmlFloatAnchor {
   /** Canvas-space x of the toolbar's centre (the element is translated -50%). */
   left: number;
-  /** Canvas-space y of the toolbar's anchored edge. */
+  /** Canvas-space y of the toolbar's TOP edge (the value written to CSS `top`). */
   top: number;
   /** Which side of the selection the toolbar sits on. */
   placement: "above" | "below";
@@ -79,6 +79,14 @@ export function selectionBox(rect: HtmlSelectionRect, offset: { x: number; y: nu
 export function floatAnchor(box: CanvasBox): HtmlFloatAnchor {
   const left = clampCoord(box.left + box.width / 2);
   const fitsAbove = box.top - FLOAT_TOOLBAR_GAP - FLOAT_TOOLBAR_MIN_HEIGHT >= 0;
-  const top = fitsAbove ? box.top - FLOAT_TOOLBAR_GAP : box.top + box.height + FLOAT_TOOLBAR_GAP;
+  // `top` is the toolbar's TOP edge (its style `top`). Placing it above means
+  // subtracting the toolbar's own height as well as the gap, so its BOTTOM
+  // edge clears the box instead of the toolbar painting over the element's
+  // top `FLOAT_TOOLBAR_MIN_HEIGHT` px and stealing their pointer events. The
+  // `fitsAbove` guard already reserves exactly `GAP + MIN_HEIGHT`, so the
+  // decision and the position use the same term and cannot disagree.
+  const top = fitsAbove
+    ? box.top - FLOAT_TOOLBAR_GAP - FLOAT_TOOLBAR_MIN_HEIGHT
+    : box.top + box.height + FLOAT_TOOLBAR_GAP;
   return { left, top: clampCoord(top), placement: fitsAbove ? "above" : "below" };
 }

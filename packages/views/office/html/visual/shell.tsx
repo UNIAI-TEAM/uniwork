@@ -97,9 +97,10 @@ export interface HtmlVisualShellProps {
   selection?: { from: number; to: number } | null;
   /**
    * H6 float toolbar actions, injected by the caller. Every one is optional:
-   * an absent callback renders its control disabled. The shell only forwards
-   * them - it never applies an op, so the toolbar stays reviewable without the
-   * H3/H8 edit wiring.
+   * an absent action leaves its control inert - the icon buttons render
+   * disabled, while the bold/italic toggles stay enabled and no-op. The shell
+   * only forwards them - it never applies an op, so the toolbar stays
+   * reviewable without the H3/H8 edit wiring.
    */
   floatCommands?: HtmlFloatToolbarCommands;
   /**

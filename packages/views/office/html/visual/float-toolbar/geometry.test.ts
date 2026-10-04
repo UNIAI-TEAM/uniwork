@@ -39,10 +39,12 @@ describe("selectionBox", () => {
 });
 
 describe("floatAnchor", () => {
-  it("centres the toolbar on the box and lifts it just above", () => {
+  it("centres the toolbar on the box and clears it by the gap above", () => {
     const anchor = floatAnchor({ left: 100, top: 200, width: 80, height: 30 });
     expect(anchor.left).toBe(140);
-    expect(anchor.top).toBe(200 - FLOAT_TOOLBAR_GAP);
+    // `top` is the toolbar's TOP edge; its BOTTOM edge must clear the box.
+    expect(anchor.top).toBe(200 - FLOAT_TOOLBAR_GAP - FLOAT_TOOLBAR_MIN_HEIGHT);
+    expect(anchor.top + FLOAT_TOOLBAR_MIN_HEIGHT).toBe(200 - FLOAT_TOOLBAR_GAP);
     expect(anchor.placement).toBe("above");
   });
 

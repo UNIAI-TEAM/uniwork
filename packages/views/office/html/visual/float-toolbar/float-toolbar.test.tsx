@@ -126,8 +126,10 @@ describe("HtmlFloatToolbar behind the H5 flag", () => {
     render(<Harness selection={SELECT} commands={commands()} />);
 
     const toolbar = screen.getByTestId("html-float-toolbar");
-    // box (10,100) 30x40 at zoom 100, no frame offset -> centre 25, top 92.
-    expect(toolbar).toHaveStyle({ left: "25px", top: "92px" });
+    // box (10,100) 30x40 at zoom 100, no frame offset -> centre 25; the
+    // toolbar's TOP edge is 100 - 8 - 36 = 56, so its BOTTOM edge clears the
+    // box by the gap instead of painting over the element's top ~28px.
+    expect(toolbar).toHaveStyle({ left: "25px", top: "56px" });
     expect(toolbar).toHaveAttribute("data-float-placement", "above");
     expect(toolbar).toHaveAttribute("data-selection-sid", "7");
     expect(toolbar).toHaveAttribute("role", "toolbar");
@@ -138,8 +140,8 @@ describe("HtmlFloatToolbar behind the H5 flag", () => {
     stubLayout(() => ({ frame: { left: 300, top: 40, width: 200, height: 400 } }));
     render(<Harness selection={SELECT} zoom={150} commands={commands()} />);
 
-    // offset (300,40) + 1.5 x (10,100) -> box (315,190); centre 337.5, top 182.
-    expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "337.5px", top: "182px" });
+    // offset (300,40) + 1.5 x (10,100) -> box (315,190); centre 337.5, top 146.
+    expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "337.5px", top: "146px" });
   });
 
   it("re-probes the offset when the canvas resizes (no inspector event)", () => {
@@ -160,13 +162,13 @@ describe("HtmlFloatToolbar behind the H5 flag", () => {
     globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
     try {
       render(<Harness selection={SELECT} commands={commands()} />);
-      expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "25px", top: "92px" });
+      expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "25px", top: "56px" });
       expect(callbacks.length).toBeGreaterThan(0);
 
       frame = { left: 120, top: 5, width: 200, height: 400 };
       act(() => callbacks.forEach((callback) => callback()));
 
-      expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "145px", top: "97px" });
+      expect(screen.getByTestId("html-float-toolbar")).toHaveStyle({ left: "145px", top: "61px" });
     } finally {
       globalThis.ResizeObserver = original;
     }

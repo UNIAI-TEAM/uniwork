@@ -39,7 +39,9 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { HTML_SELECTION_FLAG, type HtmlSelection } from "../selection/model";
 import { floatAnchor, renderableRect, selectionBox } from "./geometry";
 
-/** The preview frame's structural hook, the same one H5 probes. */
+/** The preview frame's structural hook, the same one H5 probes. Kept as a
+ * literal here rather than imported from `selection/` so H6 stays a leaf module
+ * that does not depend on the bridge; the two copies must move together. */
 const PREVIEW_FRAME_ATTR = "data-html-preview-frame";
 
 /** Bounds for the size readout; a value outside them is not a real font size. */
@@ -68,7 +70,7 @@ export interface HtmlFloatToolbarCommands {
   onItalic?: () => void;
   onFontSizeIncrease?: () => void;
   onFontSizeDecrease?: () => void;
-  /** A palette id, or null for "no explicit colour" (inherit). */
+  /** The chosen palette id; `"default"` is the inherit entry, so no null is sent. */
   onColour?: (colour: TextColourId) => void;
   onEditText?: () => void;
   onMoveUp?: () => void;
