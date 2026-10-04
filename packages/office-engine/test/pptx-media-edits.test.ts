@@ -204,6 +204,26 @@ describe("add_media op building", () => {
     // deck width 960px at 96 DPI scaled to 480 -> half scale -> 10px is 20 base px.
     expect(field<{ x: number }>(op, "offset").x).toBe(Math.round((10 / 0.5) * EMU_PER_PX_96));
   });
+
+  it("clamps cx/cy to >= 1 EMU when a positive wPx/hPx rounds below one EMU", () => {
+    // At FIT (scale 1) toEmu(1e-6) = round(0.009525) = 0 EMU before the clamp.
+    const [op] = build(
+      {
+        op: "add_media",
+        slideIndex: 0,
+        kind: "video",
+        ext: "mp4",
+        bytes: bytesOf(1),
+        xPx: 0,
+        yPx: 0,
+        wPx: 0.000001,
+        hPx: 0.000001,
+      },
+      opened(),
+      FIT,
+    );
+    expect(field<{ cx: number; cy: number }>(op, "offset")).toStrictEqual({ x: 0, y: 0, cx: 1, cy: 1 });
+  });
 });
 
 describe("add_smartart op building", () => {
@@ -261,6 +281,24 @@ describe("add_smartart op building", () => {
       expect(field<string>(op, "layout")).toBe(layout);
     }
   });
+
+  it("clamps the SmartArt rect to >= 1 EMU like addElement/addImage", () => {
+    const [op] = build(
+      {
+        op: "add_smartart",
+        slideIndex: 0,
+        layout: "cycle",
+        items: ["one"],
+        xPx: 0,
+        yPx: 0,
+        wPx: 0.000001,
+        hPx: 0.000001,
+      },
+      opened(),
+      FIT,
+    );
+    expect(field<{ cx: number; cy: number }>(op, "offset")).toStrictEqual({ x: 0, y: 0, cx: 1, cy: 1 });
+  });
 });
 
 describe("add_model3d op building", () => {
@@ -310,6 +348,24 @@ describe("add_model3d op building", () => {
       poster,
       name: "3D Model 1",
     });
+  });
+
+  it("clamps the 3D model rect to >= 1 EMU like addElement/addImage", () => {
+    const [op] = build(
+      {
+        op: "add_model3d",
+        slideIndex: 0,
+        ext: "glb",
+        bytes: bytesOf(1),
+        xPx: 0,
+        yPx: 0,
+        wPx: 0.000001,
+        hPx: 0.000001,
+      },
+      opened(),
+      FIT,
+    );
+    expect(field<{ cx: number; cy: number }>(op, "offset")).toStrictEqual({ x: 0, y: 0, cx: 1, cy: 1 });
   });
 });
 
@@ -401,6 +457,20 @@ describe("media refusals", () => {
       "media_bad_smartart",
     );
     expect(errCode(() => build(addModel3d({ bytes: new Uint8Array(0) }), noSize, FIT))).toBe("media_bad_bytes");
+  });
+
+  it("refuses an out-of-union op with the defensive media_bad_op code", () => {
+    const stale = { op: "add_video" } as unknown as MediaEdit;
+    expect(errCode(() => build(stale))).toBe("media_bad_op");
+    const thrown = (() => {
+      try {
+        build(stale);
+      } catch (e) {
+        return e;
+      }
+      return undefined;
+    })();
+    expect(thrown).toBeInstanceOf(PptxEngineError);
   });
 
   it("throws a typed PptxEngineError, not a bare Error", () => {

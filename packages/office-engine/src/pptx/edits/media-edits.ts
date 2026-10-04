@@ -4,7 +4,7 @@
 // typed, validated op builder. The wire round registers `MediaEdit` as
 // `PptxEdit` kinds in model.ts and calls the builder mechanically:
 //
-//   this.txn(buildMediaOps(this.opened, this.fitWidthPx, edit))
+//   this.runBuiltTxn(buildMediaOps(this.opened, this.fitWidthPx, edit))
 //
 // Vendored contract (READ ONLY - never imported; cited for every field):
 //   addMedia     packages/office-upstream/upstream/packages/pptx-ops/src/ops/insert-ops.ts:286-322
@@ -31,11 +31,14 @@
 //                NewModel3dOptions {bytes, ext, optional poster, offset,
 //                optional name} (media-insert.ts:225-233).)
 //
-// Embedded fonts: packages/pptx-engine/src/embedded-fonts.ts is an engine
-// read/parse helper only (listEmbeddedFonts / eotToSfnt / stripStaleEmbeddedFonts
-// / staleEmbeddedTypefaces). The vendored pptx-ops registry exposes NO
-// embedded-font op, so this module deliberately binds none - it is recorded as
-// an engine-only capability in worker-B8e.md, never invented as an op.
+// Embedded fonts: packages/pptx-engine/src/embedded-fonts.ts is an engine-only
+// module (listEmbeddedFonts reads/parses; stripEmbeddedFonts and
+// stripStaleEmbeddedFonts mutate the archive at :247 and :313, and the latter
+// already runs inside savePptx's buildZip - pptx-engine/src/index.ts:757 - so
+// stale-subset stripping happens on every save with no op at all). The vendored
+// pptx-ops registry exposes NO embedded-font op, so this module deliberately
+// binds none - it is recorded as an engine-only capability in worker-B8e.md,
+// never invented as an op.
 //
 // Pixel -> EMU: media/SmartArt inserts carry a viewport-pixel rect
 // (xPx/yPx/wPx/hPx) and buildMediaOps converts it with
@@ -209,12 +212,14 @@ const emuRect = (
 ): { x: number; y: number; cx: number; cy: number } => ({
   x: toEmu(edit.xPx),
   y: toEmu(edit.yPx),
-  cx: toEmu(edit.wPx),
-  cy: toEmu(edit.hPx),
+  // Clamp like addElement/addImage (model.ts:248-249): toEmu rounds, so a
+  // positive-but-sub-EMU wPx/hPx can round to 0, which reqRect accepts.
+  cx: Math.max(1, toEmu(edit.wPx)),
+  cy: Math.max(1, toEmu(edit.hPx)),
 });
 
 /** Build the one vendored op an edit maps to; targets and fields are validated
- * here so the wire round stays a mechanical txn(buildMediaOps(...)) call. */
+ * here so the wire round stays a mechanical runBuiltTxn(buildMediaOps(...)) call. */
 export function buildMediaOps(
   opened: OpenedPptxLike,
   fitWidthPx: number,
@@ -227,6 +232,10 @@ export function buildMediaOps(
       return [buildAddSmartArt(opened, fitWidthPx, edit)];
     case "add_model3d":
       return [buildAddModel3d(opened, fitWidthPx, edit)];
+    default: {
+      const unknown = edit as { op?: unknown };
+      throw new PptxEngineError("media_bad_op", "unsupported media edit " + String(unknown.op));
+    }
   }
 }
 
