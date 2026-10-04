@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../commands";
 import type { DocxShapeInfo } from "./docx-shape-model";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
-import { DocxShapesGroup } from "./docx-shapes-group";
+import { DocxShapesGroup, docxShapesRibbonItems } from "./docx-shapes-group";
 
 vi.mock("@uniwork/ui/components/ui/popover", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
@@ -209,5 +209,68 @@ describe("DocxShapesGroup format panel", () => {
   it("disables the panel controls on a read-only document", () => {
     renderGroup({ shape: SHAPE, readOnly: true });
     expect(screen.getByRole("button", { name: "Định dạng hình" })).toBeDisabled();
+  });
+});
+
+// W-G (UNI-924): the typed ribbon path for the shapes group. The ribbon renders
+// these items instead of the group component, so every shape the dropdown
+// offers must still call the same insertDocxShape command as the gallery.
+describe("docxShapesRibbonItems", () => {
+  function typedContext(commands: DocxCommandRuntime): DocxToolbarGroupContext {
+    return {
+      editor: {} as unknown as DocxToolbarGroupContext["editor"],
+      coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
+      format: {} as unknown as DocxToolbarGroupContext["format"],
+      commands,
+      selection: null,
+      readOnly: false,
+      saving: false,
+      dirty: false,
+      canUndo: false,
+      canRedo: false,
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
+    };
+  }
+
+  it("exposes the primary Shape command as a large dropdown of the five shapes", () => {
+    const items = docxShapesRibbonItems(typedContext(runtime()));
+    expect(items[0]).toMatchObject({
+      kind: "dropdown",
+      id: "insert-shapes",
+      size: "large",
+      labelKey: "office.docx.shapes.insert",
+    });
+    expect(items[1]).toMatchObject({ kind: "custom", id: "insert-shapes-format" });
+    const primary = items[0]!;
+    if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
+    expect(primary.menu.map((entry) => entry.id)).toEqual([
+      "insert-shape-rect",
+      "insert-shape-ellipse",
+      "insert-shape-line",
+      "insert-shape-arrow",
+      "insert-shape-textBox",
+    ]);
+  });
+
+  it("routes every shape through the same insertDocxShape command", () => {
+    const commands = runtime();
+    const items = docxShapesRibbonItems(typedContext(commands));
+    const primary = items[0]!;
+    if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
+    for (const entry of primary.menu) entry.onSelect();
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("rect", "office.docx.shapes.kind.rect");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("ellipse", "office.docx.shapes.kind.ellipse");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("line", "office.docx.shapes.kind.line");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("arrow", "office.docx.shapes.kind.arrow");
+    expect(commands.insertDocxShape).toHaveBeenCalledWith("textBox", "office.docx.shapes.kind.textBox");
+    expect(commands.insertDocxShape).toHaveBeenCalledTimes(5);
+  });
+
+  it("disables the typed items while read-only or without a runtime", () => {
+    const readOnly = docxShapesRibbonItems({ ...typedContext(runtime()), readOnly: true });
+    expect(readOnly[0]).toMatchObject({ disabled: true });
+    const noRuntime = docxShapesRibbonItems({ ...typedContext(runtime()), commands: undefined });
+    expect(noRuntime[0]).toMatchObject({ disabled: true });
   });
 });

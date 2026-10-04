@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
-import { InsertTableGroup } from "../toolbar/groups/insert-table";
+import { InsertTableGroup, insertTableRibbonItems } from "../toolbar/groups/insert-table";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSelection } from "../types";
 
@@ -328,5 +328,70 @@ describe("InsertTableGroup", () => {
 
     expect(screen.getByTestId("docx-table-insert")).toBeDisabled();
     for (const testId of TOOL_TEST_IDS) expect(screen.getByTestId(testId)).toBeDisabled();
+  });
+});
+
+// W-G (UNI-924): the typed ribbon path for the table group. The ribbon renders
+// these items instead of the group component, so every command they expose must
+// still be the same runtime call the mounted picker makes.
+describe("insertTableRibbonItems", () => {
+  function typedContext(runtime: DocxCommandRuntime): DocxToolbarGroupContext {
+    return {
+      editor: {} as unknown as DocxToolbarGroupContext["editor"],
+      coordinator: coordinator(),
+      format: runtime.getState(),
+      commands: runtime,
+      selection: null,
+      readOnly: false,
+      saving: false,
+      dirty: false,
+      canUndo: true,
+      canRedo: true,
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
+    };
+  }
+
+  it("exposes the primary Insert table command as a large dropdown of grid sizes", () => {
+    const runtime = createDocxCommandRuntime(() => null);
+    const items = insertTableRibbonItems(typedContext(runtime));
+    expect(items[0]).toMatchObject({
+      kind: "dropdown",
+      id: "insert-table",
+      size: "large",
+      labelKey: "office.docx.table.insert",
+    });
+    expect(items[1]).toMatchObject({ kind: "custom", id: "insert-table-tools" });
+  });
+
+  it("routes every grid size through the same insertTable command", () => {
+    const runtime = createDocxCommandRuntime(() => null);
+    const insertTable = vi.spyOn(runtime, "insertTable");
+    const primary = insertTableRibbonItems(typedContext(runtime))[0]!;
+    if (primary.kind !== "dropdown") throw new Error("expected a dropdown");
+    expect(primary.menu.map((entry) => entry.id)).toEqual([
+      "insert-table-2x2",
+      "insert-table-3x2",
+      "insert-table-3x3",
+      "insert-table-4x3",
+      "insert-table-4x4",
+      "insert-table-5x5",
+    ]);
+    for (const entry of primary.menu) entry.onSelect();
+    expect(insertTable).toHaveBeenCalledWith(2, 2);
+    expect(insertTable).toHaveBeenCalledWith(3, 2);
+    expect(insertTable).toHaveBeenCalledWith(3, 3);
+    expect(insertTable).toHaveBeenCalledWith(4, 3);
+    expect(insertTable).toHaveBeenCalledWith(4, 4);
+    expect(insertTable).toHaveBeenCalledWith(5, 5);
+    expect(insertTable).toHaveBeenCalledTimes(6);
+  });
+
+  it("disables the typed items while read-only or without a runtime", () => {
+    const runtime = createDocxCommandRuntime(() => null);
+    const readOnly = insertTableRibbonItems({ ...typedContext(runtime), readOnly: true });
+    expect(readOnly[0]).toMatchObject({ disabled: true });
+    const noRuntime = insertTableRibbonItems({ ...typedContext(runtime), commands: undefined });
+    expect(noRuntime[0]).toMatchObject({ disabled: true });
   });
 });
