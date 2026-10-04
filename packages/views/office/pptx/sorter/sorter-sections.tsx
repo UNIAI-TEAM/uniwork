@@ -202,7 +202,7 @@ function SectionRow({
               {t("office.pptx.sections.rename_cancel")}
             </Button>
             {normalizeSectionName(draft) === null ? (
-              <span className="shrink-0 text-caption text-destructive" data-pptx-sorter-rename-empty>
+              <span className="shrink-0 text-caption text-destructive" data-pptx-sorter-rename-empty data-testid="pptx-sorter-rename-empty">
                 {t("office.pptx.sections.rename_empty")}
               </span>
             ) : null}

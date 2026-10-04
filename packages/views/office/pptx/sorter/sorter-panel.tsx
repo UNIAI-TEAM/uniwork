@@ -41,6 +41,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -285,7 +286,21 @@ export function PptxSorterPanel({
             {t("office.pptx.sorter.new")}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-56">
-            <DropdownMenuLabel>{t("office.pptx.sorter.new_label")}</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{t("office.pptx.sorter.new_label")}</DropdownMenuLabel>
+              {layoutsState.status === "ready"
+                ? layoutCatalog.map((layout, index) => (
+                    <DropdownMenuItem
+                      key={`${layout.path}:${index}`}
+                      disabled={disabled}
+                      onClick={() => addSlide(index)}
+                      data-pptx-sorter-layout={index}
+                    >
+                      {layout.name}
+                    </DropdownMenuItem>
+                  ))
+                : null}
+            </DropdownMenuGroup>
             {layoutsState.status === "loading" ? (
               <div className="flex flex-col gap-1 p-1" data-pptx-sorter-layouts-loading data-testid="pptx-sorter-layouts-loading">
                 {Array.from({ length: 3 }, (_, index) => (
@@ -301,18 +316,6 @@ export function PptxSorterPanel({
             {layoutsState.status === "ready" && layoutCatalog.length === 0 ? (
               <p className="px-2 py-1 text-caption text-muted-foreground">{t("office.pptx.sorter.layouts_empty")}</p>
             ) : null}
-            {layoutsState.status === "ready"
-              ? layoutCatalog.map((layout, index) => (
-                  <DropdownMenuItem
-                    key={`${layout.path}:${index}`}
-                    disabled={disabled}
-                    onClick={() => addSlide(index)}
-                    data-pptx-sorter-layout={index}
-                  >
-                    {layout.name}
-                  </DropdownMenuItem>
-                ))
-              : null}
             {layoutsState.status === "idle" && !loadLayouts ? (
               <p className="px-2 py-1 text-caption text-muted-foreground">{t("office.pptx.sorter.layouts_unavailable")}</p>
             ) : null}
