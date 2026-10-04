@@ -155,9 +155,18 @@ describe("CalendarSidebar", () => {
     expect(document.querySelector('time[datetime="2026-09-10"]')).toHaveTextContent(
       "10 thg 9",
     );
+    // The weekday abbreviation comes from the runtime's ICU data ("Thứ 5" on
+    // full ICU, "Th 5" on some Node builds), so derive it the same way the
+    // component does; the time zone shift (02:00Z -> 09:00) is what is pinned.
+    const weekdayDate = new Intl.DateTimeFormat("vi", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Asia/Ho_Chi_Minh",
+    }).format(new Date("2026-09-10T02:00:00Z"));
     expect(
       document.querySelector('time[datetime="2026-09-10T02:00:00Z"]'),
-    ).toHaveTextContent("Thứ 5, 10 thg 9 · 09:00");
+    ).toHaveTextContent(`${weekdayDate} · 09:00`);
   });
 
   it("makes draggable tasks a single keyboard-accessible control", () => {
