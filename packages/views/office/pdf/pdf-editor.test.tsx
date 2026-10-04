@@ -61,18 +61,18 @@ describe("PdfEditor", () => {
     saveCoordinator.writeBytes = vi.fn();
     renderEditor(opened(), { editor: handle, coordinator: saveCoordinator });
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
-    expect(screen.getByTestId("pdf-page-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("pdf-ribbon-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("pdf-status-bar")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Chữ thay thế"), { target: { value: "Nội dung mới" } });
     fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
     expect(handle.edit).toHaveBeenCalledWith([{ op: "replace_text", target: { page: 1, objectId: "text-1" }, text: "Nội dung mới" }]);
-    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
-    fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
+    // Undo/redo and Save moved off the deleted toolbar onto the editor's keyboard handler.
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
     expect(handle.undo).toHaveBeenCalledTimes(1);
     expect(handle.redo).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByTestId("pdf-save"));
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
-    expect(save).toHaveBeenNthCalledWith(1, "button");
-    expect(save).toHaveBeenNthCalledWith(2, "shortcut");
+    expect(save).toHaveBeenNthCalledWith(1, "shortcut");
     expect(saveCoordinator.writeBytes).not.toHaveBeenCalled();
   });
 
@@ -82,8 +82,11 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Trang 2" }));
     expect(handle.selection?.setSelection).toHaveBeenCalledWith({ page: 2, objectId: null, kind: "page" });
-    expect(screen.getByTestId("pdf-selection")).toHaveTextContent("Trang 2");
+    expect(screen.getByTestId("pdf-status-page")).toHaveTextContent("Trang 2");
 
+    // Page commands moved from the deleted toolbar into the ribbon's pages tab.
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
+    expect(screen.getByTestId("pdf-chrome-command-row")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Chèn trang" }));
     fireEvent.click(screen.getByRole("button", { name: "Xóa trang" }));
     fireEvent.click(screen.getByRole("button", { name: "Xoay trang" }));
@@ -96,8 +99,8 @@ describe("PdfEditor", () => {
     expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
     expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
     expect(handle.edit).toHaveBeenCalledWith([{ op: "merge_pages", target: { pages: [1, 2] } }]);
-    fireEvent.click(screen.getByRole("button", { name: "Đưa lên" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tách" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sắp xếp lại trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tách trang" }));
     expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
     expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
   });
@@ -107,7 +110,7 @@ describe("PdfEditor", () => {
     renderEditor(opened(), { editor: handle });
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Mã tài sản của provider"), { target: { value: "asset-42" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Thay ảnh" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Thay ảnh" }));
     expect(handle.edit).toHaveBeenCalledWith([{ op: "replace_image", target: { page: 2, objectId: "image-1" }, assetId: "asset-42" }]);
   });
 
@@ -162,11 +165,11 @@ describe("PdfEditor", () => {
     fireEvent.change(input, { target: { value: "first edit" } });
     fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
     await waitFor(() => expect(handle.edit).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByTestId("pdf-save"));
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
     fireEvent.change(input, { target: { value: "second edit" } });
     fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
     await waitFor(() => expect(handle.edit).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByTestId("pdf-save"));
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
     expect((submitted[0] as { edits: unknown[] }).edits).toHaveLength(1);
     expect((submitted[1] as { edits: unknown[] }).edits).toHaveLength(2);
@@ -181,7 +184,7 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
     expect(screen.getByRole("alert")).toHaveTextContent(message);
     expect(screen.queryByTestId("pdf-canvas")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pdf-save")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-ribbon-bar")).not.toBeInTheDocument();
   });
 
   it("localizes thrown engine failures and never exposes an internal exception message", async () => {
@@ -191,7 +194,7 @@ describe("PdfEditor", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Không mở được PDF này");
     expect(screen.getByRole("alert")).not.toHaveTextContent("undefined");
     expect(screen.queryByTestId("pdf-canvas")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pdf-save")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-ribbon-bar")).not.toBeInTheDocument();
   });
 
   it("localizes a generic thrown open failure instead of rendering its raw message", async () => {
