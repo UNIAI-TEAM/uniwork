@@ -6334,7 +6334,15 @@
     }
   },
   "documents": {
-    "file_types": {"docx":"Word document","xlsx":"Excel spreadsheet","pptx":"PowerPoint presentation","pdf":"PDF document","md":"Markdown document","html":"HTML document","file":"File"},
+    "file_types": {
+      "docx": "Word document",
+      "xlsx": "Excel spreadsheet",
+      "pptx": "PowerPoint presentation",
+      "pdf": "PDF document",
+      "md": "Markdown document",
+      "html": "HTML document",
+      "file": "File"
+    },
     "page": {
       "title": "Documents",
       "new_page": "New page",
@@ -6415,19 +6423,58 @@
       "focus_end": "Continue writing at the end of the document",
       "toggle_task": "Toggle task: {{task}}",
       "blocks": {
-        "paragraph": { "label": "Text", "description": "A plain text paragraph" },
-        "heading1": { "label": "Heading 1", "description": "A large heading for a main section" },
-        "heading2": { "label": "Heading 2", "description": "A heading for a content section" },
-        "heading3": { "label": "Heading 3", "description": "A heading for a subsection" },
-        "bulletList": { "label": "Bulleted list", "description": "A list with bullet points" },
-        "orderedList": { "label": "Numbered list", "description": "A list in sequence" },
-        "taskList": { "label": "To-do list", "description": "Track tasks with checkboxes" },
-        "blockquote": { "label": "Quote", "description": "Highlight a quoted passage" },
-        "codeBlock": { "label": "Code block", "description": "A formatted block of code" },
-        "horizontalRule": { "label": "Divider", "description": "Separate sections of content" },
-        "table": { "label": "Table", "description": "A table with 3 rows and 3 columns" },
-        "image": { "label": "Image", "description": "Choose and upload an image" },
-        "mention": { "label": "Mention", "description": "Mention a person with @" }
+        "paragraph": {
+          "label": "Text",
+          "description": "A plain text paragraph"
+        },
+        "heading1": {
+          "label": "Heading 1",
+          "description": "A large heading for a main section"
+        },
+        "heading2": {
+          "label": "Heading 2",
+          "description": "A heading for a content section"
+        },
+        "heading3": {
+          "label": "Heading 3",
+          "description": "A heading for a subsection"
+        },
+        "bulletList": {
+          "label": "Bulleted list",
+          "description": "A list with bullet points"
+        },
+        "orderedList": {
+          "label": "Numbered list",
+          "description": "A list in sequence"
+        },
+        "taskList": {
+          "label": "To-do list",
+          "description": "Track tasks with checkboxes"
+        },
+        "blockquote": {
+          "label": "Quote",
+          "description": "Highlight a quoted passage"
+        },
+        "codeBlock": {
+          "label": "Code block",
+          "description": "A formatted block of code"
+        },
+        "horizontalRule": {
+          "label": "Divider",
+          "description": "Separate sections of content"
+        },
+        "table": {
+          "label": "Table",
+          "description": "A table with 3 rows and 3 columns"
+        },
+        "image": {
+          "label": "Image",
+          "description": "Choose and upload an image"
+        },
+        "mention": {
+          "label": "Mention",
+          "description": "Mention a person with @"
+        }
       }
     },
     "detail": {
@@ -7318,27 +7365,107 @@
     },
     "markdown": {
       "title": "Markdown document",
-      "toolbar": { "label": "Markdown editing commands" },
-      "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving…", "retry": "Try again" },
-      "state": { "opening": "Opening document…", "error": "Could not open document" },
-      "source": { "label": "Markdown source" },
-      "preview": { "label": "Preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
-      "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "toolbar": {
+        "label": "Markdown editing commands"
+      },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "copy": "Copy",
+        "paste": "Paste",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retry": "Try again"
+      },
+      "state": {
+        "opening": "Opening document…",
+        "error": "Could not open document"
+      },
+      "source": {
+        "label": "Markdown source"
+      },
+      "preview": {
+        "label": "Preview",
+        "loading": "Loading preview…",
+        "unavailable": "Preview unavailable"
+      },
+      "asset": {
+        "label": "Assets",
+        "empty": "No assets in this document",
+        "ready": "Available",
+        "missing": "Missing",
+        "unauthorised": "Not authorised",
+        "failed": "Failed",
+        "saveBlocked": "This document cannot be saved until every asset is available."
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
       "capabilityUnavailable": "Markdown editing is not available for this engine build.",
-      "errors": { "title": "This Markdown document could not be opened", "unknown": "The Markdown adapter returned an unknown open failure." }
+      "errors": {
+        "title": "This Markdown document could not be opened",
+        "unknown": "The Markdown adapter returned an unknown open failure."
+      }
     },
     "html": {
       "title": "HTML document",
-      "toolbar": { "label": "HTML editing commands" },
-      "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving…", "retry": "Try again" },
-      "state": { "opening": "Opening document…", "error": "Could not open document" },
-      "source": { "label": "HTML source" },
-      "preview": { "label": "Isolated preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
-      "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "toolbar": {
+        "label": "HTML editing commands"
+      },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "copy": "Copy",
+        "paste": "Paste",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retry": "Try again"
+      },
+      "state": {
+        "opening": "Opening document…",
+        "error": "Could not open document"
+      },
+      "source": {
+        "label": "HTML source"
+      },
+      "preview": {
+        "label": "Isolated preview",
+        "loading": "Loading preview…",
+        "unavailable": "Preview unavailable"
+      },
+      "asset": {
+        "label": "Assets",
+        "empty": "No assets in this document",
+        "ready": "Available",
+        "missing": "Missing",
+        "unauthorised": "Not authorised",
+        "failed": "Failed",
+        "saveBlocked": "This document cannot be saved until every asset is available."
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
       "capabilityUnavailable": "HTML editing is not available for this engine build.",
-      "errors": { "title": "This HTML document could not be opened", "unknown": "The HTML adapter returned an unknown open failure." }
+      "errors": {
+        "title": "This HTML document could not be opened",
+        "unknown": "The HTML adapter returned an unknown open failure."
+      }
     },
     "pptx": {
       "toolbar_label": "PowerPoint commands",
@@ -7387,64 +7514,64 @@
       "find_unbound": "Search is not connected to this editor yet.",
       "find_matches": "{{value}} matches",
       "find_close": "Close find",
-        "find": {
-          "title": "Find and replace",
-          "label": "Find and replace",
-          "query_label": "Find",
-          "query_placeholder": "Find text",
-          "replace_label": "Replace with",
-          "replace_placeholder": "Replacement text",
-          "hint": "Type to search the presentation",
-          "match_case": "Match case",
-          "matches": "{{value}} matches",
-          "no_matches": "No matches",
-          "hit_position": "Match {{current}} of {{total}}",
-          "hit_slide": "Slide {{index}}",
-          "next": "Find next",
-          "previous": "Find previous",
-          "replace_one": "Replace",
-          "replace_all": "Replace all",
-          "busy": "Replacing…",
-          "unbound": "Find and replace are not connected to this editor yet.",
-          "readonly": "This presentation is read-only.",
-          "close": "Close find and replace",
-          "error_title": "The replace failed",
-          "error_hint": "The presentation is unchanged. {{message}}"
-        },
-        "links": {
-          "title": "Hyperlink",
-          "label": "Edit hyperlink",
-          "mode_url": "Web address",
-          "mode_slide": "Place in this document",
-          "mode_action": "Show action",
-          "mode_label": "Link type",
-          "url_label": "Address",
-          "url_placeholder": "https://example.com",
-          "slide_label": "Go to slide",
-          "action_label": "Action",
-          "apply": "Apply",
-          "remove": "Remove link",
-          "close": "Close",
-          "none": "No link",
-          "url_summary": "Link: {{url}}",
-          "slide_summary": "Jump to slide {{index}}",
-          "invalid_url": "Enter a web address such as https://example.com.",
-          "invalid_slide": "Choose a slide in this deck.",
-          "invalid_action": "Choose a show action.",
-          "no_selection": "Select an element to link.",
-          "unbound": "Hyperlinks are not connected to this editor yet.",
-          "busy": "Applying the link…",
-          "error_title": "The link could not be applied",
-          "error_hint": "The presentation is unchanged. {{message}}",
-          "action": {
-            "nextslide": "Next slide",
-            "previousslide": "Previous slide",
-            "firstslide": "First slide",
-            "lastslide": "Last slide",
-            "lastslideviewed": "Last slide viewed",
-            "endshow": "End show"
-          }
-        },
+      "find": {
+        "title": "Find and replace",
+        "label": "Find and replace",
+        "query_label": "Find",
+        "query_placeholder": "Find text",
+        "replace_label": "Replace with",
+        "replace_placeholder": "Replacement text",
+        "hint": "Type to search the presentation",
+        "match_case": "Match case",
+        "matches": "{{value}} matches",
+        "no_matches": "No matches",
+        "hit_position": "Match {{current}} of {{total}}",
+        "hit_slide": "Slide {{index}}",
+        "next": "Find next",
+        "previous": "Find previous",
+        "replace_one": "Replace",
+        "replace_all": "Replace all",
+        "busy": "Replacing…",
+        "unbound": "Find and replace are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "close": "Close find and replace",
+        "error_title": "The replace failed",
+        "error_hint": "The presentation is unchanged. {{message}}"
+      },
+      "links": {
+        "title": "Hyperlink",
+        "label": "Edit hyperlink",
+        "mode_url": "Web address",
+        "mode_slide": "Place in this document",
+        "mode_action": "Show action",
+        "mode_label": "Link type",
+        "url_label": "Address",
+        "url_placeholder": "https://example.com",
+        "slide_label": "Go to slide",
+        "action_label": "Action",
+        "apply": "Apply",
+        "remove": "Remove link",
+        "close": "Close",
+        "none": "No link",
+        "url_summary": "Link: {{url}}",
+        "slide_summary": "Jump to slide {{index}}",
+        "invalid_url": "Enter a web address such as https://example.com.",
+        "invalid_slide": "Choose a slide in this deck.",
+        "invalid_action": "Choose a show action.",
+        "no_selection": "Select an element to link.",
+        "unbound": "Hyperlinks are not connected to this editor yet.",
+        "busy": "Applying the link…",
+        "error_title": "The link could not be applied",
+        "error_hint": "The presentation is unchanged. {{message}}",
+        "action": {
+          "nextslide": "Next slide",
+          "previousslide": "Previous slide",
+          "firstslide": "First slide",
+          "lastslide": "Last slide",
+          "lastslideviewed": "Last slide viewed",
+          "endshow": "End show"
+        }
+      },
       "text": {
         "target_label": "Double-click to edit this text",
         "editor_label": "Edit slide text",
@@ -7482,8 +7609,12 @@
         "review": "Review",
         "view": "View"
       },
-      "state": { "opening": "Opening presentation…" },
-      "errors": { "capabilityUnavailable": "The presentation editor could not be loaded in this browser." },
+      "state": {
+        "opening": "Opening presentation…"
+      },
+      "errors": {
+        "capabilityUnavailable": "The presentation editor could not be loaded in this browser."
+      },
       "commands": {
         "open": "Open",
         "edit_text": "Text",
@@ -7502,58 +7633,57 @@
         "redo": "Redo",
         "presenter": "Presenter",
         "fullscreen": "Fullscreen"
-        },
-        "context": {
-          "picture": "Picture Format",
-          "shape": "Shape Format",
-          "table": "Table Design"
-        },
-        "context_menu": {
-          "cut": "Cut",
-          "copy": "Copy",
-          "paste": "Paste",
-          "delete": "Delete",
-          "bring_to_front": "Bring to front",
-          "send_to_back": "Send to back",
-          "edit_text": "Edit text",
-          "insert": "Insert",
-          "reason_unavailable": "Unavailable on this surface",
-          "reason_readonly": "This presentation is read-only",
-          "reason_no_slide": "Select a slide first",
-          "reason_pending": "Wait for the current change to finish",
-          "reason_no_selection": "Select an element first",
-          "reason_clipboard_unbound": "Copy and paste are not supported by this presentation engine yet",
-          "reason_delete_unbound": "Delete is not connected to this editor yet",
-          "reason_reorder_unbound": "Changing the z-order is not connected to this editor yet",
-          "reason_edit_text_unbound": "Text editing is not connected to this editor yet",
-          "reason_insert_unbound": "Insert is not connected to this editor yet"
-        },
-        "shortcuts": {
-          "title": "Keyboard shortcuts",
-          "description": "Keys that work on the slide canvas.",
-          "close": "Close",
-          "group_editing": "Editing",
-          "group_view": "View",
-          "group_navigation": "Navigation",
-          "undo": "Undo",
-          "redo": "Redo",
-          "save": "Save",
-          "find": "Find",
-          "edit_text": "Edit the selected text",
-          "select_all": "Select every element",
-          "delete_selection": "Delete the selection",
-          "next_slide": "Next slide",
-          "previous_slide": "Previous slide",
-          "dismiss": "Clear the selection",
-          "help": "Show this help"
-        },
-        "print": {
-          "title": "Print presentation",
-          "slide_label": "Slide {{index}}",
-          "failed": "The presentation could not be printed.",
-          "blocked": "The browser blocked the print window. Allow pop-ups and try again."
-        }
-      ,
+      },
+      "context": {
+        "picture": "Picture Format",
+        "shape": "Shape Format",
+        "table": "Table Design"
+      },
+      "context_menu": {
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste",
+        "delete": "Delete",
+        "bring_to_front": "Bring to front",
+        "send_to_back": "Send to back",
+        "edit_text": "Edit text",
+        "insert": "Insert",
+        "reason_unavailable": "Unavailable on this surface",
+        "reason_readonly": "This presentation is read-only",
+        "reason_no_slide": "Select a slide first",
+        "reason_pending": "Wait for the current change to finish",
+        "reason_no_selection": "Select an element first",
+        "reason_clipboard_unbound": "Copy and paste are not supported by this presentation engine yet",
+        "reason_delete_unbound": "Delete is not connected to this editor yet",
+        "reason_reorder_unbound": "Changing the z-order is not connected to this editor yet",
+        "reason_edit_text_unbound": "Text editing is not connected to this editor yet",
+        "reason_insert_unbound": "Insert is not connected to this editor yet"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Keys that work on the slide canvas.",
+        "close": "Close",
+        "group_editing": "Editing",
+        "group_view": "View",
+        "group_navigation": "Navigation",
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save",
+        "find": "Find",
+        "edit_text": "Edit the selected text",
+        "select_all": "Select every element",
+        "delete_selection": "Delete the selection",
+        "next_slide": "Next slide",
+        "previous_slide": "Previous slide",
+        "dismiss": "Clear the selection",
+        "help": "Show this help"
+      },
+      "print": {
+        "title": "Print presentation",
+        "slide_label": "Slide {{index}}",
+        "failed": "The presentation could not be printed.",
+        "blocked": "The browser blocked the print window. Allow pop-ups and try again."
+      },
       "charts": {
         "title": "Charts",
         "loading": "Loading the chart tools...",
@@ -7614,8 +7744,568 @@
           "pie3D": "3-D pie",
           "bar3D": "3-D column"
         }
-      }},
-    "format": {
+      },
+      "headerfooter": {
+        "title": "Header and footer",
+        "loading": "Loading header and footer options...",
+        "empty": "Open a presentation to add a header or footer",
+        "busy": "Applying...",
+        "error_title": "The header and footer could not be applied",
+        "error_hint": "The document was not changed. {{message}}",
+        "unbound": "Header and footer changes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "footer_label": "Footer text",
+        "footer_placeholder": "Text shown at the bottom of every slide",
+        "slide_number_label": "Slide number",
+        "slide_number_hint": "Show the slide number on every slide",
+        "date_label": "Date",
+        "date_placeholder": "Date text",
+        "date_auto_label": "Update automatically",
+        "date_auto_hint": "Use a date field that PowerPoint refreshes when the file opens",
+        "apply": "Apply to all",
+        "reset": "Remove all",
+        "reset_hint": "Clear the footer, date and slide number from every slide",
+        "invalid_text": "Keep the text under {{max}} characters.",
+        "no_changes": "Add a footer, a date or the slide number first."
+      },
+      "design": {
+        "title": "Design",
+        "loading": "Loading design options...",
+        "empty": "Open a presentation to change its design",
+        "busy": "Applying...",
+        "error_title": "The design change could not be applied",
+        "error_hint": "The document was not changed. {{message}}",
+        "unbound": "Design changes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "themes_label": "Themes",
+        "theme_group_label": "Theme gallery",
+        "theme_apply": "Apply theme {{name}}",
+        "theme_active": "{{name}} (current theme)",
+        "theme": {
+          "office": "Office",
+          "slate": "Slate",
+          "forest": "Forest",
+          "ember": "Ember",
+          "indigo": "Indigo",
+          "midnight": "Midnight"
+        },
+        "slide_size_label": "Slide size",
+        "size_group_label": "Slide size presets",
+        "size": {
+          "16_9": "Widescreen (16:9)",
+          "4_3": "Standard (4:3)",
+          "custom": "Custom ({{width}} x {{height}} in)"
+        },
+        "layout_label": "Layout",
+        "layout_group_label": "Slide layouts",
+        "layout_empty": "This presentation exposes no layouts",
+        "layout_apply": "Use layout {{name}}",
+        "layout_reset": "Reset to master layout",
+        "background_label": "Background",
+        "background_open": "Format background",
+        "background_title": "Format background",
+        "background_description": "Set the fill for the selected slide or for every slide.",
+        "background_close": "Close",
+        "fill_group_label": "Background fill",
+        "fill": {
+          "solid": "Solid",
+          "gradient": "Gradient",
+          "image": "Picture"
+        },
+        "solid_color": "Fill color",
+        "gradient_from": "Gradient start color",
+        "gradient_to": "Gradient end color",
+        "gradient_angle": "Gradient angle in degrees",
+        "gradient_radial": "Radial gradient",
+        "image_choose": "Choose a picture",
+        "image_tile": "Tile the picture",
+        "image_none": "No picture selected",
+        "image_selected": "Picture selected: {{name}}",
+        "image_read_failed": "The picture could not be read.",
+        "hide_graphics": "Hide background graphics",
+        "apply_to_all": "Apply to all slides",
+        "apply_to_all_hint": "Use this background on all {{total}} slides",
+        "reset": "Reset background",
+        "reset_hint": "Restore the layout or master background",
+        "invalid_color": "Enter a color as #RRGGBB.",
+        "apply": "Apply"
+      },
+      "sorter": {
+        "title": "Slide sorter",
+        "label": "Slide sorter panel",
+        "grid_label": "Slides",
+        "actions_label": "Slide actions",
+        "slide_label": "Slide {{index}}{{label}}",
+        "slide_hidden": "Hidden",
+        "loading": "Loading slides…",
+        "error_title": "The slide sorter could not load",
+        "error_hint": "The presentation is unchanged. {{message}}",
+        "unbound": "No presentation is open.",
+        "empty": "This presentation has no slides.",
+        "readonly": "This presentation is read-only.",
+        "pending": "Applying the slide change…",
+        "no_selection": "Select a slide to act on it.",
+        "selected": "Selected: slide {{index}}",
+        "new": "New slide",
+        "new_label": "New slide from a layout",
+        "layouts_unavailable": "Layouts are not available for this presentation.",
+        "layouts_empty": "This presentation has no layouts.",
+        "duplicate": "Duplicate slide",
+        "delete": "Delete slide",
+        "hide": "Hide slide",
+        "show": "Show slide",
+        "move_hint": "Drag a slide to reorder it, or use the arrow keys on the drag handle.",
+        "drag_handle": "Reorder slide {{index}}",
+        "disabled_unbound": "Open a presentation before using the slide sorter.",
+        "disabled_readonly": "This presentation is read-only, so slides cannot change.",
+        "disabled_pending": "A slide change is still being applied.",
+        "disabled_empty": "There is no slide to act on.",
+        "disabled_last_slide": "The last slide cannot be deleted."
+      },
+      "sections": {
+        "title": "Sections",
+        "label": "Presentation sections",
+        "none": "No sections yet — the whole presentation is one group.",
+        "unsectioned": "Unsectioned slides",
+        "range": "Slides {{start}}–{{end}}",
+        "count_one": "{{count}} section",
+        "count_other": "{{count}} sections",
+        "add": "Add section",
+        "add_at": "Add a section starting at slide {{index}}",
+        "default_name": "Section {{index}}",
+        "rename": "Rename section {{name}}",
+        "rename_label": "Section name",
+        "rename_save": "Save section name",
+        "rename_cancel": "Cancel rename",
+        "rename_empty": "A section name cannot be empty.",
+        "remove": "Remove section {{name}}",
+        "move_up": "Move section {{name}} up",
+        "move_down": "Move section {{name}} down",
+        "select_group": "Select slide {{index}} in section {{name}}"
+      },
+      "insert": {
+        "title": "Insert",
+        "sections_label": "Insert tools",
+        "loading": "Loading the insert tools…",
+        "busy": "Applying the insert…",
+        "no_slide": "Select a slide to insert into.",
+        "disabled_hint": "Insert is unavailable while the editor is busy.",
+        "close": "Close",
+        "error_title": "Insert failed",
+        "shapes": {
+          "title": "Shapes",
+          "description": "Insert a preset shape on the current slide.",
+          "open": "Shapes",
+          "gallery_label": "Shape gallery",
+          "group": {
+            "lines": "Lines",
+            "rects": "Rectangles",
+            "basic": "Basic shapes",
+            "arrows": "Block arrows",
+            "stars": "Stars and banners",
+            "flowchart": "Flowchart",
+            "callouts": "Callouts"
+          },
+          "prst": {
+            "line": "Line",
+            "lineArrow": "Arrow",
+            "lineArrowDouble": "Double arrow",
+            "lineBent": "Elbow connector",
+            "lineCurved": "Curved connector",
+            "rect": "Rectangle",
+            "roundRect": "Rounded rectangle",
+            "snip1Rect": "Snip one corner",
+            "snipRoundRect": "Snip and round",
+            "ellipse": "Ellipse",
+            "triangle": "Isosceles triangle",
+            "rtTriangle": "Right triangle",
+            "diamond": "Diamond",
+            "pentagon": "Pentagon",
+            "hexagon": "Hexagon",
+            "octagon": "Octagon",
+            "parallelogram": "Parallelogram",
+            "trapezoid": "Trapezoid",
+            "plus": "Cross",
+            "donut": "Donut",
+            "blockArc": "Block arc",
+            "heart": "Heart",
+            "sun": "Sun",
+            "cloud": "Cloud",
+            "lightningBolt": "Lightning bolt",
+            "rightArrow": "Right arrow",
+            "leftArrow": "Left arrow",
+            "upArrow": "Up arrow",
+            "downArrow": "Down arrow",
+            "leftRightArrow": "Left-right arrow",
+            "upDownArrow": "Up-down arrow",
+            "chevron": "Chevron",
+            "homePlate": "Pentagon arrow",
+            "star4": "4-point star",
+            "star5": "5-point star",
+            "star6": "6-point star",
+            "star8": "8-point star",
+            "star12": "12-point star",
+            "ribbon": "Ribbon",
+            "flowChartProcess": "Process",
+            "flowChartDecision": "Decision",
+            "flowChartTerminator": "Terminator",
+            "flowChartDocument": "Document",
+            "flowChartConnector": "Connector",
+            "wedgeRectCallout": "Rectangular callout",
+            "wedgeRoundRectCallout": "Rounded callout",
+            "wedgeEllipseCallout": "Oval callout",
+            "cloudCallout": "Cloud callout"
+          }
+        },
+        "text_box": {
+          "title": "Text box",
+          "insert": "Text box",
+          "hint": "Adds an empty text box you can type into."
+        },
+        "image": {
+          "title": "Picture",
+          "insert": "Picture",
+          "choose": "Choose an image file",
+          "replace": "Replace picture",
+          "replace_hint": "Swap the file behind the selected picture.",
+          "no_target": "Select a picture on the slide to replace it.",
+          "unsupported": "{{ext}} is not a supported image format.",
+          "read_failed": "The picture could not be read."
+        },
+        "wordart": {
+          "title": "WordArt",
+          "insert": "Insert WordArt",
+          "description": "Insert decorative text with a preset style.",
+          "open": "WordArt",
+          "text_label": "Text",
+          "text_placeholder": "Your text",
+          "preset": {
+            "blue": "Blue, bold",
+            "gold": "Gold, bold",
+            "red": "Red, bold",
+            "purple": "Purple, bold"
+          }
+        },
+        "connector": {
+          "title": "Connectors",
+          "hint": "Glues a connector to two shapes so it follows them.",
+          "kind_label": "Connector type",
+          "kind": {
+            "straight": "Straight",
+            "elbow": "Elbow",
+            "curved": "Curved"
+          },
+          "from_label": "Start shape",
+          "to_label": "End shape",
+          "arrow_label": "Arrowheads",
+          "arrow": {
+            "none": "None",
+            "end": "End",
+            "both": "Both"
+          },
+          "insert": "Add connector",
+          "empty": "Add at least two shapes to connect them.",
+          "pick_both": "Choose two different shapes."
+        },
+        "group": {
+          "title": "Group",
+          "apply": "Group selection",
+          "hint": "Groups the selected elements so they move together.",
+          "need_two": "Select at least two elements to group."
+        }
+      },
+      "animations": {
+        "panel_label": "Animations",
+        "list_label": "Animation order",
+        "list_hint": "Effects play top to bottom.",
+        "empty": "No animations on this slide",
+        "empty_hint": "Add an effect to animate a shape or text.",
+        "no_slide": "Select a slide to see its animations.",
+        "no_target": "Select a shape or text box to add an animation.",
+        "loading": "Reading the slide animations…",
+        "error_title": "The slide animations could not be read",
+        "error_hint": "The presentation is unchanged. {{message}}",
+        "retry": "Retry",
+        "unbound": "Animations are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "pending": "Applying the animation change…",
+        "add_label": "Add animation",
+        "add_hint": "Adds the effect to the selected shape.",
+        "effect_label": "Effect",
+        "trigger_label": "Start",
+        "duration_label": "Duration (seconds)",
+        "delay_label": "Delay (seconds)",
+        "timing_invalid": "Enter a number of seconds of 0 or more.",
+        "move_up": "Move up",
+        "move_down": "Di chuyển xuống",
+        "remove": "Remove animation",
+        "preview": "Preview",
+        "preview_unbound": "Preview is not connected to this editor yet.",
+        "step": "Step {{n}}",
+        "auto_step": "Automatic",
+        "row_aria": "{{effect}}, starts {{trigger}}",
+        "row_timing": "{{trigger}} · {{duration}}",
+        "class": {
+          "entrance": "Entrance",
+          "emphasis": "Emphasis",
+          "exit": "Exit",
+          "path": "Motion path"
+        },
+        "trigger": {
+          "onClick": "On click",
+          "withPrev": "With previous",
+          "afterPrev": "After previous"
+        },
+        "effect": {
+          "appear": "Appear",
+          "fade": "Fade",
+          "flyIn": "Fly in",
+          "wipe": "Wipe",
+          "wipeDown": "Wipe down",
+          "splitIn": "Split",
+          "bounce": "Bounce",
+          "flipIn": "Flip in",
+          "zoom": "Zoom",
+          "pulse": "Pulse",
+          "spin": "Spin",
+          "grow": "Grow",
+          "teeter": "Teeter",
+          "disappear": "Disappear",
+          "fadeOut": "Fade out",
+          "flyOut": "Fly out",
+          "wipeOut": "Wipe out",
+          "shrink": "Shrink",
+          "zoomOut": "Zoom out",
+          "motionPath": "Motion path"
+        }
+      },
+      "transitions": {
+        "panel_label": "Transitions",
+        "gallery_label": "Transition gallery",
+        "gallery_hint": "Pick a transition for the current slide.",
+        "current": "Current transition: {{name}}",
+        "apply_to_all": "Apply to all slides",
+        "advance_label": "Advance slide",
+        "advance_off": "On mouse click",
+        "advance_on": "Automatically after",
+        "advance_seconds": "Seconds",
+        "advance_invalid": "Enter a number of seconds of 0 or more.",
+        "no_slide": "Select a slide to set its transition.",
+        "loading": "Reading the slide transition…",
+        "error_title": "The slide transition could not be read",
+        "error_hint": "The presentation is unchanged. {{message}}",
+        "retry": "Retry",
+        "unbound": "Transitions are not connected to this editor yet.",
+        "pending": "Applying the transition…",
+        "readonly": "This presentation is read-only.",
+        "kind": {
+          "none": "None",
+          "morph": "Morph",
+          "fade": "Fade",
+          "push": "Push",
+          "wipe": "Wipe",
+          "split": "Split",
+          "circle": "Circle",
+          "cover": "Cover",
+          "pull": "Pull",
+          "dissolve": "Dissolve",
+          "zoom": "Zoom",
+          "random": "Random"
+        }
+      },
+      "tables": {
+        "title": "Tables",
+        "loading": "Loading table options...",
+        "empty": "Select a table to edit it",
+        "busy": "Applying...",
+        "error_title": "The table change could not be applied",
+        "error_hint": "The document was not changed. {{message}}",
+        "unbound": "Table changes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "no_table": "Select a table on the slide to edit it.",
+        "no_cell": "Select a cell in the table.",
+        "target": "Table {{rows}} x {{cols}}",
+        "cell_label": "Cell ({{row}}, {{col}})",
+        "insert": {
+          "label": "Insert table",
+          "rows": "Rows",
+          "cols": "Columns",
+          "apply": "Insert table",
+          "invalid": "Enter rows and columns from 1 to 20."
+        },
+        "cell": {
+          "label": "Cell text",
+          "text": "Text",
+          "apply": "Apply text",
+          "anchor_label": "Vertical align",
+          "anchor": {
+            "top": "Top",
+            "middle": "Middle",
+            "bottom": "Bottom"
+          }
+        },
+        "structure": {
+          "label": "Rows and columns",
+          "insert_row": "Insert row",
+          "delete_row": "Delete row",
+          "insert_col": "Insert column",
+          "delete_col": "Delete column",
+          "row_height": "Row height (px)",
+          "col_width": "Column width (px)",
+          "apply_size": "Apply size",
+          "size_invalid": "Enter a positive size."
+        },
+        "merge": {
+          "label": "Merge",
+          "right": "Merge right",
+          "down": "Merge down",
+          "split": "Split cell"
+        },
+        "style": {
+          "label": "Table style",
+          "group_label": "Table style gallery",
+          "apply": "Apply style {{name}}",
+          "active": "{{name}} (current style)",
+          "preset": {
+            "none": "No style",
+            "lightGrid": "Light grid",
+            "zebraBlue": "Banded blue",
+            "zebraGray": "Banded gray",
+            "headerDarkBlue": "Dark blue header",
+            "headerOrange": "Orange header",
+            "noBorder": "Minimal (no borders)",
+            "fullBorder": "All borders"
+          }
+        }
+      },
+      "media": {
+        "title": "Media",
+        "loading": "Loading the media tools...",
+        "empty": "Select a slide to insert media",
+        "busy": "Applying...",
+        "error_title": "The media change could not be applied",
+        "error_hint": "The document was not changed. {{message}}",
+        "unbound": "Media changes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "no_slide": "Select a slide to insert media.",
+        "video.insert": "Video",
+        "video.hint": "Insert an audio or video file from this device.",
+        "audio.insert": "Audio",
+        "audio.hint": "Insert an audio file from this device.",
+        "replace": "Replace media",
+        "replace_hint": "Swap the selected element's poster image.",
+        "no_target": "Select an audio or video element on the slide first.",
+        "remove": "Remove media",
+        "remove_hint": "Delete the selected media element from the slide.",
+        "unsupported": "{{ext}} is not a supported media format.",
+        "read_failed": "The file could not be read.",
+        "poster_label": "Poster frame",
+        "poster_choose": "Choose a poster image",
+        "poster_none": "No poster chosen; the engine generates a placeholder.",
+        "poster_selected": "Poster: {{name}}",
+        "poster_unsupported": "{{ext}} is not a supported poster image."
+      },
+      "format": {
+        "title": "Format",
+        "sections_label": "Format tools",
+        "loading": "Loading the format tools...",
+        "busy": "Applying...",
+        "empty": "Select an element to format it",
+        "unbound": "Format changes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "error_title": "The format change could not be applied",
+        "error_hint": "The document was not changed. {{message}}",
+        "invalid_color": "Enter a color as #RRGGBB.",
+        "invalid_number": "Enter a number greater than 0.",
+        "invalid_number_zero": "Enter a number of 0 or more.",
+        "fill_label": "Fill",
+        "fill": {
+          "solid": "Solid fill",
+          "gradient": "Gradient fill",
+          "none": "No fill"
+        },
+        "fill_color": "Fill color",
+        "gradient_from": "Gradient start color",
+        "gradient_to": "Gradient end color",
+        "gradient_angle": "Gradient angle in degrees",
+        "gradient_radial": "Radial gradient",
+        "line_label": "Line",
+        "line": {
+          "none": "No outline",
+          "solid": "Outline"
+        },
+        "line_color": "Outline color",
+        "line_width": "Outline width in points",
+        "line_dash": "Dash style",
+        "dash": {
+          "solid": "Solid",
+          "dash": "Dash",
+          "dot": "Dot",
+          "lgDash": "Long dash",
+          "lgDashDot": "Long dash dot",
+          "lgDashDotDot": "Long dash dot dot",
+          "sysDash": "System dash",
+          "sysDot": "System dot"
+        },
+        "effects_label": "Effects",
+        "shadow_label": "Shadow",
+        "shadow_on": "Drop shadow",
+        "shadow_color": "Shadow color",
+        "shadow_blur": "Shadow blur in points",
+        "shadow_dist": "Shadow distance in points",
+        "shadow_dir": "Shadow direction in degrees",
+        "shadow_inner": "Inner shadow",
+        "glow_label": "Glow",
+        "glow_on": "Glow",
+        "glow_color": "Glow color",
+        "glow_radius": "Glow radius in points",
+        "soft_edge_label": "Soft edge in points",
+        "geometry_label": "Shape geometry",
+        "geometry_prst": "Preset shape name",
+        "geometry_hint": "An OOXML preset name such as roundRect or ellipse.",
+        "adjust_label": "Shape adjustment",
+        "adjust_placeholder": "adj=0.25",
+        "adjust_hint": "One or more name=value pairs, separated by commas.",
+        "adjust_invalid": "Enter name=value pairs with numeric values, for example adj=0.25.",
+        "arrange_label": "Arrange",
+        "group": "Group",
+        "ungroup": "Ungroup",
+        "flip_h": "Flip horizontally",
+        "flip_v": "Flip vertically",
+        "align_label": "Align",
+        "align": {
+          "left": "Align left",
+          "centerH": "Align center",
+          "right": "Align right",
+          "top": "Align top",
+          "centerV": "Align middle",
+          "bottom": "Align bottom"
+        },
+        "align_to_label": "Align relative to",
+        "align_to_selection": "Selection",
+        "align_to_slide": "Slide",
+        "distribute_h": "Distribute horizontally",
+        "distribute_v": "Distribute vertically",
+        "need_two": "Select at least two elements.",
+        "need_three": "Select at least three elements.",
+        "need_group": "Select a single group to ungroup.",
+        "text_label": "Text",
+        "anchor_label": "Vertical anchor",
+        "anchor": {
+          "top": "Top",
+          "middle": "Middle",
+          "bottom": "Bottom"
+        },
+        "autofit_label": "Autofit",
+        "autofit": {
+          "none": "Do not autofit",
+          "shrink": "Shrink text on overflow",
+          "resize": "Resize shape to fit text"
+        },
+        "wrap": "Wrap text in shape",
+        "apply": "Apply"
+      }
+    },    "format": {
       "title": "Format",
       "sections_label": "Format tools",
       "loading": "Loading the format tools...",
@@ -7707,7 +8397,9 @@
     },
     "pdf": {
       "title": "PDF document",
-      "toolbar": { "label": "PDF editing commands" },
+      "toolbar": {
+        "label": "PDF editing commands"
+      },
       "actions": {
         "undo": "Undo",
         "redo": "Redo",
@@ -7726,30 +8418,63 @@
         "mergePages": "Merge pages",
         "annotations": "Annotations (separate from content editing)"
       },
-      "selection": { "none": "No page selected", "page": "Page {{page}}" },
-      "capabilityPending": "This PDF capability is not available in this engine build.",
-      "state": { "opening": "Opening PDF…", "error": "Could not open PDF" },
-      "saveState": {
-        "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork",
-        "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked",
-        "readonly": "Read-only", "incompatible": "Editing unavailable"
+      "selection": {
+        "none": "No page selected",
+        "page": "Page {{page}}"
       },
-      "surface": { "ready": "PDF canvas is ready for the host renderer.", "page": "Showing page {{page}} of {{count}}" },
+      "capabilityPending": "This PDF capability is not available in this engine build.",
+      "state": {
+        "opening": "Opening PDF…",
+        "error": "Could not open PDF"
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
+      "surface": {
+        "ready": "PDF canvas is ready for the host renderer.",
+        "page": "Showing page {{page}} of {{count}}"
+      },
       "pages": {
-        "label": "PDF pages", "title": "Pages", "page": "Page {{page}}", "moveUp": "Move up", "extract": "Extract", "empty": "No pages reported by the adapter."
+        "label": "PDF pages",
+        "title": "Pages",
+        "page": "Page {{page}}",
+        "moveUp": "Move up",
+        "extract": "Extract",
+        "empty": "No pages reported by the adapter."
       },
       "edit": {
-        "textLabel": "Replacement text", "textPlaceholder": "Enter replacement text", "applyText": "Apply text",
-        "imageLabel": "Provider asset id", "imagePlaceholder": "Enter provider asset id", "applyImage": "Replace image"
+        "textLabel": "Replacement text",
+        "textPlaceholder": "Enter replacement text",
+        "applyText": "Apply text",
+        "imageLabel": "Provider asset id",
+        "imagePlaceholder": "Enter provider asset id",
+        "applyImage": "Replace image"
       },
-      "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it." },
+      "fonts": {
+        "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it."
+      },
       "errors": {
-        "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",
-        "corrupted": "The PDF is corrupt or incomplete.", "password_cancelled": "The password prompt was cancelled.",
-        "password_required": "A password is required to open this PDF.", "wrong_password": "The password did not unlock this PDF.",
-        "unsupported_feature": "This PDF feature is not supported by the current engine.", "not_office_file": "The selected file is not a PDF document.",
-        "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
-        "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
+        "title": "This PDF could not be opened",
+        "unknown": "The PDF adapter returned an unknown open failure.",
+        "corrupted": "The PDF is corrupt or incomplete.",
+        "password_cancelled": "The password prompt was cancelled.",
+        "password_required": "A password is required to open this PDF.",
+        "wrong_password": "The password did not unlock this PDF.",
+        "unsupported_feature": "This PDF feature is not supported by the current engine.",
+        "not_office_file": "The selected file is not a PDF document.",
+        "engine_error": "The PDF engine could not open this document.",
+        "io_error": "The PDF could not be read from storage.",
+        "too_large": "This PDF is too large to open here.",
+        "capabilityUnavailable": "PDF editing is not available for this engine build.",
+        "editFailed": "The PDF edit could not be applied. Try again."
       }
     }
   },

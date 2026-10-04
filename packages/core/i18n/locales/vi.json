@@ -6328,7 +6328,15 @@
     }
   },
   "documents": {
-    "file_types": {"docx":"Tài liệu Word","xlsx":"Bảng tính Excel","pptx":"Bản trình bày PowerPoint","pdf":"Tài liệu PDF","md":"Tài liệu Markdown","html":"Tài liệu HTML","file":"Tệp"},
+    "file_types": {
+      "docx": "Tài liệu Word",
+      "xlsx": "Bảng tính Excel",
+      "pptx": "Bản trình bày PowerPoint",
+      "pdf": "Tài liệu PDF",
+      "md": "Tài liệu Markdown",
+      "html": "Tài liệu HTML",
+      "file": "Tệp"
+    },
     "page": {
       "title": "Tài liệu",
       "new_page": "Trang mới",
@@ -6409,19 +6417,58 @@
       "focus_end": "Tiếp tục viết cuối tài liệu",
       "toggle_task": "Đánh dấu việc: {{task}}",
       "blocks": {
-        "paragraph": { "label": "Văn bản", "description": "Đoạn văn bản thông thường" },
-        "heading1": { "label": "Tiêu đề 1", "description": "Tiêu đề lớn cho phần chính" },
-        "heading2": { "label": "Tiêu đề 2", "description": "Tiêu đề cho mục nội dung" },
-        "heading3": { "label": "Tiêu đề 3", "description": "Tiêu đề cho mục nhỏ" },
-        "bulletList": { "label": "Danh sách", "description": "Danh sách có dấu đầu dòng" },
-        "orderedList": { "label": "Danh sách số", "description": "Danh sách theo thứ tự" },
-        "taskList": { "label": "Việc cần làm", "description": "Theo dõi việc bằng ô đánh dấu" },
-        "blockquote": { "label": "Trích dẫn", "description": "Làm nổi bật một đoạn trích" },
-        "codeBlock": { "label": "Khối code", "description": "Đoạn mã có định dạng riêng" },
-        "horizontalRule": { "label": "Đường kẻ", "description": "Ngăn cách các phần nội dung" },
-        "table": { "label": "Bảng", "description": "Bảng 3 hàng và 3 cột" },
-        "image": { "label": "Ảnh", "description": "Chọn và tải ảnh lên tài liệu" },
-        "mention": { "label": "Nhắc tới", "description": "Nhắc tới người bằng @" }
+        "paragraph": {
+          "label": "Văn bản",
+          "description": "Đoạn văn bản thông thường"
+        },
+        "heading1": {
+          "label": "Tiêu đề 1",
+          "description": "Tiêu đề lớn cho phần chính"
+        },
+        "heading2": {
+          "label": "Tiêu đề 2",
+          "description": "Tiêu đề cho mục nội dung"
+        },
+        "heading3": {
+          "label": "Tiêu đề 3",
+          "description": "Tiêu đề cho mục nhỏ"
+        },
+        "bulletList": {
+          "label": "Danh sách",
+          "description": "Danh sách có dấu đầu dòng"
+        },
+        "orderedList": {
+          "label": "Danh sách số",
+          "description": "Danh sách theo thứ tự"
+        },
+        "taskList": {
+          "label": "Việc cần làm",
+          "description": "Theo dõi việc bằng ô đánh dấu"
+        },
+        "blockquote": {
+          "label": "Trích dẫn",
+          "description": "Làm nổi bật một đoạn trích"
+        },
+        "codeBlock": {
+          "label": "Khối code",
+          "description": "Đoạn mã có định dạng riêng"
+        },
+        "horizontalRule": {
+          "label": "Đường kẻ",
+          "description": "Ngăn cách các phần nội dung"
+        },
+        "table": {
+          "label": "Bảng",
+          "description": "Bảng 3 hàng và 3 cột"
+        },
+        "image": {
+          "label": "Ảnh",
+          "description": "Chọn và tải ảnh lên tài liệu"
+        },
+        "mention": {
+          "label": "Nhắc tới",
+          "description": "Nhắc tới người bằng @"
+        }
       }
     },
     "detail": {
@@ -7179,7 +7226,7 @@
       "stay": "Ở lại",
       "working": "Đang xử lý…",
       "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở.",
-      "timeout": "Y\u00eau c\u1ea7u r\u1eddi t\u00e0i li\u1ec7u \u0111\u00e3 h\u1ebft th\u1eddi gian. T\u00e0i li\u1ec7u v\u1eabn m\u1edf."
+      "timeout": "Yêu cầu rời tài liệu đã hết thời gian. Tài liệu vẫn mở."
     },
     "recovery": {
       "title": "Tìm thấy bản nháp",
@@ -7312,27 +7359,107 @@
     },
     "markdown": {
       "title": "Tài liệu Markdown",
-      "toolbar": { "label": "Lệnh chỉnh sửa Markdown" },
-      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
-      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
-      "source": { "label": "Mã nguồn Markdown" },
-      "preview": { "label": "Xem trước", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
-      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
-      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "toolbar": {
+        "label": "Lệnh chỉnh sửa Markdown"
+      },
+      "actions": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "copy": "Sao chép",
+        "paste": "Dán",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retry": "Thử lại"
+      },
+      "state": {
+        "opening": "Đang mở tài liệu…",
+        "error": "Không mở được tài liệu"
+      },
+      "source": {
+        "label": "Mã nguồn Markdown"
+      },
+      "preview": {
+        "label": "Xem trước",
+        "loading": "Đang tải xem trước…",
+        "unavailable": "Xem trước không khả dụng"
+      },
+      "asset": {
+        "label": "Tài sản",
+        "empty": "Tài liệu không có asset",
+        "ready": "Sẵn sàng",
+        "missing": "Thiếu",
+        "unauthorised": "Chưa được cấp quyền",
+        "failed": "Lỗi",
+        "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng."
+      },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
       "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa Markdown.",
-      "errors": { "title": "Không mở được tài liệu Markdown này", "unknown": "Adapter Markdown trả về lỗi mở không xác định." }
+      "errors": {
+        "title": "Không mở được tài liệu Markdown này",
+        "unknown": "Adapter Markdown trả về lỗi mở không xác định."
+      }
     },
     "html": {
       "title": "Tài liệu HTML",
-      "toolbar": { "label": "Lệnh chỉnh sửa HTML" },
-      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
-      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
-      "source": { "label": "Mã nguồn HTML" },
-      "preview": { "label": "Xem trước cách ly", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
-      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
-      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "toolbar": {
+        "label": "Lệnh chỉnh sửa HTML"
+      },
+      "actions": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "copy": "Sao chép",
+        "paste": "Dán",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retry": "Thử lại"
+      },
+      "state": {
+        "opening": "Đang mở tài liệu…",
+        "error": "Không mở được tài liệu"
+      },
+      "source": {
+        "label": "Mã nguồn HTML"
+      },
+      "preview": {
+        "label": "Xem trước cách ly",
+        "loading": "Đang tải xem trước…",
+        "unavailable": "Xem trước không khả dụng"
+      },
+      "asset": {
+        "label": "Tài sản",
+        "empty": "Tài liệu không có asset",
+        "ready": "Sẵn sàng",
+        "missing": "Thiếu",
+        "unauthorised": "Chưa được cấp quyền",
+        "failed": "Lỗi",
+        "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng."
+      },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
       "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa HTML.",
-      "errors": { "title": "Không mở được tài liệu HTML này", "unknown": "Adapter HTML trả về lỗi mở không xác định." }
+      "errors": {
+        "title": "Không mở được tài liệu HTML này",
+        "unknown": "Adapter HTML trả về lỗi mở không xác định."
+      }
     },
     "pptx": {
       "toolbar_label": "Lệnh PowerPoint",
@@ -7381,64 +7508,64 @@
       "find_unbound": "Chưa kết nối tìm kiếm cho trình chỉnh sửa này.",
       "find_matches": "{{value}} kết quả",
       "find_close": "Đóng tìm kiếm",
-        "find": {
-          "title": "Tìm và thay thế",
-          "label": "Tìm và thay thế",
-          "query_label": "Tìm",
-          "query_placeholder": "Tìm văn bản",
-          "replace_label": "Thay bằng",
-          "replace_placeholder": "Văn bản thay thế",
-          "hint": "Nhập để tìm trong bản trình bày",
-          "match_case": "Phân biệt chữ hoa chữ thường",
-          "matches": "{{value}} kết quả",
-          "no_matches": "Không có kết quả",
-          "hit_position": "Kết quả {{current}} trên {{total}}",
-          "hit_slide": "Trang {{index}}",
-          "next": "Tìm tiếp",
-          "previous": "Tìm lùi",
-          "replace_one": "Thay thế",
-          "replace_all": "Thay thế tất cả",
-          "busy": "Đang thay thế…",
-          "unbound": "Tìm và thay thế chưa được kết nối với trình soạn thảo này.",
-          "readonly": "Bản trình bày này chỉ đọc.",
-          "close": "Đóng tìm và thay thế",
-          "error_title": "Thay thế thất bại",
-          "error_hint": "Bản trình bày không thay đổi. {{message}}"
-        },
-        "links": {
-          "title": "Siêu liên kết",
-          "label": "Sửa siêu liên kết",
-          "mode_url": "Địa chỉ web",
-          "mode_slide": "Vị trí trong tài liệu",
-          "mode_action": "Hành động trình chiếu",
-          "mode_label": "Kiểu liên kết",
-          "url_label": "Địa chỉ",
-          "url_placeholder": "https://example.com",
-          "slide_label": "Đi tới trang",
-          "action_label": "Hành động",
-          "apply": "Áp dụng",
-          "remove": "Xoá liên kết",
-          "close": "Đóng",
-          "none": "Chưa có liên kết",
-          "url_summary": "Liên kết: {{url}}",
-          "slide_summary": "Tới trang {{index}}",
-          "invalid_url": "Nhập địa chỉ web, ví dụ https://example.com.",
-          "invalid_slide": "Chọn một trang trong bản trình bày.",
-          "invalid_action": "Chọn một hành động trình chiếu.",
-          "no_selection": "Chọn một phần tử để gắn liên kết.",
-          "unbound": "Siêu liên kết chưa được kết nối với trình soạn thảo này.",
-          "busy": "Đang áp dụng liên kết…",
-          "error_title": "Không áp dụng được liên kết",
-          "error_hint": "Bản trình bày không thay đổi. {{message}}",
-          "action": {
-            "nextslide": "Trang kế tiếp",
-            "previousslide": "Trang trước",
-            "firstslide": "Trang đầu",
-            "lastslide": "Trang cuối",
-            "lastslideviewed": "Trang vừa xem",
-            "endshow": "Kết thúc trình chiếu"
-          }
-        },
+      "find": {
+        "title": "Tìm và thay thế",
+        "label": "Tìm và thay thế",
+        "query_label": "Tìm",
+        "query_placeholder": "Tìm văn bản",
+        "replace_label": "Thay bằng",
+        "replace_placeholder": "Văn bản thay thế",
+        "hint": "Nhập để tìm trong bản trình bày",
+        "match_case": "Phân biệt chữ hoa chữ thường",
+        "matches": "{{value}} kết quả",
+        "no_matches": "Không có kết quả",
+        "hit_position": "Kết quả {{current}} trên {{total}}",
+        "hit_slide": "Trang {{index}}",
+        "next": "Tìm tiếp",
+        "previous": "Tìm lùi",
+        "replace_one": "Thay thế",
+        "replace_all": "Thay thế tất cả",
+        "busy": "Đang thay thế…",
+        "unbound": "Tìm và thay thế chưa được kết nối với trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "close": "Đóng tìm và thay thế",
+        "error_title": "Thay thế thất bại",
+        "error_hint": "Bản trình bày không thay đổi. {{message}}"
+      },
+      "links": {
+        "title": "Siêu liên kết",
+        "label": "Sửa siêu liên kết",
+        "mode_url": "Địa chỉ web",
+        "mode_slide": "Vị trí trong tài liệu",
+        "mode_action": "Hành động trình chiếu",
+        "mode_label": "Kiểu liên kết",
+        "url_label": "Địa chỉ",
+        "url_placeholder": "https://example.com",
+        "slide_label": "Đi tới trang",
+        "action_label": "Hành động",
+        "apply": "Áp dụng",
+        "remove": "Xoá liên kết",
+        "close": "Đóng",
+        "none": "Chưa có liên kết",
+        "url_summary": "Liên kết: {{url}}",
+        "slide_summary": "Tới trang {{index}}",
+        "invalid_url": "Nhập địa chỉ web, ví dụ https://example.com.",
+        "invalid_slide": "Chọn một trang trong bản trình bày.",
+        "invalid_action": "Chọn một hành động trình chiếu.",
+        "no_selection": "Chọn một phần tử để gắn liên kết.",
+        "unbound": "Siêu liên kết chưa được kết nối với trình soạn thảo này.",
+        "busy": "Đang áp dụng liên kết…",
+        "error_title": "Không áp dụng được liên kết",
+        "error_hint": "Bản trình bày không thay đổi. {{message}}",
+        "action": {
+          "nextslide": "Trang kế tiếp",
+          "previousslide": "Trang trước",
+          "firstslide": "Trang đầu",
+          "lastslide": "Trang cuối",
+          "lastslideviewed": "Trang vừa xem",
+          "endshow": "Kết thúc trình chiếu"
+        }
+      },
       "text": {
         "target_label": "Nháy đúp để sửa văn bản này",
         "editor_label": "Sửa văn bản trang chiếu",
@@ -7476,8 +7603,12 @@
         "review": "Xem lại",
         "view": "Xem"
       },
-      "state": { "opening": "Đang mở bản trình bày…" },
-      "errors": { "capabilityUnavailable": "Không thể nạp trình chỉnh sửa bản trình bày trên trình duyệt này." },
+      "state": {
+        "opening": "Đang mở bản trình bày…"
+      },
+      "errors": {
+        "capabilityUnavailable": "Không thể nạp trình chỉnh sửa bản trình bày trên trình duyệt này."
+      },
       "commands": {
         "open": "Mở",
         "edit_text": "Văn bản",
@@ -7496,58 +7627,57 @@
         "redo": "Làm lại",
         "presenter": "Trình bày",
         "fullscreen": "Toàn màn hình"
-        },
-        "context": {
-          "picture": "Định dạng ảnh",
-          "shape": "Định dạng hình",
-          "table": "Thiết kế bảng"
-        },
-        "context_menu": {
-          "cut": "Cắt",
-          "copy": "Sao chép",
-          "paste": "Dán",
-          "delete": "Xóa",
-          "bring_to_front": "Đưa lên trên cùng",
-          "send_to_back": "Đưa xuống dưới cùng",
-          "edit_text": "Sửa văn bản",
-          "insert": "Chèn",
-          "reason_unavailable": "Không dùng được ở bề mặt này",
-          "reason_readonly": "Bản trình bày này chỉ để đọc",
-          "reason_no_slide": "Chọn một trang trước",
-          "reason_pending": "Đợi thay đổi hiện tại hoàn tất",
-          "reason_no_selection": "Chọn một phần tử trước",
-          "reason_clipboard_unbound": "Trình dựng bản trình bày này chưa hỗ trợ sao chép và dán",
-          "reason_delete_unbound": "Chưa nối chức năng xóa vào trình soạn thảo này",
-          "reason_reorder_unbound": "Chưa nối thay đổi thứ tự lớp vào trình soạn thảo này",
-          "reason_edit_text_unbound": "Chưa nối sửa văn bản vào trình soạn thảo này",
-          "reason_insert_unbound": "Chưa nối chức năng chèn vào trình soạn thảo này"
-        },
-        "shortcuts": {
-          "title": "Phím tắt",
-          "description": "Các phím dùng trên vùng trang chiếu.",
-          "close": "Đóng",
-          "group_editing": "Chỉnh sửa",
-          "group_view": "Xem",
-          "group_navigation": "Điều hướng",
-          "undo": "Hoàn tác",
-          "redo": "Làm lại",
-          "save": "Lưu",
-          "find": "Tìm",
-          "edit_text": "Sửa văn bản đang chọn",
-          "select_all": "Chọn mọi phần tử",
-          "delete_selection": "Xóa phần đang chọn",
-          "next_slide": "Trang sau",
-          "previous_slide": "Trang trước",
-          "dismiss": "Bỏ chọn",
-          "help": "Mở trợ giúp này"
-        },
-        "print": {
-          "title": "In bản trình bày",
-          "slide_label": "Trang chiếu {{index}}",
-          "failed": "Không thể in bản trình bày.",
-          "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại."
-        }
-      ,
+      },
+      "context": {
+        "picture": "Định dạng ảnh",
+        "shape": "Định dạng hình",
+        "table": "Thiết kế bảng"
+      },
+      "context_menu": {
+        "cut": "Cắt",
+        "copy": "Sao chép",
+        "paste": "Dán",
+        "delete": "Xóa",
+        "bring_to_front": "Đưa lên trên cùng",
+        "send_to_back": "Đưa xuống dưới cùng",
+        "edit_text": "Sửa văn bản",
+        "insert": "Chèn",
+        "reason_unavailable": "Không dùng được ở bề mặt này",
+        "reason_readonly": "Bản trình bày này chỉ để đọc",
+        "reason_no_slide": "Chọn một trang trước",
+        "reason_pending": "Đợi thay đổi hiện tại hoàn tất",
+        "reason_no_selection": "Chọn một phần tử trước",
+        "reason_clipboard_unbound": "Trình dựng bản trình bày này chưa hỗ trợ sao chép và dán",
+        "reason_delete_unbound": "Chưa nối chức năng xóa vào trình soạn thảo này",
+        "reason_reorder_unbound": "Chưa nối thay đổi thứ tự lớp vào trình soạn thảo này",
+        "reason_edit_text_unbound": "Chưa nối sửa văn bản vào trình soạn thảo này",
+        "reason_insert_unbound": "Chưa nối chức năng chèn vào trình soạn thảo này"
+      },
+      "shortcuts": {
+        "title": "Phím tắt",
+        "description": "Các phím dùng trên vùng trang chiếu.",
+        "close": "Đóng",
+        "group_editing": "Chỉnh sửa",
+        "group_view": "Xem",
+        "group_navigation": "Điều hướng",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu",
+        "find": "Tìm",
+        "edit_text": "Sửa văn bản đang chọn",
+        "select_all": "Chọn mọi phần tử",
+        "delete_selection": "Xóa phần đang chọn",
+        "next_slide": "Trang sau",
+        "previous_slide": "Trang trước",
+        "dismiss": "Bỏ chọn",
+        "help": "Mở trợ giúp này"
+      },
+      "print": {
+        "title": "In bản trình bày",
+        "slide_label": "Trang chiếu {{index}}",
+        "failed": "Không thể in bản trình bày.",
+        "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại."
+      },
       "charts": {
         "title": "Biểu đồ",
         "loading": "Đang tải công cụ biểu đồ...",
@@ -7608,8 +7738,568 @@
           "pie3D": "Tròn 3-D",
           "bar3D": "Cột 3-D"
         }
-      }},
-    "format": {
+      },
+      "headerfooter": {
+        "title": "Đầu trang và chân trang",
+        "loading": "Đang tải tuỳ chọn đầu trang và chân trang...",
+        "empty": "Mở một bản trình bày để thêm đầu trang hoặc chân trang",
+        "busy": "Đang áp dụng...",
+        "error_title": "Không thể áp dụng đầu trang và chân trang",
+        "error_hint": "Tài liệu chưa bị thay đổi. {{message}}",
+        "unbound": "Thay đổi đầu trang và chân trang chưa được kết nối với trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "footer_label": "Nội dung chân trang",
+        "footer_placeholder": "Nội dung hiển thị ở cuối mỗi trang",
+        "slide_number_label": "Số trang",
+        "slide_number_hint": "Hiển thị số trang trên mọi trang",
+        "date_label": "Ngày",
+        "date_placeholder": "Nội dung ngày",
+        "date_auto_label": "Tự động cập nhật",
+        "date_auto_hint": "Dùng trường ngày mà PowerPoint tự làm mới khi mở tệp",
+        "apply": "Áp dụng cho tất cả",
+        "reset": "Xoá tất cả",
+        "reset_hint": "Xoá chân trang, ngày và số trang khỏi mọi trang",
+        "invalid_text": "Giữ nội dung dưới {{max}} ký tự.",
+        "no_changes": "Hãy thêm chân trang, ngày hoặc số trang trước."
+      },
+      "design": {
+        "title": "Thiết kế",
+        "loading": "Đang tải các tuỳ chọn thiết kế...",
+        "empty": "Mở một bản trình bày để thay đổi thiết kế",
+        "busy": "Đang áp dụng...",
+        "error_title": "Không thể áp dụng thay đổi thiết kế",
+        "error_hint": "Tài liệu chưa bị thay đổi. {{message}}",
+        "unbound": "Thay đổi thiết kế chưa được kết nối với trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "themes_label": "Chủ đề",
+        "theme_group_label": "Thư viện chủ đề",
+        "theme_apply": "Áp dụng chủ đề {{name}}",
+        "theme_active": "{{name}} (chủ đề hiện tại)",
+        "theme": {
+          "office": "Office",
+          "slate": "Đá phiến",
+          "forest": "Rừng xanh",
+          "ember": "Than hồng",
+          "indigo": "Chàm",
+          "midnight": "Nửa đêm"
+        },
+        "slide_size_label": "Kích thước trang",
+        "size_group_label": "Kích thước trang có sẵn",
+        "size": {
+          "16_9": "Màn hình rộng (16:9)",
+          "4_3": "Tiêu chuẩn (4:3)",
+          "custom": "Tuỳ chỉnh ({{width}} x {{height}} in)"
+        },
+        "layout_label": "Bố cục",
+        "layout_group_label": "Bố cục trang",
+        "layout_empty": "Bản trình bày này không có bố cục nào",
+        "layout_apply": "Dùng bố cục {{name}}",
+        "layout_reset": "Đặt lại về bố cục trang cái",
+        "background_label": "Nền",
+        "background_open": "Định dạng nền",
+        "background_title": "Định dạng nền",
+        "background_description": "Đặt kiểu nền cho trang đang chọn hoặc cho mọi trang.",
+        "background_close": "Đóng",
+        "fill_group_label": "Kiểu nền",
+        "fill": {
+          "solid": "Màu đơn",
+          "gradient": "Chuyển sắc",
+          "image": "Hình ảnh"
+        },
+        "solid_color": "Màu nền",
+        "gradient_from": "Màu bắt đầu",
+        "gradient_to": "Màu kết thúc",
+        "gradient_angle": "Góc chuyển sắc (độ)",
+        "gradient_radial": "Chuyển sắc toả tròn",
+        "image_choose": "Chọn hình ảnh",
+        "image_tile": "Lát hình ảnh",
+        "image_none": "Chưa chọn hình ảnh",
+        "image_selected": "Đã chọn hình ảnh: {{name}}",
+        "image_read_failed": "Không đọc được hình ảnh.",
+        "hide_graphics": "Ẩn hình nền của trang cái",
+        "apply_to_all": "Áp dụng cho mọi trang",
+        "apply_to_all_hint": "Dùng nền này cho tất cả {{total}} trang",
+        "reset": "Đặt lại nền",
+        "reset_hint": "Khôi phục nền của bố cục hoặc trang cái",
+        "invalid_color": "Nhập màu theo dạng #RRGGBB.",
+        "apply": "Áp dụng"
+      },
+      "sorter": {
+        "title": "Sắp xếp trang chiếu",
+        "label": "Bảng sắp xếp trang chiếu",
+        "grid_label": "Trang chiếu",
+        "actions_label": "Thao tác trang chiếu",
+        "slide_label": "Trang chiếu {{index}}{{label}}",
+        "slide_hidden": "Đang ẩn",
+        "loading": "Đang tải trang chiếu…",
+        "error_title": "Không tải được bảng sắp xếp trang chiếu",
+        "error_hint": "Bản trình bày không thay đổi. {{message}}",
+        "unbound": "Chưa mở bản trình bày nào.",
+        "empty": "Bản trình bày này chưa có trang chiếu.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "pending": "Đang áp dụng thay đổi trang chiếu…",
+        "no_selection": "Chọn một trang chiếu để thao tác.",
+        "selected": "Đang chọn: trang chiếu {{index}}",
+        "new": "Trang chiếu mới",
+        "new_label": "Trang chiếu mới theo bố cục",
+        "layouts_unavailable": "Bản trình bày này không có bố cục khả dụng.",
+        "layouts_empty": "Bản trình bày này không có bố cục nào.",
+        "duplicate": "Nhân bản trang chiếu",
+        "delete": "Xoá trang chiếu",
+        "hide": "Ẩn trang chiếu",
+        "show": "Hiện trang chiếu",
+        "move_hint": "Kéo một trang chiếu để đổi thứ tự, hoặc dùng phím mũi tên trên tay nắm kéo.",
+        "drag_handle": "Đổi thứ tự trang chiếu {{index}}",
+        "disabled_unbound": "Mở bản trình bày trước khi dùng bảng sắp xếp.",
+        "disabled_readonly": "Bản trình bày chỉ đọc nên không thể thay đổi trang chiếu.",
+        "disabled_pending": "Một thay đổi trang chiếu đang được áp dụng.",
+        "disabled_empty": "Không có trang chiếu để thao tác.",
+        "disabled_last_slide": "Không thể xoá trang chiếu cuối cùng."
+      },
+      "sections": {
+        "title": "Phần",
+        "label": "Các phần của bản trình bày",
+        "none": "Chưa có phần nào — toàn bộ bản trình bày là một nhóm.",
+        "unsectioned": "Trang chiếu chưa vào phần",
+        "range": "Trang chiếu {{start}}–{{end}}",
+        "count_one": "{{count}} phần",
+        "count_other": "{{count}} phần",
+        "add": "Thêm phần",
+        "add_at": "Thêm phần bắt đầu từ trang chiếu {{index}}",
+        "default_name": "Phần {{index}}",
+        "rename": "Đổi tên phần {{name}}",
+        "rename_label": "Tên phần",
+        "rename_save": "Lưu tên phần",
+        "rename_cancel": "Huỷ đổi tên",
+        "rename_empty": "Tên phần không được để trống.",
+        "remove": "Xoá phần {{name}}",
+        "move_up": "Chuyển phần {{name}} lên",
+        "move_down": "Chuyển phần {{name}} xuống",
+        "select_group": "Chọn trang chiếu {{index}} trong phần {{name}}"
+      },
+      "insert": {
+        "title": "Chèn",
+        "sections_label": "Công cụ chèn",
+        "loading": "Đang tải công cụ chèn…",
+        "busy": "Đang áp dụng thao tác chèn…",
+        "no_slide": "Chọn một trang chiếu để chèn.",
+        "disabled_hint": "Không thể chèn khi trình soạn thảo đang bận.",
+        "close": "Đóng",
+        "error_title": "Chèn thất bại",
+        "shapes": {
+          "title": "Hình dạng",
+          "description": "Chèn một hình dựng sẵn vào trang chiếu hiện tại.",
+          "open": "Hình dạng",
+          "gallery_label": "Thư viện hình dạng",
+          "group": {
+            "lines": "Đường",
+            "rects": "Hình chữ nhật",
+            "basic": "Hình cơ bản",
+            "arrows": "Mũi tên khối",
+            "stars": "Ngôi sao và băng rôn",
+            "flowchart": "Lưu đồ",
+            "callouts": "Chú thích"
+          },
+          "prst": {
+            "line": "Đường thẳng",
+            "lineArrow": "Mũi tên",
+            "lineArrowDouble": "Mũi tên hai đầu",
+            "lineBent": "Đường nối gấp khúc",
+            "lineCurved": "Đường nối cong",
+            "rect": "Hình chữ nhật",
+            "roundRect": "Hình chữ nhật bo góc",
+            "snip1Rect": "Cắt một góc",
+            "snipRoundRect": "Cắt góc và bo tròn",
+            "ellipse": "Hình elip",
+            "triangle": "Tam giác cân",
+            "rtTriangle": "Tam giác vuông",
+            "diamond": "Hình thoi",
+            "pentagon": "Ngũ giác",
+            "hexagon": "Lục giác",
+            "octagon": "Bát giác",
+            "parallelogram": "Hình bình hành",
+            "trapezoid": "Hình thang",
+            "plus": "Hình chữ thập",
+            "donut": "Hình vành khuyên",
+            "blockArc": "Cung khối",
+            "heart": "Hình trái tim",
+            "sun": "Mặt trời",
+            "cloud": "Đám mây",
+            "lightningBolt": "Tia chớp",
+            "rightArrow": "Mũi tên phải",
+            "leftArrow": "Mũi tên trái",
+            "upArrow": "Mũi tên lên",
+            "downArrow": "Mũi tên xuống",
+            "leftRightArrow": "Mũi tên trái-phải",
+            "upDownArrow": "Mũi tên lên-xuống",
+            "chevron": "Hình chữ V",
+            "homePlate": "Mũi tên ngũ giác",
+            "star4": "Sao 4 cánh",
+            "star5": "Sao 5 cánh",
+            "star6": "Sao 6 cánh",
+            "star8": "Sao 8 cánh",
+            "star12": "Sao 12 cánh",
+            "ribbon": "Băng rôn",
+            "flowChartProcess": "Xử lý",
+            "flowChartDecision": "Quyết định",
+            "flowChartTerminator": "Bắt đầu/Kết thúc",
+            "flowChartDocument": "Tài liệu",
+            "flowChartConnector": "Điểm nối",
+            "wedgeRectCallout": "Chú thích chữ nhật",
+            "wedgeRoundRectCallout": "Chú thích bo góc",
+            "wedgeEllipseCallout": "Chú thích elip",
+            "cloudCallout": "Chú thích đám mây"
+          }
+        },
+        "text_box": {
+          "title": "Hộp văn bản",
+          "insert": "Hộp văn bản",
+          "hint": "Thêm một hộp văn bản trống để bạn nhập nội dung."
+        },
+        "image": {
+          "title": "Hình ảnh",
+          "insert": "Hình ảnh",
+          "choose": "Chọn tệp hình ảnh",
+          "replace": "Thay hình ảnh",
+          "replace_hint": "Đổi tệp ảnh của hình đang chọn.",
+          "no_target": "Chọn một hình ảnh trên trang chiếu để thay thế.",
+          "unsupported": "{{ext}} không phải định dạng ảnh được hỗ trợ.",
+          "read_failed": "Không đọc được hình ảnh."
+        },
+        "wordart": {
+          "title": "WordArt",
+          "insert": "Chèn WordArt",
+          "description": "Chèn chữ trang trí theo kiểu dựng sẵn.",
+          "open": "WordArt",
+          "text_label": "Nội dung",
+          "text_placeholder": "Nội dung của bạn",
+          "preset": {
+            "blue": "Xanh dương, đậm",
+            "gold": "Vàng, đậm",
+            "red": "Đỏ, đậm",
+            "purple": "Tím, đậm"
+          }
+        },
+        "connector": {
+          "title": "Đường nối",
+          "hint": "Gắn đường nối vào hai hình để đường nối đi theo chúng.",
+          "kind_label": "Kiểu đường nối",
+          "kind": {
+            "straight": "Thẳng",
+            "elbow": "Gấp khúc",
+            "curved": "Cong"
+          },
+          "from_label": "Hình bắt đầu",
+          "to_label": "Hình kết thúc",
+          "arrow_label": "Đầu mũi tên",
+          "arrow": {
+            "none": "Không",
+            "end": "Cuối",
+            "both": "Cả hai"
+          },
+          "insert": "Thêm đường nối",
+          "empty": "Thêm ít nhất hai hình để nối chúng.",
+          "pick_both": "Chọn hai hình khác nhau."
+        },
+        "group": {
+          "title": "Nhóm",
+          "apply": "Nhóm phần đang chọn",
+          "hint": "Nhóm các thành phần đang chọn để chúng di chuyển cùng nhau.",
+          "need_two": "Chọn ít nhất hai thành phần để nhóm."
+        }
+      },
+      "animations": {
+        "panel_label": "Hoạt ảnh",
+        "list_label": "Thứ tự hoạt ảnh",
+        "list_hint": "Các hiệu ứng chạy từ trên xuống dưới.",
+        "empty": "Trang này chưa có hoạt ảnh",
+        "empty_hint": "Thêm hiệu ứng để tạo hoạt ảnh cho hình hoặc văn bản.",
+        "no_slide": "Chọn một trang để xem hoạt ảnh của trang đó.",
+        "no_target": "Chọn một hình hoặc hộp văn bản để thêm hoạt ảnh.",
+        "loading": "Đang đọc hoạt ảnh của trang…",
+        "error_title": "Không đọc được hoạt ảnh của trang",
+        "error_hint": "Bản trình bày không thay đổi. {{message}}",
+        "retry": "Thử lại",
+        "unbound": "Hoạt ảnh chưa được nối vào trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ để đọc.",
+        "pending": "Đang áp dụng thay đổi hoạt ảnh…",
+        "add_label": "Thêm hoạt ảnh",
+        "add_hint": "Thêm hiệu ứng vào hình đang chọn.",
+        "effect_label": "Hiệu ứng",
+        "trigger_label": "Bắt đầu",
+        "duration_label": "Thời lượng (giây)",
+        "delay_label": "Độ trễ (giây)",
+        "timing_invalid": "Nhập số giây từ 0 trở lên.",
+        "move_up": "Di chuyển lên",
+        "move_down": "Di chuyển xuống",
+        "remove": "Xóa hoạt ảnh",
+        "preview": "Xem trước",
+        "preview_unbound": "Xem trước chưa được nối vào trình soạn thảo này.",
+        "step": "Bước {{n}}",
+        "auto_step": "Tự động",
+        "row_aria": "{{effect}}, bắt đầu {{trigger}}",
+        "row_timing": "{{trigger}} · {{duration}}",
+        "class": {
+          "entrance": "Xuất hiện",
+          "emphasis": "Nhấn mạnh",
+          "exit": "Biến mất",
+          "path": "Đường chuyển động"
+        },
+        "trigger": {
+          "onClick": "Khi bấm",
+          "withPrev": "Cùng hiệu ứng trước",
+          "afterPrev": "Sau hiệu ứng trước"
+        },
+        "effect": {
+          "appear": "Xuất hiện",
+          "fade": "Mờ dần",
+          "flyIn": "Bay vào",
+          "wipe": "Quét",
+          "wipeDown": "Quét xuống",
+          "splitIn": "Tách",
+          "bounce": "Nảy",
+          "flipIn": "Lật vào",
+          "zoom": "Thu phóng",
+          "pulse": "Nhịp",
+          "spin": "Xoay",
+          "grow": "Phóng to",
+          "teeter": "Lắc lư",
+          "disappear": "Biến mất",
+          "fadeOut": "Mờ đi",
+          "flyOut": "Bay ra",
+          "wipeOut": "Quét ra",
+          "shrink": "Thu nhỏ",
+          "zoomOut": "Thu nhỏ dần",
+          "motionPath": "Đường chuyển động"
+        }
+      },
+      "transitions": {
+        "panel_label": "Chuyển tiếp",
+        "gallery_label": "Thư viện chuyển tiếp",
+        "gallery_hint": "Chọn hiệu ứng chuyển tiếp cho trang hiện tại.",
+        "current": "Chuyển tiếp hiện tại: {{name}}",
+        "apply_to_all": "Áp dụng cho tất cả trang",
+        "advance_label": "Chuyển trang",
+        "advance_off": "Khi bấm chuột",
+        "advance_on": "Tự động sau",
+        "advance_seconds": "Giây",
+        "advance_invalid": "Nhập số giây từ 0 trở lên.",
+        "no_slide": "Chọn một trang để đặt hiệu ứng chuyển tiếp.",
+        "loading": "Đang đọc hiệu ứng chuyển tiếp…",
+        "error_title": "Không đọc được hiệu ứng chuyển tiếp",
+        "error_hint": "Bản trình bày không thay đổi. {{message}}",
+        "retry": "Thử lại",
+        "unbound": "Chuyển tiếp chưa được nối vào trình soạn thảo này.",
+        "pending": "Đang áp dụng hiệu ứng chuyển tiếp…",
+        "readonly": "Bản trình bày này chỉ để đọc.",
+        "kind": {
+          "none": "Không",
+          "morph": "Biến hình",
+          "fade": "Mờ dần",
+          "push": "Đẩy",
+          "wipe": "Quét",
+          "split": "Tách",
+          "circle": "Vòng tròn",
+          "cover": "Che phủ",
+          "pull": "Kéo",
+          "dissolve": "Tan",
+          "zoom": "Thu phóng",
+          "random": "Ngẫu nhiên"
+        }
+      },
+      "tables": {
+        "title": "Bảng",
+        "loading": "Đang tải tuỳ chọn bảng...",
+        "empty": "Chọn một bảng để chỉnh sửa",
+        "busy": "Đang áp dụng...",
+        "error_title": "Không thể áp dụng thay đổi bảng",
+        "error_hint": "Tài liệu chưa bị thay đổi. {{message}}",
+        "unbound": "Thay đổi bảng chưa được kết nối với trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "no_table": "Chọn một bảng trên trang chiếu để chỉnh sửa.",
+        "no_cell": "Chọn một ô trong bảng.",
+        "target": "Bảng {{rows}} x {{cols}}",
+        "cell_label": "Ô ({{row}}, {{col}})",
+        "insert": {
+          "label": "Chèn bảng",
+          "rows": "Số hàng",
+          "cols": "Số cột",
+          "apply": "Chèn bảng",
+          "invalid": "Nhập số hàng và số cột từ 1 đến 20."
+        },
+        "cell": {
+          "label": "Nội dung ô",
+          "text": "Văn bản",
+          "apply": "Áp dụng",
+          "anchor_label": "Căn dọc",
+          "anchor": {
+            "top": "Trên",
+            "middle": "Giữa",
+            "bottom": "Dưới"
+          }
+        },
+        "structure": {
+          "label": "Hàng và cột",
+          "insert_row": "Thêm hàng",
+          "delete_row": "Xóa hàng",
+          "insert_col": "Thêm cột",
+          "delete_col": "Xóa cột",
+          "row_height": "Chiều cao hàng (px)",
+          "col_width": "Chiều rộng cột (px)",
+          "apply_size": "Áp dụng kích thước",
+          "size_invalid": "Nhập kích thước lớn hơn 0."
+        },
+        "merge": {
+          "label": "Gộp ô",
+          "right": "Gộp sang phải",
+          "down": "Gộp xuống",
+          "split": "Tách ô"
+        },
+        "style": {
+          "label": "Kiểu bảng",
+          "group_label": "Thư viện kiểu bảng",
+          "apply": "Áp dụng kiểu {{name}}",
+          "active": "{{name}} (kiểu hiện tại)",
+          "preset": {
+            "none": "Không kiểu",
+            "lightGrid": "Lưới sáng",
+            "zebraBlue": "Sọc xanh dương",
+            "zebraGray": "Sọc xám",
+            "headerDarkBlue": "Đầu bảng xanh đậm",
+            "headerOrange": "Đầu bảng cam",
+            "noBorder": "Tối giản (không viền)",
+            "fullBorder": "Tất cả viền"
+          }
+        }
+      },
+      "media": {
+        "title": "Phương tiện",
+        "loading": "Đang tải công cụ phương tiện...",
+        "empty": "Chọn một trang chiếu để chèn phương tiện",
+        "busy": "Đang áp dụng...",
+        "error_title": "Không thể áp dụng thay đổi phương tiện",
+        "error_hint": "Tài liệu chưa bị thay đổi. {{message}}",
+        "unbound": "Thay đổi phương tiện chưa được kết nối với trình soạn thảo này.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "no_slide": "Chọn một trang chiếu để chèn phương tiện.",
+        "video.insert": "Video",
+        "video.hint": "Chèn tệp âm thanh hoặc video từ thiết bị này.",
+        "audio.insert": "Âm thanh",
+        "audio.hint": "Chèn tệp âm thanh từ thiết bị này.",
+        "replace": "Thay phương tiện",
+        "replace_hint": "Đổi ảnh xem trước của phần tử đang chọn.",
+        "no_target": "Chọn một phần tử âm thanh hoặc video trên trang chiếu trước.",
+        "remove": "Xóa phương tiện",
+        "remove_hint": "Xóa phần tử phương tiện đang chọn khỏi trang chiếu.",
+        "unsupported": "{{ext}} không phải định dạng phương tiện được hỗ trợ.",
+        "read_failed": "Không đọc được tệp.",
+        "poster_label": "Ảnh xem trước",
+        "poster_choose": "Chọn ảnh xem trước",
+        "poster_none": "Chưa chọn ảnh xem trước; bộ máy sẽ tạo ảnh tạm.",
+        "poster_selected": "Ảnh xem trước: {{name}}",
+        "poster_unsupported": "{{ext}} không phải ảnh xem trước được hỗ trợ."
+      },
+      "format": {
+        "title": "Äá»‹nh dáº¡ng",
+        "sections_label": "CÃ´ng cá»¥ Ä‘á»‹nh dáº¡ng",
+        "loading": "Äang táº£i cÃ´ng cá»¥ Ä‘á»‹nh dáº¡ng...",
+        "busy": "Äang Ã¡p dá»¥ng...",
+        "empty": "Chá»n má»™t Ä‘á»‘i tÆ°á»£ng Ä‘á»ƒ Ä‘á»‹nh dáº¡ng",
+        "unbound": "Thay Ä‘á»•i Ä‘á»‹nh dáº¡ng chÆ°a Ä‘Æ°á»£c káº¿t ná»‘i vá»›i trÃ¬nh soáº¡n tháº£o nÃ y.",
+        "readonly": "Báº£n trÃ¬nh bÃ y nÃ y chá»‰ Ä‘á»c.",
+        "error_title": "KhÃ´ng thá»ƒ Ã¡p dá»¥ng thay Ä‘á»•i Ä‘á»‹nh dáº¡ng",
+        "error_hint": "TÃ i liá»‡u chÆ°a bá»‹ thay Ä‘á»•i. {{message}}",
+        "invalid_color": "Nháºp mÃ u theo dáº¡ng #RRGGBB.",
+        "invalid_number": "Nháºp má»™t sá»‘ lá»›n hÆ¡n 0.",
+        "invalid_number_zero": "Nháºp má»™t sá»‘ tá»« 0 trá»Ÿ lÃªn.",
+        "fill_label": "MÃ u ná»n",
+        "fill": {
+          "solid": "MÃ u Ä‘Æ¡n",
+          "gradient": "Chuyá»ƒn sáº¯c",
+          "none": "KhÃ´ng cÃ³ mÃ u ná»n"
+        },
+        "fill_color": "MÃ u ná»n",
+        "gradient_from": "MÃ u báº¯t Ä‘áº§u",
+        "gradient_to": "MÃ u káº¿t thÃºc",
+        "gradient_angle": "GÃ³c chuyá»ƒn sáº¯c (Ä‘á»™)",
+        "gradient_radial": "Chuyá»ƒn sáº¯c toáº£ trÃ²n",
+        "line_label": "ÄÆ°á»ng viá»n",
+        "line": {
+          "none": "KhÃ´ng cÃ³ Ä‘Æ°á»ng viá»n",
+          "solid": "ÄÆ°á»ng viá»n"
+        },
+        "line_color": "MÃ u Ä‘Æ°á»ng viá»n",
+        "line_width": "Äá»™ dÃ y Ä‘Æ°á»ng viá»n (Ä‘iá»ƒm)",
+        "line_dash": "Kiá»ƒu nÃ©t",
+        "dash": {
+          "solid": "Liá»n",
+          "dash": "Gáº¡ch",
+          "dot": "Cháº¥m",
+          "lgDash": "Gáº¡ch dÃ i",
+          "lgDashDot": "Gáº¡ch dÃ i cháº¥m",
+          "lgDashDotDot": "Gáº¡ch dÃ i hai cháº¥m",
+          "sysDash": "Gáº¡ch há»‡ thá»‘ng",
+          "sysDot": "Cháº¥m há»‡ thá»‘ng"
+        },
+        "effects_label": "Hiá»‡u á»©ng",
+        "shadow_label": "Äá»• bÃ³ng",
+        "shadow_on": "Äá»• bÃ³ng",
+        "shadow_color": "MÃ u bÃ³ng",
+        "shadow_blur": "Äá»™ má» bÃ³ng (Ä‘iá»ƒm)",
+        "shadow_dist": "Khoáº£ng cÃ¡ch bÃ³ng (Ä‘iá»ƒm)",
+        "shadow_dir": "HÆ°á»›ng bÃ³ng (Ä‘á»™)",
+        "shadow_inner": "BÃ³ng trong",
+        "glow_label": "PhÃ¡t sÃ¡ng",
+        "glow_on": "PhÃ¡t sÃ¡ng",
+        "glow_color": "MÃ u phÃ¡t sÃ¡ng",
+        "glow_radius": "BÃ¡n kÃnh phÃ¡t sÃ¡ng (Ä‘iá»ƒm)",
+        "soft_edge_label": "LÃ m má» cÃ²n (Ä‘iá»ƒm)",
+        "geometry_label": "HÃ¬nh dáº¡ng hÃ¬nh há»c",
+        "geometry_prst": "TÃªn hÃ¬nh dá»±ng sáºµn",
+        "geometry_hint": "TÃªn dá»±ng sáºµn OOXML nhÆ° roundRect hoáº·c ellipse.",
+        "adjust_label": "Äiá»u chá»‰nh hÃ¬nh dáº¡ng",
+        "adjust_placeholder": "adj=0.25",
+        "adjust_hint": "Má»™t hoáº·c nhiá»u cáº·p tÃªn=giÃ¡ trá»‹, cÃ¡ch nhau báº±ng dáº¥u pháº©y.",
+        "adjust_invalid": "Nháºp cÃ¡c cáº·p tÃªn=giÃ¡ trá»‹ vá»›i giÃ¡ trá»‹ sá»‘, vÃ dá»¥ adj=0.25.",
+        "arrange_label": "Sáº¯p xáº¿p",
+        "group": "Nhá»Ÿm",
+        "ungroup": "TÃ¡ch nhÃ³m",
+        "flip_h": "Láº­t ngang",
+        "flip_v": "Láº­t dá»c",
+        "align_label": "CÄƒn chá»‰nh",
+        "align": {
+          "left": "CÄƒn trÃ¡i",
+          "centerH": "CÄƒn giá»¯a",
+          "right": "CÄƒn pháº£i",
+          "top": "CÄƒn trÃªn",
+          "centerV": "CÄƒn giá»¯a dá»c",
+          "bottom": "CÄƒn dÆ°á»›i"
+        },
+        "align_to_label": "CÄƒn theo",
+        "align_to_selection": "VÃ¹ng chá»n",
+        "align_to_slide": "Trang",
+        "distribute_h": "PhÃ¢n bá»‘ ngang",
+        "distribute_v": "PhÃ¢n bá»‘ dá»c",
+        "need_two": "Chá»n Ãt nháº¥t hai Ä‘á»‘i tÆ°á»£ng.",
+        "need_three": "Chá»n Ãt nháº¥t ba Ä‘á»‘i tÆ°á»£ng.",
+        "need_group": "Chá»n má»™t nhÃ³m Ä‘á»ƒ tÃ¡ch.",
+        "text_label": "VÄƒn báº£n",
+        "anchor_label": "Neo dá»c",
+        "anchor": {
+          "top": "TrÃªn",
+          "middle": "Giá»¯a",
+          "bottom": "DÆ°á»›i"
+        },
+        "autofit_label": "Tá»± Ä‘á»™ng vá»«a",
+        "autofit": {
+          "none": "KhÃ´ng tá»± Ä‘á»™ng vá»«a",
+          "shrink": "Thu nhá» vÄƒn báº£n khi trÃ n",
+          "resize": "Äiá»u chá»‰nh hÃ¬nh theo vÄƒn báº£n"
+        },
+        "wrap": "Xuá»‘ng dÃ²ng trong hÃ¬nh",
+        "apply": "Ãp dá»¥ng"
+      }
+    },    "format": {
       "title": "Äá»‹nh dáº¡ng",
       "sections_label": "CÃ´ng cá»¥ Ä‘á»‹nh dáº¡ng",
       "loading": "Äang táº£i cÃ´ng cá»¥ Ä‘á»‹nh dáº¡ng...",
@@ -7701,36 +8391,84 @@
     },
     "pdf": {
       "title": "Tài liệu PDF",
-      "toolbar": { "label": "Lệnh chỉnh sửa PDF" },
+      "toolbar": {
+        "label": "Lệnh chỉnh sửa PDF"
+      },
       "actions": {
-        "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
+        "editText": "Sửa chữ hiện có",
+        "replaceImage": "Thay ảnh",
+        "insertPage": "Chèn trang",
+        "deletePage": "Xóa trang",
+        "rotatePage": "Xoay trang",
+        "reorderPage": "Sắp xếp lại trang",
+        "extractPage": "Tách trang",
+        "mergePages": "Gộp trang",
+        "annotations": "Chú thích (tách biệt với sửa nội dung)"
       },
-      "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}" },
+      "selection": {
+        "none": "Chưa chọn trang",
+        "page": "Trang {{page}}"
+      },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
-      "state": { "opening": "Đang mở PDF…", "error": "Không mở được PDF" },
-      "saveState": {
-        "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork",
-        "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa"
+      "state": {
+        "opening": "Đang mở PDF…",
+        "error": "Không mở được PDF"
       },
-      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang" },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
+      "surface": {
+        "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.",
+        "page": "Đang hiển thị trang {{page}} trên {{count}} trang"
+      },
       "pages": {
-        "label": "Các trang PDF", "title": "Trang", "page": "Trang {{page}}", "moveUp": "Đưa lên", "extract": "Tách", "empty": "Adapter chưa báo trang nào."
+        "label": "Các trang PDF",
+        "title": "Trang",
+        "page": "Trang {{page}}",
+        "moveUp": "Đưa lên",
+        "extract": "Tách",
+        "empty": "Adapter chưa báo trang nào."
       },
       "edit": {
-        "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
-        "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
+        "textLabel": "Chữ thay thế",
+        "textPlaceholder": "Nhập chữ thay thế",
+        "applyText": "Áp dụng chữ",
+        "imageLabel": "Mã tài sản của provider",
+        "imagePlaceholder": "Nhập mã tài sản của provider",
+        "applyImage": "Thay ảnh"
       },
-      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
+      "fonts": {
+        "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này."
+      },
       "errors": {
-        "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
-        "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.", "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
-        "password_required": "Cần mật khẩu để mở PDF này.", "wrong_password": "Mật khẩu không mở khóa được PDF này.",
-        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.", "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
-        "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
-        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
+        "title": "Không mở được PDF này",
+        "unknown": "Adapter PDF trả về lỗi mở không xác định.",
+        "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.",
+        "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
+        "password_required": "Cần mật khẩu để mở PDF này.",
+        "wrong_password": "Mật khẩu không mở khóa được PDF này.",
+        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.",
+        "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
+        "engine_error": "Engine PDF không thể mở tài liệu này.",
+        "io_error": "Không thể đọc PDF từ bộ nhớ.",
+        "too_large": "PDF này quá lớn để mở tại đây.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.",
+        "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
       }
     }
   },
