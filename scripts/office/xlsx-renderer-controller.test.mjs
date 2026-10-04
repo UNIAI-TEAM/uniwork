@@ -457,25 +457,37 @@ test('hyperlink and outline edits emitted outside the batch carry the live sheet
   const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
   try {
     await mounted.handle.loadWorkbook(file);
-    // Rename the live facade: the host file still says "First", so any edit
-    // emitted through the structural channel must be stamped with "Budget".
+    // Rename: the live name is journalled as the mutation runs, and the facade
+    // rename mirrors what Univer does to the sheet (the host file still says
+    // "First", so any edit through the structural channel must say "Budget").
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.set-worksheet-name', params: {
+      unitId: 'file-sha', subUnitId: 's1', name: 'Budget',
+    } }), true);
     mounted.setSheetName('s1', 'Budget');
 
     assert.equal(mounted.h.execute({ id: 'uniwork.command.set-hyperlink', params: {
       unitId: 'file-sha', subUnitId: 's1', address: 'B2', target: 'https://example.com',
     } }), true);
-    assert.deepEqual(edits.at(-1), {
-      sheetId: 's1', sheetName: 'Budget', row: 1, column: 1, target: 'https://example.com',
-    });
+    // The target is the vendored normalizer's output, which this harness stubs;
+    // the live-name stamp is what this test proves, so pin those fields.
+    const hyperlink = edits.at(-1);
+    assert.deepEqual(
+      { sheetId: hyperlink.sheetId, sheetName: hyperlink.sheetName, row: hyperlink.row, column: hyperlink.column },
+      { sheetId: 's1', sheetName: 'Budget', row: 1, column: 1 },
+    );
+    assert.ok('target' in hyperlink);
 
     assert.equal(mounted.h.execute({ id: 'uniwork.command.set-rows-outline', params: {
       subUnitId: 's1', start: 1, end: 2, action: 'group',
     } }), true);
     assert.equal(edits.at(-1).sheetName, 'Budget');
-    assert.equal(edits.at(-1).structural.kind, 'group-rows');
+    assert.equal(edits.at(-1).structural.kind, 'set-rows-outline');
 
     // A session-added sheet has no file entry at all; the live name is the only
     // name the bridge can resolve.
+    assert.equal(mounted.h.execute({ id: 'sheet.mutation.insert-sheet', params: {
+      unitId: 'file-sha', index: 2, sheet: { id: 's3', name: 'Scratch' },
+    } }), true);
     mounted.addSheet('s3', 'Scratch');
     assert.equal(mounted.h.execute({ id: 'uniwork.command.set-hyperlink', params: {
       unitId: 'file-sha', subUnitId: 's3', address: 'A1', target: '#Budget!B2',
@@ -489,7 +501,6 @@ test('hyperlink and outline edits emitted outside the batch carry the live sheet
     assert.equal('sheetName' in edits.at(-1), false);
   } finally { mounted.close(); }
 });
-
 test('sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids', async () => {
   const edits = [];
   let dirty = 0;

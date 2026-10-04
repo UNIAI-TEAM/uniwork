@@ -23,6 +23,10 @@ const result = await build({
     builder.onResolve({ filter: /^\.\/locale$/ }, () => ({ path: 'locale', namespace: 'stub' }));
     builder.onResolve({ filter: /^@univerjs\/|\/upstream\/.*renderer\// }, (args) => {
       if (args.path.endsWith('/edit-journal')) return undefined;
+      // Pure-data module the command policy reads (FILTER_MUTATIONS,
+      // pixelsToCharacterWidth). Its imports are type-only, so resolve it for
+      // real: a stubbed copy has no exports and makes the policy throw.
+      if (args.path.endsWith('/app-constants')) return undefined;
       return { path: args.path, namespace: 'stub' };
     });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => {
