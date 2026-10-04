@@ -1,0 +1,171 @@
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { PdfEditor } from "./pdf-editor";
+import type { PdfCanvasPage, PdfPageRenderService } from "./canvas";
+import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
+
+initI18n();
+beforeEach(async () => { await setLocale("en"); });
+
+const PAGES: PdfCanvasPage[] = [
+  { pageNumber: 1, width: 200, height: 300 },
+  { pageNumber: 2, width: 200, height: 300 },
+];
+
+const capability = { format: "pdf" as const, operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available" as const, fidelityWarnings: [] };
+const opened: PdfOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "m", warnings: [] };
+
+function coordinator(): PdfSaveCoordinator {
+  const state = { state: "ready" as const, identity: { deploymentId: "d", accountId: "a", organizationId: "o", workspaceId: "w", documentId: "doc", generation: 1, baseVersionId: "v", baseRevision: "1" }, dirtyGeneration: 0, lastSavedGeneration: 0, activeIntentId: null, error: null };
+  return { getState: () => state, subscribe: () => () => undefined, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })), markDirty: vi.fn() };
+}
+
+function host(overrides: Partial<PdfEditorHandle> = {}) {
+  const renderer: PdfPageRenderService = { renderPage: vi.fn(async ({ pageNumber }) => ({ src: `data:image/png;base64,p${pageNumber}`, width: 200, height: 300 })) };
+  const pdfPages = PAGES.map((page) => ({ pageNumber: page.pageNumber, rotation: 0 }));
+  const handle: PdfEditorHandle = {
+    format: "pdf",
+    open: vi.fn(async () => undefined),
+    getDirtyGeneration: () => 7,
+    captureSnapshot: vi.fn(async () => ({ generation: 7, fingerprint: "fp", value: { pages: pdfPages, pageCount: 2 } })),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    dispose: vi.fn(),
+    edit: vi.fn(async () => undefined),
+    getPdfSnapshot: () => ({ pages: pdfPages, pageCount: 2 }),
+    renderer,
+    getCanvasPages: vi.fn(() => PAGES),
+    submitEngineOperations: vi.fn(async () => ({ skipped: [] })),
+    readFormFields: vi.fn(async () => [{ name: "fullName", kind: "text" as const, value: "" }]),
+    searchText: vi.fn(async (query: string) => [{ id: "h1", page: 2, start: 0, end: query.length, text: query }]),
+    subscribe: vi.fn(() => () => undefined),
+    ...overrides,
+  };
+  return { handle, renderer };
+}
+
+async function mount(handle: PdfEditorHandle) {
+  const save = coordinator();
+  render(<PdfEditor documentKey="doc-1" editor={handle} open={{ open: vi.fn(async () => opened) }} coordinator={save} capability={capability} />);
+  await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+  return save;
+}
+
+function openAnnotate(command: string) {
+  fireEvent.click(screen.getByTestId("pdf-chrome-tab-annotate"));
+  fireEvent.click(screen.getByRole("button", { name: command }));
+}
+
+function pageBackground(page: number) {
+  return within(screen.getByTestId(`pdf-page-${page}`)).getByRole("button", { name: `Page ${page} background` });
+}
+
+describe("PdfEditorSurface", () => {
+  it("draws the pages through the host renderer instead of the empty box", async () => {
+    const { handle, renderer } = host();
+    await mount(handle);
+    await waitFor(() => expect(renderer.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 1 })));
+    expect(screen.getByTestId("pdf-page-1")).toBeInTheDocument();
+  });
+
+  it("highlights a dragged region as a markup edit and marks the document dirty", async () => {
+    const { handle } = host();
+    const save = await mount(handle);
+    openAnnotate("Highlight");
+    expect(screen.getByTestId("pdf-page-1")).toHaveAttribute("data-tool", "region");
+    const surface = pageBackground(1);
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 110, clientY: 40, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 110, clientY: 40, pointerId: 1 });
+    await waitFor(() => expect(screen.getByTestId("pdf-surface-hint")).toHaveTextContent("Area selected on page 1"));
+    fireEvent.click(within(screen.getByTestId("pdf-editor-panels")).getByRole("button", { name: "Highlight" }));
+    await waitFor(() => expect(handle.edit).toHaveBeenCalledTimes(1));
+    // The canvas is top-left origin; the operation carries PDF user space (y' = 300 - y).
+    expect(handle.edit).toHaveBeenCalledWith([expect.objectContaining({ op: "add_markup", type: "highlight", target: { page: 1, quads: [[10, 280, 110, 280, 10, 260, 110, 260]] } })]);
+    await waitFor(() => expect(save.markDirty).toHaveBeenCalledWith(7));
+  });
+
+  it("places a note at the clicked point through the engine envelope", async () => {
+    const { handle } = host();
+    const save = await mount(handle);
+    openAnnotate("Note");
+    fireEvent.click(pageBackground(2), { clientX: 30, clientY: 50 });
+    fireEvent.change(await screen.findByPlaceholderText("Write a note"), { target: { value: "Check this" } });
+    fireEvent.click(within(screen.getByTestId("pdf-note-add")).getByRole("button", { name: "Add note" }));
+    await waitFor(() => expect(handle.submitEngineOperations).toHaveBeenCalledTimes(1));
+    expect(handle.submitEngineOperations).toHaveBeenCalledWith([{ op: "addNote", attributes: { note: { pageIndex: 1, rect: [30, 226, 54, 250], contents: "Check this" } } }]);
+    await waitFor(() => expect(save.markDirty).toHaveBeenCalledWith(7));
+  });
+
+  it("switches the page tool to point for stamps", async () => {
+    const { handle } = host();
+    await mount(handle);
+    openAnnotate("Stamp");
+    expect(screen.getByTestId("pdf-page-1")).toHaveAttribute("data-tool", "point");
+    expect(screen.getByTestId("pdf-surface-hint")).toHaveTextContent("Click a page");
+  });
+
+  it("fills a form field from the document's fields", async () => {
+    const { handle } = host();
+    const save = await mount(handle);
+    openAnnotate("Fill form");
+    const input = await screen.findByLabelText("fullName");
+    fireEvent.change(input, { target: { value: "An Nguyen" } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(handle.submitEngineOperations).toHaveBeenCalledWith([{ op: "setFormValue", field: { name: "fullName", kind: "text", value: "An Nguyen" } }]));
+    await waitFor(() => expect(save.markDirty).toHaveBeenCalled());
+  });
+
+  it("shows a translated message and keeps the editor alive when the engine refuses a value", async () => {
+    const refused = Object.assign(new Error("setFormValue.value: cannot encode"), { name: "PdfOpError" });
+    const { handle } = host({ submitEngineOperations: vi.fn(async () => { throw refused; }) });
+    const save = await mount(handle);
+    openAnnotate("Fill form");
+    const input = await screen.findByLabelText("fullName");
+    fireEvent.change(input, { target: { value: "Nguyễn Văn An" } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(screen.getAllByRole("alert").some((node) => node.textContent?.includes("cannot take this value"))).toBe(true));
+    expect(screen.queryByText(/cannot encode/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument();
+    expect(save.markDirty).not.toHaveBeenCalled();
+  });
+
+  it("rotates the selected page from the Pages tab", async () => {
+    const { handle } = host();
+    const save = await mount(handle);
+    fireEvent.click(screen.getByRole("button", { name: "Page 2" }));
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page" }));
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "rotate_page", target: { page: 2 }, degrees: 90 }]);
+    await waitFor(() => expect(save.markDirty).toHaveBeenCalledWith(7));
+  });
+
+  it("opens the page strip for reorder and delete", async () => {
+    const { handle } = host();
+    await mount(handle);
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
+    fireEvent.click(screen.getByRole("button", { name: "Reorder page" }));
+    const strip = screen.getByTestId("pdf-pages-panel");
+    expect(strip).toBeInTheDocument();
+    expect(within(strip).getAllByRole("button").length).toBeGreaterThan(0);
+  });
+
+  it("feeds find hits from the host search and navigates to the hit's page", async () => {
+    const { handle } = host();
+    await mount(handle);
+    fireEvent.click(screen.getByTestId("pdf-chrome-find"));
+    fireEvent.change(screen.getByLabelText("Search PDF text"), { target: { value: "total" } });
+    await waitFor(() => expect(handle.searchText).toHaveBeenCalledWith("total"));
+    await waitFor(() => expect(screen.getByTestId("pdf-status-page")).toHaveTextContent("Page 2"));
+  });
+
+  it("refreshes the canvas pages when the host reports changed bytes", async () => {
+    let notify: () => void = () => undefined;
+    const { handle } = host({ subscribe: vi.fn((listener: () => void) => { notify = listener; return () => undefined; }) });
+    await mount(handle);
+    const calls = vi.mocked(handle.getCanvasPages!).mock.calls.length;
+    act(() => notify());
+    await waitFor(() => expect(vi.mocked(handle.getCanvasPages!).mock.calls.length).toBeGreaterThan(calls));
+  });
+});

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PdfPageCanvas } from "./pdf-page-canvas";
-import type { PdfCanvasPage, PdfCanvasSelection, PdfPageRenderService } from "./types";
+import type { PdfCanvasPage, PdfCanvasRegion, PdfCanvasSelection, PdfCanvasTool, PdfPageRenderService } from "./types";
 
 export interface PdfCanvasProps {
   pages: readonly PdfCanvasPage[];
@@ -15,12 +15,17 @@ export interface PdfCanvasProps {
   selection?: PdfCanvasSelection | null;
   onSelectionChange?: (selection: PdfCanvasSelection) => void;
   className?: string;
+  tool?: PdfCanvasTool;
+  /** Emitted in page points, top-left origin; a point click has zero width and height. */
+  onPageRegion?: (pageNumber: number, region: PdfCanvasRegion) => void;
+  /** Scrolls the page into view whenever `token` changes (thumbnail click, find hit). */
+  focusPage?: { page: number; token: number } | null;
 }
 
 const PAGE_GAP = 24;
 
 /** A browser-safe, windowed PDF page surface shared by web and desktop hosts. */
-export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, selection, onSelectionChange, className }: PdfCanvasProps) {
+export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, selection, onSelectionChange, className, tool, onPageRegion, focusPage }: PdfCanvasProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -49,6 +54,17 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
       return { ...dimension, top: current };
     });
   }, [dimensions]);
+  const focusToken = focusPage?.token;
+  const topsRef = useRef(tops);
+  topsRef.current = tops;
+  useEffect(() => {
+    const target = focusPage?.page;
+    if (target === undefined) return;
+    const top = topsRef.current[target - 1]?.top;
+    if (top !== undefined && scrollRef.current) scrollRef.current.scrollTop = Math.max(0, top - PAGE_GAP);
+    // Only a new token scrolls: a later zoom or page change must not pull the view back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusToken]);
   const lastTop = tops[tops.length - 1];
   const contentHeight = lastTop ? lastTop.top + lastTop.height + PAGE_GAP : PAGE_GAP;
   const firstVisible = Math.max(0, tops.findIndex((item) => item.top + item.height >= scrollTop) - overscan);
@@ -64,7 +80,7 @@ export function PdfCanvas({ pages, renderer, zoom = 1, tileSize, overscan = 1, s
         const index = firstVisible + offset;
         const item = tops[index];
         if (!item) return null;
-        return <div key={page.pageNumber} className="absolute left-1/2 -translate-x-1/2" style={{ top: item.top }}><PdfPageCanvas page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} selection={activeSelection} onSelectionChange={onSelect} /></div>;
+        return <div key={page.pageNumber} className="absolute left-1/2 -translate-x-1/2" style={{ top: item.top }}><PdfPageCanvas page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} selection={activeSelection} onSelectionChange={onSelect} tool={tool} onPageRegion={onPageRegion} /></div>;
       })}
       {pages.length === 0 ? <p className="p-6 text-center text-caption text-muted-foreground">{t("office.pdf.pages.empty")}</p> : null}
     </div>

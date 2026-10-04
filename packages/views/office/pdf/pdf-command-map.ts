@@ -11,6 +11,10 @@ export const PDF_COMMANDS = {
   extractPage: "extract-page",
   mergePages: "merge-pages",
   annotations: "annotations",
+  highlight: "highlight",
+  note: "note",
+  stamp: "stamp",
+  forms: "forms",
   save: "save",
 } as const;
 
@@ -30,5 +34,9 @@ export const PDF_COMMAND_CAPABILITIES: Readonly<Record<keyof typeof PDF_COMMANDS
   extractPage: "CAP-pdf-page-ops",
   mergePages: "CAP-pdf-page-ops",
   annotations: "CAP-pdf-annotations-stamps",
+  highlight: "CAP-pdf-annotations-stamps",
+  note: "CAP-pdf-annotations-stamps",
+  stamp: "CAP-pdf-annotations-stamps",
+  forms: "CAP-pdf-annotations-stamps",
   save: "CAP-pdf-save",
 };

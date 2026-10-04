@@ -47,3 +47,14 @@ export interface PdfCanvasPage {
 }
 
 export type PdfCanvasSelection = PdfSelection;
+
+/** What a pointer does on a page: select objects, drag a region, or drop a point. */
+export type PdfCanvasTool = "select" | "region" | "point";
+
+/** A rectangle in page points with a top-left origin; a point has zero size. */
+export interface PdfCanvasRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

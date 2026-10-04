@@ -4,7 +4,9 @@ export { hitTestPdfBox } from "./hit-test";
 export type {
   PdfCanvasBox,
   PdfCanvasPage,
+  PdfCanvasRegion,
   PdfCanvasSelection,
+  PdfCanvasTool,
   PdfPageRenderService,
   PdfRenderPageRequest,
   PdfRenderResult,

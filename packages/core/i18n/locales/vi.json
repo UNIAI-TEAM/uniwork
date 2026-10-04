@@ -7394,7 +7394,7 @@
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu"
       },
       "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
@@ -7614,6 +7614,7 @@
         "saveCopy": "Lưu bản sao", "savingCopy": "Đang lưu…",
         "saveCopyUnavailable": "Chưa thể lưu bản sao.", "copyFailed": "Không thể lưu bản sao."
       },
+      "surface": { "areaSelected": "Đã chọn vùng trên trang {{page}}. Chọn kiểu đánh dấu.", "hintRegion": "Kéo trên trang để chọn vùng cần tô sáng.", "hintNote": "Bấm vào trang để đặt ghi chú, rồi viết nội dung.", "hintStamp": "Bấm vào trang để chọn vị trí đóng dấu." },
       "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {
         "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
@@ -7624,6 +7625,10 @@
         "too_large": "PDF này quá lớn để mở tại đây.", "invalid_structure": "PDF có cấu trúc không hợp lệ.",
         "truncated": "PDF bị cắt ngắn hoặc chưa đầy đủ.", "unsupported_encryption": "PDF dùng cơ chế mã hóa chưa được hỗ trợ.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
+        "editRejected": "PDF không nhận giá trị này. Kiểm tra lại rồi thử lại.",
+        "unsupportedInBrowser": "Thay đổi này chưa dùng được trên trình duyệt.",
+        "editSkipped": "Một phần thay đổi bị bỏ qua vì trình duyệt chưa áp dụng được.",
+        "formsFailed": "Không đọc được các trường biểu mẫu của PDF này.",
         "objectUnavailable": "Nội dung đã chọn không còn khả dụng. Chọn lại."
       },
       "password": {

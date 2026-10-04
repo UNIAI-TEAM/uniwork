@@ -7413,7 +7413,11 @@
         "reorderPage": "Reorder page",
         "extractPage": "Extract page",
         "mergePages": "Merge pages",
-        "annotations": "Annotations (separate from content editing)"
+        "annotations": "Annotations (separate from content editing)",
+        "highlight": "Highlight",
+        "note": "Note",
+        "stamp": "Stamp",
+        "forms": "Fill form"
       },
       "selection": { "none": "No page selected", "page": "Page {{page}}", "background": "Page {{page}} background" },
       "capabilityPending": "This PDF capability is not available in this engine build.",
@@ -7634,6 +7638,7 @@
         "saveCopy": "Save a copy", "savingCopy": "Saving…",
         "saveCopyUnavailable": "Saving a copy is not available yet.", "copyFailed": "The copy could not be saved."
       },
+      "surface": { "areaSelected": "Area selected on page {{page}}. Choose a markup.", "hintRegion": "Drag on a page to select the area to highlight.", "hintNote": "Click a page to place the note, then write it.", "hintStamp": "Click a page to choose where the stamp goes." },
       "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
       "errors": {
         "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",
@@ -7644,6 +7649,10 @@
         "too_large": "This PDF is too large to open here.", "invalid_structure": "The PDF has an invalid structure.",
         "truncated": "The PDF is truncated or incomplete.", "unsupported_encryption": "This PDF uses unsupported encryption.",
         "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again.",
+        "editRejected": "The PDF cannot take this value. Check it and try again.",
+        "unsupportedInBrowser": "This edit is not available in the browser yet.",
+        "editSkipped": "Part of this edit was skipped because the browser cannot apply it.",
+        "formsFailed": "The form fields could not be read from this PDF.",
         "objectUnavailable": "The selected content is no longer available. Select it again."
       },
       "password": {

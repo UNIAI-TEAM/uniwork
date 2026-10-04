@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { hitTestPdfBox } from "./hit-test";
-import type { PdfCanvasBox, PdfCanvasPage, PdfCanvasSelection, PdfPageRenderService, PdfRenderResult } from "./types";
+import type { PdfCanvasBox, PdfCanvasPage, PdfCanvasRegion, PdfCanvasSelection, PdfCanvasTool, PdfPageRenderService, PdfRenderResult } from "./types";
 
 export interface PdfPageCanvasProps {
   page: PdfCanvasPage;
@@ -14,7 +14,15 @@ export interface PdfPageCanvasProps {
   tileSize?: number;
   selection: PdfCanvasSelection | null;
   onSelectionChange: (selection: PdfCanvasSelection) => void;
+  /** `select` (default) picks objects; `region` drags a rectangle; `point` drops a point. */
+  tool?: PdfCanvasTool;
+  onPageRegion?: (pageNumber: number, region: PdfCanvasRegion) => void;
 }
+
+/** Smallest dragged region (points) that counts as a region rather than a stray click. */
+const MIN_REGION = 3;
+/** Region emitted by the keyboard path (Enter on the page), centred on the page. */
+const KEYBOARD_REGION = { width: 160, height: 20 };
 
 interface TileProps {
   request: Parameters<NonNullable<PdfPageRenderService["renderTile"]>>[0];
@@ -87,35 +95,75 @@ function SelectionOverlay({ page, selection, onSelectionChange }: Pick<PdfPageCa
   })}</>;
 }
 
-export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSelectionChange }: PdfPageCanvasProps) {
+
+function regionOf(start: { x: number; y: number }, end: { x: number; y: number }): PdfCanvasRegion {
+  return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) };
+}
+
+export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSelectionChange, tool = "select", onPageRegion }: PdfPageCanvasProps) {
   const { t } = useTranslation();
   const pageWidth = page.width * zoom;
   const pageHeight = page.height * zoom;
   const scaledPage = useMemo(() => ({ ...page, boxes: page.boxes?.map((box) => ({ ...box, x: box.x * zoom, y: box.y * zoom, width: box.width * zoom, height: box.height * zoom })) }), [page, zoom]);
-  const selectPage = (clientX: number, clientY: number, target: HTMLElement) => {
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const [draft, setDraft] = useState<PdfCanvasRegion | null>(null);
+  const toPoint = (clientX: number, clientY: number, target: HTMLElement) => {
     const rect = target.getBoundingClientRect();
-    const x = (clientX - rect.left) / zoom;
-    const y = (clientY - rect.top) / zoom;
+    return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
+  };
+  const selectPage = (clientX: number, clientY: number, target: HTMLElement) => {
+    const { x, y } = toPoint(clientX, clientY, target);
     const hit = hitTestPdfBox(page.boxes ?? [], x, y);
     onSelectionChange({ page: page.pageNumber, objectId: hit?.id ?? null, kind: hit?.kind ?? "page" });
   };
-  return <article className="relative bg-background shadow-sm ring-1 ring-border" style={{ width: pageWidth, height: pageHeight }} role="listitem" aria-label={t("office.pdf.selection.page", { page: page.pageNumber })} data-testid={`pdf-page-${page.pageNumber}`}>
+  const annotating = tool !== "select" && onPageRegion !== undefined;
+  const finishDrag = (clientX: number, clientY: number, target: HTMLElement) => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    setDraft(null);
+    if (!start || !onPageRegion) return;
+    const region = regionOf(start, toPoint(clientX, clientY, target));
+    if (region.width >= MIN_REGION && region.height >= MIN_REGION) onPageRegion(page.pageNumber, region);
+  };
+  const keyboardActivate = (target: HTMLElement) => {
+    if (!annotating) {
+      const rect = target.getBoundingClientRect();
+      selectPage(rect.left + rect.width / 2, rect.top + rect.height / 2, target);
+      return;
+    }
+    const width = tool === "region" ? Math.min(KEYBOARD_REGION.width, page.width) : 0;
+    const height = tool === "region" ? Math.min(KEYBOARD_REGION.height, page.height) : 0;
+    onPageRegion?.(page.pageNumber, { x: (page.width - width) / 2, y: (page.height - height) / 2, width, height });
+  };
+  return <article className="relative bg-background shadow-sm ring-1 ring-border" style={{ width: pageWidth, height: pageHeight }} role="listitem" aria-label={t("office.pdf.selection.page", { page: page.pageNumber })} data-testid={`pdf-page-${page.pageNumber}`} data-tool={annotating ? tool : "select"}>
     <PageImage page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} />
     <div className="absolute inset-0">
       <div
         role="button"
         tabIndex={0}
         aria-label={t("office.pdf.selection.background", { page: page.pageNumber })}
-        className="absolute inset-0"
-        onClick={(event) => selectPage(event.clientX, event.clientY, event.currentTarget)}
+        className={cn("absolute inset-0", annotating && "cursor-crosshair touch-none")}
+        onClick={(event) => {
+          if (!annotating) selectPage(event.clientX, event.clientY, event.currentTarget);
+          else if (tool === "point") onPageRegion?.(page.pageNumber, { ...toPoint(event.clientX, event.clientY, event.currentTarget), width: 0, height: 0 });
+        }}
+        onPointerDown={(event) => {
+          if (!annotating || tool !== "region") return;
+          dragStart.current = toPoint(event.clientX, event.clientY, event.currentTarget);
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (dragStart.current) setDraft(regionOf(dragStart.current, toPoint(event.clientX, event.clientY, event.currentTarget)));
+        }}
+        onPointerUp={(event) => finishDrag(event.clientX, event.clientY, event.currentTarget)}
+        onPointerCancel={() => { dragStart.current = null; setDraft(null); }}
         onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            const rect = event.currentTarget.getBoundingClientRect();
-            selectPage(rect.left + rect.width / 2, rect.top + rect.height / 2, event.currentTarget);
-          }
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          keyboardActivate(event.currentTarget);
         }}
       />
+      {draft ? <div aria-hidden className="pointer-events-none absolute border border-primary bg-primary/20" data-testid="pdf-region-draft" style={{ left: draft.x * zoom, top: draft.y * zoom, width: draft.width * zoom, height: draft.height * zoom }} /> : null}
       <div className="pointer-events-none absolute inset-0 z-10"><SelectionOverlay page={scaledPage} selection={selection} onSelectionChange={onSelectionChange} /></div>
     </div>
   </article>;

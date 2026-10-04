@@ -7,6 +7,9 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
+import type { PdfCanvasPage, PdfPageRenderService } from "./canvas/types";
+import type { PdfSearchHit } from "./find/types";
+import type { PdfFormField } from "./forms/types";
 
 /** A selection is an adapter identity, never a DOM range or a decoded PDF object. */
 export interface PdfSelection {
@@ -83,6 +86,15 @@ export type PdfEditorHandle<TSnapshot = PdfSnapshot> = EditorHandle<TSnapshot> &
     getPdfSnapshot?(): PdfSnapshot | null;
     getFontReport?(): PdfFontReport | null;
     cancel?: (reason?: string) => Promise<void> | void;
+    /** Host page renderer; with `getCanvasPages` it makes the surface draw real pages. */
+    renderer?: PdfPageRenderService;
+    getCanvasPages?(): readonly PdfCanvasPage[];
+    /** Engine-envelope operations (camelCase) from the panel providers. */
+    submitEngineOperations?(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] } | void>;
+    readFormFields?(): Promise<readonly PdfFormField[]>;
+    searchText?(query: string): Promise<readonly PdfSearchHit[]>;
+    /** Fires when the document bytes changed (edit, undo, redo). */
+    subscribe?(listener: () => void): () => void;
   };
 
 export type PdfOpenSuccess = Extract<OpenOutcome, { outcome: "opened" }>;

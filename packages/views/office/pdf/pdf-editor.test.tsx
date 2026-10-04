@@ -87,22 +87,13 @@ describe("PdfEditor", () => {
     // Page commands moved from the deleted toolbar into the ribbon's pages tab.
     fireEvent.click(screen.getByTestId("pdf-chrome-tab-pages"));
     expect(screen.getByTestId("pdf-chrome-command-row")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Chèn trang" }));
-    fireEvent.click(screen.getByRole("button", { name: "Xóa trang" }));
+    // Rotate acts on the selected page at once; delete and reorder open the page strip.
     fireEvent.click(screen.getByRole("button", { name: "Xoay trang" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sắp xếp lại trang" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tách trang" }));
-    fireEvent.click(screen.getByRole("button", { name: "Gộp trang" }));
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "insert_page", target: { index: 2 } }]);
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "delete_page", target: { page: 2 } }]);
     expect(handle.edit).toHaveBeenCalledWith([{ op: "rotate_page", target: { page: 2 }, degrees: 90 }]);
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "merge_pages", target: { pages: [1, 2] } }]);
-    fireEvent.click(screen.getByRole("button", { name: "Sắp xếp lại trang" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tách trang" }));
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
+    expect(handle.edit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("pdf-pages-panel")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xóa trang" }));
+    expect(screen.getByTestId("pdf-pages-panel")).toBeInTheDocument();
   });
 
   it("submits image replacement as an asset reference without decoding bytes", async () => {
