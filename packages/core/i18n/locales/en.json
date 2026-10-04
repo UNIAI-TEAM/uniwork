@@ -7651,6 +7651,7 @@
         "editRejected": "The PDF cannot take this value. Check it and try again.",
         "unsupportedInBrowser": "This edit is not available in the browser yet.",
         "editSkipped": "Part of this edit was skipped because the browser cannot apply it.",
+        "formValueRejected": "This field cannot store the characters you typed (for example Vietnamese accents): its form font does not support them. The value was not saved.",
         "formsFailed": "The form fields could not be read from this PDF.",
         "objectUnavailable": "The selected content is no longer available. Select it again."
       },

@@ -7627,6 +7627,7 @@
         "editRejected": "PDF không nhận giá trị này. Kiểm tra lại rồi thử lại.",
         "unsupportedInBrowser": "Thay đổi này chưa dùng được trên trình duyệt.",
         "editSkipped": "Một phần thay đổi bị bỏ qua vì trình duyệt chưa áp dụng được.",
+        "formValueRejected": "Trường này không lưu được ký tự vừa nhập (ví dụ chữ có dấu) vì phông của biểu mẫu không hỗ trợ. Giá trị chưa được lưu.",
         "formsFailed": "Không đọc được các trường biểu mẫu của PDF này.",
         "objectUnavailable": "Nội dung đã chọn không còn khả dụng. Chọn lại."
       },
