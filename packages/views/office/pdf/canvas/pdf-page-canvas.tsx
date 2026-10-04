@@ -100,16 +100,42 @@ function regionOf(start: { x: number; y: number }, end: { x: number; y: number }
   return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) };
 }
 
+/** Quarter turns clockwise for a page rotation; 0/90/180/270 map to 0/1/2/3. */
+function quarterTurns(rotation: number | undefined): number {
+  return ((Math.round((rotation ?? 0) / 90) % 4) + 4) % 4;
+}
+
+/** Display (rotated) point -> page-own point: the inverse of the clockwise display map. */
+function toPagePoint(point: { x: number; y: number }, width: number, height: number, turns: number): { x: number; y: number } {
+  switch (turns) {
+    case 1: return { x: point.y, y: height - point.x };
+    case 2: return { x: width - point.x, y: height - point.y };
+    case 3: return { x: width - point.y, y: point.x };
+    default: return { x: point.x, y: point.y };
+  }
+}
+
+/** Page-own rect -> display (rotated) rect, so overlays follow the rendered rotation. */
+function toDisplayRegion(region: PdfCanvasRegion, width: number, height: number, turns: number): PdfCanvasRegion {
+  switch (turns) {
+    case 1: return { x: height - region.y - region.height, y: region.x, width: region.height, height: region.width };
+    case 2: return { x: width - region.x - region.width, y: height - region.y - region.height, width: region.width, height: region.height };
+    case 3: return { x: region.y, y: width - region.x - region.width, width: region.height, height: region.width };
+    default: return region;
+  }
+}
+
 export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSelectionChange, tool = "select", onPageRegion }: PdfPageCanvasProps) {
   const { t } = useTranslation();
-  const pageWidth = page.width * zoom;
-  const pageHeight = page.height * zoom;
-  const scaledPage = useMemo(() => ({ ...page, boxes: page.boxes?.map((box) => ({ ...box, x: box.x * zoom, y: box.y * zoom, width: box.width * zoom, height: box.height * zoom })) }), [page, zoom]);
+  const turns = quarterTurns(page.rotation);
+  const pageWidth = (turns % 2 === 1 ? page.height : page.width) * zoom;
+  const pageHeight = (turns % 2 === 1 ? page.width : page.height) * zoom;
+  const scaledPage = useMemo(() => ({ ...page, boxes: page.boxes?.map((box) => ({ ...box, ...toDisplayRegion({ x: box.x * zoom, y: box.y * zoom, width: box.width * zoom, height: box.height * zoom }, page.width * zoom, page.height * zoom, turns) })) }), [page, zoom, turns]);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const [draft, setDraft] = useState<PdfCanvasRegion | null>(null);
   const toPoint = (clientX: number, clientY: number, target: HTMLElement) => {
     const rect = target.getBoundingClientRect();
-    return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
+    return toPagePoint({ x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom }, page.width, page.height, turns);
   };
   const selectPage = (clientX: number, clientY: number, target: HTMLElement) => {
     const { x, y } = toPoint(clientX, clientY, target);
@@ -135,6 +161,7 @@ export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSel
     const height = tool === "region" ? Math.min(KEYBOARD_REGION.height, page.height) : 0;
     onPageRegion?.(page.pageNumber, { x: (page.width - width) / 2, y: (page.height - height) / 2, width, height });
   };
+  const displayDraft = draft ? toDisplayRegion(draft, page.width, page.height, turns) : null;
   return <article className="relative bg-background shadow-sm ring-1 ring-border" style={{ width: pageWidth, height: pageHeight }} role="listitem" aria-label={t("office.pdf.selection.page", { page: page.pageNumber })} data-testid={`pdf-page-${page.pageNumber}`} data-tool={annotating ? tool : "select"}>
     <PageImage page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} />
     <div className="absolute inset-0">
@@ -163,7 +190,7 @@ export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSel
           keyboardActivate(event.currentTarget);
         }}
       />
-      {draft ? <div aria-hidden className="pointer-events-none absolute border border-primary bg-primary/20" data-testid="pdf-region-draft" style={{ left: draft.x * zoom, top: draft.y * zoom, width: draft.width * zoom, height: draft.height * zoom }} /> : null}
+      {displayDraft ? <div aria-hidden className="pointer-events-none absolute border border-primary bg-primary/20" data-testid="pdf-region-draft" style={{ left: displayDraft.x * zoom, top: displayDraft.y * zoom, width: displayDraft.width * zoom, height: displayDraft.height * zoom }} /> : null}
       <div className="pointer-events-none absolute inset-0 z-10"><SelectionOverlay page={scaledPage} selection={selection} onSelectionChange={onSelectionChange} /></div>
     </div>
   </article>;

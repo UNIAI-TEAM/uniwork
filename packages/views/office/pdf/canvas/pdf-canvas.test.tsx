@@ -80,6 +80,18 @@ describe("PdfCanvas", () => {
     expect(onSelectionChange).not.toHaveBeenCalled();
   });
 
+  it("maps a click through a 90-degree page rotation before hit-testing", async () => {
+    const rotated: PdfCanvasPage = { pageNumber: 1, width: 100, height: 120, rotation: 90, boxes: [{ id: "headline", kind: "text", x: 10, y: 10, width: 30, height: 20 }] };
+    const onSelectionChange = vi.fn();
+    render(<PdfCanvas pages={[rotated]} renderer={service()} onSelectionChange={onSelectionChange} />);
+    const background = screen.getByRole("button", { name: "Page 1 background" });
+    // Display (100, 20) on a 90-degree page is page point (20, 20), inside the box.
+    fireEvent.click(background, { clientX: 100, clientY: 20 });
+    expect(onSelectionChange).toHaveBeenCalledWith({ page: 1, objectId: "headline", kind: "text" });
+    fireEvent.click(background, { clientX: 20, clientY: 20 });
+    expect(onSelectionChange).toHaveBeenLastCalledWith({ page: 1, objectId: null, kind: "page" });
+  });
+
   it("emits a zero-size point for a click in point mode and a centred region from the keyboard", () => {
     const onPageRegion = vi.fn();
     render(<PdfCanvas pages={[pages[0]!]} renderer={service()} tool="point" onPageRegion={onPageRegion} />);
