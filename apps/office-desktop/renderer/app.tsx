@@ -29,7 +29,6 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   const [metadata, setMetadata] = useState<DesktopSessionMetadata | undefined>(undefined);
   const [localMode, setLocalMode] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
-  const [openLocalRequest, setOpenLocalRequest] = useState(0);
   const [booted, setBooted] = useState(false);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
   const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
@@ -82,10 +81,9 @@ export function App({ bridge }: { bridge: RendererBridge }) {
     return () => { unsubscribe(); unsubscribeLogin?.(); unsubscribeController?.(); };
   }, [bridge]);
 
-  const useLocal = (entry: "home" | "open-local") => {
+  const useLocal = () => {
     setLocalMode(true);
     setLoginPrompt(false);
-    if (entry === "open-local") setOpenLocalRequest((value) => value + 1);
     void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined);
   };
   const signedIn = state === "signed-in" && metadata?.status === "signed-in" && Boolean(metadata.accountId) && Boolean(metadata.deploymentId);
@@ -119,7 +117,6 @@ export function App({ bridge }: { bridge: RendererBridge }) {
           if (next.status !== "signed-in") { setLocalMode(true); setLoginPrompt(false); void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined); }
         }
       }}
-      openLocalRequest={openLocalRequest}
     />
   );
 }

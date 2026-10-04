@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeCapabilityEntry, SaveCoordinatorState } from "@uniwork/core/office";
 import { leaveGuardAllows } from "@uniwork/views/navigation";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "@uniwork/views/layout/header-actions-slot";
 import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import type { OfficeEditorSession } from "./editor-host-core";
 
@@ -287,5 +288,31 @@ describe("OfficeEditorHost composition", () => {
     await act(async () => { button("Stay").click(); });
     await expect(leave).resolves.toBe(false);
     rendered.root.unmount();
+  });
+});
+
+describe("OfficeEditorHost page header", () => {
+  it("renders no header of its own and puts Save and the desktop action in the page slot", async () => {
+    const { session } = makeSession();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let root!: Root;
+    act(() => {
+      root = createRoot(container);
+      root.render(React.createElement(HeaderActionsSlotProvider, null,
+        React.createElement("header", { "data-testid": "page-header" }, React.createElement(HeaderActionsSlot)),
+        React.createElement(OfficeEditorHost, {
+          document: officeDocument, wsId: "workspace", readonly: false, session, capability,
+          editorView: React.createElement("div", { role: "textbox" }),
+        })));
+    });
+    await settle();
+    const shell = container.querySelector("[data-office-shell]")!;
+    expect(shell.querySelector("header")).toBeNull();
+    const pageHeader = container.querySelector('[data-testid="page-header"]')!;
+    expect(pageHeader.querySelector('button[aria-label="Save to UniWork"]')?.textContent).toBe("Save");
+    expect(pageHeader.querySelector('button[aria-label="Open in UniWork Office"]')).toBeTruthy();
+    expect(container.querySelectorAll('button[aria-label="Save to UniWork"]')).toHaveLength(1);
+    act(() => root.unmount());
   });
 });

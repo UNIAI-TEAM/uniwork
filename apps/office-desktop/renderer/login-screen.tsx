@@ -9,18 +9,16 @@ export interface LoginScreenProps {
   lockedReason?: "keyring";
   onStart: () => void;
   onCancel: () => void;
-  /** Open a .docx from disk without signing in. */
-  onOpenLocal?: () => void;
-  /** Enter the local home without signing in. */
+  /** Enter the local home (open file, new document, recents) without signing in. */
   onUseLocal?: () => void;
 }
 
 const MESSAGE_KEY: Record<LoginScreenState, string> = {
-  "signed-out": "signedOut",
+  "signed-out": "subtitle",
   pending: "pending",
   error: "error",
   cancelled: "cancelled",
-  "signed-in": "signedOut",
+  "signed-in": "subtitle",
   locked: "locked",
   "login-required": "required",
   expired: "expired",
@@ -28,9 +26,10 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
 
 /** The centred sign-in card shown before a workspace is reached. The desktop
  * host never asks for a password here: the only action opens the system
- * browser, where the real credential form lives. Two secondary actions enter
- * the local device mode without any account. */
-export function LoginScreen({ state, lockedReason, onStart, onCancel, onOpenLocal, onUseLocal }: LoginScreenProps) {
+ * browser, where the real credential form lives. One secondary action enters
+ * the local home without any account; that home already offers Open file,
+ * New document and recents, so the card does not repeat them. */
+export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal }: LoginScreenProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.login" });
   const pending = state === "pending";
   const messageKey = state === "locked" && lockedReason === "keyring" ? "lockedKeyring" : MESSAGE_KEY[state];
@@ -47,16 +46,25 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel, onOpenLoca
             {t("cancel")}
           </Button>
         ) : (
-          <Button className="w-full" onClick={onStart} disabled={state === "signed-in"}>
-            {t("start")}
-          </Button>
-        )}
-        {!pending && (onOpenLocal || onUseLocal) ? (
           <div className="flex w-full flex-col gap-2">
-            {onOpenLocal ? <Button variant="outline" className="w-full" onClick={onOpenLocal}>{t("openLocal")}</Button> : null}
-            {onUseLocal ? <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button> : null}
-            <p className="text-caption text-muted-foreground">{t("localNote")}</p>
+            <Button className="w-full" onClick={onStart} disabled={state === "signed-in"}>
+              {t("start")}
+            </Button>
+            <p className="text-caption text-muted-foreground">{t("startHint")}</p>
           </div>
+        )}
+        {!pending && onUseLocal ? (
+          <>
+            <div className="flex w-full items-center gap-3 text-caption text-muted-foreground" data-login-divider>
+              <span aria-hidden className="h-px flex-1 bg-border" />
+              <span>{t("or")}</span>
+              <span aria-hidden className="h-px flex-1 bg-border" />
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button>
+              <p className="text-caption text-muted-foreground">{t("localNote")}</p>
+            </div>
+          </>
         ) : null}
       </div>
     </div>
