@@ -17,7 +17,8 @@
  *      decoration plugin, the active one distinguishable. In the SOURCE mode
  *      the textarea cannot be painted in place, so the active match is selected
  *      and scrolled to, and the whole-document overlay from `find-source.tsx`
- *      is portaled over the field when the host supplies its wrapper.
+ *      is portaled over the field when the host supplies its wrapper, mirroring
+ *      the field's scroll so the marks stay on their own lines.
  *   3. The write path. A replacement never touches the DOM: the source mode
  *      writes through the shared `TextEditorHandle`'s text port, and the
  *      WYSIWYG mode dispatches one ProseMirror transaction that the editor
@@ -251,11 +252,21 @@ export function MarkdownFind({
   }, [activeIndex, editor, flat, isOpen, mode, result]);
 
   // Source mode: put the caret on the active match and scroll it into view.
+  // This effect re-runs on every source edit and every keystroke, so it must not
+  // grab focus: focusing here would pull the caret out of the query box while
+  // the user is still typing (the next characters would land in the document)
+  // and Escape - which only the panel handles - would stop closing the panel.
+  // The selection + scroll always follow the active match (that is what makes
+  // Next/Previous work); focus is the one part that is conditional, and it is
+  // taken only when the panel does not already hold it.
   useEffect(() => {
     if (mode !== "source") return;
     const target = sourceTextarea?.current ?? null;
+    if (!target) return;
     const match = isOpen && activeIndex >= 0 ? result.matches[activeIndex] ?? null : null;
-    selectSourceMatch(target, match);
+    const active = document.activeElement;
+    const panelFocused = active instanceof HTMLElement && active.closest('[data-testid="find-replace-panel"]') !== null;
+    selectSourceMatch(target, match, !panelFocused);
   }, [activeIndex, isOpen, mode, result, sourceTextarea]);
 
   // Mount the overlay into the textarea's wrapper when the host offers one.
@@ -323,10 +334,15 @@ export function MarkdownFind({
   const overlay = useMemo(() => {
     if (mode !== "source" || !overlayHost) return null;
     return createPortal(
-      <MarkdownFindSourceHighlight text={searchText} matches={result.matches} activeIndex={activeIndex} />,
+      <MarkdownFindSourceHighlight
+        text={searchText}
+        matches={result.matches}
+        activeIndex={activeIndex}
+        textarea={sourceTextarea?.current ?? null}
+      />,
       overlayHost,
     );
-  }, [activeIndex, mode, overlayHost, result, searchText]);
+  }, [activeIndex, mode, overlayHost, result, searchText, sourceTextarea]);
 
   return (
     <>
@@ -336,8 +352,12 @@ export function MarkdownFind({
             ref={panelRef}
             text={searchText}
             open={isOpen}
-            disabled={!editable}
-            replaceVisible={replaceRowVisible}
+            // `disabled` covers the WHOLE panel, query included, so a read-only
+            // document could not be searched at all. Only the replace row is
+            // unsafe to offer there, and the panel has no per-row switch: withhold
+            // the row instead (the replace callbacks already refuse when
+            // `!editable`, so a stray invocation can never write).
+            replaceVisible={replaceRowVisible && editable}
             onClose={close}
             onReplace={onReplace}
             onReplaceAll={onReplaceAll}

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
 import { MarkdownFind } from "./find";
+import { matchToPmRange, type FlattenedDoc } from "./find-decoration";
 import type { TextEditorHandle } from "../../source-editor-types";
 
 initI18n();
@@ -50,12 +51,12 @@ function createHandle(source: ReturnType<typeof createTextSource>): TextEditorHa
 }
 
 /** The visual surface: M1's editor plus the M7 find integration over one handle. */
-function VisualHarness({ handle }: { handle: TextEditorHandle }) {
+function VisualHarness({ handle, editable = true }: { handle: TextEditorHandle; editable?: boolean }) {
   const [instance, setInstance] = useState<Editor | null>(null);
   return (
     <div className="relative">
       <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={setInstance} showRibbon={false} />
-      <MarkdownFind editor={instance} handle={handle} mode="visual" />
+      <MarkdownFind editor={instance} handle={handle} mode="visual" editable={editable} />
     </div>
   );
 }
@@ -234,6 +235,103 @@ describe("MarkdownFind", () => {
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
     await waitFor(() => expect(source.getText()).toBe("# Title\n\n1 two one\n"));
     expect(textarea.value).toBe("# Title\n\n1 two one\n");
+  });
+
+  it("maps no document range across a block separator (F-02)", () => {
+    // "Title\none": the `\n` at index 5 is a synthetic separator (positions[5]
+    // is null). `e\no` (indices 4..6) spans it, so the whole match is dropped.
+    const flat: FlattenedDoc = { text: "Title\none", positions: [1, 2, 3, 4, 5, null, 7, 8, 9] };
+    expect(matchToPmRange(flat, { start: 4, end: 7 })).toBeNull();
+    // An endpoint-on-separator match is rejected the same way.
+    expect(matchToPmRange(flat, { start: 5, end: 8 })).toBeNull();
+    // A match that stays inside one block still maps.
+    expect(matchToPmRange(flat, { start: 0, end: 5 })).toEqual({ from: 1, to: 6 });
+  });
+
+  it("does not merge blocks when a regex match spans a separator (F-02)", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    render(<VisualHarness handle={handle} />);
+    await waitForVisualEditor();
+    pressCtrl("h");
+    await waitFor(() => expect(screen.getByTestId("find-replace-value")).toBeInTheDocument());
+
+    // `e\no` runs from the heading's last letter, across the block separator,
+    // into the paragraph's first letter.
+    query("e\\no");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Regular expression" }));
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match"));
+
+    fireEvent.change(screen.getByTestId("find-replace-value"), { target: { value: "X" } });
+    const writesBefore = source.writes.length;
+    fireEvent.click(screen.getByRole("button", { name: "Replace all" }));
+
+    // The unmappable range is dropped, so nothing is written and the heading
+    // and paragraph stay two blocks (pre-fix this spliced them into one).
+    expect(source.writes).toHaveLength(writesBefore);
+    const editorDom = document.querySelector(".ProseMirror")!;
+    expect(editorDom.querySelector("h1")?.textContent).toBe("Title");
+    expect(editorDom.querySelector("p")?.textContent).toContain("one two one");
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match"));
+  });
+
+  it("keeps the query focused while typing in source mode (F-01)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<SourceHarness handle={handle} />);
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+
+    const queryField = screen.getByTestId("find-replace-query");
+    queryField.focus();
+    expect(queryField).toHaveFocus();
+
+    query("one");
+    await waitFor(() => expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark")).toHaveLength(2));
+
+    // The result-driven selection must not steal focus into the textarea: the
+    // next characters would land in the document, and Escape (which only the
+    // panel handles) would stop closing the panel.
+    expect(queryField).toHaveFocus();
+    expect(document.activeElement).not.toBe(screen.getByLabelText("md source"));
+  });
+
+  it("mirrors the textarea scroll into the source overlay (F-03)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<SourceHarness handle={handle} />);
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    query("one");
+    await waitFor(() => expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark")).toHaveLength(2));
+
+    const textarea = screen.getByLabelText("md source") as HTMLTextAreaElement;
+    const overlay = screen.getByTestId("md-find-source-highlight") as HTMLElement;
+    expect(overlay.scrollTop).toBe(0);
+
+    // Scrolling the field moves the overlay by the same offset, so the marks
+    // stay on the lines they belong to.
+    textarea.scrollTop = 120;
+    fireEvent.scroll(textarea);
+    expect(overlay.scrollTop).toBe(120);
+
+    // A repaint while scrolled (the panel re-reports the result) keeps the
+    // offset instead of resetting the marks to the document top.
+    query("two");
+    await waitFor(() => expect(overlay.scrollTop).toBe(120));
+  });
+
+  it("searches a read-only document without offering the replace row (F-04)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<VisualHarness handle={handle} editable={false} />);
+    await waitForVisualEditor();
+    pressCtrl("h");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+
+    // Find still works: only the replace row is withheld on a read-only surface.
+    expect(screen.getByTestId("find-replace-query")).not.toBeDisabled();
+    query("one");
+    await waitFor(() => expect(document.querySelectorAll("[data-find-match]")).toHaveLength(2));
+    expect(screen.queryByTestId("find-replace-value")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("find-replace-all")).not.toBeInTheDocument();
   });
 
   it("closes with Escape and repaints nothing while closed", async () => {

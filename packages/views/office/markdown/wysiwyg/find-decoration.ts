@@ -77,7 +77,7 @@ function appendLeaf(out: { text: string; positions: (number | null)[] }, leaf: s
  * The document as one string, with a map back to document positions. Block
  * children are joined with `\n`, exactly like `textBetween(0, size, "\n")`, so
  * a query never matches across two blocks by accident: the separator is a
- * `null` position and `matchToPmRange` drops a range that touches one.
+ * `null` position and `matchToPmRange` drops a range that spans one.
  */
 export function flattenDocText(doc: PMNode): FlattenedDoc {
   const out: { text: string; positions: (number | null)[] } = { text: "", positions: [] };
@@ -111,13 +111,24 @@ export function flattenDocText(doc: PMNode): FlattenedDoc {
 
 /**
  * The document range for a match in the flat text, or `null` when the match
- * starts or ends on a block separator (a decoration cannot span two nodes).
+ * spans a block separator (a decoration cannot span two nodes, and a replace
+ * across one would splice two top-level blocks together).
  */
 export function matchToPmRange(flat: FlattenedDoc, match: FindMatch): MarkdownFindRange | null {
-  const from = flat.positions[match.start];
-  const last = flat.positions[match.end - 1];
-  if (from === undefined || from === null || last === undefined || last === null) return null;
-  return { from, to: last + 1 };
+  // EVERY code unit in the match must map, not just the endpoints. A regex
+  // match can span an INTERIOR separator (`e\no` over `Title\none`): the
+  // endpoint check alone waves it through, and the caller's `replaceWith` then
+  // replaces across the separator and merges the two blocks.
+  let from = -1;
+  let to = -1;
+  for (let i = match.start; i < match.end; i += 1) {
+    const position = flat.positions[i];
+    if (position === undefined || position === null) return null;
+    if (from === -1) from = position;
+    to = position + 1;
+  }
+  if (from === -1) return null;
+  return { from, to };
 }
 
 /**
