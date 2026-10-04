@@ -66,12 +66,41 @@ describe("HtmlSourceEditor", () => {
   });
 
   it("applies an external controlled value change to the document", async () => {
-    const { container, rerender } = render(<HtmlSourceEditor value="<p>one</p>" onChange={() => undefined} />);
+    const onChange = vi.fn();
+    const { container, rerender } = render(<HtmlSourceEditor value="<p>one</p>" onChange={onChange} />);
     await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
     const v = view(container);
     expect(v.state.doc.toString()).toBe("<p>one</p>");
-    rerender(<HtmlSourceEditor value="<p>two</p>" onChange={() => undefined} />);
+    rerender(<HtmlSourceEditor value="<p>two</p>" onChange={onChange} />);
     await waitFor(() => expect(v.state.doc.toString()).toBe("<p>two</p>"));
+    // The controlled write is marked with the externalSync annotation, so it
+    // must never echo back through onChange.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("flushes a pending change when a composition is cancelled without compositionend", async () => {
+    const onChange = vi.fn();
+    const onCheckpoint = vi.fn();
+    const { container } = render(<HtmlSourceEditor value="" onChange={onChange} onCheckpoint={onCheckpoint} />);
+    await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
+    const v = view(container);
+    fireEvent.compositionStart(v.contentDOM);
+    v.dispatch({ changes: { from: 0, insert: "hợp" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(v.contentDOM);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // A second composition that is cancelled (no compositionend) must not
+    // leave the gate stuck true: the edit is reported and later edits flow.
+    fireEvent.compositionStart(v.contentDOM);
+    v.dispatch({ changes: { from: v.state.doc.length, insert: "!" } });
+    // `compositioncancel` is not in testing-library's event map; dispatch it raw.
+    v.contentDOM.dispatchEvent(new Event("compositioncancel", { bubbles: true }));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenLastCalledWith("hợp!");
+    expect(onCheckpoint).toHaveBeenCalledTimes(2);
+    v.dispatch({ changes: { from: v.state.doc.length, insert: "?" } });
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange).toHaveBeenLastCalledWith("hợp!?");
   });
 
   it("keeps byte identity between the value in and the onChange value out", async () => {
@@ -86,10 +115,29 @@ describe("HtmlSourceEditor", () => {
     expect(v.state.doc.toString()).toBe(KITCHEN_SINK);
   });
 
-  it("renders the container testid and aria-label", async () => {
-    render(<HtmlSourceEditor value="" onChange={() => undefined} ariaLabel="HTML source" />);
-    const node = screen.getByTestId("html-codemirror");
-    expect(node).toHaveAttribute("aria-label", "HTML source");
+  // CRLF decision (N5): CodeMirror normalises `\r\n` to `\n` in the document,
+  // exactly as the Markdown <textarea> does, so a CRLF file emits LF on its
+  // first edit. That is md/html parity, not a regression, and the adapter
+  // treats the text as opaque bytes - so no CRLF round-trip is pinned here.
+  it("normalises CRLF to LF, matching the Markdown textarea", async () => {
+    const onChange = vi.fn();
+    const { container } = render(<HtmlSourceEditor value={""} onChange={onChange} />);
+    await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
+    const v = view(container);
+    v.dispatch({ changes: { from: 0, insert: "<p>a</p>\r\n<p>b</p>" } });
+    expect(onChange).toHaveBeenCalledWith("<p>a</p>\n<p>b</p>");
+  });
+
+  it("puts the accessible name on the editable content node, not the container", async () => {
+    const { container, rerender } = render(<HtmlSourceEditor value="" onChange={() => undefined} ariaLabel="HTML source" />);
+    await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
+    const v = view(container);
+    // ARIA ignores a label on the generic container div; the editable node is
+    // CodeMirror's `.cm-content`, which must carry the name itself.
+    expect(v.contentDOM).toHaveAttribute("aria-label", "HTML source");
+    expect(screen.getByTestId("html-codemirror")).not.toHaveAttribute("aria-label");
+    rerender(<HtmlSourceEditor value="" onChange={() => undefined} ariaLabel="Renamed" />);
+    await waitFor(() => expect(v.contentDOM).toHaveAttribute("aria-label", "Renamed"));
   });
 
   it("does not own undo: a Mod-z keydown leaves the document and onChange untouched", async () => {

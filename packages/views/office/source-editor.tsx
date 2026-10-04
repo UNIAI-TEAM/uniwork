@@ -328,14 +328,17 @@ export function SourceEditor<TSnapshot = unknown>({
       save("shortcut");
       return;
     }
-    if (format !== "html" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+      // A denied permission still blocks the gesture on the HTML path; only
+      // the custom writeText path is skipped there, where CodeMirror owns the
+      // native clipboard.
       if (permissions.canCopy === false) event.preventDefault();
-      else if (editorRef.current.clipboard?.writeText) { event.preventDefault(); void copySelection().catch(() => undefined); }
+      else if (format !== "html" && editorRef.current.clipboard?.writeText) { event.preventDefault(); void copySelection().catch(() => undefined); }
       return;
     }
-    if (format !== "html" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
       if (permissions.canPaste === false) event.preventDefault();
-      else if (editorRef.current.clipboard?.readText) { event.preventDefault(); void pasteText().catch(() => undefined); }
+      else if (format !== "html" && editorRef.current.clipboard?.readText) { event.preventDefault(); void pasteText().catch(() => undefined); }
       return;
     }
     if ((event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
@@ -368,8 +371,12 @@ export function SourceEditor<TSnapshot = unknown>({
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid={`${format}-toolbar`} role="toolbar" aria-label={t("toolbar.label")}>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={format === "html" || readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={format === "html" || readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+            {format === "md" ? (
+              <>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+              </>
+            ) : null}
             <span className="min-w-0 flex-1" />
             <Button type="button" variant="brand" size="sm" data-testid={`${format}-save`} disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
               {saving ? t("actions.saving") : t("actions.save")}

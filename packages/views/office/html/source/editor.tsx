@@ -7,7 +7,7 @@ import { html } from "@codemirror/lang-html";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorState } from "@codemirror/state";
-import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers, placeholder as cmPlaceholder } from "@codemirror/view";
+import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
 export interface HtmlSourceEditorProps {
@@ -65,12 +65,21 @@ const uniworkTheme = EditorView.theme({
 
 const readOnlyCompartment = new Compartment();
 
+// The editable node is CodeMirror's `.cm-content`, not this container, so the
+// accessible name has to live on the content element. A compartment lets the
+// label follow the prop like the readOnly flag does.
+const ariaLabelCompartment = new Compartment();
+
 // Marks transactions the component itself dispatches to mirror the controlled
 // `value` prop, so they are never echoed back through onChange.
 const externalSync = Annotation.define<boolean>();
 
 function readOnlyExtensions(readOnly: boolean) {
   return [EditorView.editable.of(!readOnly), EditorState.readOnly.of(readOnly)];
+}
+
+function ariaLabelExtension(ariaLabel?: string) {
+  return EditorView.contentAttributes.of(ariaLabel ? { "aria-label": ariaLabel } : {});
 }
 
 export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoint, className, ariaLabel, placeholder }: HtmlSourceEditorProps): ReactElement {
@@ -100,6 +109,7 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
           lineNumbers(),
           drawSelection(),
           highlightActiveLine(),
+          highlightActiveLineGutter(),
           syntaxHighlighting(uniworkHighlightStyle),
           html(),
           search(),
@@ -116,6 +126,7 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
           keymap.of([...defaultKeymap, ...searchKeymap]),
           uniworkTheme,
           readOnlyCompartment.of(readOnlyExtensions(readOnly)),
+          ariaLabelCompartment.of(ariaLabelExtension(ariaLabel)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             if (update.transactions.some((tr) => tr.annotation(externalSync))) return;
@@ -139,11 +150,22 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
       composedChangeRef.current = false;
       emitChange(view.state.doc.toString(), true);
     };
+    // A cancelled composition without a trailing compositionend would leave
+    // composingRef stuck true, swallowing every later edit. Clear both refs
+    // and flush a pending change so the text is never silently unsaved.
+    const onCompositionCancel = () => {
+      composingRef.current = false;
+      if (!composedChangeRef.current) return;
+      composedChangeRef.current = false;
+      emitChange(view.state.doc.toString(), true);
+    };
     dom.addEventListener("compositionstart", onCompositionStart);
     dom.addEventListener("compositionend", onCompositionEnd);
+    dom.addEventListener("compositioncancel", onCompositionCancel);
     return () => {
       dom.removeEventListener("compositionstart", onCompositionStart);
       dom.removeEventListener("compositionend", onCompositionEnd);
+      dom.removeEventListener("compositioncancel", onCompositionCancel);
       view.destroy();
       viewRef.current = null;
     };
@@ -166,5 +188,13 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
     view.dispatch({ effects: readOnlyCompartment.reconfigure(readOnlyExtensions(readOnly)) });
   }, [readOnly]);
 
-  return <div ref={containerRef} className={className} data-testid="html-codemirror" aria-label={ariaLabel} />;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: ariaLabelCompartment.reconfigure(ariaLabelExtension(ariaLabel)) });
+  }, [ariaLabel]);
+
+  // The accessible name lives on `.cm-content` via ariaLabelCompartment; a
+  // label here would sit on a generic div and be ignored by AT.
+  return <div ref={containerRef} className={className} data-testid="html-codemirror" />;
 }

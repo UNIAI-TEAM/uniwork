@@ -31,7 +31,7 @@ function cmView(container: HTMLElement): EditorView {
   return found;
 }
 
-function renderHtml(preview?: IsolatedPreviewPort) {
+function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }) {
   let source = "<!doctype html>\n<!-- preserve -->\n<section data-x=\"1\">Keep</section>";
   const editor: HtmlEditorHandle = {
     format: "html",
@@ -47,7 +47,7 @@ function renderHtml(preview?: IsolatedPreviewPort) {
   };
   const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const coordinator = makeCoordinator();
-  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} />);
+  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} permissions={permissions} />);
   return { editor, coordinator, ...rendered };
 }
 
@@ -127,5 +127,23 @@ describe("HtmlEditor", () => {
     fireEvent.keyDown(view.contentDOM, { key: "y", ctrlKey: true });
     expect(editor.redo).toHaveBeenCalledTimes(1);
     expect(editor.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks Ctrl+C/V on the HTML path when the permission is denied", async () => {
+    const { container } = renderHtml(undefined, { canCopy: false, canPaste: false });
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    const view = cmView(container);
+    // The pane returns early for html so CodeMirror owns the native clipboard,
+    // but a denied permission must still cancel the gesture.
+    expect(fireEvent.keyDown(view.contentDOM, { key: "c", ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(view.contentDOM, { key: "v", ctrlKey: true })).toBe(false);
+  });
+
+  it("hides the dead Copy/Paste toolbar buttons for HTML", async () => {
+    renderHtml();
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Paste" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 });
