@@ -39,6 +39,7 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { Fragment } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import {
   applyEdits,
@@ -109,6 +110,23 @@ function readSource(handle: TextEditorHandle): string {
 function writeSource(handle: TextEditorHandle, text: string): void {
   if (handle.source) handle.source.setText(text);
   else handle.setText?.(text);
+}
+
+/**
+ * The ProseMirror content for a replacement string. A line break becomes a
+ * `hardBreak` node: `TextSelection.insertText` drops a bare `\n` on the floor,
+ * so a multi-line replacement would silently lose its breaks. A newline-free
+ * value (the common case) is a single text node, and an empty value is an empty
+ * fragment, which deletes the match.
+ */
+function replacementFragment(editor: Editor, value: string): Fragment {
+  const parts = value.split("\n");
+  const nodes = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    if (i > 0) nodes.push(editor.state.schema.nodes.hardBreak.create());
+    if (parts[i]!.length > 0) nodes.push(editor.state.schema.text(parts[i]!));
+  }
+  return Fragment.fromArray(nodes);
 }
 
 export function MarkdownFind({
@@ -259,9 +277,7 @@ export function MarkdownFind({
       // so the replacement is dirty-checked and saved like a typed edit.
       const tr = editor.state.tr;
       for (const { edit, range } of pairs) {
-        // `insertText` splits a replacement on its line breaks; `schema.text`
-        // would build one text node holding a newline the schema rejects.
-        tr.insertText(edit.replacement, range.from, range.to);
+        tr.replaceWith(range.from, range.to, replacementFragment(editor, edit.replacement));
       }
       editor.view.dispatch(tr);
     },
