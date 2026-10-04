@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
