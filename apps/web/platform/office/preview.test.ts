@@ -569,6 +569,51 @@ describe("visual-edit inspector (ADR 0026)", () => {
     session.dispose();
   });
 
+  it("traverses the channel: a command reaches the frame endpoint, not the parent gate (SEC F1)", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    // The endpoint the host transfers to the frame is the one the inspector
+    // receives; the parent keeps the other end and must send on THAT one.
+    const frameSidePort = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    const frameSide: unknown[] = [];
+    frameSidePort.onmessage = (event: MessageEvent) => frameSide.push(event.data);
+    const inspector = session.inspector;
+    expect(inspector).not.toBeNull();
+    expect(inspector!.command({ type: "select", sid: 4 })).toBe(true);
+    // The command must arrive on the frame-side endpoint...
+    await vi.waitFor(() => expect(frameSide).toEqual([{ type: "select", nonce: VISUAL_NONCE, sid: 4 }]));
+    // ...and must NOT loop back into the parent's own inbound gate as if the
+    // frame had sent it (the jsdom fabrication the old wiring produced).
+    expect(events).toEqual([]);
+    frameSidePort.close();
+    session.dispose();
+  });
+
+  it("retires the inspector channel at re-render time and hands out a fresh live one (FE-M5)", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    const first = session.inspector;
+    expect(first).not.toBeNull();
+    // show() runs synchronously inside update(), so the old session is retired
+    // before update() resolves: no caller can hold a session whose channel is
+    // already dead in the window between update() and the next load.
+    const pending = session.update("<p>y</p>");
+    expect(session.inspector).toBeNull();
+    expect(first!.command({ type: "select", sid: 1 })).toBe(false);
+    // The re-render's load builds a new, live session on the same nonce.
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(session.inspector).not.toBeNull();
+    expect(session.inspector!.command({ type: "select", sid: 2 })).toBe(true);
+    session.dispose();
+    await pending;
+  });
+
   it("refuses inspector events that fail the schema and never evaluates frame data", async () => {
     const events: PreviewEvent[] = [];
     const { session } = await mount("<p>x</p>", {

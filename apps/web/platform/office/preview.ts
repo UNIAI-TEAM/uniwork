@@ -442,7 +442,22 @@ interface AssetManifestEntryWithID {
   // flag or CSP directive stops self-navigation), so the frame is blanked and
   // the new occupant never gets a port or the nonce (FE review r1 F-1).
   let pending: "document" | "blank" | null = null;
+  let bridge: PreviewBridge | null = null;
+  let inspector: InspectorSession | null = null;
+  let closeInspectorChannel: (() => void) | null = null;
+  // Retire the channels of the document we are about to replace. Closing at
+  // srcdoc-assignment time - not only on the next load - means a caller can
+  // never be handed an inspector whose channel is already dead (FE-M5).
+  const retireChannels = () => {
+    bridge?.close();
+    bridge = null;
+    inspector?.close();
+    inspector = null;
+    closeInspectorChannel?.();
+    closeInspectorChannel = null;
+  };
   const show = (text: string) => {
+    retireChannels();
     // Final gate: the browser's own parser decides what the copy contains. In
     // visual-edit it also strips every <script> and on* handler, so what comes
     // out is script-free and the inspector is the only script added after it.
@@ -469,18 +484,10 @@ interface AssetManifestEntryWithID {
     pending = "document";
     iframe.srcdoc = html;
   };
-  let bridge: PreviewBridge | null = null;
-  let inspector: InspectorSession | null = null;
-  let closeInspectorChannel: (() => void) | null = null;
   const onLoad = () => {
     const cause = pending;
     pending = null;
-    bridge?.close();
-    bridge = null;
-    inspector?.close();
-    inspector = null;
-    closeInspectorChannel?.();
-    closeInspectorChannel = null;
+    retireChannels();
     if (cause === "blank") return;
     if (cause === null) {
       pending = "blank";
@@ -497,7 +504,9 @@ interface AssetManifestEntryWithID {
         const accepted = acceptInspectorMessage(event, nonce);
         if (accepted) options.onEvent?.(inspectorEvent(accepted));
       };
-      inspector = createInspectorSession(nonce, channel.port2);
+      // The parent sends on port1; port2 is the endpoint transferred to the
+      // frame. Posting on the transferred port is a silent no-op (SEC F1).
+      inspector = createInspectorSession(nonce, channel.port1);
       closeInspectorChannel = () => {
         channel.port1.onmessage = null;
         channel.port1.close();
@@ -559,12 +568,7 @@ interface AssetManifestEntryWithID {
     dispose() {
       disposed = true;
       iframe.removeEventListener("load", onLoad);
-      bridge?.close();
-      bridge = null;
-      inspector?.close();
-      inspector = null;
-      closeInspectorChannel?.();
-      closeInspectorChannel = null;
+      retireChannels();
       current.scope.revoke();
       iframe.remove();
     },
