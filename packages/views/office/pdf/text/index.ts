@@ -10,6 +10,4 @@ export type {
   PdfTextInsertInput,
   PdfTextOperationOutcome,
   PdfTextOperationProvider,
-  PdfTextOperationWarning,
-  PdfTextSelection,
 } from "./types";
