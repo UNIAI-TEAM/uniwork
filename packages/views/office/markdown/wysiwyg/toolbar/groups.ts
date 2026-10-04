@@ -1,5 +1,5 @@
 /**
- * The Markdown command row as pure data (M2).
+ * The Markdown toolbar groups as pure data (M2).
  *
  * One list, in the brief's fixed C7 order, each control declared ONCE:
  *
@@ -10,9 +10,9 @@
  *   insert (table / image / horizontal rule)
  *   view (outline / front-matter toggles)
  *
- * Deliberately absent: undo/redo (the chrome's quick access in the tab row,
- * C6) and Save (the shared save cluster, C2 / UNI-930). The source <-> WYSIWYG
- * switch is the chrome's view segmented control, not a command here.
+ * Deliberately absent: undo/redo (the ribbon's quick-access slot in the tab
+ * row, C6) and Save (the shared save cluster, C2 / UNI-930). The source <->
+ * WYSIWYG switch is the ribbon's trailing view control, not a command here.
  *
  * `priority` is the ribbon's collapse order: the LOWEST value folds into "»"
  * first, so the reading/writing commands a user reaches for most stay in the
@@ -81,9 +81,9 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
       { id: "insertMath", labelKey: "office.markdown.math.blockLabel", kind: "custom" },
       // M4: the code-block language picker + copy are CONTEXTUAL - they render
       // only while the cursor is inside a fence (the control null-renders
-      // otherwise). Declaring them here, once, is what mounts them in BOTH the
-      // command row and the shared ribbon; a contextual control the data model
-      // forgot would be dead code.
+      // otherwise). Declaring them here, once, is what mounts them in the
+      // shared ribbon (as the Insert group item and the contextual Code tab);
+      // a contextual control the data model forgot would be dead code.
       { id: "codeBlock", labelKey: "office.markdown.code.language", kind: "custom" },
     ],
   },

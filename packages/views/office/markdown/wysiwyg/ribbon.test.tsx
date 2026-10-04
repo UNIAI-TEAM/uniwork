@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useEffect, useState } from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
@@ -14,9 +14,14 @@ beforeEach(async () => {
 });
 
 const FIXTURE = "# Title\n\nBody paragraph.\n";
+// A document whose first block is a fenced code block, so the cursor can be
+// parked inside a fence without editing (the CHDEL port of code-block.test.tsx).
+const CODE_FENCE = "```";
+const CODE_TEXT = "const answer = 42;";
+const CODE_FIXTURE = ["# Title", "", CODE_FENCE + "javascript", CODE_TEXT, CODE_FENCE, ""].join("\n");
 
-function createHandle(): TextEditorHandle {
-  let text = FIXTURE;
+function createHandle(initial: string = FIXTURE): TextEditorHandle {
+  let text = initial;
   const listeners = new Set<(next: string) => void>();
   return {
     format: "md",
@@ -44,8 +49,8 @@ function createHandle(): TextEditorHandle {
 let live: Editor | null = null;
 
 /** Editor + ribbon over one shared text source, wired as the product does. */
-function Harness({ editable = true, ...ribbon }: Partial<Parameters<typeof MarkdownRibbon>[0]>) {
-  const [handle] = useState(createHandle);
+function Harness({ editable = true, text = FIXTURE, ...ribbon }: { text?: string } & Partial<Parameters<typeof MarkdownRibbon>[0]>) {
+  const [handle] = useState(() => createHandle(text));
   const [instance, setInstance] = useState<Editor | null>(null);
   useEffect(() => {
     live = instance;
@@ -86,6 +91,43 @@ function ribbonItem(scope: HTMLElement, id: string): HTMLElement {
   const found = scope.querySelector<HTMLElement>(`[data-ribbon-item="${id}"]`);
   if (!found) throw new Error(`ribbon item ${id} not found`);
   return found;
+}
+
+/** Park the cursor inside the document's first code fence. */
+function selectCodeBlock(): void {
+  let inside = -1;
+  live!.state.doc.descendants((node, pos) => {
+    if (node.type.name === "codeBlock") {
+      inside = pos + 2;
+      return false;
+    }
+    return true;
+  });
+  expect(inside).toBeGreaterThan(0);
+  act(() => {
+    live!.commands.setTextSelection(inside);
+  });
+}
+
+/**
+ * The live mount of `CodeBlockToolbar`: the contextual Code tab appears only
+ * while the cursor is inside a fence, and clicking it renders the group's
+ * `custom` item. Returns the toolbar element the ribbon mounted.
+ */
+async function openCodeTab(): Promise<HTMLElement> {
+  selectCodeBlock();
+  const tab = await waitFor(() => {
+    const found = ribbonRegion().querySelector<HTMLElement>('[data-ribbon-tab="code"]');
+    expect(found).not.toBeNull();
+    return found!;
+  });
+  expect(tab).toHaveAttribute("data-ribbon-contextual", "warning");
+  fireEvent.click(tab);
+  return await waitFor(() => {
+    const toolbar = document.querySelector<HTMLElement>("[data-code-block-toolbar]");
+    expect(toolbar).not.toBeNull();
+    return toolbar!;
+  });
 }
 
 describe("useMarkdownRibbonTabs", () => {
@@ -215,5 +257,69 @@ describe("MarkdownRibbon", () => {
     expect(tableTab).toHaveAttribute("data-ribbon-contextual", "info");
     fireEvent.click(tableTab);
     expect(ribbonItem(ribbonGroup(ribbonRegion(), "table"), "table-delete")).toBeInTheDocument();
+  });
+
+  /**
+   * The CHDEL port: `code-block.test.tsx` was the only test that mounted and
+   * exercised `CodeBlockToolbar`; it was deleted with the superseded command
+   * row. These cases drive the SAME component through its live mount — the
+   * ribbon's contextual Code tab — so a break in `readCodeBlock`,
+   * `setCodeBlockLanguage`, `copyCodeBlock` or the `inCodeBlock` gate fails here.
+   */
+  it("mounts the CodeBlockToolbar from the contextual Code tab only inside a fence", async () => {
+    render(<Harness text={CODE_FIXTURE} />);
+    await waitForRibbon();
+    // Cursor starts in the heading: no Code tab, no toolbar.
+    expect(ribbonRegion().querySelector('[data-ribbon-tab="code"]')).toBeNull();
+    expect(document.querySelector("[data-code-block-toolbar]")).toBeNull();
+    const toolbar = await openCodeTab();
+    expect(toolbar.getAttribute("data-code-block-language")).toBe("javascript");
+  });
+
+  it("changes the current block's language through the ribbon's toolbar", async () => {
+    render(<Harness text={CODE_FIXTURE} />);
+    await waitForRibbon();
+    const toolbar = await openCodeTab();
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Language" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "python" }));
+    await waitFor(() => expect(live!.getAttributes("codeBlock").language).toBe("python"));
+    // The document really carries the new fence info string.
+    expect(live!.getJSON().content?.some((node) => node.type === "codeBlock" && node.attrs?.language === "python")).toBe(true);
+  });
+
+  it("clears the info string when Plain text is chosen (a bare fence)", async () => {
+    render(<Harness text={CODE_FIXTURE} />);
+    await waitForRibbon();
+    const toolbar = await openCodeTab();
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Language" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Plain text" }));
+    await waitFor(() => expect(live!.getAttributes("codeBlock").language).toBe(""));
+    // It serialises as a bare fence, not ```plaintext.
+    await waitFor(() => expect(document.querySelector("[data-code-block-toolbar]")?.getAttribute("data-code-block-language")).toBe("plaintext"));
+  });
+
+  it("copies the block's exact text to the clipboard", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<Harness text={CODE_FIXTURE} />);
+    await waitForRibbon();
+    const toolbar = await openCodeTab();
+    // The node view has its own copy button; scope to this contextual toolbar.
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Copy code" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(CODE_TEXT));
+  });
+
+  it("keeps the language menu closed while the editor is read-only", async () => {
+    render(<Harness text={CODE_FIXTURE} editable={false} />);
+    await waitForRibbon();
+    // The control is still present (disabled, not hidden) and does not mutate.
+    const toolbar = await openCodeTab();
+    const trigger = within(toolbar).getByRole("button", { name: "Language" });
+    expect(trigger).toBeDisabled();
+    const before = JSON.stringify(live!.getJSON());
+    fireEvent.mouseDown(trigger);
+    fireEvent.click(trigger);
+    expect(document.querySelector('[data-toolbar-menu="codeBlockLanguage"]')).toBeNull();
+    expect(JSON.stringify(live!.getJSON())).toBe(before);
   });
 });

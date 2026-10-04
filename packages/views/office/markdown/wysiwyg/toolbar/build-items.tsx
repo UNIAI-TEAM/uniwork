@@ -1,21 +1,16 @@
 "use client";
 
 /**
- * Turns the pure group definitions into the controls the shared chrome and the
- * shared ribbon render.
+ * Turns the pure group definitions into the controls the shared ribbon renders.
  *
- * One builder, two mounts: the shared ribbon body (`MarkdownRibbon`, the mount
- * the product uses) and the SUPERSEDED per-lane chrome command row
- * (`MarkdownCommandRow` / `useMarkdownToolbarChromeTab`). Keeping the builder
- * in one place is what stops the two mounts from drifting into two rule sets.
- *
- * The chrome mount is dead weight kept only for its own tests: nothing outside
- * `toolbar/*.test.*` imports `command-row.tsx` or `chrome-tab.tsx` any more,
- * now that both formats render the shared UNI-931 ribbon (Markdown via the
- * WYSIWYG editor, HTML via `html/editor.tsx`). Delete the command row, the
- * chrome tab and `common/chrome/editor-chrome.tsx` together with their tests
- * in the follow-up that removes `office.common.chrome.*`; the ribbon owns the
- * tab row and the group body now (Amendment R).
+ * One builder, one live mount: the shared ribbon body (`MarkdownRibbon`, the
+ * mount the product uses; the HTML format renders the same ribbon through
+ * `html/editor.tsx`). The SUPERSEDED per-lane chrome command row
+ * (`MarkdownCommandRow` / `useMarkdownToolbarChromeTab`), its `chrome-tab.tsx`
+ * and `common/chrome/editor-chrome.tsx` were deleted with their tests once
+ * both formats moved to the shared UNI-931 ribbon (Amendment R). Keeping the
+ * builder in one place is what stopped the two mounts from drifting into two
+ * rule sets while both existed; the ribbon owns the tab row and the group body.
  */
 import {
   Bold,
