@@ -11,7 +11,10 @@ vi.mock("@uniwork/core/api/endpoints/config", () => ({ getPublicConfig: async ()
 vi.mock("./pptx-adapter", () => ({ createPptxFormatAdapter: mocks.adapter }));
 vi.mock("./pptx-runtime", () => ({ createWebPptxSessionRuntime: mocks.runtime }));
 vi.mock("./pptx-save-transport", () => ({ createPptxDocumentsTransport: mocks.documents }));
-vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: { id: string }; editorView?: ReactNode }) => createElement("div", { "data-adapter": props.formatAdapter?.id ?? "unbound" }, props.editorView) }));
+// Mirror the real OfficeEditorHost contract: the adapter owns the view, so the
+// host renders `formatAdapter.editorView` (falling back to a top-level
+// `editorView`). Reading only `props.editorView` hid the adapter canvas.
+vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: { id: string; editorView?: ReactNode }; editorView?: ReactNode }) => createElement("div", { "data-adapter": props.formatAdapter?.id ?? "unbound" }, props.formatAdapter?.editorView ?? props.editorView) }));
 import { PptxOfficeEditorHost } from "./pptx-office-host";
 
 const documentFor = (id = "doc-1") => ({

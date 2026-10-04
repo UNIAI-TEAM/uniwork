@@ -6,6 +6,7 @@
 // execute for real - the coverage the P0-1 review found missing (F1 shipped
 // because nothing exercised this file).
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PptxEngineError } from "@uniwork/office-engine/pptx";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
 import {
@@ -323,7 +324,16 @@ describe("web PPTX session runtime", () => {
     expect(await runtime.undo(ref)).toBe(true);
     expect(runtime.slideNotes!(ref, 0)).toBe("");
     // A missing slide is a typed refusal, never a silent ''. 
-    expect(() => runtime.slideNotes!(ref, 9)).toThrow(/no_slide/);
+    // The engine contract is the typed code (PptxEngineError.code ===
+    // "no_slide"); the message prose is not the contract, so assert the code.
+    let refusal: unknown;
+    try {
+      runtime.slideNotes!(ref, 9);
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(PptxEngineError);
+    expect((refusal as PptxEngineError).code).toBe("no_slide");
     // A released session refuses instead of returning stale notes.
     await runtime.release(ref);
     expect(() => runtime.slideNotes!(ref, 0)).toThrow("pptx_runtime_not_open");

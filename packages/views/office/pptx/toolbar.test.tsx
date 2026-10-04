@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useOfficeRibbonPreferencesStore } from "@uniwork/core/office/ribbon-preferences";
@@ -70,7 +70,11 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     const undo = screen.getByRole("button", { name: "Undo" });
     expect(undo).toBeDisabled();
     expect(undo).not.toHaveAttribute("title");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("No edit history yet.");
+    // The undo control's OWN tooltip carries the reason. Scope the query to the
+    // button's wrapper: the redo tooltip and the Find hint are also
+    // role="tooltip", so an unscoped getByRole would be non-unique.
+    const undoWrap = undo.closest("span") as HTMLElement;
+    expect(within(undoWrap).getByRole("tooltip")).toHaveTextContent("No edit history yet.");
   });
 
   it("restores the F6 presenter pressed wash: a pressed toggle paints the selected token", () => {

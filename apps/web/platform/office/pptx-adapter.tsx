@@ -8,7 +8,7 @@
 // never touches a server edit job.
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
 import type { PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
@@ -180,6 +180,13 @@ function PptxEditorSurface(props: {
   slideNotes: (slideIndex: number) => string | null;
 }): ReactNode {
   const { t } = useTranslation();
+  // F7: the open effect must not restart on a fresh `t` identity. react-i18next
+  // memoizes `t`, but a host or a test double that hands back a new translator
+  // per render would otherwise re-open the document on every commit - an
+  // endless loading/ready loop. Read the translator through a ref, the same
+  // seam-stabilization the deck renderer and the editor use.
+  const tRef = useRef(t);
+  tRef.current = t;
   const { editor, coordinator, editable, open, view, subscribe, slideNotes } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
@@ -199,14 +206,14 @@ function PptxEditorSurface(props: {
         return;
       }
       setPhase("error");
-      setFailure(outcome.message ?? outcome.failure_class ?? t("office.editor.open_error_hint"));
+      setFailure(outcome.message ?? outcome.failure_class ?? tRef.current("office.editor.open_error_hint"));
     }).catch((error: unknown) => {
       if (!active) return;
       setPhase("error");
       setFailure(error instanceof Error ? error.message : String(error));
     });
     return () => { active = false; controller.abort(); };
-  }, [attempt, open, t]);
+  }, [attempt, open]);
 
   const host = useMemo(() => makePptxEditorHost(editor, editable), [editable, editor]);
 
