@@ -223,7 +223,11 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   };
 
   return (
-    <div className={cn("h-full min-h-0 overflow-hidden", className)} data-office-editor-host data-office-format={document.file?.mime_type ?? "unknown"}>
+<div
+      className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className)}
+      data-office-editor-host
+      data-office-format={document.file?.mime_type ?? "unknown"}
+    >
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}
