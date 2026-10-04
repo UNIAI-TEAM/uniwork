@@ -110,15 +110,33 @@ function updateMathSelection(editor: Editor, target: MathSelection, expression: 
   return true;
 }
 
+/** Options for `applyMath`. */
+interface ApplyMathOptions {
+  /**
+   * Edit the formula under the cursor in place when there is one. Defaults to
+   * true, the toolbar's behaviour. Callers that always mean "insert a new
+   * formula" (the slash menu) pass false: after the trigger text is deleted the
+   * caret can sit directly before an unrelated existing node, and updating it
+   * would silently empty that formula.
+   */
+  updateExisting?: boolean;
+}
+
 /**
  * Create or edit a formula: when the cursor is on a math node it is updated in
- * place, otherwise a new node of `kind` is inserted at the selection.
+ * place (unless `updateExisting` is false), otherwise a new node of `kind` is
+ * inserted at the selection.
  */
-export function applyMath(editor: Editor | null, kind: MathKind, expression: string): void {
+export function applyMath(
+  editor: Editor | null,
+  kind: MathKind,
+  expression: string,
+  options: ApplyMathOptions = {},
+): void {
   // A read-only document must not be mutated even if a caller reaches this
   // without going through the disabled popover.
   if (!editor?.isEditable) return;
-  const target = readMathSelection(editor);
+  const target = options.updateExisting === false ? null : readMathSelection(editor);
   if (target) {
     updateMathSelection(editor, target, expression);
     return;

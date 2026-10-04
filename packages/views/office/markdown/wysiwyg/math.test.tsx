@@ -134,6 +134,32 @@ describe("applyMath", () => {
   });
 });
 
+describe("applyMath with updateExisting: false", () => {
+  it("inserts a new node and leaves an adjacent formula untouched (M3-F1)", async () => {
+    editor = makeEditor();
+    await act(async () => {
+      editor!.chain().focus("end").insertContent({ type: "inlineMath", attrs: { expression: "E = mc^2" } }).run();
+    });
+    await waitFor(() => expect(findAll(editor!.getJSON(), "inlineMath")).toHaveLength(1));
+    // Put the caret directly before the existing inline formula, the state the
+    // slash menu is in after it deletes the `/query`.
+    let inlinePos = -1;
+    editor!.state.doc.descendants((node, pos) => {
+      if (node.type.name === "inlineMath") inlinePos = pos;
+      return true;
+    });
+    act(() => {
+      editor!.commands.setTextSelection(inlinePos);
+    });
+    await act(async () => {
+      applyMath(editor!, "block", "", { updateExisting: false });
+    });
+    await waitFor(() => expect(findAll(editor!.getJSON(), "blockMath")).toHaveLength(1));
+    // The existing formula is intact, not emptied in place.
+    expect(findAll(editor!.getJSON(), "inlineMath")[0]?.attrs?.expression).toBe("E = mc^2");
+  });
+});
+
 describe("MathPopover", () => {
   it("applies a formula through the caller's callback", async () => {
     const onApply = vi.fn();

@@ -287,6 +287,44 @@ describe("insertMarkdownSlashItem", () => {
     expect(editor.getJSON().content?.some((node) => node.type === "blockMath")).toBe(true);
   });
 
+  it("inserts a NEW formula when an existing inline math node sits right after the caret (M3-F1)", async () => {
+    // Repro: the doc is `foo <inlineMath>` and the caret sits directly before
+    // the existing node, with whitespace before the caret. Typing `/` and
+    // picking "Formula" must ADD a formula, never re-aim at the node that
+    // happens to sit after the deleted `/query`.
+    const editor = await withEditor();
+    let inlinePos = -1;
+    await act(async () => {
+      editor.commands.focus("end");
+      editor.commands.insertContent("foo ");
+      editor.commands.insertContent({ type: "inlineMath", attrs: { expression: "E = mc^2" } });
+    });
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "inlineMath") inlinePos = pos;
+      return true;
+    });
+    expect(inlinePos).toBeGreaterThan(0);
+    const inline = (): JSONContent[] =>
+      (editor.getJSON().content ?? []).flatMap((node) => node.content ?? []).filter((node) => node.type === "inlineMath");
+    expect(inline()).toHaveLength(1);
+
+    // Caret directly before the existing formula; `/` is typed there.
+    await act(async () => {
+      editor.commands.setTextSelection(inlinePos);
+      editor.commands.insertContent("/");
+    });
+    const slashTo = editor.state.selection.from;
+    await act(async () => {
+      insertMarkdownSlashItem(editor, { from: slashTo - 1, to: slashTo }, "math");
+    });
+
+    // The pre-existing formula keeps its expression...
+    expect(inline().find((node) => node.attrs?.expression === "E = mc^2")).toBeTruthy();
+    expect(inline()).toHaveLength(1);
+    // ...and the pick added a block formula instead of emptying the inline one.
+    expect(editor.getJSON().content?.some((node) => node.type === "blockMath")).toBe(true);
+  });
+
   it("inserts a fenced mermaid code block for the diagram entry", async () => {
     const editor = await withEditor();
     await insert(editor, "diagram");

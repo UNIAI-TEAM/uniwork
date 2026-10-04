@@ -172,9 +172,12 @@ export function insertMarkdownSlashItem(
       return;
     case "math":
       // M4 owns the node and the paste path; an empty formula is inserted and
-      // the user fills it through the M4 math popover.
+      // the user fills it through the M4 math popover. `updateExisting: false`
+      // is load-bearing: `deleteRange` can leave the caret directly before an
+      // existing math node, and an in-place update there would empty that
+      // formula instead of adding one (M3-F1).
       chain.run();
-      applyMath(editor, "block", "");
+      applyMath(editor, "block", "", { updateExisting: false });
       return;
     case "diagram":
       chain.run();
