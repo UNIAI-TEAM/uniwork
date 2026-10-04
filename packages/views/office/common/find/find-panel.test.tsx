@@ -170,6 +170,37 @@ describe("FindReplacePanel", () => {
     await waitFor(() => expect(screen.getByTestId("find-replace-query")).toHaveFocus());
   });
 
+  it("reports the live query and the full result to the host (S4 observation props)", () => {
+    const onQueryChange = vi.fn();
+    const onResultChange = vi.fn();
+    // Mounted with the callbacks present, as a real host mounts them: the
+    // reports read the callback through a ref, so attaching one later must not
+    // re-fire (that is the documented contract, asserted at the end).
+    const view = render(
+      <FindReplacePanel text="one two one" onQueryChange={onQueryChange} onResultChange={onResultChange} />,
+    );
+    const type = (value: string, testId: string) =>
+      fireEvent.change(screen.getByTestId(testId), { target: { value } });
+
+    // The initial render reports the empty query and its (empty) result.
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "", caseSensitive: false, wholeWord: false, regex: false });
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [], count: 0, invalidPattern: false });
+
+    type("one", "find-replace-query");
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "one", caseSensitive: false, wholeWord: false, regex: false });
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [{ start: 0, end: 3 }, { start: 8, end: 11 }], count: 2, invalidPattern: false });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Match case" }));
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "one", caseSensitive: true, wholeWord: false, regex: false });
+
+    // A text change re-reports both mirrors: the result offsets move with the
+    // document, and the reported query carries the new `text` (FindQuery is the
+    // matcher input, text included) while the query and flags are unchanged.
+    view.rerender(<FindReplacePanel text="one" onQueryChange={onQueryChange} onResultChange={onResultChange} />);
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [{ start: 0, end: 3 }], count: 1, invalidPattern: false });
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one", query: "one", caseSensitive: true, wholeWord: false, regex: false });
+  });
+
   it("renders nothing while closed and supports a controlled replacement", () => {
     const onReplaceValueChange = vi.fn();
     const { view } = renderPanel("abc");

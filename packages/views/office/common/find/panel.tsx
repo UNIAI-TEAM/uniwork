@@ -9,7 +9,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
-import { findMatches, type FindMatch, type FindReplaceEdit } from "./matcher";
+import { findMatches, type FindMatch, type FindQuery, type FindReplaceEdit, type FindResult } from "./matcher";
 
 export interface FindReplacePanelHandle {
   /** Focus the find field; the consumer calls this from its Ctrl+F handler. */
@@ -37,6 +37,19 @@ export interface FindReplacePanelProps {
   onReplaceAll?: (edits: readonly FindReplaceEdit[]) => void;
   /** The active match, or null when there is none. For scroll/highlight. */
   onActiveMatchChange?: (match: FindMatch | null, index: number) => void;
+  /**
+   * The live query and flag set, reported whenever the query, a flag or the
+   * searched `text` changes. The panel still owns the input state; this is a
+   * read-only mirror for a host that highlights matches it draws itself (e.g.
+   * a ProseMirror decoration).
+   */
+  onQueryChange?: (query: FindQuery) => void;
+  /**
+   * The full match result for the current query, reported whenever the query,
+   * a flag or the searched `text` changes. Same read-only mirror contract as
+   * `onQueryChange`: the host owns the document and asks for the ranges.
+   */
+  onResultChange?: (result: FindResult) => void;
   ref?: Ref<FindReplacePanelHandle>;
 }
 
@@ -53,6 +66,8 @@ export function FindReplacePanel({
   onReplace,
   onReplaceAll,
   onActiveMatchChange,
+  onQueryChange,
+  onResultChange,
   ref,
 }: FindReplacePanelProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.common.find" });
@@ -89,6 +104,20 @@ export function FindReplacePanel({
   useEffect(() => {
     reportActiveRef.current?.(activeMatch, safeIndex);
   }, [activeMatch, safeIndex]);
+
+  // Same ref pattern as the active-match report: an inline arrow from the host
+  // must not re-fire the report on every render.
+  const reportQueryRef = useRef(onQueryChange);
+  reportQueryRef.current = onQueryChange;
+  useEffect(() => {
+    reportQueryRef.current?.({ text, query, caseSensitive, wholeWord, regex });
+  }, [text, query, caseSensitive, wholeWord, regex]);
+
+  const reportResultRef = useRef(onResultChange);
+  reportResultRef.current = onResultChange;
+  useEffect(() => {
+    reportResultRef.current?.(result);
+  }, [result]);
 
   const setReplacement = useCallback((value: string) => {
     if (replaceValue === undefined) setInnerReplace(value);
