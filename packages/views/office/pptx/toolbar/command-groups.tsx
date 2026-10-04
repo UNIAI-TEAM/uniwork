@@ -29,7 +29,9 @@ import { computeToolbarOverflow, firstRovingIndex, nextRovingEnabledIndex, order
 
 /** Width reserved for the overflow button when deciding how many groups fit. */
 const MORE_WIDTH_PX = 40;
-/** C12: below this viewport width the command row is one scrollable strip. */
+/** C12: below this viewport width the command row is one scrollable strip.
+ *  Single source of truth for the narrow breakpoint: the shell (`toolbar.tsx`)
+ *  imports this instead of keeping a second copy that could drift. */
 export const PPTX_NARROW_COMMAND_QUERY = "(max-width: 767px)";
 
 export interface PptxCommandGroupsProps {
@@ -94,6 +96,9 @@ export function PptxCommandGroups({ tab, commands, activeCommand, narrow = false
         aria-labelledby={pptxTabDomId(tab.id)}
         className={cn("min-h-11 px-2 py-1.5 text-caption text-muted-foreground", className)}
         data-pptx-tab-panel={tab.id}
+        // F5: an empty tab still carries the command-row marker, so "exactly
+        // one command row" is queryable across all eight tabs, not just Home.
+        data-pptx-command-row="empty"
         data-pptx-tab-empty
       >
         {t("tab_empty")}

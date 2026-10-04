@@ -20,13 +20,10 @@ import { useTranslation } from "react-i18next";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { PptxCommand, PptxCommandId } from "./command-map";
-import { PptxCommandGroups } from "./toolbar/command-groups";
+import { PptxCommandGroups, PPTX_NARROW_COMMAND_QUERY } from "./toolbar/command-groups";
 import { PptxTabStrip } from "./toolbar/pptx-tab-strip";
 import { PptxQuickAccess, PptxTabRowTrailing } from "./toolbar/tab-row-controls";
 import { PPTX_TOOLBAR_TABS, type PptxTabId } from "./toolbar/tabs";
-
-/** C12: at phone widths the tabs scroll horizontally and the command row is one strip. */
-const NARROW_RIBBON_QUERY = "(max-width: 767px)";
 
 export interface PptxToolbarProps {
   commands: readonly PptxCommand[];
@@ -40,6 +37,9 @@ export interface PptxToolbarProps {
   canRedo?: boolean;
   /** Presenter open state; drives the tab-row view toggle's aria-pressed (C6). */
   presenterOpen?: boolean;
+  /** F9: element ref for the Find trigger, so closing the find bar can return
+   *  focus to the control that opened it. */
+  findButtonRef?: (element: HTMLButtonElement | null) => void;
   className?: string;
 }
 
@@ -56,11 +56,12 @@ export function PptxToolbar({
   canUndo,
   canRedo,
   presenterOpen = false,
+  findButtonRef,
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const [tab, setTab] = useState<PptxTabId>(defaultTab);
-  const narrow = useMediaQuery(NARROW_RIBBON_QUERY);
+  const narrow = useMediaQuery(PPTX_NARROW_COMMAND_QUERY);
   const active = PPTX_TOOLBAR_TABS.find((entry) => entry.id === tab) ?? PPTX_TOOLBAR_TABS[0]!;
   const resolved = useMemo(
     () =>
@@ -81,10 +82,10 @@ export function PptxToolbar({
       {/* C12 tab row: 40 px. Quick access far left, tabs in the middle, the
           presenter view toggle and Find far right. */}
       <div className="flex h-10 min-w-0 items-center gap-1 px-2" data-pptx-tab-row>
-        <PptxQuickAccess commands={resolved} onCommand={onCommand} canUndo={canUndo} canRedo={canRedo} />
+        <PptxQuickAccess commands={resolved} onCommand={onCommand} />
         <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-border" />
         <PptxTabStrip tabs={PPTX_TOOLBAR_TABS} activeTab={active.id} onSelect={setTab} className="min-w-0 flex-1" />
-        <PptxTabRowTrailing commands={resolved} onCommand={onCommand} presenterOpen={presenterOpen} />
+        <PptxTabRowTrailing commands={resolved} onCommand={onCommand} presenterOpen={presenterOpen} findButtonRef={findButtonRef} />
       </div>
       {/* C12 command row: 44 px, exactly one row. */}
       <PptxCommandGroups tab={active} commands={resolved} activeCommand={activeCommand} narrow={narrow} onCommand={onCommand} />

@@ -116,6 +116,9 @@ export function PptxEditor({
   const gestureRef = useRef<GestureState | null>(null);
   const historyQueue = useRef<"undo" | "redo" | null>(null);
   const presenterTriggerRef = useRef<HTMLElement | null>(null);
+  // F9: the Find trigger, so closing the find bar returns focus to it instead
+  // of dropping the keyboard user to `document.body`.
+  const findTriggerRef = useRef<HTMLButtonElement | null>(null);
   const editorRootRef = useRef<HTMLElement | null>(null);
   const selectedIndex = Math.min(Math.max(controlledIndex ?? internalIndex, 0), Math.max(slides.length - 1, 0));
   const railIdPrefix = `pptx-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
@@ -277,6 +280,18 @@ export function PptxEditor({
     setPresenterOpen(true);
   }, []);
 
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    // F9: restore focus to the control that opened the bar.
+    findTriggerRef.current?.focus();
+  }, []);
+
+  // Stable identity: an inline ref callback would detach/reattach on every
+  // render and could clear the trigger between a close and its focus restore.
+  const setFindTrigger = useCallback((element: HTMLButtonElement | null) => {
+    findTriggerRef.current = element;
+  }, []);
+
   const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
   const deleteElements = useMemo(() => {
     if (onDeleteElements) return onDeleteElements;
@@ -353,13 +368,14 @@ export function PptxEditor({
         commands={commands}
         onCommand={onCommand}
         presenterOpen={presenterOpen}
+        findButtonRef={setFindTrigger}
         {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
       />
       {findOpen ? (
         <PptxFindBar
           query={findQuery}
           onQueryChange={setFindQuery}
-          onClose={() => setFindOpen(false)}
+          onClose={closeFind}
           {...(onFind ? { onSearch: onFind } : {})}
         />
       ) : null}
@@ -405,7 +421,11 @@ export function PptxEditor({
       <PptxStatusBar
         slideCurrent={slides.length ? selectedIndex + 1 : null}
         slideTotal={slides.length || null}
-        language={typeof document !== "undefined" ? document.documentElement.lang || null : null}
+        // F1: no deck-language source exists in this lane yet, and
+        // `document.documentElement.lang` is the UI locale - showing it as the
+        // document language is a fabricated value. Render the unknown mark
+        // until a real deck-language source is wired, matching the counts.
+        language={null}
         selectionCount={selectedCount}
         gesturePending={gesturePending}
         zoom={zoom}

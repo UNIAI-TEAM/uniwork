@@ -4,7 +4,7 @@ export { PptxPresenter, type PptxPresenterProps } from "./presenter";
 export { PptxStatusBar, pptxLanguageLabel, type PptxStatusBarProps, type PptxStatusCounts } from "./status-bar";
 export { PptxToolbar, type PptxToolbarProps } from "./toolbar";
 export { PptxTabStrip, pptxTabDomId, pptxTabPanelId, type PptxTabStripProps } from "./toolbar/pptx-tab-strip";
-export { PptxCommandGroups, PPTX_NARROW_COMMAND_QUERY, type PptxCommandGroupsProps } from "./toolbar/command-groups";
+export { PptxCommandGroups, type PptxCommandGroupsProps } from "./toolbar/command-groups";
 export { PptxCommandButton, type PptxCommandButtonProps } from "./toolbar/command-button";
 export { PptxQuickAccess, PptxTabRowTrailing, type PptxQuickAccessProps, type PptxTabRowTrailingProps } from "./toolbar/tab-row-controls";
 export { PptxFindBar, type PptxFindBarProps } from "./toolbar/find-bar";

@@ -59,6 +59,19 @@ describe("narrow command row order (C12)", () => {
     const groups = [{ id: "file" as const, labelKey: "groups.file", commands: ["save" as const] }];
     expect(orderGroupsForNarrow(groups).map((group) => group.id)).toEqual(["file"]);
   });
+
+  it("marks primary only where a tab genuinely has more than one group (F8)", () => {
+    for (const tab of PPTX_TOOLBAR_TABS) {
+      const flagged = tab.groups.filter((group) => group.primary);
+      if (tab.groups.length > 1) {
+        // A multi-group tab names exactly one group to lead the narrow strip.
+        expect(flagged, `${tab.id} should name one primary group`).toHaveLength(1);
+      } else {
+        // A single-group tab is already first; `primary` documents nothing.
+        expect(flagged, `${tab.id} must not flag its only group`).toHaveLength(0);
+      }
+    }
+  });
 });
 
 describe("roving tab index", () => {

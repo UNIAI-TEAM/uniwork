@@ -15,7 +15,6 @@
  */
 import { Redo2, Search, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { findPptxCommand, type PptxCommand, type PptxCommandId } from "../command-map";
 import { PptxCommandButton } from "./command-button";
@@ -24,40 +23,32 @@ import { PPTX_FIND_COMMAND, PPTX_QUICK_ACCESS_COMMANDS, PPTX_VIEW_TOGGLE_COMMAND
 export interface PptxQuickAccessProps {
   commands: readonly PptxCommand[];
   onCommand: (id: PptxCommandId) => void;
-  /** Engine-journal availability; undefined leaves the command map's own state. */
-  canUndo?: boolean;
-  canRedo?: boolean;
   className?: string;
 }
 
-/** Far-left quick access: undo/redo as compact icon buttons (C6). */
-export function PptxQuickAccess({ commands, onCommand, canUndo, canRedo, className }: PptxQuickAccessProps) {
+/** Far-left quick access: undo/redo as compact icon buttons (C6).
+ *
+ * They render through `PptxCommandButton` so a disabled history shows the
+ * engine's reason in the shared hover/focus tooltip (F4) rather than in a
+ * native `title`, which a disabled control cannot show. The journal
+ * availability remap lives once, in the shell (`toolbar.tsx`). */
+export function PptxQuickAccess({ commands, onCommand, className }: PptxQuickAccessProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const icon: Partial<Record<PptxCommandId, typeof Undo2>> = { undo: Undo2, redo: Redo2 };
-  const historyBlocked = (id: PptxCommandId) => (id === "undo" ? canUndo === false : id === "redo" ? canRedo === false : false);
   return (
     <div className={cn("flex shrink-0 items-center gap-0.5", className)} data-pptx-quick-access>
       {PPTX_QUICK_ACCESS_COMMANDS.map((id) => {
         const command = findPptxCommand(commands, id);
         if (!command) return null;
         const Icon = icon[id];
-        const enabled = command.capability.status === "available" && !historyBlocked(id);
-        const label = t(command.labelKey);
         return (
-          <Button
+          <PptxCommandButton
             key={id}
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label={label}
-            title={enabled ? label : command.capability.reason ?? t("history_empty")}
-            disabled={!enabled}
-            data-command={id}
-            data-capability={command.capability.status}
-            onClick={() => enabled && onCommand(id)}
-          >
-            {Icon ? <Icon aria-hidden /> : label}
-          </Button>
+            command={command}
+            onCommand={onCommand}
+            icon={Icon ? <Icon aria-hidden /> : undefined}
+            hint={t(command.labelKey)}
+          />
         );
       })}
     </div>
@@ -69,11 +60,14 @@ export interface PptxTabRowTrailingProps {
   onCommand: (id: PptxCommandId) => void;
   /** Presenter is open; drives the view toggle's aria-pressed (C6). */
   presenterOpen?: boolean;
+  /** F9: the Find trigger element, so closing the find bar can return focus
+   *  to the control that opened it instead of dropping to `document.body`. */
+  findButtonRef?: (element: HTMLButtonElement | null) => void;
   className?: string;
 }
 
 /** Far-right of the tab row: the presenter view toggle, then Find (C6). */
-export function PptxTabRowTrailing({ commands, onCommand, presenterOpen = false, className }: PptxTabRowTrailingProps) {
+export function PptxTabRowTrailing({ commands, onCommand, presenterOpen = false, findButtonRef, className }: PptxTabRowTrailingProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const presenter = findPptxCommand(commands, PPTX_VIEW_TOGGLE_COMMAND);
   const find = findPptxCommand(commands, PPTX_FIND_COMMAND);
@@ -81,19 +75,13 @@ export function PptxTabRowTrailing({ commands, onCommand, presenterOpen = false,
     <div className={cn("flex shrink-0 items-center gap-1", className)} data-pptx-tab-row-trailing>
       {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} /> : null}
       {find ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={t(find.labelKey)}
-          title={t("find_hint")}
-          disabled={find.capability.status !== "available"}
-          data-command={find.id}
-          data-capability={find.capability.status}
-          onClick={() => find.capability.status === "available" && onCommand(find.id)}
-        >
-          <Search aria-hidden />
-        </Button>
+        <PptxCommandButton
+          command={find}
+          onCommand={onCommand}
+          icon={<Search aria-hidden />}
+          hint={t("find_hint")}
+          buttonRef={findButtonRef}
+        />
       ) : null}
     </div>
   );

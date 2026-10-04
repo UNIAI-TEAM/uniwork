@@ -41,7 +41,9 @@ export interface PptxToolbarGroup {
   labelKey: string;
   commands: readonly PptxCommandId[];
   /** Stays first when the command row becomes one scrollable strip (C12, a
-   *  phone-width viewport): the group the user reaches for most on that tab. */
+   *  phone-width viewport): the group the user reaches for most on that tab.
+   *  Only a tab with more than one group needs it - a single-group tab is
+   *  already first, so marking it `primary` documents nothing (F8). */
   primary?: boolean;
 }
 
@@ -86,12 +88,12 @@ export const PPTX_TOOLBAR_TABS: readonly PptxToolbarTab[] = [
   {
     id: "insert",
     labelKey: "tabs.insert",
-    groups: [{ id: "insert", labelKey: "groups.insert", commands: ["charts", "tables"], primary: true }],
+    groups: [{ id: "insert", labelKey: "groups.insert", commands: ["charts", "tables"] }],
   },
   {
     id: "design",
     labelKey: "tabs.design",
-    groups: [{ id: "design", labelKey: "groups.design", commands: ["masters-layouts", "embedded-fonts"], primary: true }],
+    groups: [{ id: "design", labelKey: "groups.design", commands: ["masters-layouts", "embedded-fonts"] }],
   },
   // Transitions owns no command yet: `setTransition`/`setAdvanceTime` land with
   // wave B4, so the tab is present and reachable but honestly empty.
@@ -99,22 +101,22 @@ export const PPTX_TOOLBAR_TABS: readonly PptxToolbarTab[] = [
   {
     id: "animations",
     labelKey: "tabs.animations",
-    groups: [{ id: "animations", labelKey: "groups.animations", commands: ["animations"], primary: true }],
+    groups: [{ id: "animations", labelKey: "groups.animations", commands: ["animations"] }],
   },
   {
     id: "slide-show",
     labelKey: "tabs.slide_show",
-    groups: [{ id: "show", labelKey: "groups.show", commands: ["fullscreen"], primary: true }],
+    groups: [{ id: "show", labelKey: "groups.show", commands: ["fullscreen"] }],
   },
   {
     id: "review",
     labelKey: "tabs.review",
-    groups: [{ id: "review", labelKey: "groups.review", commands: ["speaker-notes"], primary: true }],
+    groups: [{ id: "review", labelKey: "groups.review", commands: ["speaker-notes"] }],
   },
   {
     id: "view",
     labelKey: "tabs.view",
-    groups: [{ id: "view", labelKey: "groups.view", commands: ["render-fidelity"], primary: true }],
+    groups: [{ id: "view", labelKey: "groups.view", commands: ["render-fidelity"] }],
   },
 ];
 

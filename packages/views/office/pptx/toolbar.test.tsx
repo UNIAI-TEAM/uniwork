@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { createPptxCommandMap } from "./command-map";
@@ -114,12 +114,41 @@ describe("PptxToolbar", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
+  it("keeps the empty tab carrying the one command-row marker (F5)", () => {
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    const rows = document.querySelectorAll("[data-pptx-command-row]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("data-pptx-command-row", "empty");
+    expect(rows[0]).toHaveAttribute("data-pptx-tab-empty");
+  });
+
   it("disables Undo/Redo when the engine journal has no history", () => {
     render(<PptxToolbar commands={commands} onCommand={vi.fn()} canUndo={false} canRedo={false} />);
     const undo = screen.getByRole("button", { name: "Undo" });
     expect(undo).toBeDisabled();
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
-    expect(undo).toHaveAttribute("title", "No edit history yet.");
+    // F4: the reason is a real tooltip node, not a native title a disabled
+    // control cannot show.
+    expect(undo).not.toHaveAttribute("title");
+    expect(within(undo.parentElement as HTMLElement).getByRole("tooltip")).toHaveTextContent("No edit history yet.");
+  });
+
+  it("puts the Find hint in the shared tooltip, not a native title (F4)", () => {
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
+    const find = screen.getByRole("button", { name: "Find" });
+    expect(find).not.toHaveAttribute("title");
+    expect(within(find.parentElement as HTMLElement).getByRole("tooltip")).toHaveTextContent("Search the current presentation");
+  });
+
+  it("paints the presenter toggle as pressed with the selected token wash (F6)", () => {
+    const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen={false} />);
+    const off = screen.getByRole("button", { name: "Presenter" });
+    expect(off).not.toHaveClass("bg-surface-selected");
+    view.rerender(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen />);
+    const on = screen.getByRole("button", { name: "Presenter" });
+    expect(on).toHaveAttribute("aria-pressed", "true");
+    expect(on).toHaveClass("bg-surface-selected");
   });
 
   it("enables Undo/Redo when the handle reports both functions", () => {

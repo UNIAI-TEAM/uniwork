@@ -229,9 +229,21 @@ describe("PptxEditor", () => {
     const bar = screen.getByRole("group", { name: "Presentation status" });
     expect(bar).toHaveAttribute("data-pptx-status-bar");
     expect(screen.getByTestId("pptx-status-slide")).toHaveTextContent("Slide 1 / 2");
-    expect(screen.getByTestId("pptx-status-language")).toHaveTextContent("Language:");
     expect(screen.getByTestId("pptx-status-selection")).toHaveTextContent("No selection");
     expect(bar.querySelector("[data-pptx-zoom]")).not.toBeNull();
+  });
+
+  it("never shows the UI locale as the deck language (F1)", () => {
+    // `document.documentElement.lang` is the app UI locale, not the deck's
+    // language. With no deck-language source wired the bar must show the
+    // unknown mark instead of echoing the UI locale.
+    const previous = document.documentElement.lang;
+    document.documentElement.lang = "vi";
+    renderEditor({ slides: [{ id: "s1" }] });
+    const language = screen.getByTestId("pptx-status-language");
+    expect(language).toHaveTextContent("Language: —");
+    expect(language.textContent ?? "").not.toContain("vi");
+    document.documentElement.lang = previous;
   });
 
   it("keeps the ribbon free of the selection/position readout that the status bar owns (C6)", () => {
@@ -259,6 +271,26 @@ describe("PptxEditor", () => {
     expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "f", ctrlKey: true });
     expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+  });
+
+  it("returns focus to the Find trigger when the find bar closes (F9)", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    const find = screen.getByRole("button", { name: "Find" });
+    fireEvent.click(find);
+    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }));
+    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    // F9: focus returns to the control that opened the bar, not document.body.
+    expect(document.activeElement).toBe(find);
+  });
+
+  it("returns focus to the Find trigger when Escape closes the find bar (F9)", () => {
+    renderEditor({ slides: [{ id: "s1" }] });
+    const find = screen.getByRole("button", { name: "Find" });
+    fireEvent.click(find);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Find text" }), { key: "Escape" });
+    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(find);
   });
 
   it("marks the presenter view toggle pressed while the presenter is open (C6)", () => {
