@@ -28,12 +28,16 @@ import { MARKDOWN_TOOLBAR_GROUPS } from "./groups";
 import { useMarkdownEditorToolbarState, useMarkdownToolbarActions } from "./use-markdown-toolbar-state";
 import type { MarkdownToolbarState } from "./types";
 
-/** One ribbon item as a chrome command item. */
-function toChromeItem(
-  item: RibbonItem,
-  label: string,
-  fallback: (() => void) | undefined,
-): EditorChromeCommandItem {
+/**
+ * One ribbon item as a chrome command item.
+ *
+ * `onSelect` is only set for controls the row renders itself. The two `custom`
+ * controls (the block-style dropdown, the link popover) cannot be rebuilt
+ * inside a menu, so their "»" entry keeps the chrome's documented fallback: the
+ * label, no action. That is honest - a menu entry must not silently apply a
+ * style or drop a link - and the chrome warns about it in development only.
+ */
+function toChromeItem(item: RibbonItem, label: string): EditorChromeCommandItem {
   const Icon = item.icon;
   return {
     id: item.id,
@@ -42,9 +46,7 @@ function toChromeItem(
     render: <RibbonItemView item={item} size="icon" stage={0} inPanel={false} />,
     pressed: item.kind === "toggle" ? item.pressed : undefined,
     disabled: item.disabled,
-    // A control the row cannot host (a dropdown, a popover) re-runs its
-    // idempotent command from the menu; every other control runs itself.
-    onSelect: item.kind === "custom" ? fallback : ("onExecute" in item ? item.onExecute : undefined),
+    onSelect: "onExecute" in item ? item.onExecute : undefined,
   };
 }
 
@@ -81,7 +83,7 @@ export function useMarkdownToolbarChromeTab(
         id: group.id,
         label: t(group.labelKey),
         items: buildMarkdownGroupItems(group.id, { state, actions, onOutlineChange, onFrontmatterChange }).map((item) =>
-          toChromeItem(item, t(item.labelKey), item.id === "blockStyle" ? () => actions.setBlockStyle(state.activeBlock) : actions.removeLink),
+          toChromeItem(item, t(item.labelKey)),
         ),
       })),
     [actions, onFrontmatterChange, onOutlineChange, state, t],

@@ -43,6 +43,7 @@ function createHandle(): TextEditorHandle {
 }
 
 let live: Editor | null = null;
+let renderedTab: ReturnType<typeof useMarkdownToolbarChromeTab> | null = null;
 
 /** The Markdown groups mounted in the SHARED chrome, exactly as a host would. */
 function Harness() {
@@ -52,6 +53,7 @@ function Harness() {
     live = instance;
   }, [instance]);
   const tab = useMarkdownToolbarChromeTab(instance);
+  renderedTab = tab;
   return (
     <div>
       <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={setInstance} />
@@ -91,6 +93,21 @@ describe("useMarkdownToolbarChromeTab", () => {
     fireEvent.click(bold);
     await waitFor(() => expect(live!.isActive("bold")).toBe(true));
     await waitFor(() => expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("leaves the link and block-style menu fallbacks inert (no silent command)", async () => {
+    render(<Harness />);
+    await waitForChrome();
+    // A menu entry cannot host a popover or a dropdown, so the chrome's
+    // fallback must not run a destructive command from the "»" menu.
+    const tab = renderedTab!;
+    const link = tab.groups.flatMap((group) => group.items).find((item) => item.id === "link");
+    const blockStyle = tab.groups.flatMap((group) => group.items).find((item) => item.id === "blockStyle");
+    expect(link?.onSelect).toBeUndefined();
+    expect(blockStyle?.onSelect).toBeUndefined();
+    // A plain control still carries its command for the menu.
+    const bold = tab.groups.flatMap((group) => group.items).find((item) => item.id === "bold");
+    expect(typeof bold?.onSelect).toBe("function");
   });
 
   it("does not add undo/redo or Save to the Markdown groups", async () => {
