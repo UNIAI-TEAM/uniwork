@@ -21,7 +21,7 @@
  * (M6), find (M7) and print (M8) mount around it; `onEditorReady` is the hook
  * they use to reach the live TipTap instance.
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
@@ -98,10 +98,17 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
   onCheckpointRef.current = onCheckpoint;
   onReadyRef.current = onEditorReady;
 
-  // The document the editor mounts with. Read once per mount; later changes
-  // arrive through the source subscription.
+  // The document the editor mounts with. Re-read in the same render that
+  // switches `documentKey`, so the recreated editor cannot mount the previous
+  // document's content (an effect would be one commit too late and flash the
+  // wrong text).
   const initialDocRef = useRef<JSONContent | null>(null);
-  if (initialDocRef.current === null) initialDocRef.current = codec.parse(readSourceText(editor));
+  const [mountedKey, setMountedKey] = useState(documentKey);
+  if (initialDocRef.current === null || mountedKey !== documentKey) {
+    initialDocRef.current = codec.parse(readSourceText(editor));
+    publishedRef.current = null;
+    if (mountedKey !== documentKey) setMountedKey(documentKey);
+  }
 
   /** Serialise the editor document to the shared source and notify the caller. */
   const publish = useCallback(
@@ -179,7 +186,7 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
         applyingRef.current = false;
       }
     });
-  }, [editor, codec]);
+  }, [editor, codec, documentKey]);
 
   useEffect(() => {
     if (!instance || instance.isEditable === editable) return;
