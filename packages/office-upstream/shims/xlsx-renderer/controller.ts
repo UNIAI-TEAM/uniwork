@@ -43,6 +43,7 @@ import {
   ingestFilterMutation,
   ingestMergeMutation,
   ingestSheetMutation,
+  ingestTableMutation,
   ingestStructuralMutation,
   intersectMergeRanges,
   isSheetMutation,
@@ -609,9 +610,12 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error));
       }
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0) return;
+      // Tables (B9): add/delete mutations journal a session table add or
+      // cancel it by name.
+      const tableEdits = ingestTableMutation(lazyWorkbookRef.current, event, journalSuppression.active);
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits]));
       options.onDirty?.();
     }),
   );

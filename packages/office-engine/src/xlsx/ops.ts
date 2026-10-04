@@ -16,6 +16,11 @@ import { shiftParser, sizeParser, hiddenParser, outlineParser, mergeParser } fro
 import { parseSetFilter, parseClearFilter } from "./ops-filter.ts";
 import { parseSetPageSetup } from "./ops-page-setup.ts";
 import { parseAddSheet, parseDuplicateSheet, parseRenameSheet, parseRemoveSheet, parseReorderSheet, parseSheetHidden } from "./ops-sheets.ts";
+import { parseCreateTable, parseRemoveTable } from "./ops-tables.ts";
+import { parseSetHyperlink } from "./ops-hyperlinks.ts";
+import { parseSetNotes } from "./ops-notes.ts";
+import { parseSetSheetProtection } from "./ops-protection.ts";
+import { parseSetDefinedNames } from "./ops-names.ts";
 
 export {
   XlsxOpError,
@@ -46,6 +51,14 @@ export type {
   XlsxOpKind,
   XlsxSheetResolver,
 } from "./ops-shared.ts";
+export type { XlsxHyperlinkOp, XlsxSheetHyperlinkEdits } from "./ops-hyperlinks.ts";
+export { isXlsxHyperlinkOp, groupXlsxHyperlinkEdits } from "./ops-hyperlinks.ts";
+export type { XlsxNotesOp, XlsxSheetNote, XlsxSheetNoteState } from "./ops-notes.ts";
+export { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, SHEET_PROTECTION_OP_KIND } from "./ops-protection.ts";
+export type { XlsxSheetProtectionOp, XlsxSheetProtectionState } from "./ops-protection.ts";
+export { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, DEFINED_NAMES_OP_KIND } from "./ops-names.ts";
+export type { XlsxDefinedNamesOp, XlsxDefinedNamesState, XlsxDefinedNameEntry } from "./ops-names.ts";
+export { isXlsxNotesOp, groupXlsxNoteStates } from "./ops-notes.ts";
 
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp
@@ -75,6 +88,12 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "remove_sheet", slot: "sheetPlan", parse: parseRemoveSheet },
   { wireName: "reorder_sheet", slot: "sheetPlan", parse: parseReorderSheet },
   { wireName: "set_sheet_hidden", slot: "sheetPlan", parse: parseSheetHidden },
+  { wireName: "create_table", slot: "tableAdditions", parse: parseCreateTable },
+  { wireName: "remove_table", slot: "tableAdditions", parse: parseRemoveTable },
+  { wireName: "set_hyperlink", slot: "hyperlinkEdits", parse: parseSetHyperlink },
+  { wireName: "set_notes", slot: "noteStates", parse: parseSetNotes },
+  { wireName: "set_sheet_protection", slot: "sheetProtections", parse: parseSetSheetProtection },
+  { wireName: "set_defined_names", slot: "definedNamesState", parse: parseSetDefinedNames },
 ];
 
 const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));

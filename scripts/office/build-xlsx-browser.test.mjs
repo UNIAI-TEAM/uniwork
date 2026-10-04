@@ -38,7 +38,7 @@ test('the built xlsx artifact carries its contract symbols', () => {
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer-build.json'), 'utf8'));
   assert.deepEqual(
     (record.patchedSymbols ?? []).map((s) => s.symbol),
-    ['xfIdentity', 'lazilyLoadedXmls'],
+    ['xfIdentity', 'lazilyLoadedXmls', 'tableAdditions: readonly SheetTableAddition[] = [],'],
     'the build records the enforced patched symbols',
   );
   const artifact = fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer.mjs'), 'utf8');

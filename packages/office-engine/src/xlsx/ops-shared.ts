@@ -1,4 +1,4 @@
-// XLSX op core — the shared vocabulary and helpers every op-family parser
+﻿// XLSX op core â€” the shared vocabulary and helpers every op-family parser
 // reads: the typed op union, the wire bounds, the A1/cell helpers and the
 // shared target/attributes/axis checks. Split out of ops.ts (FIX-926-B) so
 // ops.ts and the per-family parser modules stay under the max-lines budget;
@@ -6,6 +6,11 @@
 import { ENGINE_LIMITS } from "@uniwork/office-contracts";
 import type { XlsxCellScalar, XlsxCellState, XlsxGatewayArguments } from "./engine.ts";
 import type { XlsxPageSetupOp } from "./page-setup.ts";
+import type { XlsxHyperlinkOp } from "./ops-hyperlinks.ts";
+import type { XlsxNotesOp } from "./ops-notes.ts";
+import type { XlsxTableAddOp, XlsxTableRemoveOp } from "./tables.ts";
+import type { XlsxSheetProtectionOp } from "./ops-protection.ts";
+import type { XlsxDefinedNamesOp } from "./ops-names.ts";
 export class XlsxOpError extends Error {
   readonly opName: string;
   readonly field: string;
@@ -23,7 +28,7 @@ export class XlsxOpError extends Error {
 export type Dict = Record<string, unknown>;
 export const isDict = (v: unknown): v is Dict => v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** Cheap text bound — the envelope caps total bytes, but one cell's text still
+/** Cheap text bound â€” the envelope caps total bytes, but one cell's text still
  *  gets its own ceiling so a malformed op fails before any engine call. */
 const MAX_TEXT_LEN = 1 << 20;
 
@@ -46,7 +51,7 @@ export interface XlsxCellTarget {
   readonly address: string;
 }
 
-/** A 0-based inclusive rectangle — the merge range and the shape the upstream
+/** A 0-based inclusive rectangle â€” the merge range and the shape the upstream
  *  StructuralOp merge branch carries (xlsx-structure.ts CellArea). */
 export interface XlsxMergeArea {
   readonly startRow: number;
@@ -90,7 +95,7 @@ export type XlsxStructuralOp =
       readonly collapsed?: boolean | undefined;
     }
   | {
-      /** merge_cells/unmerge_cells — the rectangle rides the envelope's own
+      /** merge_cells/unmerge_cells â€” the rectangle rides the envelope's own
        *  `range` field (EditOp.Range preserves it). Merges never move cells,
        *  so the journal records them in emission order and the session model
        *  appends without shifting (a later row/column op shifts them in the
@@ -100,7 +105,7 @@ export type XlsxStructuralOp =
       readonly range: XlsxMergeArea;
     };
 
-/** One custom filter condition — the upstream FilterColumnState.customs entry
+/** One custom filter condition â€” the upstream FilterColumnState.customs entry
  *  (xlsx-filter.ts): a value and an optional OOXML comparison operator
  *  (absent = equality). */
 export interface XlsxFilterCustomCondition {
@@ -129,7 +134,7 @@ export interface XlsxFilterSetState {
 /** Filter ops (envelope `filterStates` slot). `set_filter` is a whole-sheet
  *  declarative snapshot; `clear_filter` removes the autoFilter and unhides the
  *  rows inside `visibilityRange` (the range the removed filter was hiding).
- *  The model folds both per sheet, last write wins, in emission order — the
+ *  The model folds both per sheet, last write wins, in emission order â€” the
  *  gateway applies the final states after structural replay and cell edits. */
 export type XlsxFilterOp =
   | {
@@ -287,7 +292,7 @@ export function groupXlsxFilterStates(ops: readonly XlsxEditOp[]): XlsxSheetFilt
 
 /** One worksheet-level op (envelope `sheetPlan` slot): add, duplicate, rename,
  *  remove, reorder, show/hide. Names are the wire identity and every op
- *  addresses a sheet by its CURRENT name at emission time — the session model
+ *  addresses a sheet by its CURRENT name at emission time â€” the session model
  *  applies sheet ops in emission order, so an op after a rename resolves to
  *  the new name (live `XlsxSheetResolver`). All sheet ops of one session fold
  *  into ONE gateway SheetEditPlan rebuilt from the final model state at save
@@ -318,6 +323,12 @@ export type XlsxEditOp =
   | XlsxStructuralOp
   | XlsxFilterOp
   | XlsxPageSetupOp
+  | XlsxTableAddOp
+  | XlsxTableRemoveOp
+  | XlsxHyperlinkOp
+  | XlsxNotesOp
+  | XlsxSheetProtectionOp
+  | XlsxDefinedNamesOp
   | XlsxSheetOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is
@@ -329,7 +340,7 @@ export type XlsxEditOp =
 export type XlsxOpKindSlot = "cellEdits" | keyof XlsxGatewayArguments;
 
 /** One bound wire op kind. A later op kind lands as one entry in
- *  XLSX_OP_KINDS (plus its typed op in XlsxEditOp) — parseXlsxOps never grows
+ *  XLSX_OP_KINDS (plus its typed op in XlsxEditOp) â€” parseXlsxOps never grows
  *  another case. `parse` returns ops because a kind may expand: set_cells
  *  folds one range item into one op per cell. */
 export interface XlsxOpKind {
@@ -375,7 +386,7 @@ export function a1ToRowColumn(address: string, op: string, f: string): { row: nu
 
 /** The "what the user typed" text the sidecar's recalc edit wants: explicit
  *  formula text wins; a typed scalar serializes the way Excel typing would
- *  (true→TRUE, 42→"42"); null/"" clears. */
+ *  (trueâ†’TRUE, 42â†’"42"); null/"" clears. */
 export function recalcInputFor(cell: XlsxCellState): string {
   if (cell.formula !== undefined) return cell.formula;
   const v = cell.value;

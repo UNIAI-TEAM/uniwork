@@ -3,6 +3,7 @@ import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxPageSetupGroup } from "./page-setup-group";
 import { XlsxSortGroup } from "./sort-group";
+import { XlsxTableGroup } from "./table-group";
 import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
@@ -74,4 +75,5 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "sort", tab: "data", order: 30, labelKey: "office.xlsx.sort.groups.data", Component: XlsxSortGroup },
   { id: "view-shortcuts", tab: "view", order: 50, labelKey: "office.xlsx.toolbar.groups.view.shortcuts.label", Component: XlsxViewShortcutsGroup },
   { id: "formula", tab: "formulas", order: 20, labelKey: "office.xlsx.toolbar.groups.formula.label", Component: XlsxFormulaGroup },
+  { id: "table", tab: "insert", order: 30, labelKey: "office.xlsx.table.groups.insert", Component: XlsxTableGroup },
 ];

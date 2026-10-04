@@ -117,9 +117,46 @@ export interface XlsxGridPageSetupEdit {
   setup: XlsxPageSetupFields;
 }
 
+/** One hyperlink edit the renderer emits (B6): a per-cell last-write link
+ *  (a null target removes the link). Coordinates are final at emission. */
+export interface XlsxGridHyperlinkEdit {
+  sheetId: string;
+  sheetName?: string;
+  row: number;
+  column: number;
+  target: string | null;
+}
+
+/** One note/comment edit the renderer emits (B6): the whole-sheet note
+ *  snapshot after the change (an empty list removes every note). */
+export interface XlsxGridNotesEdit {
+  sheetId: string;
+  sheetName?: string;
+  notes: readonly { row: number; column: number; author: string; text: string }[];
+}
+
+/** One table edit (B9) the renderer emits: a table created this session
+ *  (range header-inclusive, column names captured from the header row) or a
+ *  remove that cancels an earlier session add by name. \`sheetName\` is the
+ *  live name at emission. */
+export interface XlsxGridTableEdit {
+  sheetId: string;
+  sheetName?: string;
+  table: { area: XlsxStructuralJournalRange; name: string; columnNames: string[]; style?: string; bandedRows: boolean } | null;
+  name: string;
+}
+
 /** Every edit the streamed grid can emit: a cell edit, a structural op, a
- *  sheet op, a filter snapshot or a page-setup snapshot. */
-export type XlsxGridEdit = XlsxGridCellEdit | XlsxGridStructuralEdit | XlsxGridSheetEdit | XlsxGridFilterEdit | XlsxGridPageSetupEdit;
+ *  sheet op, a filter snapshot, a page-setup snapshot or a table edit. */
+export type XlsxGridEdit =
+  | XlsxGridCellEdit
+  | XlsxGridStructuralEdit
+  | XlsxGridSheetEdit
+  | XlsxGridFilterEdit
+  | XlsxGridPageSetupEdit
+  | XlsxGridTableEdit
+  | XlsxGridHyperlinkEdit
+  | XlsxGridNotesEdit;
 
 export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStructuralEdit {
   return "structural" in edit;
@@ -135,6 +172,18 @@ export function isFilterGridEdit(edit: XlsxGridEdit): edit is XlsxGridFilterEdit
 
 export function isPageSetupGridEdit(edit: XlsxGridEdit): edit is XlsxGridPageSetupEdit {
   return "setup" in edit;
+}
+
+export function isTableGridEdit(edit: XlsxGridEdit): edit is XlsxGridTableEdit {
+  return "table" in edit;
+}
+
+export function isHyperlinkGridEdit(edit: XlsxGridEdit): edit is XlsxGridHyperlinkEdit {
+  return "target" in edit && "row" in edit && "column" in edit;
+}
+
+export function isNotesGridEdit(edit: XlsxGridEdit): edit is XlsxGridNotesEdit {
+  return "notes" in edit;
 }
 
 /** The envelope target a cell operation addresses: the sheet name (not the
@@ -250,10 +299,51 @@ export type PageSetupOperation = {
   attributes: XlsxPageSetupFields;
 };
 
+/** The table vocabulary (B9): create_table over the selection's range
+ *  (header row included, column names from the header cells) or remove_table
+ *  cancelling a session add by name. */
+export type TableOperation =
+  | {
+      op: "create_table";
+      target: XlsxStructuralOperationTarget;
+      range: XlsxStructuralJournalRange;
+      attributes: { name: string; columnNames: string[]; style?: string; bandedRows: boolean };
+    }
+  | {
+      op: "remove_table";
+      target: XlsxStructuralOperationTarget;
+      attributes: { name: string };
+    };
+
+/** The hyperlink vocabulary (B6): `set_hyperlink` carries a per-cell target
+ *  (null removes the link). One op kind serves set and clear, mirroring the
+ *  vendored HyperlinkEdit and the gateway's per-cell last-write list. */
+export type HyperlinkOperation = {
+  op: "set_hyperlink";
+  target: XlsxStructuralOperationTarget;
+  attributes: { cell: string; target: string | null };
+};
+
+/** The note vocabulary (B6): `set_notes` carries the whole-sheet note snapshot
+ *  (an empty list removes every note). */
+export type NotesOperation = {
+  op: "set_notes";
+  target: XlsxStructuralOperationTarget;
+  attributes: { notes: readonly { row: number; column: number; author: string; text: string }[] };
+};
+
 /** Every envelope operation a journal edit maps to. A later op kind adds its
  *  union member here and one XLSX_JOURNAL_OP_MAPPINGS entry —
  *  rendererEditsToOperations itself does not change. */
-export type XlsxJournalOperation = CellOperation | StructuralOperation | SheetOperation | FilterOperation | PageSetupOperation;
+export type XlsxJournalOperation =
+  | CellOperation
+  | StructuralOperation
+  | SheetOperation
+  | FilterOperation
+  | PageSetupOperation
+  | TableOperation
+  | HyperlinkOperation
+  | NotesOperation;
 
 /** One named journal-edit → op-kind mapping. Entries are tested in table
  *  order and the first match wins; the structural entries are appended after
@@ -268,7 +358,7 @@ export interface XlsxJournalOpMapping {
 /** A clear is a writeValue edit with no content and no style — the one shape
  *  that must not be written as an empty set_cell. */
 function isClearEdit(edit: XlsxGridEdit): boolean {
-  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
+  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
 }
 
 const STRUCTURAL_WIRE_OP = {
@@ -397,8 +487,42 @@ function pageSetupOperation(edit: XlsxGridPageSetupEdit, sheet: string): PageSet
   return { op: "set_page_setup", target: { sheet }, attributes: { ...edit.setup } };
 }
 
+function tableOperation(edit: XlsxGridTableEdit, sheet: string): TableOperation {
+  if (edit.table === null) {
+    return { op: "remove_table", target: { sheet }, attributes: { name: edit.name } };
+  }
+  const table = edit.table;
+  return {
+    op: "create_table",
+    target: { sheet },
+    range: { ...table.area },
+    attributes: {
+      name: table.name,
+      columnNames: [...table.columnNames],
+      ...(table.style === undefined ? {} : { style: table.style }),
+      bandedRows: table.bandedRows,
+    },
+  };
+}
+
 /** Journal-edit → op-kind table, in match order. */
 export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
+  {
+    op: "set_hyperlink",
+    matches: isHyperlinkGridEdit,
+    build: (edit, sheet) => {
+      const link = edit as XlsxGridHyperlinkEdit;
+      return { op: "set_hyperlink", target: { sheet: link.sheetName || sheet }, attributes: { cell: toA1Address(link.row, link.column), target: link.target } };
+    },
+  },
+  {
+    op: "set_notes",
+    matches: isNotesGridEdit,
+    build: (edit, sheet) => {
+      const notes = edit as XlsxGridNotesEdit;
+      return { op: "set_notes", target: { sheet: notes.sheetName || sheet }, attributes: { notes: notes.notes } };
+    },
+  },
   {
     op: "set_page_setup",
     matches: isPageSetupGridEdit,
@@ -416,7 +540,7 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   },
   {
     op: "set_cell",
-    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit),
+    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit),
     build: (edit, sheet) => {
       const cell = edit as XlsxGridCellEdit;
       const attributes: NonNullable<CellOperation["attributes"]> = {
@@ -449,6 +573,16 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   sheetMapping("rename_sheet", "rename-sheet"),
   sheetMapping("reorder_sheet", "reorder-sheet"),
   sheetMapping("set_sheet_hidden", "set-sheet-hidden"),
+  {
+    op: "create_table",
+    matches: (edit) => isTableGridEdit(edit) && edit.table !== null,
+    build: (edit, sheet) => tableOperation(edit as XlsxGridTableEdit, (edit as XlsxGridTableEdit).sheetName || sheet),
+  },
+  {
+    op: "remove_table",
+    matches: (edit) => isTableGridEdit(edit) && edit.table === null,
+    build: (edit, sheet) => tableOperation(edit as XlsxGridTableEdit, (edit as XlsxGridTableEdit).sheetName || sheet),
+  },
 ];
 
 /** Keep the G2 vocabulary: a style-only edit must never overwrite a value.
@@ -463,7 +597,7 @@ export function rendererEditsToOperations(
   return edits.map((edit) => {
     const sheet = isSheetGridEdit(edit) ? edit.sheetName : edit.sheetName ?? names.get(edit.sheetId);
     if (!sheet) throw new Error("xlsx_edit_unknown_sheet");
-    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
+    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
     const mapping = XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit));
     if (!mapping) throw new Error("xlsx_edit_unmapped");
     return mapping.build(edit, sheet);

@@ -347,6 +347,40 @@ export class XlsxAdapter {
       .model
       .pendingPageSetupStates()
       .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Table additions (B9): each pins final coordinates and its sheet name
+    // resolves through the same live registry as every other argument. A
+    // table add cannot be saved with row/column changes on its sheet (the
+    // gateway fails closed); the renderer saves before further structural
+    // work, so this is the documented pass-through.
+    const tableAdditions = session
+      .model
+      .pendingTableAdditions()
+      .map((table) => ({ ...table, sheetName: gatewayName(table.sheetName) }));
+    // Hyperlink edits carry final per-cell coordinates, so the gateway applies
+    // them after structural replay; a hyperlink change never moves cells, so
+    // the recalc pass is unaffected. Each op is a per-cell last-write link
+    // (a null target removes it).
+    const hyperlinkEdits = session
+      .model
+      .pendingHyperlinkEdits()
+      .map((sheet) => ({ ...sheet, sheetName: gatewayName(sheet.sheetName) }));
+    // Note states are declarative whole-sheet snapshots the gateway writes
+    // after the worksheet flush; like filters they never move cells.
+    // Sheet-protection states are declarative whole-sheet flags the gateway
+    // writes after the worksheet flush; like filters they never move cells.
+    const sheetProtections = session
+      .model
+      .pendingSheetProtectionStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Defined names are workbook-scoped: the gateway rewrites the workbook
+    // definedNames section wholesale from the final snapshot. The state pins
+    // model coordinates and file sheet indexes, so it must not ride structural
+    // or sheet changes (the gateway fails closed) - the renderer saves one first.
+    const definedNamesState = session.model.pendingDefinedNamesState();
+    const noteStates = session
+      .model
+      .pendingNoteStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
     // A structural save cannot refresh formula caches: the sidecar recalc runs
     // against the ORIGINAL bytes, where a shifted sheet's coordinates are the
     // pre-op ones, and a cross-sheet formula may read cells this envelope also
@@ -409,13 +443,18 @@ export class XlsxAdapter {
       }
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
             ...(sheetPlan === undefined ? {} : { sheetPlan }),
             ...(filterStates.length > 0 ? { filterStates } : {}),
             ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
+            ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
+            ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
+            ...(noteStates.length > 0 ? { noteStates } : {}),
+            ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
+            ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };
     let mutation;
     try {

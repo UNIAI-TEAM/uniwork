@@ -9,6 +9,8 @@ import {
   recordSheetRemove,
   recordSheetRename,
   recordStructuralOp,
+  recordTableAdd,
+  removeTableAdd,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import { FILTER_MUTATIONS, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
@@ -89,12 +91,59 @@ export interface XlsxRendererFilterEdit {
   visibilityRange: AxisRange;
 }
 
+/** One table edit (B9): a table created this session (the gateway's
+ *  TableAddition) or a remove that cancels an earlier session add by name.
+ *  A file-native table has no removal write path and stays view-only. */
+export interface XlsxRendererTableEdit {
+  sheetId: string;
+  table: { area: AxisRange; name: string; columnNames: string[]; style?: string; bandedRows: boolean } | null;
+  name: string;
+}
+
 /** Everything the renderer's edit channel can emit. */
 export type XlsxRendererEdit =
   | XlsxRendererCellEdit
   | XlsxRendererStructuralEdit
   | XlsxRendererSheetEdit
-  | XlsxRendererFilterEdit;
+  | XlsxRendererFilterEdit
+  | XlsxRendererTableEdit;
+
+/** tableId -> {sheetId, name} for a session add, so the delete mutation (which
+ *  carries only the tableId) can name the table it cancels. */
+const pendingTableNames = new Map<string, { sheetId: string; name: string }>();
+
+/** Ingest one table mutation (sheet.mutation.add-table / delete-table). The
+ *  add carries the resolved name + header the pinned command built; the
+ *  delete resolves the name through the add it is cancelling. */
+export function ingestTableMutation(state: LazyWorkbookState | null, event: RendererCommand, suppressed = false): XlsxRendererTableEdit[] {
+  if (!state || suppressed || event.options?.fromFormula) return [];
+  const params = event.params as
+    | { unitId?: string; subUnitId?: string; tableId?: string; name?: string; range?: AxisRange; header?: string[] }
+    | undefined;
+  const sheetId = params?.subUnitId;
+  const liveSheets = liveSessionSheets(state);
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+      !liveSheets.some((sheet) => sheet.id === sheetId)) return [];
+  const sheetName = liveSheets.find((sheet) => sheet.id === sheetId)?.name;
+  if (event.id === "sheet.mutation.add-table") {
+    const { tableId, name, range, header } = params;
+    if (!tableId || !name || !range || !Array.isArray(header) || header.length === 0) return [];
+    const table = { area: { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn }, name, columnNames: [...header], bandedRows: true };
+    recordTableAdd(state.editJournal, { sheetId, area: table.area, name, columnNames: [...header], bandedRows: true });
+    pendingTableNames.set(tableId, { sheetId, name });
+    return [{ sheetId, table, name }];
+  }
+  if (event.id === "sheet.mutation.delete-table") {
+    const { tableId } = params;
+    if (!tableId) return [];
+    const known = pendingTableNames.get(tableId);
+    if (!known || known.sheetId !== sheetId) return [];
+    if (!removeTableAdd(state.editJournal, sheetId, known.name)) return [];
+    pendingTableNames.delete(tableId);
+    return [{ sheetId, table: null, name: known.name }];
+  }
+  return [];
+}
 
 export interface RendererCommand {
   id: string;

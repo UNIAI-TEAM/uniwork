@@ -637,6 +637,52 @@ function sortReorderAllowed(event: RendererCommand, state: LazyWorkbookState): b
   return sortOrderMapOK(params.order, params.range as Record<string, unknown>);
 }
 
+// ── tables (B9) ──────────────────────────────────────────────────────────────
+//
+// The pinned sheets-table preset registers sheet.command.add-table /
+// delete-table (and their sheet.mutation.add-table / delete-table). A table is
+// a new part the save writes; the delete only cancels a SESSION add (a
+// file-native table has no removal path and stays view-only). The add command
+// carries unitId/subUnitId/range/name; the delete mutation carries only the
+// tableId, which the shim's add capture maps back to a session table.
+
+const TABLE_COMMANDS = new Set([
+  "sheet.command.add-table",
+  "sheet.command.delete-table",
+]);
+
+const TABLE_MUTATIONS = new Set([
+  "sheet.mutation.add-table",
+  "sheet.mutation.delete-table",
+]);
+
+/** A table name the gateway accepts: 1-255 chars, first char a letter/_/backslash. */
+function tableNameOK(value: unknown): boolean {
+  return typeof value === "string" && /^[A-Za-z_\\][A-Za-z0-9_.]{0,254}$/.test(value);
+}
+
+function tableScopeOK(
+  params: { unitId?: unknown; subUnitId?: unknown } | undefined,
+  state: LazyWorkbookState,
+): boolean {
+  if (!params || typeof params !== "object") return false;
+  if (params.unitId !== `file-${state.file.sha256}`) return false;
+  return typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId);
+}
+
+function tableCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; range?: unknown; name?: unknown } | undefined;
+  if (!tableScopeOK(params, state) || !params || !filterAreaOK(params.range)) return false;
+  // A name is optional on add (the pinned command assigns Table1, Table2…).
+  return params.name === undefined || tableNameOK(params.name);
+}
+
+function tableMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; tableId?: unknown } | undefined;
+  if (!tableScopeOK(params, state) || !params) return false;
+  return typeof params.tableId === "string" && params.tableId.length > 0;
+}
+
 /** Original content must be installed before an undoable user edit. */
 export function canEditRange(state: LazyWorkbookState | null, sheetId: string, range: IRange): boolean {
   const sheet = state?.file.sheets.find((candidate) => candidate.id === sheetId);
@@ -753,6 +799,8 @@ export function canExecuteCommand(
       return event.id === "sheet.command.sort-range" ? sortCommandAllowed(event, state) : sortReorderAllowed(event, state);
     }
     if (SORT_MUTATIONS.has(event.id)) return sortReorderAllowed(event, state);
+    if (TABLE_COMMANDS.has(event.id)) return tableCommandAllowed(event, state);
+    if (TABLE_MUTATIONS.has(event.id)) return tableMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

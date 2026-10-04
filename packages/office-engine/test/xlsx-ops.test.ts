@@ -108,6 +108,7 @@ describe("op-kind registry", () => {
       "set_filter", "clear_filter",
       "set_page_setup",
       "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
+      "create_table", "remove_table",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
       "cellEdits", "cellEdits", "cellEdits",
@@ -117,6 +118,7 @@ describe("op-kind registry", () => {
       "filterStates", "filterStates",
       "pageSetupStates",
       "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
+      "tableAdditions", "tableAdditions",
     ]);
   });
 
@@ -162,6 +164,13 @@ describe("op-kind registry", () => {
       remove_sheet: { op: "remove_sheet", target: { sheet: "Report" } },
       reorder_sheet: { op: "reorder_sheet", target: { sheet: "Data" }, attributes: { index: 1 } },
       set_sheet_hidden: { op: "set_sheet_hidden", target: { sheet: "Data" }, attributes: { hidden: true } },
+      create_table: {
+        op: "create_table",
+        target: { sheet: "Data" },
+        range: "A1:C5",
+        attributes: { name: "Sales", columnNames: ["Region", "Q1", "Q2"], style: "TableStyleMedium2", bandedRows: true },
+      },
+      remove_table: { op: "remove_table", target: { sheet: "Data" }, attributes: { name: "Sales" } },
     };
     for (const kind of XLSX_OP_KINDS) {
       const item = items[kind.wireName]!;

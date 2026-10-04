@@ -7511,6 +7511,14 @@
           "cancel": "Cancel"
         }
       },
+      "table": {
+        "groups": {
+          "insert": "Tables"
+        },
+        "create": "Create table",
+        "remove": "Remove table",
+        "namePlaceholder": "Table name to remove"
+      },
       "pageSetup": {
         "open": "Page setup",
         "groups": {

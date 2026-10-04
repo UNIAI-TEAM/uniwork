@@ -180,11 +180,18 @@ export interface XlsxRendererFilterEdit {
 }
 
 /** Every edit the renderer's onEdits channel can emit. */
+export interface XlsxRendererTableEdit {
+  sheetId: string;
+  table: { area: { startRow: number; endRow: number; startColumn: number; endColumn: number }; name: string; columnNames: string[]; style?: string; bandedRows: boolean } | null;
+  name: string;
+}
+
 export type XlsxRendererEdit =
   | XlsxRendererCellEdit
   | XlsxRendererStructuralEdit
   | XlsxRendererSheetEdit
-  | XlsxRendererFilterEdit;
+  | XlsxRendererFilterEdit
+  | XlsxRendererTableEdit;
 
 export interface XlsxRendererFontMapping {
   declared: string;

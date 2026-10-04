@@ -1,0 +1,20 @@
+diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+--- a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+@@ -590,6 +590,7 @@ export async function applyCellEditsToXlsx(
+   definedNamesState: DefinedNamesState | null = null,
+   pageSetupStates: readonly SheetPageSetupState[] = [],
+   noteStates: readonly SheetNoteState[] = [],
++  tableAdditions: readonly SheetTableAddition[] = [],
+   formulaValues: readonly SheetFormulaValues[] = [],
+ ): Promise<XlsxMutation> {
+   const plan = await planCellEditsToXlsx(
+@@ -606,7 +607,8 @@ export async function applyCellEditsToXlsx(
+     definedNamesState,
+     [],
+     pageSetupStates,
+     noteStates,
++    tableAdditions,
+     [],
+     [],
+     [],

@@ -697,6 +697,10 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// page-layout snapshot (orientation, paper, scale/fit, margins, print
 	// gridlines/headings, print area/titles, frozen panes, breaks).
 	"set_page_setup": officeSetPageSetupValid,
+	// Hyperlinks + notes (B6): set_hyperlink is a per-cell link (null target
+	// removes it); set_notes is a whole-sheet declarative note snapshot.
+	"set_hyperlink": officeSetHyperlinkValid,
+	"set_notes":     officeSetNotesValid,
 	// Sheet management (B3): add/duplicate/rename/remove/reorder/hide. The
 	// applied set folds into ONE workbook-wide SheetEditPlan per save; names
 	// follow the upstream validateSheetName and the tab index mirrors the TS
@@ -708,6 +712,11 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	"remove_sheet":     officeRemoveSheetValid,
 	"reorder_sheet":    officeReorderSheetValid,
 	"set_sheet_hidden": officeSheetHiddenValid,
+	// Tables (B9): create_table writes a new table part over a header-inclusive
+	// range; remove_table cancels a session add by name (the gateway has no
+	// table-removal write path, so a file-native table stays view-only).
+	"create_table": officeCreateTableValid,
+	"remove_table": officeRemoveTableValid,
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -1573,6 +1582,96 @@ func officeSetPageSetupValid(edit office.EditOp) bool {
 	return settings > 0
 }
 
+// Hyperlinks (B6). set_hyperlink carries a per-cell link in the raw
+// attributes object: attributes.cell is an A1 address and attributes.target is
+// a URL/anchor of 1-2083 characters (the vendored wire schema's bound) or JSON
+// null to remove the link. One op kind serves set and clear, mirroring the
+// gateway's per-cell last-write list.
+func officeSetHyperlinkValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	var cell string
+	if json.Unmarshal(attributes["cell"], &cell) != nil {
+		return false
+	}
+	if _, _, ok := officeA1Index(cell); !ok {
+		return false
+	}
+	target, has := attributes["target"]
+	if !has || len(target) == 0 {
+		return false
+	}
+	if string(target) == "null" {
+		return true
+	}
+	var link string
+	if json.Unmarshal(target, &link) != nil {
+		return false
+	}
+	return len(link) >= 1 && len(link) <= maxOfficeHyperlinkTargetLen
+}
+
+// Notes (B6). set_notes carries the whole-sheet note snapshot: at most 1000
+// notes, each a 0-based in-grid cell with an author <=255 chars and text
+// <=32767 chars, one note per cell. Bounds mirror the vendored wire schema
+// (desktop-api.ts workbookNoteStateSchema) and the ops-notes parser.
+const maxOfficeHyperlinkTargetLen = 2_083
+
+const (
+	maxOfficeNoteCount     = 1_000
+	maxOfficeNoteAuthorLen = 255
+	maxOfficeNoteTextLen   = 32_767
+)
+
+func officeSetNotesValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	raw := attributes["notes"]
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var notes []json.RawMessage
+	if json.Unmarshal(raw, &notes) != nil || len(notes) > maxOfficeNoteCount {
+		return false
+	}
+	seen := make(map[string]bool, len(notes))
+	for _, entry := range notes {
+		var note map[string]json.RawMessage
+		if json.Unmarshal(entry, &note) != nil {
+			return false
+		}
+		row, okRow := officeGridIndex(note["row"], maxOfficeEditRows)
+		column, okColumn := officeGridIndex(note["column"], maxOfficeEditColumns)
+		if !okRow || !okColumn {
+			return false
+		}
+		var author string
+		if json.Unmarshal(note["author"], &author) != nil || len(author) > maxOfficeNoteAuthorLen {
+			return false
+		}
+		var text string
+		if json.Unmarshal(note["text"], &text) != nil || len(text) > maxOfficeNoteTextLen {
+			return false
+		}
+		key := strconv.Itoa(row) + ":" + strconv.Itoa(column)
+		if seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
+}
+
 // Sheet management (B3). Names mirror the upstream validateSheetName
 // (1-31 characters, no \ / ? * [ ] :, no leading/trailing apostrophe); the tab
 // index mirrors the TS parser's 0-9999 bound (an envelope carries at most
@@ -1738,4 +1837,116 @@ func (s *DocumentOfficeService) CancelOfficeJobForDocument(ctx context.Context, 
 		return db.OfficeJob{}, ErrNotFound
 	}
 	return s.CancelOfficeJob(ctx, actor, doc.OrganizationID, doc.WorkspaceID, jobID)
+}
+
+// Tables (B9). create_table carries the table range on the shared envelope's
+// own range field (like merge_cells) and its metadata in the raw attributes
+// object: name, columnNames, an optional built-in style and bandedRows. Bounds
+// mirror ops.ts's parser and the vendored wire schema (desktop-api.ts
+// workbookTableAddSchema): the name follows Excel's table-name grammar, the
+// range needs a header row plus at least one data row, one non-blank unique
+// column name per column (<=255 chars), and the style is a built-in
+// TableStyle{Light|Medium|Dark}N name. remove_table carries only a name.
+
+const (
+	maxOfficeTableNameLen    = 255
+	maxOfficeTableColumns    = 1_000
+	maxOfficeTableColumnName = 255
+)
+
+var (
+	officeTableNamePattern  = regexp.MustCompile("^[A-Za-z_\\\\][A-Za-z0-9_.]{0,254}$")
+	officeTableCellRefPat   = regexp.MustCompile("^\\$?[A-Za-z]{1,3}\\$?[1-9][0-9]*$")
+	officeTableStylePattern = regexp.MustCompile("^TableStyle(?:Light|Medium|Dark)[1-9][0-9]?$")
+)
+
+// officeTableNameOK: a present Excel table name (grammar + not a cell ref).
+func officeTableNameOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil || len(name) > maxOfficeTableNameLen {
+		return false
+	}
+	return officeTableNamePattern.MatchString(name) && !officeTableCellRefPat.MatchString(name)
+}
+
+// officeTableColumnNamesOK: exactly width non-blank, unique (case-insensitive)
+// names, each at most 255 characters.
+func officeTableColumnNamesOK(raw json.RawMessage, width int) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var names []string
+	if json.Unmarshal(raw, &names) != nil || len(names) != width || width < 1 || width > maxOfficeTableColumns {
+		return false
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		trimmed := strings.ToLower(strings.TrimSpace(name))
+		if trimmed == "" || len(name) > maxOfficeTableColumnName || seen[trimmed] {
+			return false
+		}
+		seen[trimmed] = true
+	}
+	return true
+}
+
+// officeTableAttributesOK validates the shared metadata of create_table.
+func officeTableAttributesOK(attributes map[string]json.RawMessage, width int) bool {
+	for name := range attributes {
+		switch name {
+		case "name", "columnNames", "style", "bandedRows":
+		default:
+			return false
+		}
+	}
+	if !officeTableNameOK(attributes["name"]) || !officeTableColumnNamesOK(attributes["columnNames"], width) {
+		return false
+	}
+	if raw, ok := attributes["style"]; ok {
+		var style string
+		if json.Unmarshal(raw, &style) != nil || !officeTableStylePattern.MatchString(style) {
+			return false
+		}
+	}
+	if raw, ok := attributes["bandedRows"]; ok {
+		if string(raw) != "true" && string(raw) != "false" {
+			return false
+		}
+	}
+	return true
+}
+
+// officeCreateTableValid: create_table - a sheet-ref target, a header-inclusive
+// range with at least one data row, and bounded table metadata.
+func officeCreateTableValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(edit.Range)
+	if !ok || endRow <= startRow {
+		return false
+	}
+	if endRow-startRow >= maxOfficeStructuralSpan || endColumn-startColumn >= maxOfficeStructuralSpan {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) == 0 {
+		return false
+	}
+	return officeTableAttributesOK(attributes, endColumn-startColumn+1)
+}
+
+// officeRemoveTableValid: remove_table - a sheet-ref target plus a name.
+func officeRemoveTableValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) != 1 {
+		return false
+	}
+	return officeTableNameOK(attributes["name"])
 }

@@ -21,8 +21,19 @@ import {
   type XlsxSheetResolver,
   type XlsxSheetStructuralOps,
   type XlsxStructuralOp,
+  groupXlsxHyperlinkEdits,
+  groupXlsxNoteStates,
+  isXlsxHyperlinkOp,
+  isXlsxNotesOp,
+  type XlsxHyperlinkOp,
+  type XlsxSheetHyperlinkEdits,
+  type XlsxNotesOp,
+  type XlsxSheetNoteState,
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
+import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./tables.ts";
+import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
+import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
 
 /** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
  *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
@@ -61,6 +72,12 @@ interface RemovedSheetState {
   readonly structural: XlsxStructuralOp[];
   readonly filter?: XlsxFilterOp | undefined;
   readonly pageSetup?: XlsxPageSetupOp | undefined;
+  readonly tables?: readonly XlsxTableAddOp[] | undefined;
+  readonly protection?: XlsxSheetProtectionOp | undefined;
+  /** Per-cell hyperlink ops set aside at removal (address -> op). */
+  readonly hyperlinks?: readonly XlsxHyperlinkOp[] | undefined;
+  /** The whole-sheet note snapshot set aside at removal. */
+  readonly notes?: XlsxNotesOp | undefined;
   /** Tab position at removal: an undo re-insert with no explicit index lands
    *  back where the sheet was instead of at the end of the strip. */
   readonly index: number;
@@ -72,6 +89,11 @@ export interface ModelCheckpoint {
   readonly structural: Map<string, XlsxStructuralOp[]>;
   readonly filters: Map<string, XlsxFilterOp>;
   readonly pageSetups: Map<string, XlsxPageSetupOp>;
+  readonly tables: XlsxTableAddOp[];
+  readonly sheetProtections: Map<string, XlsxSheetProtectionOp>;
+  readonly definedNames: XlsxDefinedNamesOp | undefined;
+  readonly hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
+  readonly notes: Map<string, XlsxNotesOp>;
   readonly sheetStates: ModelSheetState[];
   readonly removedOriginals: string[];
   readonly removedStates: Map<string, RemovedSheetState>;
@@ -134,6 +156,25 @@ export class XlsxSessionModel {
    *  first-touch order (whole-sheet, like filters). The map key is the
    *  sheet's CURRENT name; a rename rewrites it. */
   private pageSetups = new Map<string, XlsxPageSetupOp>();
+  /** Table additions (B9): a list, not a per-sheet snapshot. Each op pins
+   *  final coordinates at emission time; remove_table drops a pending add.
+   *  The key is the sheet's CURRENT name; a rename rewrites it, a removal
+   *  drops the sheet's tables (nothing may reach a deleted part). */
+  private tables: XlsxTableAddOp[] = [];
+  /** Declarative sheet-protection journal: the LAST protection op per sheet,
+   *  in first-touch order (whole-sheet, like filters). Keyed by CURRENT name. */
+  private sheetProtections = new Map<string, XlsxSheetProtectionOp>();
+  /** Declarative workbook-scoped defined-names journal: the LAST snapshot in
+   *  emission order (workbook.xml <definedNames> is rewritten wholesale). */
+  private definedNames: XlsxDefinedNamesOp | undefined;
+  /** Declarative hyperlink journal: per-cell last-write-wins links per sheet
+   *  (a null target removes the link). The map key is the sheet's CURRENT
+   *  name; a rename rewrites it. */
+  private hyperlinks = new Map<string, Map<string, XlsxHyperlinkOp>>();
+  /** Declarative note journal: the LAST whole-sheet note snapshot per sheet,
+   *  in first-touch order (like filters). The map key is the sheet's CURRENT
+   *  name; a rename rewrites it. */
+  private notes = new Map<string, XlsxNotesOp>();
   /** Ordered sheet registry: file sheets in tab order, plus additions. Ops
    *  are applied in emission order, so every entry's `name` is current. */
   private sheetStates: ModelSheetState[] = [];
@@ -183,6 +224,11 @@ export class XlsxSessionModel {
       structural: this.structural,
       filters: this.filters,
       pageSetups: this.pageSetups,
+      tables: this.tables,
+      sheetProtections: this.sheetProtections,
+      definedNames: this.definedNames,
+      hyperlinks: this.hyperlinks,
+      notes: this.notes,
       sheetStates: this.sheetStates,
       removedOriginals: this.removedOriginals,
       removedStates: this.removedStates,
@@ -200,6 +246,11 @@ export class XlsxSessionModel {
     this.structural = new Map(checkpoint.structural);
     this.filters = new Map(checkpoint.filters);
     this.pageSetups = new Map(checkpoint.pageSetups);
+    this.tables = checkpoint.tables;
+    this.sheetProtections = new Map(checkpoint.sheetProtections);
+    this.definedNames = checkpoint.definedNames;
+    this.hyperlinks = new Map(checkpoint.hyperlinks);
+    this.notes = new Map(checkpoint.notes);
     this.sheetStates = checkpoint.sheetStates;
     this.removedOriginals = checkpoint.removedOriginals;
     this.removedStates = new Map(checkpoint.removedStates);
@@ -255,8 +306,28 @@ export class XlsxSessionModel {
       this.applyFilterOp(op);
       return;
     }
+    if (isXlsxSheetProtectionOp(op)) {
+      this.applySheetProtectionOp(op);
+      return;
+    }
+    if (isXlsxDefinedNamesOp(op)) {
+      this.applyDefinedNamesOp(op);
+      return;
+    }
     if (isXlsxPageSetupOp(op)) {
       this.applyPageSetupOp(op);
+      return;
+    }
+    if (isXlsxTableOp(op)) {
+      this.applyTableOp(op);
+      return;
+    }
+    if (isXlsxHyperlinkOp(op)) {
+      this.applyHyperlinkOp(op);
+      return;
+    }
+    if (isXlsxNotesOp(op)) {
+      this.applyNotesOp(op);
       return;
     }
     if (isXlsxStructuralOp(op)) {
@@ -335,6 +406,58 @@ export class XlsxSessionModel {
     this.revision += 1;
   }
 
+  /** Sheet protection is a declarative whole-sheet flag: the last op per
+   *  sheet wins, in first-touch order. */
+  private applySheetProtectionOp(op: XlsxSheetProtectionOp): void {
+    this.sheetProtections.set(op.sheetName, op);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Defined names are a workbook-scoped declarative snapshot: the last op
+   *  wins outright. */
+  private applyDefinedNamesOp(op: XlsxDefinedNamesOp): void {
+    this.definedNames = op;
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Hyperlinks are a per-cell declarative journal: a later op for the same
+   *  cell replaces the earlier one (a null target removes the link). Nothing
+   *  shifts - coordinates are final when the renderer snapshots them, and the
+   *  gateway applies the per-cell list after structural replay. */
+  private applyHyperlinkOp(op: XlsxHyperlinkOp): void {
+    const links = this.hyperlinks.get(op.sheetName) ?? new Map<string, XlsxHyperlinkOp>();
+    links.set(op.address, op);
+    this.hyperlinks.set(op.sheetName, links);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Notes are a declarative whole-sheet snapshot: the last op per sheet wins,
+   *  in first-touch order (the gateway's applySheetNotes replaces the sheet's
+   *  complete comment set). */
+  private applyNotesOp(op: XlsxNotesOp): void {
+    this.notes.set(op.sheetName, op);
+    this.touched = true;
+    this.revision += 1;
+  }
+
+  /** Table ops: create_table appends an addition (final coordinates), and
+   *  remove_table cancels an earlier add of the same name (session adds
+   *  only; the gateway has no table-removal write path). Nothing shifts. */
+  private applyTableOp(op: XlsxTableAddOp | { kind: "remove_table"; sheetName: string; name: string }): void {
+    if (op.kind === "create_table") {
+      this.tables.push(op);
+    } else {
+      const needle = op.name.toLowerCase();
+      const index = this.tables.findIndex((table) => table.sheetName === op.sheetName && table.name.toLowerCase() === needle);
+      if (index >= 0) this.tables.splice(index, 1);
+    }
+    this.touched = true;
+    this.revision += 1;
+  }
+
   private shiftPendingCells(op: Extract<XlsxStructuralOp, { index: number }>): void {
     const axis = op.kind === "insert_cols" || op.kind === "remove_cols" ? "column" : "row";
     const removing = op.kind === "remove_rows" || op.kind === "remove_cols";
@@ -386,6 +509,10 @@ export class XlsxSessionModel {
           if (tombstone.structural.length > 0) this.structural.set(tombstone.state.name, tombstone.structural);
           if (tombstone.filter !== undefined) this.filters.set(tombstone.state.name, tombstone.filter);
           if (tombstone.pageSetup !== undefined) this.pageSetups.set(tombstone.state.name, tombstone.pageSetup);
+          if (tombstone.tables !== undefined) for (const table of tombstone.tables) this.tables.push(table);
+          if (tombstone.protection !== undefined) this.sheetProtections.set(tombstone.state.name, tombstone.protection);
+          if (tombstone.hyperlinks !== undefined) this.hyperlinks.set(tombstone.state.name, new Map(tombstone.hyperlinks.map((link) => [link.address, link])));
+          if (tombstone.notes !== undefined) this.notes.set(tombstone.state.name, tombstone.notes);
           break;
         }
         this.sheetStates.splice(this.insertIndex(op.index), 0, this.makeAddedSheet(op.name, undefined));
@@ -424,6 +551,10 @@ export class XlsxSessionModel {
           structural: [...(this.structural.get(sheet.name) ?? [])],
           filter: this.filters.get(sheet.name),
           pageSetup: this.pageSetups.get(sheet.name),
+          tables: this.tables.filter((table) => table.sheetName === sheet.name),
+          protection: this.sheetProtections.get(sheet.name),
+          ...(this.hyperlinks.has(sheet.name) ? { hyperlinks: [...(this.hyperlinks.get(sheet.name) ?? new Map()).values()] } : {}),
+          ...(this.notes.has(sheet.name) ? { notes: this.notes.get(sheet.name) } : {}),
           index,
         });
         this.dropPendingSheet(sheet.name);
@@ -510,6 +641,22 @@ export class XlsxSessionModel {
       this.pageSetups.delete(previous);
       this.pageSetups.set(next, { ...pageSetup, sheetName: next });
     }
+    this.tables = this.tables.map((table) => (table.sheetName === previous ? { ...table, sheetName: next } : table));
+    const protection = this.sheetProtections.get(previous);
+    if (protection !== undefined) {
+      this.sheetProtections.delete(previous);
+      this.sheetProtections.set(next, { ...protection, sheetName: next });
+    }
+    const links = this.hyperlinks.get(previous);
+    if (links !== undefined) {
+      this.hyperlinks.delete(previous);
+      this.hyperlinks.set(next, new Map([...links].map(([address, link]) => [address, { ...link, sheetName: next }])));
+    }
+    const notes = this.notes.get(previous);
+    if (notes !== undefined) {
+      this.notes.delete(previous);
+      this.notes.set(next, { ...notes, sheetName: next });
+    }
   }
 
   private dropPendingSheet(sheetName: string): void {
@@ -519,6 +666,10 @@ export class XlsxSessionModel {
     this.structural.delete(sheetName);
     this.filters.delete(sheetName);
     this.pageSetups.delete(sheetName);
+    this.tables = this.tables.filter((table) => table.sheetName !== sheetName);
+    this.sheetProtections.delete(sheetName);
+    this.hyperlinks.delete(sheetName);
+    this.notes.delete(sheetName);
   }
 
   private cloneSheetEdits(fromName: string, toName: string): void {
@@ -538,6 +689,15 @@ export class XlsxSessionModel {
     if (filter !== undefined) this.filters.set(toName, { ...filter, sheetName: toName });
     const pageSetup = this.pageSetups.get(fromName);
     if (pageSetup !== undefined) this.pageSetups.set(toName, { ...pageSetup, sheetName: toName });
+    const protection = this.sheetProtections.get(fromName);
+    if (protection !== undefined) this.sheetProtections.set(toName, { ...protection, sheetName: toName });
+    for (const table of this.tables.filter((candidate) => candidate.sheetName === fromName)) {
+      this.tables.push({ ...table, sheetName: toName });
+    }
+    const links = this.hyperlinks.get(fromName);
+    if (links !== undefined) this.hyperlinks.set(toName, new Map([...links].map(([address, link]) => [address, { ...link, sheetName: toName }])));
+    const notes = this.notes.get(fromName);
+    if (notes !== undefined) this.notes.set(toName, { ...notes, sheetName: toName });
   }
 
   /** The gateway's SheetEditPlan rebuilt from the model's final state. Field
@@ -630,6 +790,40 @@ export class XlsxSessionModel {
     return groupXlsxPageSetupStates([...this.pageSetups.values()]);
   }
 
+  /** The table additions for the gateway's tableAdditions argument, in
+   *  emission order with any remove_table cancellations applied. Empty when
+   *  the session has no table edits. */
+  pendingTableAdditions() {
+    return groupXlsxTableAdditions(this.tables);
+  }
+
+  /** The protection plan for the gateway sheetProtections argument: one
+   *  declarative flag per touched sheet, last write per sheet, first-touch
+   *  order. Empty when the session has no protection edits. */
+  pendingSheetProtectionStates(): XlsxSheetProtectionState[] {
+    return groupXlsxSheetProtectionStates([...this.sheetProtections.values()]);
+  }
+
+  /** The defined-names snapshot for the gateway definedNamesState argument:
+   *  the last set_defined_names op, or undefined when the session has none. */
+  pendingDefinedNamesState(): XlsxDefinedNamesState | undefined {
+    return this.definedNames === undefined ? undefined : groupXlsxDefinedNamesState([this.definedNames]);
+  }
+
+  /** The hyperlink plan for the gateway's hyperlinkEdits argument: one
+   *  per-cell list per touched sheet, last write per cell, in first-touch
+   *  sheet order. Empty when the session has no hyperlink edits. */
+  pendingHyperlinkEdits(): XlsxSheetHyperlinkEdits[] {
+    return groupXlsxHyperlinkEdits([...this.hyperlinks.values()].flatMap((links) => [...links.values()]));
+  }
+
+  /** The note plan for the gateway's noteStates argument: one whole-sheet
+   *  snapshot per touched sheet, last write per sheet, in first-touch order.
+   *  Empty when the session has no note edits. */
+  pendingNoteStates(): XlsxSheetNoteState[] {
+    return groupXlsxNoteStates([...this.notes.values()]);
+  }
+
   /** Edits in insertion order (last write wins per cell already applied). */
   pendingEdits(): XlsxCellEdit[] {
     return [...this.pending.values()].map((e) => e.edit);
@@ -684,6 +878,8 @@ export class XlsxSessionModel {
     this.structural.clear();
     this.filters.clear();
     this.pageSetups.clear();
+    this.sheetProtections.clear();
+    this.definedNames = undefined;
     this.sheetStates = newSnapshot.sheets.map((sheet) => ({
       key: sheet.name,
       originalName: sheet.name,

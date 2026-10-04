@@ -3,6 +3,7 @@
   isXlsxPageSetupOp,
   isXlsxSheetOp,
   isXlsxStructuralOp,
+  isXlsxTableOp,
   parseXlsxOps,
   type XlsxCellState,
   type XlsxEditOp,
@@ -112,6 +113,7 @@ function applyOp(sheets: XlsxWorksheet[], op: XlsxEditOp): void {
   if (isXlsxStructuralOp(op)) return;
   if (isXlsxFilterOp(op)) return;
   if (isXlsxPageSetupOp(op)) return;
+  if (isXlsxTableOp(op)) return;
   const cells = sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, XlsxJournalDraftCell>;
   const previous = cells[op.target.address];
   const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };
