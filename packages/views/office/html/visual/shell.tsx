@@ -74,8 +74,10 @@ export interface HtmlVisualShellProps {
 }
 
 /**
- * ZoomControls — − / value / + with a reset. It lives in the shell's own
- * toolbar strip, not floating over the canvas (brief C9).
+ * ZoomControls — − / value / + with a reset. It lives in the status bar's right
+ * cluster beside the selection info (brief C10: "selection info + zoom
+ * (− value +)"), never in a chrome row of its own and never floating over the
+ * canvas (C9).
  */
 function ZoomControls({ zoom, onZoomChange, disabled }: { zoom: number; onZoomChange: (percent: number) => void; disabled: boolean }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.zoom" });
@@ -120,10 +122,22 @@ function ZoomControls({ zoom, onZoomChange, disabled }: { zoom: number; onZoomCh
 
 /**
  * The status bar's HTML figures: source length / line count / language on the
- * left; selection info and zoom on the right. Rendered through the shell's
- * status slot, never inside the tab or command row (brief C6/C10).
+ * left; selection info and the zoom ladder on the right. Rendered through the
+ * shell's status slot, never inside the tab or command row (brief C6/C10).
  */
-function HtmlStatusBar({ text, selection = null, zoom }: { text: string; selection?: { from: number; to: number } | null; zoom: number }) {
+function HtmlStatusBar({
+  text,
+  selection = null,
+  zoom,
+  onZoomChange,
+  zoomDisabled,
+}: {
+  text: string;
+  selection?: { from: number; to: number } | null;
+  zoom: number;
+  onZoomChange: (percent: number) => void;
+  zoomDisabled: boolean;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.status" });
   const figures = htmlStatusFigures(text, selection);
   return (
@@ -131,12 +145,12 @@ function HtmlStatusBar({ text, selection = null, zoom }: { text: string; selecti
       <span data-testid="html-status-figures" data-html-length={figures.length} data-html-lines={figures.lines} data-html-language="HTML">
         {t("figures", { length: figures.length, lines: figures.lines, language: "HTML" })}
       </span>
-      <span className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <span data-testid="html-status-selection">
           {figures.selection ? t("selection", { from: figures.selection.from, to: figures.selection.to }) : t("selectionNone")}
         </span>
-        <span data-testid="html-status-zoom" data-html-zoom={clampZoom(zoom)}>{t("zoom", { percent: clampZoom(zoom) })}</span>
-      </span>
+        <ZoomControls zoom={clampZoom(zoom)} onZoomChange={onZoomChange} disabled={zoomDisabled} />
+      </div>
     </>
   );
 }
@@ -336,9 +350,6 @@ export function HtmlVisualShell({
       data-html-view={viewMode}
       data-document-key={documentKey}
     >
-      <div className="flex min-h-9 items-center justify-end gap-1 border-b border-border px-2" data-testid="html-shell-toolbar">
-        <ZoomControls zoom={clampedZoom} onZoomChange={onZoomChange} disabled={!showPreview} />
-      </div>
       <div className={cn("flex min-h-0 min-w-0 flex-1 gap-3 p-3", showSource && showPreview ? "flex-col lg:flex-row" : "flex-col")}>
         {sourcePane}
         {previewPane}
@@ -350,7 +361,7 @@ export function HtmlVisualShell({
         aria-label={t("status.label")}
         data-testid="html-status"
       >
-        <HtmlStatusBar text={text} selection={selection} zoom={clampedZoom} />
+        <HtmlStatusBar text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
       </div>
     </div>
   );

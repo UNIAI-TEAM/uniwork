@@ -254,6 +254,15 @@ describe("HtmlEditor zoom and status bar", () => {
     expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
   });
 
+  it("keeps the zoom controls in the status bar, not a chrome row of their own (C10)", async () => {
+    await renderReady();
+    // F1: the − / + / reset ladder is the right cluster of the status bar. The
+    // dedicated `html-shell-toolbar` row is gone for every mode, so the chrome
+    // height does not grow a row the layout does not define.
+    expect(screen.queryByTestId("html-shell-toolbar")).toBeNull();
+    expect(screen.getByTestId("html-status")).toContainElement(screen.getByTestId("html-zoom"));
+  });
+
   it("shows the source length / line count and the zoom in the status bar", async () => {
     await renderReady();
     const figures = screen.getByTestId("html-status-figures");
@@ -262,6 +271,7 @@ describe("HtmlEditor zoom and status bar", () => {
     expect(figures).toHaveAttribute("data-html-length", String(SOURCE.length));
     expect(figures).toHaveAttribute("data-html-lines", "3");
     expect(figures).toHaveAttribute("data-html-language", "HTML");
-    expect(screen.getByTestId("html-status-zoom")).toHaveAttribute("data-html-zoom", "100");
+    expect(screen.getByTestId("html-status")).toContainElement(screen.getByTestId("html-zoom-value"));
+    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
   });
 });
