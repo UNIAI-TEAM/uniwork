@@ -52,13 +52,13 @@ export type {
   XlsxSheetResolver,
 } from "./ops-shared.ts";
 export type { XlsxHyperlinkOp, XlsxSheetHyperlinkEdits } from "./ops-hyperlinks.ts";
-export { isXlsxHyperlinkOp, groupXlsxHyperlinkEdits } from "./ops-hyperlinks.ts";
+export { isXlsxHyperlinkOp, groupXlsxHyperlinkEdits, HYPERLINK_OP_KIND } from "./ops-hyperlinks.ts";
 export type { XlsxNotesOp, XlsxSheetNote, XlsxSheetNoteState } from "./ops-notes.ts";
 export { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, SHEET_PROTECTION_OP_KIND } from "./ops-protection.ts";
 export type { XlsxSheetProtectionOp, XlsxSheetProtectionState } from "./ops-protection.ts";
 export { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, DEFINED_NAMES_OP_KIND } from "./ops-names.ts";
 export type { XlsxDefinedNamesOp, XlsxDefinedNamesState, XlsxDefinedNameEntry } from "./ops-names.ts";
-export { isXlsxNotesOp, groupXlsxNoteStates } from "./ops-notes.ts";
+export { isXlsxNotesOp, groupXlsxNoteStates, NOTES_OP_KIND } from "./ops-notes.ts";
 
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp

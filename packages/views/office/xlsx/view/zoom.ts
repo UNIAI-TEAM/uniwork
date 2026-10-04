@@ -2,7 +2,7 @@
  *  it rides the allowlisted `sheet.command.change-zoom-ratio` view command and
  *  is never journaled, persisted or sent through the save path. */
 
-export const XLSX_ZOOM_COMMAND = "sheet.command.change-zoom-ratio";
+const XLSX_ZOOM_COMMAND = "sheet.command.change-zoom-ratio";
 
 /** The renderer clamps zoom to this percent range (the pin's SHEET_ZOOM_RANGE). */
 export const XLSX_ZOOM_MIN = 10;
