@@ -452,6 +452,44 @@ test('disposing during font preparation prevents a late workbook installation', 
   } finally { mounted.close(); globalThis.FontFace = previous; }
 });
 
+test('hyperlink and outline edits emitted outside the batch carry the live sheet name', async () => {
+  const edits = [];
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    // Rename the live facade: the host file still says "First", so any edit
+    // emitted through the structural channel must be stamped with "Budget".
+    mounted.setSheetName('s1', 'Budget');
+
+    assert.equal(mounted.h.execute({ id: 'uniwork.command.set-hyperlink', params: {
+      unitId: 'file-sha', subUnitId: 's1', address: 'B2', target: 'https://example.com',
+    } }), true);
+    assert.deepEqual(edits.at(-1), {
+      sheetId: 's1', sheetName: 'Budget', row: 1, column: 1, target: 'https://example.com',
+    });
+
+    assert.equal(mounted.h.execute({ id: 'uniwork.command.set-rows-outline', params: {
+      subUnitId: 's1', start: 1, end: 2, action: 'group',
+    } }), true);
+    assert.equal(edits.at(-1).sheetName, 'Budget');
+    assert.equal(edits.at(-1).structural.kind, 'group-rows');
+
+    // A session-added sheet has no file entry at all; the live name is the only
+    // name the bridge can resolve.
+    mounted.addSheet('s3', 'Scratch');
+    assert.equal(mounted.h.execute({ id: 'uniwork.command.set-hyperlink', params: {
+      unitId: 'file-sha', subUnitId: 's3', address: 'A1', target: '#Budget!B2',
+    } }), true);
+    assert.equal(edits.at(-1).sheetName, 'Scratch');
+
+    // Unchanged names stay byte-identical to the pre-B3 wire (no stamp).
+    assert.equal(mounted.h.execute({ id: 'uniwork.command.set-hyperlink', params: {
+      unitId: 'file-sha', subUnitId: 's2', address: 'A1', target: 'https://example.com',
+    } }), true);
+    assert.equal('sheetName' in edits.at(-1), false);
+  } finally { mounted.close(); }
+});
+
 test('sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids', async () => {
   const edits = [];
   let dirty = 0;

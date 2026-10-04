@@ -28,6 +28,7 @@ import {
   type XlsxHyperlinkOp,
   type XlsxSheetHyperlinkEdits,
   type XlsxNotesOp,
+  type XlsxSheetNote,
   type XlsxSheetNoteState,
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
@@ -313,7 +314,10 @@ export class XlsxSessionModel {
     const ops = this.structural.get(op.sheetName) ?? [];
     ops.push(op);
     this.structural.set(op.sheetName, ops);
-    if ("index" in op) this.shiftPendingCells(op);
+    if ("index" in op) {
+      this.shiftPendingCells(op);
+      this.shiftLinkAndNoteJournals(op);
+    }
     this.touched = true;
     this.revision += 1;
   }
@@ -361,9 +365,10 @@ export class XlsxSessionModel {
   }
 
   /** Hyperlinks are a per-cell declarative journal: a later op for the same
-   *  cell replaces the earlier one (a null target removes the link). Nothing
-   *  shifts - coordinates are final when the renderer snapshots them, and the
-   *  gateway applies the per-cell list after structural replay. */
+   *  cell replaces the earlier one (a null target removes the link). The
+   *  journal shifts with later row/column ops (F3), matching the renderer's own
+   *  hyperlink journal, so the gateway applies the list after structural replay
+   *  at final coordinates. */
   private applyHyperlinkOp(op: XlsxHyperlinkOp): void {
     const links = this.hyperlinks.get(op.sheetName) ?? new Map<string, XlsxHyperlinkOp>();
     links.set(op.address, op);
@@ -374,7 +379,8 @@ export class XlsxSessionModel {
 
   /** Notes are a declarative whole-sheet snapshot: the last op per sheet wins,
    *  in first-touch order (the gateway's applySheetNotes replaces the sheet's
-   *  complete comment set). */
+   *  complete comment set). A later row/column op shifts the snapshot (F3) so
+   *  the anchors follow the cells they annotate. */
   private applyNotesOp(op: XlsxNotesOp): void {
     this.notes.set(op.sheetName, op);
     this.touched = true;
@@ -396,16 +402,57 @@ export class XlsxSessionModel {
     this.revision += 1;
   }
 
-  private shiftPendingCells(op: Extract<XlsxStructuralOp, { index: number }>): void {
-    const axis = op.kind === "insert_cols" || op.kind === "remove_cols" ? "column" : "row";
+  /** The post-operation position map one row/column op applies: a position
+   *  inside a removed span disappears (null), one past it slides back, and an
+   *  insertion pushes everything at/after its index forward. Shared by the
+   *  pending-cell shift and the hyperlink/note journal shift so both stay in
+   *  step with the renderer's own journal. */
+  private structuralMove(op: Extract<XlsxStructuralOp, { index: number }>): (position: number) => number | null {
     const removing = op.kind === "remove_rows" || op.kind === "remove_cols";
-    const move = (position: number): number | null => {
+    return (position) => {
       if (removing) {
         if (position >= op.index && position < op.index + op.count) return null;
         return position >= op.index + op.count ? position - op.count : position;
       }
       return position >= op.index ? position + op.count : position;
     };
+  }
+
+  /** F3: a row/column op shifts the hyperlink and note journals too, exactly
+   *  like the renderer's own hyperlink journal (edit-journal.ts). Without this
+   *  a link or note anchored before the op would persist at a stale cell while
+   *  the content moved. A cell inside a removed span drops its link/note. */
+  private shiftLinkAndNoteJournals(op: Extract<XlsxStructuralOp, { index: number }>): void {
+    const axis = op.kind === "insert_cols" || op.kind === "remove_cols" ? "column" : "row";
+    const move = this.structuralMove(op);
+    const links = this.hyperlinks.get(op.sheetName);
+    if (links !== undefined) {
+      const shifted = new Map<string, XlsxHyperlinkOp>();
+      for (const link of links.values()) {
+        const row = axis === "row" ? move(link.row) : link.row;
+        const column = axis === "column" ? move(link.column) : link.column;
+        if (row === null || column === null) continue;
+        const address = toA1(row, column);
+        shifted.set(address, { ...link, row, column, address });
+      }
+      this.hyperlinks.set(op.sheetName, shifted);
+    }
+    const notes = this.notes.get(op.sheetName);
+    if (notes !== undefined) {
+      const shifted: XlsxSheetNote[] = [];
+      for (const note of notes.notes) {
+        const row = axis === "row" ? move(note.row) : note.row;
+        const column = axis === "column" ? move(note.column) : note.column;
+        if (row === null || column === null) continue;
+        shifted.push({ ...note, row, column });
+      }
+      this.notes.set(op.sheetName, { ...notes, notes: shifted });
+    }
+  }
+
+  private shiftPendingCells(op: Extract<XlsxStructuralOp, { index: number }>): void {
+    const axis = op.kind === "insert_cols" || op.kind === "remove_cols" ? "column" : "row";
+    const move = this.structuralMove(op);
     const shifted = new Map<string, PendingCell>();
     for (const entry of this.pending.values()) {
       if (entry.sheetName !== op.sheetName) {

@@ -7519,6 +7519,24 @@
         "remove": "Remove table",
         "namePlaceholder": "Table name to remove"
       },
+      "links": {
+        "groups": {
+          "insert": "Links and notes"
+        },
+        "insert": "Insert link",
+        "note": "Insert note",
+        "dialog": {
+          "linkTitle": "Insert link",
+          "noteTitle": "Insert note",
+          "target": "Link target",
+          "targetPlaceholder": "e.g. https://example.com or Sheet1!A1",
+          "hint": "Leave blank to remove the link.",
+          "noteText": "Note text",
+          "notePlaceholder": "e.g. Check this figure",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        }
+      },
       "protect": {
         "open": "Protect sheet and names",
         "groups": {
@@ -7857,6 +7875,7 @@
         "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
         "appColumnLabel": "Column {{col}}",
         "appFullyLoaded": "Workbook fully loaded — formulas recalculate live, rows/columns editable.",
+        "appHyperlinkTargetInvalid": "Enter a URL like https://example.com, or a sheet reference like Sheet1!A1.",
         "appIndexing": "Indexing {{name}}: {{rows}} rows ready.",
         "appLinkInternal": "Link points inside the workbook: {{location}}",
         "appLinkJumpFailed": "Unable to jump to {{location}}.",

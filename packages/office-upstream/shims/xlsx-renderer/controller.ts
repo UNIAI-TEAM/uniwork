@@ -45,6 +45,7 @@ import {
   ingestSheetMutation,
   ingestTableMutation,
   ingestStructuralMutation,
+  sessionTableIdForName,
   ingestNoteMutation,
   hyperlinkEdit,
   intersectMergeRanges,
@@ -451,7 +452,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   const emitStructuralEdits = (edits: XlsxRendererEdit[]): boolean => {
     if (edits.length === 0) return false;
     dirtyGeneration += 1;
-    options.onEdits?.(edits);
+    // B6/F2: hyperlink + outline edits emitted outside the CommandExecuted
+    // batch must carry the live sheet name too, exactly like the batch below.
+    options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, edits));
     options.onDirty?.();
     return true;
   };
@@ -755,7 +758,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       // `async`, so the port must go through the promise-returning
       // `executeCommand` (the sync variant throws on a promise result).
       const base = params && typeof params === "object" ? params as Record<string, unknown> : {};
-      const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base };
+      // The toolbar's Remove control carries a name; the pinned delete command
+      // takes {tableId}. Resolve the id for a session add (a file-native table
+      // stays view-only) so the control reaches the command instead of no-op.
+      const sessionTableId = id === "sheet.command.delete-table" && typeof base.name === "string" && typeof base.tableId !== "string"
+        ? sessionTableIdForName(sheet.getSheetId(), base.name)
+        : undefined;
+      const resolved = sessionTableId === undefined ? {} : { tableId: sessionTableId };
+      const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base, ...resolved };
       return (await runtime.univerAPI.executeCommand(id, commandParams)) === true;
     },
     getActiveFormatState() {

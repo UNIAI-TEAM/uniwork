@@ -7513,6 +7513,24 @@
         "remove": "Xóa bảng",
         "namePlaceholder": "Tên bảng cần xóa"
       },
+      "links": {
+        "groups": {
+          "insert": "Liên kết và ghi chú"
+        },
+        "insert": "Chèn liên kết",
+        "note": "Chèn ghi chú",
+        "dialog": {
+          "linkTitle": "Chèn liên kết",
+          "noteTitle": "Chèn ghi chú",
+          "target": "Đích liên kết",
+          "targetPlaceholder": "ví dụ: https://example.com hoặc Sheet1!A1",
+          "hint": "Để trống để xoá liên kết.",
+          "noteText": "Nội dung ghi chú",
+          "notePlaceholder": "ví dụ: Kiểm tra số liệu này",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        }
+      },
       "protect": {
         "open": "Bảo vệ trang tính và tên",
         "groups": {
@@ -7851,6 +7869,7 @@
         "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
         "appColumnLabel": "Cột {{col}}",
         "appFullyLoaded": "Sổ tính đã tải đầy đủ — công thức tính lại trực tiếp, có thể sửa hàng/cột.",
+        "appHyperlinkTargetInvalid": "Nhập URL như https://example.com, hoặc tham chiếu trang như Sheet1!A1.",
         "appIndexing": "Đang lập chỉ mục {{name}}: {{rows}} hàng sẵn sàng.",
         "appLinkInternal": "Liên kết trỏ trong cùng sổ tính: {{location}}",
         "appLinkJumpFailed": "Không thể nhảy tới {{location}}.",

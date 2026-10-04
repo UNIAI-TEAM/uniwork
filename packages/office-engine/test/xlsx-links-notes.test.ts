@@ -148,6 +148,63 @@ describe("XLSX hyperlink + note ops in the session model", () => {
       expect(() => modelWith([operation]), JSON.stringify(operation).slice(0, 80)).toThrowError(XlsxOpError);
     }
   });
+
+  it("shifts hyperlink and note anchors under row/column structural ops (F3)", () => {
+    // Insert a row above: every anchor at/after row 0 moves down one.
+    const inserted = modelWith([
+      linkItem("A1", "https://example.com"),
+      noteItem([{ row: 0, column: 0, author: "An", text: "hi" }]),
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+    ]);
+    expect(inserted.pendingHyperlinkEdits()).toEqual([
+      { sheetName: "Data", edits: [{ row: 1, column: 0, target: "https://example.com" }] },
+    ]);
+    expect(inserted.pendingNoteStates()).toEqual([
+      { sheetName: "Data", notes: [{ row: 1, column: 0, author: "An", text: "hi" }] },
+    ]);
+
+    // Insert columns: B1 slides to D1, A1 stays put.
+    const columns = modelWith([
+      linkItem("A1", "https://a"),
+      linkItem("B1", "https://b"),
+      { op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 1, count: 2 } },
+    ]);
+    expect(columns.pendingHyperlinkEdits()[0]?.edits).toEqual([
+      { row: 0, column: 0, target: "https://a" },
+      { row: 0, column: 3, target: "https://b" },
+    ]);
+
+    // Remove a row: an anchor inside the removed span drops, one past it slides up.
+    const removed = modelWith([
+      linkItem("A1", "https://keep"),
+      linkItem("A2", "https://drop"),
+      noteItem([{ row: 0, column: 0, author: "An", text: "keep" }, { row: 1, column: 0, author: "Binh", text: "drop" }]),
+      { op: "remove_rows", target: { sheet: "Data" }, attributes: { index: 1, count: 1 } },
+    ]);
+    expect(removed.pendingHyperlinkEdits()).toEqual([
+      { sheetName: "Data", edits: [{ row: 0, column: 0, target: "https://keep" }] },
+    ]);
+    expect(removed.pendingNoteStates()).toEqual([
+      { sheetName: "Data", notes: [{ row: 0, column: 0, author: "An", text: "keep" }] },
+    ]);
+
+    // Remove a column: A1 drops, B1 slides into A1.
+    const removedCol = modelWith([
+      linkItem("A1", "https://drop"),
+      linkItem("B1", "https://slide"),
+      { op: "remove_cols", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
+    ]);
+    expect(removedCol.pendingHyperlinkEdits()[0]?.edits).toEqual([{ row: 0, column: 0, target: "https://slide" }]);
+
+    // A structural op on another sheet leaves this sheet's anchors alone.
+    const otherSheet = modelWith([
+      linkItem("A1", "https://a"),
+      { op: "insert_rows", target: { sheet: "Report" }, attributes: { index: 0, count: 3 } },
+    ]);
+    expect(otherSheet.pendingHyperlinkEdits()).toEqual([
+      { sheetName: "Data", edits: [{ row: 0, column: 0, target: "https://a" }] },
+    ]);
+  });
 });
 
 describe.skipIf(!existsSync(ARTIFACT))("xlsx hyperlinks + notes on the real gateway", () => {
