@@ -163,7 +163,9 @@ describe("XlsxStatusBar", () => {
   it("shows an empty state without reading when the selection is outside the used range", () => {
     const readRange = vi.fn();
     render(<XlsxStatusBar documentKey="doc" selection={selection("A200")} host={host(readRange)} />);
-    expect(screen.getByTestId("xlsx-status-bar-no-values")).toBeInTheDocument();
+    // Outside the used bounds there is nothing to read at all: the request is
+    // null and the bar shows the honest empty state, not a summary verdict.
+    expect(screen.getByTestId("xlsx-status-bar-empty")).toBeInTheDocument();
     expect(readRange).not.toHaveBeenCalled();
   });
 

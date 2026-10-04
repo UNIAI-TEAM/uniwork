@@ -64,7 +64,7 @@ describe("XlsxFindGroup", () => {
   it("stays in the tab order and inert without a mounted grid or a handler", () => {
     for (const overrides of [{ commands: undefined }, { onOpenFind: undefined }, { readOnly: true }] as Partial<XlsxToolbarGroupProps>[]) {
       const onOpenFind = vi.fn();
-      const view = render(<XlsxFindGroup {...groupProps({ ...overrides, onOpenFind })} />);
+      const view = render(<XlsxFindGroup {...groupProps({ onOpenFind, ...overrides })} />);
       const button = screen.getByTestId("xlsx-find-open");
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).not.toBeDisabled();

@@ -162,7 +162,7 @@ describe("XlsxFindPanel", () => {
       subUnitId: "sheet-1",
       value: { 0: { 0: { v: "beta" } } },
     });
-    expect(screen.getByTestId("xlsx-find-replaced")).toHaveTextContent(text("office.xlsx.find.status.replaced"));
+    expect(await screen.findByTestId("xlsx-find-replaced")).toHaveTextContent(text("office.xlsx.find.status.replaced"));
   });
 
   it("refuses a replace-all above the engine op bound and never sends it", async () => {
@@ -189,7 +189,7 @@ describe("XlsxFindPanel", () => {
       withVars(text("office.xlsx.find.status.formulaHint"), { count: 1 }),
     ));
     fireEvent.click(screen.getByTestId("xlsx-find-replace-all"));
-    expect(screen.getByTestId("xlsx-find-replaced-all")).toHaveTextContent(
+    expect(await screen.findByTestId("xlsx-find-replaced-all")).toHaveTextContent(
       withVars(text("office.xlsx.find.status.replacedAll"), { count: 1 }),
     );
   });

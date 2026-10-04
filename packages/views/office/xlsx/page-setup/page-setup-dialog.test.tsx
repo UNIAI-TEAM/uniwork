@@ -36,7 +36,7 @@ describe("XlsxPageSetupDialog", () => {
   it("refuses a lone frozen axis with the localized pair message", () => {
     const onApply = vi.fn();
     render(<XlsxPageSetupDialog selection={{ sheet: "Data", address: "A1" }} onApply={onApply} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByTestId("xlsx-page-frozen-rows"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText(viLocale.office.xlsx.pageSetup.dialog.frozenRows), { target: { value: "2" } });
     fireEvent.click(screen.getByTestId("xlsx-page-setup-apply"));
     expect(onApply).not.toHaveBeenCalled();
     expect(screen.getByTestId("xlsx-page-setup-error")).toHaveTextContent(viLocale.office.xlsx.pageSetup.dialog.invalidFrozenPair);

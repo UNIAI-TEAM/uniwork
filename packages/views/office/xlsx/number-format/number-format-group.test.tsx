@@ -122,6 +122,8 @@ describe("XlsxNumberFormatGroup", () => {
     expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument();
 
     gallery = await openGallery();
+    // The applied draft stays in the field, so clear it to exercise the empty refusal.
+    fireEvent.change(within(gallery).getByTestId("xlsx-number-format-custom-input"), { target: { value: "   " } });
     fireEvent.click(within(gallery).getByTestId("xlsx-number-format-custom-apply"));
     expect(within(gallery).getByTestId("xlsx-number-format-custom-error")).toHaveTextContent("Nhập mã định dạng.");
     expect(within(gallery).getByTestId("xlsx-number-format-custom-input")).toHaveAttribute("aria-invalid", "true");

@@ -107,7 +107,10 @@ describe("XlsxSheetTabs", () => {
     fireEvent.change(input, { target: { value: "budget" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onAction).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: sheets.renameInput })).toHaveAttribute("aria-invalid", "true");
+    // "budget" is a valid NAME SHAPE, so the field is not flagged invalid; the
+    // duplicate is refused by the commit handler, which is what the missing
+    // onAction above pins. (Only a malformed name sets aria-invalid.)
+    expect(screen.getByRole("textbox", { name: sheets.renameInput })).not.toHaveAttribute("aria-invalid");
     // A case-only rewrite of the active sheet itself is still legal.
     fireEvent.change(input, { target: { value: "data" } });
     fireEvent.keyDown(input, { key: "Enter" });

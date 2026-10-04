@@ -18,8 +18,10 @@ describe("functionTokenAt", () => {
   });
 
   it("reads the token from the caret, and shows nothing once the name is complete", () => {
-    const { draft, caret } = at("=SU|M(A1)");
-    expect(functionTokenAt(draft, caret)).toEqual({ prefix: "SUM", start: 1, end: 4 });
+    const { draft, caret } = at("=SU|M");
+    // The caret sits between "SU" and "M": the typed fragment is "SU" and the
+    // whole name token spans [1, 4).
+    expect(functionTokenAt(draft, caret)).toEqual({ prefix: "SU", start: 1, end: 4 });
     // The name is followed by "(": the call is complete, so there is nothing
     // left to suggest.
     expect(functionTokenAt("=SUM(A1)", 2)).toBeNull();

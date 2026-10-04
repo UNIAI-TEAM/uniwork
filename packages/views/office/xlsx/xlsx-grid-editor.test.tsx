@@ -147,7 +147,11 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.keyDown(formula, { key: "Enter" });
     expect(grid.handle.setCellText).toHaveBeenLastCalledWith("sheet-2", 0, 0, "=Data!A1*3");
     fireEvent.click(screen.getByRole("button", { name: "Định dạng số" }));
-    expect(grid.handle.setNumberFormat).toHaveBeenLastCalledWith("0.00");
+    const numberGallery = await screen.findByTestId("xlsx-number-format-gallery");
+    fireEvent.click(within(numberGallery).getByTestId("xlsx-number-format-preset-number-decimal2"));
+    expect(grid.handle.executeCommand).toHaveBeenLastCalledWith("sheet.command.numfmt.set.numfmt", {
+      values: [{ row: 0, col: 0, pattern: "0.00" }],
+    });
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     expect(grid.handle.undo).toHaveBeenCalled();
