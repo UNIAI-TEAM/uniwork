@@ -20,7 +20,16 @@ await mkdir(dist, { recursive: true });
 
 const common = { bundle: true, target: "es2022", sourcemap: true, legalComments: "none", logLevel: "warning", metafile: true, external: ["electron"] };
 const buildMetafiles = [];
-buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
+// The main process is an ES module (dist/main/index.mjs) but its graph pulls
+// CommonJS dependencies (pngjs/jpeg-js/pdf-lib/pako through the PDF engine).
+// esbuild inlines them and shims their `require` calls with a helper that
+// throws "Dynamic require of \"...\" is not supported" under ESM, aborting
+// Electron at load. The dependencies must stay bundled (the packaged asar
+// rejects raw node_modules), so inject a real require for the Node builtins
+// they reach for. The banner is emitted verbatim ahead of the helpers, so the
+// shim sees a defined `require`.
+const mainRequireBanner = 'import { createRequire as __uniworkCreateRequire } from "node:module";\nconst require = __uniworkCreateRequire(import.meta.url);';
+buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
 // Electron sandboxed preloads run as plain CommonJS. Keep this artifact
 // loadable under the pinned sandbox contract; native wiring may still inject
 // Electron through the adapter seam without exposing it to the renderer.
