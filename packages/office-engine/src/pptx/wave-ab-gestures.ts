@@ -24,6 +24,10 @@ import {
 import { buildAnimationOps, type AnimationEdit } from "./edits/animation-edits";
 import { buildChartOps, type ChartEdit } from "./edits/chart-edits";
 import { buildFindLinkOps, type FindLinkEdit } from "./edits/find-link-edits";
+import { buildFormatOps, type FormatEdit } from "./edits/format-edits";
+import { buildHeaderFooterOps, type HeaderFooterEdit } from "./edits/headerfooter-edits";
+import { buildMediaOps, type MediaEdit } from "./edits/media-edits";
+import { buildNotesCommentOps, type NotesCommentEdit } from "./edits/notes-comment-edits";
 import { buildSectionOps, type SectionEdit } from "./edits/section-edits";
 import { buildTableOps, type TableEdit } from "./edits/table-edits";
 import { buildTextOps, type TextEdit } from "./edits/text-edits";
@@ -272,4 +276,165 @@ export function setParagraphFormatGesture(
   edit: Extract<TextEdit, { op: "set_paragraph_format" }>,
 ): void {
   model.runBuiltTxn(buildTextOps(model.opened, model.fitWidthPx, edit));
+}
+
+// -- format + arrange (A4e format-edits.ts) --------------------------------
+
+/** set_fill -> buildFormatOps.setFill (core-ops.ts:49). */
+export function setFillGesture(model: WaveGestureModel, edit: Extract<FormatEdit, { op: "set_fill" }>): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_stroke -> buildFormatOps.setStroke (core-ops.ts:95). */
+export function setStrokeGesture(model: WaveGestureModel, edit: Extract<FormatEdit, { op: "set_stroke" }>): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_effects -> buildFormatOps.setEffects (element-ops.ts:532). */
+export function setEffectsGesture(model: WaveGestureModel, edit: Extract<FormatEdit, { op: "set_effects" }>): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_shape_geometry -> buildFormatOps.setShapeGeometry (element-ops.ts:411). */
+export function setShapeGeometryGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "set_shape_geometry" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_shape_adjust -> buildFormatOps.setShapeAdjust (element-ops.ts:444). */
+export function setShapeAdjustGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "set_shape_adjust" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** ungroup_element -> buildFormatOps.ungroupElement (element-ops.ts:396). */
+export function ungroupElementGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "ungroup_element" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** group_elements -> buildFormatOps.groupElements (element-ops.ts:376). */
+export function groupElementsGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "group_elements" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** flip_elements -> buildFormatOps.flipElements (element-ops.ts:228). */
+export function flipElementsGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "flip_elements" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_text_anchor -> buildFormatOps.setTextAnchor (element-ops.ts:487). */
+export function setTextAnchorGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "set_text_anchor" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** set_text_body_props -> buildFormatOps.setTextBodyProps (element-ops.ts:504). */
+export function setTextBodyPropsGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "set_text_body_props" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** align_elements -> buildFormatOps.alignElements (arrange-ops.ts:110). */
+export function alignElementsGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "align_elements" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** distribute_elements -> buildFormatOps.distributeElements (arrange-ops.ts:135). */
+export function distributeElementsGesture(
+  model: WaveGestureModel,
+  edit: Extract<FormatEdit, { op: "distribute_elements" }>,
+): void {
+  model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
+}
+
+// -- speaker notes + comments (A5e notes-comment-edits.ts) -----------------
+
+/** set_notes -> buildNotesCommentOps.setNotes (slide-ops.ts:664). */
+export function setNotesGesture(model: WaveGestureModel, edit: Extract<NotesCommentEdit, { op: "set_notes" }>): void {
+  model.runBuiltTxn(buildNotesCommentOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** add_comment -> buildNotesCommentOps.addComment (slide-ops.ts:679). */
+export function addCommentGesture(
+  model: WaveGestureModel,
+  edit: Extract<NotesCommentEdit, { op: "add_comment" }>,
+): void {
+  model.runBuiltTxn(buildNotesCommentOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** delete_comment -> buildNotesCommentOps.deleteComment (slide-ops.ts:700). */
+export function deleteCommentGesture(
+  model: WaveGestureModel,
+  edit: Extract<NotesCommentEdit, { op: "delete_comment" }>,
+): void {
+  model.runBuiltTxn(buildNotesCommentOps(model.opened, model.fitWidthPx, edit));
+}
+
+// -- header/footer + insert slide (B7e headerfooter-edits.ts) --------------
+
+/** apply_header_footer -> buildHeaderFooterOps.applyHeaderFooter (slide-ops.ts:605). Deck-level. */
+export function applyHeaderFooterGesture(
+  model: WaveGestureModel,
+  edit: Extract<HeaderFooterEdit, { op: "apply_header_footer" }>,
+): void {
+  model.runBuiltTxn(buildHeaderFooterOps(model.opened, model.fitWidthPx, edit));
+}
+
+/** insert_slide_pptx -> buildHeaderFooterOps.insertSlidePptx (slide-ops.ts:228). */
+export function insertSlidePptxGesture(
+  model: WaveGestureModel,
+  edit: Extract<HeaderFooterEdit, { op: "insert_slide_pptx" }>,
+): { applied: true; createdId?: string } {
+  const result = model.runBuiltTxn(buildHeaderFooterOps(model.opened, model.fitWidthPx, edit));
+  const created = createdIds(result.records);
+  return { applied: true, ...(created.length ? { createdId: created[0] } : {}) };
+}
+
+// -- media + SmartArt (B8e media-edits.ts) --------------------------------
+
+/** add_media -> buildMediaOps.addMedia (insert-ops.ts:286): px rect -> EMU. */
+export function addMediaGesture(
+  model: WaveGestureModel,
+  edit: Extract<MediaEdit, { op: "add_media" }>,
+): { applied: true; createdId: string } {
+  const result = model.runBuiltTxn(buildMediaOps(model.opened, model.fitWidthPx, edit));
+  return { applied: true, createdId: requireCreated(result.records, "addMedia") };
+}
+
+/** add_smartart -> buildMediaOps.addSmartArt (insert-ops.ts:264): px rect -> EMU. */
+export function addSmartArtGesture(
+  model: WaveGestureModel,
+  edit: Extract<MediaEdit, { op: "add_smartart" }>,
+): { applied: true; createdId: string } {
+  const result = model.runBuiltTxn(buildMediaOps(model.opened, model.fitWidthPx, edit));
+  return { applied: true, createdId: requireCreated(result.records, "addSmartArt") };
+}
+
+/** add_model3d -> buildMediaOps.addModel3d (insert-ops.ts:324): px rect -> EMU. */
+export function addModel3dGesture(
+  model: WaveGestureModel,
+  edit: Extract<MediaEdit, { op: "add_model3d" }>,
+): { applied: true; createdId: string } {
+  const result = model.runBuiltTxn(buildMediaOps(model.opened, model.fitWidthPx, edit));
+  return { applied: true, createdId: requireCreated(result.records, "addModel3d") };
 }

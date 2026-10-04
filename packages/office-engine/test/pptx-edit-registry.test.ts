@@ -11,7 +11,7 @@
 // lane's cloud-only vitest rule).
 import { describe, expect, it } from "vitest";
 import { createPptxAdapter, type PptxEdit, pptxEditKinds } from "../src/pptx";
-import { createFakePptxEngine, createFakePptxOps } from "./fake-pptx-engine";
+import { createFakePptxEngine, createFakePptxOps, decodeFakePptx } from "./fake-pptx-engine";
 import { makeFakePptxBytes, para } from "./fake-pptx-fixtures";
 
 const DECLARED_KINDS: PptxEdit["op"][] = [
@@ -58,6 +58,28 @@ const DECLARED_KINDS: PptxEdit["op"][] = [
   "set_animations",
   "set_font",
   "set_paragraph_format",
+  // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e),
+  // media (B8e) kinds (WIRE-KINDS delta).
+  "set_fill",
+  "set_stroke",
+  "set_effects",
+  "set_shape_geometry",
+  "set_shape_adjust",
+  "ungroup_element",
+  "group_elements",
+  "flip_elements",
+  "set_text_anchor",
+  "set_text_body_props",
+  "align_elements",
+  "distribute_elements",
+  "set_notes",
+  "add_comment",
+  "delete_comment",
+  "apply_header_footer",
+  "insert_slide_pptx",
+  "add_media",
+  "add_smartart",
+  "add_model3d",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -69,12 +91,27 @@ const errCode = (fn: () => unknown): string => {
   return "";
 };
 
-const openModel = async () => {
+const openModel = async (extra?: Parameters<typeof makeFakePptxBytes>[0]) => {
   const engine = createFakePptxEngine();
   const adapter = createPptxAdapter({ engine, ops: createFakePptxOps() });
-  const out = await adapter.open({ bytes: makeFakePptxBytes(), format: "pptx", document_id: "registry" });
+  const out = await adapter.open({ bytes: makeFakePptxBytes(extra), format: "pptx", document_id: "registry" });
   if (out.outcome !== "opened") throw new Error("open failed");
   return { adapter, ref: out.document_model_ref, model: adapter.sessionOf(out.document_model_ref).model };
+};
+
+/** ungroup_element needs a group element; the standard deck has none. */
+const GROUP_DECK: Parameters<typeof makeFakePptxBytes>[0] = {
+  slides: [
+    {
+      elements: [
+        { id: "grp1", type: "group", transform: { offset: { x: 0, y: 0, cx: 914400, cy: 914400 }, rot: 0 } },
+      ],
+    },
+  ],
+};
+/** Per-kind fixture override (only the kinds whose target the deck lacks). */
+const FIXTURE_FOR: Partial<Record<PptxEdit["op"], Parameters<typeof makeFakePptxBytes>[0]>> = {
+  ungroup_element: GROUP_DECK,
 };
 
 /** One valid edit per declared kind, in registry order. Each is applied on a
@@ -138,6 +175,61 @@ const ONE_OF_EACH: PptxEdit[] = [
   },
   { op: "set_font", slideIndex: 0, elementId: "t1", font: { bold: true } },
   { op: "set_paragraph_format", slideIndex: 0, elementId: "t1", format: { align: "center" } },
+  // Format/arrange (A4e).
+  { op: "set_fill", slideIndex: 0, elementId: "t1", fill: "#112233" },
+  { op: "set_stroke", slideIndex: 0, elementId: "p1", stroke: { color: "#112233", widthEmu: 12700 } },
+  { op: "set_effects", slideIndex: 0, elementId: "s1", effects: { softEdge: 50800 } },
+  { op: "set_shape_geometry", slideIndex: 0, elementId: "s1", prst: "roundRect" },
+  { op: "set_shape_adjust", slideIndex: 0, elementId: "s1", adjust: { adj: 50000 } },
+  { op: "ungroup_element", slideIndex: 0, elementId: "grp1" },
+  { op: "group_elements", slideIndex: 0, elementIds: ["t1", "s1"] },
+  { op: "flip_elements", slideIndex: 0, elementIds: ["t1"], axis: "h" },
+  { op: "set_text_anchor", slideIndex: 0, elementId: "t1", anchor: "middle" },
+  { op: "set_text_body_props", slideIndex: 0, elementId: "t1", props: { wrap: false } },
+  { op: "align_elements", slideIndex: 0, elementIds: ["t1", "s1"], mode: "left" },
+  { op: "distribute_elements", slideIndex: 0, elementIds: ["t1", "s1", "p1"], axis: "horizontal" },
+  // Notes/comments (A5e).
+  { op: "set_notes", slideIndex: 0, text: "Speaker notes" },
+  { op: "add_comment", slideIndex: 0, text: "Nice deck", author: "Reviewer" },
+  { op: "delete_comment", slideIndex: 0, authorId: 1, idx: 0 },
+  // Header/footer + insert slide (B7e).
+  { op: "apply_header_footer", settings: { footer: "Confidential", slideNum: true } },
+  {
+    op: "insert_slide_pptx",
+    source: { slideXml: "<p:sld/>", rels: [], media: [], layoutChain: [] },
+  },
+  // Media + SmartArt (B8e).
+  {
+    op: "add_media",
+    slideIndex: 0,
+    kind: "video",
+    ext: "mp4",
+    bytes: new Uint8Array([1, 2, 3]),
+    xPx: 10,
+    yPx: 10,
+    wPx: 100,
+    hPx: 60,
+  },
+  {
+    op: "add_smartart",
+    slideIndex: 0,
+    layout: "process",
+    items: ["A", "B"],
+    xPx: 10,
+    yPx: 10,
+    wPx: 200,
+    hPx: 100,
+  },
+  {
+    op: "add_model3d",
+    slideIndex: 0,
+    ext: "glb",
+    bytes: new Uint8Array([4, 5]),
+    xPx: 10,
+    yPx: 10,
+    wPx: 120,
+    hPx: 90,
+  },
 ];
 
 describe("pptx edit-kind registry", () => {
@@ -149,7 +241,7 @@ describe("pptx edit-kind registry", () => {
 
   it("dispatches every registered kind through the runTxn seam with one revision per edit", async () => {
     for (const edit of ONE_OF_EACH) {
-      const { model } = await openModel();
+      const { model } = await openModel(FIXTURE_FOR[edit.op]);
       const result = model.applyEdit(edit);
       expect(result.applied, edit.op).toBe(true);
       expect(model.revision, edit.op).toBe(1);
@@ -182,6 +274,64 @@ describe("pptx edit-kind registry", () => {
         index: 0,
       }).elementId,
     ).toBe("tbl1");
+  });
+
+  it("round-trips one kind per new module: edit -> savePptx -> reopen -> structure present", async () => {
+    type SavedPkg = {
+      slides: Array<{
+        elements: Array<{ id: string; type?: string; fill?: unknown; layout?: string }>;
+      }>;
+      notes?: Record<string, string>;
+      headerFooter?: Record<string, unknown>;
+    };
+
+    // Format (A4e): set_fill lands on the element the save serializes.
+    {
+      const { adapter, ref } = await openModel();
+      adapter.edit(ref, { op: "set_fill", slideIndex: 0, elementId: "t1", fill: "#112233" });
+      const saved = await adapter.serialize({ document_model_ref: ref, format: "pptx" });
+      const pkg = decodeFakePptx(saved.bytes) as unknown as SavedPkg;
+      expect(pkg.slides[0]?.elements.find((e) => e.id === "t1")?.fill).toBe("#112233");
+    }
+
+    // Notes (A5e): set_notes lands on the notes part, not on a slide element.
+    {
+      const { adapter, ref } = await openModel();
+      adapter.edit(ref, { op: "set_notes", slideIndex: 0, text: "Speaker notes" });
+      const saved = await adapter.serialize({ document_model_ref: ref, format: "pptx" });
+      const pkg = decodeFakePptx(saved.bytes) as unknown as SavedPkg;
+      expect(pkg.notes?.["0"]).toBe("Speaker notes");
+    }
+
+    // Header/footer (B7e): deck-level settings survive the round trip.
+    {
+      const { adapter, ref } = await openModel();
+      adapter.edit(ref, { op: "apply_header_footer", settings: { footer: "Confidential", slideNum: true } });
+      const saved = await adapter.serialize({ document_model_ref: ref, format: "pptx" });
+      const pkg = decodeFakePptx(saved.bytes) as unknown as SavedPkg;
+      expect(pkg.headerFooter).toMatchObject({ footer: "Confidential", slideNum: true });
+    }
+
+    // Media (B8e): add_smartart mints an element that reopens with its layout.
+    {
+      const { adapter, ref } = await openModel();
+      const result = adapter.edit(ref, {
+        op: "add_smartart",
+        slideIndex: 0,
+        layout: "process",
+        items: ["A", "B"],
+        xPx: 10,
+        yPx: 10,
+        wPx: 200,
+        hPx: 100,
+      });
+      expect(typeof result.createdId).toBe("string");
+      const saved = await adapter.serialize({ document_model_ref: ref, format: "pptx" });
+      const pkg = decodeFakePptx(saved.bytes) as unknown as SavedPkg;
+      const created = pkg.slides[0]?.elements.find((e) => e.id === result.createdId);
+      expect(created?.type).toBe("smartart");
+      expect(created?.layout).toBe("process");
+    }
   });
 
   it("refuses an unregistered kind with a typed error instead of ignoring it", async () => {

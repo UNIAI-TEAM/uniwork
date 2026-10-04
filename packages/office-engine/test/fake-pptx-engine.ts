@@ -34,6 +34,9 @@ interface FakePptxPackage {
   layouts?: Array<{ name: string; path: string }>;
   entries?: Record<string, string>;
   sections?: Array<{ id: string; name: string; slideIndices: number[] }>;
+  notes?: Record<string, string>;
+  comments?: Record<string, Array<Record<string, unknown>>>;
+  headerFooter?: Record<string, unknown>;
 }
 
 function decode(bytes: Uint8Array): FakePptxPackage {
@@ -88,6 +91,9 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
         },
         __layouts: pkg.layouts ?? [],
         __sections: pkg.sections ?? [],
+        __notes: pkg.notes ?? {},
+        __comments: pkg.comments ?? {},
+        __headerFooter: pkg.headerFooter ?? {},
       };
     },
     async savePptx(opened: OpenedPptxLike): Promise<Uint8Array> {
@@ -102,6 +108,9 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
           slides: opened.deck.slides,
           layouts: (opened.__layouts as unknown[]) ?? [],
           sections: (opened.__sections as unknown[]) ?? [],
+          notes: (opened.__notes as Record<string, string>) ?? {},
+          comments: (opened.__comments as Record<string, unknown[]>) ?? {},
+          headerFooter: (opened.__headerFooter as Record<string, unknown>) ?? {},
           entries,
         }),
       );
@@ -383,6 +392,149 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     case "setSections":
       opened.__sections = JSON.parse(JSON.stringify(op.sections ?? [])) as unknown[];
       return { op, after: op.sections };
+    // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e),
+    // media (B8e) -- deterministic JSON-convention effects.
+    case "setFill": {
+      const { el } = resolveElement(opened, op);
+      el.fill = op.fill;
+      return { op, after: { el: el.id } };
+    }
+    case "setStroke": {
+      const { el } = resolveElement(opened, op);
+      el.stroke = op.stroke;
+      return { op, after: { el: el.id } };
+    }
+    case "setEffects": {
+      const { el } = resolveElement(opened, op);
+      el.effects = op.effects;
+      return { op, after: { el: el.id } };
+    }
+    case "setShapeGeometry": {
+      const { el } = resolveElement(opened, op);
+      el.prst = op.prst;
+      return { op, after: { el: el.id } };
+    }
+    case "setShapeAdjust": {
+      const { el } = resolveElement(opened, op);
+      el.adjust = op.adjust;
+      return { op, after: { el: el.id } };
+    }
+    case "ungroupElement": {
+      const { el } = resolveElement(opened, op);
+      el.type = "shape";
+      el.ungrouped = true;
+      return { op, after: { el: el.id } };
+    }
+    case "groupElements": {
+      const { slide } = resolveSlide(opened, op);
+      const els = (op.els as string[]) ?? [];
+      const el: PptxElementLike = { id: "grp_" + newElementSeq++, type: "group", members: els };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
+    case "flipElements": {
+      resolveSlide(opened, op);
+      for (const id of (op.els as string[]) ?? []) {
+        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
+        if (el) el.flip = op.axis;
+      }
+      return { op, after: { axis: op.axis } };
+    }
+    case "setTextAnchor": {
+      const { el } = resolveElement(opened, op);
+      el.anchor = op.anchor;
+      return { op, after: { el: el.id } };
+    }
+    case "setTextBodyProps": {
+      const { el } = resolveElement(opened, op);
+      el.bodyProps = op.props;
+      return { op, after: { el: el.id } };
+    }
+    case "alignElements": {
+      resolveSlide(opened, op);
+      for (const id of (op.els as string[]) ?? []) {
+        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
+        if (el) el.aligned = op.mode;
+      }
+      return { op, after: { mode: op.mode } };
+    }
+    case "distributeElements": {
+      resolveSlide(opened, op);
+      for (const id of (op.els as string[]) ?? []) {
+        const el = opened.deck.slides.flatMap((sl) => sl.elements).find((x) => x.id === id);
+        if (el) el.distributed = op.axis;
+      }
+      return { op, after: { axis: op.axis } };
+    }
+    case "setNotes": {
+      const { index } = resolveSlide(opened, op);
+      const notes = (opened.__notes as Record<string, string>) ?? {};
+      notes[String(index)] = String(op.text ?? "");
+      opened.__notes = notes;
+      return { op, after: { slide: index } };
+    }
+    case "addComment": {
+      const { index } = resolveSlide(opened, op);
+      const comments = (opened.__comments as Record<string, Array<Record<string, unknown>>>) ?? {};
+      const list = comments[String(index)] ?? [];
+      const ref = { authorId: 1, idx: list.length, author: op.author, text: op.text };
+      list.push(ref);
+      comments[String(index)] = list;
+      opened.__comments = comments;
+      return { op, after: ref };
+    }
+    case "deleteComment": {
+      const { index } = resolveSlide(opened, op);
+      const comments = (opened.__comments as Record<string, Array<Record<string, unknown>>>) ?? {};
+      const list = comments[String(index)] ?? [];
+      comments[String(index)] = list.filter((c) => !(c.authorId === op.authorId && c.idx === op.idx));
+      opened.__comments = comments;
+      return { op, after: { slide: index } };
+    }
+    case "applyHeaderFooter":
+      opened.__headerFooter = op.settings as Record<string, unknown>;
+      return { op, after: op.settings };
+    case "insertSlidePptx": {
+      const slides = opened.deck.slides;
+      const at = typeof op.at === "number" ? op.at : slides.length;
+      const inserted: PptxSlideLike = { id: "s_ins_" + newElementSeq++, elements: [] };
+      if (op.replace === true && at < slides.length) slides.splice(at, 1, inserted);
+      else slides.splice(Math.max(0, Math.min(slides.length, at)), 0, inserted);
+      return { op, created: [inserted.id as string], after: { index: at } };
+    }
+    case "addMedia": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = {
+        id: "new_" + newElementSeq++,
+        type: "media",
+        mediaKind: op.kind,
+        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
+      };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
+    case "addSmartArt": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = {
+        id: "new_" + newElementSeq++,
+        type: "smartart",
+        layout: op.layout,
+        items: op.items,
+        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
+      };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
+    case "addModel3d": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = {
+        id: "new_" + newElementSeq++,
+        type: "model3d",
+        transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
+      };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');
   }
@@ -460,6 +612,40 @@ function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
     case "reorderAnimation":
     case "setAnimations":
       resolveSlide(opened, op);
+      break;
+    // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e),
+    // media (B8e).
+    case "setFill":
+    case "setStroke":
+    case "setEffects":
+    case "setShapeGeometry":
+    case "setShapeAdjust":
+    case "ungroupElement":
+    case "setTextAnchor":
+    case "setTextBodyProps":
+      resolveElement(opened, op);
+      break;
+    case "groupElements":
+    case "flipElements":
+    case "alignElements":
+    case "distributeElements":
+    case "setNotes":
+    case "addComment":
+    case "deleteComment":
+      resolveSlide(opened, op);
+      break;
+    case "applyHeaderFooter":
+      break;
+    case "insertSlidePptx":
+      if (!op.source || typeof (op.source as { slideXml?: unknown }).slideXml !== "string") {
+        throw new Error('op "insertSlidePptx" needs a source with slideXml');
+      }
+      break;
+    case "addMedia":
+    case "addSmartArt":
+    case "addModel3d":
+      resolveSlide(opened, op);
+      if (!op.offset) throw new Error('op "' + op.op + '" needs "offset"');
       break;
     default:
       throw new Error('op "' + op.op + '": unknown op in fake executor');

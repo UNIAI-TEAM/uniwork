@@ -18,6 +18,10 @@ import {
 import type { AnimationEdit } from "./edits/animation-edits";
 import type { ChartEdit } from "./edits/chart-edits";
 import type { FindLinkEdit } from "./edits/find-link-edits";
+import type { FormatEdit } from "./edits/format-edits";
+import type { HeaderFooterEdit } from "./edits/headerfooter-edits";
+import type { MediaEdit } from "./edits/media-edits";
+import type { NotesCommentEdit } from "./edits/notes-comment-edits";
 import type { SectionEdit } from "./edits/section-edits";
 import type { TableEdit } from "./edits/table-edits";
 import type { TextEdit } from "./edits/text-edits";
@@ -26,10 +30,21 @@ import type { TransitionEdit } from "./edits/transition-edits";
 import {
   addAnimationGesture,
   addChartGesture,
+  addCommentGesture,
+  addMediaGesture,
+  addModel3dGesture,
   addSectionGesture,
+  addSmartArtGesture,
   addTableGesture,
+  alignElementsGesture,
+  applyHeaderFooterGesture,
   applyThemeGesture,
+  deleteCommentGesture,
+  distributeElementsGesture,
   findReplaceGesture,
+  flipElementsGesture,
+  groupElementsGesture,
+  insertSlidePptxGesture,
   moveSectionGesture,
   removeAnimationGesture,
   removeSectionGesture,
@@ -39,20 +54,29 @@ import {
   setAnimationsGesture,
   setBackgroundGesture,
   setChartGesture,
+  setEffectsGesture,
+  setFillGesture,
   setFontGesture,
   setLinkGesture,
+  setNotesGesture,
   setParagraphFormatGesture,
   setSectionsGesture,
+  setShapeAdjustGesture,
+  setShapeGeometryGesture,
   setSlideLayoutGesture,
   setSlideSizeGesture,
+  setStrokeGesture,
   setTableCellAnchorGesture,
   setTableCellGesture,
   setTableColWidthGesture,
   setTableRowHeightGesture,
   setTableStyleGesture,
+  setTextAnchorGesture,
+  setTextBodyPropsGesture,
   setTransitionGesture,
   tableMergeGesture,
   tableStructureGesture,
+  ungroupElementGesture,
 } from "./wave-ab-gestures";
 
 export const EMU_PER_PX_96 = 9525;
@@ -135,7 +159,11 @@ export type PptxEdit =
   | FindLinkEdit
   | SectionEdit
   | AnimationEdit
-  | TextEdit;
+  | TextEdit
+  | FormatEdit
+  | NotesCommentEdit
+  | HeaderFooterEdit
+  | MediaEdit;
 
 /** One open deck, mutated only via runTxn — the same object openPptx produced
  * and savePptx will serialize (one engine instance, one model). */
@@ -456,6 +484,13 @@ type PptxEditHandler = (model: PptxSessionModel, edit: PptxEdit) => PptxEditResu
  * Animation (add_animation, remove_animation, reorder_animation,
  * set_animations) and text formatting (set_font, set_paragraph_format) are
  * registered alongside them.
+ * The A4e format/arrange kinds (set_fill, set_stroke, set_effects,
+ * set_shape_geometry, set_shape_adjust, ungroup_element, group_elements,
+ * flip_elements, set_text_anchor, set_text_body_props, align_elements,
+ * distribute_elements), the A5e notes/comment kinds (set_notes, add_comment,
+ * delete_comment), the B7e header/footer kinds (apply_header_footer,
+ * insert_slide_pptx) and the B8e media kinds (add_media, add_smartart,
+ * add_model3d) are registered the same way.
  *
  * To add a kind:
  *   1. add its shape to the `PptxEdit` union above;
@@ -472,121 +507,40 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
   add_element: (model, edit) => model.addElement(edit),
   add_image: (model, edit) => model.addImage(edit),
   replace_picture: (model, edit) => model.replacePicture(edit),
-  move_slide: (model, edit) => {
-    model.moveSlide(edit.slideIndex, edit.toIndex);
-    return { applied: true };
-  },
-  reorder_element: (model, edit) => {
-    model.reorderElement(edit.slideIndex, edit.elementId, edit.dir);
-    return { applied: true };
-  },
-  set_slide_hidden: (model, edit) => {
-    model.setSlideHidden(edit.slideIndex, edit.hidden);
-    return { applied: true };
-  },
-  duplicate_slide: (model, edit) => {
-    model.duplicateSlide(edit.slideIndex, edit.clearText);
-    return { applied: true };
-  },
-  delete_slide: (model, edit) => {
-    model.deleteSlide(edit.slideIndex);
-    return { applied: true };
-  },
-  add_blank_slide: (model, edit) => {
-    model.addBlankSlide(edit.slideIndex);
-    return { applied: true };
-  },
-  add_slide_with_layout: (model, edit) => {
-    model.addSlideWithLayout(edit.layout, edit.slideIndex);
-    return { applied: true };
-  },
-  delete_element: (model, edit) => {
-    model.deleteElement(edit.slideIndex, edit.elementId);
-    return { applied: true };
-  },
+  move_slide: (model, edit) => { model.moveSlide(edit.slideIndex, edit.toIndex); return { applied: true }; },
+  reorder_element: (model, edit) => { model.reorderElement(edit.slideIndex, edit.elementId, edit.dir); return { applied: true }; },
+  set_slide_hidden: (model, edit) => { model.setSlideHidden(edit.slideIndex, edit.hidden); return { applied: true }; },
+  duplicate_slide: (model, edit) => { model.duplicateSlide(edit.slideIndex, edit.clearText); return { applied: true }; },
+  delete_slide: (model, edit) => { model.deleteSlide(edit.slideIndex); return { applied: true }; },
+  add_blank_slide: (model, edit) => { model.addBlankSlide(edit.slideIndex); return { applied: true }; },
+  add_slide_with_layout: (model, edit) => { model.addSlideWithLayout(edit.layout, edit.slideIndex); return { applied: true }; },
+  delete_element: (model, edit) => { model.deleteElement(edit.slideIndex, edit.elementId); return { applied: true }; },
   // Wave A/B logic kinds (UNI-927): design, tables, charts, transitions,
   // find/link, sections. Each handler is the mechanical txn(build<Area>Ops)
   // gesture; validation and px->EMU stay in the builders.
-  apply_theme: (model, edit) => {
-    applyThemeGesture(model, edit);
-    return { applied: true };
-  },
-  set_slide_size: (model, edit) => {
-    setSlideSizeGesture(model, edit);
-    return { applied: true };
-  },
-  set_background: (model, edit) => {
-    setBackgroundGesture(model, edit);
-    return { applied: true };
-  },
-  set_slide_layout: (model, edit) => {
-    setSlideLayoutGesture(model, edit);
-    return { applied: true };
-  },
+  apply_theme: (model, edit) => { applyThemeGesture(model, edit); return { applied: true }; },
+  set_slide_size: (model, edit) => { setSlideSizeGesture(model, edit); return { applied: true }; },
+  set_background: (model, edit) => { setBackgroundGesture(model, edit); return { applied: true }; },
+  set_slide_layout: (model, edit) => { setSlideLayoutGesture(model, edit); return { applied: true }; },
   add_table: (model, edit) => addTableGesture(model, edit),
-  set_table_cell: (model, edit) => {
-    setTableCellGesture(model, edit);
-    return { applied: true };
-  },
+  set_table_cell: (model, edit) => { setTableCellGesture(model, edit); return { applied: true }; },
   table_merge: (model, edit) => tableMergeGesture(model, edit),
   table_structure: (model, edit) => tableStructureGesture(model, edit),
-  set_table_row_height: (model, edit) => {
-    setTableRowHeightGesture(model, edit);
-    return { applied: true };
-  },
-  set_table_col_width: (model, edit) => {
-    setTableColWidthGesture(model, edit);
-    return { applied: true };
-  },
-  set_table_cell_anchor: (model, edit) => {
-    setTableCellAnchorGesture(model, edit);
-    return { applied: true };
-  },
-  set_table_style: (model, edit) => {
-    setTableStyleGesture(model, edit);
-    return { applied: true };
-  },
+  set_table_row_height: (model, edit) => { setTableRowHeightGesture(model, edit); return { applied: true }; },
+  set_table_col_width: (model, edit) => { setTableColWidthGesture(model, edit); return { applied: true }; },
+  set_table_cell_anchor: (model, edit) => { setTableCellAnchorGesture(model, edit); return { applied: true }; },
+  set_table_style: (model, edit) => { setTableStyleGesture(model, edit); return { applied: true }; },
   add_chart: (model, edit) => addChartGesture(model, edit),
-  set_chart: (model, edit) => {
-    setChartGesture(model, edit);
-    return { applied: true };
-  },
-  set_transition: (model, edit) => {
-    setTransitionGesture(model, edit);
-    return { applied: true };
-  },
-  set_advance_time: (model, edit) => {
-    setAdvanceTimeGesture(model, edit);
-    return { applied: true };
-  },
-  find_replace: (model, edit) => {
-    findReplaceGesture(model, edit);
-    return { applied: true };
-  },
-  set_link: (model, edit) => {
-    setLinkGesture(model, edit);
-    return { applied: true };
-  },
-  add_section: (model, edit) => {
-    addSectionGesture(model, edit);
-    return { applied: true };
-  },
-  rename_section: (model, edit) => {
-    renameSectionGesture(model, edit);
-    return { applied: true };
-  },
-  remove_section: (model, edit) => {
-    removeSectionGesture(model, edit);
-    return { applied: true };
-  },
-  move_section: (model, edit) => {
-    moveSectionGesture(model, edit);
-    return { applied: true };
-  },
-  set_sections: (model, edit) => {
-    setSectionsGesture(model, edit);
-    return { applied: true };
-  },
+  set_chart: (model, edit) => { setChartGesture(model, edit); return { applied: true }; },
+  set_transition: (model, edit) => { setTransitionGesture(model, edit); return { applied: true }; },
+  set_advance_time: (model, edit) => { setAdvanceTimeGesture(model, edit); return { applied: true }; },
+  find_replace: (model, edit) => { findReplaceGesture(model, edit); return { applied: true }; },
+  set_link: (model, edit) => { setLinkGesture(model, edit); return { applied: true }; },
+  add_section: (model, edit) => { addSectionGesture(model, edit); return { applied: true }; },
+  rename_section: (model, edit) => { renameSectionGesture(model, edit); return { applied: true }; },
+  remove_section: (model, edit) => { removeSectionGesture(model, edit); return { applied: true }; },
+  move_section: (model, edit) => { moveSectionGesture(model, edit); return { applied: true }; },
+  set_sections: (model, edit) => { setSectionsGesture(model, edit); return { applied: true }; },
   // Animation (B5e) + text formatting (A1e) kinds: same mechanical
   // txn(build<Area>Ops) gesture; validation/px->EMU stay in the builders.
   add_animation: (model, edit) => { addAnimationGesture(model, edit); return { applied: true }; },
@@ -595,6 +549,29 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
   set_animations: (model, edit) => { setAnimationsGesture(model, edit); return { applied: true }; },
   set_font: (model, edit) => { setFontGesture(model, edit); return { applied: true }; },
   set_paragraph_format: (model, edit) => { setParagraphFormatGesture(model, edit); return { applied: true }; },
+  // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e) and
+  // media (B8e) kinds: same mechanical txn(build<Area>Ops) gesture;
+  // validation/px->EMU stay in the builders.
+  set_fill: (model, edit) => { setFillGesture(model, edit); return { applied: true }; },
+  set_stroke: (model, edit) => { setStrokeGesture(model, edit); return { applied: true }; },
+  set_effects: (model, edit) => { setEffectsGesture(model, edit); return { applied: true }; },
+  set_shape_geometry: (model, edit) => { setShapeGeometryGesture(model, edit); return { applied: true }; },
+  set_shape_adjust: (model, edit) => { setShapeAdjustGesture(model, edit); return { applied: true }; },
+  ungroup_element: (model, edit) => { ungroupElementGesture(model, edit); return { applied: true }; },
+  group_elements: (model, edit) => { groupElementsGesture(model, edit); return { applied: true }; },
+  flip_elements: (model, edit) => { flipElementsGesture(model, edit); return { applied: true }; },
+  set_text_anchor: (model, edit) => { setTextAnchorGesture(model, edit); return { applied: true }; },
+  set_text_body_props: (model, edit) => { setTextBodyPropsGesture(model, edit); return { applied: true }; },
+  align_elements: (model, edit) => { alignElementsGesture(model, edit); return { applied: true }; },
+  distribute_elements: (model, edit) => { distributeElementsGesture(model, edit); return { applied: true }; },
+  set_notes: (model, edit) => { setNotesGesture(model, edit); return { applied: true }; },
+  add_comment: (model, edit) => { addCommentGesture(model, edit); return { applied: true }; },
+  delete_comment: (model, edit) => { deleteCommentGesture(model, edit); return { applied: true }; },
+  apply_header_footer: (model, edit) => { applyHeaderFooterGesture(model, edit); return { applied: true }; },
+  insert_slide_pptx: (model, edit) => insertSlidePptxGesture(model, edit),
+  add_media: (model, edit) => addMediaGesture(model, edit),
+  add_smartart: (model, edit) => addSmartArtGesture(model, edit),
+  add_model3d: (model, edit) => addModel3dGesture(model, edit),
 };
 
 /** Registered edit kinds, in registry order — the surface the B track extends. */
