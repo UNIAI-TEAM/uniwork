@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { XlsxViewEcho } from "./view-echo";
 import type { XlsxGridFormatState, XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxEditorPermissions, XlsxSelection } from "../types";
 
@@ -25,6 +26,10 @@ export interface XlsxToolbarCommands {
  *  the public `XlsxToolbarProps` extends it and adds the coordinator/save
  *  fields only the persistent right-side cluster needs. */
 export interface XlsxToolbarGroupProps {
+  /** Echo of renderer view state that the port cannot read back. The toolbar
+   *  owns it so it outlives a ribbon tab switch (only the active tab''s groups
+   *  stay mounted); a group rendered on its own falls back to a local echo. */
+  viewEcho?: XlsxViewEcho;
   readOnly?: boolean;
   permissions?: XlsxEditorPermissions;
   selection: XlsxSelection | null;
@@ -89,7 +94,7 @@ export interface XlsxToolbarGroupDefinition {
    *  name of the group. */
   readonly labelKey: string;
   readonly Component: ComponentType<XlsxToolbarGroupProps>;
-  /** When it returns false the group is not rendered at all — no label and no
+  /** When it returns false the group is not rendered at all â€” no label and no
    *  controls. Use it when the host cannot offer the commands at all (the
    *  grid has no recalculate controller); read-only and selection states stay
    *  on the controls as `aria-disabled`. */

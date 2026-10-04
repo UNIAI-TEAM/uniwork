@@ -1,25 +1,29 @@
 "use client";
 
 import { Minus, Plus } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { clampZoom, stepZoom, XLSX_ZOOM_COMMAND, XLSX_ZOOM_DEFAULT, XLSX_ZOOM_PRESETS, zoomRatioDelta } from "../view/zoom";
+import { clampZoom, stepZoom, XLSX_ZOOM_DEFAULT, XLSX_ZOOM_PRESETS } from "../view/zoom";
+import { useViewEcho, XLSX_ZOOM_SET_COMMAND, zoomRatioTarget } from "./view-echo";
 import type { XlsxToolbarGroupProps } from "./types";
 
 /** View > zoom: the stepper, the presets and the reset. Zoom is session view
- *  state — the port exposes no zoom read, so the control keeps a local echo of
- *  its own changes from the renderer's 100% start; every action still goes
- *  through the allowlisted view command and nothing is persisted. */
-export function XlsxViewZoomGroup({ commands }: XlsxToolbarGroupProps) {
+ *  state and the port exposes no zoom read, so the control keeps an echo of
+ *  its own changes; the echo is owned by the TOOLBAR (`viewEcho`) so a ribbon
+ *  tab switch cannot reset it while the renderer keeps its zoom. Every action
+ *  sends the ABSOLUTE `set-zoom-ratio` target, so the applied zoom is correct
+ *  even if the echo is ever stale; nothing is persisted. */
+export function XlsxViewZoomGroup({ commands, viewEcho }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
-  const [percent, setPercent] = useState<number>(XLSX_ZOOM_DEFAULT);
+  const echo = useViewEcho(viewEcho);
+  const percent = echo.zoomPercent;
 
   const apply = (next: number, reset = false) => {
     if (!commands) return;
     const clamped = clampZoom(next);
-    commands.execute(XLSX_ZOOM_COMMAND, reset ? { reset: true } : { delta: zoomRatioDelta(percent, clamped) });
-    setPercent(clamped);
+    if (reset) void commands.execute(XLSX_ZOOM_SET_COMMAND, zoomRatioTarget(XLSX_ZOOM_DEFAULT));
+    else void commands.execute(XLSX_ZOOM_SET_COMMAND, zoomRatioTarget(clamped));
+    echo.setZoomPercent(clamped);
   };
   const blocked = !commands || undefined;
 

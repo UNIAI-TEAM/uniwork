@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "../types";
+import { useXlsxViewEcho } from "../view-echo";
 import {
   XLSX_FORMAT_PAINTER_OFF,
   XLSX_FORMAT_PAINTER_ONCE,
@@ -161,5 +162,38 @@ describe("XlsxFormatPainterGroup", () => {
     expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("keeps the engine armed across a remount (ribbon tab switch) with the hoisted echo", async () => {
+    const execute = vi.fn(() => true);
+    const selection = { sheet: "Data", address: "A1" };
+
+    // The toolbar owns the echo and stays mounted; the ribbon only drops the
+    // inactive tab's GROUPS. `mounted` models that: the group unmounts and
+    // remounts while the echo it reads survives.
+    function Harness({ mounted }: { mounted: boolean }) {
+      const viewEcho = useXlsxViewEcho();
+      if (!mounted) return null;
+      return <XlsxFormatPainterGroup {...groupProps({ commands: { execute }, selection, viewEcho })} />;
+    }
+
+    const view = render(<Harness mounted />);
+    const armButton = screen.getByTestId("xlsx-format-painter");
+    fireEvent.click(armButton);
+    await waitFor(() => expect(armButton).toHaveAttribute("aria-pressed", "true"));
+    expect(execute).toHaveBeenLastCalledWith(...ARM);
+
+    // Tab away: the group unmounts. Nothing runs on unmount - the engine stays
+    // armed (Excel keeps the painter across tab switches).
+    view.rerender(<Harness mounted={false} />);
+    expect(screen.queryByTestId("xlsx-format-painter")).not.toBeInTheDocument();
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    // Tab back: a fresh mount must read the armed mirror and show it pressed,
+    // with the SAME selection so no spurious off reset fires.
+    view.rerender(<Harness mounted />);
+    const remounted = screen.getByTestId("xlsx-format-painter");
+    expect(remounted).toHaveAttribute("aria-pressed", "true");
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 });

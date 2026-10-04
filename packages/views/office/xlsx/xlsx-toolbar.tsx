@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Save } from "lucide-react";
 import { useState } from "react";
@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeRibbon } from "../ribbon";
 import { xlsxRibbonTabs, XLSX_RIBBON_SCOPE } from "./toolbar/ribbon-data";
+import { useXlsxViewEcho } from "./toolbar/view-echo";
 import type { XlsxToolbarGroupProps, XlsxToolbarTabId } from "./toolbar/types";
 import type { XlsxSaveCoordinator } from "./types";
 
@@ -67,6 +68,11 @@ export function XlsxToolbar({
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<XlsxToolbarTabId>("home");
+  // The renderer view-state echoes (zoom percent, gridlines/headers, painter
+  // armed) live HERE, in the shell that stays mounted for the whole session:
+  // the ribbon mounts only the active tab's groups, so a group-local echo
+  // would reset on every tab switch while the renderer kept its state.
+  const viewEcho = useXlsxViewEcho();
   const blocked = readOnly;
   const state = coordinator.getState();
   const selectedAddress = selection?.endAddress ? `${selection.address}:${selection.endAddress}` : selection?.address;
@@ -74,6 +80,7 @@ export function XlsxToolbar({
     ? t("office.xlsx.selection.range", { sheet: selection.sheet, address: selectedAddress })
     : t("office.xlsx.selection.none");
   const groupProps: XlsxToolbarGroupProps = {
+    viewEcho,
     readOnly,
     permissions,
     selection,

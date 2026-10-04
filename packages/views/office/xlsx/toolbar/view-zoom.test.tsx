@@ -32,32 +32,32 @@ const lastCall = (execute: ReturnType<typeof vi.fn>) => execute.mock.calls.at(-1
 const zoomValue = () => screen.getByTestId("xlsx-view-zoom-value").textContent;
 
 describe("XlsxViewZoomGroup", () => {
-  it("steps the zoom through the view command and echoes the percent", () => {
+  it("steps the zoom through the absolute view command and echoes the percent", () => {
     const { execute } = renderGroup();
     expect(zoomValue()).toBe("100%");
     fireEvent.click(screen.getByRole("button", { name: "Phóng to" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.change-zoom-ratio", { delta: 0.1 }]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-zoom-ratio", { zoomRatio: 1.1 }]);
     expect(zoomValue()).toBe("110%");
     fireEvent.click(screen.getByRole("button", { name: "Thu nhỏ" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.change-zoom-ratio", { delta: -0.1 }]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-zoom-ratio", { zoomRatio: 1 }]);
     expect(zoomValue()).toBe("100%");
   });
 
-  it("lands a preset on its exact percent from the current zoom", () => {
+  it("lands a preset on its exact percent with an absolute target", () => {
     const { execute } = renderGroup();
     fireEvent.click(screen.getByRole("button", { name: "Phóng to" }));
     fireEvent.click(screen.getByRole("button", { name: "Thu phóng 150%" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.change-zoom-ratio", { delta: 0.4 }]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-zoom-ratio", { zoomRatio: 1.5 }]);
     expect(zoomValue()).toBe("150%");
     expect(screen.getByRole("button", { name: "Thu phóng 150%" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Thu phóng 100%" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("resets to 100% through the command's reset flag", () => {
+  it("resets to 100% with an absolute target", () => {
     const { execute } = renderGroup();
     fireEvent.click(screen.getByRole("button", { name: "Thu phóng 200%" }));
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại 100%" }));
-    expect(lastCall(execute)).toEqual(["sheet.command.change-zoom-ratio", { reset: true }]);
+    expect(lastCall(execute)).toEqual(["sheet.command.set-zoom-ratio", { zoomRatio: 1 }]);
     expect(zoomValue()).toBe("100%");
   });
 

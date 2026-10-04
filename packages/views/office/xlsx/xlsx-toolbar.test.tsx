@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -298,6 +298,55 @@ describe("XlsxToolbar on the shared ribbon", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Có thay đổi chưa lưu");
     renderToolbar({ recalculating: true });
     expect(screen.getAllByRole("status")[1]).toHaveTextContent("Đang tính lại (0%)");
+  });
+
+  it("keeps the zoom echo across a tab switch and sends an absolute target", () => {
+    const execute = vi.fn(() => true);
+    renderToolbar({ commands: { execute } });
+
+    fireEvent.click(tab("view"));
+    const zoomIn = screen.getByRole("button", { name: "Phóng to" });
+    for (let step = 0; step < 5; step += 1) fireEvent.click(zoomIn);
+    expect(screen.getByTestId("xlsx-view-zoom-value")).toHaveTextContent("150%");
+
+    // Away and back: only the active tab's groups are mounted, but the echo is
+    // owned by the toolbar, so it must survive the round trip.
+    fireEvent.click(tab("home"));
+    fireEvent.click(tab("view"));
+    expect(screen.getByTestId("xlsx-view-zoom-value")).toHaveTextContent("150%");
+
+    // The 75% preset sends the ABSOLUTE target, not a drifted delta from a
+    // reset echo (which would have landed the renderer on ~125%).
+    fireEvent.click(screen.getByRole("button", { name: "Thu phóng 75%" }));
+    expect(execute).toHaveBeenLastCalledWith("sheet.command.set-zoom-ratio", { zoomRatio: 0.75 });
+  });
+
+  it("keeps the gridline/header echoes across a tab switch", () => {
+    const execute = vi.fn(() => true);
+    renderToolbar({ commands: { execute } });
+
+    fireEvent.click(tab("view"));
+    fireEvent.click(screen.getByRole("button", { name: "Đường lưới" }));
+
+    fireEvent.click(tab("home"));
+    fireEvent.click(tab("view"));
+    expect(screen.getByRole("button", { name: "Đường lưới" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Tiêu đề hàng và cột" })).toHaveAttribute("aria-pressed", "true");
+  });
+  it("keeps the format painter armed across a tab switch", async () => {
+    const execute = vi.fn(() => true);
+    renderToolbar({ commands: { execute } });
+
+    const painter = screen.getByTestId("xlsx-format-painter");
+    fireEvent.click(painter);
+    await waitFor(() => expect(painter).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(tab("view"));
+    fireEvent.click(tab("home"));
+    // Excel keeps the painter armed across tab switches: the engine is never
+    // told to turn off and the remounted button shows the armed state.
+    expect(screen.getByTestId("xlsx-format-painter")).toHaveAttribute("aria-pressed", "true");
+    expect(execute).toHaveBeenLastCalledWith("sheet.operation.set-format-painter", { status: 1 });
   });
 
   it("collapses to tabs only and peeks the body back on a tab click", () => {
