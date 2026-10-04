@@ -501,6 +501,7 @@ test('hyperlink and outline edits emitted outside the batch carry the live sheet
     assert.equal('sheetName' in edits.at(-1), false);
   } finally { mounted.close(); }
 });
+
 test('sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids', async () => {
   const edits = [];
   let dirty = 0;
