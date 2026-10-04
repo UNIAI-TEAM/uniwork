@@ -27,8 +27,10 @@ const EDITOR_LOADERS: Partial<Record<DesktopDocumentFormat, (config: DesktopEdit
     title,
     coordinator: session.coordinator as never,
     capability: capability as never,
-    open: { open: async (): Promise<PdfOpenOutcome> => {
-      const outcome = (await session.openEditor()).openOutcome?.();
+    open: { open: async (signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome> => {
+      const surface = await session.openEditor();
+      if (password !== undefined) await (surface.open as (signal?: AbortSignal, password?: string) => Promise<void>)(signal, password);
+      const outcome = surface.openOutcome?.();
       if (outcome?.outcome === "opened") return outcome as PdfOpenOutcome;
       if (outcome?.outcome === "failed") return outcome as PdfOpenOutcome;
       return { outcome: "failed", document_id: documentKey, format: "pdf", failure_class: "engine_error" };

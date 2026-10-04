@@ -7,6 +7,7 @@ type EngineResponse = {
   ok: boolean;
   probe?: { pageCount: number };
   dataBase64?: string;
+  error?: { kind?: string; status?: string };
 };
 
 function decodeBase64(value: string): Uint8Array {
@@ -24,8 +25,14 @@ function pages(count: number): PdfPage[] {
   return Array.from({ length: Math.max(1, count) }, (_, index) => ({ pageNumber: index + 1, rotation: 0 }));
 }
 
+function passwordFailureClass(error: EngineResponse["error"]): "password_required" | "wrong_password" | null {
+  if (error?.kind !== "password") return null;
+  return error.status === "wrong" ? "wrong_password" : "password_required";
+}
+
 export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEditorHandle<Uint8Array> & {
   format: DesktopDocumentFormat;
+  open(signal?: AbortSignal, password?: string): Promise<void>;
   openOutcome(): PdfOpenOutcome | null;
   subscribeDirty(listener: (generation: number) => void): () => void;
   getPdfSnapshot(): PdfSnapshot | null;
@@ -50,13 +57,23 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   };
   const surface = {
     format: "pdf" as const,
-    async open() {
+    async open(_signal?: AbortSignal, password?: string) {
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
-      const result = await callEngine("open", { dataBase64: encodeBase64(bytes) });
-      if (!result.ok || !result.probe) throw new Error("pdf_open_failed");
-      snapshot = { pages: pages(result.probe.pageCount), pageCount: result.probe.pageCount };
-      outcome = { outcome: "opened", document_id: settings.documentId, document_model_ref: `desktop:pdf:${settings.documentId}`, warnings: [] };
+      const args: Record<string, unknown> = { dataBase64: encodeBase64(bytes) };
+      if (password !== undefined) args.password = password;
+      const result = await callEngine("open", args);
+      if (result.ok && result.probe) {
+        snapshot = { pages: pages(result.probe.pageCount), pageCount: result.probe.pageCount };
+        outcome = { outcome: "opened", document_id: settings.documentId, document_model_ref: `desktop:pdf:${settings.documentId}`, warnings: [] };
+        return;
+      }
+      const failureClass = passwordFailureClass(result.error);
+      if (failureClass) {
+        outcome = { outcome: "failed", document_id: settings.documentId, format: "pdf", failure_class: failureClass };
+        return;
+      }
+      throw new Error("pdf_open_failed");
     },
     openOutcome: () => outcome,
     getDirtyGeneration: () => generation,

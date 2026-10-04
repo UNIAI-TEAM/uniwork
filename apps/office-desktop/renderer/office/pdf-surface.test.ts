@@ -63,4 +63,22 @@ describe("desktop PDF surface", () => {
     const surface = createDesktopPdfSurface(settings(call));
     await expect(surface.open()).rejects.toThrow("pdf_open_failed");
   });
+
+  it("omits the password on the first open and carries it on the retry", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const args = (payload as { args: { password?: string } }).args;
+      if (args.password === undefined) return { ok: false, error: { kind: "password", status: "required" } };
+      if (args.password === "    ") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      return { ok: false, error: { kind: "password", status: "wrong" } };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(call.mock.calls[0]![1]).toMatchObject({ args: { dataBase64: expect.any(String) } });
+    expect((call.mock.calls[0]![1] as { args: Record<string, unknown> }).args).not.toHaveProperty("password");
+    expect(surface.openOutcome()).toMatchObject({ outcome: "failed", failure_class: "password_required" });
+    await surface.open(undefined, "nope");
+    expect(surface.openOutcome()).toMatchObject({ outcome: "failed", failure_class: "wrong_password" });
+    await surface.open(undefined, "    ");
+    expect(surface.openOutcome()).toMatchObject({ outcome: "opened" });
+  });
 });

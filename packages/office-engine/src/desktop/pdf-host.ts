@@ -4,7 +4,7 @@
 // two entries below are the whole lane: `open` probes the bytes into a
 // view-safe page summary, `edit` applies one batch and returns the verified
 // output bytes. Paths and file handles stay on the host side.
-import { applyPdfEditBytes, probePdf, type PdfEditOutcome, type PdfProbe } from "../pdf/index";
+import { applyPdfEditBytes, PdfPasswordError, probePdf, type PdfEditOutcome, type PdfPasswordStatus, type PdfProbe } from "../pdf/index";
 
 /** Operations the IPC schema lets a caller name. Only `open` and `edit` are
  * bound; the rest answer `engine_operation_unsupported` before any payload is
@@ -36,7 +36,15 @@ export interface DesktopEngineEditResult {
   readonly report: PdfEditOutcome["report"];
 }
 
-export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult;
+/** A password wall is a typed answer, not a thrown error: an Electron IPC
+ * rejection flattens to a generic Error, so the class travels as data and the
+ * renderer can map it back to the password failure. */
+export interface DesktopEnginePasswordRefusal {
+  readonly ok: false;
+  readonly error: { readonly kind: "password"; readonly status: PdfPasswordStatus };
+}
+
+export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEnginePasswordRefusal;
 
 /** Typed refusal for a malformed call: the IPC dispatcher turns a thrown
  * error into the channel's failure surface, so a missing payload never
@@ -55,10 +63,7 @@ function decode(input: unknown): Uint8Array {
   return Uint8Array.from(Buffer.from(input, "base64"));
 }
 
-/** Answer one validated `desktop:engine-call`. The operation is dispatched
- * first so an unbound one is refused by name rather than as a missing payload.
- * Every failure throws a typed error; a partial edit never returns bytes. */
-export async function handleDesktopEngineCall(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
+async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
   if (call.operation === "open") {
     const bytes = decode(call.args.dataBase64);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
@@ -71,4 +76,17 @@ export async function handleDesktopEngineCall(call: DesktopEngineCall): Promise<
     return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
   }
   throw new DesktopEngineCallError("engine_operation_unsupported");
+}
+
+/** Answer one validated `desktop:engine-call`. The operation is dispatched
+ * first so an unbound one is refused by name rather than as a missing payload.
+ * A password wall is returned as typed data so it survives the IPC hop; every
+ * other failure throws, and a partial edit never returns bytes. */
+export async function handleDesktopEngineCall(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
+  try {
+    return await dispatch(call);
+  } catch (error) {
+    if (error instanceof PdfPasswordError) return { ok: false, error: { kind: "password", status: error.status } };
+    throw error;
+  }
 }

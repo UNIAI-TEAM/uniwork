@@ -16,8 +16,14 @@ describe("desktop PDF engine host", () => {
     expect(result.probe.features.ocr).toBe(false);
   });
 
-  it("classifies an encrypted open without returning bytes", async () => {
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).rejects.toMatchObject({ name: "PdfPasswordError", status: "required" });
+  it("answers a password wall as typed data so it survives the IPC hop", async () => {
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+  });
+
+  it("opens an encrypted file with the supplied password and answers wrong as typed data", async () => {
+    const opened = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), password: "    " } });
+    expect(opened).toMatchObject({ ok: true, operation: "open" });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), password: "nope" } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "wrong" } });
   });
 
   it("refuses an unbound operation by name before reading the payload", async () => {
