@@ -78,4 +78,33 @@ describe("usePptxThumbnails", () => {
     expect(result.current.size).toBe(0);
     expect(buildThumbnail).not.toHaveBeenCalled();
   });
+
+  it("stays stable when the host re-renders with a fresh renderer and slide array", async () => {
+    // The real editor rebuilds the deck renderer from a memo whose deps include the deck prop
+    // and passes `slides` inline, so both arrive with a new identity on every parent render.
+    // The effect used to key on those identities and publish a fresh Map every run, which
+    // rendered again -- an unbounded loop that exhausted the heap and killed the worker. The
+    // guard below turns a returning loop into a fast failure instead of an OOM.
+    const buildThumbnail = vi.fn((index: number) => `data:image/svg+xml;charset=utf-8,stable${index}`);
+    let renders = 0;
+    const { result, rerender } = renderHook(
+      ({ revision }: { revision: number }) => {
+        renders += 1;
+        if (renders > 30) throw new Error(`usePptxThumbnails looped (${renders} renders)`);
+        return usePptxThumbnails({ renderer: fakeRenderer(buildThumbnail), slides: [{ id: "s1" }, { id: "s2" }], revision });
+      },
+      { initialProps: { revision: 1 } },
+    );
+    await waitFor(() => expect(result.current.size).toBe(2));
+    expect(buildThumbnail).toHaveBeenCalledTimes(2);
+    // Same revision, new renderer/slides identity: the effect must not restart generation.
+    rerender({ revision: 1 });
+    await Promise.resolve();
+    expect(buildThumbnail).toHaveBeenCalledTimes(2);
+    // A real revision bump still rebuilds every thumbnail.
+    rerender({ revision: 2 });
+    await waitFor(() => expect(result.current.size).toBe(2));
+    expect(buildThumbnail).toHaveBeenCalledTimes(4);
+    expect(renders).toBeLessThan(20);
+  });
 });
