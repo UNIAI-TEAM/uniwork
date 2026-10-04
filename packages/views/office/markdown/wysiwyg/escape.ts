@@ -114,8 +114,12 @@ interface EscaperHost {
  * `SelectiveMarkdown.onBeforeCreate`) and the codec's (built in
  * `createMarkdownSourceManager`), or `publish()` would fall back to the stock
  * blanket escaper and every `_ * ~ \` [` in an edited paragraph would gain a
- * backslash. `serialize.test.ts` pins the codec path; a rename of the private
- * member makes both that test and the editor mount fail.
+ * backslash. Because this function ASSIGNS the member, a pin test that reads
+ * it back cannot see an upstream rename — the member would simply be the
+ * function just installed. What catches a rename is the behavioural test
+ * (`serialize.test.ts` "does not escape an EDITED paragraph"): if the manager
+ * stops calling this member, the stock blanket escaper runs and the
+ * backslashes reappear there.
  */
 export function installSelectiveEscaper(manager: object): void {
   // The member is private in the manager's declared type, so the structural

@@ -260,8 +260,13 @@ describe("@tiptap/markdown internals the codec depends on", () => {
 
   it("pins the private escaper the manager must expose", () => {
     const manager = codecManager();
-    // `installSelectiveEscaper` assigns this private member. If it disappears,
-    // the write path silently falls back to the stock blanket escaper.
+    // `installSelectiveEscaper` ASSIGNS this private member, so reading it back
+    // only proves the assignment ran — it cannot detect an upstream rename (the
+    // member is our function either way). The rename guard is behavioural and
+    // lives in "does not escape an EDITED paragraph": if the manager stops
+    // calling `escapeMarkdownSyntax`, the stock blanket escaper runs and that
+    // test's backslashes reappear. This pin still catches the member being
+    // non-assignable (a frozen manager), which is why it stays.
     const escaper = (manager as unknown as { escapeMarkdownSyntax?: (text: string) => string }).escapeMarkdownSyntax;
     expect(typeof escaper).toBe("function");
     expect(escaper!("snake_case_name")).toBe("snake_case_name");

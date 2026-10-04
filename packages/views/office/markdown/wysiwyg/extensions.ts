@@ -84,8 +84,8 @@ export const MarkdownSourceGapsExtension = Extension.create({
  * selective escaper on the rebuilt, real manager.
  */
 export const SelectiveMarkdown = Markdown.extend({
-  onBeforeCreate() {
-    this.parent?.();
+  onBeforeCreate(event) {
+    this.parent?.(event);
     installSelectiveEscaper(this.storage.manager);
   },
 });
