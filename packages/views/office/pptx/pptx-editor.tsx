@@ -57,6 +57,8 @@ export interface PptxEditorProps {
   onCommitText?: (commit: PptxTextCommit) => Promise<unknown> | void;
   /** Find channel (C6). Absent leaves the find bar honest about being unbound. */
   onFind?: (query: string) => void;
+  /** Speaker-notes read (NOTES-WIRE); absent keeps the honest empty-notes line. */
+  slideNotes?: (slideIndex: number) => string | null;
   onOpen?: () => void;
   onCommandError?: (error: unknown) => void;
   fullscreen?: boolean;
@@ -119,6 +121,7 @@ export function PptxEditor({
   onTextEdit,
   onCommitText,
   onFind,
+  slideNotes,
   onOpen,
   onCommandError,
   fullscreen = false,
@@ -591,7 +594,7 @@ export function PptxEditor({
       {/* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */}
       <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedCount} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} />
       <PptxShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      <PptxPresenter slideCount={slides.length} selectedIndex={selectedIndex} content={presenterContent} nextContent={presenterNext} notes={null} building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} open={presenterOpen} onIndexChange={selectSlide} onClose={() => { setPresenterOpen(false); presenterTriggerRef.current?.focus(); }} />
+      <PptxPresenter slideCount={slides.length} selectedIndex={selectedIndex} content={presenterContent} nextContent={presenterNext} notes={deckBound ? (slideNotes ?? (editorHandle as { slideNotes?(index: number): string | null } | null)?.slideNotes?.bind(editorHandle))?.(selectedIndex) ?? null : null} building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} open={presenterOpen} onIndexChange={selectSlide} onClose={() => { setPresenterOpen(false); presenterTriggerRef.current?.focus(); }} />
       {onSnapshot ? <Button type="button" className="sr-only" onClick={() => void waitForGesture().then(onSnapshot)} data-testid="pptx-snapshot">{t("snapshot")}</Button> : null}
       {editorHandle == null && slides.length > 0 ? <Alert className="m-2" data-testid="pptx-editor-handle-warning"><AlertTitle>{t("session_missing")}</AlertTitle><AlertDescription>{t("session_missing_hint")}</AlertDescription></Alert> : null}
     </section>

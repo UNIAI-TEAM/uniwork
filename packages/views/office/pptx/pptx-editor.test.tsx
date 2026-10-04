@@ -235,6 +235,28 @@ describe("PptxEditor", () => {
     expect(dialog.querySelector("[data-pptx-presenter-svg]")).not.toBeNull();
   });
 
+  it("renders the bound speaker-notes port in the presenter (NOTES-WIRE)", async () => {
+    renderEditor({ slides: [{ id: "s1" }], deck, slideNotes: (slideIndex) => (slideIndex === 0 ? "Open with the customer story" : null) });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("Open with the customer story");
+  });
+
+  it("keeps the honest empty-notes line without a slideNotes port (NOTES-WIRE)", async () => {
+    renderEditor({ slides: [{ id: "s1" }], deck });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("No speaker notes for this slide.");
+  });
+
+  it("reads the speaker-notes port off the editor handle (desktop binding, NOTES-WIRE)", async () => {
+    const editorHandle = { ...handle(), slideNotes: (slideIndex: number) => (slideIndex === 0 ? "Desktop notes" : null) } as unknown as EditorHandle;
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={editorHandle} loadRendererModule={async () => fakeRendererModule().module} slides={[{ id: "s1" }]} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("Desktop notes");
+  });
+
   it("labels a bound deck that is still building instead of claiming rendering is unbound", async () => {
     let resolveModule!: (module: PptxRendererModule) => void;
     const load = () => new Promise<PptxRendererModule>((resolve) => { resolveModule = resolve; });

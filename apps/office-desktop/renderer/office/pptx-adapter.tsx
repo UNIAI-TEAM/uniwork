@@ -30,6 +30,9 @@ export interface DesktopPptxEditorHandle extends EditorHandle<PptxDeckSnapshot> 
   snapshot(): PptxDeckSnapshot | null;
   /** The opened engine deck the shared canvas renders (null before open). */
   deck(): PptxDeckModel | null;
+  /** Speaker-notes text of one slide of the LIVE session ('' when the slide has
+   *  none); null once the session is released/disposed (UNI-927 NOTES-WIRE). */
+  slideNotes(slideIndex: number): string | null;
   /** Replay a recovered draft journal onto the freshly opened base. */
   restore(snapshot: PptxDeckSnapshot): Promise<void>;
   /** Serialize the current model to pptx bytes (the renderer save path). */
@@ -157,6 +160,9 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),
     deck: () => (modelRef && !disposed ? options.runtime.deck(modelRef) : null),
+    // UNI-927 NOTES-WIRE: the presenter reads the LIVE session's notes through
+    // this port; a released session answers null (the honest empty-notes line).
+    slideNotes: (slideIndex) => (modelRef && !disposed ? options.runtime.slideNotes?.(modelRef, slideIndex) ?? null : null),
     revision: () => viewRevision,
   };
 

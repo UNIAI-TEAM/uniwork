@@ -176,9 +176,11 @@ function PptxEditorSurface(props: {
   /** A readonly document binds no edit port at all (F6). */
   editable: boolean;
   open: (signal?: AbortSignal) => Promise<PptxOpenOutcome>;
+  /** Speaker-notes read of the live session (UNI-927 NOTES-WIRE). */
+  slideNotes: (slideIndex: number) => string | null;
 }): ReactNode {
   const { t } = useTranslation();
-  const { editor, coordinator, editable, open, view, subscribe } = props;
+  const { editor, coordinator, editable, open, view, subscribe, slideNotes } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
@@ -300,6 +302,7 @@ function PptxEditorSurface(props: {
       // slide selection stay live because they never mutate the deck.
       {...(editable ? { onCommitText: commitText, onTransform: transform, onApplyEdit: applyEdit, onDeleteElements: deleteElements } : {})}
       onFind={find}
+      slideNotes={slideNotes}
       saveCoordinator={coordinator}
       includeSave={false}
     />
@@ -418,6 +421,12 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     revision: () => viewRevision,
   };
 
+  // UNI-927 NOTES-WIRE: the presenter's notes come from the LIVE session; a
+  // released/disposed session reads null (the honest empty-notes line) instead
+  // of reaching a freed engine ref.
+  const slideNotes = (slideIndex: number): string | null =>
+    (modelRef && !disposed ? options.runtime.slideNotes?.(modelRef, slideIndex) ?? null : null);
+
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
     documents: options.documents,
@@ -475,6 +484,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         coordinator={session.coordinator}
         editable={options.readonly !== true}
         open={open.open}
+        slideNotes={slideNotes}
       />
     ),
     open,

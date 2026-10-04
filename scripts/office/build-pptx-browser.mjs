@@ -41,6 +41,7 @@ export const PPTX_ARTIFACT_SYMBOLS = [
   'commitSaved',
   'reparseDeck',
   'listSlideLayouts',
+  'getSlideNotes',
   'runTxn',
   'buildRenderSlide',
   'HeuristicMetrics',

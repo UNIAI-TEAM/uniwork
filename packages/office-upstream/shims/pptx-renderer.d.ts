@@ -124,6 +124,9 @@ export declare function reparseDeck(opened: OpenedPptx): OpenedPptx;
 /** Layout catalog for a new-slide picker; the archive comes from an opened deck. */
 export declare function listSlideLayouts(archive: unknown): PptxSlideLayoutInfo[];
 
+/** Speaker-notes text of a slide part ('' when the slide carries no notesSlide). */
+export declare function getSlideNotes(archive: unknown, slidePath: string): string;
+
 // ── ops (packages/pptx-ops/src/ops/executor.ts) ───────────────────────────
 
 export declare function runTxn(opened: OpenedPptx, request: PptxTxnRequest): PptxTxnResult;
