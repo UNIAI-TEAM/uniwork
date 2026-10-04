@@ -1,5 +1,4 @@
-import { XlsxFindGroup } from "../find/find-group";
-import { XlsxClearGroup } from "./clear/clear-group";
+﻿import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxPageSetupGroup } from "./page-setup-group";
 import { XlsxProtectGroup } from "./protect-group";
@@ -10,7 +9,6 @@ import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
 import { XlsxClipboardGroup } from "./groups/clipboard-group";
-import { XlsxHistoryGroup } from "./groups/history-group";
 import { XlsxNumberGroup } from "./groups/number-group";
 import { XlsxSheetsGroup } from "./groups/sheets-group";
 import { XlsxAlignmentGroup } from "./home-alignment";
@@ -44,9 +42,8 @@ import type { XlsxToolbarGroupDefinition } from "./types";
  *              the controls as `aria-disabled`, not here.
  *
  *  This file is shared by every Wave A worker: edit it LAST, re-read it right
- *  before editing, and append only — never reorder or edit another task's row. */
+ *  before editing, and append only â€” never reorder or edit another task's row. */
 export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
-  { id: "history", tab: "home", order: 10, labelKey: "office.xlsx.toolbar.groups.history", Component: XlsxHistoryGroup },
   { id: "sheets", tab: "home", order: 20, labelKey: "office.xlsx.toolbar.groups.sheets", Component: XlsxSheetsGroup },
   { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", Component: XlsxClipboardGroup },
   { id: "number", tab: "home", order: 40, labelKey: "office.xlsx.toolbar.groups.number", Component: XlsxNumberGroup },
@@ -68,7 +65,6 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
   { id: "clear", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.clear.label", Component: XlsxClearGroup },
   { id: "painter", tab: "home", order: 90, labelKey: "office.xlsx.toolbar.groups.painter.label", Component: XlsxFormatPainterGroup },
-  { id: "find", tab: "home", order: 95, labelKey: "office.xlsx.toolbar.groups.find.label", Component: XlsxFindGroup },
   { id: "view-zoom", tab: "view", order: 10, labelKey: "office.xlsx.toolbar.groups.view.zoom.label", Component: XlsxViewZoomGroup },
   { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
   { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },
@@ -81,3 +77,4 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "table", tab: "insert", order: 30, labelKey: "office.xlsx.table.groups.insert", Component: XlsxTableGroup },
   { id: "links", tab: "insert", order: 40, labelKey: "office.xlsx.links.groups.insert", Component: XlsxLinksGroup },
 ];
+

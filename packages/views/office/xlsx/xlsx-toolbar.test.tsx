@@ -169,10 +169,10 @@ describe("XlsxToolbar on the shared ribbon", () => {
 
   it("switches the visible groups when another tab is selected", () => {
     renderToolbar();
-    expect(document.querySelector("[data-ribbon-group='history']")).toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='number']")).toBeInTheDocument();
 
     fireEvent.click(tab("insert"));
-    expect(document.querySelector("[data-ribbon-group='history']")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='number']")).not.toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='charts']")).toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='structure-insert']")).toBeInTheDocument();
   });
@@ -190,12 +190,16 @@ describe("XlsxToolbar on the shared ribbon", () => {
     }
   });
 
-  it("keeps the selection label and Save cluster visible on every tab", () => {
+  it("keeps Undo/Redo at the far left, Find at the far right and Save visible on every tab (C6)", () => {
     renderToolbar();
+    const quick = document.querySelector("[data-ribbon-quick-access]")!;
+    expect(quick).toContainElement(screen.getByTestId("xlsx-undo"));
+    expect(quick).toContainElement(screen.getByTestId("xlsx-redo"));
+    expect(document.querySelector("[data-ribbon-trailing]")).toContainElement(screen.getByTestId("xlsx-find-open"));
+    // The cell address is no longer shown in the tab row.
+    expect(document.querySelector("[data-ribbon-tab-row]")).not.toHaveTextContent("Data!C1");
     for (const id of ["home", "insert", "formulas", "data", "review", "view"]) {
       fireEvent.click(tab(id));
-      expect(screen.getByTestId("xlsx-selection")).toBeVisible();
-      expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1");
       expect(screen.getByTestId("xlsx-save")).toBeVisible();
     }
   });
@@ -256,7 +260,6 @@ describe("XlsxToolbar on the shared ribbon", () => {
     const copy = screen.getByRole("button", { name: "Sao chép ô đã chọn" });
     expect(copy).toHaveAttribute("aria-disabled", "true");
     expect(copy).toHaveAttribute("title", "Chưa chọn ô");
-    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Chưa chọn ô");
     fireEvent.click(tab("formulas"));
     expect(screen.queryByRole("button", { name: "Tính lại công thức" })).not.toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='calculation']")).not.toBeInTheDocument();
@@ -265,8 +268,8 @@ describe("XlsxToolbar on the shared ribbon", () => {
   it("names every Home group and keeps the chart placeholder capability-gated on Insert", () => {
     renderToolbar();
     expect(screen.queryByRole("button", { name: "Biểu đồ" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Lịch sử" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Bảng tạm" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Định dạng số" })).toBeInTheDocument();
     fireEvent.click(tab("insert"));
     const chart = screen.getByRole("button", { name: "Biểu đồ" });
     expect(chart).toHaveAttribute("aria-disabled", "true");

@@ -15,12 +15,12 @@ import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useXlsxProtectNames } from "./protect/use-protect-names";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { toA1Address } from "./xlsx-render-model-bridge";
-import { XlsxSheetTabs } from "./sheet-tabs";
-import { XlsxStatusBar } from "./status-bar";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
 import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
+import { XlsxFormulaRow } from "./toolbar/formula-row";
+import { XlsxStatusArea } from "./toolbar/status-area";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
 import { addressParts, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
@@ -496,16 +496,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
           {recalcFresh ? <p className="sr-only" role="status">{t("office.xlsx.recalc.fresh")}</p> : null}
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
-            <div ref={sheetTabsRef} tabIndex={-1} className="outline-none">
-              <XlsxSheetTabs
-                tabs={sheetTabInfos}
-                activeSheet={resolvedActiveSheet}
-                canEdit={canEdit}
-                onSelect={selectSheet}
-                onAction={runSheetAction}
-              />
-            </div>
-            <XlsxFormulaBar
+            <XlsxFormulaRow
+              address={selection?.endAddress ? `${selection.address}:${selection.endAddress}` : (selection?.address ?? "")}
               value={formulaDraft}
               disabled={!canEdit || selection === null}
               onChange={setFormulaDraft}
@@ -566,7 +558,18 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
             </div>
             )}
-            <XlsxStatusBar documentKey={documentKey} host={rendererHost} selection={selection} dirtyGeneration={coordinatorState.dirtyGeneration} />
+            <XlsxStatusArea
+              sheetTabsRef={sheetTabsRef}
+              tabs={sheetTabInfos}
+              activeSheet={resolvedActiveSheet}
+              canEdit={canEdit}
+              onSelect={selectSheet}
+              onAction={runSheetAction}
+              documentKey={documentKey}
+              host={rendererHost}
+              selection={selection}
+              dirtyGeneration={coordinatorState.dirtyGeneration}
+            />
           </div>
         </>
       ) : viewState === "error" && failure ? (

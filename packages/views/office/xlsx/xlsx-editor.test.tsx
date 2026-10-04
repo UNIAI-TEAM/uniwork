@@ -136,7 +136,7 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
     expect(handle.open).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("xlsx-cell-Data-C1")).toHaveTextContent("=SUM(A1:B1)");
-    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1");
+    expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1");
 
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
@@ -166,7 +166,7 @@ describe("XlsxEditor", () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
     await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=A1+B1" } });
     fireEvent.keyDown(formula, { key: "Enter" });
@@ -180,7 +180,7 @@ describe("XlsxEditor", () => {
     const handle = editor();
     renderEditor(opened(), { editor: handle });
     await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=SU" } });
     expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe("XlsxEditor", () => {
   it("closes the formula-bar hints with Escape without committing", async () => {
     const handle = editor();
     renderEditor(opened(), { editor: handle });
-    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=AVE" } });
     expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
@@ -225,7 +225,7 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("xlsx-cell-Data-A1")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("xlsx-cell-Data-A1"));
     expect(handle.selection?.setSelection).toHaveBeenCalledWith({ sheet: "Data", address: "A1" });
-    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!A1");
+    expect(screen.getByTestId("xlsx-name-box")).toHaveValue("A1");
     fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect(screen.getByRole("tab", { name: "Summary" })).toHaveAttribute("aria-selected", "true");
     expect(handle.selection?.setSelection).toHaveBeenLastCalledWith({ sheet: "Summary", address: "A1" });

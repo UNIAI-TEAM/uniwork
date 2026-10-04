@@ -1,4 +1,34 @@
-import { createElement, type ReactNode } from "react";
+﻿import { createElement, type ReactNode } from "react";
+import {
+  ArrowDownUp,
+  BetweenHorizontalStart,
+  ChartColumn,
+  Clipboard,
+  Columns3,
+  Eraser,
+  Eye,
+  Filter,
+  Grid3X3,
+  Hash,
+  Keyboard,
+  Link2,
+  ListTree,
+  Navigation,
+  Paintbrush,
+  Printer,
+  Rows3,
+  Search,
+  ShieldCheck,
+  Sigma,
+  Square,
+  SquareFunction,
+  Table2,
+  TableCellsMerge,
+  Type,
+  Undo2,
+  ZoomIn,
+  type LucideIcon,
+} from "lucide-react";
 import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
 import { XlsxEmptyTabGroup } from "./empty-tab-group";
 import { XLSX_TOOLBAR_GROUPS } from "./registry";
@@ -21,6 +51,45 @@ export const XLSX_RIBBON_SCOPE = "xlsx";
  *  (Review today): the pre-ribbon group strip promised a labelled placeholder
  *  there, so the ribbon body never renders a silently blank strip. */
 export const XLSX_EMPTY_TAB_GROUP_ID = "empty-tab";
+
+/**
+ * F6 (fix round FIX-CHROME): one DISTINCT icon per ribbon group. Every group
+ * mounts as a single custom item whose component owns its own controls, so
+ * without an explicit group icon the collapsed group button fell back to the
+ * shared four-squares placeholder for every group (Number, Font, Alignment,
+ * Borders, Merge cells, Row and column, Clear, Format painter, Find & replace
+ * all looked identical). The icon is presentation-only: it never changes a
+ * command id, op or the save path.
+ */
+export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
+  history: Undo2,
+  sheets: Grid3X3,
+  clipboard: Clipboard,
+  number: Hash,
+  font: Type,
+  alignment: BetweenHorizontalStart,
+  borders: Square,
+  "structure-size": Rows3,
+  "structure-merge": TableCellsMerge,
+  clear: Eraser,
+  painter: Paintbrush,
+  find: Search,
+  charts: ChartColumn,
+  calculation: Sigma,
+  formula: SquareFunction,
+  "structure-insert": Columns3,
+  "structure-outline": ListTree,
+  "view-zoom": ZoomIn,
+  "view-display": Eye,
+  "view-goto": Navigation,
+  "view-shortcuts": Keyboard,
+  filter: Filter,
+  sort: ArrowDownUp,
+  "page-setup": Printer,
+  protect: ShieldCheck,
+  table: Table2,
+  links: Link2,
+};
 
 /**
  * `order` ascends by usage inside a tab (10 = most used); the ribbon collapses
@@ -48,6 +117,7 @@ function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGr
     id: group.id,
     labelKey: group.labelKey,
     priority: xlsxGroupPriority(group.order),
+    ...(XLSX_GROUP_ICONS[group.id] === undefined ? {} : { icon: XLSX_GROUP_ICONS[group.id] }),
     items: [item],
   };
 }

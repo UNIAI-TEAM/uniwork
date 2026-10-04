@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { Save } from "lucide-react";
+import { Redo2, Save, Search, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,14 +22,19 @@ export interface XlsxToolbarProps extends XlsxToolbarGroupProps {
 /** Commands are callbacks only. The toolbar has no byte, upload, or commit
  * path, which keeps every Save behind the G3-01 coordinator.
  *
- * Chrome amendment R (UNI-926): the shell now renders the SHARED <OfficeRibbon>
+ * Chrome amendment R (UNI-926): the shell renders the SHARED <OfficeRibbon>
  * in place of the old tab strip + group strip. The ribbon owns the tab row, the
  * adaptive collapse, the collapse-to-tabs toggle and the simplified phone
- * layout; the shell keeps the persistent right-side cluster (selection label,
- * Save, Save progress/cancel, the recalc and save-state live regions) in the
- * ribbon's trailing slot so a save is never hidden behind a tab. Command groups
- * still come from `toolbar/registry.ts` via `toolbar/ribbon-data.ts`, so no
- * command, op or journal path changed. */
+ * layout; the shell keeps the persistent right-side cluster (Save, Save
+ * progress/cancel, the recalc and save-state live regions) in the ribbon's
+ * trailing slot so a save is never hidden behind a tab. Command groups still
+ * come from `toolbar/registry.ts` via `toolbar/ribbon-data.ts`, so no command,
+ * op or journal path changed.
+ *
+ * FIX-CHROME C6 (UNI-926): Undo/Redo move to the ribbon's quick-access slot at
+ * the FAR LEFT of the tab row (before the tabs); Find & replace moves to the
+ * FAR RIGHT of the tab row (trailing). The cell address is no longer shown in
+ * the tab row - it belongs in the formula bar's name box and the status bar. */
 export function XlsxToolbar({
   coordinator,
   dirty,
@@ -75,10 +80,6 @@ export function XlsxToolbar({
   const viewEcho = useXlsxViewEcho();
   const blocked = readOnly;
   const state = coordinator.getState();
-  const selectedAddress = selection?.endAddress ? `${selection.address}:${selection.endAddress}` : selection?.address;
-  const selectionLabel = selection
-    ? t("office.xlsx.selection.range", { sheet: selection.sheet, address: selectedAddress })
-    : t("office.xlsx.selection.none");
   const groupProps: XlsxToolbarGroupProps = {
     viewEcho,
     readOnly,
@@ -110,6 +111,7 @@ export function XlsxToolbar({
     onPrint,
     onExportCsv,
   };
+  const findBlocked = blocked || !commands || !onOpenFind;
 
   return (
     <div className="flex flex-col border-b border-border bg-muted/30" data-testid="xlsx-toolbar" aria-label={t("office.xlsx.toolbar.label")}>
@@ -119,11 +121,49 @@ export function XlsxToolbar({
         activeTabId={activeTab}
         onActiveTabChange={(id) => setActiveTab(id as XlsxToolbarTabId)}
         labelKey="office.ribbon.label"
+        quickAccess={
+          <>
+            <Button
+              type="button"
+              variant="toolbar"
+              size="icon-sm"
+              aria-label={t("office.xlsx.actions.undo")}
+              aria-disabled={blocked || !canUndo || undefined}
+              data-testid="xlsx-undo"
+              onClick={onUndo}
+            >
+              <Undo2 aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="toolbar"
+              size="icon-sm"
+              aria-label={t("office.xlsx.actions.redo")}
+              aria-disabled={blocked || !canRedo || undefined}
+              data-testid="xlsx-redo"
+              onClick={onRedo}
+            >
+              <Redo2 aria-hidden />
+            </Button>
+          </>
+        }
         trailing={
           <>
-            <span className="min-w-0 shrink truncate px-2 text-caption text-muted-foreground" data-testid="xlsx-selection">
-              {selectionLabel}
-            </span>
+            <Button
+              type="button"
+              variant="toolbar"
+              size="icon-sm"
+              aria-label={t("office.xlsx.toolbar.groups.find.label")}
+              aria-haspopup="dialog"
+              aria-disabled={findBlocked || undefined}
+              data-testid="xlsx-find-open"
+              onClick={() => {
+                if (findBlocked) return;
+                onOpenFind?.();
+              }}
+            >
+              <Search aria-hidden />
+            </Button>
             {showSave ? (
               <Button
                 type="button"

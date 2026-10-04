@@ -102,15 +102,17 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" data-testid="xlsx-sheet-tabs">
-      <div role="tablist" aria-label={t("office.xlsx.sheets.label")} className="flex min-w-0 items-center gap-1">
+    <div className="flex items-center gap-1 overflow-hidden border-b border-border px-2 py-1" data-testid="xlsx-sheet-tabs">
+      {/* F10: the tablist is the ONLY horizontal scroller in the strip (no
+          stacked scrollbars); tabs never wrap and never overlap the actions. */}
+      <div role="tablist" aria-label={t("office.xlsx.sheets.label")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
         {visible.map((tab) => (
           <button
             key={tab.name}
             type="button"
             role="tab"
             aria-selected={tab.name === activeSheet}
-            className="flex items-center gap-1.5 rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted aria-selected:font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-label whitespace-nowrap hover:bg-muted aria-selected:bg-muted aria-selected:font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             title={tab.tabColor ? t("office.xlsx.sheets.tabColorReadOnly") : undefined}
             onClick={() => onSelect(tab.name)}
             data-testid={`xlsx-sheet-tab-${tab.name}`}
