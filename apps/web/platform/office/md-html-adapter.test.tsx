@@ -190,6 +190,20 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it("bounds the undo history so a long editing session cannot retain every revision", async () => {
+    const { adapter: created } = adapter("md", new TextEncoder().encode("base\n"));
+    await created.open.open();
+    for (let index = 1; index <= 250; index += 1) created.editor.source?.setText(`base\n${index}\n`);
+    // 250 edits push 250 previous values; the cap keeps the newest 100, so the
+    // stack bottoms out at the 150th value, not the original document.
+    for (let index = 0; index < 100; index += 1) created.editor.undo?.();
+    // The stack is exhausted at its bound, not at the original document.
+    expect(created.editor.source?.getText()).toBe("base\n150\n");
+    created.editor.undo?.();
+    expect(created.editor.source?.getText()).toBe("base\n150\n");
+    await created.session.dispose();
+  });
+
   it("renders the matching view with the adapter's editor, open port and coordinator", async () => {
     const { adapter: created } = adapter("md");
     expect(isValidElement(created.editorView)).toBe(true);

@@ -23,6 +23,12 @@ export const TEXT_MEDIA_TYPE: Record<TextFormat, string> = {
   html: "text/html",
 };
 
+/** The engine that produces the text lane's bytes. UniWork's own
+ *  `text-document.ts` serializer, not the vendored genoffice build - the
+ *  bytes a Markdown/HTML save writes are never produced by genoffice. */
+export const TEXT_ENGINE_NAME = "uniwork-text";
+export const TEXT_ENGINE_VERSION = "text-document/1";
+
 /**
  * Normalise serialized bytes to a Uint8Array in THIS realm. `instanceof
  * Uint8Array` is realm-bound: bytes produced by a TextEncoder in a jsdom test
@@ -65,7 +71,11 @@ export function createTextSaveTransport(options: {
   return {
     async serialize({ snapshot }) {
       const result = await options.serialize(snapshot);
-      if (!result.bytes.length || !result.checksum) throw new Error("text_serialized_output_invalid");
+      // An empty document is a legitimate state (the user deletes all text, or
+      // the server seeded a blank file): the engine returns `Uint8Array(0)`
+      // with `sha256("")`, and the upload/commit receipt checks still hold at
+      // size 0. Only a missing engine output is invalid here.
+      if (!result.checksum) throw new Error("text_serialized_output_invalid");
       return { data: result.bytes, checksumSha256: result.checksum, sizeBytes: result.bytes.length, format: options.format };
     },
     async upload({ intent, output }) {
@@ -84,7 +94,7 @@ export function createTextSaveTransport(options: {
         intentId: intent.intentId, idempotencyKey: intent.idempotencyKey,
         documentId: receipt.document.id, versionId: receipt.version.id, revision: receipt.document.revision,
         checksumSha256: receipt.version.checksum_sha256, sizeBytes: receipt.version.size_bytes,
-        engineName: receipt.version.engine_name ?? "genoffice", engineVersion: receipt.version.engine_version ?? "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        engineName: receipt.version.engine_name ?? TEXT_ENGINE_NAME, engineVersion: receipt.version.engine_version ?? TEXT_ENGINE_VERSION,
         contractVersion: receipt.version.contract_version ?? "office-editor-host/1", protocolVersion: receipt.version.protocol_version ?? "1",
       };
     },

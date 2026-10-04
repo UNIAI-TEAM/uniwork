@@ -12,7 +12,7 @@ import type { OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uni
 import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type MarkdownEditorProps, type TextEditorHandle, type TextOpenFailure, type TextOpenOutcome } from "@uniwork/views/office";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
-import { createTextDocumentsTransport, createTextSaveTransport, type TextDocumentSnapshot, type TextDocumentsTransport, type TextFormat } from "./text-save-transport";
+import { createTextDocumentsTransport, createTextSaveTransport, TEXT_ENGINE_NAME, type TextDocumentSnapshot, type TextDocumentsTransport, type TextFormat } from "./text-save-transport";
 
 // The web host's Markdown/HTML format adapter (S3, UNI-928). It mirrors
 // docx-adapter.tsx: an engine-backed EditorHandle, the real save transport,
@@ -21,9 +21,21 @@ import { createTextDocumentsTransport, createTextSaveTransport, type TextDocumen
 // adapter never parses, normalises or reformats - raw text in, raw text out -
 // so a save writes the same bytes the editor holds.
 
-const ENGINE_BUILD = "09485f884dc845cf3bf27fb7edfe489f9d457aad";
 const utf8 = (value: string): Uint8Array => new TextEncoder().encode(value);
 const BOM_BYTES = [0xef, 0xbb, 0xbf] as const;
+
+/**
+ * The undo/redo stacks retain a full copy of the document per edit, and the
+ * source view calls `setText` per keystroke. Cap the depth so a large document
+ * cannot hold O(edits x size) memory; the oldest history is dropped first.
+ * Per-keystroke coalescing is a separate UX question, not a bound.
+ */
+const MAX_UNDO_ENTRIES = 100;
+
+function pushBounded(stack: string[], value: string): void {
+  stack.push(value);
+  if (stack.length > MAX_UNDO_ENTRIES) stack.shift();
+}
 
 /** The engine's text serialize is identity-encoding: UTF-8 of the source plus
  *  the document's BOM flag, which the engine keeps as an encoding property,
@@ -44,9 +56,28 @@ function encodeSource(text: string, bom: boolean): Uint8Array {
  * The vendored asset-lifecycle modules for Markdown/HTML are Electron
  * main-process files: they import node:fs/crypto/path at top level, so the
  * browser bundle cannot resolve them (the G2-06 replay only gets away with it
- * by stubbing every Node builtin to throw). Until a browser build of those two
- * modules is vendored (follow-up; reported to the lead), the web host binds a
- * deliberately narrow, browser-safe upstream over the same contract:
+ * by stubbing every Node builtin to throw). This binding is a copied
+ * test-fake (packages/office-engine/src/assets/test-fakes.ts), NOT the
+ * vendored upstream, so it is knowingly narrower than the real scanner.
+ *
+ * What it does NOT implement, relative to upstream's asset-lifecycle:
+ *   * no `<!-- -->` HTML-comment skipping (an `<img src>` inside a comment is
+ *     scanned as a real reference; upstream's `htmlImageSourceRanges` skips it)
+ *   * no `'title'` / `(title)` title forms and no `\]` escapes in
+ *     `![alt](src)` - the Markdown image regex accepts only a `"title"`
+ *   * no unclosed-fence tolerance (a fence that never closes hides the rest)
+ *   * no overlap-ambiguity detection: `validatePatchSet` checks only staleness,
+ *     dropping the fake's own bounds/overlap checks
+ *   * `buildParseMap` always returns an empty map
+ *
+ * Impact is ≈zero today: `scanReferences` only feeds `snapshot.references`
+ * (unused by this adapter) and the manifest panel, which web never populates.
+ * A browser build of the vendored modules MUST land BEFORE M5 (asset carry)
+ * or H3+ (`applyPatchSet` / parse map / data-sid) rely on this binding, or an
+ * under/over-scan and an always-empty parse map will silently corrupt.
+ *
+ * Until then, the web host binds a deliberately narrow, browser-safe upstream
+ * over the same contract:
  *
  *   * Markdown - `![alt](dest)` and inline `<img src>` outside code fences and
  *     inline code. This is the same scan the engine's own unit fake models.
@@ -154,7 +185,7 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
 
   const setText = (next: string) => {
     if (next === text) return;
-    past.push(text);
+    pushBounded(past, text);
     future.length = 0;
     text = next;
     generation += 1;
@@ -200,7 +231,7 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
     undo() {
       const previous = past.pop();
       if (previous === undefined) return;
-      future.push(text);
+      pushBounded(future, text);
       text = previous;
       generation += 1;
       if (ref) options.engine.replaceText(ref, text);
@@ -209,7 +240,7 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
     redo() {
       const next = future.pop();
       if (next === undefined) return;
-      past.push(text);
+      pushBounded(past, text);
       text = next;
       generation += 1;
       if (ref) options.engine.replaceText(ref, text);
@@ -334,7 +365,9 @@ function TextOfficeEditorHost({ format, ...props }: OfficeEditorHostProps & { fo
       if (!identity) return;
       let capability: OfficeCapabilityEntry = {
         format, operation: "serialize", host: "web",
-        engineBuild: ENGINE_BUILD, contractRevision: "office-editor-host/1",
+        // The text lane runs UniWork's own text-document engine, not the
+        // vendored genoffice build; name it honestly.
+        engineBuild: TEXT_ENGINE_NAME, contractRevision: "office-editor-host/1",
         status: readonly ? "readonly" : "available",
         reason: readonly ? presentation.current.unavailable : null,
         fidelityWarnings: [],

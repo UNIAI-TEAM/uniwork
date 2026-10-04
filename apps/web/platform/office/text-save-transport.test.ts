@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeSaveIntent, OfficeSerializedOutput, OfficeUploadReceipt, StableSnapshot } from "@uniwork/core/office";
-import { createTextSaveTransport, TEXT_MEDIA_TYPE, type TextDocumentSnapshot, type TextDocumentsTransport } from "./text-save-transport";
+import { createTextSaveTransport, TEXT_ENGINE_NAME, TEXT_ENGINE_VERSION, TEXT_MEDIA_TYPE, type TextDocumentSnapshot, type TextDocumentsTransport } from "./text-save-transport";
 
 // A kitchen-sink fixture: YAML frontmatter, a GFM table, fenced code, raw
 // HTML and an HTML comment. The point of the text lane is that NONE of it is
@@ -107,5 +107,28 @@ describe("text web save transport", () => {
   it("never reports a reconcile it cannot prove", async () => {
     const { transport } = setup();
     expect(await transport.reconcile({ intent })).toBeNull();
+  });
+
+  it("saves a zero-byte document instead of rejecting it as invalid output", async () => {
+    const { transport, documents } = setup();
+    const empty: StableSnapshot<TextDocumentSnapshot> = { generation: 1, fingerprint: "fp", value: { text: "" } };
+    const emptyIntent: OfficeSaveIntent<TextDocumentSnapshot> = { ...intent, snapshot: empty.value };
+    const output = (await transport.serialize({ intent: emptyIntent, snapshot: empty })) as OfficeSerializedOutput;
+    expect(output.sizeBytes).toBe(0);
+    expect(output.checksumSha256).toBe(await sha256Hex(new Uint8Array()));
+    vi.mocked(documents.upload).mockResolvedValue({ upload_id: "upload-1", checksum_sha256: output.checksumSha256, size_bytes: 0, claim_expires_at: "2099-01-01T00:00:00Z" });
+    const upload = (await transport.upload({ intent: emptyIntent, output })) as OfficeUploadReceipt;
+    expect(upload.sizeBytes).toBe(0);
+    vi.mocked(documents.commit).mockResolvedValue({ document: { id: "doc", revision: "9007199254740994" }, version: { id: "v2", checksum_sha256: output.checksumSha256, size_bytes: 0 } });
+    expect(await transport.commit({ intent: emptyIntent, upload })).toMatchObject({ sizeBytes: 0 });
+  });
+
+  it("attributes the saved bytes to UniWork's text engine, never the vendored genoffice build", async () => {
+    const { transport, documents } = setup();
+    const output = (await transport.serialize({ intent, snapshot })) as OfficeSerializedOutput;
+    vi.mocked(documents.upload).mockResolvedValue({ upload_id: "upload-1", checksum_sha256: output.checksumSha256, size_bytes: output.sizeBytes, claim_expires_at: "2099-01-01T00:00:00Z" });
+    const upload = (await transport.upload({ intent, output })) as OfficeUploadReceipt;
+    vi.mocked(documents.commit).mockResolvedValue({ document: { id: "doc", revision: "9007199254740994" }, version: { id: "v2", checksum_sha256: output.checksumSha256, size_bytes: output.sizeBytes } });
+    expect(await transport.commit({ intent, upload })).toMatchObject({ engineName: TEXT_ENGINE_NAME, engineVersion: TEXT_ENGINE_VERSION });
   });
 });
