@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -23,6 +22,7 @@ import {
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import { hiddenGroupIndexes, visibleGroupIndexes } from "./overflow";
 import type { EditorChromeCommandGroup, EditorChromeCommandItem, EditorChromeProps } from "./types";
@@ -42,21 +42,6 @@ const ROW_PADDING = 16;
 const OVERFLOW_BUTTON_WIDTH = 36;
 /** What one group costs beyond its own width: two `gap-1` (4px) plus the 1px rule. */
 const GROUP_SEPARATOR_WIDTH = 9;
-
-function useCompactCommandRow(): boolean {
-  const [compact, setCompact] = useState(
-    () => typeof window !== "undefined" && window.matchMedia?.(COMPACT_QUERY).matches === true,
-  );
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia(COMPACT_QUERY);
-    const onChange = (event: MediaQueryListEvent) => setCompact(event.matches);
-    setCompact(media.matches);
-    media.addEventListener?.("change", onChange);
-    return () => media.removeEventListener?.("change", onChange);
-  }, []);
-  return compact;
-}
 
 function sameNumbers(left: readonly number[], right: readonly number[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -214,7 +199,7 @@ export function EditorChrome({
   className,
 }: EditorChromeProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.common.chrome" });
-  const compact = useCompactCommandRow();
+  const compact = useMediaQuery(COMPACT_QUERY);
   const rowRef = useRef<HTMLDivElement>(null);
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const groupListRef = useRef<readonly EditorChromeCommandGroup[]>([]);
