@@ -378,7 +378,7 @@ function assertBalancedRange(context: HtmlOpContext, from: number, to: number): 
  * instructions. parse5 puts none of these in the element map, so the element
  * scan above cannot see a range that splits one - wrapping `[7,10]` over
  * `<div><!-- xx -->` would put `</em>` inside the comment. */
-const NON_ELEMENT_MARKUP = /<!--|<\!\[CDATA\[|<\?|<\!/g;
+const NON_ELEMENT_MARKUP = /<!--|<!\[CDATA\[|<\?|<!/g;
 
 /**
  * Reject a range that splits a non-element markup span (comment / CDATA /
