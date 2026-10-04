@@ -7492,7 +7492,8 @@
         "notes": "Speaker notes",
         "notes_empty": "No speaker notes for this slide.",
         "current_slide": "Current slide {{index}}",
-        "next_slide": "Next slide {{index}}"
+        "next_slide": "Next slide {{index}}",
+        "end_of_show": "End of show - no next slide."
       },
       "canvas_label": "PowerPoint slide canvas",
       "slide_hidden": "Hidden slide",
@@ -7774,16 +7775,16 @@
         "kind": {
           "bar": "Clustered column",
           "bar_stacked": "Stacked column",
-          "barPercentStacked": "100% stacked column",
+          "bar_percent_stacked": "100% stacked column",
           "line": "Line",
           "area": "Area",
           "pie": "Pie",
           "doughnut": "Doughnut",
           "scatter": "Scatter",
           "radar": "Radar",
-          "comboBarLine": "Combo",
-          "pie3D": "3-D pie",
-          "bar3D": "3-D column"
+          "combo_bar_line": "Combo",
+          "pie_3d": "3-D pie",
+          "bar_3d": "3-D column"
         }
       },
       "headerfooter": {
@@ -8325,10 +8326,10 @@
           "dash": "Dash",
           "dot": "Dot",
           "lg_dash": "Long dash",
-          "lgDashDot": "Long dash dot",
-          "lgDashDotDot": "Long dash dot dot",
-          "sysDash": "System dash",
-          "sysDot": "System dot"
+          "lg_dash_dot": "Long dash dot",
+          "lg_dash_dot_dot": "Long dash dot dot",
+          "sys_dash": "System dash",
+          "sys_dot": "System dot"
         },
         "effects_label": "Effects",
         "shadow_label": "Shadow",
@@ -8358,10 +8359,10 @@
         "align_label": "Align",
         "align": {
           "left": "Align left",
-          "centerH": "Align center",
+          "center_h": "Align center",
           "right": "Align right",
           "top": "Align top",
-          "centerV": "Align middle",
+          "center_v": "Align middle",
           "bottom": "Align bottom"
         },
         "align_to_label": "Align relative to",
