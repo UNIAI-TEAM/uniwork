@@ -216,7 +216,11 @@ describe("web XLSX save journal", () => {
     const restored = await opened();
     await restored.restore?.("model", stable(engine).value);
     await restored.serialize("model", { intentId: "recovered", snapshot: stable(restored) });
-    expect(editRequests().at(-1)?.edits).toEqual([{ op: "set_cell", target: styleEdit.target, attributes: { value: null, styleReset: true } }]);
+    // F4 (c33874e8): a draft persists the raw pending op stream and a recovered
+    // session re-emits it verbatim, so the exact queued ops survive (sheet/
+    // structural ops a cell diff cannot reconstruct). The clear_cell stays in
+    // the stream, so the file still ends up with B1 cleared.
+    expect(editRequests().at(-1)?.edits).toEqual([styleEdit, reset, { op: "clear_cell", target: styleEdit.target }]);
   });
 
   it("refuses a mismatched snapshot rather than retiring edits that were never serialized", async () => {
