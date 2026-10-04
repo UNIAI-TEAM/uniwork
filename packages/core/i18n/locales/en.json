@@ -7355,6 +7355,18 @@
       "command_error_hint": "The document was not changed. {{message}}",
       "presenter_title": "Presenter view",
       "close_presenter": "Close presenter",
+      "show": {
+        "label": "Slide show",
+        "exit": "End show",
+        "next": "Next slide",
+        "previous": "Previous slide",
+        "counter": "Slide {{current}} of {{total}}",
+        "timer": "Elapsed {{elapsed}}",
+        "notes": "Speaker notes",
+        "notes_empty": "No speaker notes for this slide.",
+        "current_slide": "Current slide {{index}}",
+        "next_slide": "Next slide {{index}}"
+      },
       "canvas_label": "PowerPoint slide canvas",
       "slide_hidden": "Hidden slide",
       "render_pending": "Slide rendering is not connected to this application yet.",

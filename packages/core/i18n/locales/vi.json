@@ -7349,6 +7349,18 @@
       "command_error_hint": "Tài liệu chưa thay đổi. {{message}}",
       "presenter_title": "Chế độ trình bày",
       "close_presenter": "Đóng trình bày",
+      "show": {
+        "label": "Tr?nh chi?u",
+        "exit": "K?t th?c tr?nh chi?u",
+        "next": "Trang ti?p theo",
+        "previous": "Trang tr??c",
+        "counter": "Trang {{current}} / {{total}}",
+        "timer": "?? tr?nh b?y {{elapsed}}",
+        "notes": "Ghi ch? di?n gi?",
+        "notes_empty": "Trang chi?u n?y ch?a c? ghi ch?.",
+        "current_slide": "Trang hi?n t?i {{index}}",
+        "next_slide": "Trang k? ti?p {{index}}"
+      },
       "canvas_label": "Vùng trang chiếu PowerPoint",
       "slide_hidden": "Trang chiếu đang ẩn",
       "render_pending": "Chưa kết nối phần dựng trang chiếu cho ứng dụng này.",
