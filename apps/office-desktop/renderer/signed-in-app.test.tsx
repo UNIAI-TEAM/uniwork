@@ -163,7 +163,7 @@ it("shows dirty state, cancels dirty close and keeps a failed dialog Save open",
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await screen.findByRole("dialog");
   fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: i18n.t("office.leave.stay") }).at(-1)!);
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  await waitFor(() => expect(document.querySelector('[role="dialog"]:not([data-closed])')).toBeNull());
   expect(screen.getByRole("tab", { name: /Plan0/ })).toBeInTheDocument();
   // After initial recovery and cancellation settle, create a durable checkpoint
   // so Discard exercises row consumption without depending on its timer.

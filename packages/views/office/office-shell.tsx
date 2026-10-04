@@ -182,7 +182,7 @@ export function OfficeShell({
   };
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
-      if (!shellRef.current?.contains(event.target as Node)) return;
+      if (!shellRef.current || !(event.target instanceof Node) || !shellRef.current.contains(event.target)) return;
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || event.isComposing) return;
       const target = event.target as HTMLElement;
       if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
