@@ -16,8 +16,6 @@ export const XLSX_SORT_COMMAND = "sheet.command.sort-range";
 /** Ascending / descending are the pinned `SortType` values. */
 export type XlsxSortDirection = "asc" | "desc";
 
-export const XLSX_SORT_DIRECTIONS: readonly XlsxSortDirection[] = ["asc", "desc"];
-
 /** The engine's op budget per save job (server maxOfficeEditOps). A sort that
  *  would rewrite more cells than this is refused before the command runs:
  *  sorting is all-or-nothing, and a partially journalled sort would save a
