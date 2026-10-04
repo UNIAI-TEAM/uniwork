@@ -164,3 +164,14 @@ export {
 } from "./page-box";
 export type {
   PdfNUpDialogProps,
+  PdfPageBoxEngineOperation,
+  PdfPageBoxKind,
+  PdfPageBoxLayout,
+  PdfPageBoxOperationProvider,
+  PdfPageBoxOperationSubmitter,
+  PdfPageBoxPaper,
+  PdfPageBoxRect,
+  PdfPageBoxSetNUpInput,
+  PdfPageBoxSetPageBoxInput,
+  PdfPageSizeDialogProps,
+} from "./page-box";
