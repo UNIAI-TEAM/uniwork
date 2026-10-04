@@ -1,6 +1,8 @@
 import { Editor, type JSONContent } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import enDict from "@uniwork/core/i18n/locales/en.json";
+import viDict from "@uniwork/core/i18n/locales/vi.json";
 import { createDocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
 import { publishDocxEditor } from "../editor-store";
@@ -109,6 +111,29 @@ function tabById(tabs: ReturnType<typeof buildDocxContextualTabs>, id: string) {
   return tab;
 }
 
+function lookup(dictionary: unknown, key: string): unknown {
+  return key.split(".").reduce<unknown>((value, part) => {
+    if (value === null || typeof value !== "object") return undefined;
+    return (value as Record<string, unknown>)[part];
+  }, dictionary);
+}
+
+/** Every labelKey the contextual tabs can render, from groups and menu entries. */
+function labelKeys(tabs: ReturnType<typeof buildDocxContextualTabs>): string[] {
+  const keys: string[] = [];
+  for (const tab of tabs) {
+    keys.push(tab.labelKey);
+    for (const group of tab.groups) {
+      keys.push(group.labelKey);
+      for (const item of group.items) {
+        keys.push(item.labelKey);
+        if (item.kind === "dropdown" || item.kind === "split") keys.push(...item.menu.map((entry) => entry.labelKey));
+      }
+    }
+  }
+  return keys;
+}
+
 describe("selection detection", () => {
   it("reports a caret inside a table, and not a plain paragraph", () => {
     const editor = createEditor(tableDocument);
@@ -196,6 +221,65 @@ describe("buildDocxContextualTabs", () => {
     publishDocxEditor(null);
     for (const tab of buildDocxContextualTabs(context(createEditor({ type: "doc", content: [paragraph("x")] })))) {
       expect(tab.contextual?.when).toBe(false);
+    }
+  });
+});
+
+describe("label keys resolve and never render a raw placeholder", () => {
+  /** Every contextual tab forced visible, so every labelKey is collected. */
+  function allTabs() {
+    const editor = createEditor(tableDocument);
+    caretInFirstCell(editor);
+    publishDocxEditor(editor);
+    return buildDocxContextualTabs(context(editor));
+  }
+
+  it("uses the real paragraph align keys on the table-layout align group", () => {
+    const layout = tabById(allTabs(), "table-layout");
+    const align = layout.groups.find((group) => group.id === "table-layout-align");
+    expect(align).toBeDefined();
+    expect(align!.items.map((item) => item.labelKey)).toEqual([
+      "office.docx.toolbar.paragraph.alignLeft",
+      "office.docx.toolbar.paragraph.alignCenter",
+      "office.docx.toolbar.paragraph.alignRight",
+    ]);
+  });
+
+  it("resolves every labelKey in both en.json and vi.json", () => {
+    const missing = labelKeys(allTabs()).filter(
+      (key) => typeof lookup(enDict, key) !== "string" || typeof lookup(viDict, key) !== "string",
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("never points a labelKey at a string carrying an uninterpolated {{var}}", () => {
+    // RibbonMenuEntry has only labelKey and the ribbon renders t(labelKey) with
+    // no vars, so any {{...}} in a referenced value would show verbatim.
+    const withVars = labelKeys(allTabs()).filter((key) => /\{\{/.test(String(lookup(enDict, key))));
+    expect(withVars).toEqual([]);
+  });
+
+  it("gives the shading/fill/outline menus per-colour plain labels", () => {
+    const tabs = allTabs();
+    const swatchKeys = (tabId: string, itemId: string): string[] => {
+      const group = tabById(tabs, tabId).groups.find((entry) =>
+        entry.items.some((item) => item.id === itemId),
+      );
+      if (!group) throw new Error(`group for ${itemId} missing`);
+      const item = group.items.find((entry) => entry.id === itemId);
+      if (!item || item.kind !== "dropdown") throw new Error(`${itemId} is not a dropdown`);
+      return item.menu.map((entry) => entry.labelKey);
+    };
+    expect(swatchKeys("table-design", "table-design-shading-menu")).toContain("office.docx.toolbar.contextual.swatch.lightBlue");
+    expect(swatchKeys("shape-format", "shape-format-fill-menu")).toContain("office.docx.toolbar.contextual.swatch.lightBlue");
+    expect(swatchKeys("shape-format", "shape-format-outline-menu")).toContain("office.docx.toolbar.contextual.swatch.lightBlue");
+    for (const key of [
+      ...swatchKeys("table-design", "table-design-shading-menu"),
+      ...swatchKeys("shape-format", "shape-format-fill-menu"),
+      ...swatchKeys("shape-format", "shape-format-outline-menu"),
+    ]) {
+      expect(key).not.toBe("office.docx.toolbar.contextual.colorSwatch");
+      expect(String(lookup(enDict, key))).not.toContain("{{");
     }
   });
 });

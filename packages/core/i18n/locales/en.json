@@ -7080,7 +7080,15 @@
           "tableCells": "Cells",
           "tableAlign": "Alignment",
           "pictureTransform": "Rotate and flip",
-          "colorSwatch": "Colour {{value}}"
+          "swatch": {
+            "lightBlue": "Light blue",
+            "paleBlue": "Pale blue",
+            "lightGreen": "Light green",
+            "lightYellow": "Light yellow",
+            "lightOrange": "Light orange",
+            "lightGrey": "Light grey",
+            "grey": "Grey"
+          }
         },
         "overflow": "More commands",
         "groups": {
@@ -7098,8 +7106,6 @@
           "headerFooter": "Header and footer",
           "pageSetup": "Page setup",
           "pageDecor": "Page decoration",
-          "pageSetupDialog": "Page setup dialog",
-          "pageDecorDialog": "Page decoration dialog",
           "trackChanges": "Track changes",
           "comments": "Comments",
           "notes": "Notes",

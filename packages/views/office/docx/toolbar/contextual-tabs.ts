@@ -42,8 +42,22 @@ import { DOCX_SHAPE_WRAP_OPTIONS, type DocxShapeInfo } from "../shapes/docx-shap
 import type { DocxToolbarGroupContext } from "./types";
 
 /** Word theme tints reused by the shading/fill menus (document data, not theme
- * tokens - the same convention as the table shading picker). */
-const CONTEXTUAL_FILLS: readonly string[] = ["D9EAF7", "DDEBF7", "E2F0D9", "FFF2CC", "FCE4D6", "E7E6E6", "D9D9D9"];
+ * tokens - the same convention as the table shading picker). Each tint carries
+ * the colour NAME its menu entry shows: `RibbonMenuEntry` has only `labelKey`
+ * and the ribbon renders `t(labelKey)` with no vars, so a `{{value}}` key
+ * would render the raw placeholder in every row. */
+const CONTEXTUAL_FILLS: readonly { hex: string; name: string }[] = [
+  { hex: "D9EAF7", name: "lightBlue" },
+  { hex: "DDEBF7", name: "paleBlue" },
+  { hex: "E2F0D9", name: "lightGreen" },
+  { hex: "FFF2CC", name: "lightYellow" },
+  { hex: "FCE4D6", name: "lightOrange" },
+  { hex: "E7E6E6", name: "lightGrey" },
+  { hex: "D9D9D9", name: "grey" },
+];
+
+/** The plain label key for one tint name (no `{{value}}` to interpolate). */
+const swatchLabelKey = (name: string): string => `office.docx.toolbar.contextual.swatch.${name}`;
 
 /** The DOCX protected node kinds the contextual tabs answer to. */
 type DocxSelectedNodeKind = "image" | "shape" | null;
@@ -89,9 +103,9 @@ function tableDesignTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
     ] as const
   ).map(([preset, labelKey]) => ({ id: `table-design-border-${preset}`, labelKey, onSelect: () => commands?.applyTableBorders(preset) }));
   const shadingEntries: readonly RibbonMenuEntry[] = [
-    ...CONTEXTUAL_FILLS.map((hex) => ({
+    ...CONTEXTUAL_FILLS.map(({ hex, name }) => ({
       id: `table-design-fill-${hex}`,
-      labelKey: "office.docx.toolbar.contextual.colorSwatch",
+      labelKey: swatchLabelKey(name),
       onSelect: () => commands?.setCellFill(hex),
     })),
     { id: "table-design-fill-none", labelKey: "office.docx.table.shadingNone", onSelect: () => commands?.setCellFill(null) },
@@ -212,9 +226,9 @@ function tableLayoutTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
       labelKey: "office.docx.toolbar.contextual.tableAlign",
       priority: 13,
       items: [
-        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.paragraph.alignLeft", icon: AlignLeft, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("left") },
-        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.paragraph.alignCenter", icon: AlignCenter, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("center") },
-        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.paragraph.alignRight", icon: AlignRight, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("right") },
+        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.toolbar.paragraph.alignLeft", icon: AlignLeft, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("left") },
+        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.toolbar.paragraph.alignCenter", icon: AlignCenter, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("center") },
+        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.toolbar.paragraph.alignRight", icon: AlignRight, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("right") },
       ],
     },
   ];
@@ -292,17 +306,17 @@ function shapeFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
   const disabled = context.readOnly || context.saving || !commands;
   const shape: DocxShapeInfo | null = context.format?.docxShape ?? null;
   const fillEntries: readonly RibbonMenuEntry[] = [
-    ...CONTEXTUAL_FILLS.map((hex) => ({
+    ...CONTEXTUAL_FILLS.map(({ hex, name }) => ({
       id: `shape-format-fill-${hex}`,
-      labelKey: "office.docx.toolbar.contextual.colorSwatch",
+      labelKey: swatchLabelKey(name),
       onSelect: () => commands?.applyDocxShapeEdit({ kind: "fill", color: hex }),
     })),
     { id: "shape-format-fill-none", labelKey: "office.docx.shapes.fillNone", onSelect: () => commands?.applyDocxShapeEdit({ kind: "fill", color: null }) },
   ];
   const outlineEntries: readonly RibbonMenuEntry[] = [
-    ...CONTEXTUAL_FILLS.map((hex) => ({
+    ...CONTEXTUAL_FILLS.map(({ hex, name }) => ({
       id: `shape-format-outline-${hex}`,
-      labelKey: "office.docx.toolbar.contextual.colorSwatch",
+      labelKey: swatchLabelKey(name),
       onSelect: () => commands?.applyDocxShapeEdit({ kind: "outline", color: hex }),
     })),
     { id: "shape-format-outline-none", labelKey: "office.docx.shapes.outlineNone", onSelect: () => commands?.applyDocxShapeEdit({ kind: "outline", color: null }) },

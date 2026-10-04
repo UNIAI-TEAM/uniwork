@@ -7074,7 +7074,15 @@
           "tableCells": "Ô",
           "tableAlign": "Căn chỉnh",
           "pictureTransform": "Xoay và lật",
-          "colorSwatch": "Màu {{value}}"
+          "swatch": {
+            "lightBlue": "Xanh dương nhạt",
+            "paleBlue": "Xanh dương rất nhạt",
+            "lightGreen": "Xanh lá nhạt",
+            "lightYellow": "Vàng nhạt",
+            "lightOrange": "Cam nhạt",
+            "lightGrey": "Xám nhạt",
+            "grey": "Xám"
+          }
         },
         "overflow": "Thêm lệnh",
         "groups": {
@@ -7092,8 +7100,6 @@
           "headerFooter": "Đầu trang và chân trang",
           "pageSetup": "Thiết lập trang",
           "pageDecor": "Trang trí trang",
-          "pageSetupDialog": "Hộp thoại thiết lập trang",
-          "pageDecorDialog": "Hộp thoại trang trí trang",
           "trackChanges": "Theo dõi thay đổi",
           "comments": "Bình luận",
           "notes": "Chú thích",
