@@ -29,7 +29,7 @@ export const RIBBON_PORTAL_ATTR = { "data-ribbon-portal": "" } as const;
 
 const SIZE_CLASS: Record<RibbonSize, string> = {
   large:
-    "h-16 min-w-13 flex-col justify-start gap-1 px-1.5 py-1.5 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6",
+    "h-16 min-w-13 flex-col justify-start gap-0.5 px-1.5 py-1 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-6",
   small: "h-[22px] justify-start gap-1.5 px-1.5 text-caption font-normal",
   icon: "size-7 p-0",
 };
@@ -49,7 +49,12 @@ function ItemFace({ icon: Icon, label, size }: { icon?: RibbonIcon; label: strin
   return (
     <>
       {Icon ? <Icon aria-hidden /> : null}
-      <span className={size === "large" ? "line-clamp-2 max-w-20 text-center leading-tight" : "truncate"}>{label}</span>
+      <span
+        title={size === "large" ? label : undefined}
+        className={size === "large" ? "shrink-0 max-w-20 truncate text-center leading-tight" : "truncate"}
+      >
+        {label}
+      </span>
     </>
   );
 }

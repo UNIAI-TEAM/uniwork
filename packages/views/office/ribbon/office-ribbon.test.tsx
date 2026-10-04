@@ -89,6 +89,24 @@ describe("OfficeRibbon rendering", () => {
     render(<OfficeRibbon tabs={tabs} scope="docx" />);
     expect(within(group("Font")).getByRole("combobox", { name: "Font family" })).toHaveTextContent("Calibri");
   });
+
+  it("keeps a large item's face label on one non-shrinking line with the full text on hover", () => {
+    // jsdom has no layout, so this pins the classes that stop the large face's
+    // flex column from shrinking the label below its line box (visual r6 M-2:
+    // clientHeight 6px vs scrollHeight 15-30px, so the caption was clipped
+    // mid-glyph). The label is a single truncated line and carries the full
+    // text in `title` instead.
+    const { tabs } = ribbonFixture();
+    render(<OfficeRibbon tabs={tabs} scope="docx" />);
+    const paste = within(group("Clipboard")).getByRole("button", { name: "Paste" });
+    expect(paste).toHaveAttribute("data-ribbon-size", "large");
+    const label = paste.querySelector("span") as HTMLElement;
+    expect(label).toHaveTextContent("Paste");
+    expect(label.className).toContain("shrink-0");
+    expect(label.className).toContain("truncate");
+    expect(label.className).not.toContain("line-clamp");
+    expect(label).toHaveAttribute("title", "Paste");
+  });
 });
 
 describe("contextual tabs", () => {
