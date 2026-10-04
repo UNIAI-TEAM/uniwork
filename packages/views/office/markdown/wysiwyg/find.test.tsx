@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -79,6 +80,11 @@ function SourceHarness({ handle }: { handle: TextEditorHandle }) {
   return (
     <div ref={wrapperRef} className="relative">
       <textarea ref={textareaRef} aria-label="md source" value={text} onChange={onChange} />
+      {/* A third element outside both the field and the panel: focus here must
+          survive a result change (F-07). */}
+      <button type="button" data-testid="md-find-outside">
+        outside
+      </button>
       <MarkdownFind handle={handle} mode="source" sourceTextarea={textareaRef} sourceOverlayTarget={wrapperRef} />
     </div>
   );
@@ -292,6 +298,57 @@ describe("MarkdownFind", () => {
     // next characters would land in the document, and Escape (which only the
     // panel handles) would stop closing the panel.
     expect(queryField).toHaveFocus();
+    expect(document.activeElement).not.toBe(screen.getByLabelText("md source"));
+  });
+
+  it("does not corrupt the document when typing in the focused textarea (F-06)", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    const user = userEvent.setup();
+    render(<SourceHarness handle={handle} />);
+
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Flush the panel's deferred focus so the click below is the last word.
+    await waitFor(() => expect(screen.getByTestId("find-replace-query")).toHaveFocus());
+    query("one");
+    await waitFor(() => expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark")).toHaveLength(2));
+
+    // The user clicks into the document and types at the end. Every keystroke
+    // re-runs the matcher; if the selection effect re-imposed the active match
+    // over the caret, the second and later characters would replace that match
+    // (pre-fix: "# Title\n\ny two z\nx", both "one"s silently deleted).
+    const textarea = screen.getByLabelText("md source") as HTMLTextAreaElement;
+    await user.click(textarea);
+    textarea.setSelectionRange(FIXTURE.length, FIXTURE.length);
+    await user.keyboard("xyz");
+
+    const expected = `${FIXTURE}xyz`;
+    expect(textarea.value).toBe(expected);
+    expect(source.getText()).toBe(expected);
+    expect(source.getText().match(/one/g)).toHaveLength(2);
+  });
+
+  it("leaves focus on an unrelated element when the result changes (F-07)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<SourceHarness handle={handle} />);
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Flush the panel's deferred focus before moving focus to the third element.
+    await waitFor(() => expect(screen.getByTestId("find-replace-query")).toHaveFocus());
+    query("one");
+    await waitFor(() => expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark")).toHaveLength(2));
+
+    const outside = screen.getByTestId("md-find-outside");
+    outside.focus();
+    expect(outside).toHaveFocus();
+
+    // A result change while focus is outside both the field and the panel (a
+    // collab/external edit, a controlled reopen) must not yank the caret into
+    // the textarea.
+    query("two");
+    await waitFor(() => expect(document.querySelectorAll("[data-testid='md-find-source-highlight'] mark")).toHaveLength(1));
+    expect(outside).toHaveFocus();
     expect(document.activeElement).not.toBe(screen.getByLabelText("md source"));
   });
 

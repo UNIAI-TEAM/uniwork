@@ -158,6 +158,9 @@ export function MarkdownFind({
   const [flat, setFlat] = useState<FlattenedDoc>(EMPTY_FLATTENED_DOC);
   const [sourceText, setSourceText] = useState(() => readSource(handle));
   const [overlayHost, setOverlayHost] = useState<HTMLElement | null>(null);
+  // Which (open, active match) pair the source selection was last imposed for;
+  // a text edit alone must not move the caret (F-06).
+  const sourceSelectionKey = useRef<string | null>(null);
 
   const isOpen = open ?? innerOpen;
   const replaceRowVisible = replaceVisible ?? innerReplace;
@@ -252,21 +255,31 @@ export function MarkdownFind({
   }, [activeIndex, editor, flat, isOpen, mode, result]);
 
   // Source mode: put the caret on the active match and scroll it into view.
-  // This effect re-runs on every source edit and every keystroke, so it must not
-  // grab focus: focusing here would pull the caret out of the query box while
-  // the user is still typing (the next characters would land in the document)
-  // and Escape - which only the panel handles - would stop closing the panel.
-  // The selection + scroll always follow the active match (that is what makes
-  // Next/Previous work); focus is the one part that is conditional, and it is
-  // taken only when the panel does not already hold it.
+  // The effect re-runs on every `result` change - i.e. on every source edit,
+  // including the user's own typing - so it must not treat a new result as a
+  // reason to move the caret, and it never takes focus:
+  //   F-06 - the selection is imposed only when the active match/index or the
+  //   open state changes (Next/Previous, open), never on a plain text edit. A
+  //   re-select over the user's caret would make the second and later keystrokes
+  //   replace the active match, and the shared text port would save that
+  //   corruption. While the textarea itself holds focus the caret is always the
+  //   user's, so it is left alone even on navigation. The overlay still marks
+  //   every match, so a stale selection is cosmetic.
+  //   F-07 - nothing here calls `focus()`: a result change while a third,
+  //   unrelated element is focused (a collab edit, a controlled reopen, a
+  //   navigation triggered elsewhere) leaves that focus alone instead of yanking
+  //   the caret into the field.
+  // `selectSourceMatch` still sets the range, which is all Next/Previous need.
   useEffect(() => {
     if (mode !== "source") return;
     const target = sourceTextarea?.current ?? null;
     if (!target) return;
+    const key = `${isOpen ? "open" : "closed"}:${activeIndex}`;
+    if (key === sourceSelectionKey.current) return;
+    sourceSelectionKey.current = key;
+    if (document.activeElement === target) return;
     const match = isOpen && activeIndex >= 0 ? result.matches[activeIndex] ?? null : null;
-    const active = document.activeElement;
-    const panelFocused = active instanceof HTMLElement && active.closest('[data-testid="find-replace-panel"]') !== null;
-    selectSourceMatch(target, match, !panelFocused);
+    selectSourceMatch(target, match);
   }, [activeIndex, isOpen, mode, result, sourceTextarea]);
 
   // Mount the overlay into the textarea's wrapper when the host offers one.
