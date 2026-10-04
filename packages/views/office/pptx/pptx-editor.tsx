@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import type { FormatEdit, PptxEdit } from "@uniwork/office-engine/pptx";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -17,6 +17,7 @@ import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
 import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
+import { buildPptxPanel, type PptxPanelKind } from "./pptx-panel-host";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { PptxPresenter } from "./presenter";
 import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
@@ -62,6 +63,14 @@ export interface PptxEditorProps {
   saveCoordinator?: OfficeSaveCoordinatorLike;
   capabilities?: Partial<Record<PptxCommandId, PptxCommandCapability | "available" | "readonly" | "unavailable" | "unknown">>;
   includeSave?: boolean;
+  /** Wire-round seam: an already-composed side panel (ports bound by the shell). */
+  panel?: ReactNode;
+  /** Wire-round seam: render the active panel for this surface inside the editor. */
+  panelKind?: PptxPanelKind;
+  /** Wire-round seam: ONE generic edit channel every panel port routes to.
+   *  Accepts the FormatEdit union too (an engine gap: it is not yet a PptxEdit
+   *  kind). Falls back to the editor handle edit port when the host supplies none. */
+  onApplyEdit?: (edit: PptxEdit | FormatEdit) => Promise<unknown>;
   className?: string;
 }
 
@@ -112,6 +121,9 @@ export function PptxEditor({
   saveCoordinator,
   capabilities,
   includeSave = true,
+  panel,
+  panelKind,
+  onApplyEdit,
   className,
 }: PptxEditorProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -453,6 +465,17 @@ export function PptxEditor({
     }
   }, [reorderElements, runCommand, runTextEdit, selectedIndex, selection]);
 
+  // Wire-round: compose the active panel (or the host-supplied one) through the
+  // panel host; one generic edit channel, falling back to the handle edit port.
+  const activePanel = panel ?? buildPptxPanel({
+    ...(panelKind ? { panelKind } : {}),
+    ...(onApplyEdit ? { onApplyEdit } : {}),
+    ...(editableHandle?.edit ? { edit: (edits) => editableHandle.edit!(edits) } : {}),
+    onError: reportCommandError,
+    slideIndex: selectedIndex,
+    slides,
+  });
+
   const selectedCount = selection.selection.ids.length;
 
   return (
@@ -546,6 +569,7 @@ export function PptxEditor({
           />
           </PptxContextMenu>
         </div>
+        {activePanel}
       </div>
       {/* C10: the status bar owns slide x/y, counts, language, selection and zoom. */}
       <PptxStatusBar
@@ -576,3 +600,8 @@ export function PptxEditor({
     </section>
   );
 }
+
+
+
+
+
