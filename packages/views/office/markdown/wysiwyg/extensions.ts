@@ -17,7 +17,7 @@
  * only the Markdown extension itself is swapped for its selective twin.
  */
 import { Extension, splitExtensions } from "@tiptap/core";
-import type { AnyExtension, Editor } from "@tiptap/core";
+import type { AnyExtension } from "@tiptap/core";
 import { Markdown } from "@tiptap/markdown";
 import { createEditorExtensions, type EditorExtensionsOptions } from "../../../editor/extensions";
 import { escapeSelectiveMarkdownText } from "./escape";
@@ -66,11 +66,6 @@ export const SelectiveMarkdown = Markdown.extend({
   },
 });
 
-export interface MarkdownEditorExtensionsOptions extends EditorExtensionsOptions {
-  /** Base editor feature flags forwarded to the shared factory. */
-  base?: EditorExtensionsOptions;
-}
-
 /**
  * Build the Markdown WYSIWYG extension array: the shared set, the raw node, the
  * source-gap attributes and the selective Markdown extension.
@@ -91,9 +86,4 @@ export function createMarkdownEditorExtensions(
       indentation: { style: "space", size: MARKDOWN_LIST_INDENT },
     }),
   ];
-}
-
-/** True when the editor carries the Markdown manager (i.e. a Markdown editor). */
-export function hasMarkdownManager(editor: Editor): boolean {
-  return Boolean(editor.markdown);
 }
