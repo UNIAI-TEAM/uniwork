@@ -68,9 +68,12 @@ export interface MarkdownPrintCopyOptions {
 }
 
 /** Elements that embed or load another browsing context, plus `noscript`
- * (its body parses differently with scripts on). Dropped whole. */
+ * (its body parses differently with scripts on) and `template` (its content
+ * is a separate fragment that `querySelectorAll` does not descend into).
+ * Dropped whole. */
 const DROPPED_ELEMENTS: ReadonlySet<string> = new Set([
   "script", "base", "iframe", "frame", "frameset", "object", "embed", "applet", "portal", "fencedframe", "noscript",
+  "template",
 ]);
 
 /** Every `on*` attribute (onclick, onerror, ...), in any case. */
@@ -126,8 +129,8 @@ export interface MarkdownPrintActionOptions extends MarkdownPrintCopyOptions {
  * port that throws becomes a typed failure, never a crash in the menu.
  */
 export async function printMarkdownDocument(options: MarkdownPrintActionOptions): Promise<MarkdownPrintOutcome> {
-  const html = sanitizePrintCopy(options.renderHtml(), options);
   try {
+    const html = sanitizePrintCopy(options.renderHtml(), options);
     return await options.port.print({ html, title: options.title });
   } catch (error) {
     return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };

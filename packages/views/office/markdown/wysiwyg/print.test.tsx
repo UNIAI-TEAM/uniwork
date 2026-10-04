@@ -71,6 +71,17 @@ describe("sanitizePrintCopy", () => {
     expect(copy).toContain("https://proxy.example/s/logo.png");
     expect(copy).not.toContain("assets/secret.png");
   });
+
+  it("drops active markup inside <template>, which querySelectorAll does not descend into", () => {
+    // `<template>.content` is a separate document fragment: a bare
+    // `querySelectorAll("*")` never reaches it, so the script element and the
+    // on* handler inside would otherwise reach the payload verbatim.
+    const copy = sanitizePrintCopy(
+      `<template><img src=x onerror="alert(1)"><script>alert(1)</script></template>`,
+    );
+    expect(copy).not.toMatch(/<script/i);
+    expect(copy).not.toMatch(/onerror/i);
+  });
 });
 
 /** A Markdown source with a raw HTML block and a javascript: link. */
@@ -130,6 +141,19 @@ describe("printMarkdownDocument", () => {
       reason: "no printer",
     });
   });
+
+  it("turns a throwing render into a typed failure too, not an unhandled rejection", async () => {
+    const { port } = capturePort();
+    await expect(
+      printMarkdownDocument({
+        port,
+        renderHtml: () => {
+          throw new Error("render blew up");
+        },
+        title: "x",
+      }),
+    ).resolves.toEqual({ outcome: "failed", reason: "render blew up" });
+  });
 });
 
 function renderMenu(props: Parameters<typeof MarkdownPrintMenuItems>[0]) {
@@ -179,5 +203,31 @@ describe("MarkdownPrintMenuItems", () => {
       fireEvent.click(item);
     }
     expect(calls).toHaveLength(0);
+  });
+
+  it("threads the host's csp so a proxied asset is not self-blocked", async () => {
+    const { port, calls } = capturePort();
+    const manifest = {
+      version: 1 as const,
+      document_path: "document.md",
+      entries: [
+        { key: "assets/logo.png", sha256: "a".repeat(64), byte_length: 1, media_type: "image/png", origin: "imported" as const },
+      ],
+    };
+    const csp = "default-src 'none'; img-src data: https://proxy.example; script-src 'none'";
+    renderMenu({
+      port,
+      renderHtml: () => `<img src="assets/logo.png">`,
+      title: "Báo cáo",
+      manifest,
+      assetUrl: (key) => (key === "assets/logo.png" ? "https://proxy.example/s/logo.png" : null),
+      csp,
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: t("office.markdown.print.title") }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    // The granted asset proxies through, and the copy's own CSP names the
+    // origin, so the print frame does not block what it just rewrote.
+    expect(calls[0]!.html).toContain("https://proxy.example/s/logo.png");
+    expect(calls[0]!.html).toContain("img-src data: https://proxy.example");
   });
 });

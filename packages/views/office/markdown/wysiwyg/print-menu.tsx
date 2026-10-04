@@ -23,7 +23,7 @@ import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
 import { printMarkdownDocument, type MarkdownPrintOutcome, type MarkdownPrintPort } from "./print";
 
-/** i18next keys this module reads. All exist today (see the MISSING KEYS list). */
+/** i18next keys this module reads. All exist in `en.json` / `vi.json`. */
 export const MARKDOWN_PRINT_KEYS = {
   print: "office.markdown.print.title",
   exportPdf: "office.markdown.print.exportPdf",
@@ -46,6 +46,10 @@ export interface MarkdownPrintMenuItemsProps {
   manifest?: AssetManifest;
   /** The scoped proxy URL for a manifest key, or null when not granted. */
   assetUrl?(key: string): string | null;
+  /** CSP written into the copy. Pass one naming the asset proxy origin when
+   * `manifest`/`assetUrl` are set, or the rewritten URLs self-block. Defaults
+   * to {@link PRINT_COPY_CSP}. */
+  csp?: string;
   /** Reports the port's outcome so the caller can toast on failure. */
   onOutcome?(outcome: MarkdownPrintOutcome): void;
 }
@@ -67,6 +71,7 @@ export function MarkdownPrintMenuItems({
   title,
   manifest,
   assetUrl,
+  csp,
   onOutcome,
 }: MarkdownPrintMenuItemsProps) {
   const { t } = useTranslation();
@@ -77,12 +82,12 @@ export function MarkdownPrintMenuItems({
     if (!port || printing) return;
     setPrinting(true);
     try {
-      const outcome = await printMarkdownDocument({ port, renderHtml, title, manifest, assetUrl });
+      const outcome = await printMarkdownDocument({ port, renderHtml, title, manifest, assetUrl, csp });
       onOutcome?.(outcome);
     } finally {
       setPrinting(false);
     }
-  }, [assetUrl, manifest, onOutcome, port, printing, renderHtml, title]);
+  }, [assetUrl, csp, manifest, onOutcome, port, printing, renderHtml, title]);
 
   return (
     <>
