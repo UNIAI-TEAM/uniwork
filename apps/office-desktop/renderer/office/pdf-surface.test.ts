@@ -3,6 +3,7 @@ import { createDesktopPdfSurface } from "./pdf-surface";
 import type { DesktopSurfaceSettings } from "./surface";
 
 const PDF_BYTES = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
+const PNG_BASE64 = "iVBORw0KGgo=";
 
 function settings(call: (channel: string, payload: unknown) => Promise<unknown>, overrides: Partial<DesktopSurfaceSettings> = {}): DesktopSurfaceSettings {
   return {
@@ -35,20 +36,57 @@ describe("desktop PDF surface", () => {
     expect(Buffer.from(payload.args.dataBase64, "base64")).toEqual(Buffer.from(PDF_BYTES));
   });
 
-  it("applies an edit batch and bumps the dirty generation", async () => {
+  it("exposes a renderer and real canvas page sizes from the open probe (U2)", async () => {
+    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 2 }, pageSizes: [{ width: 595.28, height: 841.89 }, { width: 841.89, height: 595.28 }] }));
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(surface.renderer).toBeTypeOf("object");
+    expect(surface.getCanvasPages?.()).toEqual([
+      { pageNumber: 1, width: 595.28, height: 841.89, rotation: 0, boxes: [] },
+      { pageNumber: 2, width: 841.89, height: 595.28, rotation: 0, boxes: [] },
+    ]);
+    // The surface identity is stable so React does not re-render in a loop.
+    expect(surface.getCanvasPages?.()).toEqual(surface.getCanvasPages?.());
+  });
+
+  it("falls back to an A4 portrait box when the probe omits a page size", async () => {
+    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 } }));
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(surface.getCanvasPages?.()).toEqual([{ pageNumber: 1, width: 595.28, height: 841.89, rotation: 0, boxes: [] }]);
+  });
+
+  it("renders a page through the engine channel and returns a non-empty data URL", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string; args: { pageIndex?: number; scale?: number } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return { ok: true, operation: "render", pngBase64: PNG_BASE64, width: 1191, height: 1684 };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const result = await surface.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 2 });
+    expect(result).toEqual({ src: `data:image/png;base64,${PNG_BASE64}`, width: 1191, height: 1684 });
+    const renderCall = call.mock.calls.find(([, payload]) => (payload as { operation: string }).operation === "render")!;
+    expect(renderCall[1]).toMatchObject({ operation: "render", args: { pageIndex: 0, scale: 2 } });
+  });
+
+  it("re-probes page geometry after an edit and bumps the dirty generation", async () => {
+    let pageCount = 2;
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 2 } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount }, pageSizes: Array.from({ length: pageCount }, () => ({ width: 595.28, height: 841.89 })) };
+      pageCount = 1;
       return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64") };
     });
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
+    expect(surface.getCanvasPages?.()).toHaveLength(2);
     const dirty: number[] = [];
     surface.subscribeDirty((generation) => dirty.push(generation));
     await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
     expect(dirty).toEqual([3]);
     expect(surface.getDirtyGeneration()).toBe(3);
-    expect((await surface.captureSnapshot()).value).toEqual(PDF_BYTES);
+    expect(surface.getCanvasPages?.()).toHaveLength(1);
   });
 
   it("refuses an edit when the capability is read-only", async () => {

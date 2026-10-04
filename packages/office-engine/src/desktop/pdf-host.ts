@@ -1,15 +1,17 @@
 // @uniwork/office-engine/desktop — the PDF host lane. The desktop main process
 // owns pdfium/pdf-lib (Node only); the renderer reaches it through the typed
 // `desktop:engine-call` payload and never imports this module (ADR 0021). The
-// two entries below are the whole lane: `open` probes the bytes into a
-// view-safe page summary, `edit` applies one batch and returns the verified
-// output bytes. Paths and file handles stay on the host side.
+// three entries below are the whole lane: `open` probes the bytes into a
+// view-safe page summary plus per-page sizes, `edit` applies one batch and
+// returns the verified output bytes, and `render` rasterises one page to a PNG.
+// Paths and file handles stay on the host side.
 import { applyPdfEditBytes, PdfPasswordError, probePdf, type PdfEditOutcome, type PdfPasswordStatus, type PdfProbe } from "../pdf/index";
+import { readPdfPageSizes, renderPdfPagePng } from "./pdf-render.ts";
 
-/** Operations the IPC schema lets a caller name. Only `open` and `edit` are
- * bound; the rest answer `engine_operation_unsupported` before any payload is
- * read. */
-export type DesktopEngineOperation = "open" | "edit" | "capability" | "serialize" | "cancel";
+/** Operations the IPC schema lets a caller name. Only `open`, `edit` and
+ * `render` are bound; the rest answer `engine_operation_unsupported` before any
+ * payload is read. */
+export type DesktopEngineOperation = "open" | "edit" | "render" | "capability" | "serialize" | "cancel";
 
 export interface DesktopEngineCall {
   readonly operation: DesktopEngineOperation;
@@ -19,13 +21,23 @@ export interface DesktopEngineCall {
     readonly dataBase64?: unknown;
     readonly edits?: unknown;
     readonly password?: unknown;
+    readonly pageIndex?: unknown;
+    readonly scale?: unknown;
   };
+}
+
+/** One page's size in PDF points, in page order; a page pdfium could not load
+ * reports zero. The renderer lays out one box per entry. */
+export interface DesktopPdfPageSize {
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface DesktopEngineOpenResult {
   readonly ok: true;
   readonly operation: "open";
   readonly probe: PdfProbe;
+  readonly pageSizes: readonly DesktopPdfPageSize[];
 }
 
 export interface DesktopEngineEditResult {
@@ -36,6 +48,15 @@ export interface DesktopEngineEditResult {
   readonly report: PdfEditOutcome["report"];
 }
 
+export interface DesktopEngineRenderResult {
+  readonly ok: true;
+  readonly operation: "render";
+  /** Base64 PNG of the requested page at the requested scale. */
+  readonly pngBase64: string;
+  readonly width: number;
+  readonly height: number;
+}
+
 /** A password wall is a typed answer, not a thrown error: an Electron IPC
  * rejection flattens to a generic Error, so the class travels as data and the
  * renderer can map it back to the password failure. */
@@ -44,7 +65,7 @@ export interface DesktopEnginePasswordRefusal {
   readonly error: { readonly kind: "password"; readonly status: PdfPasswordStatus };
 }
 
-export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEnginePasswordRefusal;
+export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEnginePasswordRefusal;
 
 /** Typed refusal for a malformed call: the IPC dispatcher turns a thrown
  * error into the channel's failure surface, so a missing payload never
@@ -67,13 +88,29 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
   if (call.operation === "open") {
     const bytes = decode(call.args.dataBase64);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
-    return { ok: true, operation: "open", probe: await probePdf(bytes, password) };
+    // The probe is the gate: an encrypted document without the right password
+    // must answer the typed wall before any size read touches pdfium.
+    const probe = await probePdf(bytes, password);
+    const pageSizes = await readPdfPageSizes(bytes, password);
+    return { ok: true, operation: "open", probe, pageSizes };
   }
   if (call.operation === "edit") {
     const bytes = decode(call.args.dataBase64);
     if (!Array.isArray(call.args.edits)) throw new DesktopEngineCallError("engine_input_missing");
     const result = await applyPdfEditBytes(bytes, call.args.edits);
     return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
+  }
+  if (call.operation === "render") {
+    const bytes = decode(call.args.dataBase64);
+    const pageIndex = call.args.pageIndex;
+    const scale = call.args.scale;
+    if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");
+    if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0) throw new DesktopEngineCallError("engine_input_missing");
+    const password = typeof call.args.password === "string" ? call.args.password : undefined;
+    const rendered = await renderPdfPagePng(bytes, pageIndex, scale, password);
+    // Out of range or an unallocatable bitmap is a refusal, not a blank page.
+    if (!rendered) throw new DesktopEngineCallError("engine_render_unavailable");
+    return { ok: true, operation: "render", pngBase64: rendered.pngBase64, width: rendered.width, height: rendered.height };
   }
   throw new DesktopEngineCallError("engine_operation_unsupported");
 }

@@ -201,3 +201,17 @@ it("forwards the pdf lane edit and snapshot facets through the session facade", 
   expect(session.editor.getDirtyGeneration()).toBe(1);
   expect(session.coordinator.getState().dirtyGeneration).toBe(1);
 });
+
+it("forwards the pdf renderer and real page sizes so the shared canvas draws pages (U1/U2)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+    return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 595, height: 842 };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.renderer).toBeTypeOf("object");
+  expect(session.editor.getCanvasPages?.()).toEqual([{ pageNumber: 1, width: 595.28, height: 841.89, rotation: 0, boxes: [] }]);
+  const rendered = await session.editor.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 1 });
+  expect(rendered.src).toBe("data:image/png;base64,iVBORw0KGgo=");
+});

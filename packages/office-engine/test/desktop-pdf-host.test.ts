@@ -16,6 +16,40 @@ describe("desktop PDF engine host", () => {
     expect(result.probe.features.ocr).toBe(false);
   });
 
+  it("reports per-page sizes in points so the renderer can lay out the right page box", async () => {
+    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    if (!result.ok || result.operation !== "open") throw new Error("unreachable");
+    expect(result.pageSizes).toHaveLength(result.probe.pageCount);
+    for (const size of result.pageSizes) {
+      // A4 portrait: taller than wide, so the canvas does not draw a landscape box.
+      expect(size.width).toBeCloseTo(595.28, 1);
+      expect(size.height).toBeCloseTo(841.89, 1);
+      expect(size.height).toBeGreaterThan(size.width);
+    }
+  });
+
+  it("rasterises one page to a non-empty PNG at the requested scale", async () => {
+    const result = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 1 } });
+    if (!result.ok || result.operation !== "render") throw new Error("unreachable");
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(result.width);
+    const png = Buffer.from(result.pngBase64, "base64");
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(png.byteLength).toBeGreaterThan(100);
+  });
+
+  it("refuses a render for an out-of-range page or a malformed request", async () => {
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 9, scale: 1 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_render_unavailable" });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+  });
+
+  it("renders an encrypted page with the supplied password and answers a wall as typed data", async () => {
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    const opened = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1, password: "    " } });
+    expect(opened).toMatchObject({ ok: true, operation: "render" });
+  });
+
   it("answers a password wall as typed data so it survives the IPC hop", async () => {
     await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
   });

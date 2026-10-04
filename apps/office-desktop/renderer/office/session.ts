@@ -5,7 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
-import type { PdfEditOperation, PdfSnapshot } from "@uniwork/views/office/pdf";
+import type { PdfCanvasPage, PdfEditOperation, PdfPageRenderService, PdfSnapshot } from "@uniwork/views/office/pdf";
 
 export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
@@ -34,6 +34,10 @@ export type DraftRecoverOutcome = "recovered" | "locked" | "failed";
 type LaneEditorFacets = {
   edit?(operations: readonly PdfEditOperation[]): Promise<void> | void;
   getPdfSnapshot?(): PdfSnapshot | null;
+  /** Host page renderer + page geometry, forwarded so the shared surface draws
+   * real pages instead of its empty placeholder (U1/U2). */
+  renderer?: PdfPageRenderService;
+  getCanvasPages?(): readonly PdfCanvasPage[];
 };
 
 export type LocalFileRebind = Readonly<{
@@ -153,6 +157,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get selection() { return surface?.selection; },
     get edit() { const lane = surface; return lane?.edit?.bind(lane); },
     get getPdfSnapshot() { const lane = surface; return lane?.getPdfSnapshot?.bind(lane); },
+    get renderer() { return surface?.renderer; },
+    get getCanvasPages() { const lane = surface; return lane?.getCanvasPages?.bind(lane); },
     get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,

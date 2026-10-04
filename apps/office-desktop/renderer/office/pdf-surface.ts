@@ -1,11 +1,24 @@
-import { bridgePdfOperations, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPage, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
+import { bridgePdfOperations, type PdfCanvasPage, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPageRenderService, type PdfRenderPageRequest, type PdfRenderResult, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
 import type { DesktopSurfaceSettings } from "./surface";
 
+/** One page's size in PDF points, in page order; zero when pdfium could not
+ * read it. */
+interface PageSize {
+  width: number;
+  height: number;
+}
+
 type EngineResponse = {
   ok: boolean;
   probe?: { pageCount: number };
+  /** Real per-page sizes from the open probe (U2). */
+  pageSizes?: PageSize[];
+  /** Rendered page pixels, base64 PNG (render). */
+  pngBase64?: string;
+  width?: number;
+  height?: number;
   dataBase64?: string;
   error?: { kind?: string; status?: string };
 };
@@ -21,8 +34,18 @@ function encodeBase64(value: Uint8Array): string {
   return btoa(binary);
 }
 
-function pages(count: number): PdfPage[] {
-  return Array.from({ length: Math.max(1, count) }, (_, index) => ({ pageNumber: index + 1, rotation: 0 }));
+/** A4 portrait is the fallback box when the probe could not report a size, so
+ * the canvas never collapses a page to a zero-sized rectangle. */
+const FALLBACK_PAGE_SIZE: PageSize = { width: 595.28, height: 841.89 };
+
+function pageSizeAt(sizes: readonly PageSize[], index: number): PageSize {
+  const size = sizes[index];
+  if (size && size.width > 0 && size.height > 0) return size;
+  return FALLBACK_PAGE_SIZE;
+}
+
+function abortError(): DOMException {
+  return new DOMException("The pdf render was aborted", "AbortError");
 }
 
 function passwordFailureClass(error: EngineResponse["error"]): "password_required" | "wrong_password" | null {
@@ -43,6 +66,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   let generation = settings.generation;
   let snapshot: PdfSnapshot | null = null;
   let outcome: PdfOpenOutcome | null = null;
+  let pageSizes: readonly PageSize[] = [];
+  let pageCount = 0;
+  let password: string | undefined;
   let disposed = false;
   const listeners = new Set<(generation: number) => void>();
   let selected: Parameters<NonNullable<PdfSelectionPort["setSelection"]>>[0] = null;
@@ -51,20 +77,81 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     setSelection: (next) => { selected = next ?? null; },
     subscribe: (listener) => { listener(selected); return () => undefined; },
   };
-  const callEngine = async (operation: "open" | "edit", args: Record<string, unknown>): Promise<EngineResponse> => {
+  const callEngine = async (operation: "open" | "edit" | "render", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
     return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
   };
+
+  /** Rendered pages, keyed by page@scale@generation. An edit bumps the
+   * generation, so a stale key never serves the pre-edit pixels; a failed
+   * render is dropped from the cache instead of poisoning it. */
+  let cache = new Map<string, Promise<PdfRenderResult>>();
+  const clearCache = (): void => { cache = new Map(); };
+
+  /** The stable renderer identity React holds. Its methods close over the live
+   * bytes/generation, so the object never has to be recreated. */
+  const renderer: PdfPageRenderService = {
+    async renderPage(request: PdfRenderPageRequest): Promise<PdfRenderResult> {
+      if (disposed) throw new Error("pdf_surface_disposed");
+      if (request.signal?.aborted) throw abortError();
+      const index = request.pageNumber - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= pageCount) throw new Error("pdf_render_page_out_of_range");
+      const key = `${request.pageNumber}:${request.scale}:${generation}`;
+      let pending = cache.get(key);
+      if (!pending) {
+        const args: Record<string, unknown> = { dataBase64: encodeBase64(bytes), pageIndex: index, scale: request.scale };
+        if (password !== undefined) args.password = password;
+        pending = (async () => {
+          const result = await callEngine("render", args);
+          if (!result.ok || !result.pngBase64) throw new Error("pdf_render_failed");
+          return { src: `data:image/png;base64,${result.pngBase64}`, width: result.width ?? 0, height: result.height ?? 0 };
+        })();
+        cache.set(key, pending);
+        pending.catch(() => { if (cache.get(key) === pending) cache.delete(key); });
+      }
+      const result = await pending;
+      if (request.signal?.aborted) throw abortError();
+      return result;
+    },
+  };
+
+  const canvasPages = (): readonly PdfCanvasPage[] => Array.from({ length: pageCount }, (_, index) => {
+    const size = pageSizeAt(pageSizes, index);
+    return { pageNumber: index + 1, width: size.width, height: size.height, rotation: 0, boxes: [] };
+  });
+
+  const applyGeometry = (probe: { pageCount: number }, sizes: readonly PageSize[]): void => {
+    pageCount = probe.pageCount;
+    pageSizes = sizes;
+    snapshot = { pages: canvasPages().map((page) => ({ pageNumber: page.pageNumber, rotation: page.rotation ?? 0 })), pageCount };
+  };
+
+  /** A page-count-changing edit (delete, reorder, insert) must refresh the page
+   * boxes, or the canvas draws a phantom page the engine then refuses to render.
+   * A failed re-probe keeps the previous geometry and never fails the edit. */
+  const refreshGeometry = async (): Promise<void> => {
+    const args: Record<string, unknown> = { dataBase64: encodeBase64(bytes) };
+    if (password !== undefined) args.password = password;
+    try {
+      const result = await callEngine("open", args);
+      if (result.ok && result.probe) applyGeometry(result.probe, result.pageSizes ?? []);
+    } catch {
+      // Keep the pre-edit geometry; the edit itself already succeeded.
+    }
+  };
+
   const surface = {
     format: "pdf" as const,
-    async open(_signal?: AbortSignal, password?: string) {
+    async open(_signal?: AbortSignal, nextPassword?: string) {
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
       const args: Record<string, unknown> = { dataBase64: encodeBase64(bytes) };
-      if (password !== undefined) args.password = password;
+      if (nextPassword !== undefined) args.password = nextPassword;
       const result = await callEngine("open", args);
       if (result.ok && result.probe) {
-        snapshot = { pages: pages(result.probe.pageCount), pageCount: result.probe.pageCount };
+        password = nextPassword;
+        clearCache();
+        applyGeometry(result.probe, result.pageSizes ?? []);
         outcome = { outcome: "opened", document_id: settings.documentId, document_model_ref: `desktop:pdf:${settings.documentId}`, warnings: [] };
         return;
       }
@@ -87,13 +174,19 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       const result = await callEngine("edit", { dataBase64: encodeBase64(bytes), edits: [...edits] });
       if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
       bytes = Uint8Array.from(decodeBase64(result.dataBase64));
+      await refreshGeometry();
       generation += 1;
+      // The edited bytes paint differently: drop every cached page and let the
+      // canvas re-request it through the new generation key.
+      clearCache();
       for (const listener of listeners) listener(generation);
     },
     getPdfSnapshot: () => snapshot,
+    renderer,
+    getCanvasPages: canvasPages,
     selection,
     subscribeDirty: (listener: (next: number) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    dispose: () => { disposed = true; listeners.clear(); bytes = Uint8Array.from([]); snapshot = null; },
+    dispose: () => { disposed = true; listeners.clear(); clearCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }
