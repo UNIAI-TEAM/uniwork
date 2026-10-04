@@ -8,7 +8,7 @@ import { Editor } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
 import { render } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxExtensions } from "./docx-schema";
 import {
@@ -19,6 +19,34 @@ import {
   docxPaperMinHeightPx,
   type DocxPaginationSpec,
 } from "./docx-pagination";
+import { DOCX_ZOOM_CSS_VAR } from "./view/zoom-factor";
+
+// A6-wire review F2: pin the live zoom factor the driver reads from `.doc-zoom`
+// into measurement and the frame — a regression back to a hard-coded factor of
+// 1 must fail here. Both wrappers delegate to the real implementations.
+const zoomProbe = vi.hoisted(() => ({ measured: [] as number[], framed: [] as number[] }));
+
+vi.mock("@uniwork/office-upstream/docs-renderer-editor", async (original) => {
+  const mod = await original<typeof import("@uniwork/office-upstream/docs-renderer-editor")>();
+  return {
+    ...mod,
+    measureBlocks: (...args: Parameters<typeof mod.measureBlocks>) => {
+      zoomProbe.measured.push(args[2]);
+      return mod.measureBlocks(...args);
+    },
+  };
+});
+
+vi.mock("./docx-frame", async (original) => {
+  const mod = await original<typeof import("./docx-frame")>();
+  return {
+    ...mod,
+    buildPaginationFrame: (input: Parameters<typeof mod.buildPaginationFrame>[0]) => {
+      zoomProbe.framed.push(input.zoomFactor ?? 1);
+      return mod.buildPaginationFrame(input);
+    },
+  };
+});
 
 // jsdom implements neither Range.getClientRects nor Element.getClientRects on
 // this version — the vendored line sampler treats an empty list as "no line
@@ -256,6 +284,58 @@ describe("attachDocxPagination on a mounted surface", () => {
       // pinned by docxPaperMinHeightPx below; jsdom has no layout to measure.
       expect(pm.style.minHeight).toMatch(/^\d+px$/);
       expect(parseInt(pm.style.minHeight, 10)).toBeGreaterThan(0);
+    } finally {
+      paginator.dispose();
+      view.unmount();
+      editor.destroy();
+    }
+  });
+
+  it("measures and frames with the live zoom factor from .doc-zoom", async () => {
+    const editor = new Editor({
+      extensions: docxExtensions(),
+      content: blocksToDoc(parsedDoc().blocks),
+      editorProps: { attributes: { class: "doc-page" } },
+    });
+    const view = render(
+      createElement(
+        "div",
+        { className: "docx-surface" },
+        createElement(
+          "div",
+          { className: "workspace" },
+          createElement(
+            "div",
+            { className: "editor-scroll" },
+            createElement(
+              "div",
+              { className: "doc-zoom view-print" },
+              createElement(
+                "div",
+                { className: "page-wrap" },
+                createElement(EditorContent, { editor }),
+                createElement("div", { className: "docx-page-hf-host" }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    const container = view.container as HTMLElement;
+    const docZoom = container.querySelector(".doc-zoom") as HTMLElement;
+    docZoom.style.setProperty(DOCX_ZOOM_CSS_VAR, "1.25");
+    const spec = createDocxPaginationSpec(parsedDoc());
+    const paginator = attachDocxPagination(editor, spec);
+    try {
+      const pm = container.querySelector(".doc-page") as HTMLElement;
+      stubRect(pm, { top: 0, width: 733, height: 1900 });
+      Array.from(pm.children).forEach((child, index) => stubRect(child as HTMLElement, { top: index * 400, width: 733, height: 380 }));
+      zoomProbe.measured.length = 0;
+      zoomProbe.framed.length = 0;
+      paginator.refresh();
+      await frames(2);
+      expect(zoomProbe.measured.at(-1)).toBe(1.25);
+      expect(zoomProbe.framed.at(-1)).toBe(1.25);
     } finally {
       paginator.dispose();
       view.unmount();
