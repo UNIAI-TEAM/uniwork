@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import en from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { XlsxPageSetupDialog } from "./page-setup-dialog";
 
 describe("XlsxPageSetupDialog", () => {
@@ -39,7 +39,7 @@ describe("XlsxPageSetupDialog", () => {
     fireEvent.change(screen.getByTestId("xlsx-page-frozen-rows"), { target: { value: "2" } });
     fireEvent.click(screen.getByTestId("xlsx-page-setup-apply"));
     expect(onApply).not.toHaveBeenCalled();
-    expect(screen.getByTestId("xlsx-page-setup-error")).toHaveTextContent(en.office.xlsx.pageSetup.dialog.invalidFrozenPair);
+    expect(screen.getByTestId("xlsx-page-setup-error")).toHaveTextContent(viLocale.office.xlsx.pageSetup.dialog.invalidFrozenPair);
   });
 
   it("closes on cancel without applying", () => {
