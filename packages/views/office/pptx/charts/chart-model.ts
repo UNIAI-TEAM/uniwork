@@ -437,10 +437,13 @@ function splitCells(line: string): string[] {
  * half-filled paste is usable, but a non-numeric cell is refused outright.
  */
 export function parseChartData(text: string): PptxChartDataParse {
+  // Keep every line's own cells intact: the formatter's header row starts with
+  // an empty cell (the category-column heading), so trimming the whole line
+  // would drop it and shift every series name one column to the left - the
+  // first series would vanish. splitCells trims each cell instead.
   const lines = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.trim().length > 0);
   if (lines.length < 2) {
     return refuse("bad_chart_data", "enter a header row and at least one data row");
   }
