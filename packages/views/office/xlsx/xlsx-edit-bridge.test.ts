@@ -217,4 +217,24 @@ describe("rendererEditsToOperations", () => {
     expect(Object.keys((op as { attributes: Record<string, unknown> }).attributes)).toEqual(["fitToPage", "fitToWidth", "fitToHeight", "paperSize"]);
     expect((op as { attributes: Record<string, unknown> }).attributes).toEqual({ fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 });
   });
+
+  it("maps hyperlink journal edits onto the set_hyperlink vocabulary", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", row: 1, column: 1, target: "https://example.com" },
+      { sheetId: "sheet-1", sheetName: "Budget", row: 0, column: 0, target: null },
+    ])).toEqual([
+      { op: "set_hyperlink", target: { sheet: "Data" }, attributes: { cell: "B2", target: "https://example.com" } },
+      { op: "set_hyperlink", target: { sheet: "Budget" }, attributes: { cell: "A1", target: null } },
+    ]);
+  });
+
+  it("maps note journal edits onto the set_notes vocabulary", () => {
+    expect(rendererEditsToOperations(sheets, [
+      { sheetId: "sheet-1", notes: [{ row: 0, column: 1, author: "An", text: "x" }] },
+      { sheetId: "sheet-2", sheetName: "Summary", notes: [] },
+    ])).toEqual([
+      { op: "set_notes", target: { sheet: "Data" }, attributes: { notes: [{ row: 0, column: 1, author: "An", text: "x" }] } },
+      { op: "set_notes", target: { sheet: "Summary" }, attributes: { notes: [] } },
+    ]);
+  });
 });

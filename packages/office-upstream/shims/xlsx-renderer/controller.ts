@@ -45,6 +45,8 @@ import {
   ingestSheetMutation,
   ingestTableMutation,
   ingestStructuralMutation,
+  ingestNoteMutation,
+  hyperlinkEdit,
   intersectMergeRanges,
   isSheetMutation,
   liveSessionSheets,
@@ -80,7 +82,10 @@ import {
   loadVisibleRange,
   loadWorkbookSkeleton,
   revealCellBelowFreeze,
+  applyAiHyperlink,
+  normalizeLinkTarget,
 } from "../../upstream/apps/sheets/src/renderer/univer-sync";
+import { parseAddress } from "../../upstream/packages/xlsx-gateway/src/domain/cell-address";
 import {
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
@@ -480,6 +485,42 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runColumnDefaultWidth(params),
   }));
+  // Hyperlinks (B6): the pinned Univer 0.25.1 has no spreadsheet hyperlink
+  // command, so UniWork registers one. It mirrors the vendored applyAiHyperlink
+  // (journal + link styling) and emits the per-cell edit so the host persists
+  // it. params: { subUnitId?, address, target } (target null removes the link).
+  const runSetHyperlink = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; address?: string; target?: string | null } | undefined;
+    const state = lazyWorkbookRef.current;
+    if (journalSuppression.active || !state || !p || typeof p.address !== "string") return false;
+    const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    const worksheet = sheetId ? runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId) : undefined;
+    if (!sheetId || !worksheet) return false;
+    let target: string | null;
+    if (p.target === null || p.target === undefined) {
+      target = null;
+    } else {
+      target = normalizeLinkTarget(p.target);
+      if (target === null) {
+        setMessage(t("appHyperlinkTargetInvalid"));
+        return false;
+      }
+    }
+    let row: number;
+    let column: number;
+    try {
+      ({ row, column } = parseAddress(p.address));
+    } catch {
+      return false;
+    }
+    applyAiHyperlink(state, worksheet, { op: "set_hyperlink", sheetId, address: p.address, target });
+    return emitStructuralEdits([hyperlinkEdit(state, sheetId, row, column, target)]);
+  };
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-hyperlink",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runSetHyperlink(params),
+  }));
   // Merge capture (B2): `sheet.mutation.remove-worksheet-merge` carries the
   // user's selection ranges, not the merges it removes — the mutation filters
   // the live merge list by intersection. Snapshot the pre-mutation merge list
@@ -613,9 +654,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       // Tables (B9): add/delete mutations journal a session table add or
       // cancel it by name.
       const tableEdits = ingestTableMutation(lazyWorkbookRef.current, event, journalSuppression.active);
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0) return;
+      // Notes (B6) ride it too: every note mutation snapshots the live note set
+      // of its sheet as a whole-sheet declarative state.
+      const noteEdits = ingestNoteMutation(
+        lazyWorkbookRef.current, event,
+        (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
+        journalSuppression.active,
+      );
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits]));
       options.onDirty?.();
     }),
   );

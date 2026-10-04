@@ -9,6 +9,8 @@ import {
   recordSheetRemove,
   recordSheetRename,
   recordStructuralOp,
+  recordNoteChange,
+  recordHyperlinkEdit,
   recordTableAdd,
   removeTableAdd,
   type StructuralJournalOp,
@@ -101,12 +103,30 @@ export interface XlsxRendererTableEdit {
 }
 
 /** Everything the renderer's edit channel can emit. */
+export interface XlsxRendererHyperlinkEdit {
+  sheetId: string;
+  sheetName?: string;
+  row: number;
+  column: number;
+  target: string | null;
+}
+
+/** One note/comment edit (B6): the whole-sheet note snapshot after the change
+ *  (an empty list removes every note). */
+export interface XlsxRendererNotesEdit {
+  sheetId: string;
+  sheetName?: string;
+  notes: { row: number; column: number; author: string; text: string }[];
+}
+
 export type XlsxRendererEdit =
   | XlsxRendererCellEdit
   | XlsxRendererStructuralEdit
   | XlsxRendererSheetEdit
   | XlsxRendererFilterEdit
-  | XlsxRendererTableEdit;
+  | XlsxRendererTableEdit
+  | XlsxRendererHyperlinkEdit
+  | XlsxRendererNotesEdit;
 
 /** tableId -> {sheetId, name} for a session add, so the delete mutation (which
  *  carries only the tableId) can name the table it cancels. */
@@ -790,4 +810,47 @@ export function ingestFilterMutation(
       visibilityRange: snapshot.visibilityRange,
     },
   ];
+}
+
+
+/** The pinned note mutations: update-note sets/replaces a note,
+ *  remove-note deletes it. Either way the whole-sheet note set is snapshotted
+ *  from the live model (same recipe as the vendored collectNoteStates). */
+const NOTE_MUTATIONS = new Set(["sheet.mutation.update-note", "sheet.mutation.remove-note"]);
+
+/** Ingest one note mutation into a whole-sheet note edit. The live note text
+ *  carries an "Author:\n" first line when it came from the file; splitting it
+ *  back keeps the author column on round-trip. */
+export function ingestNoteMutation(
+  state: LazyWorkbookState | null,
+  event: RendererCommand,
+  worksheetFor: (sheetId: string) => UniverWorksheet | null,
+  suppressed = false,
+): XlsxRendererNotesEdit[] {
+  if (!state || suppressed || event.options?.fromFormula || !NOTE_MUTATIONS.has(event.id)) return [];
+  const params = event.params as { unitId?: string; subUnitId?: string } | undefined;
+  const sheetId = params?.subUnitId;
+  if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
+      !liveSessionSheets(state).some((sheet) => sheet.id === sheetId)) return [];
+  const worksheet = worksheetFor(sheetId);
+  if (!worksheet) return [];
+  recordNoteChange(state.editJournal, sheetId);
+  const notes = worksheet.getNotes().map((note) => {
+    const split = /^([^\n]{1,60}):\n([\s\S]*)$/.exec(note.note);
+    return { row: note.row, column: note.col, author: split?.[1] ?? "", text: split?.[2] ?? note.note };
+  });
+  return [{ sheetId, notes }];
+}
+
+/** Record one hyperlink change at a cell (mirrors applyAiHyperlink's journal
+ *  write) and return the renderer edit for the host to persist. */
+export function hyperlinkEdit(
+  state: LazyWorkbookState,
+  sheetId: string,
+  row: number,
+  column: number,
+  target: string | null,
+): XlsxRendererHyperlinkEdit {
+  recordHyperlinkEdit(state.editJournal, sheetId, row, column, target);
+  return { sheetId, row, column, target };
 }

@@ -1,7 +1,11 @@
 ﻿import {
+  isXlsxDefinedNamesOp,
   isXlsxFilterOp,
+  isXlsxHyperlinkOp,
+  isXlsxNotesOp,
   isXlsxPageSetupOp,
   isXlsxSheetOp,
+  isXlsxSheetProtectionOp,
   isXlsxStructuralOp,
   isXlsxTableOp,
   parseXlsxOps,
@@ -114,6 +118,13 @@ function applyOp(sheets: XlsxWorksheet[], op: XlsxEditOp): void {
   if (isXlsxFilterOp(op)) return;
   if (isXlsxPageSetupOp(op)) return;
   if (isXlsxTableOp(op)) return;
+  if (isXlsxHyperlinkOp(op)) return;
+  if (isXlsxNotesOp(op)) return;
+  // Protection and defined names (B7) are declarative state this cell
+  // snapshot does not carry: they ride the envelope to the server's
+  // sheetProtections / definedNamesState passes unapplied.
+  if (isXlsxSheetProtectionOp(op)) return;
+  if (isXlsxDefinedNamesOp(op)) return;
   const cells = sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, XlsxJournalDraftCell>;
   const previous = cells[op.target.address];
   const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };

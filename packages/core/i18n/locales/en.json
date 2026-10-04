@@ -7519,6 +7519,36 @@
         "remove": "Remove table",
         "namePlaceholder": "Table name to remove"
       },
+      "protect": {
+        "open": "Protect sheet and names",
+        "groups": {
+          "review": "Protection and names"
+        },
+        "dialog": {
+          "title": "Protect sheet and names",
+          "close": "Close protection and names",
+          "protectSheet": "Sheet protection",
+          "on": "Protect sheet",
+          "off": "Unprotect sheet",
+          "protectNote": "Protection is saved without a password. A password-protected sheet cannot be unprotected here.",
+          "names": "Defined names",
+          "name": "Name",
+          "namePlaceholder": "e.g. Sales",
+          "formula": "Refers to",
+          "formulaPlaceholder": "e.g. Sheet1!$A$1:$B$2",
+          "sheetIndex": "Sheet scope",
+          "remove": "Remove",
+          "add": "Add name",
+          "apply": "Apply",
+          "cancel": "Cancel",
+          "invalid": {
+            "name": "That name is not valid. Start with a letter, underscore or backslash, and avoid cell references.",
+            "formula": "Enter the range or formula the name refers to.",
+            "sheetIndex": "Sheet scope must be a whole number from 0 to 16383, or blank for workbook scope.",
+            "duplicate": "The same name is defined twice for one scope."
+          }
+        }
+      },
       "pageSetup": {
         "open": "Page setup",
         "groups": {

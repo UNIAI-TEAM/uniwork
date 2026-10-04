@@ -734,6 +734,92 @@ function canRestoreRange(state: LazyWorkbookState, sheetId: string, range: IRang
   return true;
 }
 
+// ── notes + hyperlinks (B6) ─────────────────────────────────────────────
+//
+// Notes ride the pinned sheets-note preset: sheet.command.update-note /
+// delete-note / toggle-note-popup and their update-note / remove-note
+// mutations. Every note mutation snapshots the whole sheet, so the validators
+// bound the cell and the text; default deny stays.
+//
+// Hyperlinks: the pinned Univer 0.25.1 has no spreadsheet hyperlink command,
+// so the shim registers `uniwork.command.set-hyperlink`. Its address must be a
+// real A1 cell and its target a URL/anchor of 1-2083 characters or null
+// (remove); normalizeLinkTarget in the handler applies the wire normalization.
+
+const NOTE_COMMANDS = new Set([
+  "sheet.command.update-note",
+  "sheet.command.delete-note",
+  "sheet.command.toggle-note-popup",
+]);
+
+const NOTE_MUTATIONS = new Set([
+  "sheet.mutation.update-note",
+  "sheet.mutation.remove-note",
+]);
+
+const HYPERLINK_COMMANDS = new Set([
+  "uniwork.command.set-hyperlink",
+]);
+
+/** The vendored note bound: 32767 characters (workbookNoteStateSchema). */
+const NOTE_TEXT_LEN = 32_767;
+const NOTE_AUTHOR_LEN = 255;
+const HYPERLINK_TARGET_LEN = 2_083;
+const A1_ADDRESS = /^\$?[A-Za-z]{1,3}\$?[1-9][0-9]*$/;
+
+function noteCellOK(value: unknown, limit: number): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < limit;
+}
+
+/** The pinned note commands are sheet-scoped: unitId/subUnitId are optional
+ *  and must name this workbook's live sheet when present. */
+function noteScopeOK(
+  params: { unitId?: unknown; subUnitId?: unknown } | undefined,
+  state: LazyWorkbookState,
+): boolean {
+  if (params !== undefined && (typeof params !== "object" || params === null)) return false;
+  if (params?.unitId !== undefined && params.unitId !== `file-${state.file.sha256}`) return false;
+  if (params?.subUnitId === undefined) return true;
+  return typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId);
+}
+
+/** One note payload: the pinned INote carries the text in `note` (the
+ *  shim-authored "Author:\n" prefix is included), bounded like the wire. */
+function notePayloadOK(note: unknown): boolean {
+  if (note === null) return true;
+  if (!note || typeof note !== "object") return false;
+  const text = (note as { note?: unknown }).note;
+  if (text !== undefined && (typeof text !== "string" || text.length > NOTE_AUTHOR_LEN + 1 + NOTE_TEXT_LEN)) return false;
+  return true;
+}
+
+function noteCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; row?: unknown; col?: unknown; note?: unknown } | undefined;
+  if (!noteScopeOK(params, state)) return false;
+  if (event.id === "sheet.command.toggle-note-popup") return true;
+  if (!params || !noteCellOK(params.row, 1_048_576) || !noteCellOK(params.col, 16_384)) return false;
+  return event.id !== "sheet.command.update-note" || notePayloadOK(params.note);
+}
+
+function noteMutationAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; row?: unknown; col?: unknown; note?: unknown } | undefined;
+  if (!params || typeof params !== "object" || params.unitId !== `file-${state.file.sha256}` ||
+    typeof params.subUnitId !== "string" || !liveSheetIds(state).has(params.subUnitId)) return false;
+  if (!noteCellOK(params.row, 1_048_576) || !noteCellOK(params.col, 16_384)) return false;
+  return event.id !== "sheet.mutation.update-note" || notePayloadOK(params.note);
+}
+
+function hyperlinkCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
+  const params = event.params as { unitId?: unknown; subUnitId?: unknown; address?: unknown; target?: unknown } | undefined;
+  if (!params || typeof params !== "object") return false;
+  if (params.unitId !== undefined && params.unitId !== `file-${state.file.sha256}`) return false;
+  if (params.subUnitId !== undefined &&
+    !(typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId))) return false;
+  if (typeof params.address !== "string" || !A1_ADDRESS.test(params.address)) return false;
+  if (params.target === null) return true;
+  return typeof params.target === "string" && params.target.length >= 1 && params.target.length <= HYPERLINK_TARGET_LEN;
+}
+
 function canMarkConditionalFormulaDirty(event: RendererCommand, state: LazyWorkbookState | null): boolean {
   if (!state || event.type !== 2 || !event.options?.onlyLocal || !event.params || typeof event.params !== "object") return false;
   const units = Object.entries(event.params);
@@ -801,6 +887,9 @@ export function canExecuteCommand(
     if (SORT_MUTATIONS.has(event.id)) return sortReorderAllowed(event, state);
     if (TABLE_COMMANDS.has(event.id)) return tableCommandAllowed(event, state);
     if (TABLE_MUTATIONS.has(event.id)) return tableMutationAllowed(event, state);
+    if (NOTE_COMMANDS.has(event.id)) return noteCommandAllowed(event, state);
+    if (NOTE_MUTATIONS.has(event.id)) return noteMutationAllowed(event, state);
+    if (HYPERLINK_COMMANDS.has(event.id)) return hyperlinkCommandAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {
