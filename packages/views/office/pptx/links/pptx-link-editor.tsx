@@ -71,6 +71,10 @@ export function PptxLinkEditor({
   className,
 }: PptxLinkEditorProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // `linkSummary` and `validateLinkDraft` return FULL `office.pptx.links.*`
+  // keys, so they are translated at the root: the `keyPrefix` above would
+  // double-prefix them (`office.pptx.office.pptx.links.*`).
+  const { t: tRoot } = useTranslation();
   const [draft, setDraft] = useState<PptxLinkDraft>(() => draftFromLink(link));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -162,6 +166,7 @@ export function PptxLinkEditor({
             placeholder={t("links.url_placeholder")}
             className="h-7"
             data-pptx-link-url
+            data-testid="pptx-link-url"
             disabled={blocked}
             onChange={(event) => setDraft((current) => ({ ...current, url: event.target.value }))}
             onKeyDown={(event) => {
@@ -186,6 +191,7 @@ export function PptxLinkEditor({
             aria-label={t("links.slide_label")}
             className="h-7 max-w-24"
             data-pptx-link-slide
+            data-testid="pptx-link-slide"
             disabled={blocked}
             onChange={(event) => {
               const next = Number.parseInt(event.target.value, 10);
@@ -219,12 +225,12 @@ export function PptxLinkEditor({
       ) : null}
 
       <p className="text-caption text-muted-foreground" data-pptx-link-current>
-        {t(current.key, current.vars)}
+        {tRoot(current.key, current.vars)}
       </p>
 
       {!validation.ok ? (
-        <p role="alert" className="text-caption text-destructive" data-pptx-link-invalid>
-          {t(validation.reasonKey)}
+        <p role="alert" className="text-caption text-destructive" data-pptx-link-invalid data-testid="pptx-link-invalid">
+          {tRoot(validation.reasonKey)}
         </p>
       ) : null}
 
