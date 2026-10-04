@@ -260,11 +260,17 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     setRevision((value) => value + 1);
   }, [coordinator, editor, refreshSnapshot]);
 
-  // A host that reports byte changes itself (async undo/redo) refreshes the view without marking dirty.
+  // A host that reports byte changes itself (async undo/redo) refreshes the view
+  // and re-marks dirty with the generation the swap produced. undo/redo mark
+  // synchronously, before the adapter's queued byte swap bumps the generation, so
+  // without this the coordinator still holds the pre-step generation and refuses
+  // Save with `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking
+  // on every notify is safe for the edit path too.
   useEffect(() => editor.subscribe?.(() => {
+    coordinator.markDirty?.(editor.getDirtyGeneration());
     refreshSnapshot();
     setRevision((value) => value + 1);
-  }), [editor, refreshSnapshot]);
+  }), [coordinator, editor, refreshSnapshot]);
 
   /** One document change at a time, in order: two quick edits must not both start from the same bytes.
    * An idle queue starts the action synchronously. */

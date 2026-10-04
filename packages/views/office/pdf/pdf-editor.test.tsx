@@ -5,6 +5,7 @@ import { setLocale } from "@uniwork/core/i18n";
 import { EditorSlot } from "../editor-slot";
 import { PdfEditor } from "./pdf-editor";
 import { createPdfEditorLoader } from "./pdf-editor-slot";
+import type { OfficeSaveReceipt, SaveAttemptResult } from "@uniwork/core/office";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 
@@ -43,6 +44,38 @@ function editor(overrides: Partial<PdfEditorHandle> = {}): PdfEditorHandle {
 }
 
 const opened = (): PdfOpenOutcome => ({ outcome: "opened", document_id: "doc", document_model_ref: "model-1", warnings: [] });
+
+/** A minimal accepted receipt so the fake Save can report `accepted: true`. */
+const receipt = (): OfficeSaveReceipt => ({
+  intentId: "intent-1", idempotencyKey: "key-1", documentId: "doc", versionId: "version-2", revision: "2",
+  checksumSha256: "sha-256", sizeBytes: 1, engineName: "engine", engineVersion: "1", contractVersion: "c1", protocolVersion: "p1",
+});
+
+/** A handle whose byte swap lands in a later microtask, like the web adapter's
+    queued `step()`: `undo`/`redo` return void and only the `subscribe` notify
+    carries the new generation. `Save` mirrors the coordinator's equality gate. */
+function lateSwapSetup() {
+  let generation = 0;
+  let dirtyGeneration = 0;
+  const listeners = new Set<() => void>();
+  let swap: (() => void) | null = null;
+  const outcomes: string[] = [];
+  const handle = editor({
+    getDirtyGeneration: () => generation,
+    captureSnapshot: vi.fn(async () => ({ generation, fingerprint: `fp-${generation}`, value: { pages: [{ pageNumber: 1, rotation: 0 }], pageCount: 1 } })),
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    undo: vi.fn(() => { swap = () => { generation += 1; for (const listener of [...listeners]) listener(); }; }),
+    redo: vi.fn(() => { swap = () => { generation += 1; for (const listener of [...listeners]) listener(); }; }),
+  });
+  const save = vi.fn(async (): Promise<SaveAttemptResult> => {
+    const snapshot = await handle.captureSnapshot();
+    if (snapshot.generation !== dirtyGeneration) { outcomes.push("invalid_snapshot"); return { accepted: false, reason: "invalid_snapshot" }; }
+    outcomes.push("accepted");
+    return { accepted: true, intentId: "intent-1", receipt: receipt() };
+  });
+  const saveCoordinator = coordinator({ save, markDirty: (next: number) => { dirtyGeneration = Math.max(dirtyGeneration, next); } });
+  return { handle, save, saveCoordinator, outcomes, mark: (value: number) => { dirtyGeneration = value; }, runSwap: () => swap?.(), generation: () => generation, dirty: () => dirtyGeneration };
+}
 const capability = { format: "pdf" as const, operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available" as const, fidelityWarnings: [] };
 
 function renderEditor(outcome: PdfOpenOutcome = opened(), options?: { editor?: PdfEditorHandle; open?: () => Promise<PdfOpenOutcome>; coordinator?: PdfSaveCoordinator; key?: string }) {
@@ -331,6 +364,36 @@ describe("PdfEditor", () => {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
     }
     expect(screen.queryByTestId("pdf-browser-unsupported")).not.toBeInTheDocument();
+  });
+
+  it("accepts a Save pressed right after undo by re-marking the post-swap generation", async () => {
+    const { handle, save, saveCoordinator, outcomes, runSwap, dirty } = lateSwapSetup();
+    renderEditor(opened(), { editor: handle, coordinator: saveCoordinator });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+    // The adapter's queued swap lands after the synchronous markDirty(0), so the
+    // notify is what must carry the post-step generation to the coordinator.
+    runSwap();
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(outcomes).toEqual(["accepted"]));
+    expect(dirty()).toBe(1);
+  });
+
+  it("accepts a Save pressed right after redo by re-marking the post-swap generation", async () => {
+    const { handle, save, saveCoordinator, outcomes, runSwap, dirty } = lateSwapSetup();
+    renderEditor(opened(), { editor: handle, coordinator: saveCoordinator });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
+    runSwap();
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(outcomes).toEqual(["accepted"]));
+    expect(dirty()).toBe(1);
   });
 
   it("cancels and disposes an in-flight session", async () => {
