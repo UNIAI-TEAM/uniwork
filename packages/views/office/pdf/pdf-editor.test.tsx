@@ -408,4 +408,31 @@ describe("PdfEditor", () => {
     expect(handle.cancel).toHaveBeenCalledWith("document_changed");
     expect(handle.dispose).toHaveBeenCalledTimes(1);
   });
+
+  it("binds Ctrl+F to Find and toggles it closed on a second press", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+
+    // The browser's own find must not fire; the editor opens its Find bar.
+    expect(fireEvent.keyDown(root, { key: "f", ctrlKey: true })).toBe(false);
+    expect(screen.getByRole("search")).toBeInTheDocument();
+    fireEvent.keyDown(root, { key: "f", ctrlKey: true });
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+  });
+
+  it("disables undo and redo when the handle exposes no history facet", async () => {
+    const markDirty = vi.fn();
+    // The desktop lane mounts a handle without undo/redo, so a no-op step must
+    // not mark the document dirty and enable a Save of identical bytes.
+    const handle = editor({ undo: undefined, redo: undefined });
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ markDirty }) });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    expect(screen.getByTestId("pdf-chrome-undo")).toBeDisabled();
+    expect(screen.getByTestId("pdf-chrome-redo")).toBeDisabled();
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
+    expect(markDirty).not.toHaveBeenCalled();
+  });
 });

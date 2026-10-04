@@ -314,8 +314,12 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     void coordinator.save(entryPoint);
   }, [coordinator, readOnly, viewState]);
 
-  const undo = useCallback(() => { if (readOnly) return; editor.undo?.(); markDirty(); }, [editor, markDirty, readOnly]);
-  const redo = useCallback(() => { if (readOnly) return; editor.redo?.(); markDirty(); }, [editor, markDirty, readOnly]);
+  // Ctrl+Z/Y and the ribbon's undo/redo only mark dirty when the handle can
+  // actually step: without the facet the call is a no-op and re-marking would
+  // let a later Save commit identical bytes.
+  const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
+  const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
+  const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
   const executeCommand = useCallback((id: PdfCommandId) => {
     if (id === PDF_COMMANDS.save) save("button");
     else if (id === PDF_COMMANDS.undo) undo();
@@ -332,9 +336,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     if (!modifier) return;
     const key = event.key.toLowerCase();
     if (key === "s") { event.preventDefault(); save("shortcut"); }
+    else if (key === "f") { event.preventDefault(); toggleFind(); }
     else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); undo(); }
     else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); redo(); }
-  }, [redo, save, undo]);
+  }, [redo, save, toggleFind, undo]);
 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
   const canReplaceImage = canEditText;
@@ -368,9 +373,13 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
-      const disabled = browserReasonKey !== undefined
-        ? !canRunBrowserUnsupported
-        : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true;
+      // A handle with no undo/redo facet (e.g. desktop) cannot step history, so
+      // disable the control instead of letting it no-op and mark the document dirty.
+      const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
+      const disabled = facetMissing
+        || (browserReasonKey !== undefined
+          ? !canRunBrowserUnsupported
+          : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true);
       return {
         id,
         disabled,
@@ -378,7 +387,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
         onExecute: () => { if (!disabled) executeCommand(id); },
       };
     });
-  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, executeCommand, readOnly, t, viewState]);
+  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, editor.redo, editor.undo, executeCommand, readOnly, t, viewState]);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
@@ -388,7 +397,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           onTabChange={setActiveTab}
           commands={commands}
           findOpen={findOpen}
-          onFindToggle={() => setFindOpen((value) => !value)}
+          onFindToggle={toggleFind}
         />
       ) : null}
       {browserUnsupportedHint ? (
