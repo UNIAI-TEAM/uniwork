@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { OfficeShell } from "@uniwork/views/office/office-shell";
 import { EditorSlot, type OfficeEditorLoader } from "@uniwork/views/office/editor-slot";
-import { DocxEditor, type DocxOpenFailure } from "@uniwork/views/office/docx";
+import type { DocxOpenFailure } from "@uniwork/views/office/docx";
 import type { PdfOpenFailure } from "@uniwork/views/office/pdf";
 import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
@@ -84,6 +84,6 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
         <EditorSlot format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
-        {session.editor.renderSurface && ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="docx-readonly-surface">{session.editor.renderSurface?.()}</section> : null}
+        {session.editor.renderSurface && ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="readonly-surface">{session.editor.renderSurface?.()}</section> : null}
       </>} /></>;
 }

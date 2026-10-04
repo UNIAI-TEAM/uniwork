@@ -115,7 +115,7 @@ it("shows a reasoned corrupt-file error with no Save", async () => {
 
 it("renders document content without editing or save controls when permission is read-only", async () => {
   const { session, call } = harness(async () => ({}), { ...original, canSave: false });
-  expect(await screen.findByTestId("docx-readonly-surface")).toBeInTheDocument();
+  expect(await screen.findByTestId("readonly-surface")).toBeInTheDocument();
   expect(document.querySelector('.ProseMirror[contenteditable="false"]')).not.toBeNull();
   expect(document.querySelector('.ProseMirror[contenteditable="true"]')).toBeNull();
   expect(screen.queryByTestId("docx-formatting-toolbar")).toBeNull();
