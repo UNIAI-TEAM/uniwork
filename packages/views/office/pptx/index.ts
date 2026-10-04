@@ -46,4 +46,5 @@ export {
   type PptxTableValidation,
 } from "./tables/table-model";
 
-
+// UNI-927 WIRE-TEXT: the text-format panel (text-format-model + pptx-text-format-panel).
+export { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";

@@ -7570,7 +7570,48 @@
         "target_label": "Nháy đúp để sửa văn bản này",
         "editor_label": "Sửa văn bản trang chiếu",
         "hint": "Ctrl+Enter để lưu, Esc để huỷ",
-        "empty_refused": "Văn bản không được để trống. Hãy nhập nội dung hoặc nhấn Esc để huỷ."
+        "empty_refused": "Văn bản không được để trống. Hãy nhập nội dung hoặc nhấn Esc để huỷ.",
+        "format": {
+            "title": "Văn bản",
+            "loading": "Đang tải công cụ văn bản...",
+            "busy": "Đang áp dụng...",
+            "empty": "Chọn một hộp văn bản hoặc hình để định dạng văn bản",
+            "unbound": "Định dạng văn bản chưa được nối vào trình soạn thảo này.",
+            "readonly": "Bản trình bày này chỉ để đọc.",
+            "unsupported": "Đối tượng này không chứa văn bản định dạng được.",
+            "error_title": "Không thể áp dụng thay đổi văn bản",
+            "error_hint": "Tài liệu chưa bị thay đổi. {{message}}",
+            "char_label": "Kiểu chữ",
+            "toggle": {
+              "bold": "Đậm",
+              "italic": "Nghiêng",
+              "underline": "Gạch chân",
+              "strike": "Gạch ngang"
+            },
+            "font_family": "Phông chữ",
+            "font_family_custom": "Tên phông chữ",
+            "font_size": "Cỡ chữ",
+            "font_size_custom": "Cỡ chữ theo điểm",
+            "text_color": "Màu chữ",
+            "highlight": "Tô sáng",
+            "highlight_unavailable": "Tô sáng chưa khả dụng",
+            "align_label": "Căn chỉnh",
+            "align": {
+              "left": "Căn trái",
+              "center": "Căn giữa",
+              "right": "Căn phải",
+              "justify": "Căn đều hai bên"
+            },
+            "bullet_label": "Dấu đầu dòng và đánh số",
+            "bullet": {
+              "none": "Không",
+              "char": "Dấu đầu dòng",
+              "number": "Đánh số"
+            },
+            "line_spacing": "Giãn dòng",
+            "line_spacing_custom": "Giãn dòng theo phần trăm",
+            "apply": "Áp dụng"
+        }
       },
       "status": {
         "label": "Trạng thái bản trình bày",
@@ -8198,6 +8239,48 @@
         "poster_none": "Chưa chọn ảnh xem trước; bộ máy sẽ tạo ảnh tạm.",
         "poster_selected": "Ảnh xem trước: {{name}}",
         "poster_unsupported": "{{ext}} không phải ảnh xem trước được hỗ trợ."
+      },
+      "notes": {
+        "title": "Ghi chú diễn giả",
+        "for_slide": "Ghi chú cho trang chiếu {{index}}",
+        "placeholder": "Bấm để thêm ghi chú diễn giả",
+        "hint": "Ctrl+Enter để lưu, Esc để hoàn tác",
+        "no_slide": "Chọn một trang chiếu để sửa ghi chú.",
+        "loading": "Đang tải ghi chú diễn giả…",
+        "unbound": "Ghi chú diễn giả chưa được kết nối với trình soạn thảo.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "dirty": "Ghi chú chưa lưu",
+        "saved": "Đã lưu ghi chú",
+        "pending": "Đang lưu ghi chú…",
+        "commit": "Lưu ghi chú",
+        "revert": "Hoàn tác",
+        "error_title": "Không lưu được ghi chú",
+        "error": "Bản trình bày không thay đổi. {{message}}",
+        "close": "Đóng ghi chú diễn giả"
+      },
+      "comments": {
+        "title": "Bình luận",
+        "for_slide": "Bình luận ở trang chiếu {{index}}",
+        "count_one": "{{count}} bình luận",
+        "count_other": "{{count}} bình luận",
+        "empty": "Trang chiếu này chưa có bình luận.",
+        "loading": "Đang tải bình luận…",
+        "unbound": "Bình luận chưa được kết nối với trình soạn thảo.",
+        "readonly": "Bản trình bày này chỉ đọc.",
+        "no_slide": "Chọn một trang chiếu để xem bình luận.",
+        "author_label": "Tác giả",
+        "author_placeholder": "Tên của bạn",
+        "text_placeholder": "Viết bình luận",
+        "post": "Gửi bình luận",
+        "delete_for": "Xóa bình luận của {{author}}",
+        "delete_unknown": "Xóa bình luận",
+        "reply": "Trả lời",
+        "resolve": "Đánh dấu đã xử lý",
+        "unsupported": "Trả lời và đánh dấu đã xử lý chưa được engine trình bày hỗ trợ.",
+        "error_title": "Không thực hiện được bình luận",
+        "error": "Bản trình bày không thay đổi. {{message}}",
+        "close": "Đóng bình luận",
+        "pending": "Đang thực hiện bình luận…"
       },
       "format": {
         "title": "Äá»‹nh dáº¡ng",

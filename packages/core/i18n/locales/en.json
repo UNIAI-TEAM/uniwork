@@ -7576,7 +7576,48 @@
         "target_label": "Double-click to edit this text",
         "editor_label": "Edit slide text",
         "hint": "Ctrl+Enter to save, Esc to cancel",
-        "empty_refused": "Text cannot be empty. Type something or press Esc to cancel."
+        "empty_refused": "Text cannot be empty. Type something or press Esc to cancel.",
+        "format": {
+            "title": "Text",
+            "loading": "Loading the text tools...",
+            "busy": "Applying...",
+            "empty": "Select a text box or shape to format its text",
+            "unbound": "Text formatting is not connected to this editor yet.",
+            "readonly": "This presentation is read-only.",
+            "unsupported": "This element cannot hold formatted text.",
+            "error_title": "The text change could not be applied",
+            "error_hint": "The document was not changed. {{message}}",
+            "char_label": "Text style",
+            "toggle": {
+              "bold": "Bold",
+              "italic": "Italic",
+              "underline": "Underline",
+              "strike": "Strikethrough"
+            },
+            "font_family": "Font",
+            "font_family_custom": "Font family name",
+            "font_size": "Font size",
+            "font_size_custom": "Font size in points",
+            "text_color": "Text color",
+            "highlight": "Highlight",
+            "highlight_unavailable": "Highlight is not available yet",
+            "align_label": "Alignment",
+            "align": {
+              "left": "Align left",
+              "center": "Align center",
+              "right": "Align right",
+              "justify": "Justify"
+            },
+            "bullet_label": "Bullets and numbering",
+            "bullet": {
+              "none": "None",
+              "char": "Bullets",
+              "number": "Numbering"
+            },
+            "line_spacing": "Line spacing",
+            "line_spacing_custom": "Line spacing percent",
+            "apply": "Apply"
+        }
       },
       "status": {
         "label": "Presentation status",
@@ -8204,6 +8245,48 @@
         "poster_none": "No poster chosen; the engine generates a placeholder.",
         "poster_selected": "Poster: {{name}}",
         "poster_unsupported": "{{ext}} is not a supported poster image."
+      },
+      "notes": {
+        "title": "Speaker notes",
+        "for_slide": "Notes for slide {{index}}",
+        "placeholder": "Click to add speaker notes",
+        "hint": "Ctrl+Enter to save, Esc to revert",
+        "no_slide": "Select a slide to edit its notes.",
+        "loading": "Loading speaker notes…",
+        "unbound": "Speaker notes are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "dirty": "Unsaved notes",
+        "saved": "Notes saved",
+        "pending": "Saving notes…",
+        "commit": "Save notes",
+        "revert": "Revert",
+        "error_title": "The notes could not be saved",
+        "error": "The presentation is unchanged. {{message}}",
+        "close": "Close speaker notes"
+      },
+      "comments": {
+        "title": "Comments",
+        "for_slide": "Comments on slide {{index}}",
+        "count_one": "{{count}} comment",
+        "count_other": "{{count}} comments",
+        "empty": "No comments on this slide.",
+        "loading": "Loading comments…",
+        "unbound": "Comments are not connected to this editor yet.",
+        "readonly": "This presentation is read-only.",
+        "no_slide": "Select a slide to see its comments.",
+        "author_label": "Author",
+        "author_placeholder": "Your name",
+        "text_placeholder": "Write a comment",
+        "post": "Post comment",
+        "delete_for": "Delete comment by {{author}}",
+        "delete_unknown": "Delete comment",
+        "reply": "Reply",
+        "resolve": "Resolve",
+        "unsupported": "Replying and resolving are not supported by this presentation engine yet.",
+        "error_title": "The comment could not be applied",
+        "error": "The presentation is unchanged. {{message}}",
+        "close": "Close comments",
+        "pending": "Applying comment…"
       },
       "format": {
         "title": "Format",
