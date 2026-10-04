@@ -255,7 +255,7 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "sai" } });
     fireEvent.click(screen.getByRole("button", { name: "Mở tài liệu" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Mật khẩu không mở khóa được PDF này."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Mật khẩu không mở được tài liệu này. Thử lại."));
     expect(screen.getByLabelText("Mật khẩu")).toHaveAttribute("aria-invalid", "true");
     expect(screen.queryByTestId("pdf-error-state")).not.toBeInTheDocument();
   });
