@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from "vitest";
+import { applyPdfOpsInBrowser } from "@uniwork/office-engine/browser";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -16,6 +17,27 @@ const capability: OfficeCapabilityEntry = {
   format: "pdf", operation: "serialize", host: "web", engineBuild: "test", contractRevision: "pdf/1", status: "available", fidelityWarnings: [],
 };
 const original = new Uint8Array([37, 80, 68, 70, 1]);
+
+/** Minimal one-page PDF (empty page tree). Hand-written so the note round-trip
+    drives the real browser writer/reader without apps/web depending on pdf-lib. */
+const BASE_PDF_TEXT =
+  "%PDF-1.4\n" +
+  "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+  "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+  "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> >>\nendobj\n" +
+  "trailer\n<< /Size 4 /Root 1 0 R >>\n%%EOF\n";
+// Uint8Array.from, not TextEncoder: pdf-lib's instanceof check rejects a
+// jsdom-realm view over the same buffer.
+const BASE_PDF = Uint8Array.from(BASE_PDF_TEXT, (char) => char.charCodeAt(0));
+const NOTE_RECT: [number, number, number, number] = [40, 200, 60, 220];
+
+/** A fresh adapter over BASE_PDF whose engine ops run for real. */
+function noteSetup() {
+  return setup({
+    applyOps: applyPdfOpsInBrowser,
+    documents: { read: vi.fn(async () => BASE_PDF), upload: vi.fn(async () => null), commit: vi.fn(async () => null) },
+  });
+}
 
 function draftStore(): IndexedDbDraftStore {
   return {
@@ -235,6 +257,50 @@ describe("web PDF format adapter", () => {
     expect(createRenderSession).toHaveBeenCalledTimes(3);
     expect(createRenderSession.mock.calls[2]).toEqual([original, { password }]);
     expect(openedSessions).toHaveLength(1);
+    await adapter.session.dispose();
+  });
+
+  it("reads a note added in this session back from the current bytes", async () => {
+    const { adapter, editor } = noteSetup();
+    await adapter.open.open();
+    await editor.submitEngineOperations?.([
+      { op: "addNote", attributes: { note: { pageIndex: 0, rect: NOTE_RECT, contents: "Ghi chú tiếng Việt", author: "Nguyễn An" } } },
+    ]);
+    const threads = await editor.readSavedNotes?.();
+    expect(threads).toHaveLength(1);
+    const thread = threads![0]!;
+    expect(thread.root).toMatchObject({ page: 1, pageIndex: 0, rect: NOTE_RECT, contents: "Ghi chú tiếng Việt", author: "Nguyễn An", binding: "bound" });
+    expect(thread.root.resolved).toBeUndefined();
+    expect(thread.id).toBe(thread.root.id);
+    expect(thread.replies).toEqual([]);
+    await adapter.session.dispose();
+  });
+
+  it("reports a resolved saved note as resolved", async () => {
+    const { adapter, editor } = noteSetup();
+    await adapter.open.open();
+    await editor.submitEngineOperations?.([
+      { op: "addNote", attributes: { note: { pageIndex: 0, rect: NOTE_RECT, contents: "Cần xử lý" } } },
+    ]);
+    const [before] = (await editor.readSavedNotes?.())!;
+    await editor.submitEngineOperations?.([
+      { op: "resolveNote", attributes: { pageIndex: 0, objNum: before!.root.objNum, rect: NOTE_RECT, contents: "Cần xử lý", resolved: true } },
+    ]);
+    const [after] = (await editor.readSavedNotes?.())!;
+    expect(after!.root.resolved).toBe(true);
+    await adapter.session.dispose();
+  });
+
+  it("marks a row the reader skipped as unbound", async () => {
+    const rect: [number, number, number, number] = [1, 2, 3, 4];
+    const readNotes = vi.fn(async () => ({
+      threads: [{ id: "0:4", root: { id: "0:4", page: 1, pageIndex: 0, objNum: 4, rect, contents: "note" }, replies: [] }],
+      skipped: [{ pageIndex: 0, objNum: 4, reason: "unreadable" }],
+    }));
+    const { adapter, editor } = setup({ readNotes });
+    await adapter.open.open();
+    const threads = await editor.readSavedNotes?.();
+    expect(threads![0]!.root.binding).toBe("unbound");
     await adapter.session.dispose();
   });
 

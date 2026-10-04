@@ -2,7 +2,7 @@
 
 import { createElement, lazy, Suspense, type ReactNode } from "react";
 import { sha256Hex } from "@uniwork/office-contracts";
-import { applyPdfOpsInBrowser, readPdfFormFields } from "@uniwork/office-engine/browser";
+import { applyPdfOpsInBrowser, readPdfFormFields, readPdfNotes, type BrowserPdfNoteRow } from "@uniwork/office-engine/browser";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, StableSnapshot } from "@uniwork/core/office";
 import {
   bridgePdfOperations,
@@ -10,6 +10,8 @@ import {
   type PdfCapability,
   type PdfEditOperation,
   type PdfEditorHandle,
+  type PdfNoteRow,
+  type PdfNoteThread,
   type PdfOpenOutcome,
   type PdfOpenPort,
   type PdfSnapshot,
@@ -28,6 +30,7 @@ export interface PdfFormatAdapterOptions extends BrowserOfficeDraftOptions<PdfSn
   createRenderSession?: typeof createPdfRenderSession;
   applyOps?: typeof applyPdfOpsInBrowser;
   readFormFields?: typeof readPdfFormFields;
+  readNotes?: typeof readPdfNotes;
 }
 
 type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>>;
@@ -60,6 +63,7 @@ function createPdfEditorSurface(options: {
   createRenderSession: typeof createPdfRenderSession;
   applyOps: typeof applyPdfOpsInBrowser;
   readFormFields: typeof readPdfFormFields;
+  readNotes: typeof readPdfNotes;
 }): PdfEditorSurface {
   let original: Uint8Array | null = null;
   let current: Uint8Array | null = null;
@@ -156,6 +160,24 @@ function createPdfEditorSurface(options: {
     },
   };
 
+  /** Map a browser row onto the views' shape. A row the reader skipped cannot
+      be acted on, so it is marked unbound; a reply is unbound only when the
+      reader skipped it, never because its root was. */
+  const toNoteRow = (row: BrowserPdfNoteRow, unbound: ReadonlySet<string>): PdfNoteRow => {
+    const mapped: PdfNoteRow = {
+      id: row.id,
+      page: row.page,
+      pageIndex: row.pageIndex,
+      objNum: row.objNum,
+      rect: row.rect,
+      contents: row.contents,
+      binding: unbound.has(row.id) ? "unbound" : "bound",
+    };
+    if (row.author !== undefined) mapped.author = row.author;
+    if (row.resolved !== undefined) mapped.resolved = row.resolved;
+    return mapped;
+  };
+
   return {
     format: "pdf",
     open: (password?: string) => load(undefined, password),
@@ -184,6 +206,17 @@ function createPdfEditorSurface(options: {
     async readFormFields() {
       if (!current) return [];
       return options.readFormFields(current);
+    },
+    async readSavedNotes(): Promise<readonly PdfNoteThread[]> {
+      const bytes = current;
+      if (!bytes) return [];
+      const read = await options.readNotes(bytes);
+      const unbound = new Set(read.skipped.map((skip) => `${skip.pageIndex}:${skip.objNum}`));
+      return read.threads.map((thread) => ({
+        id: thread.id,
+        root: toNoteRow(thread.root, unbound),
+        replies: thread.replies.map((reply) => toNoteRow(reply, unbound)),
+      }));
     },
     async searchText(query): Promise<SearchHits> {
       const needle = query.trim().toLowerCase();
@@ -225,6 +258,7 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
     createRenderSession: options.createRenderSession ?? createPdfRenderSession,
     applyOps: options.applyOps ?? applyPdfOpsInBrowser,
     readFormFields: options.readFormFields ?? readPdfFormFields,
+    readNotes: options.readNotes ?? readPdfNotes,
   });
   const transport = createPdfSaveTransport({
     documentId: options.identity.documentId,
