@@ -19,6 +19,11 @@ const MODEL: XlsxRenderModel = {
     },
   ],
   dxfStyles: [],
+  definedNames: [
+    { name: "Sales", formula: "Data!$A$1:$B$2" },
+    { name: "Scoped", formula: "PhuLuc!$A$1", sheetIndex: 1 },
+    { name: "HiddenName", formula: "Data!$A$1", hidden: true },
+  ],
   sheets: [
     {
       id: "sheet-1",
@@ -55,6 +60,11 @@ const MODEL: XlsxRenderModel = {
 };
 
 describe("render model bridge", () => {
+  it("defaults definedNames to an empty list when the model carries none", () => {
+    const file = toRendererWorkbookFile({ ...MODEL, definedNames: undefined }, { sessionId: "s-1", name: "book.xlsx", sha256: "c".repeat(64) });
+    expect(file.definedNames).toEqual([]);
+  });
+
   it("maps the model onto the vendored WorkbookFile shape", () => {
     const file = toRendererWorkbookFile(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "a".repeat(64), fileBytes: 1234, entryCount: 9 });
     expect(file.sessionId).toBe("s-1");
@@ -71,6 +81,13 @@ describe("render model bridge", () => {
     expect(file.date1904).toBe(true);
     expect(file.readOnly).toBe(false);
     expect(file.visuals).toEqual([]);
+    // B7 F1: the file's defined names reach the vendored loader; hidden names
+    // keep their reader-only flag so the name manager can preserve them.
+    expect(file.definedNames).toEqual([
+      { name: "Sales", formula: "Data!$A$1:$B$2" },
+      { name: "Scoped", formula: "PhuLuc!$A$1", sheetIndex: 1 },
+      { name: "HiddenName", formula: "Data!$A$1", hidden: true },
+    ]);
     // The pinned viewport loader iterates these even without table/note features.
     for (const sheet of file.sheets) {
       expect(sheet.tables).toEqual([]);
