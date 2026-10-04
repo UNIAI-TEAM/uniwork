@@ -228,6 +228,11 @@ export function EditorChrome({
   const selectedTabId = activeTabId ?? tabs[0]?.id;
   const selectedTab = tabs.find((tab) => tab.id === selectedTabId);
   const groups = (selectedTab?.groups ?? []).filter((group) => group.items.length > 0);
+  // The command row is the selected tab's panel: it holds exactly what that tab
+  // contributes. `aria-controls`/`aria-labelledby` therefore only resolve while
+  // the row actually renders, so a tab with no groups does not point at an id
+  // that is not in the DOM.
+  const commandPanelId = selectedTabId ? `${tabDomId(selectedTabId)}-panel` : undefined;
   const groupsKey = groups.map((group) => group.id).join("|");
   groupListRef.current = groups;
 
@@ -352,10 +357,11 @@ export function EditorChrome({
                     role="tab"
                     id={tabDomId(tab.id)}
                     aria-selected={selected}
+                    aria-controls={selected && hasCommandRow ? commandPanelId : undefined}
                     tabIndex={selected ? 0 : -1}
                     data-chrome-tab={tab.id}
                     className={cn(
-                      "flex min-h-8 shrink-0 items-center gap-1 rounded-control border-b-2 border-transparent px-2.5 text-label font-medium whitespace-nowrap text-muted-foreground transition-colors pointer-coarse:min-h-11",
+                      "flex min-h-8 shrink-0 items-center gap-1 rounded-control border-b-2 border-transparent px-2.5 text-label font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11",
                       selected && "border-primary text-foreground",
                     )}
                     onClick={() => onTabChange?.(tab.id)}
@@ -419,24 +425,32 @@ export function EditorChrome({
 
       {hasCommandRow ? (
         <div
-          ref={rowRef}
-          role="toolbar"
-          aria-label={commandsLabel ?? t("commands")}
-          className={cn(
-            COMMAND_ROW,
-            compact ? "overflow-x-auto" : "overflow-hidden",
-          )}
-          data-testid="editor-chrome-commands"
-          data-chrome-row="commands"
+          role="tabpanel"
+          id={commandPanelId}
+          aria-labelledby={selectedTabId ? tabDomId(selectedTabId) : undefined}
+          className="flex min-w-0 shrink-0"
         >
-          {visible.map((groupIndex, position) =>
-            groups[groupIndex]
-              ? renderGroup(groups[groupIndex]!, position > 0 ? visible[position - 1]! : null)
-              : null,
-          )}
-          {hidden.length > 0 ? (
-            <OverflowMenu groups={groups} indexes={hidden} label={overflowLabel ?? t("more")} />
-          ) : null}
+          <div
+            ref={rowRef}
+            role="toolbar"
+            aria-label={commandsLabel ?? t("commands")}
+            className={cn(
+              COMMAND_ROW,
+              "flex-1",
+              compact ? "overflow-x-auto" : "overflow-hidden",
+            )}
+            data-testid="editor-chrome-commands"
+            data-chrome-row="commands"
+          >
+            {visible.map((groupIndex, position) =>
+              groups[groupIndex]
+                ? renderGroup(groups[groupIndex]!, position > 0 ? visible[position - 1]! : null)
+                : null,
+            )}
+            {hidden.length > 0 ? (
+              <OverflowMenu groups={groups} indexes={hidden} label={overflowLabel ?? t("more")} />
+            ) : null}
+          </div>
         </div>
       ) : null}
 

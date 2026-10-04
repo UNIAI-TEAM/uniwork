@@ -177,6 +177,23 @@ describe("EditorChrome", () => {
     expect(onTabChange).toHaveBeenLastCalledWith("insert");
   });
 
+  it("nối tab đang mở với hàng lệnh bằng tabpanel và aria-controls", () => {
+    render(<EditorChrome tabs={tabs()} activeTabId="home" />);
+    const tab = screen.getByRole("tab", { name: "Trang chủ" });
+    const panel = screen.getByRole("tabpanel");
+    // Tab đang mở trỏ tới hàng lệnh; hàng lệnh trỏ ngược lại bằng aria-labelledby.
+    expect(tab).toHaveAttribute("aria-controls", panel.id);
+    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+    // Tab không được chọn không giữ aria-controls: chỉ panel của nó mới render.
+    expect(screen.getByRole("tab", { name: "Chèn" })).not.toHaveAttribute("aria-controls");
+  });
+
+  it("không trỏ aria-controls vào panel vắng mặt khi tab đang mở không có lệnh", () => {
+    render(<EditorChrome tabs={[{ id: "empty", label: "Trống", groups: [] }]} />);
+    expect(screen.queryByRole("tabpanel")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Trống" })).not.toHaveAttribute("aria-controls");
+  });
+
   it("đẩy nguyên nhóm vào » khi hàng hẹp, không xuống dòng", async () => {
     const restore = stubWidths({ history: 300, inline: 300 }, 400);
     try {
