@@ -522,6 +522,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
       if (commitInProgress) commitDenied = true;
+      // F10: a refused copy never inserts, so a marker left by an earlier
+      // copy must not survive to mislabel a later unrelated insert.
+      if (event.id === "sheet.command.copy-sheet") pendingSheetCopy = null;
       event.cancel = true;
       return;
     }

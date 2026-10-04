@@ -1,7 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { uniqueSheetName, validSheetName, XlsxSheetTabs, type XlsxSheetTab } from "./sheet-tabs";
 import { sheetActionOperation, type XlsxSheetTabAction } from "./sheet-commands";
+
+// The views suite runs in vi (test/setup.ts beforeAll), so the strip renders
+// Vietnamese strings; read them from the locale object rather than hardcoding
+// English (the pattern commit 530e465a established).
+const sheets = viLocale.office.xlsx.sheets;
+const unhideArchive = `${sheets.unhide}: Archive`;
+const duplicateName = `Data ${sheets.copySuffix}`;
 
 const tabs: XlsxSheetTab[] = [
   { name: "Data", hidden: false, tabColor: null },
@@ -26,93 +34,119 @@ describe("XlsxSheetTabs", () => {
     expect(onSelect).toHaveBeenCalledWith("Budget");
     // The read-only tab colour is shown and announced as pending.
     expect(screen.getByTestId("xlsx-sheet-color-Budget")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Budget" })).toHaveAttribute("title", "Tab colour (read-only — pending gateway)");
+    expect(screen.getByRole("tab", { name: "Budget" })).toHaveAttribute("title", sheets.tabColorReadOnly);
     expect(screen.getByTestId("xlsx-sheet-hidden-Archive")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Show sheet: Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: unhideArchive }));
     expect(onAction).toHaveBeenCalledWith({ kind: "set-hidden", sheet: "Archive", hidden: false });
   });
 
   it("adds a sheet with a unique default name", () => {
     const first = renderTabs();
-    fireEvent.click(first.view.getByRole("button", { name: "Add sheet" }));
-    expect(first.onAction).toHaveBeenCalledWith({ kind: "add", name: "Sheet" });
+    fireEvent.click(first.view.getByRole("button", { name: sheets.add }));
+    expect(first.onAction).toHaveBeenCalledWith({ kind: "add", name: sheets.defaultName });
     first.view.unmount();
-    const taken = renderTabs({ tabs: [...tabs, { name: "Sheet", hidden: false, tabColor: null }] });
-    fireEvent.click(taken.view.getByRole("button", { name: "Add sheet" }));
-    expect(taken.onAction).toHaveBeenCalledWith({ kind: "add", name: "Sheet 2" });
+    const taken = renderTabs({ tabs: [...tabs, { name: sheets.defaultName, hidden: false, tabColor: null }] });
+    fireEvent.click(taken.view.getByRole("button", { name: sheets.add }));
+    expect(taken.onAction).toHaveBeenCalledWith({ kind: "add", name: `${sheets.defaultName} 2` });
   });
 
   it("renames the active sheet through an inline input and abandons invalid or unchanged names", () => {
     const { onAction } = renderTabs();
-    fireEvent.click(screen.getByRole("button", { name: "Rename sheet" }));
-    const input = screen.getByRole("textbox", { name: "Sheet name" });
+    fireEvent.click(screen.getByRole("button", { name: sheets.rename }));
+    const input = screen.getByRole("textbox", { name: sheets.renameInput });
     expect(input).toHaveValue("Data");
     fireEvent.change(input, { target: { value: "Ngân sách" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onAction).toHaveBeenCalledWith({ kind: "rename", sheet: "Data", newName: "Ngân sách" });
     // Escape cancels, and an untouched name never emits.
-    fireEvent.click(screen.getByRole("button", { name: "Rename sheet" }));
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "Sheet name" }), { key: "Escape" });
-    expect(screen.queryByRole("textbox", { name: "Sheet name" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Rename sheet" }));
-    const reopen = screen.getByRole("textbox", { name: "Sheet name" });
+    fireEvent.click(screen.getByRole("button", { name: sheets.rename }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: sheets.renameInput }), { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: sheets.renameInput })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: sheets.rename }));
+    const reopen = screen.getByRole("textbox", { name: sheets.renameInput });
     fireEvent.change(reopen, { target: { value: "a/b" } });
     fireEvent.keyDown(reopen, { key: "Enter" });
     expect(onAction).toHaveBeenCalledTimes(1);
     // The input stays open on an invalid name so the user can fix it.
-    expect(screen.getByRole("textbox", { name: "Sheet name" })).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("textbox", { name: sheets.renameInput })).toHaveAttribute("aria-invalid", "true");
   });
 
   it("requires a confirming second click before deleting", () => {
     const { onAction } = renderTabs();
-    const remove = screen.getByRole("button", { name: "Delete sheet" });
+    const remove = screen.getByRole("button", { name: sheets.remove });
     fireEvent.click(remove);
     expect(onAction).not.toHaveBeenCalled();
-    const confirm = screen.getByRole("button", { name: "Confirm delete sheet?" });
+    const confirm = screen.getByRole("button", { name: sheets.confirmRemove });
     expect(confirm).toHaveAttribute("data-confirming", "true");
     fireEvent.click(confirm);
     expect(onAction).toHaveBeenCalledWith({ kind: "remove", sheet: "Data" });
-    expect(screen.getByRole("button", { name: "Delete sheet" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: sheets.remove })).toBeInTheDocument();
   });
 
   it("duplicates and moves the active sheet with absolute tab indices", () => {
     const first = renderTabs();
-    fireEvent.click(first.view.getByRole("button", { name: "Duplicate sheet" }));
-    expect(first.onAction).toHaveBeenCalledWith({ kind: "duplicate", sheet: "Data", name: "Data copy" });
-    fireEvent.click(first.view.getByRole("button", { name: "Move right" }));
+    fireEvent.click(first.view.getByRole("button", { name: sheets.duplicate }));
+    expect(first.onAction).toHaveBeenCalledWith({ kind: "duplicate", sheet: "Data", name: duplicateName });
+    fireEvent.click(first.view.getByRole("button", { name: sheets.moveRight }));
     expect(first.onAction).toHaveBeenCalledWith({ kind: "move", sheet: "Data", index: 1 });
     // Left is disabled on the first tab; right on the last.
-    expect(first.view.getByRole("button", { name: "Move left" })).toHaveAttribute("aria-disabled", "true");
+    expect(first.view.getByRole("button", { name: sheets.moveLeft })).toHaveAttribute("aria-disabled", "true");
     first.view.unmount();
     const last = renderTabs({ activeSheet: "Budget" });
-    expect(last.view.getByRole("button", { name: "Move right" })).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(last.view.getByRole("button", { name: "Move right" }));
+    expect(last.view.getByRole("button", { name: sheets.moveRight })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(last.view.getByRole("button", { name: sheets.moveRight }));
     expect(last.onAction).not.toHaveBeenCalled();
-    fireEvent.click(last.view.getByRole("button", { name: "Move left" }));
+    fireEvent.click(last.view.getByRole("button", { name: sheets.moveLeft }));
     expect(last.onAction).toHaveBeenCalledWith({ kind: "move", sheet: "Budget", index: 0 });
+  });
+
+  it("rejects renaming to another live sheet's name (case-insensitive)", () => {
+    const { onAction } = renderTabs();
+    fireEvent.click(screen.getByRole("button", { name: sheets.rename }));
+    const input = screen.getByRole("textbox", { name: sheets.renameInput });
+    fireEvent.change(input, { target: { value: "budget" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: sheets.renameInput })).toHaveAttribute("aria-invalid", "true");
+    // A case-only rewrite of the active sheet itself is still legal.
+    fireEvent.change(input, { target: { value: "data" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAction).toHaveBeenCalledWith({ kind: "rename", sheet: "Data", newName: "data" });
+  });
+
+  it("maps a visible move to the absolute tab index when a hidden sheet sits between", () => {
+    const interleaved: XlsxSheetTab[] = [
+      { name: "Data", hidden: false, tabColor: null },
+      { name: "Archive", hidden: true, tabColor: null },
+      { name: "Budget", hidden: false, tabColor: null },
+    ];
+    const { onAction } = renderTabs({ tabs: interleaved, activeSheet: "Data" });
+    // The visible neighbour is Budget at absolute index 2, not index 1.
+    fireEvent.click(screen.getByRole("button", { name: sheets.moveRight }));
+    expect(onAction).toHaveBeenCalledWith({ kind: "move", sheet: "Data", index: 2 });
   });
 
   it("hides the active sheet and refuses to hide the last visible one", () => {
     const first = renderTabs();
-    fireEvent.click(first.view.getByRole("button", { name: "Hide sheet" }));
+    fireEvent.click(first.view.getByRole("button", { name: sheets.hide }));
     expect(first.onAction).toHaveBeenCalledWith({ kind: "set-hidden", sheet: "Data", hidden: true });
     first.view.unmount();
     const single = renderTabs({ tabs: [{ name: "Data", hidden: false, tabColor: null }] });
-    expect(single.view.getByRole("button", { name: "Hide sheet" })).toHaveAttribute("aria-disabled", "true");
-    expect(single.view.getByRole("button", { name: "Delete sheet" })).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(single.view.getByRole("button", { name: "Hide sheet" }));
+    expect(single.view.getByRole("button", { name: sheets.hide })).toHaveAttribute("aria-disabled", "true");
+    expect(single.view.getByRole("button", { name: sheets.remove })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(single.view.getByRole("button", { name: sheets.hide }));
     expect(single.onAction).not.toHaveBeenCalled();
   });
 
   it("keeps every control aria-disabled without edit rights and never emits", () => {
     const { view, onAction, onSelect } = renderTabs({ canEdit: false });
-    for (const name of ["Add sheet", "Rename sheet", "Duplicate sheet", "Move left", "Move right", "Hide sheet", "Delete sheet", "Show sheet: Archive"]) {
+    for (const name of [sheets.add, sheets.rename, sheets.duplicate, sheets.moveLeft, sheets.moveRight, sheets.hide, sheets.remove, unhideArchive]) {
       expect(view.getByRole("button", { name })).toHaveAttribute("aria-disabled", "true");
     }
-    fireEvent.click(view.getByRole("button", { name: "Add sheet" }));
-    fireEvent.click(view.getByRole("button", { name: "Duplicate sheet" }));
-    fireEvent.click(view.getByRole("button", { name: "Delete sheet" }));
-    fireEvent.click(view.getByRole("button", { name: "Show sheet: Archive" }));
+    fireEvent.click(view.getByRole("button", { name: sheets.add }));
+    fireEvent.click(view.getByRole("button", { name: sheets.duplicate }));
+    fireEvent.click(view.getByRole("button", { name: sheets.remove }));
+    fireEvent.click(view.getByRole("button", { name: unhideArchive }));
     expect(onAction).not.toHaveBeenCalled();
     // Selecting a tab is a view action and still works.
     fireEvent.click(view.getByRole("tab", { name: "Budget" }));

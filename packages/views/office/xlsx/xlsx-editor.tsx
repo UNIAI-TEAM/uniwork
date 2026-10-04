@@ -95,6 +95,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const rootRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<XlsxGridHandle | null>(null);
   const [gridReady, setGridReady] = useState(false);
+  // F1: the mounted grid's active sheet id. A session rename keeps the id
+  // but changes the name, so the id is the stable key the strip resolves
+  // the live name through (the snapshot keeps file names all session).
+  const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
   // The right-click context menu and the shortcuts help dialog are UI-only.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
@@ -282,6 +286,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const selectSheet = useCallback((sheetName: string) => {
     setActiveSheet(sheetName);
     const rendererSheetId = gridSheetId(sheetName);
+    setActiveSheetId(rendererSheetId ?? null);
     if (gridReady && rendererSheetId) { gridRef.current?.selectSheet(rendererSheetId); return; }
     if (selection?.sheet === sheetName) return;
     const sheet = snapshot?.sheets.find((candidate) => candidate.name === sheetName);
@@ -570,12 +575,18 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // Tab colours have no write path in the vendored gateway: they are shown
   // read-only from the render model (the only reader of <tabColor>).
   const sheetTabInfos = useMemo(() => {
-    const colors = new Map((rendererHost?.file.sheets ?? []).map((sheet) => [sheet.name, sheet.tabColor]));
+    // F7: tab colour is keyed by the stable sheet id, not the file name, so
+    // a renamed sheet keeps its colour chip until the next save reloads it.
+    const colors = new Map((rendererHost?.file.sheets ?? []).map((sheet) => [sheet.id, sheet.tabColor]));
     const source = liveSheets.length > 0
-      ? liveSheets.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden }))
-      : sheets.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden ?? false }));
-    return source.map((sheet) => ({ ...sheet, tabColor: colors.get(sheet.name) ?? null }));
+      ? liveSheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden }))
+      : sheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden ?? false }));
+    return source.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden, tabColor: colors.get(sheet.id) ?? null }));
   }, [liveSheets, rendererHost, sheets]);
+  // F1: the strip must resolve "active" through the LIVE name. The mounted
+  // grid id is stable across a rename; the snapshot keeps file names all
+  // session, so resolving through it would wedge or mis-aim the actions.
+  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
 
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
   // Ctrl+PageUp/Down, and the redo alternate chord Ctrl+Shift+Z - upstream
@@ -588,7 +599,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     canEdit,
     canRedo: gridReady || typeof editor.redo === "function",
     sheets: sheetTabInfos,
-    activeSheet: activeSheetModel?.name ?? null,
+    activeSheet: resolvedActiveSheet,
     defaultSheetName: t("office.xlsx.sheets.defaultName"),
     onOpenFind: () => setFindOpen(true),
     onInsertSheet: (name) => runSheetAction({ kind: "add", name }),
@@ -697,7 +708,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             <div ref={sheetTabsRef} tabIndex={-1} className="outline-none">
               <XlsxSheetTabs
                 tabs={sheetTabInfos}
-                activeSheet={activeSheetModel?.name ?? null}
+                activeSheet={resolvedActiveSheet}
                 canEdit={canEdit}
                 onSelect={selectSheet}
                 onAction={runSheetAction}
@@ -746,6 +757,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                     };
                     setSelection(nextSelection);
                     setActiveSheet(nextSelection.sheet);
+                    setActiveSheetId(next.sheetId);
                     editor.selection?.setSelection?.(nextSelection);
                     onSelectionChange?.(nextSelection);
                   }

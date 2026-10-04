@@ -11,6 +11,29 @@
   type XlsxWorksheet,
 } from "@uniwork/office-engine/xlsx";
 
+/** F4: a snapshot that also carries the RAW pending op stream it was built
+ *  from. Draft recovery persists this value verbatim, so a recovered session
+ *  re-emits the exact ops it had queued (including sheet/structural/filter
+ *  ops a cell diff cannot reconstruct) instead of silently diverging. */
+export interface XlsxSnapshotWithPendingOps extends XlsxWorkbookSnapshot {
+  readonly pendingOps?: readonly unknown[] | undefined;
+}
+
+/** F4: a base snapshot is not a draft â€” drop any carried op stream so a
+ *  committed base can never re-emit ops the file already holds. */
+export function withoutPendingOps(snapshot: XlsxWorkbookSnapshot): XlsxWorkbookSnapshot {
+  if (!Array.isArray((snapshot as XlsxSnapshotWithPendingOps).pendingOps)) return snapshot;
+  const { pendingOps: _pendingOps, ...rest } = snapshot as XlsxSnapshotWithPendingOps;
+  return rest;
+}
+
+/** F4: attach the exact op stream a live snapshot is pending on top of its
+ *  base, so a recovered draft re-emits it verbatim (including the sheet ops a
+ *  cell diff cannot reconstruct). */
+export function withPendingOps(snapshot: XlsxWorkbookSnapshot, operations: readonly unknown[]): XlsxSnapshotWithPendingOps {
+  return { ...snapshot, pendingOps: structuredClone([...operations]) };
+}
+
 /** A gateway value snapshot carries no style fields. Keep serializable deltas
  *  on cells so a host that restores a protected draft can rebuild exactly the
  *  same server edit jobs the live session queued. */
@@ -113,7 +136,15 @@ export function applyXlsxJournalToSnapshot(base: XlsxWorkbookSnapshot, operation
     sheetNames: () => sheets.map((sheet) => sheet.name),
     nameForId: (id) => sheets.find((sheet) => sheet.id === id)?.name,
   }, (op) => applyOp(sheets, op));
-  return { revision: base.revision + 1, sheets };
+  // Carry the raw op stream forward (F4): the recovered draft re-emits it
+  // verbatim, so ops a cell diff cannot reconstruct are never dropped.
+  const previous = (base as XlsxSnapshotWithPendingOps).pendingOps;
+  const stream = [...(Array.isArray(previous) ? previous : []), ...operations];
+  return {
+    revision: base.revision + 1,
+    sheets,
+    ...(stream.length === 0 ? {} : { pendingOps: structuredClone(stream) }),
+  };
 }
 
 function snapshotsEqual(left: XlsxCellState | undefined, right: XlsxCellState | undefined): boolean {
@@ -126,6 +157,13 @@ function snapshotsEqual(left: XlsxCellState | undefined, right: XlsxCellState | 
  *  The server edit job is the only serializer/recalc path, so restoring a
  *  draft must rebuild its queued edits before the next explicit Save. */
 export function diffXlsxSnapshotsToOperations(base: XlsxWorkbookSnapshot, next: XlsxWorkbookSnapshot): unknown[] {
+  // F4: a snapshot that carries its raw op stream re-emits it verbatim.
+  const stream = (next as XlsxSnapshotWithPendingOps).pendingOps;
+  if (Array.isArray(stream)) return structuredClone(stream);
+  // Without the stream, sheet-level changes (rename/add/remove/reorder/
+  // hide) cannot be expressed by a cell diff. Fail loudly instead of
+  // saving a silently divergent file.
+  if (sheetStructureDiffers(base, next)) throw new Error("xlsx_draft_sheet_ops_unrecoverable");
   const operations: unknown[] = [];
   const baseSheets = new Map(base.sheets.map((sheet) => [sheet.name, sheet]));
   for (const sheet of next.sheets) {
@@ -150,4 +188,14 @@ export function diffXlsxSnapshotsToOperations(base: XlsxWorkbookSnapshot, next: 
     }
   }
   return operations;
+}
+
+/** True when the two snapshots differ in sheet identity/order/visibility ??? a
+ *  change no cell-level diff can rebuild (F4). */
+function sheetStructureDiffers(base: XlsxWorkbookSnapshot, next: XlsxWorkbookSnapshot): boolean {
+  if (base.sheets.length !== next.sheets.length) return true;
+  return base.sheets.some((sheet, index) => {
+    const other = next.sheets[index];
+    return other === undefined || sheet.name !== other.name || (sheet.hidden ?? false) !== (other.hidden ?? false);
+  });
 }

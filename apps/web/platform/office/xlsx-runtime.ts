@@ -5,7 +5,7 @@ import { dispatchOfficeError } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
-import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, withPendingOps, withoutPendingOps } from "@uniwork/views/office/xlsx";
 
 /** Required renderer fields: an older engine must fail clearly instead of
  * silently mounting the legacy value-only table. */
@@ -139,8 +139,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       if (disposed) throw new Error("xlsx_runtime_disposed");
       try {
         const opened = await openModel();
-        snapshot = cloneSnapshot(opened.snapshot);
-        committed = cloneSnapshot(snapshot);
+        snapshot = withoutPendingOps(cloneSnapshot(opened.snapshot));
+        committed = withoutPendingOps(cloneSnapshot(snapshot));
         return {
           outcome: "opened",
           document_id: input.documentId,
@@ -161,8 +161,11 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       if (!snapshot || !committed) throw new Error("xlsx_runtime_not_open");
       if (candidates.size) throw new Error("xlsx_restore_save_pending");
       const restored = { ...cloneSnapshot(recovered), revision: snapshot.revision + 1 };
-      pending = editsBetween(committed, restored).map((operation) => ({ revision: restored.revision, operation }));
-      snapshot = restored;
+      const operations = editsBetween(committed, restored);
+      pending = operations.map((operation) => ({ revision: restored.revision, operation }));
+      // F4: the recovered draft re-emits the ops it carries; keep that stream
+      // on the snapshot so a further interruption still recovers them.
+      snapshot = operations.length === 0 ? withoutPendingOps(restored) : withPendingOps(restored, operations);
     },
     async serialize(_ref, input) {
       if (!snapshot || !committed) throw new Error("xlsx_runtime_not_open");
@@ -202,7 +205,10 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       const candidate = candidates.get(intentId);
       if (!candidate?.output || candidate.baseRevision !== baseRevision) throw new Error("xlsx_commit_candidate_missing");
       if (!/^\d+$/.test(revision) || BigInt(revision) <= BigInt(baseRevision)) throw new Error("xlsx_commit_revision_invalid");
-      committed = cloneSnapshot(candidate.snapshot);
+      // F4: the committed base is the file the save just wrote, so it carries
+      // no pending stream; the live snapshot drops the ops it just saved.
+      committed = withoutPendingOps(cloneSnapshot(candidate.snapshot));
+      snapshot = snapshot === null ? null : withoutPendingOps(snapshot);
       pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision);
       baseRevision = revision;
       lastCommit = { intentId, revision };

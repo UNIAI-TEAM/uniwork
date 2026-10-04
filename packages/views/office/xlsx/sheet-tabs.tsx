@@ -66,7 +66,19 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
   const canMoveLeft = !blocked && activeIndex > 0;
   const canMoveRight = !blocked && activeIndex < visible.length - 1;
   const canHide = !blocked && visible.length > 1;
-  const renameValid = validSheetName(draft) && draft.trim() !== active?.name;
+  // F2: reject a name already taken by another live sheet (case-insensitive,
+  // matching the engine's assertSheetNameFree); a case-only rewrite of the
+  // active sheet itself stays legal.
+  const renameValid = validSheetName(draft) && draft.trim() !== active?.name &&
+    !tabs.some((tab) => tab.name !== active?.name && tab.name.toLowerCase() === draft.trim().toLowerCase());
+  // F6: the wire's reorder index is the ABSOLUTE tab position, but the strip
+  // navigates the visible tabs. Map the neighbouring visible tab back to its
+  // position in the full list so a hidden sheet between two visible ones does
+  // not turn the move into a silent no-op (or a jump past the hidden sheet).
+  const moveDestination = (delta: number): number | undefined => {
+    const neighbour = visible[activeIndex + delta];
+    return neighbour === undefined ? undefined : tabs.findIndex((tab) => tab.name === neighbour.name);
+  };
 
   useEffect(() => {
     if (renaming) renameRef.current?.focus();
@@ -205,7 +217,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveLeft")}
           aria-disabled={!canMoveLeft || undefined}
-          onClick={() => { if (canMoveLeft && active) onAction({ kind: "move", sheet: active.name, index: activeIndex - 1 }); }}
+          onClick={() => { const index = moveDestination(-1); if (index !== undefined && active) onAction({ kind: "move", sheet: active.name, index }); }}
           data-testid="xlsx-sheet-move-left"
         >
           <ChevronLeft aria-hidden />
@@ -216,7 +228,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveRight")}
           aria-disabled={!canMoveRight || undefined}
-          onClick={() => { if (canMoveRight && active) onAction({ kind: "move", sheet: active.name, index: activeIndex + 1 }); }}
+          onClick={() => { const index = moveDestination(1); if (index !== undefined && active) onAction({ kind: "move", sheet: active.name, index }); }}
           data-testid="xlsx-sheet-move-right"
         >
           <ChevronRight aria-hidden />

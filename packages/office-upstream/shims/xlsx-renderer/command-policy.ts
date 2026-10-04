@@ -353,6 +353,16 @@ function sheetNameValueOK(value: unknown): boolean {
   return typeof value === "string" && sheetNameShapeOK(value);
 }
 
+/** F2: a rename target must be free among the live sheets (case-insensitive,
+ *  matching the engine's assertSheetNameFree). `exceptId` exempts the sheet
+ *  being renamed so a case-only rewrite of itself stays legal; with no
+ *  exempt id (a selection-driven command) any collision is refused. */
+function sheetNameFree(value: unknown, state: LazyWorkbookState, exceptId: unknown): boolean {
+  if (typeof value !== "string" || !sheetNameShapeOK(value)) return false;
+  const needle = value.toLowerCase();
+  return liveSessionSheets(state).every((sheet) => sheet.id === exceptId || sheet.name.toLowerCase() !== needle);
+}
+
 function sheetCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
   const params = event.params as SheetMutationParams | undefined;
   const count = liveSessionSheets(state).length;
@@ -372,7 +382,7 @@ function sheetCommandAllowed(event: RendererCommand, state: LazyWorkbookState): 
       // Selection-driven: an explicit sheet id is optional and must be live.
       return params?.subUnitId === undefined || sheetRefOK(params.subUnitId, state);
     case "sheet.command.set-worksheet-name":
-      return sheetNameValueOK(params?.name) &&
+      return sheetNameFree(params?.name, state, params?.subUnitId) &&
         (params?.subUnitId === undefined || sheetRefOK(params.subUnitId, state));
     case "sheet.command.set-worksheet-order":
       return sheetIndexOK(params?.order, count, false) &&
@@ -395,7 +405,7 @@ function sheetMutationAllowed(event: RendererCommand, state: LazyWorkbookState):
       // The command itself refuses the last sheet; the gate refuses it first.
       return count > 1 && sheetRefOK(params.subUnitId, state);
     case "sheet.mutation.set-worksheet-name":
-      return sheetRefOK(params.subUnitId, state) && sheetNameValueOK(params.name);
+      return sheetRefOK(params.subUnitId, state) && sheetNameFree(params.name, state, params.subUnitId);
     case "sheet.mutation.set-worksheet-order":
       return sheetRefOK(params.subUnitId, state) &&
         sheetIndexOK(params.fromOrder, count, false) && sheetIndexOK(params.toOrder, count, false);

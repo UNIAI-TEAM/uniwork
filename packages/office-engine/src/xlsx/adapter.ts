@@ -248,7 +248,17 @@ export class XlsxAdapter {
     if (!Array.isArray(ops)) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "edit payload must be an ops array" });
     }
-    parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+    // F5: stage the whole envelope. Ops still apply while parsing (a later
+    // op must resolve against an earlier rename/add), but a mid-envelope
+    // parse failure rolls the model back to its pre-edit state instead of
+    // leaving the valid prefix applied.
+    const checkpoint = session.model.checkpoint();
+    try {
+      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+    } catch (error) {
+      session.model.rollback(checkpoint);
+      throw error;
+    }
     return { applied: true, revision: session.model.revision };
   }
 

@@ -53,6 +53,35 @@ interface ModelSheetState {
   readonly sourceKey?: string | undefined;
 }
 
+/** One removable-sheet tombstone (F3): the state and the pending edits a
+ *  removal set aside so an undo can resurrect them. */
+interface RemovedSheetState {
+  readonly state: ModelSheetState;
+  readonly pending: PendingCell[];
+  readonly structural: XlsxStructuralOp[];
+  readonly filter?: XlsxFilterOp | undefined;
+  readonly pageSetup?: XlsxPageSetupOp | undefined;
+  /** Tab position at removal: an undo re-insert with no explicit index lands
+   *  back where the sheet was instead of at the end of the strip. */
+  readonly index: number;
+}
+
+/** Opaque model snapshot for the adapter's all-or-nothing edit (F5). */
+export interface ModelCheckpoint {
+  readonly pending: Map<string, PendingCell>;
+  readonly structural: Map<string, XlsxStructuralOp[]>;
+  readonly filters: Map<string, XlsxFilterOp>;
+  readonly pageSetups: Map<string, XlsxPageSetupOp>;
+  readonly sheetStates: ModelSheetState[];
+  readonly removedOriginals: string[];
+  readonly removedStates: Map<string, RemovedSheetState>;
+  readonly sheetOrderChanged: boolean;
+  readonly sheetOpsApplied: number;
+  readonly addedSheetSequence: number;
+  readonly touched: boolean;
+  readonly revision: number;
+}
+
 /** One pending cell: content and independent style fields fold separately. */
 interface PendingCell {
   readonly sheetName: string;
@@ -111,6 +140,13 @@ export class XlsxSessionModel {
   /** Original file names of sheets removed this session (additions removed
    *  before save leave no trace). */
   private removedOriginals: string[] = [];
+  /** F3 tombstones: a removed sheet's state plus the pending edits it
+   *  carried, keyed by the name it had when removed. An `add_sheet` whose
+   *  name matches a tombstone cancels the removal and resurrects the
+   *  original state (the "unremove" an undo of a removal needs); the
+   *  gateway then keeps the original part untouched instead of writing a
+   *  blank one. */
+  private removedStates = new Map<string, RemovedSheetState>();
   /** True once a reorder op applied: calcChain sheet indexes go stale. */
   private sheetOrderChanged = false;
   /** Count of applied sheet ops — the save plan exists only when > 0. */
@@ -135,6 +171,43 @@ export class XlsxSessionModel {
 
   get isDirty(): boolean {
     return this.touched;
+  }
+
+  /** F5: an opaque rollback checkpoint of every mutable field. The adapter
+   *  applies ops while parsing (emission-order resolution), so a malformed
+   *  item mid-envelope would otherwise leave the valid prefix applied. It
+   *  checkpoints once, then rolls back if the parse throws. */
+  checkpoint(): ModelCheckpoint {
+    return structuredClone({
+      pending: this.pending,
+      structural: this.structural,
+      filters: this.filters,
+      pageSetups: this.pageSetups,
+      sheetStates: this.sheetStates,
+      removedOriginals: this.removedOriginals,
+      removedStates: this.removedStates,
+      sheetOrderChanged: this.sheetOrderChanged,
+      sheetOpsApplied: this.sheetOpsApplied,
+      addedSheetSequence: this.addedSheetSequence,
+      touched: this.touched,
+      revision: this.revision,
+    });
+  }
+
+  /** Restore the exact state a checkpoint captured (F5 rollback). */
+  rollback(checkpoint: ModelCheckpoint): void {
+    this.pending = new Map(checkpoint.pending);
+    this.structural = new Map(checkpoint.structural);
+    this.filters = new Map(checkpoint.filters);
+    this.pageSetups = new Map(checkpoint.pageSetups);
+    this.sheetStates = checkpoint.sheetStates;
+    this.removedOriginals = checkpoint.removedOriginals;
+    this.removedStates = new Map(checkpoint.removedStates);
+    this.sheetOrderChanged = checkpoint.sheetOrderChanged;
+    this.sheetOpsApplied = checkpoint.sheetOpsApplied;
+    this.addedSheetSequence = checkpoint.addedSheetSequence;
+    this.touched = checkpoint.touched;
+    this.revision = checkpoint.revision;
   }
 
   /** Sheet-name resolver the ops parser validates targets against. It is a
@@ -299,9 +372,25 @@ export class XlsxSessionModel {
 
   private applySheetOp(op: XlsxSheetOp): void {
     switch (op.kind) {
-      case "add_sheet":
+      case "add_sheet": {
+        const tombstone = this.removedStates.get(op.name);
+        if (tombstone !== undefined) {
+          // Undo of a removal: resurrect the original state (identity and
+          // pending edits intact) and cancel the removal, so the save emits
+          // no sheet op for this name and the file keeps its original part.
+          this.removedStates.delete(op.name);
+          const removedIndex = this.removedOriginals.indexOf(op.name);
+          if (removedIndex >= 0) this.removedOriginals.splice(removedIndex, 1);
+          this.sheetStates.splice(this.insertIndex(op.index ?? tombstone.index), 0, tombstone.state);
+          for (const entry of tombstone.pending) this.pending.set(JSON.stringify([entry.sheetName, toA1(entry.row, entry.column)]), entry);
+          if (tombstone.structural.length > 0) this.structural.set(tombstone.state.name, tombstone.structural);
+          if (tombstone.filter !== undefined) this.filters.set(tombstone.state.name, tombstone.filter);
+          if (tombstone.pageSetup !== undefined) this.pageSetups.set(tombstone.state.name, tombstone.pageSetup);
+          break;
+        }
         this.sheetStates.splice(this.insertIndex(op.index), 0, this.makeAddedSheet(op.name, undefined));
         break;
+      }
       case "duplicate_sheet": {
         const source = this.requireSheet(op.sheetName);
         const addition = this.makeAddedSheet(op.name, source.key);
@@ -320,20 +409,44 @@ export class XlsxSessionModel {
       }
       case "remove_sheet": {
         const sheet = this.requireSheet(op.sheetName);
+        // F9: refuse removing the last visible sheet early, matching the
+        // strip's own `visible.length > 1` guard and the gateway's rule.
+        if (!sheet.hidden && this.sheetStates.every((candidate) => candidate === sheet || candidate.hidden)) {
+          throw new XlsxEngineError("bad_target", "a workbook needs at least one visible sheet");
+        }
         if (sheet.originalName !== undefined) this.removedOriginals.push(sheet.originalName);
+        // Keep the state and its pending edits as a tombstone so an undo
+        // (an `add_sheet` of the same name) can resurrect the sheet intact.
+        const index = this.sheetStates.indexOf(sheet);
+        this.removedStates.set(sheet.name, {
+          state: sheet,
+          pending: [...this.pending.values()].filter((entry) => entry.sheetName === sheet.name),
+          structural: [...(this.structural.get(sheet.name) ?? [])],
+          filter: this.filters.get(sheet.name),
+          pageSetup: this.pageSetups.get(sheet.name),
+          index,
+        });
         this.dropPendingSheet(sheet.name);
-        this.sheetStates.splice(this.sheetStates.indexOf(sheet), 1);
+        this.sheetStates.splice(index, 1);
         break;
       }
       case "reorder_sheet": {
         const sheet = this.requireSheet(op.sheetName);
-        this.sheetStates.splice(this.sheetStates.indexOf(sheet), 1);
+        const from = this.sheetStates.indexOf(sheet);
+        this.sheetStates.splice(from, 1);
         this.sheetStates.splice(op.index, 0, sheet);
-        this.sheetOrderChanged = true;
+        // F9: a same-index move changes nothing; it must not stale the
+        // calcChain (orderChanged) or force the recalc skip.
+        if (this.sheetStates.indexOf(sheet) !== from) this.sheetOrderChanged = true;
         break;
       }
       case "set_sheet_hidden": {
         const sheet = this.requireSheet(op.sheetName);
+        // F9: refuse hiding the last visible sheet early, matching the
+        // strip's own `visible.length > 1` guard (the gateway would too).
+        if (op.hidden && !sheet.hidden && this.sheetStates.every((candidate) => candidate === sheet || candidate.hidden)) {
+          throw new XlsxEngineError("bad_target", "a workbook needs at least one visible sheet");
+        }
         sheet.hidden = op.hidden;
         sheet.hiddenTouched = true;
         break;
@@ -447,6 +560,15 @@ export class XlsxSessionModel {
     const hiddenChanges = live.flatMap((sheet) =>
       sheet.hiddenTouched ? [{ sheetName: sheet.originalName ?? sheet.name, hidden: sheet.hidden }] : [],
     );
+    // A resurrected removal (or a same-index reorder) leaves no plan field to
+    // write: the file already holds this state, so the save stays a pure
+    // cell/structural edit instead of a no-op sheet plan.
+    if (
+      renames.length === 0 && additions.length === 0 && this.removedOriginals.length === 0 &&
+      hiddenChanges.length === 0 && !this.sheetOrderChanged
+    ) {
+      return undefined;
+    }
     return {
       renames,
       additions,
@@ -571,6 +693,7 @@ export class XlsxSessionModel {
       added: false,
     }));
     this.removedOriginals = [];
+    this.removedStates.clear();
     this.sheetOrderChanged = false;
     this.sheetOpsApplied = 0;
     this.addedSheetSequence = 0;
