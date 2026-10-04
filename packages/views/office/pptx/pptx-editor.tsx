@@ -17,7 +17,8 @@ import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
 import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
-import { buildPptxPanel, pptxContextualSelection, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import type { PptxTabId } from "./pptx-ribbon";
 import { collectPptxPrintSlides, pptxPrintCapability, type PptxPrintPort } from "./print";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { PptxPresenter } from "./presenter";
@@ -140,6 +141,9 @@ export function PptxEditor({
   const [findOpen, setFindOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
+  // WIRE-PANEL-TABS: the editor owns the active ribbon tab so the side panel can
+  // be derived from it; the toolbar renders it as a controlled value.
+  const [activeTab, setActiveTab] = useState<PptxTabId>("home");
   const [gesturePending, setGesturePending] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [textTarget, setTextTarget] = useState<PptxTextTarget | null>(null);
@@ -249,9 +253,7 @@ export function PptxEditor({
     onSlideSelect?.(bounded);
   }, [onSlideSelect, slides.length]);
 
-  const waitForGesture = useCallback(async () => {
-    await gestureRef.current?.promise;
-  }, []);
+  const waitForGesture = useCallback(async () => { await gestureRef.current?.promise; }, []);
 
   const executeHistory = useCallback((kind: "undo" | "redo") => {
     if (kind === "undo") editorHandle?.undo?.();
@@ -346,9 +348,7 @@ export function PptxEditor({
     runCommand(runTextEdit());
   }, [openTextEditorForSelection, runCommand, runTextEdit]);
 
-  const save = useCallback(() => {
-    if (saveCoordinator) void saveCoordinator.save("button");
-  }, [saveCoordinator]);
+  const save = useCallback(() => { if (saveCoordinator) void saveCoordinator.save("button"); }, [saveCoordinator]);
 
   const openPresenter = useCallback(() => {
     presenterTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -497,8 +497,11 @@ export function PptxEditor({
 
   // Wire-round: compose the active panel (or the host-supplied one) through the
   // panel host; one generic edit channel, falling back to the handle edit port.
+  // An explicit panel/panelKind is a host override; otherwise the active tab
+  // decides the panel (pptxPanelForTab maps every panel-bearing tab, null for the rest).
+  const derivedPanelKind = panelKind ?? pptxPanelForTab(activeTab);
   const activePanel = panel ?? buildPptxPanel({
-    ...(panelKind ? { panelKind } : {}),
+    ...(derivedPanelKind ? { panelKind: derivedPanelKind } : {}),
     ...(onApplyEdit ? { onApplyEdit } : {}),
     ...(editableHandle?.edit ? { edit: (edits) => editableHandle.edit!(edits) } : {}),
     onError: reportCommandError,
@@ -514,6 +517,8 @@ export function PptxEditor({
       <PptxToolbar
         commands={commands}
         onCommand={onCommand}
+        activeTab={activeTab}
+        onActiveTabChange={setActiveTab}
         presenterOpen={presenterOpen}
         findButtonRef={setFindTrigger}
         {...(contextual ? { contextual } : {})}

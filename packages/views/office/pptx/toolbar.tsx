@@ -38,6 +38,13 @@ export interface PptxToolbarProps {
   onCommand: (id: PptxCommandId) => void;
   /** Default tab on mount; the ribbon remembers the user's choice afterwards. */
   defaultTab?: PptxTabId;
+  /** Controlled active tab; when supplied the toolbar no longer owns the state,
+   *  so the editor can derive the side panel from the same value (UNI-927
+   *  WIRE-PANEL-TABS). Omit it (and `onActiveTabChange`) to keep the previous
+   *  uncontrolled behaviour for callers that do not pass them. */
+  activeTab?: PptxTabId;
+  /** Notifies the owner of a tab change; only meaningful with `activeTab`. */
+  onActiveTabChange?: (tab: PptxTabId) => void;
   /** Engine-journal availability, so a toolbar Undo/Redo is disabled with the
    *  rest of the ribbon instead of pretending there is history. */
   canUndo?: boolean;
@@ -63,6 +70,8 @@ export function PptxToolbar({
   commands,
   onCommand,
   defaultTab = "home",
+  activeTab,
+  onActiveTabChange,
   canUndo,
   canRedo,
   presenterOpen = false,
@@ -71,7 +80,14 @@ export function PptxToolbar({
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
-  const [tab, setTab] = useState<PptxTabId>(defaultTab);
+  const [ownTab, setOwnTab] = useState<PptxTabId>(defaultTab);
+  // Controlled when the owner passes `activeTab`; otherwise the toolbar keeps
+  // owning the tab (the pre-WIRE-PANEL-TABS behaviour).
+  const tab = activeTab ?? ownTab;
+  const setTab = (next: PptxTabId) => {
+    setOwnTab(next);
+    onActiveTabChange?.(next);
+  };
   const resolved = useMemo(
     () =>
       commands.map((command) => {

@@ -369,6 +369,42 @@ describe("PptxEditor", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("derives the side panel from the active ribbon tab and reaches every mapped panel (WIRE-PANEL-TABS)", () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }] });
+    // Home maps to no panel: no side surface is mounted until a panel tab is chosen.
+    expect(document.querySelector("[data-pptx-panel-host]")).toBeNull();
+    const expectPanel = (selector: string) => {
+      const aside = document.querySelector("[data-pptx-panel-host]");
+      expect(aside).not.toBeNull();
+      expect(aside?.querySelector(selector)).not.toBeNull();
+    };
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    expectPanel("[data-pptx-insert-panel]");
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    expectPanel("[data-pptx-sorter-panel]");
+    fireEvent.click(screen.getByRole("tab", { name: "Review" }));
+    expectPanel("[data-pptx-notes-pane]");
+    fireEvent.click(screen.getByRole("tab", { name: "Design" }));
+    expectPanel("[data-pptx-design-panel]");
+    fireEvent.click(screen.getByRole("tab", { name: "Animations" }));
+    expectPanel("[data-pptx-animations-panel]");
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    expectPanel("[data-pptx-transitions-panel]");
+    // A tab with no mapped panel (Slide Show) renders no side surface.
+    fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
+    expect(document.querySelector("[data-pptx-panel-host]")).toBeNull();
+  });
+
+  it("keeps an explicitly supplied panelKind as the host override over the derived one (WIRE-PANEL-TABS)", () => {
+    renderEditor({ slides: [{ id: "s1" }], panelKind: "notes" });
+    // The override renders even while the active tab (Home) maps to no panel.
+    expect(document.querySelector("[data-pptx-panel-host] [data-pptx-notes-pane]")).not.toBeNull();
+    // Switching to another panel-bearing tab does not replace the host's choice.
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    expect(document.querySelector("[data-pptx-panel-host] [data-pptx-notes-pane]")).not.toBeNull();
+    expect(document.querySelector("[data-pptx-panel-host] [data-pptx-insert-panel]")).toBeNull();
+  });
+
   it("opens a contextual tab only while the matching object is selected (R4)", async () => {
     const { module } = tableRendererModule();
     render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} loadRendererModule={async () => module} slides={[{ id: "s1" }]} deck={deck} />);
