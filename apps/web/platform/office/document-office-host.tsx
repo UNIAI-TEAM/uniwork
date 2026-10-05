@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
+import "@uniwork/core/i18n/office-resources";
 import type { OfficeEditorHostProps } from "./editor-host";
 
 function LoadingEditor() {

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import "@uniwork/core/i18n/office-resources";
 import { afterEach, beforeAll } from "vitest";
 
 initI18n();

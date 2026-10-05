@@ -11,6 +11,7 @@ import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-di
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
+import "@uniwork/core/i18n/office-resources";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
