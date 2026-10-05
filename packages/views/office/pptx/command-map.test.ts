@@ -18,7 +18,7 @@ describe("PPTX command map", () => {
   it("renders shape gestures unavailable when the transform channel is absent", () => {
     const command = createPptxCommandMap({ host: null }).find((entry) => entry.id === "edit-shape-image");
     expect(command?.capability.status).toBe("unavailable");
-    expect(command?.capability.reason).toContain("host:slides-edit-transform");
+    expect(command?.capability.reason).toBe("office.pptx.reasons.transform_unbound");
   });
 });
 

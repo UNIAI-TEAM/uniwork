@@ -35,6 +35,8 @@ export interface OfficeRibbonProps {
   layout?: "auto" | "full" | "simplified";
   /** i18next key naming the ribbon landmark. */
   labelKey?: string;
+  /** i18next key for a tab whose body has no groups; absent renders no note. */
+  emptyKey?: string;
   className?: string;
 }
 
@@ -59,6 +61,7 @@ export function OfficeRibbon({
   trailing,
   layout = "auto",
   labelKey = "office.ribbon.label",
+  emptyKey,
   className,
 }: OfficeRibbonProps) {
   const { t } = useTranslation();
@@ -179,7 +182,11 @@ export function OfficeRibbon({
           collapsed && peek && "absolute inset-x-0 top-full border-b border-border bg-office-band shadow-[var(--menu-shadow)]",
         )}
       >
-        {simplified ? (
+        {groups.length === 0 ? (
+          // An honestly empty tab (no commands yet) explains itself instead of
+          // rendering a blank band. Opt-in: the lane supplies its own copy.
+          emptyKey ? <p className="px-3 py-2 text-caption text-muted-foreground">{t(emptyKey)}</p> : null
+        ) : simplified ? (
           <div
             role="toolbar"
             aria-label={t("office.ribbon.groups")}

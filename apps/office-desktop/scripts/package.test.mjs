@@ -142,6 +142,7 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
     { ext: "html", name: "HTML document", role: "Editor", mimeType: "text/html" },
     { ext: "htm", name: "HTML document", role: "Editor", mimeType: "text/html" },
     { ext: "xlsx", name: "Excel spreadsheet", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    { ext: "pptx", name: "PowerPoint presentation", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
   ]);
   // One entry per DISTINCT MIME type, in first-seen order: md/markdown and
   // html/htm each collapse to a single entry (F4).
@@ -152,6 +153,7 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
     "text/markdown",
     "text/html",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ]);
   assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);

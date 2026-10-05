@@ -5,11 +5,14 @@ const context = { sessionGeneration: "session_1234", workspaceId: "ws-1", docume
 const openResponse = { document: { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file" as const, format: "docx" as const, version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true }, dataBase64: "aGVsbG8=", filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" as const, checksum: `sha256:${"a".repeat(64)}` };
 
 describe("desktop office host injection", () => {
-  it("reads through the typed download command and rejects unsupported formats", async () => {
-    const bridge = { call: vi.fn(async () => ({ dataBase64: "aGVsbG8=" })) };
+  it("reads through the typed download command, opens every format-table format and refuses the rest", async () => {
+    const bridge = { call: vi.fn(async () => ({ dataBase64: "aGVsbG8=", document: { id: "doc-1", revision: "9" } })) };
     const host = createDesktopOfficeHost({ bridge: bridge as never, context });
     await expect(host.read.readDocument("doc-1")).resolves.toEqual(new Uint8Array([104, 101, 108, 108, 111]));
-    await expect(host.read.openDocument("doc-1", "pptx")).resolves.toMatchObject({ outcome: "failed", failure_class: "unsupported_feature" });
+    for (const format of ["docx", "pdf", "md", "html", "xlsx", "pptx"] as const) {
+      await expect(host.read.openDocument("doc-1", format)).resolves.toMatchObject({ outcome: "opened" });
+    }
+    await expect(host.read.openDocument("doc-1", "txt" as never)).resolves.toMatchObject({ outcome: "failed", failure_class: "unsupported_feature" });
   });
 
   it("uses one office-save command with the same intent and idempotency key", async () => {

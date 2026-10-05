@@ -64,4 +64,30 @@ describe("RibbonTabRow scroll chevrons", () => {
     fireEvent.scroll(list);
     expect(document.querySelector("[data-ribbon-tabs-next]")).toBeNull();
   });
+
+  it("centres the chevrons without a translate utility and scrolls on a real pointer press", () => {
+    const list = renderRow();
+    geometry(list, 600, 200);
+    const scrollBy = vi.fn();
+    list.scrollBy = scrollBy as unknown as typeof list.scrollBy;
+    list.scrollLeft = 100;
+    fireEvent.scroll(list);
+
+    for (const selector of ["[data-ribbon-tabs-prev]", "[data-ribbon-tabs-next]"]) {
+      const chevron = document.querySelector<HTMLButtonElement>(selector) as HTMLButtonElement;
+      // active:translate-y-px on the Button base would be overridden by (or override) a
+      // centring translate, so the press shifts the button off the pointer.
+      expect(chevron.className).not.toMatch(/(^|s)-?translate-/);
+      expect(chevron.className).toContain("inset-y-0");
+      expect(chevron.className).toContain("my-auto");
+    }
+
+    const next = document.querySelector<HTMLButtonElement>("[data-ribbon-tabs-next]") as HTMLButtonElement;
+    fireEvent.pointerDown(next);
+    fireEvent.mouseDown(next);
+    fireEvent.pointerUp(next);
+    fireEvent.mouseUp(next);
+    fireEvent.click(next);
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: 160, behavior: "smooth" });
+  });
 });

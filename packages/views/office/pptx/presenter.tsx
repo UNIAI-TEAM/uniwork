@@ -1,45 +1,101 @@
 "use client";
 
+/**
+ * The presenter overlay mount (UNI-927 C2 + WIRE-CANVAS-BIND).
+ *
+ * A thin adapter over the built presenter surface (`./show`): it opens as a
+ * fullscreen `role="dialog"`, hands it the REAL slide rendition the editor
+ * canvas mounts (never the 160px rail thumbnail, P0-2 F6), renders the speaker
+ * notes when the host bound them, and returns focus to the trigger on close.
+ * It owns no editor handle, worker, or save path.
+ */
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import type { PptxSlideView } from "./slide-rail";
+import type { PptxCanvasContent } from "./canvas/pptx-canvas-surface";
+import { PptxPresenterView } from "./show";
+import { applyShowNavAction, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction } from "./show/show-nav";
 
 export interface PptxPresenterProps {
-  slides: readonly PptxSlideView[];
+  /** Slide count of the deck being presented. */
+  slideCount: number;
+  /** 0-based index of the slide on screen. */
   selectedIndex: number;
   open: boolean;
   onClose: () => void;
+  /** The SAME SVG document the editor canvas mounts for the current slide. */
+  content?: PptxCanvasContent | null;
+  /** The next slide's rendition (null on the last slide). */
+  nextContent?: PptxCanvasContent | null;
+  /** Speaker notes for the current slide; null while the host has not loaded them. */
+  notes?: string | null;
+  /** A deck is bound and its rendition is still being built. */
+  building?: boolean;
+  /** Move the presented slide without closing the presenter. */
+  onIndexChange?: (index: number) => void;
+  /** Injectable clock for tests; defaults to `Date.now`. */
+  now?: () => number;
   className?: string;
 }
 
-/** Presentation mode is a view over the existing session. It receives the
- * current selection and has no editor handle, worker, or save path of its own. */
-export function PptxPresenter({ slides, selectedIndex, open, onClose, className }: PptxPresenterProps) {
+export function PptxPresenter({
+  slideCount,
+  selectedIndex,
+  open,
+  onClose,
+  content = null,
+  nextContent = null,
+  notes = null,
+  building = false,
+  onIndexChange,
+  now,
+  className,
+}: PptxPresenterProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const closeRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  // WIRE-CANVAS-BIND F1: the presenter is the only mounted show surface, so the
+  // full nav contract (not Escape alone) lives here. Focus goes to the surface
+  // itself - never the "Close presenter" button - so Space/Enter advance the
+  // show instead of activating the exit control.
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
+    surfaceRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (isShowActivationKey(event.key) && isShowInteractiveTarget(event.target)) return;
+      const action = resolveShowNavAction(event.key);
+      if (!action) return;
+      event.preventDefault();
+      if (action === "exit") {
+        onClose();
+        return;
+      }
+      const moved = applyShowNavAction(action, selectedIndex, slideCount);
+      if (moved !== selectedIndex) onIndexChange?.(moved);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, open]);
+  }, [onClose, onIndexChange, open, selectedIndex, slideCount]);
   if (!open) return null;
-  const slide = slides[selectedIndex];
   return (
-    <div className={cn("fixed inset-0 z-50 flex flex-col bg-black p-4 text-white", className)} role="dialog" aria-modal="true" aria-label={t("presenter_title")} data-pptx-presenter>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-label">{t("presenter_title")}</span>
-        <Button ref={closeRef} type="button" size="sm" variant="secondary" onClick={onClose}>{t("close_presenter")}</Button>
-      </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center py-4">
-        {slide?.thumbnailUrl ? <img src={slide.thumbnailUrl} alt={slide.label ?? t("slide_number", { index: selectedIndex + 1 })} className="max-h-full max-w-full object-contain" /> : <div className="text-center text-2xl">{slide?.label ?? t("slide_number", { index: selectedIndex + 1 })}</div>}
+    <div ref={surfaceRef} tabIndex={-1} className={cn("fixed inset-0 z-50 outline-none", className)} data-pptx-presenter>
+      <PptxPresenterView
+        slideCount={slideCount}
+        index={selectedIndex}
+        onIndexChange={onIndexChange ?? (() => undefined)}
+        onExit={onClose}
+        content={content}
+        nextContent={nextContent}
+        notes={notes}
+        building={building}
+        {...(now ? { now } : {})}
+      />
+      <div className="pointer-events-none absolute bottom-3 right-3">
+        <Button ref={closeRef} type="button" size="sm" variant="secondary" className="pointer-events-auto" onClick={onClose}>
+          {t("close_presenter")}
+        </Button>
       </div>
     </div>
   );
 }
-

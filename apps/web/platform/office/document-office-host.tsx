@@ -20,6 +20,7 @@ const PdfHost = dynamic(() => import("./pdf-office-host").then((module) => modul
 const XlsxHost = dynamic(() => import("./xlsx-office-host").then((module) => module.XlsxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const MarkdownHost = dynamic(() => import("./md-html-adapter").then((module) => module.MarkdownOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const HtmlHost = dynamic(() => import("./md-html-adapter").then((module) => module.HtmlOfficeEditorHost), { ssr: false, loading: LoadingEditor });
+const PptxHost = dynamic(() => import("./pptx-office-host").then((module) => module.PptxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 
 /** A format this host build has no editor for. Typed, never a silent fallback. */
 function UnsupportedHost({ format, title }: { format: string; title: string }) {
@@ -41,7 +42,9 @@ export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   if (format === "xlsx") return <XlsxHost {...props} />;
   if (format === "md") return <MarkdownHost {...props} />;
   if (format === "html") return <HtmlHost {...props} />;
-  // pptx and the conversion-only sources (xls, odt) have no web editor yet.
+  // UNI-927 P0-1: .pptx has its own browser host.
+  if (format === "pptx") return <PptxHost {...props} />;
+  // The conversion-only sources (xls, odt) have no web editor yet.
   // Say so; do not route them to a host for a different format.
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
 }

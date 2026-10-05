@@ -85,6 +85,9 @@
      grey workspace behind the pages. */
   --office-band: #f5f5f6;
   --office-canvas: #e8e8ea;
+  /* A page (slide, sheet of paper) lifted off the office canvas: contact
+     shadow plus a soft ambient drop, Office-like (frame rule F8). */
+  --office-page-shadow: 0 1px 3px rgb(0 0 0 / 0.28), 0 4px 16px rgb(0 0 0 / 0.1);
   --background: #ffffff;
   --foreground: #202020;
 
@@ -348,6 +351,9 @@
   /* Office editor chrome surfaces (UNI-933). */
   --office-band: #1a1a1a;
   --office-canvas: #0b0b0b;
+  /* A black drop vanishes on the near-black canvas: a faint light edge keeps
+     the page outline readable while the drop still grounds it. */
+  --office-page-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 4px 16px rgb(0 0 0 / 0.6);
   --background: #111111;
   --foreground: #f8f9fa;
 
@@ -688,6 +694,7 @@ html.dark[data-accent] {
   --shadow-surface: var(--surface-shadow);
   --shadow-menu: var(--menu-shadow);
   --shadow-floating: var(--floating-shadow);
+  --shadow-office-page: var(--office-page-shadow);
   /* Radius ramp, explicit per step: compact controls 8, default controls 10,
      cards 12, dialogs
      and popovers 16, panels 20, section media 32. Pill stays rounded-full. */

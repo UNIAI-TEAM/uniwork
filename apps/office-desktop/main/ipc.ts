@@ -60,6 +60,10 @@ export interface OfficeIpcOptions {
  * dispatcher validates request/response schemas after this function returns;
  * malformed provider answers therefore fail closed at the IPC boundary. */
 export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
+  // Main remembers the format of every document it opened or created; a Save
+  // whose declared format disagrees is refused, so the renderer can never
+  // upload one format's bytes under another document's media type.
+  const formatByDocument = new Map<string, DesktopDocumentFormat>();
   const requireSession = () => {
     if (options.isSignedIn && !options.isSignedIn()) throw new OfficeIpcError("login_required");
   };
@@ -89,6 +93,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       const session = options.session?.();
       const response = desktopOfficeOpenResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title, format: request.format }));
       assertSession(session);
+      formatByDocument.set(response.document.id, response.document.format);
       options.onDocumentOpened?.(response.document);
       return response;
     },
@@ -101,6 +106,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       const session = options.session?.();
       const response = desktopOfficeOpenResponseSchema.parse(await options.transport.open({ workspaceId: request.workspaceId, documentId: request.documentId, version: (request as { version?: number }).version }));
       assertSession(session);
+      formatByDocument.set(response.document.id, response.document.format);
       options.onDocumentOpened?.(response.document);
       return response;
     },
@@ -126,6 +132,8 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       const session = options.session?.();
       if (options.isOpened && !options.isOpened(request.documentId, request.workspaceId)) throw new OfficeIpcError("document_context_refused");
+      const openedFormat = formatByDocument.get(request.documentId);
+      if (openedFormat && openedFormat !== request.format) throw new OfficeIpcError("document_context_refused");
       const release = options.saveGuard?.tryAcquire();
       if (options.saveGuard && !release) throw new OfficeIpcError("saving");
       const confirmSave = options.beginSave?.(request.documentId);

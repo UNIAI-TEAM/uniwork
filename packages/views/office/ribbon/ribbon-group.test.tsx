@@ -79,6 +79,16 @@ describe("items", () => {
     expect(first.querySelector<HTMLElement>("[data-ribbon-item='family']")?.style.width).toBe("140px");
   });
 
+  it("shows a placeholder instead of a blank trigger when a combo has no value (R3 F-3)", () => {
+    const group = renderGroup({
+      id: "g",
+      labelKey: "G",
+      priority: 1,
+      items: [{ ...combo(), value: null, placeholderKey: "Unset spacing" } as RibbonItem],
+    });
+    expect(within(group).getByRole("combobox", { name: "Family" })).toHaveTextContent("Unset spacing");
+  });
+
   it("never renders a combo narrower than 56px", () => {
     const group = renderGroup({ id: "g", labelKey: "G", priority: 1, items: [combo(20)] });
     expect(group.querySelector<HTMLElement>("[data-ribbon-item='family']")?.style.width).toBe("56px");

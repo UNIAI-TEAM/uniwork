@@ -102,12 +102,29 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "next/dynamic",
   "@uniwork/views/office/docx",
   "@uniwork/office-upstream/docs-renderer-editor",
+  // UNI-927 P0-1: the PPTX host binds the generated pptx browser artifact in
+  // the browser. Its build rejects any non-browser external, and the engine
+  // closure it bundles (pptx-engine/pptx-ops/pptx-render) carries no
+  // Node/Electron import — node:crypto/node:zlib/Buffer are shimmed at build
+  // time (scripts/office/build-pptx-browser.mjs).
+  "@uniwork/office-upstream/pptx-renderer",
+  // UNI-927 D1: the desktop renderer mounts the shared PPTX view exactly as it
+  // mounts @uniwork/views/office/docx. The view graph is browser code (it binds
+  // the pptx artifact and office-engine/pptx, both already allowlisted).
+  "@uniwork/views/office/pptx",
+  // UNI-927 F9: the web adapter imports PptxEditor and the slide-rail types
+  // directly. They are the same browser-safe pptx view graph as the barrel
+  // above - only the subpath entry differs - so both subpaths are allowlisted
+  // rather than routed through the barrel (PptxEditor is not barrel-exported;
+  // only PptxEditorView is).
+  "@uniwork/views/office/pptx/editor-view",
+  "@uniwork/views/office/pptx/slide-rail",
   // UNI-925: the browser PDF apply (pdf-lib) and render (embedpdf wasm) are plain JS/wasm
   // fetched from a host URL; neither touches node:*.
   "pdf-lib",
   "@embedpdf/pdfium",
 ]);
-const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx"]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */

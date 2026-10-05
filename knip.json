@@ -72,7 +72,9 @@
         "shims/docs-renderer-entry.ts",
         "shims/genoffice-ui.ts",
         "shims/xlsx-renderer-entry.ts",
-        "shims/xlsx-renderer/*.ts"
+        "shims/xlsx-renderer/*.ts",
+        "shims/pptx-renderer-entry.ts",
+        "shims/pptx-renderer/*.ts"
       ],
       "ignoreDependencies": [
         "@univerjs/*",

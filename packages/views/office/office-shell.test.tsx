@@ -227,17 +227,28 @@ describe("OfficeShell", () => {
     expect(screen.getByTestId("office-save-ready")).toHaveTextContent("Chưa có thay đổi");
   });
 
-  it("keeps the default Save byte-identical when saveQuietWhenClean is absent", () => {
-    const absent = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
-    const absentButton = screen.getByRole("button", { name: "Lưu vào UniWork" });
-    const absentHtml = absentButton.outerHTML;
-    expect(absentButton).toHaveClass("bg-primary");
-    expect(absentButton).not.toHaveAttribute("aria-disabled");
-    expect(absentButton).not.toBeDisabled();
-    absent.unmount();
-    // Defaulting to false must render exactly what the absent prop renders.
-    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} saveQuietWhenClean={false} />);
-    expect(screen.getByRole("button", { name: "Lưu vào UniWork" }).outerHTML).toBe(absentHtml);
+  it("renders the same Save whether saveQuietWhenClean is absent or false", () => {
+    for (const state of ["ready", "dirty"] as const) {
+      const absent = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator(state)} />);
+      const absentHtml = screen.getByRole("button", { name: "Lưu vào UniWork" }).outerHTML;
+      absent.unmount();
+      // Defaulting to false must render exactly what the absent prop renders.
+      const explicit = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator(state)} saveQuietWhenClean={false} />);
+      expect(screen.getByRole("button", { name: "Lưu vào UniWork" }).outerHTML).toBe(absentHtml);
+      explicit.unmount();
+    }
+  });
+
+  it("quiets Save before any save state is known only when saveQuietWhenClean is set", () => {
+    const onSave = vi.fn();
+    const plain = render(<OfficeShell title="Document" editor={<div />} editorReady onSave={onSave} />);
+    expect(screen.getByRole("button", { name: "Lưu vào UniWork" })).not.toHaveAttribute("aria-disabled");
+    plain.unmount();
+    render(<OfficeShell title="Document" editor={<div />} editorReady onSave={onSave} saveQuietWhenClean />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("quiets the header Save with aria-disabled and no save when clean and saveQuietWhenClean is set", () => {
@@ -266,6 +277,40 @@ describe("OfficeShell", () => {
   it("names a local destination for a local save", () => {
     render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} saveDestination="local" />);
     expect(screen.getByRole("button", { name: "Lưu vào máy" })).toHaveTextContent(/^Lưu$/);
+  });
+
+  it("keeps Save in the tab order but inert and not primary while there is nothing to save", () => {
+    const saveCoordinator = coordinator("ready");
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).not.toBeDisabled();
+    expect(save.className).not.toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    fireEvent.keyDown(container.querySelector("[data-office-shell]")!, { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("keeps Save inert and not primary right after a save, until an edit makes the document dirty", () => {
+    const saveCoordinator = coordinator("saved");
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).not.toBeDisabled();
+    expect(save.className).not.toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    fireEvent.keyDown(container.querySelector("[data-office-shell]")!, { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("offers a primary, active Save once there is something to save", () => {
+    const saveCoordinator = coordinator("dirty");
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).not.toHaveAttribute("aria-disabled");
+    expect(save.className).toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    expect(saveCoordinator.save).toHaveBeenCalledWith("button");
   });
 
   it("keeps its own header with the cluster when it is not embedded", () => {
