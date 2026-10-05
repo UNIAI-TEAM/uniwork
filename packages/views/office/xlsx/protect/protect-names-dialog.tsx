@@ -70,11 +70,15 @@ export function XlsxProtectNamesDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent data-testid="xlsx-protect-names" closeLabel={t("office.xlsx.protect.dialog.close")}>
+      <DialogContent
+        data-testid="xlsx-protect-names"
+        closeLabel={t("office.xlsx.protect.dialog.close")}
+        className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100dvh-2rem)] sm:max-w-2xl"
+      >
         <DialogHeader>
           <DialogTitle>{t("office.xlsx.protect.dialog.title")}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-3">
+        <div className="grid min-h-0 gap-3 overflow-y-auto" data-testid="xlsx-protect-names-body">
           <div className="grid gap-1">
             <Label className="text-caption font-medium">{t("office.xlsx.protect.dialog.protectSheet")}</Label>
             <div className="flex gap-2">
@@ -100,35 +104,37 @@ export function XlsxProtectNamesDialog({
           <div className="grid gap-1">
             <Label className="text-caption font-medium">{t("office.xlsx.protect.dialog.names")}</Label>
             {rows.map((row, index) => (
-              <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] items-end gap-2">
+              <div key={index} data-testid="xlsx-name-row" className="flex flex-wrap items-end gap-2">
                 <Input
-                  className="h-8"
+                  className="h-8 min-w-32 flex-1"
                   aria-label={t("office.xlsx.protect.dialog.name")}
                   placeholder={t("office.xlsx.protect.dialog.namePlaceholder")}
                   value={row.name}
                   onChange={(event) => updateRow(index, { name: event.target.value })}
                 />
                 <Input
-                  className="h-8"
+                  className="h-8 min-w-40 flex-[2]"
                   aria-label={t("office.xlsx.protect.dialog.formula")}
                   placeholder={t("office.xlsx.protect.dialog.formulaPlaceholder")}
                   value={row.formula}
                   onChange={(event) => updateRow(index, { formula: event.target.value })}
                 />
                 {sheetNames.length > 0 ? (
-                  <Select
-                    aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
-                    triggerVariant="subtle"
-                    value={row.sheetIndex === "" ? WORKBOOK_SCOPE : row.sheetIndex}
-                    onValueChange={(value) => { if (value !== null) updateRow(index, { sheetIndex: value }); }}
-                    items={[
-                      { value: WORKBOOK_SCOPE, label: t("office.xlsx.protect.dialog.workbookScope") },
-                      ...sheetNames.map((name, position) => ({ value: String(position), label: name })),
-                    ]}
-                  />
+                  <div data-testid="xlsx-name-scope" className="w-48 shrink-0">
+                    <Select
+                      aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
+                      triggerVariant="subtle"
+                      value={row.sheetIndex === "" ? WORKBOOK_SCOPE : row.sheetIndex}
+                      onValueChange={(value) => { if (value !== null) updateRow(index, { sheetIndex: value }); }}
+                      items={[
+                        { value: WORKBOOK_SCOPE, label: t("office.xlsx.protect.dialog.workbookScope") },
+                        ...sheetNames.map((name, position) => ({ value: String(position), label: name })),
+                      ]}
+                    />
+                  </div>
                 ) : (
                   <Input
-                    className="h-8 w-16"
+                    className="h-8 w-16 shrink-0"
                     inputMode="numeric"
                     aria-label={t("office.xlsx.protect.dialog.sheetIndex")}
                     value={row.sheetIndex}
@@ -136,7 +142,7 @@ export function XlsxProtectNamesDialog({
                   />
                 )}
                 <Button
-                  type="button" variant="outline" size="sm"
+                  type="button" variant="outline" size="sm" className="shrink-0"
                   aria-label={t("office.xlsx.protect.dialog.remove")}
                   onClick={() => removeRow(index)}
                 >
