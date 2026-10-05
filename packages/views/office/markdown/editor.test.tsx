@@ -7,6 +7,7 @@ import { MarkdownEditor } from "./editor";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
+import type { MarkdownPrintPort } from "./wysiwyg/print";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
 
 initI18n();
@@ -29,7 +30,7 @@ const CAPABILITY: TextCapability & { format: "md" } = { format: "md", operation:
 
 const FIXTURE = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string; manifest?: { entries: readonly { key?: string; asset_id?: string; status?: "ready" | "missing" | "unauthorised" | "failed" }[] } | null; pageMenu?: boolean } = {}) {
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string; manifest?: { entries: readonly { key?: string; asset_id?: string; status?: "ready" | "missing" | "unauthorised" | "failed" }[] } | null; pageMenu?: boolean; printPort?: MarkdownPrintPort } = {}) {
   let text = options.text ?? FIXTURE;
   const listeners = new Set<(next: string) => void>();
   const handle: MarkdownEditorHandle = {
@@ -52,7 +53,7 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
   const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const saveCoordinator = options.coordinator ?? coordinator();
   const open = vi.fn(async () => options.openFails ? ({ outcome: "failed", document_id: "doc", format: "md", failure_class: "engine_error", message: "boom" } as MarkdownOpenOutcome) : outcome);
-  const editor = <MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} />;
+  const editor = <MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} printPort={options.printPort} />;
   // The page overflow (⋯) menu the host page owns; the editor contributes its
   // print/export entries to it through `HeaderActionsFill` (M-6/C4).
   const rendered = options.pageMenu
@@ -69,6 +70,15 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
 /** The ribbon's trailing Source | Visual control (C11). */
 function switchToSource() {
   fireEvent.click(screen.getByText("Source"));
+}
+
+/** Every LIVE `on*` handler attribute in a copy: escaped prose that merely
+ * quotes "onerror" is text, not a handler, so the DOM decides. */
+function liveHandlers(html: string): string[] {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return Array.from(doc.querySelectorAll("*")).flatMap((element) =>
+    Array.from(element.attributes).filter((attribute) => /^on/i.test(attribute.name)).map((attribute) => attribute.name),
+  );
 }
 
 describe("MarkdownEditor (production surface)", () => {
@@ -437,6 +447,54 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
       expect(item).toHaveAttribute("aria-disabled", "true");
       expect(item).toHaveAttribute("title", "This export format is not supported yet.");
     }
+  });
+
+  it("routes the Print entry through an INJECTED print port with the sanitized copy (never window.print)", async () => {
+    const windowPrint = vi.fn();
+    const original = window.print;
+    window.print = windowPrint;
+    try {
+      const calls: { html: string; title: string }[] = [];
+      const printPort: MarkdownPrintPort = {
+        print(request) {
+          calls.push({ html: request.html, title: request.title });
+          return { outcome: "printed" };
+        },
+      };
+      renderEditor({
+        pageMenu: true,
+        printPort,
+        text: "# Bao cao\n\n<script>parent.postMessage(\"x\", \"*\")</script>\n\n[click](javascript:alert(2))\n\n<img src=x onerror=\"alert(1)\">\n",
+      });
+      await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+      await waitFor(() => expect(calls).toHaveLength(1));
+      // The injected port received the SANITIZED copy: no script element, no
+      // live on* handler, no javascript: URL - and the prose survived.
+      expect(calls[0]!.html).not.toMatch(/<script/i);
+      expect(calls[0]!.html).not.toMatch(/javascript:/i);
+      expect(liveHandlers(calls[0]!.html)).toEqual([]);
+      expect(calls[0]!.html).toContain("Bao cao");
+      expect(calls[0]!.title).toBe("Markdown document");
+      // An injected port replaces the browser path: the view never reaches for
+      // the browser dialog itself.
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      window.print = original;
+    }
+  });
+
+  it("keeps the browser print path when no port is injected (default unchanged)", async () => {
+    renderEditor({ text: "# Bao cao\n", pageMenu: true });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    // The default browser port still mounts the off-screen frame and prints it,
+    // exactly as before the injection point existed.
+    const frame = document.querySelector("iframe");
+    expect(frame).not.toBeNull();
+    expect(frame!.contentDocument?.documentElement.outerHTML ?? "").toContain("Bao cao");
   });
 });
 

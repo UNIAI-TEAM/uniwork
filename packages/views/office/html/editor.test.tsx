@@ -1,14 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlEditor } from "./editor";
 import { HtmlVisualShell } from "./visual/shell";
-import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { HeaderActionsMenuItems, HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
 import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
+import type { MarkdownPrintPort } from "../markdown/wysiwyg/print";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -35,7 +37,7 @@ function cmView(container: HTMLElement): EditorView {
 
 const SOURCE = "<!doctype html>\n<!-- preserve -->\n<section data-x=\"1\">Keep</section>";
 
-function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }, title?: string) {
+function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boolean; canPaste?: boolean }, title?: string, printPort?: MarkdownPrintPort) {
   let source = SOURCE;
   const editor: HtmlEditorHandle = {
     format: "html",
@@ -51,7 +53,7 @@ function renderHtml(preview?: IsolatedPreviewPort, permissions?: { canCopy?: boo
   };
   const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const coordinator = makeCoordinator();
-  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} permissions={permissions} title={title} />);
+  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} permissions={permissions} title={title} printPort={printPort} />);
   return { editor, coordinator, ...rendered };
 }
 
@@ -740,5 +742,98 @@ describe("HtmlEditor find (UNI-928)", () => {
     expect(trailing).not.toBeNull();
     fireEvent.click(trailing.querySelector("button")!);
     await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+  });
+});
+
+/**
+ * UNI-928 print parity: HtmlEditor gains a Print entry ONLY when the host
+ * injects a print port. The default (no port) keeps today's behaviour: no
+ * entry at all, so apps/web and its tests are unchanged.
+ */
+describe("HtmlEditor print entry (UNI-928 parity)", () => {
+  function renderWithMenu(printPort?: MarkdownPrintPort) {
+    let source = SOURCE;
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    return render(
+      <HeaderActionsSlotProvider>
+        <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+        <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />
+      </HeaderActionsSlotProvider>,
+    );
+  }
+
+  it("offers NO Print entry when no port is injected (default unchanged)", async () => {
+    renderWithMenu();
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Print" })).toBeNull();
+  });
+
+  it("renders the Print entry and calls the injected port with the sanitized copy", async () => {
+    const windowPrint = vi.fn();
+    const original = window.print;
+    window.print = windowPrint;
+    try {
+      const calls: { html: string; title: string }[] = [];
+      const printPort: MarkdownPrintPort = {
+        print(request) {
+          calls.push({ html: request.html, title: request.title });
+          return { outcome: "printed" };
+        },
+      };
+      renderWithMenu(printPort);
+      await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+      await waitFor(() => expect(calls).toHaveLength(1));
+      // The copy is the sanitized preview copy: no script, no on* handler and
+      // no javascript: URL - while the document prose survives.
+      expect(calls[0]!.html).not.toMatch(/<script/i);
+      expect(calls[0]!.html).not.toMatch(/onerror/i);
+      expect(calls[0]!.html).not.toMatch(/javascript:/i);
+      expect(calls[0]!.html).toContain("Keep");
+      // The port is the ONLY print path: the view never calls window.print().
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      window.print = original;
+    }
+  });
+
+  it("sanitizes a hostile HTML source before it reaches the injected port", async () => {
+    const calls: { html: string }[] = [];
+    const printPort: MarkdownPrintPort = {
+      print(request) {
+        calls.push({ html: request.html });
+        return { outcome: "printed" };
+      },
+    };
+    let source = '<section>Keep</section><script>parent.postMessage("x","*")</script><img src=x onerror="alert(1)"><a href="javascript:alert(2)">go</a>';
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    render(
+      <HeaderActionsSlotProvider>
+        <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+        <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />
+      </HeaderActionsSlotProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]!.html).not.toMatch(/<script|onerror|javascript:/i);
+    expect(calls[0]!.html).toContain("Keep");
   });
 });

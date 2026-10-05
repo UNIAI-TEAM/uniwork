@@ -27,6 +27,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
+import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
 import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
@@ -106,6 +108,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   permissions = {},
   title,
   className,
+  printPort,
   onOpen,
 }: HtmlEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
@@ -259,6 +262,10 @@ export function HtmlEditor<TSnapshot = unknown>({
   // The ribbon's trailing Find affordance (C6) opens the panel through this
   // handle; Ctrl+F / Ctrl+H are owned by HtmlFind itself.
   const openFind = useCallback(() => findRef.current?.open(false), []);
+  // UNI-928 print parity: the source IS HTML, so the "render" step is the
+  // source itself - `sanitizePrintCopy` (scripts: false) then builds the
+  // script-free preview copy. Only reached when the host injected a port.
+  const renderPrintHtml = useCallback(() => sourceText(editorRef.current, ""), []);
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
   useEffect(() => {
@@ -433,6 +440,12 @@ export function HtmlEditor<TSnapshot = unknown>({
           }
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
+          {/* UNI-928: print rides the page overflow menu (C4), like Markdown.
+              With NO injected port the surface renders no entry at all, so the
+              web host and its tests are unchanged. */}
+          {printPort ? (
+            <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
+          ) : null}
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}

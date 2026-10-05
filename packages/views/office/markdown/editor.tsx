@@ -87,8 +87,7 @@ const browserPrintPort: MarkdownPrintPort = {
   print({ html, title }) {
     if (typeof document === "undefined") return { outcome: "failed", reason: "no_dom" };
     const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    frame.setAttribute("aria-hidden", "true"); frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
     document.body.append(frame);
     const view = frame.contentWindow;
     if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
@@ -145,6 +144,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   permissions = {},
   title,
   className,
+  printPort,
   onOpen,
 }: MarkdownEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
@@ -533,7 +533,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
         >
           {/* M-6/C4: print + export ride the page overflow menu, not a
               floating button over the canvas (C9). Renders nothing itself. */}
-          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
             replace) and Escape. It is mounted for BOTH canvases: the visual
