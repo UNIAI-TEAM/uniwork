@@ -647,3 +647,56 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(container.querySelector("[data-office-frame]")).toBeNull();
   });
 });
+
+/**
+ * UNI-928: the HTML surface's Find affordance. The ribbon's trailing Find
+ * button was never rendered because the host passed no `onFind`; the shared
+ * `FindReplacePanel` (S4) now searches the HTML document's SOURCE string, the
+ * one text the surface edits and saves.
+ */
+describe("HtmlEditor find (UNI-928)", () => {
+  function pressCtrl(key: string) {
+    fireEvent.keyDown(document, { key, ctrlKey: true });
+  }
+
+  it("opens on Ctrl+F find-only, counts matches, and closes on Escape", async () => {
+    await renderReady();
+    expect(screen.queryByTestId("html-find")).toBeNull();
+
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Find-only: the replace row is not rendered (Ctrl+H adds it).
+    expect(screen.queryByTestId("find-replace-value")).toBeNull();
+
+    // The searched text is the document source: "section" opens and closes.
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "section" } });
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2"));
+
+    fireEvent.keyDown(screen.getByTestId("find-replace-query"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("find-replace-panel")).toBeNull());
+    expect(screen.queryByTestId("html-find")).toBeNull();
+  });
+
+  it("opens with the replace row on Ctrl+H and applies a replacement through the text port", async () => {
+    const { editor } = await renderReady();
+    pressCtrl("h");
+    await waitFor(() => expect(screen.getByTestId("find-replace-value")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "Keep" } });
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1"));
+    fireEvent.change(screen.getByTestId("find-replace-value"), { target: { value: "Gone" } });
+    fireEvent.click(screen.getByTestId("find-replace-one"));
+
+    // The write went through the shared handle, not a direct DOM write.
+    await waitFor(() => expect(editor.source?.getText()).toContain("Gone"));
+    expect(editor.source?.getText()).not.toContain("Keep");
+  });
+
+  it("opens from the ribbon's trailing Find affordance (C6)", async () => {
+    await renderReady();
+    const trailing = document.querySelector<HTMLElement>("[data-ribbon-trailing]")!;
+    expect(trailing).not.toBeNull();
+    fireEvent.click(trailing.querySelector("button")!);
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+  });
+});

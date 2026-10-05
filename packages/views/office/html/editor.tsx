@@ -27,6 +27,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
+import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
 import { HtmlVisualShell } from "./visual/shell";
@@ -123,6 +124,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   // report of "Ctrl+backslash from Preview needs two presses". Remember whether
   // the press came from inside the landmark and take focus back when it did.
   const rootRef = useRef<HTMLElement | null>(null);
+  const findRef = useRef<HtmlFindHandle>(null);
   const restoreFocusRef = useRef(false);
   const savedGenerationRef = useRef(0);
   const editorRef = useRef(editor);
@@ -254,6 +256,9 @@ export function HtmlEditor<TSnapshot = unknown>({
     restoreFocusRef.current = true;
     setViewMode((mode) => nextViewMode(mode));
   }, []);
+  // The ribbon's trailing Find affordance (C6) opens the panel through this
+  // handle; Ctrl+F / Ctrl+H are owned by HtmlFind itself.
+  const openFind = useCallback(() => findRef.current?.open(false), []);
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
   useEffect(() => {
@@ -352,6 +357,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             <HtmlRibbon
               commands={ribbonCommands}
               state={{ readOnly }}
+              onFind={openFind}
               viewMode={ribbonViewMode}
               onViewModeChange={onRibbonViewModeChange}
               presenting={presenting}
@@ -385,6 +391,21 @@ export function HtmlEditor<TSnapshot = unknown>({
                 zoomDisabled={viewMode === "source"}
               />
             )
+          }
+          subbar={
+            /*
+              UNI-928: the shared FindReplacePanel docks here, in the frame's
+              full-width `subbar` row (the slot OfficeFrame documents for a
+              "find bar"), so it can never cover the page header. It renders
+              NOTHING while closed, so no empty chrome row is drawn.
+            */
+            <HtmlFind
+              ref={findRef}
+              handle={editor}
+              editable={!readOnly}
+              onChange={onTextChange}
+              onCheckpoint={checkpoint}
+            />
           }
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
