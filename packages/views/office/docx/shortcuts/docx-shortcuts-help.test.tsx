@@ -64,6 +64,13 @@ function openDialog(overrides: Partial<DocxToolbarGroupContext> = {}) {
 }
 
 describe("DocxShortcutsHelp", () => {
+  it("renders an inline ghost trigger that nothing floats over the canvas (C9)", () => {
+    render(<DocxShortcutsHelp {...context()} />);
+    const trigger = screen.getByTestId("docx-shortcuts-help-trigger");
+    expect(trigger.className).not.toMatch(/absolute|fixed|-top-/);
+    expect(screen.queryByTestId("docx-shortcuts-dock")).toBeNull();
+  });
+
   it("opens from the question-mark trigger and lists the grouped shortcuts", async () => {
     render(<DocxShortcutsHelp {...context()} />);
     const trigger = screen.getByTestId("docx-shortcuts-help-trigger");

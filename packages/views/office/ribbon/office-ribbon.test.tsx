@@ -100,12 +100,22 @@ describe("OfficeRibbon rendering", () => {
     render(<OfficeRibbon tabs={tabs} scope="docx" />);
     const paste = within(group("Clipboard")).getByRole("button", { name: "Paste" });
     expect(paste).toHaveAttribute("data-ribbon-size", "large");
-    const label = paste.querySelector("span") as HTMLElement;
+    // F4 (UNI-933): a large split is Word's Paste - icon on top, the label
+    // with its ▾ underneath as the menu trigger; the label never shrinks.
+    const label = paste.closest("[role=group]")?.querySelector("[data-ribbon-split-menu] span") as HTMLElement;
     expect(label).toHaveTextContent("Paste");
-    expect(label.className).toContain("shrink-0");
     expect(label.className).toContain("truncate");
-    expect(label.className).not.toContain("line-clamp");
-    expect(label).toHaveAttribute("title", "Paste");
+  });
+});
+
+describe("ribbon band", () => {
+  it("is one grey band: root owns the bottom border, tab row and body add none", () => {
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    const root = screen.getByRole("region");
+    expect(root).toHaveAttribute("data-office-ribbon", "docx");
+    expect(root).toHaveClass("bg-office-band", "border-b");
+    expect(root.querySelector("[data-ribbon-tab-row]")?.className).not.toContain("border-b");
+    expect(screen.getByRole("tabpanel").className).not.toContain("border");
   });
 });
 
@@ -226,7 +236,11 @@ describe("adaptive collapse", () => {
     const card = row.querySelector("button") as HTMLElement;
     expect(card.className).toContain("h-14");
     expect(card.className).not.toContain("h-full");
-    expect(card.querySelector("span")).toHaveTextContent("normal");
+    expect(card).toHaveAttribute("aria-label", expect.stringMatching(/normal/i));
+    // Specimen line on top, the card's own name underneath - both rendered.
+    const [specimen, name] = Array.from(card.querySelectorAll("span"));
+    expect(specimen).toHaveTextContent("AaBbCcDd");
+    expect(name).toHaveTextContent(/normal/i);
 
     // The caption row stays the last child, below the cards, not overlapped.
     expect(inPanel.lastElementChild).toHaveTextContent("Styles");

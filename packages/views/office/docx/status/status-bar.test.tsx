@@ -32,7 +32,7 @@ describe("DocxStatusBar", () => {
     expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: 64");
     expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): 55");
     expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: vi");
-    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 125%");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("125%");
   });
 
   it("renders the unknown mark for every missing field", () => {
@@ -44,10 +44,10 @@ describe("DocxStatusBar", () => {
       "docx-status-characters",
       "docx-status-characters-no-spaces",
       "docx-status-language",
-      "docx-status-zoom",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });
 
@@ -62,7 +62,7 @@ describe("DocxStatusBar", () => {
       expect(screen.getByTestId("docx-status-characters")).toHaveTextContent("Characters: 16");
       expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Characters (no spaces): 14");
       expect(screen.getByTestId("docx-status-page")).toHaveTextContent("Page 1 / 1");
-      expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
+      expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("100%");
     } finally {
       editor.destroy();
     }
@@ -87,7 +87,7 @@ describe("DocxStatusBar", () => {
     (zoom) => {
       renderBar({ zoom });
       const zoomCell = screen.getByTestId("docx-status-zoom");
-      expect(zoomCell).toHaveTextContent(/^—$/);
+      expect(zoomCell).toHaveTextContent(/^–$/);
       expect(zoomCell).not.toHaveTextContent("%");
     },
   );
@@ -101,7 +101,7 @@ describe("DocxStatusBar", () => {
     expect(right).toContainElement(screen.getByTestId("docx-status-selection"));
     expect(right).toContainElement(screen.getByTestId("docx-status-zoom"));
     expect(screen.getByTestId("docx-status-selection")).toHaveTextContent("Selection 2\u20137");
-    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("100%");
   });
 
   it("renders the selection count beside the range (C10)", () => {
@@ -123,23 +123,30 @@ describe("DocxStatusBar", () => {
     renderBar({ zoom: 100, onZoomIn, onZoomOut });
     const control = screen.getByTestId("docx-status-zoom-control");
     expect(control).toContainElement(screen.getByTestId("docx-status-zoom"));
-    fireEvent.click(screen.getByTestId("docx-status-zoom-out"));
-    fireEvent.click(screen.getByTestId("docx-status-zoom-in"));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(onZoomOut).toHaveBeenCalledTimes(1);
     expect(onZoomIn).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the zoom step buttons inert when no controller is wired", () => {
     renderBar({ zoom: 100 });
-    expect(screen.getByTestId("docx-status-zoom-out")).toBeDisabled();
-    expect(screen.getByTestId("docx-status-zoom-in")).toBeDisabled();
-    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Zoom: 100%");
+    expect(screen.getByRole("button", { name: "Zoom out" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Zoom in" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("100%");
+  });
+
+  it("renders through the shared status row with the help slot last (F9)", () => {
+    renderBar({ zoom: 100, help: <button type="button">help-slot</button> });
+    const row = document.querySelector("[data-office-status-bar]");
+    expect(row).not.toBeNull();
+    expect(row?.lastElementChild?.lastElementChild).toBe(screen.getByRole("button", { name: "help-slot" }));
   });
 
   it("hides the selection readout for a collapsed caret", () => {
     renderBar({ selection: { from: 4, to: 4 } });
     expect(screen.queryByTestId("docx-status-selection")).toBeNull();
-    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("\u2014");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
   });
 
   it("renders a partial page position without inventing the missing side", () => {
@@ -175,6 +182,6 @@ describe("DocxStatusBar", () => {
     expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Từ: 12");
     expect(screen.getByTestId("docx-status-characters-no-spaces")).toHaveTextContent("Ký tự (không dấu cách): 55");
     expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Ngôn ngữ: vi");
-    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("Thu phóng: 100%");
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("100%");
   });
 });

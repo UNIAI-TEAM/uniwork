@@ -43,7 +43,6 @@ const GROUP_WIDTH_DEFAULT = 96;
  */
 const GROUP_WIDTHS: Readonly<Record<string, number>> = {
   "home-font": 430,
-  "home-lists": 90,
   "home-paragraph": 230,
   "home-styles": 170,
   "insert-links": 60,

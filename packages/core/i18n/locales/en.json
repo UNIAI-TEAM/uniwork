@@ -6910,6 +6910,13 @@
     }
   },
   "office": {
+    "status": {
+      "label": "Status bar",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomValue": "{{value}}%"
+    },
     "docx": {
       "title": "DOCX document",
       "editor": {
@@ -7630,8 +7637,7 @@
         "words": "Words: {{value}}",
         "characters": "Characters: {{value}}",
         "charactersNoSpaces": "Characters (no spaces): {{value}}",
-        "language": "Language: {{language}}",
-        "zoom": "Zoom: {{percent}}%"
+        "language": "Language: {{language}}"
       },
       "actions": {
         "undo": "Undo",

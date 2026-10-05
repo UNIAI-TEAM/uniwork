@@ -147,7 +147,7 @@ export function OfficeRibbon({
   return (
     <div
       ref={rootRef}
-      className={cn("relative z-20 shrink-0 bg-background", className)}
+      className={cn("relative z-20 shrink-0 border-b border-border bg-office-band font-sans", className)}
       aria-label={t(labelKey)}
       role="region"
       data-office-ribbon={scope}
@@ -175,9 +175,8 @@ export function OfficeRibbon({
         data-ribbon-body=""
         data-ribbon-peek={collapsed && peek ? "true" : undefined}
         className={cn(
-          "border-b border-border bg-background",
-          simplified ? "h-12 pointer-coarse:h-14" : "h-23",
-          collapsed && peek && "absolute inset-x-0 top-full shadow-[var(--menu-shadow)]",
+          simplified ? "h-12 pointer-coarse:h-14" : "h-24",
+          collapsed && peek && "absolute inset-x-0 top-full border-b border-border bg-office-band shadow-[var(--menu-shadow)]",
         )}
       >
         {simplified ? (

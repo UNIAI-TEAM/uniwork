@@ -6,7 +6,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
 import { groupBlocks, itemSize, type RibbonBlock } from "./layout";
-import { RIBBON_PORTAL_ATTR, RibbonItemView } from "./ribbon-item";
+import { RIBBON_PORTAL_ATTR } from "./ribbon-menu";
+import { RibbonItemView } from "./ribbon-item";
 import type { RibbonGroup, RibbonGroupStage, RibbonItem } from "./types";
 
 function blockKey(block: RibbonBlock): string {
@@ -146,7 +147,9 @@ export function RibbonGroupView({ group, stage }: RibbonGroupViewProps) {
       aria-label={caption}
       data-ribbon-group={group.id}
       data-ribbon-stage={stage}
-      className="flex h-full shrink-0 flex-col border-r border-border px-1.5 last:border-r-0"
+      // The separator is an inset hairline (after:), so it never touches the
+      // top or bottom edge of the body; the last group has none.
+      className="relative flex h-full shrink-0 flex-col px-1.5 after:absolute after:inset-y-1.5 after:right-0 after:w-px after:bg-border last:after:hidden"
     >
       {stage === 3 ? (
         // The folded button carries the caption itself (Word), so no caption row.
@@ -154,9 +157,19 @@ export function RibbonGroupView({ group, stage }: RibbonGroupViewProps) {
       ) : (
         <>
           <GroupItems group={group} stage={stage} inPanel={false} />
-          <div className="flex h-4 shrink-0 items-center justify-center gap-1 text-caption leading-none text-muted-foreground">
+          <div
+            className={cn(
+              "relative flex h-4 shrink-0 items-center justify-center text-caption leading-none text-muted-foreground",
+              group.launcher && "px-4",
+            )}
+            data-ribbon-caption={group.id}
+          >
             <span className="truncate">{caption}</span>
-            <Launcher group={group} />
+            {group.launcher ? (
+              <span className="absolute inset-y-0 right-0 flex items-center">
+                <Launcher group={group} />
+              </span>
+            ) : null}
           </div>
         </>
       )}

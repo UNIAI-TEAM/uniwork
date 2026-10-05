@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { ClipboardPaste, ClipboardType, Copy, Scissors } from "lucide-react";
+import { ClipboardPaste, ClipboardType, Copy, Paintbrush, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useFormatPainter } from "../../character/format-painter";
 import type { RibbonItem } from "../../../ribbon";
 import { copySelection, cutSelection, insertPastePayload, readClipboardPayload, readClipboardText } from "../../context-menu/clipboard-actions";
 import { insertPlainText } from "../../context-menu/paste-options";
@@ -45,6 +46,44 @@ async function runPastePlain(): Promise<void> {
   if (text.length > 0) insertPlainText(editor, text);
 }
 
+function painterBlocked(context: DocxToolbarGroupContext): boolean {
+  return context.readOnly || context.saving || !context.commands || !context.format;
+}
+
+/**
+ * The format painter is a hook-driven control (it tracks the armed capture and
+ * the next selection), so it stays a `custom` icon item. Word keeps it in the
+ * Clipboard group, under Copy.
+ */
+function FormatPainterItem({
+  editor,
+  commands,
+  disabled,
+}: Pick<DocxToolbarGroupContext, "editor" | "commands"> & { disabled: boolean }) {
+  const { t } = useTranslation();
+  const painter = useFormatPainter({ editor, commands, disabled });
+  const label = painter.armed ? t("office.docx.character.formatPainterArmed") : t("office.docx.character.formatPainter");
+  const blocked = disabled || !editor.selection?.subscribe;
+  // A ribbon icon button (UNI-933): the Button primitive keeps the focus
+  // outline and the 44px coarse target, and aria-disabled keeps it in the tab
+  // order while the primitive blocks the click.
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="size-6 p-0 aria-pressed:bg-surface-selected aria-pressed:text-surface-selected-foreground [&_svg:not([class*='size-'])]:size-4"
+      aria-pressed={painter.armed}
+      aria-disabled={blocked || undefined}
+      aria-label={label}
+      title={label}
+      onClick={() => painter.toggle()}
+      data-testid="docx-format-painter"
+    >
+      <Paintbrush aria-hidden />
+    </Button>
+  );
+}
+
 /** The typed Clipboard items the ribbon renders for this group (R7). */
 export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const disabled = context.readOnly || context.saving;
@@ -73,8 +112,8 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
       id: "docx-clipboard-cut",
       labelKey: "office.docx.contextMenu.cut",
       icon: Scissors,
-      size: "small",
-      collapseAs: "small",
+      size: "icon",
+      collapseAs: "icon",
       shortcut: "Ctrl+X",
       disabled,
       onExecute: () => void runCut(),
@@ -84,11 +123,23 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
       id: "docx-clipboard-copy",
       labelKey: "office.docx.contextMenu.copy",
       icon: Copy,
-      size: "small",
-      collapseAs: "small",
+      size: "icon",
+      collapseAs: "icon",
+      rowBreak: true,
       shortcut: "Ctrl+C",
       disabled,
       onExecute: () => void runCopy(),
+    },
+    {
+      kind: "custom",
+      id: "docx-format-painter",
+      labelKey: "office.docx.character.formatPainter",
+      size: "icon",
+      collapseAs: "icon",
+      rowBreak: true,
+      width: 34,
+      disabled: painterBlocked(context),
+      render: () => <FormatPainterItem editor={context.editor} commands={context.commands} disabled={painterBlocked(context)} />,
     },
   ];
 }
