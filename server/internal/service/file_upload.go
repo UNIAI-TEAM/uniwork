@@ -677,7 +677,11 @@ func (s *FileService) writeTarget(ctx context.Context, loc storage.ObjectLocator
 	if err != nil {
 		return files.WriteTarget{}, files.StorageUnavailable(err)
 	}
-	return files.WriteTarget{URL: signed.URL, Method: signed.Method, Headers: map[string]string{}, ExpiresAt: deadline}, nil
+	headers := signed.Headers
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	return files.WriteTarget{URL: signed.URL, Method: signed.Method, Headers: headers, ExpiresAt: deadline}, nil
 }
 
 func providerKey(operationID string) string { return "provider:" + operationID }
