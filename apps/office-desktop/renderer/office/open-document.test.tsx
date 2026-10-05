@@ -203,3 +203,14 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   // The published revision advances, so the deck memo (and the canvas) sees it.
   await waitFor(() => expect((pptxProbe.views.at(-1)?.deck as { revision: number } | undefined)?.revision).toBe(1));
 });
+
+it("renders the header actions at the compact size the web Save cluster uses", async () => {
+  mount(async () => ({}));
+  const back = await screen.findByRole("button", { name: i18n.t("officeDesktop.library.back") });
+  const save = document.querySelector("[data-office-save]");
+  expect(save).not.toBeNull();
+  for (const token of ["h-7", "text-label"]) {
+    expect(save?.className).toContain(token);
+    expect(back.className).toContain(token);
+  }
+});

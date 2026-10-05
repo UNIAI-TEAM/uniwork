@@ -291,3 +291,29 @@ describe("collapse to tabs only", () => {
     expect(screen.getByRole("tabpanel", { hidden: true })).not.toBeVisible();
   });
 });
+
+describe("OfficeRibbon tab row overflow", () => {
+  it("scrolls horizontally and keeps the collapse toggle outside the scroller", () => {
+    const { tabs } = ribbonFixture();
+    render(<OfficeRibbon tabs={tabs} scope="docx" />);
+    const tablist = screen.getByRole("tablist", { name: "Các thẻ dải lệnh" });
+    expect(tablist.className).toContain("overflow-x-auto");
+    expect(tablist.className).toContain("min-w-0");
+    expect(tablist).not.toContainElement(document.querySelector("[data-ribbon-collapse-toggle]"));
+  });
+
+  it("brings the selected tab into view when selection changes", () => {
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const { tabs } = ribbonFixture();
+      render(<OfficeRibbon tabs={tabs} scope="docx" />);
+      scrollIntoView.mockClear();
+      fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+});

@@ -30,6 +30,13 @@ export function useDocxZoomState(controller: DocxZoomController): DocxZoomState 
   return state;
 }
 
+/** The zoom painted on the canvas (the user's percent capped to a narrow
+ *  canvas); the ruler and the status readout follow it, not the setting. */
+export function useDocxEffectiveZoomPercent(controller: DocxZoomController): number {
+  useDocxZoomState(controller);
+  return controller.getEffectivePercent();
+}
+
 /** View ▸ Zoom: step buttons, the preset picker and the two fit modes. Every
  *  action goes through the shared controller, which owns the surface. */
 export function DocxZoomControl({ controller, disabled = false, className }: DocxZoomControlProps) {

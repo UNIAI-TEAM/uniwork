@@ -8209,6 +8209,7 @@
       "unavailable": "Khôi phục bản nháp tạm thời không khả dụng"
     },
     "tabs": "Chế độ xem Office",
+    "formatName": { "docx": "DOCX", "xlsx": "XLSX", "pptx": "PPTX", "pdf": "PDF", "md": "Markdown", "html": "HTML" },
     "editor": {
       "canvas_label": "Trình soạn thảo {{format}}",
       "loading": "Đang tải trình soạn thảo…",

@@ -24,6 +24,7 @@ import type { CaseCommandMode } from "../../character/case-transform";
 import { useFormatPainter } from "../../character/format-painter";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../../editor-store";
 import type { RibbonItem } from "../../../ribbon";
+import { docxDefaultFontFamily } from "../font-family-display";
 import { docxFontSizeDisplay } from "../font-size-display";
 import type { DocxToolbarGroupContext } from "../types";
 
@@ -57,6 +58,7 @@ export function HomeFontGroup({ editor, format, commands, readOnly, saving }: Do
     <div className="flex flex-nowrap items-center gap-1">
       <FontFamilyPicker
         value={format?.fontFamily ?? null}
+        defaultFamily={docxDefaultFontFamily(live)}
         documentFonts={documentFonts}
         disabled={blocked}
         onPick={(family) => commands?.setFontFamily(family)}
@@ -213,9 +215,10 @@ const FAMILY_WIDTH = 148;
  */
 function FontFamilyItem({
   value,
+  defaultFamily,
   commands,
   disabled,
-}: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; disabled: boolean }) {
+}: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; defaultFamily: string | null; disabled: boolean }) {
   const [documentFonts, setDocumentFonts] = useState<readonly string[]>([]);
   const refreshDocumentFonts = useCallback(() => {
     const live = getDocxLiveEditor();
@@ -227,6 +230,7 @@ function FontFamilyItem({
     <div style={{ width: FAMILY_WIDTH }} className="[&_button]:w-full">
       <FontFamilyPicker
         value={value}
+        defaultFamily={defaultFamily}
         documentFonts={documentFonts}
         disabled={disabled}
         onPick={(family) => commands?.setFontFamily(family)}
@@ -265,7 +269,7 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       width: FAMILY_WIDTH,
       disabled: blocked,
       render: () => (
-        <FontFamilyItem value={format?.fontFamily ?? null} commands={commands} disabled={blocked} />
+        <FontFamilyItem value={format?.fontFamily ?? null} defaultFamily={docxDefaultFontFamily(getDocxLiveEditor())} commands={commands} disabled={blocked} />
       ),
     },
     {

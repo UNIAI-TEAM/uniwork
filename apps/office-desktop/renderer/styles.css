@@ -55,3 +55,7 @@
   .desktop-tab-close { opacity: 1; margin-right: 0; }
   .desktop-chrome-popup [role="menuitem"], .desktop-chrome-popup button { min-height: 44px; }
 }
+
+/* Native controls (scrollbars, form widgets) follow the same .dark class. */
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }

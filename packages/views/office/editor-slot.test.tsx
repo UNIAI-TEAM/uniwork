@@ -96,3 +96,19 @@ describe("EditorSlot", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 });
+
+describe("EditorSlot pending format message", () => {
+  it.each([
+    ["pptx", "PPTX"],
+    ["md", "Markdown"],
+    ["pdf", "PDF"],
+    ["html", "HTML"],
+  ] as const)("names %s by its display name, not the raw id", (format, display) => {
+    render(<EditorSlot format={format} host={host} capability="available" openState="ready" />);
+    const alert = screen.getByTestId("office-editor-pending");
+    expect(alert).toHaveTextContent(`${display} editing is not available yet.`);
+    expect(alert.textContent).not.toContain(`${format} editing`);
+    expect(alert.className).not.toMatch(/\b(?:border-white|border-\[#)/);
+    expect(alert.className).toContain("border-border");
+  });
+});

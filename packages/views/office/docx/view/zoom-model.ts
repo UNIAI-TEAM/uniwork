@@ -71,3 +71,27 @@ export function fitDocxZoomPercent(mode: "width" | "page", input: DocxFitInput):
   const heightFit = ((input.availableHeightPx - padding) / input.pageHeightPx) * 100;
   return clampDocxZoomPercent(Math.floor(Math.min(widthFit, heightFit)));
 }
+
+/** Breathing room kept beside the page when the canvas is narrower than it. */
+export const DOCX_ZOOM_NARROW_PADDING_PX = 24;
+
+export interface DocxNarrowFitInput {
+  availableWidthPx: number;
+  pageWidthPx: number;
+  paddingPx?: number;
+}
+
+/**
+ * The zoom actually painted: the user's percent scaled so a 100% page never
+ * outgrows a narrow canvas (Word's fit-width on a phone). A canvas that already
+ * holds the page leaves the user's percent untouched. Unmeasurable input
+ * keeps the user's percent. The result may go below the 50% user minimum - it is a layout
+ * fit, not a setting.
+ */
+export function effectiveDocxZoomPercent(percent: number, input: DocxNarrowFitInput): number {
+  const padding = input.paddingPx ?? DOCX_ZOOM_NARROW_PADDING_PX;
+  if (!(input.pageWidthPx > 0) || !(input.availableWidthPx > padding)) return percent;
+  const fit = Math.max(1, Math.floor(((input.availableWidthPx - padding) / input.pageWidthPx) * 100));
+  // Relative, so the +/- steps still move the page on a phone.
+  return Math.max(1, Math.round((percent * Math.min(100, fit)) / 100));
+}
