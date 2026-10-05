@@ -13,16 +13,18 @@ const BY_RANK: readonly RibbonSize[] = ["icon", "small", "large"];
 
 /** Average px per character of a text-caption / text-label run. */
 const CHAR_PX = 6.5;
-const LARGE_MIN = 52;
+const LARGE_MIN = 48;
 const SMALL_CHROME = 16 + 6 + 12; // icon + gap + padding
-const ICON_CELL = 30; // 28 px button + 2 px gap
-const COMBO_DEFAULT = 112;
+const ICON_CELL = 26; // 24 px button + 2 px gap
+/** Combo width default and floor in px (font family boxes need ~140). */
+export const COMBO_DEFAULT = 140;
+export const COMBO_MIN = 56;
 const CUSTOM_DEFAULT = 96;
 const GALLERY_CARD = 76;
-const GALLERY_MORE = 24;
+const GALLERY_MORE = 22; // 20 px more column + box border
 const BLOCK_GAP = 4;
 const GROUP_CHROME = 12 + 1; // horizontal padding + separator
-const LAUNCHER = 20;
+const LAUNCHER = 16;
 const SMALL_PER_COLUMN = 3;
 const MAX_STRIP_ROWS = 3;
 
@@ -113,10 +115,10 @@ export function groupBlocks(items: readonly RibbonItem[], stage: RibbonGroupStag
 }
 
 function itemWidth(item: RibbonItem, stage: RibbonGroupStage, measure: RibbonMeasure): number {
-  if (item.kind === "combo") return (item.width ?? COMBO_DEFAULT) + 2;
+  if (item.kind === "combo") return Math.max(COMBO_MIN, item.width ?? COMBO_DEFAULT) + 2;
   if (item.kind === "custom") return item.width ?? CUSTOM_DEFAULT;
   if (item.kind === "gallery") {
-    return galleryVisible(item, stage) * ((item.cardWidth ?? GALLERY_CARD) + 2) + GALLERY_MORE;
+    return galleryVisible(item, stage) * (item.cardWidth ?? GALLERY_CARD) + GALLERY_MORE;
   }
   const chevron = item.kind === "split" || item.kind === "dropdown" ? 14 : 0;
   const size = itemSize(item, stage);
@@ -145,7 +147,7 @@ export function groupWidth(group: RibbonGroup, stage: RibbonGroupStage, measure:
   if (stage === 3) return collapsedGroupWidth(group, measure);
   const blocks = groupBlocks(group.items, stage);
   const content = blocks.reduce((sum, block) => sum + blockWidth(block, stage, measure), 0) + Math.max(0, blocks.length - 1) * BLOCK_GAP;
-  const caption = measure(group.labelKey) + (group.launcher ? LAUNCHER : 0) + 8;
+  const caption = measure(group.labelKey) + (group.launcher ? 2 * LAUNCHER : 0) + 8;
   return Math.ceil(Math.max(content, caption)) + GROUP_CHROME;
 }
 
