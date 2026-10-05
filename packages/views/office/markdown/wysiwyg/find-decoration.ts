@@ -197,12 +197,27 @@ export function createMarkdownFindPlugin(): Plugin<MarkdownFindHighlight> {
 }
 
 /**
- * Push a highlight into the editor. `addToHistory: false` keeps a paint-only
- * change out of the undo stack; the transaction carries no document change, so
- * it never fires `onUpdate` and M1 never re-publishes the source for it.
+ * Push a highlight into the editor.
+ *
+ * `addToHistory: false` keeps a paint-only change out of the undo stack.
+ * `preventUpdate: true` is load-bearing: the transaction carries no document
+ * change of its own, but TrailingNode (`@tiptap/extensions`, in the shared
+ * editor's extension set) appends an empty paragraph on EVERY dispatched
+ * transaction whose last block is not a paragraph. That appended step makes the
+ * transaction `docChanged`, so without this meta TipTap fires `update` and M1
+ * re-publishes the source - a find-highlight clear at mount would rewrite the
+ * text port with `source + "\n\n"` and mark the document dirty for bytes the
+ * user never wrote. The meta suppresses `update` even when an appended
+ * transaction changed the doc (see `dispatchTransaction` in `@tiptap/core`), so
+ * the paint never publishes.
  */
 export function applyMarkdownFindHighlight(editor: Editor, highlight: MarkdownFindHighlight): void {
-  editor.view.dispatch(editor.state.tr.setMeta("addToHistory", false).setMeta(markdownFindPluginKey, highlight));
+  editor.view.dispatch(
+    editor.state.tr
+      .setMeta("addToHistory", false)
+      .setMeta("preventUpdate", true)
+      .setMeta(markdownFindPluginKey, highlight),
+  );
 }
 
 export function clearMarkdownFindHighlight(editor: Editor): void {

@@ -228,7 +228,6 @@ export function MarkdownEditor<TSnapshot = unknown>({
     setUploadFailures({});
     setOutlineVisible(false);
     setFrontmatterVisible(false);
-    canvasCheckpointArmedRef.current = false;
 
     const run = async () => {
       // The gate refuses an engine that cannot serialize, or a handle with no
@@ -343,21 +342,21 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // the value into the host state and marks the document dirty. A canvas
   // transaction that leaves the bytes alone - a find/replace highlight paint,
   // or the first publish after mount - is NOT an edit: it must neither dirty
-  // the document nor ask the coordinator for a checkpoint.
+  // the document nor ask the coordinator for a checkpoint. Those transactions
+  // carry `preventUpdate` (see `applyMarkdownFindHighlight`), so they never
+  // reach `onWysiwygChange` at all; this identity check is the belt to that
+  // braces and the flag the checkpoint guard keys on below.
   const wysiwygEditedRef = useRef(false);
   const onWysiwygChange = useCallback((next: string) => {
     wysiwygEditedRef.current = next !== latestTextRef.current;
     setText(next);
     if (wysiwygEditedRef.current) markDirty();
   }, [markDirty]);
-  // The canvas publishes once on mount (the parse/serialize normalisation), and
-  // a find-highlight repaint dispatches a transaction that can make an
-  // extension append a trailing block. Neither is a user edit: the first
-  // checkpoint after the canvas mounts is dropped, so opening a document never
-  // mints a draft checkpoint for bytes the user did not touch.
-  const canvasCheckpointArmedRef = useRef(false);
+  // The guard keys on "has a REAL user edit been published", never on "the
+  // first checkpoint call seen": the mount-time publish is suppressed at the
+  // source (see `applyMarkdownFindHighlight`), so a clean-mounting document
+  // must not lose the checkpoint for its first real edit.
   const onWysiwygCheckpoint = useCallback(() => {
-    if (!canvasCheckpointArmedRef.current) { canvasCheckpointArmedRef.current = true; return; }
     if (wysiwygEditedRef.current) checkpoint();
   }, [checkpoint]);
   const onAssetFailure = useCallback((name: string, status: AssetStatus) => {

@@ -348,3 +348,69 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     }
   });
 });
+
+/**
+ * VFIXB2-f — the mount-publish regression (UNI-928).
+ *
+ * TrailingNode (`@tiptap/extensions`, in the shared extension set) appends an
+ * empty paragraph on EVERY dispatched transaction whose last block is not a
+ * paragraph. The find panel clears its highlight on mount, and that clear used
+ * to make the transaction `docChanged`, so M1 published and the shared text
+ * port was rewritten with `source + "\n\n"` — bytes the user never wrote — on a
+ * plain (even read-only) open. The paint now carries `preventUpdate`, which
+ * makes TipTap skip `update` even when an appended transaction changed the doc.
+ */
+describe("MarkdownEditor mount byte-identity (VFIXB2-f)", () => {
+  /** The document ends in a raw HTML comment: TrailingNode appends on any dispatch. */
+  const RAW_ENDING = "# Title\n\nsome text\n\n<!-- tail -->";
+
+  it("opens a raw-ending document without dirtying it or touching the bytes", async () => {
+    const { handle, saveCoordinator } = renderEditor({ text: RAW_ENDING });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".ProseMirror[contenteditable='true']")).toBeTruthy());
+    await act(async () => { await Promise.resolve(); });
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    expect(saveCoordinator.checkpoint).not.toHaveBeenCalled();
+    expect(handle.source!.getText()).toBe(RAW_ENDING);
+  });
+
+  it("does not rewrite the buffer on a read-only open", async () => {
+    const { handle, saveCoordinator } = renderEditor({ text: RAW_ENDING, capability: { ...CAPABILITY, status: "readonly" } });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".ProseMirror")).toBeTruthy());
+    await act(async () => { await Promise.resolve(); });
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    expect(handle.source!.getText()).toBe(RAW_ENDING);
+  });
+
+  it("does not checkpoint or grow the tail across a visual -> source -> visual toggle", async () => {
+    const { handle, saveCoordinator } = renderEditor({ text: RAW_ENDING });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await act(async () => { await Promise.resolve(); });
+    switchToSource();
+    await screen.findByTestId("md-source");
+    fireEvent.click(screen.getByText("Visual"));
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await act(async () => { await Promise.resolve(); });
+    expect(saveCoordinator.checkpoint).not.toHaveBeenCalled();
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    // The remount must not append another TrailingNode tail to the source.
+    expect(handle.source!.getText()).toBe(RAW_ENDING);
+  });
+
+  it("checkpoints the FIRST edit of a clean-mounting (paragraph-ending) document", async () => {
+    const CLEAN = "# Title\n\nsome text\n";
+    const { handle, saveCoordinator } = renderEditor({ text: CLEAN });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".ProseMirror[contenteditable='true']")).toBeTruthy());
+    // Mounting this document dispatches nothing, so no checkpoint has fired yet.
+    expect(saveCoordinator.checkpoint).not.toHaveBeenCalled();
+    await act(async () => {
+      liveEditor().commands.focus("end");
+      typeChars(liveEditor(), "x");
+    });
+    await waitFor(() => expect(saveCoordinator.checkpoint).toHaveBeenCalledTimes(1));
+    expect(saveCoordinator.markDirty).toHaveBeenCalled();
+    expect(handle.source!.getText()).not.toBe(CLEAN);
+  });
+});
