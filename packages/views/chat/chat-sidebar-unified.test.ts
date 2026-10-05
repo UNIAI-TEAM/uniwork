@@ -88,4 +88,43 @@ describe("buildUnifiedSidebarEntries", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.kind).toBe("dm");
   });
+
+  it("filters to unread and mention rooms (UNI-515)", () => {
+    const base = {
+      kindFilter: "all" as const,
+      filterText: "",
+      workspaceTitle: "General",
+      workspaceRoomId: "ws",
+      channels: [],
+      groups: [
+        {
+          id: "g1",
+          name: "Design",
+          room_id: "g-room",
+          member_user_ids: ["u1"],
+        },
+      ],
+      contacts: [
+        {
+          user_id: "u2",
+          email: "a@example.com",
+          display_name: "Binh",
+          dm_room_id: "dm1",
+        },
+      ],
+      nicknamesByUserId: {},
+      roomPreviewsByRoomId: {},
+      pinnedByRoomId: {},
+      unreadByRoomId: { dm1: 2, "g-room": 0, ws: 1 },
+      mentionUnreadByRoomId: { dm1: 1, "g-room": 0, ws: 0 },
+    };
+
+    expect(
+      new Set(buildUnifiedSidebarEntries({ ...base, activityFilter: "unread" }).map((e) => e.key)),
+    ).toEqual(new Set(["dm:u2", "workspace"]));
+
+    expect(
+      buildUnifiedSidebarEntries({ ...base, activityFilter: "mentions" }).map((e) => e.key),
+    ).toEqual(["dm:u2"]);
+  });
 });

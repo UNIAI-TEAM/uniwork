@@ -107,8 +107,10 @@ type SignOptions struct {
 // written to a log or an error string. Method is the HTTP verb the URL is
 // valid for (GET for SignRead, PUT for SignWrite).
 type SignedURL struct {
-	URL       string
-	Method    string
+	URL    string
+	Method string
+	// Headers must be sent on the presigned request (SigV4 signed header list).
+	Headers   map[string]string
 	ExpiresAt time.Time
 }
 

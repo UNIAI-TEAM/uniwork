@@ -165,7 +165,8 @@ ports via `.env.worktree` (`make worktree-env`, `make setup-worktree`,
 and generates the file itself.
 
 CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
-`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
+`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high` (unfixable
+advisories listed in root `package.json` → `pnpm.auditConfig.ignoreCves`),
 `govulncheck`, a gitleaks scan, and the Playwright suite (`e2e` job: server
 binary + production Next build against the same services).
 
