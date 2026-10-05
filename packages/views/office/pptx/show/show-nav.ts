@@ -100,3 +100,35 @@ export function formatElapsedClock(elapsedMs: number): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
+
+/**
+ * `applyShowNavAction` over the VISIBLE slides only: a hidden slide is skipped
+ * in the show the way PowerPoint skips it (`hidden[i] === true`). Returns null
+ * when `next` has no visible slide left - the caller shows its end-of-show
+ * screen - and the current index when `previous` has none before it.
+ */
+export function visibleShowTarget(
+  action: Exclude<PptxShowNavAction, "exit">,
+  index: number,
+  count: number,
+  hidden: readonly boolean[] = [],
+): number | null {
+  const current = clampSlideIndex(index, count);
+  const visible = (candidate: number): boolean => hidden[candidate] !== true;
+  const scan = (from: number, step: 1 | -1): number | null => {
+    for (let candidate = from; candidate >= 0 && candidate < count; candidate += step) {
+      if (visible(candidate)) return candidate;
+    }
+    return null;
+  };
+  switch (action) {
+    case "next":
+      return scan(current + 1, 1);
+    case "previous":
+      return scan(current - 1, -1) ?? current;
+    case "first":
+      return scan(0, 1) ?? current;
+    case "last":
+      return scan(count - 1, -1) ?? current;
+  }
+}

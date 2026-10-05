@@ -6,7 +6,7 @@ import { run, shapeNode, slide, textLayout } from "../canvas/pptx-render-fixture
 import { PptxPresenterView } from "./pptx-presenter-view";
 import { PptxSlideShow } from "./pptx-slide-show";
 import { PPTX_SHOW_I18N } from "./show-i18n";
-import { applyShowNavAction, formatElapsedClock, resolveShowNavAction } from "./show-nav";
+import { applyShowNavAction, formatElapsedClock, resolveShowNavAction, visibleShowTarget } from "./show-nav";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -33,6 +33,18 @@ describe("show navigation math", () => {
     expect(resolveShowNavAction("End")).toBe("last");
     expect(resolveShowNavAction("Escape")).toBe("exit");
     expect(resolveShowNavAction("q")).toBeNull();
+  });
+
+  it("walks only the visible slides and reports the end of the show", () => {
+    const hidden = [false, true, false, true];
+    expect(visibleShowTarget("next", 0, 4, hidden)).toBe(2);
+    expect(visibleShowTarget("next", 2, 4, hidden)).toBeNull();
+    expect(visibleShowTarget("previous", 2, 4, hidden)).toBe(0);
+    expect(visibleShowTarget("previous", 0, 4, hidden)).toBe(0);
+    expect(visibleShowTarget("first", 2, 4, [true, false])).toBe(1);
+    expect(visibleShowTarget("last", 0, 4, hidden)).toBe(2);
+    expect(visibleShowTarget("last", 0, 2, [true, true])).toBe(0);
+    expect(visibleShowTarget("next", 0, 3)).toBe(1);
   });
 
   it("clamps at both ends and never leaves the deck", () => {
@@ -84,13 +96,103 @@ describe("PptxSlideShow", () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
-  it("exits on Escape and on the exit control", () => {
+  it("exits on Escape and on the exit control, once per show", () => {
     const onExit = vi.fn();
-    render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={onExit} content={content("Slide")} />);
+    const first = render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={onExit} content={content("Slide")} />);
+    fireEvent.keyDown(window, { key: "Escape" });
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onExit).toHaveBeenCalledTimes(1);
+    first.unmount();
+    render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={onExit} content={content("Slide")} />);
     fireEvent.click(screen.getByRole("button", { name: "End show" }));
     expect(onExit).toHaveBeenCalledTimes(2);
+  });
+
+  it("says the show ended past the last slide, then exits on the next advance", () => {
+    const onExit = vi.fn();
+    render(<PptxSlideShow slideCount={2} index={1} onIndexChange={vi.fn()} onExit={onExit} content={content("Last")} />);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByTestId("pptx-show-ended")).toHaveTextContent("End of show - no next slide.");
+    expect(onExit).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(screen.queryByTestId("pptx-show-ended")).toBeNull();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.click(screen.getByTestId("pptx-show-stage"));
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips hidden slides in every direction", () => {
+    const onIndexChange = vi.fn();
+    const hidden = [true, false, true, false, true];
+    const view = render(<PptxSlideShow slideCount={5} index={1} hidden={hidden} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onIndexChange).toHaveBeenLastCalledWith(3);
+    view.rerender(<PptxSlideShow slideCount={5} index={3} hidden={hidden} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(onIndexChange).toHaveBeenLastCalledWith(1);
+    fireEvent.keyDown(window, { key: "Home" });
+    expect(onIndexChange).toHaveBeenLastCalledWith(1);
+    // Slide 4 (index 4) is hidden, so slide 4 (index 3) is the last visible one.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByTestId("pptx-show-ended")).toBeInTheDocument();
+  });
+
+  it("moves focus onto the show so Enter advances, and returns it to the trigger on exit", () => {
+    const trigger = document.createElement("button");
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const onIndexChange = vi.fn();
+    const view = render(<PptxSlideShow slideCount={3} index={0} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Slide show" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    expect(onIndexChange).toHaveBeenCalledWith(1);
+    view.unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
+  it("requests fullscreen for its own root and ends the show when fullscreen is left", async () => {
+    const onExit = vi.fn();
+    const requestFullscreen = vi.fn(async function (this: HTMLElement) {
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: this });
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    const exitFullscreen = vi.fn(async () => undefined);
+    const original = HTMLElement.prototype.requestFullscreen;
+    HTMLElement.prototype.requestFullscreen = requestFullscreen as unknown as typeof original;
+    Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exitFullscreen });
+    try {
+      render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={onExit} content={content("Slide")} />);
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(requestFullscreen).toHaveBeenCalledTimes(1);
+      expect(requestFullscreen.mock.contexts[0]).toBe(screen.getByRole("dialog", { name: "Slide show" }));
+      // The browser consumes Esc in fullscreen and only reports the change.
+      act(() => {
+        Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+        document.dispatchEvent(new Event("fullscreenchange"));
+      });
+      expect(onExit).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLElement.prototype.requestFullscreen = original;
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    }
+  });
+
+  it("stays a full-viewport overlay when fullscreen is refused or disabled", async () => {
+    const original = HTMLElement.prototype.requestFullscreen;
+    const refused = vi.fn(async () => { throw new Error("denied"); });
+    HTMLElement.prototype.requestFullscreen = refused as unknown as typeof original;
+    try {
+      const view = render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByRole("dialog", { name: "Slide show" })).toHaveClass("fixed", "inset-0");
+      view.unmount();
+      render(<PptxSlideShow slideCount={3} index={0} fullscreen={false} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(refused).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLElement.prototype.requestFullscreen = original;
+    }
   });
 
   it("advances on a click on the stage", () => {
