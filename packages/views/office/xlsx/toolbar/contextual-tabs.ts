@@ -8,8 +8,9 @@
 // Every command here reuses a command id the renderer already allowlists and
 // journals (the structural insert/delete family, the merge family and
 // delete-table), so no new op and no save-path change is introduced. The table
-// STYLE write path does not exist in the gateway yet, so that one control stays
-// disabled with its labelled "not available" reason rather than pretending.
+// STYLE write path does not exist in the gateway yet, so that control is
+// absent rather than pretending (see tableDesignTab).
+import { createElement } from "react";
 import {
   Columns3,
   Combine,
@@ -19,7 +20,8 @@ import {
   TableCellsSplit,
   Trash2,
 } from "lucide-react";
-import type { RibbonGroup, RibbonItem, RibbonTab } from "../../ribbon";
+import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
+import { XlsxTableDesignName } from "./table-design-name";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps, XlsxToolbarTable, XlsxToolbarTableRange } from "./types";
 
@@ -127,36 +129,49 @@ function tableLayoutTab(context: XlsxToolbarGroupProps, when: boolean): RibbonTa
 function tableDesignTab(context: XlsxToolbarGroupProps, when: boolean): RibbonTab {
   const disabled = context.readOnly === true || !context.commands;
   const table = selectedTable(context);
-  const items: readonly RibbonItem[] = [
-    {
-      // The gateway has no post-creation table-style write path yet, so the
-      // control announces itself unavailable instead of pretending to work.
-      kind: "dropdown",
-      id: "table-design-style-menu",
-      labelKey: "office.xlsx.table.contextual.style",
-      icon: Table2,
-      size: "small",
-      disabled: true,
-      tooltipKey: "office.xlsx.capabilityPending",
-      menu: [{ id: "table-design-style-medium", labelKey: "office.xlsx.table.contextual.styleMedium", disabled: true, onSelect: () => {} }],
-    },
-    {
-      kind: "button",
-      id: "table-design-remove",
-      labelKey: "office.xlsx.table.remove",
-      icon: Trash2,
-      size: "small",
-      disabled: disabled || table === null,
-      onExecute: () => {
-        if (table) void context.commands?.execute("sheet.command.delete-table", { name: table.name });
-      },
-    },
-  ];
+  // Only commands with a real save path are offered. The journal records a
+  // table's creation and the cancellation of a session-created table, nothing
+  // else: rename, resize, style options and the style gallery have no command
+  // the policy allows, so they are absent rather than disabled placeholders.
+  const groups: RibbonGroup[] = [];
+  if (table !== null) {
+    const name: RibbonCustomItem = {
+      kind: "custom",
+      id: "table-design-name",
+      labelKey: "office.xlsx.table.nameLabel",
+      width: 136,
+      render: () => createElement(XlsxTableDesignName, { name: table.name }),
+    };
+    groups.push({ id: "table-design-properties", labelKey: "office.xlsx.table.contextual.properties", priority: 10, icon: Table2, items: [name] });
+    // A file-native table has no removal path; only a session-created one can
+    // be cancelled (its baked cells stay, i.e. Excel's Convert to Range).
+    if (table.native !== true) {
+      groups.push({
+        id: "table-design-tools",
+        labelKey: "office.xlsx.table.contextual.tools",
+        priority: 11,
+        icon: Trash2,
+        items: [
+          {
+            kind: "button",
+            id: "table-design-convert",
+            labelKey: "office.xlsx.table.contextual.convertToRange",
+            icon: Trash2,
+            size: "small",
+            disabled,
+            onExecute: () => {
+              void context.commands?.execute("sheet.command.delete-table", { name: table.name });
+            },
+          },
+        ],
+      });
+    }
+  }
   return {
     id: "table-design",
     labelKey: "office.xlsx.toolbar.tabs.tableDesign",
     contextual: { when, accent: "brand" },
-    groups: [{ id: "table-design", labelKey: "office.xlsx.table.contextual.style", priority: 10, items }],
+    groups,
   };
 }
 

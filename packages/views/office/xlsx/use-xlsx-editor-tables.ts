@@ -22,6 +22,7 @@ export function fileTablesToToolbar(sheets: readonly RendererWorkbookSheet[] | u
     (sheet.tables ?? []).map((table): XlsxToolbarTable => ({
       sheet: sheet.name,
       name: table.name,
+      native: true,
       range: {
         startRow: table.range.startRow,
         endRow: table.range.endRow,

@@ -37,6 +37,8 @@ export interface XlsxToolbarTable {
   readonly name: string;
   /** Header-inclusive 0-based area. */
   readonly range: XlsxToolbarTableRange;
+  /** True for a table the opened file ships: it has no removal write path. */
+  readonly native?: boolean;
 }
 
 /** The slice of the toolbar props a command group may read. It is declared

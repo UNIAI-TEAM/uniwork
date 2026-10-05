@@ -38,39 +38,53 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 }
 
 describe("XlsxTableGroup", () => {
-  it("creates a table over the selection's range", () => {
+  const table = (sheet: string, name: string) => ({ sheet, name, range: { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 } });
+
+  it("shows the next free default name instead of an empty field", () => {
+    const view = render(<XlsxTableGroup {...groupProps()} />);
+    expect(screen.getByTestId("xlsx-table-name")).toHaveValue("Table1");
+    view.unmount();
+    render(<XlsxTableGroup {...groupProps({ tables: [table("Data", "Table1"), table("Other", "Table2")] })} />);
+    expect(screen.getByTestId("xlsx-table-name")).toHaveValue("Table3");
+  });
+
+  it("creates a table over the selection's range under the field's name", () => {
     const execute = vi.fn(() => true);
     render(<XlsxTableGroup {...groupProps({ commands: { execute } })} />);
     expect(screen.getByTestId("xlsx-table-create")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.table.create"));
     fireEvent.click(screen.getByTestId("xlsx-table-create"));
     expect(execute).toHaveBeenCalledWith("sheet.command.add-table", {
       range: { startRow: 0, endRow: 4, startColumn: 0, endColumn: 1 },
+      name: "Table1",
     });
   });
 
-  it("removes the named table without needing a selection", () => {
+  it("uses a typed name and refuses an invalid or taken one", () => {
     const execute = vi.fn(() => true);
-    // F3: Remove is name-driven, so it stays live even without a selection span.
-    render(<XlsxTableGroup {...groupProps({ selection: null, commands: { execute } })} />);
-    const remove = screen.getByTestId("xlsx-table-remove");
-    expect(remove).toHaveAttribute("aria-disabled", "true");
-    fireEvent.change(screen.getByTestId("xlsx-table-remove-name"), { target: { value: "Sales" } });
-    expect(remove).not.toHaveAttribute("aria-disabled");
-    fireEvent.click(remove);
-    expect(execute).toHaveBeenCalledWith("sheet.command.delete-table", { name: "Sales" });
-    // The create control stays inert without a selection.
-    expect(screen.getByTestId("xlsx-table-create")).toHaveAttribute("aria-disabled", "true");
+    render(<XlsxTableGroup {...groupProps({ commands: { execute }, tables: [table("Data", "Sales")] })} />);
+    const field = screen.getByTestId("xlsx-table-name");
+    fireEvent.change(field, { target: { value: "Budget" } });
     fireEvent.click(screen.getByTestId("xlsx-table-create"));
+    expect(execute).toHaveBeenLastCalledWith("sheet.command.add-table", expect.objectContaining({ name: "Budget" }));
+    for (const bad of ["1 bad", "sales", ""]) {
+      fireEvent.change(field, { target: { value: bad } });
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByTestId("xlsx-table-create")).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(screen.getByTestId("xlsx-table-create"));
+    }
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("stays inert without a commands port or edit rights", () => {
-    for (const overrides of [{ commands: undefined }, { readOnly: true }] as Partial<XlsxToolbarGroupProps>[]) {
+  it("offers no remove control here (Convert to range lives on Table Design)", () => {
+    render(<XlsxTableGroup {...groupProps()} />);
+    expect(screen.queryByTestId("xlsx-table-remove")).not.toBeInTheDocument();
+  });
+
+  it("stays inert without a selection, a commands port or edit rights", () => {
+    for (const overrides of [{ selection: null }, { commands: undefined }, { readOnly: true }] as Partial<XlsxToolbarGroupProps>[]) {
       const execute = vi.fn(() => true);
       const commands = "commands" in overrides ? overrides.commands : { execute };
       const view = render(<XlsxTableGroup {...groupProps({ ...overrides, commands })} />);
-      fireEvent.change(screen.getByTestId("xlsx-table-remove-name"), { target: { value: "Sales" } });
-      fireEvent.click(screen.getByTestId("xlsx-table-remove"));
       fireEvent.click(screen.getByTestId("xlsx-table-create"));
       expect(execute).not.toHaveBeenCalled();
       view.unmount();
