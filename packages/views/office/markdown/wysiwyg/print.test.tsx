@@ -84,6 +84,99 @@ describe("sanitizePrintCopy", () => {
   });
 });
 
+/** Schemes a browser executes when it follows a URL: the shared sanitizer must
+ * DROP an attribute carrying one, never rewrite it. */
+const DANGEROUS_SCHEME = /(?:javascript|vbscript)\s*:|data\s*:\s*text\/html/i;
+
+/** The ASCII whitespace/control characters a browser strips from a URL before
+ * it reads the scheme. A charCode filter keeps the repo lint (no control
+ * characters in regexes) happy. */
+function stripUrlNoise(value: string): string {
+  let out = "";
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (code > 0x20 && code !== 0x7f) out += char;
+  }
+  return out;
+}
+
+/** Every attribute value in the copy, normalised the way a browser reads a URL
+ * (ASCII whitespace/control characters removed, lowercased). */
+function attributeValues(copy: string): string[] {
+  const doc = new DOMParser().parseFromString(copy, "text/html");
+  return Array.from(doc.querySelectorAll("*")).flatMap((element) =>
+    Array.from(element.attributes).map((attribute) => stripUrlNoise(attribute.value).toLowerCase()),
+  );
+}
+
+/** The UNI-928 sanitizer gap: the shared pass used to leave these in place. */
+describe("sanitizePrintCopy: shared sanitizer gap", () => {
+  it("keeps exactly the copy's own CSP meta and drops every other http-equiv meta", () => {
+    const copy = sanitizePrintCopy(
+      `<meta http-equiv="refresh" content="0;url=https://evil.example/"><meta http-equiv="X-UA-Compatible" content="IE=5">`,
+    );
+    const metas = Array.from(new DOMParser().parseFromString(copy, "text/html").querySelectorAll("meta[http-equiv]"));
+    expect(metas).toHaveLength(1);
+    expect(metas[0]!.getAttribute("http-equiv")!.toLowerCase()).toBe("content-security-policy");
+    expect(copy).not.toMatch(/refresh|x-ua-compatible/i);
+  });
+
+  it("drops a weaker document-supplied CSP meta, keeping only the copy's own first", () => {
+    const copy = sanitizePrintCopy(
+      `<meta http-equiv="Content-Security-Policy" content="default-src *; script-src * 'unsafe-inline'">`,
+    );
+    const metas = Array.from(new DOMParser().parseFromString(copy, "text/html").querySelectorAll('meta[http-equiv="Content-Security-Policy" i]'));
+    expect(metas).toHaveLength(1);
+    expect(metas[0]!.getAttribute("content")).toContain("script-src 'none'");
+    expect(copy).not.toMatch(/default-src \*|script-src \*/);
+  });
+
+  it("drops srcdoc on an arbitrary element, not just iframe", () => {
+    const copy = sanitizePrintCopy(`<div srcdoc="<script>alert(1)</script>">x</div>`);
+    expect(copy).not.toMatch(/srcdoc/i);
+    expect(new DOMParser().parseFromString(copy, "text/html").querySelector("[srcdoc]")).toBeNull();
+  });
+
+  // The engine's string pass rewrites the URL slots it models; `ping`,
+  // `longdesc` and `cite` are NOT modelled, so they prove the parser pass
+  // drops a dangerous value rather than relying on the rewrite.
+  const DANGEROUS_VECTORS: readonly [string, string][] = [
+    ["mixed-case scheme in href", `<a href="JaVaScRiPt:alert(1)">x</a>`],
+    ["mixed-case scheme in an unmodelled attribute", `<a ping="JaVaScRiPt:alert(1)">x</a>`],
+    ["leading spaces, tabs and newlines before the scheme", `<img longdesc=" \t\n javascript:alert(1)">`],
+    ["a tab inside the scheme", `<a ping="java\tscript:alert(1)">x</a>`],
+    ["an entity-encoded scheme in the source", `<blockquote cite="&#106;avascript:alert(1)">x</blockquote>`],
+    ["vbscript on src", `<img src="VBScript:msgbox(1)">`],
+    ["data:text/html on action", `<form action="data:text/html,alert(1)"></form>`],
+    ["javascript: on formaction", `<button formaction="javascript:alert(1)">x</button>`],
+    ["javascript: in srcset", `<img srcset="a.png 1x, javascript:alert(1) 2x">`],
+    ["javascript: on poster", `<video poster="javascript:alert(1)"></video>`],
+    ["javascript: on background", `<body background="javascript:alert(1)"></body>`],
+    ["javascript: on ping", `<a ping="javascript:alert(1)">x</a>`],
+    ["javascript: on an unmodelled attribute (longdesc)", `<img longdesc="javascript:alert(1)">`],
+    ["data:text/html on an unmodelled attribute (longdesc)", `<img longdesc="data:text/html,alert(1)">`],
+    ["xlink:href in svg", `<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>`],
+  ];
+
+  it.each(DANGEROUS_VECTORS)("drops a %s URL attribute instead of rewriting it", (_label, vector) => {
+    const copy = sanitizePrintCopy(vector);
+    for (const value of attributeValues(copy)) expect(DANGEROUS_SCHEME.test(value)).toBe(false);
+    const flat = stripUrlNoise(copy).toLowerCase();
+    expect(flat).not.toContain("javascript:");
+    expect(flat).not.toContain("vbscript:");
+    expect(flat).not.toContain("data:text/html");
+  });
+
+  it("keeps a data:image/svg+xml image: the copy's CSP blocks the script it could carry", () => {
+    // Deliberately out of DANGEROUS_SCHEMES. A browser runs no script in an
+    // <img> SVG, and the copy pins `script-src 'none'`, so the image stays
+    // renderable rather than being dropped as a live URL.
+    const copy = sanitizePrintCopy(`<img src="data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+">`);
+    expect(copy).toContain("data:image/svg+xml;base64,");
+    expect(copy).toContain("script-src 'none'");
+  });
+});
+
 /** A Markdown source with a raw HTML block and a javascript: link. */
 const HOSTILE_SOURCE = [
   "# Báo cáo",

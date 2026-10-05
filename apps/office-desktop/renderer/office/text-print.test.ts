@@ -36,6 +36,28 @@ it.each([["html", hostileHtml], ["md", hostileMd]] as const)("%s copy carries no
   if (format === "md") { expect(copy).not.toContain("# Title"); expect(copy).not.toContain("**body**"); expect(copy).toContain("<strong>body</strong>"); }
 });
 
+it("lets the shared sanitizer own the former desktop gap-fill (metas, srcdoc, script URLs)", () => {
+  // hardenDesktopPrintCopy is gone: the shared pass must drop a non-CSP
+  // http-equiv meta, a srcdoc on any element, and a script URL on an
+  // attribute the engine does not model (ping/longdesc/cite) as well as the
+  // ones it does. These are exactly the three things the desktop used to
+  // compensate for, so their absence proves nothing was lost by the removal.
+  const source = `<meta http-equiv="refresh" content="0;url=https://evil.test/">` +
+    `<meta http-equiv="X-UA-Compatible" content="IE=5">` +
+    `<meta http-equiv="Content-Security-Policy" content="default-src *; script-src *">` +
+    `<div srcdoc="<script>alert(1)</script>">x</div>` +
+    `<a ping="JaVaScRiPt:alert(1)">p</a><img longdesc=" \t javascript:alert(1)">` +
+    `<blockquote cite="&#106;avascript:alert(1)">c</blockquote>`;
+  const copy = buildDesktopPrintCopy("html", source);
+  const doc = new DOMParser().parseFromString(copy, "text/html");
+  const metas = Array.from(doc.querySelectorAll("meta[http-equiv]"));
+  expect(metas).toHaveLength(1);
+  expect(metas[0]!.getAttribute("http-equiv")!.toLowerCase()).toBe("content-security-policy");
+  expect(copy).not.toMatch(/refresh|x-ua-compatible|default-src \*|script-src \*/i);
+  expect(doc.querySelector("[srcdoc]")).toBeNull();
+  const normalised = Array.from(copy).filter((char) => { const code = char.charCodeAt(0); return code > 0x20 && code !== 0x7f; }).join("").toLowerCase();
+  expect(normalised).not.toContain("javascript:");
+});
 it("builds the copy through the shared sanitizer, not a local mirror", () => {
   const sanitize = vi.mocked(viewsMarkdown.sanitizePrintCopy);
   expect(sanitize).not.toHaveBeenCalled();
