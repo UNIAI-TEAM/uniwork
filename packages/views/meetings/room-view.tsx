@@ -35,6 +35,7 @@ import {
 } from "./room-disconnect";
 import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useInertOutside } from "./use-inert-outside";
+import { isRetryableJoinError } from "./room-connection";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
 
@@ -200,12 +201,19 @@ export function MeetingRoomView({
   // Only while that re-join is in flight: a superseded call never runs its
   // onSettled, and the flag must not pin an old credential after it.
   const holdLastAdmitted = rejoining && join.isPending && lastAdmittedRef.current;
-  // The lobby re-asks on every approval or refusal in this meeting (anyone's),
-  // on reconnect and on backoff, and a new mutate empties join.data until it
-  // settles. Keep the last lobby answer meanwhile, so the screen does not
-  // flash "connecting", focus does not jump back to the heading, and a leave
-  // mid-retry still withdraws the knock.
-  const holdLastLobby = !holdLastAdmitted && join.isPending && !join.error && !settledDecision && lastLobbyRef.current;
+  // The lobby re-asks when its own request is decided, when the meeting
+  // starts or closes, on reconnect and on backoff, and a new mutate empties
+  // join.data until it settles. Keep the last lobby answer meanwhile, so the
+  // screen does not flash "connecting", focus does not jump back to the
+  // heading, and a leave mid-retry still withdraws the knock. A 429/503 is not
+  // a refusal either: the lobby holds while useLobbyJoinRetry waits it out.
+  const joinRetryable = isRetryableJoinError(join.error);
+  const holdLastLobby =
+    !holdLastAdmitted &&
+    ((join.isPending && !join.error) || joinRetryable) &&
+    !settledDecision &&
+    lastLobbyRef.current;
+  const joinError = holdLastLobby ? null : join.error;
   const decision = holdLastAdmitted
     ? lastAdmittedRef.current
     : holdLastLobby
@@ -221,6 +229,8 @@ export function MeetingRoomView({
     decision: decision?.decision,
     admitted,
     hasJoinError: Boolean(join.error),
+    joinError: join.error,
+    joinRequestId: decision?.join_request_id,
     onRetry: retryJoin,
   });
 
@@ -232,7 +242,7 @@ export function MeetingRoomView({
   // Prejoin → lobby and one lobby state → another swap the whole screen;
   // focus follows to the new heading so the change is heard (the guest
   // invite page does the same). Entering the room itself is left alone.
-  const joinErrorCode = join.error instanceof ApiError ? join.error.code : join.error ? "error" : "";
+  const joinErrorCode = joinError instanceof ApiError ? joinError.code : joinError ? "error" : "";
   // Being removed, or the call closing around you, swaps the room for a
   // screen that says why; focus moves there too instead of staying on a tile
   // that no longer exists.
@@ -240,7 +250,7 @@ export function MeetingRoomView({
     ? `closed:${closedReason}`
     : !choice
     ? "prejoin"
-    : !admitted && (join.error || decision)
+    : !admitted && (joinError || decision)
       ? `lobby:${decision?.decision ?? ""}:${joinErrorCode}`
       : "room";
   useFocusHeadingOnViewChange(lobbyView, { selector: "[data-gate-heading]", fallback: null });
@@ -267,13 +277,13 @@ export function MeetingRoomView({
 
   // A later re-join (token refresh) must not eject an admitted session on a
   // transient error — join.error would otherwise unmount LiveKit.
-  if (!admitted && (join.error || decision)) {
+  if (!admitted && (joinError || decision)) {
     return (
       <MeetingRoomShell>
         <MeetingLobby
           title={meeting?.title ?? meetingTitle}
           decision={decision?.decision}
-          error={join.error}
+          error={joinError}
           guestMode={guestMode}
           meetingStatus={decision?.meeting_status ?? meeting?.status}
           onRequestAgain={requestAgain}

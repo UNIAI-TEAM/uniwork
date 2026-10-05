@@ -407,8 +407,14 @@ database and never reveal whether an id exists to a non-member.
 - Nothing rewrites `r.RemoteAddr` from a forwarded header — no `RealIP`
   middleware. Each consumer of the client address (rate limiter, WebSocket
   origin check) applies `TRUSTED_PROXIES` itself. `server/internal/handler/router_test.go` pins it.
-- Rate limits exist only with Redis and are keyed by IP and path; the
-  credential routes carry their own small budget in `server/internal/handler/router/router.go`.
+- Rate limits exist only with Redis and are keyed by path plus the client IP
+  or a verified identity (`mw.RateLimitByIdentity`): the global limiter
+  checks the bearer token itself, the in-room meeting limiters use the
+  `OptionalAuth` user or an HMAC-signed guest session, and anything
+  unverified falls back to the IP. Each limiter Redis call gives up after
+  100ms and fails open. The LiveKit webhook skips the global limiter; the
+  credential routes carry their own small budget in
+  `server/internal/handler/router/router.go`, whose tests pin all of it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

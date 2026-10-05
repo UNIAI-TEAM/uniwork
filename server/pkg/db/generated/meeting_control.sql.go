@@ -561,6 +561,7 @@ INSERT INTO meeting_join_requests (
   id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, expires_at,
   organization_id
 ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7, $8)
+ON CONFLICT DO NOTHING
 RETURNING id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at, organization_id
 `
 
@@ -575,6 +576,9 @@ type CreateJoinRequestParams struct {
 	OrganizationID      string             `json:"organization_id"`
 }
 
+// A requester has at most one PENDING request (the partial unique indexes
+// from migrations 016/017). Two knocks racing for it must not fail: the loser
+// inserts nothing, gets no row, and re-reads the winner's request.
 func (q *Queries) CreateJoinRequest(ctx context.Context, arg CreateJoinRequestParams) (MeetingJoinRequest, error) {
 	row := q.db.QueryRow(ctx, createJoinRequest,
 		arg.ID,
@@ -1983,6 +1987,68 @@ SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || 
 func (q *Queries) LockRoomSessionsOfParticipant(ctx context.Context, participantID string) error {
 	_, err := q.db.Exec(ctx, lockRoomSessionsOfParticipant, participantID)
 	return err
+}
+
+const markConferenceSessionEnsureFailed = `-- name: MarkConferenceSessionEnsureFailed :execrows
+UPDATE meeting_conference_sessions SET
+  provider_sync_status = 'FAILED',
+  updated_at = now()
+WHERE id = $1
+  AND status <> 'ENDED'
+  AND NOT (provider_sync_status = 'SYNCED' AND status IN ('READY', 'ACTIVE'))
+`
+
+// tenant: by-id
+// Records a failed provider ensure, unless another ensure already made the
+// session joinable: Start runs the ensure both inline and through the outbox,
+// and the one that fails must not send every join back to
+// WAITING_FOR_PROVIDER while the room is up.
+func (q *Queries) MarkConferenceSessionEnsureFailed(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markConferenceSessionEnsureFailed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markConferenceSessionEnsured = `-- name: MarkConferenceSessionEnsured :one
+UPDATE meeting_conference_sessions SET
+  status = CASE WHEN status = 'ACTIVE' THEN status ELSE 'READY' END,
+  provider_sync_status = 'SYNCED',
+  provider_room_sid = COALESCE($1, provider_room_sid),
+  updated_at = now()
+WHERE id = $2 AND status NOT IN ('ENDED', 'FAILED')
+RETURNING id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at, organization_id
+`
+
+type MarkConferenceSessionEnsuredParams struct {
+	ProviderRoomSid pgtype.Text `json:"provider_room_sid"`
+	ID              string      `json:"id"`
+}
+
+// tenant: by-id
+// Records a successful provider ensure. A room the webhook already reported
+// ACTIVE stays ACTIVE, and a late answer never revives an ENDED or FAILED
+// session; no row back means nothing changed.
+func (q *Queries) MarkConferenceSessionEnsured(ctx context.Context, arg MarkConferenceSessionEnsuredParams) (MeetingConferenceSession, error) {
+	row := q.db.QueryRow(ctx, markConferenceSessionEnsured, arg.ProviderRoomSid, arg.ID)
+	var i MeetingConferenceSession
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.ProviderKey,
+		&i.ProviderRoomName,
+		&i.ProviderRoomSid,
+		&i.Status,
+		&i.ProviderSyncStatus,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.ProviderMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+	)
+	return i, err
 }
 
 const markConferenceSessionResyncing = `-- name: MarkConferenceSessionResyncing :one

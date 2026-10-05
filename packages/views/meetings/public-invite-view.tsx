@@ -221,6 +221,8 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     decision: lobbyDecision,
     admitted: false,
     hasJoinError: joinFailure !== undefined,
+    joinError: joinFailure,
+    joinRequestId,
     onRetry: runJoin,
   });
 

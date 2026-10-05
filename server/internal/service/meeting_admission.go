@@ -151,7 +151,7 @@ func (s *MeetingService) Evaluate(ctx context.Context, in AdmissionContext) (Adm
 	}
 
 	if m.AllowJoinRequest && in.UserID != "" {
-		jr, err := s.ensureJoinRequest(ctx, m, in)
+		jr, err := s.ensureJoinRequest(ctx, m, in, in.InviteLinkID)
 		if err != nil {
 			return AdmissionDecision{}, err
 		}
@@ -227,14 +227,15 @@ func (s *MeetingService) lookupPrincipal(ctx context.Context, meetingID string, 
 	return db.MeetingParticipant{}, pgx.ErrNoRows
 }
 
+// evaluateInviteLink answers a join through an invite link. Every read that
+// decides the answer runs on the pool before any transaction opens, and the
+// transaction - opened only to file a join request or to materialize a
+// first-time principal - reads through its own q. A request therefore never
+// holds one connection while waiting for another: with that pattern, as many
+// concurrent link joins as the pool has connections would each hold one and
+// wait forever for a second (token refreshes take this path too).
 func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, in AdmissionContext) (AdmissionDecision, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return AdmissionDecision{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	link, err := s.verifyInviteLink(ctx, q, in.InviteLinkID, in.InviteSecret)
+	link, err := s.verifyInviteLink(ctx, s.q, in.InviteLinkID, in.InviteSecret)
 	if err != nil {
 		return AdmissionDecision{}, err
 	}
@@ -242,6 +243,9 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		return AdmissionDecision{}, coded(http.StatusNotFound, "invite_link_invalid", "liên kết không hợp lệ")
 	}
 	p, perr := s.lookupPrincipal(ctx, m.ID, in)
+	if perr != nil && !errors.Is(perr, pgx.ErrNoRows) {
+		return AdmissionDecision{}, perr
+	}
 	if perr == nil && p.Status == ParticipantRemoved {
 		return AdmissionDecision{Decision: DecisionDeny, Reason: "PARTICIPANT_REMOVED", Meeting: m},
 			coded(http.StatusForbidden, "participant_removed", "bạn đã bị gỡ khỏi cuộc họp")
@@ -253,30 +257,34 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		}
 	}
 	if link.AccessMode == LinkRequestApproval {
-		jr, err := s.ensureJoinRequestTx(ctx, q, m, in, link.ID)
+		jr, err := s.ensureJoinRequest(ctx, m, in, link.ID)
 		if err != nil {
-			return AdmissionDecision{}, err
-		}
-		s.record(ctx, q, m, joinActor(in), "join_request.created",
-			meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}), nil)
-		if err := tx.Commit(ctx); err != nil {
 			return AdmissionDecision{}, err
 		}
 		return AdmissionDecision{Decision: DecisionWaitingApproval, Reason: "JOIN_REQUEST_PENDING", Meeting: m, JoinRequestID: jr.ID}, nil
 	}
-	if errors.Is(perr, pgx.ErrNoRows) {
-		if _, err := q.ConsumeInviteLinkUse(ctx, link.ID); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return AdmissionDecision{}, coded(http.StatusForbidden, "invite_link_limit_reached", "liên kết đã hết lượt")
-			}
-			return AdmissionDecision{}, err
-		}
-		p, err = s.materializeFromLink(ctx, q, m, in, link.ID)
-		if err != nil {
-			return AdmissionDecision{}, err
-		}
-		_ = s.writeAudit(ctx, q, m, "INVITE_LINK_USED", actorID(in), "", link.ID, "{}")
+	if perr == nil {
+		return s.decisionForStatus(m, p, "LINK")
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return AdmissionDecision{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	p, err = s.materializeFromLink(ctx, q, m, in, link.ID)
+	if err != nil {
+		return AdmissionDecision{}, err
+	}
+	// The use is counted last: the UPDATE locks the link row until commit,
+	// and every first-time join through the same link queues on that lock.
+	if _, err := q.ConsumeInviteLinkUse(ctx, link.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return AdmissionDecision{}, coded(http.StatusForbidden, "invite_link_limit_reached", "liên kết đã hết lượt")
+		}
+		return AdmissionDecision{}, err
+	}
+	_ = s.writeAudit(ctx, q, m, "INVITE_LINK_USED", actorID(in), "", link.ID, "{}")
 	if err := tx.Commit(ctx); err != nil {
 		return AdmissionDecision{}, err
 	}
@@ -350,57 +358,78 @@ func (s *MeetingService) settleAdmittedStanding(ctx context.Context, q *db.Queri
 	}
 }
 
-func (s *MeetingService) ensureJoinRequest(ctx context.Context, m db.Meeting, in AdmissionContext) (db.MeetingJoinRequest, error) {
+// ensureJoinRequest returns the requester's PENDING join request, filing one
+// when there is none. A lobby retry finds its request on the pool and opens
+// no transaction; only the knock that files the request writes anything.
+func (s *MeetingService) ensureJoinRequest(ctx context.Context, m db.Meeting, in AdmissionContext, linkID string) (db.MeetingJoinRequest, error) {
+	jr, err := pendingJoinRequest(ctx, s.q, m.ID, in)
+	if err == nil {
+		return jr, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return db.MeetingJoinRequest{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
 	defer tx.Rollback(ctx)
-	jr, err := s.ensureJoinRequestTx(ctx, s.q.WithTx(tx), m, in, in.InviteLinkID)
+	jr, err = s.ensureJoinRequestTx(ctx, s.q.WithTx(tx), m, in, linkID)
 	if err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
-	s.record(ctx, s.q.WithTx(tx), m, joinActor(in), "join_request.created",
-		meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}), nil)
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
 	return jr, nil
 }
 
+// ensureJoinRequestTx files the request inside the caller's transaction and
+// records it (timeline row, audit row and join_request.created) only when it
+// created one, so a retry that finds its PENDING request writes nothing.
 func (s *MeetingService) ensureJoinRequestTx(ctx context.Context, q *db.Queries, m db.Meeting, in AdmissionContext, linkID string) (db.MeetingJoinRequest, error) {
-	if in.UserID != "" {
-		jr, err := q.GetPendingJoinRequestForUser(ctx, db.GetPendingJoinRequestForUserParams{MeetingID: m.ID, RequesterUserID: strText(in.UserID)})
-		if err == nil {
-			return jr, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.MeetingJoinRequest{}, err
-		}
-	} else if in.GuestID != "" {
-		jr, err := q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText(in.GuestID)})
-		if err == nil {
-			return jr, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.MeetingJoinRequest{}, err
-		}
+	jr, err := pendingJoinRequest(ctx, q, m.ID, in)
+	if err == nil {
+		return jr, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return db.MeetingJoinRequest{}, err
 	}
 	if !in.RequestAgain {
 		if err := latestJoinRequestRejected(ctx, q, m.ID, in); err != nil {
 			return db.MeetingJoinRequest{}, err
 		}
 	}
-	jr, err := q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
+	jr, err = q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, RequesterUserID: strText(in.UserID),
 		RequesterGuestID: strText(in.GuestID), DisplayNameSnapshot: in.DisplayName,
 		InviteLinkID: strText(linkID), ExpiresAt: pgtype.Timestamptz{},
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// A concurrent knock by the same requester filed it first (the insert
+		// waited for that commit); its request is the one the host sees.
+		return pendingJoinRequest(ctx, q, m.ID, in)
+	}
 	if err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
 	_ = s.writeAudit(ctx, q, m, "JOIN_REQUESTED", actorID(in), "", jr.ID, "{}")
+	s.record(ctx, q, m, joinActor(in), "join_request.created",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}), nil)
 	return jr, nil
+}
+
+// pendingJoinRequest reads the requester's PENDING request through q;
+// pgx.ErrNoRows when there is none or no requester to look up.
+func pendingJoinRequest(ctx context.Context, q *db.Queries, meetingID string, in AdmissionContext) (db.MeetingJoinRequest, error) {
+	switch {
+	case in.UserID != "":
+		return q.GetPendingJoinRequestForUser(ctx, db.GetPendingJoinRequestForUserParams{MeetingID: meetingID, RequesterUserID: strText(in.UserID)})
+	case in.GuestID != "":
+		return q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: meetingID, RequesterGuestID: strText(in.GuestID)})
+	default:
+		return db.MeetingJoinRequest{}, pgx.ErrNoRows
+	}
 }
 
 func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (db.MeetingJoinRequest, error) {
@@ -430,7 +459,7 @@ func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (
 		return db.MeetingJoinRequest{}, errMeetingPastScheduledEnd()
 	}
 	in.RequestAgain = true
-	return s.ensureJoinRequest(ctx, m, in)
+	return s.ensureJoinRequest(ctx, m, in, in.InviteLinkID)
 }
 
 // latestJoinRequestRejected refuses to re-file a request whose last answer was

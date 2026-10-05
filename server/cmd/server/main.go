@@ -66,7 +66,9 @@ func main() {
 		log.Error("otel", "err", err)
 		os.Exit(1)
 	}
-	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	// Pool size and idle-transaction timeout defaults apply where the DSN is
+	// silent (config.PoolConfig).
+	poolCfg, err := config.PoolConfig(cfg.DatabaseURL)
 	if err != nil {
 		log.Error("db url", "err", err)
 		os.Exit(1)

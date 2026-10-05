@@ -65,6 +65,11 @@ export class ApiError extends Error {
      * compiling.
      */
     public errorClass?: ApiErrorClass,
+    /**
+     * Seconds the server asked the caller to wait (Retry-After on a 429/503),
+     * so a retry loop waits out the window instead of guessing.
+     */
+    public retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -196,6 +201,16 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
   });
 }
 
+/** Retry-After as seconds: delta-seconds or an HTTP date; undefined otherwise. */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const at = Date.parse(trimmed);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.max(0, Math.ceil((at - Date.now()) / 1000));
+}
+
 async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
   let message = res.statusText;
@@ -227,6 +242,7 @@ async function throwFromFailedResponse(res: Response): Promise<never> {
     res.headers.get(CORRELATION_HEADER) ?? undefined,
     fields,
     errorClass,
+    parseRetryAfter(res.headers.get("Retry-After")),
   );
 }
 

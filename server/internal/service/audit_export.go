@@ -56,6 +56,10 @@ func (c *AuditExportConsumer) SetFileService(pool *pgxpool.Pool, fs files.Servic
 
 func (*AuditExportConsumer) Name() string { return "audit-export" }
 
+// DeliveryTimeout asks for the dispatcher's ceiling (the claim lease): an
+// export reads up to exportMaxRows rows and uploads the file inside Handle.
+func (*AuditExportConsumer) DeliveryTimeout() time.Duration { return 120 * time.Second }
+
 func (*AuditExportConsumer) Topics() []string { return []string{"audit.export_requested"} }
 
 // Handle is idempotent by export id: a job that already completed is skipped,

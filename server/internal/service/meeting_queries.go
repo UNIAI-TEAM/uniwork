@@ -147,6 +147,9 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 	}
 	switch row.Topic {
 	case "provider.ensure_session":
+		if s.ensureAlreadySettled(ctx, p["session_id"]) {
+			return nil
+		}
 		ref, err := s.provider.EnsureSession(ctx, meetings.EnsureSessionRequest{
 			MeetingID: p["meeting_id"], RoomName: p["room_name"], EmptyTimeout: s.rt.EmptyTimeout,
 		})
@@ -165,21 +168,33 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 	}
 }
 
-func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID string, ref meetings.ProviderSessionRef, err error) {
-	sync := "SYNCED"
-	sid := strText(ref.RoomSID)
-	st := strText("READY")
-	if err != nil {
-		sync = "FAILED"
-		st = pgtype.Text{}
+// ensureAlreadySettled reports whether a queued ensure has nothing left to
+// do: Start and instant meetings also ensure inline, so the queued copy
+// usually finds the session joinable already, and an ended session must not
+// get its room back. An unreadable session is ensured as before.
+func (s *MeetingService) ensureAlreadySettled(ctx context.Context, sessionID string) bool {
+	if sessionID == "" {
+		return false
 	}
-	_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
-		ID: sessionID, Status: st, ProviderSyncStatus: strText(sync), ProviderRoomSid: sid,
-	})
-	if err != nil || sync != "SYNCED" {
+	sess, err := s.q.GetConferenceSession(ctx, sessionID)
+	if err != nil {
+		return false
+	}
+	return conferenceSessionReady(sess) || sess.Status == "ENDED"
+}
+
+// recordConferenceEnsure writes the outcome of a provider ensure. Both writes
+// are conditional (MarkConferenceSessionEnsured / ...EnsureFailed): a failure
+// never downgrades a session another ensure already made joinable, and a
+// success never revives an ended one.
+func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID string, ref meetings.ProviderSessionRef, err error) {
+	if err != nil {
+		_, _ = s.q.MarkConferenceSessionEnsureFailed(ctx, sessionID)
 		return
 	}
-	sess, serr := s.q.GetConferenceSession(ctx, sessionID)
+	sess, serr := s.q.MarkConferenceSessionEnsured(ctx, db.MarkConferenceSessionEnsuredParams{
+		ID: sessionID, ProviderRoomSid: strText(ref.RoomSID),
+	})
 	if serr != nil {
 		return
 	}

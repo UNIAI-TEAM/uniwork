@@ -100,10 +100,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `host.transferred` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `invitation.responded` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `invite_link.revoked` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.approved` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.rejected` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.approved` | 1 | `meeting_id`, `join_request_id`, `version` | — | workspace | outbox |
+| `join_request.canceled` | 1 | `meeting_id`, `join_request_id`, `version` | — | workspace | outbox |
+| `join_request.created` | 1 | `meeting_id`, `join_request_id`, `version` | — | workspace | outbox |
+| `join_request.rejected` | 1 | `meeting_id`, `join_request_id`, `version` | — | workspace | outbox |
 | `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |

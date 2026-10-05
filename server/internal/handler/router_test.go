@@ -49,9 +49,11 @@ func TestRouterKeepsRemoteAddrDespiteForwardedHeaders(t *testing.T) {
 // Kubelet probes must never wait on Redis: the global rate limiter sits in
 // front of every route, and when its Redis call stalls (pool exhausted,
 // server hung) a probe that waits past its 1s timeout gets the pod killed.
-// The fake server below accepts connections and never answers, so a probe
-// that reaches the limiter blocks until the client's read timeout.
-func TestProbesSkipTheGlobalRateLimiter(t *testing.T) {
+// The LiveKit webhook skips the limiter too: all its events share LiveKit's
+// one address, and a refused event is dropped. The fake server below accepts
+// connections and never answers; a request that skips the limiter never dials
+// it, and one that does not is the control that the dial is observable.
+func TestProbesAndLiveKitWebhookSkipTheGlobalRateLimiter(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -59,6 +61,11 @@ func TestProbesSkipTheGlobalRateLimiter(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 	var held []net.Conn
 	var mu sync.Mutex
+	accepted := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(held)
+	}
 	go func() {
 		for {
 			c, err := ln.Accept()
@@ -81,13 +88,31 @@ func TestProbesSkipTheGlobalRateLimiter(t *testing.T) {
 	t.Cleanup(func() { _ = rdb.Close() })
 
 	r := New(Deps{Redis: rdb})
-	for _, path := range []string{"/healthz", "/readyz"} {
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/healthz", nil),
+		httptest.NewRequest(http.MethodGet, "/readyz", nil),
+		httptest.NewRequest(http.MethodPost, "/api/v1/integrations/livekit/webhook", nil),
+	} {
 		start := time.Now()
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		r.ServeHTTP(httptest.NewRecorder(), req)
 		if took := time.Since(start); took > 500*time.Millisecond {
-			t.Fatalf("%s waited %v on Redis; probes must not go through the rate limiter", path, took)
+			t.Fatalf("%s %s waited %v on Redis", req.Method, req.URL.Path, took)
 		}
+	}
+	// Dialling is synchronous in the client, so any limiter call above has
+	// been accepted by now; give the accept loop a moment to record it.
+	time.Sleep(50 * time.Millisecond)
+	if n := accepted(); n != 0 {
+		t.Fatalf("probes or the LiveKit webhook reached the rate limiter (%d Redis connections)", n)
+	}
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/meetings/m1/motions", nil))
+	deadline := time.Now().Add(2 * time.Second)
+	for accepted() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("control: a limited route never dialled Redis, so the check above proves nothing")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
