@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { setLocale } from "@uniwork/core/i18n";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "./types";
 import { normalizeRowColCount, selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
@@ -38,7 +39,8 @@ const viText = (key: string): string => {
   if (typeof value !== "string") throw new Error(`missing vi locale key ${key}`);
   return value;
 };
-const viCount = (key: string, count: number) => viText(key).replace("{{count}}", String(count));
+/** Vietnamese has a single plural form, declared as `_other` (i18next v4). */
+const viCount = (key: string, count: number) => viText(`${key}_other`).replace("{{count}}", String(count));
 
 describe("structure pure logic", () => {
   it("derives the 0-based span from either selection order", () => {
@@ -152,6 +154,27 @@ describe("XlsxStructureInsertGroup", () => {
     const container = second.container;
     for (const button of container.querySelectorAll("button")) {
       expect(button.getAttribute("aria-disabled")).toBe("true");
+    }
+  });
+});
+
+describe("plural insert labels", () => {
+  it("reads 1 row / 1 column / 3 rows in English, not the count baked into a plural", async () => {
+    await setLocale("en");
+    try {
+      const props = groupProps();
+      render(<XlsxStructureInsertGroup {...props} />);
+      // The B2:C4 span is 3 rows and 2 columns, so the "above"/"left" names pluralise.
+      expect(screen.getByRole("button", { name: "Insert 3 rows above" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Insert 2 columns to the left" })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Row count"), { target: { value: "1" } });
+      expect(screen.getByRole("button", { name: "Insert 1 row above" })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Column count"), { target: { value: "1" } });
+      expect(screen.getByRole("button", { name: "Insert 1 column to the left" })).toBeInTheDocument();
+      // The plural forms are gone once the count is 1, in both languages.
+      expect(screen.queryByRole("button", { name: "Insert 1 rows above" })).toBeNull();
+    } finally {
+      await setLocale("vi");
     }
   });
 });
