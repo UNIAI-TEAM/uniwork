@@ -2,7 +2,7 @@
 // UNI-927 X3 (R2-5): applying a theme on the REAL vendored engine keeps every
 // explicit srgbClr (shape fill / outline, text runs, table cells) and only
 // moves theme-mapped state. Nothing is mocked: the generated pptx-renderer
-// artifact is patched by 0007-pptx-apply-theme-keeps-explicit-colors.patch;
+// artifact is patched by 0009-pptx-apply-theme-keeps-explicit-colors.patch;
 // without that patch the vendored applyTheme remaps explicit colours to the
 // nearest theme accent and these assertions fail.
 import { readFileSync } from "node:fs";
@@ -78,7 +78,7 @@ describe("apply_theme keeps explicit colours on the real engine (R2-5)", () => {
   // Every row seeds explicit colours first: three of the four G0 decks carry no
   // srgbClr in their slide XML, so comparing only the source deck proved nothing.
   // A table fixture also gets explicit cell shading, the table-cell fill risk
-  // area (those fills live in slide XML and were remapped before patch 0007).
+  // area (those fills live in slide XML and were remapped before patch 0009).
   it.each([
     { name: "pptx-standard-business.pptx", table: false },
     { name: "pptx-table.pptx", table: true },

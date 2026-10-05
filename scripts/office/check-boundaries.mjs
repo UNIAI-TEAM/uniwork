@@ -69,6 +69,9 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/views/office/editor-slot",
   "@uniwork/views/office/docx",
   "@uniwork/views/office/pdf",
+  // UNI-928 D2 desktop text lane: the shared Markdown/HTML editors mount over the byte session.
+  "@uniwork/views/office/markdown",
+  "@uniwork/views/office/html",
   "@uniwork/views/documents/document-type-icon",
   "lucide-react",
   "@uniwork/ui/lib/utils",

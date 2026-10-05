@@ -26,6 +26,11 @@ export interface DocumentRequestOpts {
    *  attempt. */
   idempotencyKey?: string;
   signal?: AbortSignal;
+  /** Multipart endpoints only: the filename the `file` part carries. A bare
+   *  Blob has no name of its own, and the server reads a text document's type
+   *  from the `.md` extension, so an upload that must sniff as markdown names
+   *  its part. */
+  filename?: string;
 }
 
 export interface CreateDocumentBody {
@@ -60,9 +65,17 @@ function idempotencyHeaders(opts?: DocumentRequestOpts): Record<string, string> 
   return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined;
 }
 
-function fileForm(file: Blob, fields?: Record<string, string | undefined>): FormData {
+function fileForm(
+  file: Blob,
+  fields?: Record<string, string | undefined>,
+  filename?: string,
+): FormData {
   const form = new FormData();
-  form.set("file", file);
+  // A File carries its own name into the part; a bare Blob takes the name the
+  // caller supplies. An unnamed part is sniffed by bytes alone, which turns a
+  // markdown document into text/plain and fails the commit's format check.
+  if (filename !== undefined) form.set("file", file, filename);
+  else form.set("file", file);
   for (const [key, value] of Object.entries(fields ?? {})) {
     if (value !== undefined) form.set(key, value);
   }
@@ -141,6 +154,9 @@ export async function createDocumentFile(
  * POST /api/v1/documents/{documentID}/uploads — stage the bytes of a
  * candidate file version. Returns the claim (upload_id IS the FileService
  * file_id) that commitDocumentVersion turns into a version (C-01 §14.4).
+ * `opts.filename` names the part for a bare Blob: the server's type check
+ * reads a text document's `.md` extension, so an unnamed markdown part would
+ * be staged as text/plain and refused at commit with 415 format_changed.
  */
 export async function uploadDocumentFile(
   documentId: string,
@@ -149,7 +165,7 @@ export async function uploadDocumentFile(
 ): Promise<DocumentUpload | null> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}/uploads`, {
     method: "POST",
-    body: fileForm(file),
+    body: fileForm(file, undefined, opts?.filename),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });

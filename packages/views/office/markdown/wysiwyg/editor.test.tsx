@@ -1,0 +1,376 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act } from "react";
+import { useEffect, useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { Editor as CoreEditor } from "@tiptap/core";
+import type { Editor } from "@tiptap/react";
+import { MarkdownWysiwygEditor } from "./editor";
+import { createMarkdownEditorExtensions } from "./extensions";
+import type { TextEditorHandle } from "../../source-editor-types";
+
+initI18n();
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+const FIXTURE = `# Title
+
+Body paragraph.
+
+<!-- comment -->
+
+Final line.
+`;
+
+/**
+ * A stand-in for the host's text source: one string, plus the subscribe/notify
+ * pair a `SourceTextPort` exposes. Both editors in a toggle share ONE of these,
+ * exactly as they share one handle in the product.
+ */
+function createTextSource(initial: string) {
+  let text = initial;
+  const listeners = new Set<(next: string) => void>();
+  return {
+    getText: () => text,
+    setText: (next: string) => {
+      if (next === text) return;
+      text = next;
+      listeners.forEach((listener) => listener(next));
+    },
+    subscribe: (listener: (next: string) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+function createHandle(source: ReturnType<typeof createTextSource>): TextEditorHandle {
+  return {
+    format: "md",
+    open: vi.fn(async () => undefined),
+    getDirtyGeneration: () => 1,
+    captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { text: source.getText() } })),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    dispose: vi.fn(),
+    source,
+  };
+}
+
+/** A source <-> visual toggle over one shared text source. */
+function ToggleHarness({
+  handle,
+  onEditorReady,
+  onCheckpoint,
+}: {
+  handle: TextEditorHandle;
+  onEditorReady: (editor: Editor | null) => void;
+  onCheckpoint: () => void;
+}) {
+  const [visual, setVisual] = useState(true);
+  const [text, setText] = useState(() => handle.source!.getText());
+  useEffect(() => handle.source!.subscribe!((next: string) => setText(next)), [handle]);
+  return (
+    <div>
+      <button type="button" onClick={() => setVisual((value) => !value)}>
+        toggle
+      </button>
+      {visual ? (
+        <MarkdownWysiwygEditor
+          documentKey="doc"
+          editor={handle}
+          onEditorReady={onEditorReady}
+          onCheckpoint={onCheckpoint}
+        />
+      ) : (
+        <textarea aria-label="source" value={text} onChange={(event) => handle.source!.setText(event.target.value)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The kitchen-sink fixture's table shape: single-space padding, which the
+ * Markdown manager would re-pad to column-aligned form. M1 therefore keeps it
+ * as an opaque raw block, and this surface must still DRAW it as a table.
+ */
+const FIXTURE_TABLE = [
+  "## Bang so lieu",
+  "",
+  "| Hang muc | Quy I | Quy II |",
+  "| --- | --- | --- |",
+  "| Doanh thu | 1.250.000.000 | 1.410.000.000 |",
+  "",
+].join("\n");
+
+describe("SelectiveMarkdown wiring", () => {
+  it("keeps the base onBeforeCreate: editor.markdown, getMarkdown and the selective escaper", () => {
+    // `Markdown.extend({ onBeforeCreate })` shallow-merges config, so the child
+    // hook replaces the base one unless it calls `this.parent?.()`. The base
+    // hook is what rebuilds `storage.manager` from the real extensions, assigns
+    // `editor.markdown`, defines `editor.getMarkdown` and handles
+    // `contentType: "markdown"`. Without the parent call, markdown paste bails
+    // (`if (!editor.markdown) return false`) and `editor.getMarkdown` throws.
+    const editor = new CoreEditor({
+      extensions: createMarkdownEditorExtensions(),
+      content: "<p>snake_case_name</p>",
+    });
+    try {
+      expect(editor.markdown).toBeDefined();
+      expect(typeof editor.getMarkdown).toBe("function");
+      // The manager the base hook built is the one `editor.markdown` points at,
+      // so the selective escaper must sit on THAT manager, not the throwaway
+      // `addStorage` one (which has zero extensions).
+      // `extension.storage` is a getter that spreads a fresh object, so read
+      // the storage the hook actually mutated.
+      const markdownStorage = editor.extensionStorage.markdown as unknown as { manager: unknown };
+      expect(editor.markdown).toBe(markdownStorage.manager);
+      const escaper = (editor.markdown as unknown as { escapeMarkdownSyntax?: (text: string) => string })
+        .escapeMarkdownSyntax;
+      expect(typeof escaper).toBe("function");
+      expect(escaper!("snake_case_name")).toBe("snake_case_name");
+      expect(escaper!("a `tick` b")).toBe("a \\`tick\\` b");
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
+describe("MarkdownWysiwygEditor", () => {
+  it("mounts a ProseMirror surface driven by the shared text source", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    const onEditorReady = vi.fn();
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={onEditorReady} />,
+    );
+    const surface = await waitFor(() => {
+      const element = container.querySelector(".ProseMirror[contenteditable='true']");
+      expect(element).toBeTruthy();
+      return element as HTMLElement;
+    });
+    expect(surface).toHaveAttribute("role", "textbox");
+    expect(surface.textContent).toContain("Body paragraph.");
+    // The raw comment survives as a preserved block, visible but not editable.
+    expect(container.querySelector("[data-markdown-raw]")).toBeTruthy();
+    await waitFor(() => expect(onEditorReady).toHaveBeenCalledWith(expect.objectContaining({ getJSON: expect.any(Function) })));
+  });
+
+  it("writes an edit back to the shared text source", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    const onChange = vi.fn();
+    render(
+      <MarkdownWysiwygEditor
+        documentKey="doc"
+        editor={handle}
+        onEditorReady={(editor) => { live = editor; }}
+        onChange={onChange}
+      />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    await act(async () => {
+      live!.commands.insertContentAt(live!.state.doc.content.size, { type: "paragraph", content: [{ type: "text", text: "Appended." }] });
+    });
+    await waitFor(() => expect(source.getText()).toContain("Appended."));
+    // Everything before the edit is untouched, byte for byte.
+    expect(source.getText().startsWith(FIXTURE.slice(0, FIXTURE.indexOf("Final line.")))).toBe(true);
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it("parses an external source change back into the visual editor", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    await act(async () => {
+      source.setText("# Replaced\n\nNew body.\n");
+    });
+    await waitFor(() => expect(live!.getJSON().content?.[0]?.type).toBe("heading"));
+    expect(JSON.stringify(live!.getJSON())).toContain("New body.");
+  });
+
+  it("round-trips source <-> visual through the same text source", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    render(<ToggleHarness handle={handle} onEditorReady={(editor) => { live = editor; }} onCheckpoint={() => undefined} />);
+    await waitFor(() => expect(live).not.toBeNull());
+
+    // Visual -> source: the textarea shows the same bytes.
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    const textarea = await screen.findByLabelText("source");
+    expect((textarea as HTMLTextAreaElement).value).toBe(FIXTURE);
+
+    // Edit in source, then toggle back: the visual editor shows the edit and
+    // serialises it back to the same source.
+    fireEvent.change(textarea, { target: { value: FIXTURE.replace("Body paragraph.", "Body edited in source.") } });
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    const surface = await waitFor(() => {
+      const element = document.querySelector(".ProseMirror[contenteditable='true']");
+      expect(element).toBeTruthy();
+      return element as HTMLElement;
+    });
+    expect(surface.textContent).toContain("Body edited in source.");
+    await waitFor(() => expect(live!.getJSON().content?.length).toBeGreaterThan(0));
+    // The bytes outside the edit are still the original ones.
+    expect(source.getText().startsWith("# Title\n\nBody edited in source.")).toBe(true);
+    expect(source.getText().endsWith("Final line.\n")).toBe(true);
+  });
+
+  it("mounts the new document when documentKey changes in place", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    const { container, rerender } = render(
+      <MarkdownWysiwygEditor documentKey="doc-a" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(container.querySelector(".ProseMirror")!.textContent).toContain("Body paragraph.");
+
+    source.setText("# Second document\n\nDifferent body.\n");
+    rerender(<MarkdownWysiwygEditor documentKey="doc-b" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => {
+      const surface = container.querySelector(".ProseMirror");
+      expect(surface?.textContent).toContain("Different body.");
+    });
+    expect(container.querySelector(".ProseMirror")!.textContent).not.toContain("Body paragraph.");
+  });
+
+  it("does not checkpoint mid-IME composition, and checkpoints on composition end", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    const onCheckpoint = vi.fn();
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} onCheckpoint={onCheckpoint} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    const surface = container.querySelector(".ProseMirror") as HTMLElement;
+
+    fireEvent.compositionStart(surface);
+    await act(async () => {
+      live!.commands.insertContent("dang g");
+    });
+    // Mid-composition: the partial word is not written and not checkpointed.
+    expect(source.getText()).toBe(FIXTURE);
+    expect(onCheckpoint).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(surface);
+    await waitFor(() => expect(onCheckpoint).toHaveBeenCalledTimes(1));
+    expect(source.getText()).toContain("dang g");
+  });
+});
+
+/** A plugin's `key` is a ProseMirror-internal string not on the public type. */
+function hasImageUploadPlugin(editor: Editor): boolean {
+  return editor.state.plugins.some(
+    (plugin) => ((plugin as { key?: string }).key ?? "").startsWith("markdownImageUpload"),
+  );
+}
+
+describe("MarkdownWysiwygEditor image pipeline", () => {
+  it("leaves the extension set untouched when no image option is given", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    // The upload plugin only exists when a host wires the pipeline.
+    expect(hasImageUploadPlugin(live!)).toBe(false);
+  });
+
+  it("mounts the upload plugin and authors the relative path the host returns", async () => {
+    const uploader = vi.fn(async () => ({ path: "assets/pasted.png", assetId: "asset-pasted" }));
+    const manifest = { entries: [{ path: "assets/pasted.png", asset_id: "asset-pasted", status: "ready" as const }] };
+    const port = { displayUrl: (id: string) => `blob:${id}` };
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    render(
+      <MarkdownWysiwygEditor
+        documentKey="doc"
+        editor={handle}
+        onEditorReady={(editor) => { live = editor; }}
+        image={{ manifest, port, uploader }}
+      />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(hasImageUploadPlugin(live!)).toBe(true);
+
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: { files: [new File(["png"], "pasted.png", { type: "image/png" })], getData: () => "" },
+    });
+    await act(async () => { live!.view.dom.dispatchEvent(event); });
+
+    await waitFor(() => expect(uploader).toHaveBeenCalledTimes(1));
+    // Only the RELATIVE path the host returned is authored into the Markdown.
+    await waitFor(() => expect(handle.source!.getText()).toContain("assets/pasted.png"));
+  });
+});
+
+describe("Markdown WYSIWYG canvas styling and GFM table render", () => {
+  it("carries the shared editor class so the repo's editor stylesheet applies", async () => {
+    // The canvas never imported packages/views/editor/styles/index.css, so
+    // every rule (typography, tables, code) scoped to `.rich-text-editor` was
+    // absent and the surface rendered unstyled next to DOCX/PDF. The class the
+    // stylesheet expects must be on the ProseMirror element.
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    const surface = container.querySelector(".ProseMirror");
+    expect(surface).toBeTruthy();
+    expect(surface!.classList.contains("rich-text-editor")).toBe(true);
+    expect(surface!.classList.contains("text-body")).toBe(true);
+    expect(surface!.classList.contains("markdown-wysiwyg-content")).toBe(true);
+  });
+
+  it("draws an authored (raw-preserved) GFM table as a real table, not a <pre>", async () => {
+    const handle = createHandle(createTextSource(FIXTURE_TABLE));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    // The block is still the opaque raw node (byte-identity preserved) ...
+    const raw = container.querySelector("[data-markdown-raw]");
+    expect(raw).toBeTruthy();
+    expect(raw!.getAttribute("data-source")).toContain("| Hang muc | Quy I | Quy II |");
+    // ... but it draws as a table with a header row and cells.
+    expect(container.querySelector("pre.markdown-raw-source")).toBeNull();
+    expect(container.querySelector("table")).toBeTruthy();
+    expect(container.querySelectorAll("th").length).toBe(3);
+    expect(container.querySelectorAll("td").length).toBe(3);
+    expect(raw!.classList.contains("tableWrapper")).toBe(true);
+  });
+
+  it("keeps a non-table raw block (a stray pipe) as the opaque <pre>", async () => {
+    const handle = createHandle(createTextSource("A line with a | pipe, not a table.\n"));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it("serialises the authored table back byte-identical after the table render", async () => {
+    const source = createTextSource(FIXTURE_TABLE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    // A no-op edit republishes through the same codec; the source must not move.
+    await act(async () => {
+      live!.commands.insertContentAt(live!.state.doc.content.size, { type: "paragraph", content: [{ type: "text", text: "Them." }] });
+    });
+    await waitFor(() => expect(source.getText()).toContain("Them."));
+    expect(source.getText().startsWith(FIXTURE_TABLE)).toBe(true);
+  });
+});

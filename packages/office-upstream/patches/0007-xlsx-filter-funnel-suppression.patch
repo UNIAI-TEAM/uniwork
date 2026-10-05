@@ -1,0 +1,30 @@
+diff --git a/apps/sheets/src/renderer/filter-range-outline.ts b/apps/sheets/src/renderer/filter-range-outline.ts
+index e9740dc..3e6faae 100644
+--- a/apps/sheets/src/renderer/filter-range-outline.ts
++++ b/apps/sheets/src/renderer/filter-range-outline.ts
+@@ -2,10 +2,13 @@
+  * Excel draws no outline around an auto-filtered range, but Univer's
+  * SheetsFilterRenderController paints a selection-style border over the whole
+  * filter range whenever a sheet has a filter (user report: "a mysterious
+- * outer border appeared"). The controller class isn't exported, so it is
+- * caught at render-module registration — recognized by its distinctive
+- * prototype — and its range painter is stubbed out. The funnel buttons keep
+- * rendering; only the range outline goes.
++ * outer border appeared"). The same controller also paints a filter funnel
++ * button in every header cell of the range; UniWork replaces the pinned
++ * filter panel with its own Advanced Filter dialog, so those funnels would be
++ * visible affordances whose click is denied at the command gate (a dead
++ * click). The controller class isn't exported, so it is caught at
++ * render-module registration — recognized by its distinctive prototype — and
++ * both painters are stubbed out: the range outline and the funnel buttons go.
+  */
+ import { IRenderManagerService } from '@univerjs/engine-render'
+ 
+@@ -23,6 +26,7 @@ export function installFilterRangeOutlineSuppression(runtime: UniverRuntime): vo
+       typeof prototype._renderButtons === 'function'
+     ) {
+       prototype._renderRange = () => {}
++      prototype._renderButtons = () => {}
+     }
+     return original(type, dep)
+   }

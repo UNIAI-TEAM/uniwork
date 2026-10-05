@@ -1,5 +1,7 @@
 export { XlsxEditor } from "./xlsx-editor";
 export { createXlsxEditorLoader, type XlsxEditorSlotConfig } from "./xlsx-editor-slot";
+export { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, withPendingOps, withoutPendingOps, type XlsxJournalDraftCell, type XlsxSnapshotWithPendingOps } from "./xlsx-journal-apply";
+export { isRenderModel, stableJson } from "./xlsx-runtime-guards";
 export { XlsxErrorState } from "./xlsx-error-state";
 export { XlsxGridSurface, loadXlsxRendererModule } from "./xlsx-grid-surface";
 export type { XlsxGridHandle, XlsxGridHostPort, XlsxGridSelection, XlsxRendererModule } from "./xlsx-grid-surface";

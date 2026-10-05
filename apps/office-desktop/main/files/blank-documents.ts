@@ -1,12 +1,15 @@
 import { desktopUntitledName, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { blankDocxBytes } from "./blank-docx";
 import { blankPdfBytes } from "./blank-pdf";
+import { blankHtmlBytes, blankMarkdownBytes } from "./blank-text";
 
 /** Blank-document generators keyed by the shared format table. A format with
  * no generator yet cannot be created through IPC (see the create handlers). */
 const BLANK_GENERATORS: Partial<Record<DesktopDocumentFormat, () => Uint8Array>> = {
   docx: blankDocxBytes,
   pdf: blankPdfBytes,
+  md: blankMarkdownBytes,
+  html: blankHtmlBytes,
 };
 
 export function blankDocumentBytes(format: DesktopDocumentFormat): Uint8Array {

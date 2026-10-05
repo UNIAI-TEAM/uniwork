@@ -2,9 +2,10 @@
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
 import { dispatchOfficeError } from "@uniwork/core/office";
-import { isXlsxWorkbookSnapshot, parseXlsxOps, type XlsxEditOp, type XlsxRenderModel, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
+import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
+import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, withPendingOps, withoutPendingOps } from "@uniwork/views/office/xlsx";
 
 /** Required renderer fields: an older engine must fail clearly instead of
  * silently mounting the legacy value-only table. */
@@ -58,67 +59,15 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-// The gateway value snapshot has no style fields. Keep serializable deltas on
-// cells so protected drafts can rebuild exactly the same server edit jobs.
-interface DraftCell extends XlsxCellState { style?: Record<string, unknown>; styleReset?: boolean; }
-
-function parsedEdits(base: XlsxWorkbookSnapshot, operations: readonly unknown[]): XlsxEditOp[] {
-  return parseXlsxOps([...operations], {
-    sheetNames: () => base.sheets.map((sheet) => sheet.name),
-    nameForId: (id) => base.sheets.find((sheet) => sheet.id === id)?.name,
-  });
-}
-
+/** Shared, host-neutral journal application (@uniwork/views/office/xlsx).
+ *  Web and desktop must apply the same ops the same way so the save envelope
+ *  is identical across hosts; the implementation lives in the views package. */
 function applyEdits(base: XlsxWorkbookSnapshot, operations: readonly unknown[]): XlsxWorkbookSnapshot {
-  const ops = parsedEdits(base, operations);
-  const next = cloneSnapshot(base);
-  for (const op of ops) {
-    const cells = next.sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, DraftCell>;
-    const previous = cells[op.target.address];
-    const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };
-    const reset = op.kind === "set_cell" && op.styleReset;
-    const style = { ...(reset ? {} : previous?.style), ...(op.kind === "set_cell" ? op.style : {}) };
-    const cell: DraftCell = { value: content.value, ...(content.formula === undefined ? {} : { formula: content.formula }), ...(content.rawValue === undefined ? {} : { rawValue: content.rawValue }), ...(Object.keys(style).length ? { style } : {}), ...((reset || previous?.styleReset) ? { styleReset: true } : {}) };
-    if (cell.value === null && cell.formula === undefined && !cell.style && !cell.styleReset) delete cells[op.target.address];
-    else cells[op.target.address] = cell;
-  }
-  return { revision: base.revision + 1, sheets: next.sheets };
+  return applyXlsxJournalToSnapshot(base, operations);
 }
 
-function snapshotsEqual(left: XlsxCellState | undefined, right: XlsxCellState | undefined): boolean {
-  if (left === right) return true;
-  if (!left || !right) return false;
-  return left.value === right.value && left.formula === right.formula && left.rawValue === right.rawValue;
-}
-
-/** Convert a recovered full snapshot back to the bounded public edit shape.
- * The server edit job is the only serializer/recalc path, so restoring a
- * draft must rebuild its queued edits before the next explicit Save. */
 function editsBetween(base: XlsxWorkbookSnapshot, next: XlsxWorkbookSnapshot): unknown[] {
-  const operations: unknown[] = [];
-  const baseSheets = new Map(base.sheets.map((sheet) => [sheet.name, sheet]));
-  for (const sheet of next.sheets) {
-    const previous = baseSheets.get(sheet.name);
-    const previousCells = previous?.cells ?? {};
-    for (const [address, cell] of Object.entries(sheet.cells)) {
-      const previousCell = previousCells[address] as DraftCell | undefined;
-      const nextCell = cell as DraftCell;
-      const contentChanged = !snapshotsEqual(previousCell, nextCell);
-      const styleChanged = JSON.stringify(previousCell?.style) !== JSON.stringify(nextCell.style) || previousCell?.styleReset !== nextCell.styleReset;
-      if (!contentChanged && !styleChanged) continue;
-      const attributes = { ...(contentChanged ? cell.formula !== undefined ? { formula: cell.formula } : { value: cell.value } : {}), ...(styleChanged && nextCell.styleReset ? { styleReset: true } : {}) };
-      operations.push({
-        op: "set_cell",
-        target: { sheet: sheet.name, cell: address },
-        ...(Object.keys(attributes).length ? { attributes } : {}),
-        ...(styleChanged && nextCell.style !== undefined ? { style: nextCell.style } : {}),
-      });
-    }
-    for (const address of Object.keys(previousCells)) {
-      if (!(address in sheet.cells)) operations.push({ op: "clear_cell", target: { sheet: sheet.name, cell: address } });
-    }
-  }
-  return operations;
+  return diffXlsxSnapshotsToOperations(base, next);
 }
 
 export interface WebXlsxRuntimeOptions { documentId: string; baseRevision: string; onBaseRevision?: (revision: string) => void; }
@@ -190,8 +139,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       if (disposed) throw new Error("xlsx_runtime_disposed");
       try {
         const opened = await openModel();
-        snapshot = cloneSnapshot(opened.snapshot);
-        committed = cloneSnapshot(snapshot);
+        snapshot = withoutPendingOps(cloneSnapshot(opened.snapshot));
+        committed = withoutPendingOps(cloneSnapshot(snapshot));
         return {
           outcome: "opened",
           document_id: input.documentId,
@@ -212,8 +161,11 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       if (!snapshot || !committed) throw new Error("xlsx_runtime_not_open");
       if (candidates.size) throw new Error("xlsx_restore_save_pending");
       const restored = { ...cloneSnapshot(recovered), revision: snapshot.revision + 1 };
-      pending = editsBetween(committed, restored).map((operation) => ({ revision: restored.revision, operation }));
-      snapshot = restored;
+      const operations = editsBetween(committed, restored);
+      pending = operations.map((operation) => ({ revision: restored.revision, operation }));
+      // F4: the recovered draft re-emits the ops it carries; keep that stream
+      // on the snapshot so a further interruption still recovers them.
+      snapshot = operations.length === 0 ? withoutPendingOps(restored) : withPendingOps(restored, operations);
     },
     async serialize(_ref, input) {
       if (!snapshot || !committed) throw new Error("xlsx_runtime_not_open");
@@ -253,7 +205,10 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       const candidate = candidates.get(intentId);
       if (!candidate?.output || candidate.baseRevision !== baseRevision) throw new Error("xlsx_commit_candidate_missing");
       if (!/^\d+$/.test(revision) || BigInt(revision) <= BigInt(baseRevision)) throw new Error("xlsx_commit_revision_invalid");
-      committed = cloneSnapshot(candidate.snapshot);
+      // F4: the committed base is the file the save just wrote, so it carries
+      // no pending stream; the live snapshot drops the ops it just saved.
+      committed = withoutPendingOps(cloneSnapshot(candidate.snapshot));
+      snapshot = snapshot === null ? null : withoutPendingOps(snapshot);
       pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision);
       baseRevision = revision;
       lastCommit = { intentId, revision };

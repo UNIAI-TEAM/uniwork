@@ -19,6 +19,11 @@ const MODEL: XlsxRenderModel = {
     },
   ],
   dxfStyles: [],
+  definedNames: [
+    { name: "Sales", formula: "Data!$A$1:$B$2" },
+    { name: "Scoped", formula: "PhuLuc!$A$1", sheetIndex: 1 },
+    { name: "HiddenName", formula: "Data!$A$1", hidden: true },
+  ],
   sheets: [
     {
       id: "sheet-1",
@@ -55,6 +60,11 @@ const MODEL: XlsxRenderModel = {
 };
 
 describe("render model bridge", () => {
+  it("defaults definedNames to an empty list when the model carries none", () => {
+    const file = toRendererWorkbookFile({ ...MODEL, definedNames: undefined }, { sessionId: "s-1", name: "book.xlsx", sha256: "c".repeat(64) });
+    expect(file.definedNames).toEqual([]);
+  });
+
   it("maps the model onto the vendored WorkbookFile shape", () => {
     const file = toRendererWorkbookFile(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "a".repeat(64), fileBytes: 1234, entryCount: 9 });
     expect(file.sessionId).toBe("s-1");
@@ -71,12 +81,55 @@ describe("render model bridge", () => {
     expect(file.date1904).toBe(true);
     expect(file.readOnly).toBe(false);
     expect(file.visuals).toEqual([]);
+    // B7 F1: the file's defined names reach the vendored loader; hidden names
+    // keep their reader-only flag so the name manager can preserve them.
+    expect(file.definedNames).toEqual([
+      { name: "Sales", formula: "Data!$A$1:$B$2" },
+      { name: "Scoped", formula: "PhuLuc!$A$1", sheetIndex: 1 },
+      { name: "HiddenName", formula: "Data!$A$1", hidden: true },
+    ]);
     // The pinned viewport loader iterates these even without table/note features.
     for (const sheet of file.sheets) {
       expect(sheet.tables).toEqual([]);
       expect(sheet.comments).toEqual([]);
       expect(sheet.pivotRanges).toEqual([]);
     }
+  });
+
+  it("maps the tables a file ships into the renderer sheet shape", () => {
+    const withTable: XlsxRenderModel = {
+      ...MODEL,
+      sheets: [
+        {
+          ...MODEL.sheets[0]!,
+          tables: [
+            {
+              name: "Sales",
+              area: { startRow: 1, startColumn: 1, endRow: 5, endColumn: 3 },
+              columnNames: ["Region", "Q1", "Total"],
+              style: "TableStyleMedium2",
+              bandedRows: true,
+              headerRow: true,
+              totalsRow: true,
+            },
+          ],
+        },
+        MODEL.sheets[1]!,
+      ],
+    };
+    const file = toRendererWorkbookFile(withTable, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]?.tables).toEqual([
+      {
+        range: { startRow: 1, startColumn: 1, endRow: 5, endColumn: 3 },
+        headerRowCount: 1,
+        showRowStripes: true,
+        showColumnStripes: false,
+        name: "Sales",
+        columns: ["Region", "Q1", "Total"],
+        totalsRowCount: 1,
+      },
+    ]);
+    expect(file.sheets[1]?.tables).toEqual([]);
   });
 
   it("serves a viewport window with cached formula results and layout", () => {

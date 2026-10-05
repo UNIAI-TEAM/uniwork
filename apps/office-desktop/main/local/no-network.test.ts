@@ -39,13 +39,14 @@ describe("local mode opens no network connection", () => {
     const transport = new Proxy({}, { get: () => (..._args: unknown[]) => { calls += 1; return Promise.reject(new Error("network attempted")); } });
     const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
     const dispatch = createIpcDispatcher(handlers, sender);
-    for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save"]) {
+    for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-job", "desktop:office-save"]) {
       const payload = channel === "desktop:office-save"
         ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "docx", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", dataBase64: "b2s=", checksum: `sha256:${"a".repeat(64)}` }
+        : channel === "desktop:office-job" ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "xlsx", operation: "open", baseRevision: "1" }
         : channel === "desktop:library-create" ? { sessionGeneration, workspaceId: "ws", title: "Plan.docx" }
         : channel === "desktop:library-search" ? { sessionGeneration, workspaceId: "ws", query: "plan" }
         : channel === "desktop:library-context" ? { sessionGeneration }
-        : { sessionGeneration, workspaceId: "ws", ...(channel === "desktop:office-open" || channel === "desktop:library-download" ? { documentId: "doc" } : {}) };
+        : { sessionGeneration, workspaceId: "ws", ...(channel === "desktop:office-open" || channel === "desktop:office-context" || channel === "desktop:library-download" ? { documentId: "doc" } : {}) };
       await expect(dispatch(channel, payload)).rejects.toMatchObject({ code: "login_required" });
     }
     expect(calls).toBe(0);
@@ -105,13 +106,22 @@ describe("local mode opens no network connection", () => {
     const documents = createOpenedDocuments({ sessionFor: (kind) => kind === "local" ? deviceScope : undefined });
     const localIdentity = (handle: string, file: { modifiedAtMs: number; checksum: string }) => ({ deploymentId: "local-device", accountId: deviceScope.accountId, organizationId: "local", workspaceId: "local", documentId: registry.identityFor(handle), base: { revision: String(Math.trunc(file.modifiedAtMs)), version: file.checksum } });
     documents.open(metadata.handle, "local", localIdentity(metadata.handle, metadata));
+    // A local .xlsx served through a fake engine: the channel must open no network either.
+    const sheetPath = join(rootDirectory, "sheet.xlsx");
+    await fs.writeFile(sheetPath, "xlsx-bytes");
+    const sheet = await registry.openPath(sheetPath);
+    documents.open(sheet.handle, "local", localIdentity(sheet.handle, sheet));
+    const xlsx = {
+      open: async () => ({ snapshot: { revision: 0, sheets: [] }, renderModel: { revision: 0, activeTab: 0, date1904: false, sheets: [], styles: [], dxfStyles: [] } }),
+      edit: async () => ({ bytes: new Uint8Array([9, 9]), checksum: `sha256:${"b".repeat(64)}` }),
+    };
     const store: DesktopDraftStore = createDesktopDraftStore({ rootDirectory: join(rootDirectory, "drafts"), keyStore: keys });
     const mode = await createLocalModeStore({ userDataDirectory: rootDirectory });
     const recents = createRecentFilesStore({ userDataDirectory: rootDirectory, keyStore: keys, deviceId: DEVICE_ID });
     const dispatcher = createIpcDispatcher({
       ...createLocalIpcHandlers({ mode, recents }),
       ...createFileIpcHandlers({
-        registry, saveGuard: undefined, session: () => deviceScope, recents,
+        registry, xlsx, saveGuard: undefined, session: () => deviceScope, recents,
         pickOpen: async () => source,
         pickSaveAs: async () => destination,
         isOpened: (handle) => documents.context(handle)?.kind === "local",
@@ -137,6 +147,10 @@ describe("local mode opens no network connection", () => {
     expect(await dispatcher("desktop:file-save-as", { sessionGeneration, handle: metadata.handle, dataBase64: "Y29waWVk" })).toMatchObject({ opened: true, metadata: { name: "copy.docx" } });
     expect(await fs.readFile(destination, "utf8")).toBe("copied");
     expect(untitled).toMatch(/^file_/);
+    const opened = await dispatcher("desktop:file-xlsx", { sessionGeneration, handle: sheet.handle, operation: "open", baseRevision: "1" }) as { state: string; outputBase64?: string };
+    expect(opened.state).toBe("completed");
+    expect(JSON.parse(Buffer.from(opened.outputBase64!, "base64").toString("utf8"))).toMatchObject({ snapshot: { revision: 0 } });
+    expect(await dispatcher("desktop:file-xlsx", { sessionGeneration, handle: sheet.handle, operation: "edit", baseRevision: "1", edits: [{ op: "set_cell" }] })).toMatchObject({ state: "completed", outputChecksum: `sha256:${"b".repeat(64)}` });
     expect(await dispatcher("desktop:draft-list", { sessionGeneration })).toEqual({ drafts: [] });
     expect(await dispatcher("desktop:recent-remove", { sessionGeneration, id: recentId })).toEqual({ removed: true });
     await expect(dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, dataBase64: "b2s=", path: "C:\\secret" })).rejects.toMatchObject({ code: "schema" });

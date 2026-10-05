@@ -8,7 +8,12 @@ vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ user: { id: "account
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@uniwork/core/api/endpoints/office", () => ({ getOfficeCapabilities: mocks.capabilities }));
 vi.mock("./pdf-adapter", () => ({ createPdfFormatAdapter: mocks.adapter }));
-vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: unknown; capability?: { status: string; fidelityWarnings?: string[] } }) => createElement("div", { "data-testid": "host", "data-bound": Boolean(props.formatAdapter), "data-capability": props.capability?.status ?? "unknown", "data-warnings": (props.capability?.fidelityWarnings ?? []).join("|") }) }));
+// Keep the real module (so `detectDocumentFormat` stays real and the routing
+// assertion below stays meaningful) and stub only the composed editor host.
+vi.mock("./editor-host", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./editor-host")>();
+  return { ...actual, OfficeEditorHost: (props: { formatAdapter?: unknown; capability?: { status: string; fidelityWarnings?: string[] } }) => createElement("div", { "data-testid": "host", "data-bound": Boolean(props.formatAdapter), "data-capability": props.capability?.status ?? "unknown", "data-warnings": (props.capability?.fidelityWarnings ?? []).join("|") }) };
+});
 // The app resolves each format host through next/dynamic; the test resolves the
 // same loader synchronously behind Suspense so the routing host can mount.
 vi.mock("next/dynamic", async () => {

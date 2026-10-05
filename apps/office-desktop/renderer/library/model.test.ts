@@ -5,24 +5,36 @@ import type { DesktopLibraryDocument } from "../../shared/ipc";
 const row = (overrides: Partial<DesktopLibraryDocument> = {}): DesktopLibraryDocument => ({ id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.docx", kind: "file", format: "docx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true, ...overrides });
 
 describe("desktop library scope and filtering", () => {
-  it("removes Work Product and unknown formats before rendering", () => {
-    expect(filterLibraryDocuments([row(), row({ id: "doc-work", ownerKind: "work_product" }), row({ id: "doc-x", format: "docx" })])).toHaveLength(2);
+  it("keeps docx, xlsx and pptx rows, drops Work Product and formats the host does not carry", () => {
+    const kept = filterLibraryDocuments([
+      row(),
+      row({ id: "doc-sheet", format: "xlsx", title: "Budget.xlsx" }),
+      row({ id: "doc-work", ownerKind: "work_product" }),
+      row({ id: "doc-deck", format: "pptx", title: "Deck.pptx" }),
+      row({ id: "doc-text", format: "txt" as DesktopLibraryDocument["format"], title: "Notes.txt" }),
+    ]);
+    expect(kept.map((document) => document.format)).toEqual(["docx", "xlsx", "pptx"]);
   });
 
   it("keeps every format-table format and drops a foreign one", () => {
     const kept = filterLibraryDocuments([row(), row({ id: "doc-pdf", format: "pdf" }), row({ id: "doc-p", format: "pptx" })]);
     expect(kept.map((document) => document.format)).toEqual(["docx", "pdf", "pptx"]);
-    expect(filterLibraryDocuments([row({ id: "doc-x", format: "xlsx" as never })])).toHaveLength(0);
+    expect(filterLibraryDocuments([row({ id: "doc-t", format: "txt" as never })])).toHaveLength(0);
   });
 
-  it("keeps format-table downloads available while the engine is down", () => {
+  it("lists Markdown and HTML documents and drops an unknown format", () => {
+    const kept = filterLibraryDocuments([row({ id: "a", format: "md" }), row({ id: "b", format: "html" }), row({ id: "c", format: "txt" as never })]);
+    expect(kept.map((document) => document.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps a carried format downloadable while the engine is down", () => {
     expect(canDownloadDocument(row({ format: "pptx" }), false)).toBe(true);
     expect(canDownloadDocument(row({ format: "pdf" }), false)).toBe(true);
-    expect(canDownloadDocument(row({ format: "xlsx" as never }), false)).toBe(false);
-  });
-
-  it("keeps DOCX download available while the engine is down", () => {
+    expect(canDownloadDocument(row({ format: "md" }), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "html" }), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "txt" as never }), false)).toBe(false);
     expect(canDownloadDocument(row(), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "xlsx", title: "Budget.xlsx" }), false)).toBe(true);
     expect(canDownloadDocument(row({ downloadAvailable: false }), false)).toBe(false);
   });
 

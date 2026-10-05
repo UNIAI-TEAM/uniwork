@@ -11,7 +11,9 @@
 // Placement (checkpoint option A, Advisor-approved): this lives in the
 // browser-safe xlsx lane and is consumed by the `open:xlsx` job and by the
 // renderer controller; it never touches the Rust sidecar.
-import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml.ts";
+import { readSheetTables, type XlsxRenderTable } from "./render-model-tables.ts";
+export type { XlsxRenderTable };
+import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
@@ -83,6 +85,9 @@ export interface XlsxRenderSheet {
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
   readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
+  /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
+   *  reads as no tables. Read-only; the write path is the table ops. */
+  readonly tables?: readonly XlsxRenderTable[] | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -130,6 +135,11 @@ export interface XlsxRenderTheme {
   readonly minorEa?: string | undefined;
 }
 
+/** One workbook defined name as the render model carries it. `sheetIndex` is
+ *  the 0-based sheet position (`localSheetId`); `hidden` names are readable but
+ *  cannot be modelled by the name-manager form, so consumers preserve them. */
+export type XlsxRenderDefinedName = XlsxParsedDefinedName;
+
 export interface XlsxRenderModel {
   readonly revision: number;
   readonly activeTab: number;
@@ -140,6 +150,9 @@ export interface XlsxRenderModel {
   readonly theme?: XlsxRenderTheme | undefined;
   readonly normalFontName?: string | undefined;
   readonly shortDateFormat?: string | undefined;
+  /** The workbook's own <definedNames> entries (B7 F1). Additive: readers that
+   *  predate the field treat an absent value as an empty list. */
+  readonly definedNames?: readonly XlsxRenderDefinedName[] | undefined;
 }
 
 // ── XML helpers (same regex-scanning style the vendored gateway uses) ──────
@@ -401,17 +414,26 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
   const sheetPaths = ordered.map((sheet) => sheet.path).filter((value): value is string => value !== undefined);
   const sheetXmls = sheetPaths.length ? await engine.readEntriesText(bytes, sheetPaths) : {};
 
+  const sheetTables = await readSheetTables(
+    ordered.map((sheet) => ({ path: sheet.path, xml: sheet.path ? sheetXmls[sheet.path] : null })),
+    (paths) => engine.readEntriesText(bytes, paths),
+    parseRefRange,
+  );
+
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    return { ...parsed, hidden: sheet.hidden ?? false, index };
+    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];
   const activeTab = view ? Number(attribute(view.tag, "activeTab") ?? 0) : 0;
   const date1904 = /<workbookPr\b[^>]*date1904="(1|true)"/.test(workbookXml);
+  // B7 F1: the workbook's own defined names, so the name manager can seed its
+  // rows from them instead of rewriting <definedNames> from an empty snapshot.
+  const definedNames = parseDefinedNamesXml(workbookXml);
 
   // The gateway's revision is carried through so consumers can compare the
   // render model with the value snapshot they received together.
@@ -425,6 +447,7 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     dxfStyles: parsedStyles.dxfStyles,
     ...(theme === undefined ? {} : { theme }),
     ...(parsedStyles.normalFontName === undefined ? {} : { normalFontName: parsedStyles.normalFontName }),
+    definedNames,
   };
 }
 

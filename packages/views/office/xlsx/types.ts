@@ -7,6 +7,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
+import type { XlsxRangeType } from "./selection-mapping";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -20,6 +21,9 @@ export interface XlsxSelection {
   sheet: string;
   address: string;
   endAddress?: string;
+  /** Univer RANGE_TYPE from the live grid (see selection-mapping.ts); absent
+   *  for fallback-surface and host-set selections. */
+  rangeType?: XlsxRangeType;
 }
 
 export interface XlsxSelectionPort {
@@ -122,6 +126,9 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   onSelectionChange?: (selection: XlsxSelection | null) => void;
   /** Bind all host Save entry points to the active grid's edit preparation. */
   registerSavePreparation?: (prepare: () => Promise<void>) => () => void;
+  /** Where a confirmed save lands. Defaults to cloud; the desktop passes local
+   *  for a file on disk so the label does not claim a UniWork receipt. */
+  saveDestination?: "cloud" | "local";
 }
 
 export type XlsxViewState = "opening" | "ready" | "error";

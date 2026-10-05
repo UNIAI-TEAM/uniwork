@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from "electron";
 import { existsSync } from "node:fs";
 import { release as osRelease } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
@@ -11,6 +11,7 @@ import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponse
 import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
 import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
+import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
 import { registerAppImageScheme } from "./main/linux-desktop-integration";
@@ -34,6 +35,7 @@ import { createDocumentLeaveEvidence } from "./main/document-leave";
 import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -457,11 +459,16 @@ async function startElectronHost(): Promise<void> {
       window.close();
     });
   });
+  const printRoot = join(app.getPath("temp"), "uniwork-print");
+  installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
+  // A process that quit with a print dialog open never ran its cleanup.
+  await clearPrintRoot(printRoot);
+  const printHandlers = createPrintIpcHandler({ createWindow: (options) => new BrowserWindow(options), writeFile: createPrintFileWriter(printRoot) });
   const host = createDesktopHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
-    }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }) },
+    }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
     window: {
       webContents: window.webContents,
       webPreferences: WINDOW_WEB_PREFERENCES,
@@ -482,7 +489,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];

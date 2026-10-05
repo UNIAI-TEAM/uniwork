@@ -10,7 +10,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-save", "desktop:leave-resolved"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:file-xlsx", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-save", "desktop:office-job", "desktop:leave-resolved", "desktop:print-document"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -42,6 +42,25 @@ describe("desktop IPC allowlist", () => {
     expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { nested: { file_path: "/etc/passwd" } } }, context)).toThrowError(IpcValidationError);
   });
 
+  it("opens and edits a local .xlsx through the bundled engine and rejects an un-carried pick", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "Budget.xlsx", byteLength: 4, modifiedAtMs: 9, checksum: `sha256:${"a".repeat(64)}` };
+    const registry = { read: async () => new Uint8Array([1, 2, 3, 4]), openPath: async () => metadata } as unknown as FileHandleRegistry;
+    const xlsx = {
+      open: async () => ({ snapshot: { revision: 0, sheets: [] }, renderModel: { revision: 0, activeTab: 0, date1904: false, sheets: [], styles: [], dxfStyles: [] } }),
+      edit: async () => ({ bytes: new Uint8Array([9, 9]), checksum: `sha256:${"b".repeat(64)}` }),
+    };
+    const handlers = createFileIpcHandlers({ registry, xlsx, isOpened: () => true, pickOpen: async () => "C:\\Budget.xlsx" });
+    const opened = await handlers["desktop:file-xlsx"]({ sessionGeneration: "session_1234", handle: metadata.handle, operation: "open", baseRevision: "9" }) as { state: string; outputBase64?: string };
+    expect(opened.state).toBe("completed");
+    expect(JSON.parse(Buffer.from(opened.outputBase64!, "base64").toString("utf8"))).toMatchObject({ snapshot: { revision: 0 } });
+    const edited = await handlers["desktop:file-xlsx"]({ sessionGeneration: "session_1234", handle: metadata.handle, operation: "edit", baseRevision: "9", edits: [{ op: "set_cell" }] }) as { state: string; outputChecksum?: string };
+    expect(edited.state).toBe("completed");
+    expect(edited.outputChecksum).toBe(`sha256:${"b".repeat(64)}`);
+    // A picked .xlsx now registers a local open; a .pptx still answers unsupported.
+    expect(await handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).toMatchObject({ opened: true, metadata: { name: "Budget.xlsx" } });
+    const pptx = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\deck.pptx" });
+    expect(await pptx["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).toEqual({ opened: false, unsupported: true });
+  });
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
     const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.docx" });
@@ -177,12 +196,17 @@ describe("desktop IPC allowlist", () => {
       list: vi.fn(async () => ({ documents: [{ id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file", format: "docx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true }], nextCursor: null, engineAvailable: false })),
       download: vi.fn(async () => ({ documentId: "doc-1", version: 1, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })),
       open: vi.fn(async () => ({ document: { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file", format: "docx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true }, dataBase64: "aGVsbG8=", filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", checksum: `sha256:${"a".repeat(64)}` })),
+      openContext: vi.fn(async () => ({ document: { id: "doc-x", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true } })),
+      officeJob: vi.fn(async (input: { format: string }) => ({ jobId: "job-1", documentId: "doc-x", state: "completed" as const, outputBase64: "aGVsbG8=", outputChecksum: `sha256:${"a".repeat(64)}` })),
       save: vi.fn(async (input: { intentId: string; idempotencyKey: string }) => ({ documentId: "doc-1", intentId: input.intentId, idempotencyKey: input.idempotencyKey, versionId: "version-2", revision: "10", checksum: `sha256:${"b".repeat(64)}` })),
     };
     const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => true });
     await expect(handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).resolves.toMatchObject({ engineAvailable: false });
     await expect(handlers["desktop:office-save"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })).resolves.toMatchObject({ revision: "10" });
     expect(transport.save).toHaveBeenCalledOnce();
+    await expect(handlers["desktop:office-context"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ document: { id: "doc-x", format: "xlsx" } });
+    await expect(handlers["desktop:office-job"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "open", baseRevision: "9" })).resolves.toMatchObject({ jobId: "job-1" });
+    expect(transport.officeJob).toHaveBeenCalledWith(expect.objectContaining({ format: "xlsx" }));
     expect(desktopLibraryResponseSchema.safeParse(await handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).success).toBe(true);
     const signedOut = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
     await expect(signedOut["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).rejects.toMatchObject({ code: "login_required" });

@@ -400,6 +400,28 @@ func (q *Queries) RedeemDesktopAuthAttempt(ctx context.Context, arg RedeemDeskto
 	return i, err
 }
 
+const refreshTokenIssuedToFamily = `-- name: RefreshTokenIssuedToFamily :one
+SELECT EXISTS (
+  SELECT 1 FROM refresh_tokens
+  WHERE token_hash = $1 AND user_id = $2 AND session_id = $3
+)
+`
+
+type RefreshTokenIssuedToFamilyParams struct {
+	TokenHash string `json:"token_hash"`
+	UserID    string `json:"user_id"`
+	SessionID string `json:"session_id"`
+}
+
+// True when this digest was ever issued to the session family (live or
+// rotated out). Refresh uses it to tell a replayed token from a guess.
+func (q *Queries) RefreshTokenIssuedToFamily(ctx context.Context, arg RefreshTokenIssuedToFamilyParams) (bool, error) {
+	row := q.db.QueryRow(ctx, refreshTokenIssuedToFamily, arg.TokenHash, arg.UserID, arg.SessionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const revokeAllDeviceSessions = `-- name: RevokeAllDeviceSessions :exec
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE user_id = $1 AND revoked_at IS NULL

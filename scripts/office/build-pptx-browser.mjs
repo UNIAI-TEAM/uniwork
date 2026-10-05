@@ -56,7 +56,7 @@ export const PPTX_ARTIFACT_SYMBOLS = [
  * stops applying fails the build here; this list also pins that a pptx patch
  * actually changed the pptx sources the bundle reads. */
 const PATCHED_SYMBOLS = [
-  { patch: '0007', file: 'packages/pptx-ops/src/ops/slide-ops.ts', symbol: 'remapExplicit' },
+  { patch: '0009', file: 'packages/pptx-ops/src/ops/slide-ops.ts', symbol: 'remapExplicit' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;

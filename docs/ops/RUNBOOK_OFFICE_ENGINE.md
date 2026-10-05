@@ -1,7 +1,8 @@
 # Runbook: Office engine service
 
-> **Trạng thái:** in-progress (G2-02 / UNI-685, 2026-09-27). Service (02a) and the Go transport and job lifecycle
-> (02b) are on the lane; the G1-03 commit hand-off (02c) extends this page.
+> **Trạng thái:** shipped for the engine service (02a), the Go transport and job lifecycle (02b) and the
+> G1-03 commit hand-off (02c); XLSX and PDF lanes extend this page. Deploy and rollback for the whole Office
+> G3-G4 rollout: [`docs/office/g3g4/runbook.md`](../office/g3g4/runbook.md).
 
 The Office engine service (`apps/office-engine`) is the private process that runs the Office engine operations
 which must not run in the browser (ADR 0021). Go is its only caller. It owns no account, ACL, version store or
@@ -232,18 +233,50 @@ not a deployment knob.
 - Sidecar wire protocol is NDJSON v1 (`recalc_cells`/`cancel`, `requestId`-matched) with closed bounds: 10_000 edits
   and 20_000 summed read cells per request, 2 resident models, 256 cancelled ids. The client maps sidecar codes to
   contract codes (`cancelled`, `recalc_busy` → `engine_overloaded`, `unsupported_version` → `protocol_mismatch`).
+- Every formula cell whose precedents were edited in the session gets a freshly recalculated `<v>` on save
+  (recalc-on-serialize: the sidecar evaluates the edit set and the writer patches each covered `<f>` cell), so a
+  save + reopen shows the correct total, never the file's stale cache (F7). Shared-formula followers
+  (`<f t="shared" si="N"/>`, which the basic parse reads as literals) are found in the sheet XML and refreshed by
+  coordinate like their master; their `<f/>` is never expanded (R3-1B).
 - Known upstream engine gaps stay honest: cells the engine deliberately skips (`CELL("filename")`, the `RATE`
   `#NUM!` solver case) keep their file-cached `<v>` and the save reports a `formula_cache_kept` warning with a
-  count — it does not fabricate a value.
+  count - it does not fabricate a value. A structural (row/column) or sheet-identity (add/rename/remove/reorder)
+  save cannot recalc the original bytes, so it assembles first, recalculates the PRODUCED package with zero edits
+  (final coordinates and sheet names) and writes every formula cell's `<v>` in a values-only second assemble
+  (R3-1); such a save without the sidecar is refused like any other formula-bearing save.
 - Preservation is fail-closed: `assertOnlyTouchedEntriesChanged` sha256-verifies every package part outside the
   plan's touch set; a chart part, macro payload or unsupported OOXML entry that drifted fails the save instead of
   shipping a silently different package.
 - Fixture-replay acceptance (AC-1) runs natively in Linux — the sidecar is an ELF binary and the independent
   oracle needs the upstream lockfile's jszip — via a dedicated Dockerfile stage that is never shipped:
   `docker build -f apps/office-engine/Dockerfile --target xlsx-replay -t uniwork-office-engine:xlsx-replay .`
-  then `docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay`. Exit 0 means all
-  12 capability-matrix rows passed on the real engine; the result/extraction/version-manifest JSONs land in the
+  then `docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay`. Exit 0 means every
+  capability-matrix row (14 at R3-1) passed on the real engine; the result/extraction/version-manifest JSONs land in the
   mounted dir.
+
+### Building the Windows xlsx sidecar for the packaged desktop app
+
+The packaged desktop app opens a local `.xlsx` with the same two artifacts the engine image ships: the patched
+`xlsx-gateway.mjs` (required) and the Rust `xlsx-sidecar` recalculation binary (optional; a formula-bearing save
+fails closed without it). `apps/office-desktop/scripts/xlsx-assets.mjs` stages both from the
+`node scripts/office/build-upstream.mjs --with-native --out .go-tmp/office-upstream-build` scratch tree into
+`dist/xlsx-assets`, and `scripts/package.mjs` copies that dir to `resources/xlsx-assets`.
+
+On Windows the native step needs the Rust toolchain and MSVC BuildTools:
+
+1. Install rustup for the current user only (no machine-wide install, no PATH edit):
+   `rustup-init.exe -y --default-toolchain 1.88.0 --profile minimal --default-host x86_64-pc-windows-msvc --no-modify-path`
+   (`rustup-init.exe` from `https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe`), then put
+   `%USERPROFILE%\.cargo\bin` first on PATH in the build shell. The crate is `edition = "2024"` and builds on 1.88.0
+   (the engine Dockerfile pins the same version). MSVC 14.44 BuildTools is present on the packaging host.
+2. Build the artifacts: `node scripts/office/build-upstream.mjs --with-native --out .go-tmp/office-upstream-build`.
+   MSVC's `link.exe` enforces the legacy MAX_PATH (260 chars), and the crate's build-script output path under a deep
+   worktree checkout exceeds it, so cargo fails with `LNK1104: cannot open file ...build_script_build-*.exe`. When
+   that happens, run the native build with a short `CARGO_TARGET_DIR` (e.g. under `.uniwork-dev/` on `D:`) - the
+   binary then lands at `<CARGO_TARGET_DIR>/release/xlsx-sidecar.exe`, which `xlsx-assets.mjs` also searches when
+   `CARGO_TARGET_DIR` is set. Do not stub the binary or copy a Linux ELF.
+3. Stage: `pnpm --filter @uniwork/office-desktop package` runs `stageXlsxAssets` and writes `staged-assets.json`
+   (bytes + sha256) as the shipped evidence; the sha256 of the staged `xlsx-sidecar.exe` must equal the built one.
 
 ### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
 

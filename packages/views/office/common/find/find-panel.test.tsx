@@ -1,0 +1,282 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createRef } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import {
+  applyEdits,
+  FindReplacePanel,
+  type FindReplaceEdit,
+  type FindReplacePanelHandle,
+  type FindReplacePanelProps,
+} from "./index";
+
+const i18n = initI18n();
+
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+/** Minimal host: the panel reports edits, the harness applies them to its text. */
+function renderPanel(initial: string) {
+  const onReplace = vi.fn();
+  const onReplaceAll = vi.fn();
+  const ref = createRef<FindReplacePanelHandle>();
+  const view = render(
+    <FindReplacePanel ref={ref} text={initial} onReplace={onReplace} onReplaceAll={onReplaceAll} />,
+  );
+  const type = (value: string, testId: string) =>
+    fireEvent.change(screen.getByTestId(testId), { target: { value } });
+  return { view, onReplace, onReplaceAll, ref, type };
+}
+
+const PANEL_PROPS: Pick<FindReplacePanelProps, "text"> = { text: "" };
+
+describe("FindReplacePanel", () => {
+  it("documents its public props through the barrel", () => {
+    expect(PANEL_PROPS.text).toBe("");
+  });
+
+  it("counts matches as the query changes", () => {
+    const { type } = renderPanel("one two one");
+    expect(screen.getByTestId("find-replace-count")).toBeEmptyDOMElement();
+    type("one", "find-replace-query");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    type("zzz", "find-replace-query");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("No matches");
+  });
+
+  it("cycles the active match with next and previous", () => {
+    const onActiveMatchChange = vi.fn();
+    render(<FindReplacePanel text="a a a" onActiveMatchChange={onActiveMatchChange} />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "a" } });
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 0, end: 1 }, 0);
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 2, end: 3 }, 1);
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    // Wraps back to the first match.
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 0, end: 1 }, 0);
+    fireEvent.click(screen.getByRole("button", { name: "Previous match" }));
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 4, end: 5 }, 2);
+  });
+
+  it("replaces the current match and lets the host apply the edit", () => {
+    const { type, onReplace, onReplaceAll } = renderPanel("cat cat");
+    type("cat", "find-replace-query");
+    type("dog", "find-replace-value");
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(onReplace).toHaveBeenCalledWith({ start: 4, end: 7, replacement: "dog" }, 1);
+    expect(onReplaceAll).not.toHaveBeenCalled();
+  });
+
+  it("replaces every match and passes a non-overlapping edit list", () => {
+    const { type, onReplaceAll } = renderPanel("cat cat");
+    type("cat", "find-replace-query");
+    type("dog", "find-replace-value");
+    fireEvent.click(screen.getByRole("button", { name: "Replace all" }));
+    const edits = onReplaceAll.mock.calls[0]?.[0] as FindReplaceEdit[];
+    expect(edits).toEqual([
+      { start: 0, end: 3, replacement: "dog" },
+      { start: 4, end: 7, replacement: "dog" },
+    ]);
+    expect(applyEdits("cat cat", edits)).toBe("dog dog");
+  });
+
+  it("recounts on the text the host passes back", () => {
+    const { view, type } = renderPanel("cat cat");
+    type("cat", "find-replace-query");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    view.rerender(<FindReplacePanel text="dog dog" />);
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("No matches");
+  });
+
+  it("drives case sensitive, whole word and regex from the toggles", () => {
+    const { type } = renderPanel("Cat cat concatenate");
+    type("cat", "find-replace-query");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/3");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Match case" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Whole word" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Regular expression" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1");
+  });
+
+  it("shows the invalid-pattern state and blocks replace on a bad pattern", () => {
+    const { type, onReplaceAll } = renderPanel("anything");
+    type("(", "find-replace-query");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Regular expression" }));
+    expect(screen.getByTestId("find-replace-query")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("Invalid pattern");
+    expect(screen.getByRole("button", { name: "Replace all" })).toHaveAttribute("aria-disabled", "true");
+    expect(onReplaceAll).not.toHaveBeenCalled();
+  });
+
+  it("steps with Enter, steps back with Shift+Enter and closes on Escape", () => {
+    const onClose = vi.fn();
+    const onActiveMatchChange = vi.fn();
+    render(<FindReplacePanel text="a a" onClose={onClose} onActiveMatchChange={onActiveMatchChange} />);
+    const query = screen.getByTestId("find-replace-query");
+    fireEvent.change(query, { target: { value: "a" } });
+    fireEvent.keyDown(query, { key: "Enter" });
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 2, end: 3 }, 1);
+    fireEvent.keyDown(query, { key: "Enter", shiftKey: true });
+    expect(onActiveMatchChange).toHaveBeenLastCalledWith({ start: 0, end: 1 }, 0);
+    fireEvent.keyDown(query, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("replaces the current match on Enter in the replace field (S4-7)", () => {
+    const { type, onReplace, onReplaceAll } = renderPanel("cat cat");
+    type("cat", "find-replace-query");
+    type("dog", "find-replace-value");
+    const replaceField = screen.getByTestId("find-replace-value");
+    fireEvent.keyDown(replaceField, { key: "Enter" });
+    expect(onReplace).toHaveBeenCalledWith({ start: 0, end: 3, replacement: "dog" }, 0);
+    expect(onReplaceAll).not.toHaveBeenCalled();
+    // Enter in the replace field never steps to the next match.
+    expect(onReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the active position and the total in the counter (M-1 minor)", () => {
+    render(<FindReplacePanel text="one two one" />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "one" } });
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    // Stepping updates the active position, not just the total.
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2");
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    fireEvent.click(screen.getByRole("button", { name: "Previous match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2");
+  });
+
+  it("resolves the counter from office.common.find.position in both locales (F1)", () => {
+    // The key is the dictionary's, not an inline default: it must exist in both
+    // files (the parity suite pins the pair) and the counter renders it.
+    for (const lng of ["en", "vi"] as const) {
+      expect(i18n.exists("office.common.find.position", { lng }), lng).toBe(true);
+    }
+    render(<FindReplacePanel text="one two one" />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "one" } });
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+  });
+
+  it("offers a visible close affordance that calls onClose (M-1)", () => {
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat" onClose={onClose} />);
+    const close = screen.getByTestId("find-replace-close");
+    expect(close).toBeInTheDocument();
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("closes on Escape from a button inside the panel, not only from a field (M-1)", () => {
+    // After "Replace" the focus sits on the Replace button; Escape must still
+    // close the panel, so the key is handled at the container, not per field.
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat cat" onClose={onClose} />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "cat" } });
+    const replaceButton = screen.getByTestId("find-replace-one");
+    replaceButton.focus();
+    fireEvent.keyDown(replaceButton, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+    // And from the close button itself.
+    onClose.mockClear();
+    fireEvent.keyDown(screen.getByTestId("find-replace-close"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps Escape working from the replace field (S4-7)", () => {
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat" onClose={onClose} />);
+    fireEvent.keyDown(screen.getByTestId("find-replace-value"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps autofill and spellcheck off both fields (S4-9)", () => {
+    renderPanel("abc");
+    expect(screen.getByTestId("find-replace-query")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByTestId("find-replace-value")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByTestId("find-replace-query")).toHaveAttribute("spellcheck", "false");
+    expect(screen.getByTestId("find-replace-value")).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("ignores Enter while an IME is composing", () => {
+    const onActiveMatchChange = vi.fn();
+    render(<FindReplacePanel text="a a" onActiveMatchChange={onActiveMatchChange} />);
+    const query = screen.getByTestId("find-replace-query");
+    fireEvent.change(query, { target: { value: "a" } });
+    onActiveMatchChange.mockClear();
+    fireEvent.keyDown(query, { key: "Enter", isComposing: true });
+    expect(onActiveMatchChange).not.toHaveBeenCalled();
+  });
+
+  it("focuses the find field through its imperative handle", async () => {
+    const { ref } = renderPanel("abc");
+    ref.current?.focus();
+    await waitFor(() => expect(screen.getByTestId("find-replace-query")).toHaveFocus());
+  });
+
+  it("reports the live query and the full result to the host (S4 observation props)", () => {
+    const onQueryChange = vi.fn();
+    const onResultChange = vi.fn();
+    // Mounted with the callbacks present, as a real host mounts them: the
+    // reports read the callback through a ref, so attaching one later must not
+    // re-fire (that is the documented contract, asserted at the end).
+    const view = render(
+      <FindReplacePanel text="one two one" onQueryChange={onQueryChange} onResultChange={onResultChange} />,
+    );
+    const type = (value: string, testId: string) =>
+      fireEvent.change(screen.getByTestId(testId), { target: { value } });
+
+    // The initial render reports the empty query and its (empty) result.
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "", caseSensitive: false, wholeWord: false, regex: false });
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [], count: 0, invalidPattern: false });
+
+    type("one", "find-replace-query");
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "one", caseSensitive: false, wholeWord: false, regex: false });
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [{ start: 0, end: 3 }, { start: 8, end: 11 }], count: 2, invalidPattern: false });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Match case" }));
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one two one", query: "one", caseSensitive: true, wholeWord: false, regex: false });
+
+    // A text change re-reports both mirrors: the result offsets move with the
+    // document, and the reported query carries the new `text` (FindQuery is the
+    // matcher input, text included) while the query and flags are unchanged.
+    view.rerender(<FindReplacePanel text="one" onQueryChange={onQueryChange} onResultChange={onResultChange} />);
+    expect(onResultChange).toHaveBeenLastCalledWith({ matches: [{ start: 0, end: 3 }], count: 1, invalidPattern: false });
+    expect(onQueryChange).toHaveBeenLastCalledWith({ text: "one", query: "one", caseSensitive: true, wholeWord: false, regex: false });
+  });
+
+  it("renders the replace row by default and hides it when replaceVisible is false", () => {
+    // Ctrl+F is a find-only gesture and Ctrl+H a replace one; the host opens
+    // the same panel with this prop as the only difference between them.
+    const { view } = renderPanel("cat");
+    expect(screen.getByTestId("find-replace-value")).toBeInTheDocument();
+    expect(screen.getByTestId("find-replace-one")).toBeInTheDocument();
+    expect(screen.getByTestId("find-replace-all")).toBeInTheDocument();
+
+    view.rerender(<FindReplacePanel text="cat" replaceVisible={false} />);
+    expect(screen.queryByTestId("find-replace-value")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("find-replace-one")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("find-replace-all")).not.toBeInTheDocument();
+    // Find itself stays: the query field and the next/prev controls remain.
+    expect(screen.getByTestId("find-replace-query")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next match" })).toBeInTheDocument();
+  });
+
+  it("renders nothing while closed and supports a controlled replacement", () => {
+    const onReplaceValueChange = vi.fn();
+    const { view } = renderPanel("abc");
+    view.rerender(<FindReplacePanel text="abc" open={false} />);
+    expect(screen.queryByTestId("find-replace-panel")).not.toBeInTheDocument();
+    view.rerender(
+      <FindReplacePanel text="abc" replaceValue="fixed" onReplaceValueChange={onReplaceValueChange} />,
+    );
+    expect(screen.getByTestId("find-replace-value")).toHaveValue("fixed");
+    fireEvent.change(screen.getByTestId("find-replace-value"), { target: { value: "next" } });
+    expect(onReplaceValueChange).toHaveBeenCalledWith("next");
+  });
+});

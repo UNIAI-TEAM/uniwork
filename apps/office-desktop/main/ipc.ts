@@ -3,8 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
-import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -17,6 +16,8 @@ import { blankDocumentBytes, blankDocumentName } from "./files/blank-documents";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
+import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
+import type { LocalXlsxEngine } from "./xlsx-engine";
 
 /** Main-process transport for cloud Documents and Office operations. The
  * implementation owns the bearer token and is injected by the Electron
@@ -27,6 +28,15 @@ export type DesktopOfficeTransport = Readonly<{
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
+  /** Metadata-only open for a carried format whose editor opens through the
+   *  server job and never reads raw bytes (xlsx today): it registers the
+   *  main-owned document context without downloading the file. */
+  openContext(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeContextResponse>;
+  /** The server edit/open job for a carried format (xlsx today). The renderer
+   *  names the format but never an engine or a grant; main polls and returns
+   *  bounded output bytes that then ride the ordinary desktop:office-save
+   *  command. */
+  officeJob(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse>;
   save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
 }>;
 
@@ -100,6 +110,24 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       options.onDocumentOpened?.(response.document);
       return response;
     },
+    "desktop:office-context": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; version?: number }>) => {
+      requireSession();
+      const session = options.session?.();
+      const response = desktopOfficeContextResponseSchema.parse(await options.transport.openContext({ workspaceId: request.workspaceId, documentId: request.documentId, version: (request as { version?: number }).version }));
+      assertSession(session);
+      options.onDocumentOpened?.(response.document);
+      return response;
+    },
+    "desktop:office-job": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:office-job">) => {
+      requireSession();
+      const session = options.session?.();
+      // A job may only run for a document this session opened; the renderer
+      // cannot mint a job for an arbitrary workspace document.
+      if (options.isOpened && !options.isOpened(request.documentId, request.workspaceId)) throw new OfficeIpcError("document_context_refused");
+      const response = desktopOfficeJobResponseSchema.parse(await options.transport.officeJob(request));
+      assertSession(session);
+      return response;
+    },
     "desktop:office-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }>) => {
       requireSession();
       const session = options.session?.();
@@ -168,6 +196,9 @@ export interface FileIpcOptions {
   readonly beginSave?: (documentId: string) => (confirmed?: boolean) => void;
   /** Main-owned recent list; recent opens resolve an opaque id to a path here. */
   readonly recents?: RecentFilesStore;
+  /** Bundled local xlsx engine (C1b). Absent = the local xlsx lane is unbound
+   *  and a local .xlsx answers a typed refusal rather than a fake snapshot. */
+  readonly xlsx?: LocalXlsxEngine;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -274,6 +305,26 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
         }
         finally { confirmSave?.(false); }
       });
+    },
+    // C1b: the local xlsx engine job. The renderer names an opaque handle and
+    // a bounded operation; main reads the bytes, drives the bundled gateway +
+    // sidecar and returns a bounded snapshot/byte answer. The renderer never
+    // reads the file and never names an engine or a path.
+    "desktop:file-xlsx": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly Record<string, unknown>[] }>): Promise<DesktopFileXlsxResponse> => {
+      requireOpened(request.handle);
+      const session = options.session?.();
+      if (!options.xlsx) throw new FileIpcError("write_failed");
+      const bytes = await safeFile(() => options.registry.read(request.handle));
+      // The local xlsx job answers the shared DesktopFileXlsxResponse contract
+      // (the same schema the renderer parses), so main and renderer cannot drift.
+      if (request.operation === "open") {
+        const opened = await options.xlsx.open(bytes);
+        assertSession(session);
+        return { state: "completed" as const, outputBase64: Buffer.from(JSON.stringify({ snapshot: opened.snapshot, render_model: opened.renderModel })).toString("base64") };
+      }
+      const result = await options.xlsx.edit(bytes, request.edits ?? []);
+      assertSession(session);
+      return { state: "completed" as const, outputBase64: Buffer.from(result.bytes).toString("base64"), outputChecksum: result.checksum };
     },
   };
 }

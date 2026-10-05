@@ -26,7 +26,8 @@
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
     "three": "catalog:",
-    "web-vitals": "^6.2.1"
+    "web-vitals": "^6.2.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@embedpdf/pdfium": "catalog:",

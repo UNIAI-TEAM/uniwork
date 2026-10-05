@@ -73,6 +73,13 @@
     "./office/ribbon": "./office/ribbon/index.ts"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "catalog:",
+    "@codemirror/commands": "catalog:",
+    "@codemirror/lang-html": "catalog:",
+    "@codemirror/language": "catalog:",
+    "@codemirror/search": "catalog:",
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
     "@dnd-kit/core": "catalog:",
     "@dnd-kit/sortable": "catalog:",
     "@dnd-kit/utilities": "catalog:",
@@ -83,6 +90,7 @@
     "@fullcalendar/react": "catalog:",
     "@fullcalendar/timegrid": "catalog:",
     "@floating-ui/dom": "^1.7.6",
+    "@lezer/highlight": "catalog:",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
     "@livekit/track-processors": "^0.5.8",

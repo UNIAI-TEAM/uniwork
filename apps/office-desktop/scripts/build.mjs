@@ -34,7 +34,10 @@ buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtensio
 // loadable under the pinned sandbox contract; native wiring may still inject
 // Electron through the adapter seam without exposing it to the renderer.
 buildMetafiles.push((await esbuild.build({ ...common, format: "cjs", outExtension: { ".js": ".cjs" }, platform: "node", entryPoints: { "preload/index": join(app, "preload/index.ts") }, outdir: dist })).metafile);
-buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "browser", jsx: "automatic", entryPoints: { "renderer/index": join(app, "renderer/index.tsx") }, outdir: dist })).metafile);
+// The Markdown view imports KaTeX CSS, whose @font-face lists woff2, woff and ttf.
+// Electron reads woff2, so inline that one and drop the other two from the bundle.
+const katexFontLoaders = { ".woff2": "dataurl", ".woff": "empty", ".ttf": "empty" };
+buildMetafiles.push((await esbuild.build({ ...common, loader: katexFontLoaders, format: "esm", outExtension: { ".js": ".mjs" }, platform: "browser", jsx: "automatic", entryPoints: { "renderer/index": join(app, "renderer/index.tsx") }, outdir: dist })).metafile);
 await copyFile(join(app, "renderer/index.html"), join(dist, "renderer/index.html"));
 await mkdir(join(dist, "renderer"), { recursive: true });
 await compileRendererStyles(join(app, "renderer/styles.css"), join(dist, "renderer/styles.css"));

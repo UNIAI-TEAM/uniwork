@@ -10,6 +10,10 @@
 // failed save changes nothing, and release drops the session and purges the
 // native resident model so the next open never inherits state.
 //
+// FIX-926-B: the one-shot service seam (openXlsxModel / probeXlsx /
+// applyXlsxEditBytes / XlsxTypedError) moved to adapter-service.ts so this
+// module stays under the max-lines budget; adapter.ts re-exports it.
+//
 // Preservation: the assemble pass rewrites only the entries the plan touches;
 // assertPreserved (upstream assertOnlyTouchedEntriesChanged) verifies every
 // other part stays content-identical by sha256 — charts, media, unsupported
@@ -27,7 +31,7 @@ import {
 } from "@uniwork/office-contracts";
 import {
   XLSX_SIDECAR_PROTOCOL_VERSION,
-  isXlsxWorkbookSnapshot,
+  type XlsxGatewayArguments,
   type XlsxGatewayFunctions,
   type XlsxPackageEntry,
   type XlsxRecalcPort,
@@ -35,9 +39,9 @@ import {
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
-import { parseXlsxOps, XlsxOpError } from "./ops.ts";
-import { buildRecalcReadBatches, recalcToFormulaValues, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
-import { readXlsxRenderModel, type XlsxRenderModel } from "./render-model.ts";
+import { parseXlsxOps } from "./ops.ts";
+import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
+import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
 
 const ZIP_MAGIC = [0x50, 0x4b];
 function isZipPackage(bytes: Uint8Array): boolean {
@@ -101,7 +105,7 @@ interface XlsxSession {
 
 let sessionCounter = 0;
 
-function preservedPartsOf(entries: readonly XlsxPackageEntry[]): string[] {
+export function preservedPartsOf(entries: readonly XlsxPackageEntry[]): string[] {
   return entries
     .filter((e) => PRESERVED_PART_FAMILIES.some((f) => f.pattern.test(e.path)))
     .map((e) => e.path)
@@ -236,14 +240,28 @@ export class XlsxAdapter {
 
   /** Session-bound edit channel: parses + validates the wire ops against the
    *  opened workbook, then records them pending. Nothing mutates the input
-   *  bytes — serialize is the only writer. */
+   *  bytes — serialize is the only writer.
+   *
+   *  Parse and apply interleave (one op at a time, in emission order): a
+   *  sheet op must take effect before the next op parses, or a cell edit into
+   *  a just-renamed sheet could not resolve. The resolver is a live view over
+   *  the model, so later ops see the rename/add/remove the earlier ones made. */
   edit(documentModelRef: string, ops: unknown): { applied: true; revision: number } {
     const session = this.sessionOf(documentModelRef);
     if (!Array.isArray(ops)) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "edit payload must be an ops array" });
     }
-    const parsed = parseXlsxOps(ops, session.model.resolver(session.sheetNamesById));
-    for (const op of parsed) session.model.applyEdit(op);
+    // F5: stage the whole envelope. Ops still apply while parsing (a later
+    // op must resolve against an earlier rename/add), but a mid-envelope
+    // parse failure rolls the model back to its pre-edit state instead of
+    // leaving the valid prefix applied.
+    const checkpoint = session.model.checkpoint();
+    try {
+      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+    } catch (error) {
+      session.model.rollback(checkpoint);
+      throw error;
+    }
     return { applied: true, revision: session.model.revision };
   }
 
@@ -264,7 +282,9 @@ export class XlsxAdapter {
    * Serialize — the only output path. Order is load-bearing:
    *   1. digest-check the base bytes (the binding open created)
    *   2. native recalc → <v> map for every post-edit formula cell
-   *   3. one assemble pass (edits + formulaValues) + preservation assertion
+   *   3. one assemble pass (edits + formulaValues) + preservation assertion;
+   *      a structural or sheet-identity save skips step 2 and instead
+   *      recalcs the produced bytes, then runs a values-only assemble
    *   4. rebase the model onto the produced bytes (new digest + generation)
    * A missing recalc port while formulas exist is a typed refusal — shipping
    * stale cached values is never a fallback. Any failure before step 4 leaves
@@ -301,39 +321,178 @@ export class XlsxAdapter {
       });
     }
     const warnings: { code: string; detail: string }[] = [];
-    const edits = session.model.pendingEdits();
-    const formulaCells = session.model.formulaCellsAfterEdits();
-    let formulaValues: XlsxSheetFormulaValues[] | undefined;
-    if (formulaCells.length > 0) {
-      if (!this.deps.recalc) {
-        throw new EngineBoundaryError("unsupported_operation", {
-          detail: "workbook contains formulas; serialize requires the native recalc sidecar (unbound in this runtime)",
-          formula_cells: formulaCells.length,
+    const sheetPlan = session.model.pendingSheetPlan();
+    // Every argument below resolves sheet names the way the PACKAGE on disk
+    // does: the gateway applies cell edits, structural ops and recalc reads
+    // against the current file names and runs the sheet plan (renames,
+    // additions, removals, order) last. The envelope/model use final names, so
+    // the adapter translates each one back through the model's registry.
+    const gatewayName = (name: string): string => session.model.gatewaySheetName(name);
+    const edits = session.model.pendingEdits().map((edit) => ({ ...edit, sheetName: gatewayName(edit.sheetName) }));
+    const structuralOps = session
+      .model
+      .pendingStructuralOps()
+      .map((group) => ({ ...group, sheetName: gatewayName(group.sheetName) }));
+    // Filter states are declarative whole-sheet snapshots; their coordinates
+    // are final at emission time (the renderer re-snapshots after every
+    // structural shift the pinned filter plugin injects), and the gateway
+    // applies them after structural replay and cell edits. A filter change
+    // never moves cells, so the recalc pass is unaffected.
+    const filterStates = session
+      .model
+      .pendingFilterStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Page-setup states are declarative whole-sheet snapshots the gateway
+    // merges attribute-by-attribute; like filters they never move cells, so
+    // the recalc pass is unaffected. printArea/printTitles are sheet-scoped
+    // defined names the gateway rewrites on the final workbook.xml.
+    const pageSetupStates = session
+      .model
+      .pendingPageSetupStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Table additions (B9): each pins final coordinates and its sheet name
+    // resolves through the same live registry as every other argument. A
+    // table add cannot be saved with row/column changes on its sheet (the
+    // gateway fails closed); the renderer saves before further structural
+    // work, so this is the documented pass-through.
+    const tableAdditions = session
+      .model
+      .pendingTableAdditions()
+      .map((table) => ({ ...table, sheetName: gatewayName(table.sheetName) }));
+    // Hyperlink edits carry final per-cell coordinates, so the gateway applies
+    // them after structural replay; a hyperlink change never moves cells, so
+    // the recalc pass is unaffected. Each op is a per-cell last-write link
+    // (a null target removes it).
+    const hyperlinkEdits = session
+      .model
+      .pendingHyperlinkEdits()
+      .map((sheet) => ({ ...sheet, sheetName: gatewayName(sheet.sheetName) }));
+    // Note states are declarative whole-sheet snapshots the gateway writes
+    // after the worksheet flush; like filters they never move cells.
+    // Sheet-protection states are declarative whole-sheet flags the gateway
+    // writes after the worksheet flush; like filters they never move cells.
+    const sheetProtections = session
+      .model
+      .pendingSheetProtectionStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // Defined names are workbook-scoped: the gateway rewrites the workbook
+    // definedNames section wholesale from the final snapshot. The state pins
+    // model coordinates and file sheet indexes, so it must not ride structural
+    // or sheet changes (the gateway fails closed) - the renderer saves one first.
+    const definedNamesState = session.model.pendingDefinedNamesState();
+    const noteStates = session
+      .model
+      .pendingNoteStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // The pre-assemble recalc runs against the ORIGINAL bytes plus the cell
+    // edits, so it is only sound when the save keeps every coordinate and the
+    // sheet set: a structural op moves cells the sidecar would read at their
+    // pre-op address, and a sheet plan that changes identity (rename/add/
+    // remove/reorder) names sheets the original package does not hold. Those
+    // saves refresh their caches in a second pass instead (R3-1): assemble
+    // first, then recalc the PRODUCED bytes - where coordinates and names are
+    // final and every edit is already in the cells - and patch each <f>
+    // cell's <v>. A hidden-only plan keeps identity, so the single pass runs.
+    const identityChange =
+      sheetPlan !== undefined &&
+      (sheetPlan.renames.length > 0 ||
+        sheetPlan.additions.length > 0 ||
+        sheetPlan.removals.length > 0 ||
+        sheetPlan.orderChanged === true);
+    const recalcAfterAssemble = structuralOps.length > 0 || identityChange;
+    const formulaCells = (
+      recalcAfterAssemble ? [] : session.model.formulaCellsAfterEdits(await this.followers(session.inputBytes))
+    ).map((cell) => ({
+      ...cell,
+      sheetName: gatewayName(cell.sheetName),
+    }));
+    const keptWarning = (kept: number) => {
+      if (kept > 0) {
+        warnings.push({
+          code: "formula_cache_kept",
+          detail: `${kept} formula cell(s) keep their file-cached values (engine coverage gap)`,
         });
       }
-      const recalcEdits = session.model.pendingRecalcEdits();
+    };
+    let formulaValues: XlsxSheetFormulaValues[] | undefined;
+    if (formulaCells.length > 0) {
+      const recalc = this.requireRecalc(formulaCells.length);
+      const recalcEdits = session.model.pendingRecalcEdits().map((edit) => ({ ...edit, sheet: gatewayName(edit.sheet) }));
       if (recalcEdits.length > XLSX_MAX_RECALC_EDITS) {
         throw new EngineBoundaryError("unsupported_operation", {
           detail: `${recalcEdits.length} edits exceed the sidecar's ${XLSX_MAX_RECALC_EDITS}-edit request bound`,
         });
       }
-      const cells = [];
-      for (const batch of buildRecalcReadBatches(formulaCells, recalcEdits)) {
-        const result = await this.deps.recalc.recalc(session.inputBytes, recalcEdits, batch);
-        cells.push(...result.cells);
-      }
-      const mapped = recalcToFormulaValues(formulaCells, { cells });
+      const mapped = await recalcFormulaCells(recalc, session.inputBytes, formulaCells, recalcEdits);
       formulaValues = mapped.values;
-      if (mapped.kept > 0) {
-        warnings.push({
-          code: "formula_cache_kept",
-          detail: `${mapped.kept} formula cell(s) keep their file-cached values (engine coverage gap)`,
-        });
+      keptWarning(mapped.kept);
+    }
+    const gatewayArguments: XlsxGatewayArguments =
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+        ? {}
+        : {
+            ...(structuralOps.length > 0 ? { structuralOps } : {}),
+            ...(sheetPlan === undefined ? {} : { sheetPlan }),
+            ...(filterStates.length > 0 ? { filterStates } : {}),
+            ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
+            ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
+            ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
+            ...(noteStates.length > 0 ? { noteStates } : {}),
+            ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
+            ...(definedNamesState === undefined ? {} : { definedNamesState }),
+          };
+    let out = await this.assemble(
+      session.inputBytes,
+      edits,
+      formulaValues,
+      Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
+    );
+    // Rebase on the produced bytes: a saved package that does not re-parse is
+    // an engine bug the caller must never inherit as the new base.
+    let rebased = await this.reparse(out);
+    if (recalcAfterAssemble) {
+      // Second pass (R3-1): the produced package holds every edit at its final
+      // coordinate under its final sheet name, so a zero-edit recalc over it
+      // answers every formula cell - pre-existing dependents, shifted ones and
+      // formulas typed this session - and a values-only assemble writes the <v>.
+      const finalCells = formulaCellsOfSnapshot(rebased.snapshot, await this.followers(out));
+      if (finalCells.length > 0) {
+        const mapped = await recalcFormulaCells(this.requireRecalc(finalCells.length), out, finalCells, []);
+        keptWarning(mapped.kept);
+        if (mapped.values.length > 0) {
+          out = await this.assemble(out, [], mapped.values, undefined);
+          rebased = await this.reparse(out);
+        }
       }
     }
+    const checksum = await hash(out);
+    // Only after every fallible step: rebase the model and the byte store.
+    session.inputBytes = out;
+    session.model.rebase(rebased.snapshot, checksum);
+    session.sheetNamesById = rebased.sheetNamesById;
+    return { bytes: out, checksum, warnings };
+  }
+
+  private requireRecalc(formulaCellCount: number): XlsxRecalcPort {
+    if (!this.deps.recalc) {
+      throw new EngineBoundaryError("unsupported_operation", {
+        detail: "workbook contains formulas; serialize requires the native recalc sidecar (unbound in this runtime)",
+        formula_cells: formulaCellCount,
+      });
+    }
+    return this.deps.recalc;
+  }
+
+  /** One assemble pass + preservation assertion, output bounded. */
+  private async assemble(
+    source: Uint8Array,
+    edits: Parameters<XlsxGatewayFunctions["applyCellEdits"]>[1],
+    formulaValues: readonly XlsxSheetFormulaValues[] | undefined,
+    gatewayArguments: XlsxGatewayArguments | undefined,
+  ): Promise<Uint8Array> {
     let mutation;
     try {
-      mutation = await this.deps.engine.applyCellEdits(session.inputBytes, edits, formulaValues);
+      mutation = await this.deps.engine.applyCellEdits(source, edits, formulaValues, gatewayArguments);
       this.deps.engine.assertPreserved(mutation);
     } catch (error) {
       if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
@@ -346,22 +505,29 @@ export class XlsxAdapter {
     if (out.length > ENGINE_LIMITS.max_output_bytes) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
-    // Rebase on the produced bytes: a saved package that does not re-parse is
-    // an engine bug the caller must never inherit as the new base.
-    let rebased;
+    return out;
+  }
+
+  /** Shared-formula followers of `bytes` - formula cells the snapshot reads
+   *  as literals, so the recalc must name them by coordinate. */
+  private async followers(bytes: Uint8Array): Promise<XlsxSharedFollowers> {
     try {
-      rebased = await this.deps.engine.readWorkbook(out);
+      return await readSharedFollowers(this.deps.engine, bytes);
+    } catch (error) {
+      throw new EngineBoundaryError("engine_result_invalid", {
+        detail: "worksheet parts do not read back: " + String((error as Error)?.message ?? error),
+      });
+    }
+  }
+
+  private async reparse(bytes: Uint8Array): Promise<Awaited<ReturnType<XlsxGatewayFunctions["readWorkbook"]>>> {
+    try {
+      return await this.deps.engine.readWorkbook(bytes);
     } catch (error) {
       throw new EngineBoundaryError("engine_result_invalid", {
         detail: "saved package does not re-parse: " + String((error as Error)?.message ?? error),
       });
     }
-    const checksum = await hash(out);
-    // Only after every fallible step: rebase the model and the byte store.
-    session.inputBytes = out;
-    session.model.rebase(rebased.snapshot, checksum);
-    session.sheetNamesById = rebased.sheetNamesById;
-    return { bytes: out, checksum, warnings };
   }
 
   /** Honest capability rows for format xlsx (module-runtime-map states). Rows
@@ -444,151 +610,14 @@ export function createXlsxAdapter(deps: XlsxAdapterDeps): XlsxAdapter {
   return new XlsxAdapter(deps);
 }
 
-// ── service seam (G2-02 job handlers) ──────────────────────────────────────
-//
-// The office-engine service runs one-shot jobs: a handler reads the job's
-// input.bin + ops.json, calls these, writes output.bin. Each call drives the
-// full adapter path on a private session — probe/edit/serialize share one
-// invariant implementation, so a service save is the same assemble+preserve+
-// rebase the adapter performs. Every failure leaves here as XlsxTypedError
-// with one of the worker's closed outcome codes.
+// The one-shot service seam lives in a sibling module (FIX-926-B); re-exported
+// here so the package surface is unchanged.
+export {
+  XlsxTypedError,
+  openXlsxModel,
+  probeXlsx,
+  applyXlsxEditBytes,
+  type XlsxFailureCode,
+  type XlsxOpenModel,
+} from "./adapter-service.ts";
 
-export type XlsxFailureCode =
-  | "engine_result_invalid"
-  | "unsupported_operation"
-  | "engine_incompatible"
-  | "engine_crashed";
-
-export class XlsxTypedError extends Error {
-  readonly code: XlsxFailureCode;
-  readonly reason: string;
-  constructor(code: XlsxFailureCode, reason: string) {
-    super(reason);
-    this.name = "XlsxTypedError";
-    this.code = code;
-    this.reason = reason;
-  }
-}
-
-/** Adapter/boundary failure → the worker's outcome codes. A boundary code
- *  outside the worker's set still maps to engine_result_invalid. */
-function toXlsxFailure(error: unknown): XlsxTypedError {
-  if (error instanceof XlsxTypedError) return error;
-  if (error instanceof XlsxOpError) {
-    return new XlsxTypedError(
-      error.unsupported ? "unsupported_operation" : "engine_result_invalid",
-      error.message.slice(0, 300),
-    );
-  }
-  if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) {
-    const code = error instanceof EngineBoundaryError ? error.code : error.engine_error;
-    const mapped: XlsxFailureCode =
-      code === "unsupported_operation" || code === "engine_crashed" || code === "engine_incompatible"
-        ? code
-        : "engine_result_invalid";
-    return new XlsxTypedError(mapped, error.message.slice(0, 300));
-  }
-  return new XlsxTypedError("engine_crashed", String((error as Error)?.message ?? error).slice(0, 300));
-}
-
-/**
- * open:xlsx — probe bytes into a document-model summary the service stores as
- * probe.json. The output is the probe artifact, not the input.
- */
-export interface XlsxOpenModel {
-  readonly probe: XlsxProbe;
-  readonly snapshot: XlsxWorkbookSnapshot;
-  /** G3-05c: the render model the vendored sheets renderer mounts (layout,
-   *  styles, cached formula results). Additive: G3-05b consumers read
-   *  `snapshot` unchanged. */
-  readonly renderModel: XlsxRenderModel;
-}
-
-/** Open once through the G2 gateway and return the capability probe, the
- * exact gateway snapshot and the render model.  Consumers must not parse
- * OOXML independently: this is the one model contract shared by service and
- * browser hosts. */
-export async function openXlsxModel(
-  engine: XlsxGatewayFunctions,
-  bytes: Uint8Array,
-  options: { renderModel?: boolean } = {},
-): Promise<XlsxOpenModel> {
-  const adapter = new XlsxAdapter({ engine });
-  const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
-  if (outcome.outcome !== "opened") {
-    throw new XlsxTypedError("engine_result_invalid", outcome.failure_class + ": " + (outcome.message ?? ""));
-  }
-  const ref = outcome.document_model_ref;
-  try {
-    const entries = await engine.inventory(bytes);
-    const snapshot = adapter.snapshotOf(ref);
-    if (!isXlsxWorkbookSnapshot(snapshot)) {
-      throw new EngineBoundaryError("engine_result_invalid", { detail: "gateway returned an invalid xlsx workbook snapshot" });
-    }
-    let cellCount = 0;
-    let formulaCellCount = 0;
-    for (const sheet of snapshot.sheets) {
-      for (const cell of Object.values(sheet.cells)) {
-        cellCount += 1;
-        if (cell.formula !== undefined) formulaCellCount += 1;
-      }
-    }
-    // Only the open path pays for the render model; the serialize/probe path
-    // (which shares this function) reads the snapshot without it.
-    const renderModel =
-      options.renderModel === false
-        ? { revision: snapshot.revision, activeTab: 0, date1904: false, sheets: [], styles: [], dxfStyles: [] }
-        : await readXlsxRenderModel(engine, bytes);
-    return {
-      probe: {
-        format: "xlsx",
-        sheetCount: snapshot.sheets.length,
-        sheetNames: adapter.sheetNames(ref),
-        cellCount,
-        formulaCellCount,
-        preservedParts: preservedPartsOf(entries),
-      },
-      snapshot,
-      renderModel,
-    };
-  } finally {
-    adapter.release(ref);
-  }
-}
-
-export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxProbe> {
-  return (await openXlsxModel(engine, bytes, { renderModel: false })).probe;
-}
-
-/**
- * edit:xlsx — input bytes + the ops.json edit list → assembled output bytes.
- * The recalc port must be bound by the caller (the worker resolves the native
- * sidecar); a formula-bearing workbook without it is unsupported_operation,
- * never a stale-<v> pass-through.
- */
-export async function applyXlsxEditBytes(
-  engine: XlsxGatewayFunctions,
-  recalc: XlsxRecalcPort | undefined,
-  bytes: Uint8Array,
-  ops: unknown[],
-  engineVersion?: string,
-): Promise<{ bytes: Uint8Array; warnings: { code: string; detail: string }[] }> {
-  const adapter = new XlsxAdapter({ engine, recalc, ...(engineVersion !== undefined ? { engineVersion } : {}) });
-  const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
-  if (outcome.outcome !== "opened") {
-    throw new XlsxTypedError("engine_result_invalid", outcome.failure_class + ": " + (outcome.message ?? ""));
-  }
-  const ref = outcome.document_model_ref;
-  try {
-    adapter.edit(ref, ops);
-    const saved = await adapter.serialize({ document_model_ref: ref, format: "xlsx" });
-    return {
-      bytes: saved.bytes,
-      warnings: (saved.warnings ?? []) as { code: string; detail: string }[],
-    };
-  } catch (error) {
-    throw toXlsxFailure(error);
-  } finally {
-    adapter.release(ref);
-  }
-}

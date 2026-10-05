@@ -6,12 +6,15 @@ import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes }
 import { createPptxDocumentSession, type PptxDocumentSession } from "../office/pptx-session";
 import { createDesktopPptxSurface } from "../office/pptx-surface";
 import { PPTX_DESKTOP_ENGINE_BUILD } from "../office/pptx-surface";
+import { createDesktopXlsxSession, type DesktopXlsxSession } from "../office/xlsx-session";
+import { createDesktopLocalXlsxSession, type DesktopLocalXlsxSession } from "../office/xlsx-local-session";
 import { closeDocumentTab, cycleDocumentTab, openDocumentTab, selectDocumentTab, type DocumentTabState } from "./tab-model";
 
-/** A document session is format-specific: DOCX/XLSX share the byte session,
- * PPTX owns the deck-journal session. The tab strip and shell treat both
- * through this shared surface. */
-export type TabSession = ByteDocumentSession | PptxDocumentSession;
+/** A document session is format-specific: DOCX and local files share the byte
+ * session, xlsx has its cloud and local engine sessions, PPTX owns the
+ * deck-journal session. The tab strip and shell treat them all through this
+ * shared surface. */
+export type TabSession = ByteDocumentSession | PptxDocumentSession | DesktopXlsxSession | DesktopLocalXlsxSession;
 
 /** The desktop pptx surface for one tab: the opened bytes are already in the
  * renderer (main read them behind IPC), so readBytes replays them. */
@@ -45,6 +48,13 @@ export interface OpenTabInput {
 
 export interface TabDocument extends OpenTabInput {
   readonly session: TabSession;
+}
+
+/** F2: the workspace dispatches the surface on the session's OWN format field
+ *  instead of probing its shape, so a future pptx session that also carries a
+ *  renderer host cannot silently mount the xlsx surface. */
+export function isXlsxTabSession(session: TabSession): session is DesktopXlsxSession {
+  return (session as { format?: unknown }).format === "xlsx";
 }
 
 export function isDocumentDirty(session: TabSession): boolean {
@@ -116,7 +126,19 @@ export function useDocumentTabs(bridge: RendererBridge) {
           activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
         });
       };
-      const session: TabSession = input.format === "pptx"
+      // The ONE format->editor mapping: cloud xlsx mounts the shared editor
+      // through the server job seams; pptx owns the deck-journal session; every
+      // other format (and every local non-xlsx file) stays the byte/docx path.
+      // All expose the same coordinator surface the tab layer uses, and the
+      // surface dispatches on tab.data.format.
+      const session: TabSession = input.format === "xlsx" && input.kind === "cloud"
+        ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
+        // C1b: a local .xlsx uses the SAME main-owned local file path docx
+        // uses; its engine job rides desktop:file-xlsx and its Save writes the
+        // opaque local handle through desktop:file-save (no network).
+        : input.format === "xlsx" && input.kind === "local" && input.bytes.localHandle
+        ? createDesktopLocalXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId, localHandle: input.bytes.localHandle })
+        : input.format === "pptx"
         ? createPptxDocumentSession(bridge, input.identity, input.bytes, (onDirty) => createPptxTabSurface(input, input.bytes, onDirty), { onLocalRebind })
         : createByteDocumentSession(bridge, input.identity, input.bytes, { onLocalRebind });
       const result = openDocumentTab(current.current, { id: input.identity.documentId, title: input.title, format: input.format, data: { ...input, session } });

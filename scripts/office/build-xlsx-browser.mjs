@@ -42,6 +42,7 @@ export const UNIVER_STYLE_FILES = [
 const PATCHED_SYMBOLS = [
   { patch: '0001', file: 'packages/xlsx-gateway/src/gateway/xlsx-styles.ts', symbol: 'xfIdentity' },
   { patch: '0002', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'lazilyLoadedXmls' },
+  { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'tableAdditions: readonly SheetTableAddition[] = [],' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;

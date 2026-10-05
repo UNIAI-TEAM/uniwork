@@ -49,6 +49,15 @@ export interface OfficeShellProps {
   saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   /**
+   * UNI-928 md/html END polish. The header Save is always quiet (outline +
+   * `aria-disabled`) while the save state is "ready" or "saved" (UNI-927);
+   * when true it is also quiet before any save state is known, since the
+   * status then reads "ready". Absent and false render the same; the control
+   * stays in the tab order and the click is blocked in JS, never with the
+   * `disabled` attribute.
+   */
+  saveQuietWhenClean?: boolean;
+  /**
    * The host page already renders a header (web document page). The shell
    * then renders no header of its own and hands its action cluster to the
    * page header through `HeaderActionsSlotProvider`. Without a provider above
@@ -131,6 +140,7 @@ export function OfficeShell({
   saveLabel: providedSaveLabel,
   saveDestination = "cloud",
   editorReady = false,
+  saveQuietWhenClean = false,
   embedded = false,
   className,
 }: OfficeShellProps) {
@@ -157,6 +167,9 @@ export function OfficeShell({
   // contradicts the status. Any edit publishes "dirty" and re-enables it.
   const nothingToSave = ["ready", "saved"].includes(saveStatus ?? coordinatorState?.state ?? "");
   const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
+  // saveQuietWhenClean (md/html) also quiets Save before any save state is
+  // known, using the same clean predicate the status text uses ("ready").
+  const quietSave = !effectiveSaving && (nothingToSave || (saveQuietWhenClean && saveStatusValue === "ready"));
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;
   const setPanelOpen = (open: boolean) => {
@@ -164,7 +177,7 @@ export function OfficeShell({
     else setInternalPanelOpen(open);
   };
   const performSave = () => {
-    if (!canSave || nothingToSave) return;
+    if (!canSave || quietSave) return;
     if (saveCoordinator) {
       void saveCoordinator.save("button");
     } else {
@@ -192,14 +205,14 @@ export function OfficeShell({
       const target = event.target as HTMLElement;
       if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
       event.preventDefault();
-      if (canSave && !effectiveSaving && !nothingToSave) {
+      if (canSave && !effectiveSaving && !quietSave) {
         if (saveCoordinator) void saveCoordinator.save("shortcut");
         else onSave?.();
       }
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [canSave, effectiveSaving, nothingToSave, onSave, saveCoordinator]);
+  }, [canSave, effectiveSaving, quietSave, onSave, saveCoordinator]);
   // One row, never wrapping: status (hidden on phones, where the alert row
   // below the header still carries a failure) · Save · panel · desktop · host.
   const headerActions = (
@@ -213,10 +226,10 @@ export function OfficeShell({
       {canSave ? (
         <Button
           size="sm"
-          variant={nothingToSave ? "outline" : "default"}
+          variant={quietSave ? "outline" : "default"}
           onClick={performSave}
           disabled={effectiveSaving}
-          aria-disabled={nothingToSave || undefined}
+          aria-disabled={quietSave || undefined}
           aria-label={saveLabel}
           title={saveLabel}
           data-office-save
