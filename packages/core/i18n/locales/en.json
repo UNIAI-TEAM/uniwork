@@ -8480,6 +8480,10 @@
         "wysiwyg": "Visual",
         "outline": "Outline",
         "frontmatter": "Front matter"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Shortcuts available while editing this document."
       }
     },
     "html": {

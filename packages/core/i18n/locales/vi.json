@@ -8473,6 +8473,10 @@
         "wysiwyg": "Trực quan",
         "outline": "Dàn ý",
         "frontmatter": "Front matter"
+      },
+      "shortcuts": {
+        "title": "Phím tắt",
+        "description": "Các phím tắt dùng khi soạn thảo tài liệu này."
       }
     },
     "html": {
