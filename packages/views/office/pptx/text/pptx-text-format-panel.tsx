@@ -11,12 +11,14 @@
  * selection, and it owns no session, no transport and no save path:
  *
  *   onApplyEdit?(edit: TextEdit): Promise<unknown>   // the engine edit channel
+ *   onApplyEdits?(edits: TextEdit[]): Promise<unknown> // one call per gesture
  *   onError?(error: unknown): void                   // host reporting seam
  *
- * Every control emits exactly ONE committed `TextEdit` union member (`set_font`
- * or `set_paragraph_format`) built by `./text-format-model`, so the mount is a
- * one-line binding (`(edit) => handle.edit([edit])`) and there is no second write
- * path. With no port bound, no element selected, a non-text element type, or
+ * Every control emits one committed `TextEdit` union member (`set_font` or
+ * `set_paragraph_format`) per target id, built by `./text-format-model`. The
+ * targets are `targetIds` (every selected text element, anchor first - the same
+ * set the ribbon formats, W9 review F6) or the anchor alone, and one gesture is
+ * one `onApplyEdits` call so undo reverts it in one step. With no port bound, no element selected, a non-text element type, or
  * read-only mode, every control is disabled and the panel says why - it never
  * fakes a capability (the lane's honesty rule).
  *
@@ -53,12 +55,15 @@ import {
   type PptxTextBulletChoice,
   type PptxTextFontToggle,
 } from "./text-format-model";
+import { buildPptxTextEditBatch } from "./text-format-batch";
 import "./text-i18n";
 
 export interface PptxTextFormatPanelProps {
   /** The engine edit channel (one committed `TextEdit` per call). Absent ->
    *  every control is disabled with the "not bound" reason. */
   onApplyEdit?: (edit: TextEdit) => Promise<unknown>;
+  /** One gesture's edits in a single call; preferred over `onApplyEdit`. */
+  onApplyEdits?: (edits: readonly TextEdit[]) => Promise<unknown>;
   /** A refused edit surfaces here as well as in the panel's own alert. */
   onError?: (error: unknown) => void;
   /** 0-based slide the selection lives on; null means "no slide". */
@@ -68,6 +73,8 @@ export interface PptxTextFormatPanelProps {
   /** Type of the selected element ('text' | 'shape' | ...); the committed kinds
    *  accept text and shape only, so anything else disables the controls. */
   selectedElementType?: string | null;
+  /** Every selected id that takes text formatting, anchor first; absent = the anchor. */
+  targetIds?: readonly string[];
   /** Seed values for the controls (the selection's current formatting). */
   bold?: boolean;
   italic?: boolean;
@@ -91,10 +98,12 @@ const DEFAULT_COLOR = "#000000";
 
 export function PptxTextFormatPanel({
   onApplyEdit,
+  onApplyEdits,
   onError,
   slideIndex = null,
   selectedElementId = null,
   selectedElementType = null,
+  targetIds,
   bold = false,
   italic = false,
   underline = false,
@@ -122,38 +131,38 @@ export function PptxTextFormatPanel({
   const [bulletChoice, setBulletChoice] = useState<PptxTextBulletChoice>(bullet);
   const [spacing, setSpacing] = useState(String(lineSpacingPct));
 
-  const bound = typeof onApplyEdit === "function";
+  const bound = typeof onApplyEdit === "function" || typeof onApplyEdits === "function";
   const hasSelection = typeof selectedElementId === "string" && selectedElementId.length > 0;
   const typeAllowed = pptxTextFormatAllowed(selectedElementType);
   const blocked = disabled || !bound || !hasSelection || !typeAllowed || busy;
-  const elementId = hasSelection ? (selectedElementId as string) : "";
   const slide = slideIndex === null ? 0 : slideIndex;
 
   const run = useCallback(
-    (build: () => TextEdit): void => {
-      if (!onApplyEdit || busyRef.current) return;
-      let edit: TextEdit;
-      try {
-        edit = build();
-      } catch (error) {
+    (build: (elementId: string) => TextEdit): void => {
+      const send = onApplyEdits ?? (onApplyEdit ? async (edits: readonly TextEdit[]) => { for (const edit of edits) await onApplyEdit(edit); } : undefined);
+      if (!send || busyRef.current || !hasSelection) return;
+      const report = (error: unknown) => {
         setErrorMessage(error instanceof Error ? error.message : String(error));
         onError?.(error);
+      };
+      // Refused ids are skipped; the first refusal is reported once.
+      const { edits, refusal } = buildPptxTextEditBatch(selectedElementId, targetIds, build);
+      if (edits.length === 0) {
+        report(refusal);
         return;
       }
       busyRef.current = true;
       setBusy(true);
       setErrorMessage(null);
-      void onApplyEdit(edit)
-        .catch((error: unknown) => {
-          setErrorMessage(error instanceof Error ? error.message : String(error));
-          onError?.(error);
-        })
+      if (refusal !== null) report(refusal);
+      void send(edits)
+        .catch(report)
         .finally(() => {
           busyRef.current = false;
           setBusy(false);
         });
     },
-    [onApplyEdit, onError],
+    [hasSelection, onApplyEdit, onApplyEdits, onError, selectedElementId, targetIds],
   );
 
   if (loading) {
@@ -222,7 +231,7 @@ export function PptxTextFormatPanel({
             onClick={() => {
               const next = !toggles[toggle];
               setToggles((current) => ({ ...current, [toggle]: next }));
-              run(() => buildFontToggleEdit(slide, elementId, toggle, next));
+              run((id) => buildFontToggleEdit(slide, id, toggle, next));
             }}
           >
             {t("format.toggle." + toggle)}
@@ -241,7 +250,7 @@ export function PptxTextFormatPanel({
               onValueChange={(value) => {
                 if (value === null) return;
                 setFamily(value);
-                run(() => buildFontFamilyEdit(slide, elementId, value));
+                run((id) => buildFontFamilyEdit(slide, id, value));
               }}
             >
               <SelectTrigger aria-label={t("format.font_family")} data-testid="pptx-text-font-family" size="sm" disabled={blocked} className="w-36">
@@ -270,7 +279,7 @@ export function PptxTextFormatPanel({
               variant="outline"
               data-testid="pptx-text-apply-font-family"
               disabled={blocked || family.trim().length === 0}
-              onClick={() => run(() => buildFontFamilyEdit(slide, elementId, family))}
+              onClick={() => run((id) => buildFontFamilyEdit(slide, id, family))}
             >
               {t("format.apply")}
             </Button>
@@ -286,7 +295,7 @@ export function PptxTextFormatPanel({
                 if (value === null) return;
                 setSize(value);
                 const parsed = parsePptxFontSizePt(value);
-                if (parsed !== null) run(() => buildFontSizeEdit(slide, elementId, parsed));
+                if (parsed !== null) run((id) => buildFontSizeEdit(slide, id, parsed));
               }}
             >
               <SelectTrigger aria-label={t("format.font_size")} data-testid="pptx-text-font-size" size="sm" disabled={blocked} className="w-20">
@@ -318,7 +327,7 @@ export function PptxTextFormatPanel({
               disabled={blocked || parsePptxFontSizePt(size) === null}
               onClick={() => {
                 const parsed = parsePptxFontSizePt(size);
-                if (parsed !== null) run(() => buildFontSizeEdit(slide, elementId, parsed));
+                if (parsed !== null) run((id) => buildFontSizeEdit(slide, id, parsed));
               }}
             >
               {t("format.apply")}
@@ -339,7 +348,7 @@ export function PptxTextFormatPanel({
               disabled={blocked}
               onChange={(event) => {
                 setColor(event.target.value);
-                run(() => buildTextColorEdit(slide, elementId, event.target.value));
+                run((id) => buildTextColorEdit(slide, id, event.target.value));
               }}
               className="size-8 rounded-md border border-border bg-background"
             />
@@ -358,7 +367,7 @@ export function PptxTextFormatPanel({
               variant="outline"
               data-testid="pptx-text-apply-color"
               disabled={blocked || pptxColorInputValue(color, "") === ""}
-              onClick={() => run(() => buildTextColorEdit(slide, elementId, color))}
+              onClick={() => run((id) => buildTextColorEdit(slide, id, color))}
             >
               {t("format.apply")}
             </Button>
@@ -394,7 +403,7 @@ export function PptxTextFormatPanel({
               disabled={blocked}
               onClick={() => {
                 setAlignment(value);
-                run(() => buildAlignEdit(slide, elementId, value));
+                run((id) => buildAlignEdit(slide, id, value));
               }}
               className={cn(
                 "rounded-md border border-border bg-background px-2 py-1 text-caption",
@@ -423,7 +432,7 @@ export function PptxTextFormatPanel({
               disabled={blocked}
               onClick={() => {
                 setBulletChoice(value);
-                run(() => buildBulletEdit(slide, elementId, value));
+                run((id) => buildBulletEdit(slide, id, value));
               }}
               className={cn(
                 "rounded-md border border-border bg-background px-2 py-1 text-caption",
@@ -448,7 +457,7 @@ export function PptxTextFormatPanel({
               if (value === null) return;
               setSpacing(value);
               const parsed = parsePptxLineSpacingPct(value);
-              if (parsed !== null) run(() => buildLineSpacingEdit(slide, elementId, parsed));
+              if (parsed !== null) run((id) => buildLineSpacingEdit(slide, id, parsed));
             }}
           >
             <SelectTrigger aria-label={t("format.line_spacing")} data-testid="pptx-text-line-spacing" size="sm" disabled={blocked} className="w-24">
@@ -480,7 +489,7 @@ export function PptxTextFormatPanel({
             disabled={blocked || parsePptxLineSpacingPct(spacing) === null}
             onClick={() => {
               const parsed = parsePptxLineSpacingPct(spacing);
-              if (parsed !== null) run(() => buildLineSpacingEdit(slide, elementId, parsed));
+              if (parsed !== null) run((id) => buildLineSpacingEdit(slide, id, parsed));
             }}
           >
             {t("format.apply")}

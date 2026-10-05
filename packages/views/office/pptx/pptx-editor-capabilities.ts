@@ -2,9 +2,11 @@
  * What each PPTX command can actually do on this editor surface (UNI-927 W5).
  *
  * Pure: the editor passes which channels the host bound and gets the capability
- * overrides for the command map. A command whose panel is now mounted (notes,
- * animations, charts, tables) is available exactly when an edit channel exists;
+ * overrides for the command map. A command whose panel writes the deck
+ * (animations, charts, tables) is available exactly when an edit channel exists;
  * without one it stays disabled with an i18n reason key, never a raw sentence.
+ * Speaker notes are read-capable (W9 review F3, same class as comments): the
+ * command always opens/closes the pane, which shows its own read-only state.
  */
 import type { PptxCommandCapability, PptxCommandId } from "./command-map";
 import { pptxPrintCapability, type PptxPrintPort } from "./print";
@@ -35,7 +37,8 @@ export function pptxEditorCapabilities(
 ): Partial<Record<PptxCommandId, CapabilityInput>> {
   const panelCommands: Partial<Record<PptxCommandId, CapabilityInput>> = {};
   for (const id of PPTX_PANEL_COMMANDS) {
-    panelCommands[id] = capabilities?.[id] ?? (channels.edit ? AVAILABLE : { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" });
+    const usable = channels.edit || id === "speaker-notes";
+    panelCommands[id] = capabilities?.[id] ?? (usable ? AVAILABLE : { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" });
   }
   return {
     ...capabilities,

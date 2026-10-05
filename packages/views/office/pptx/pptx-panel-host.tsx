@@ -127,6 +127,8 @@ export interface PptxPanelSelection {
   tableId: string | null;
   chartId: string | null;
   pictureId: string | null;
+  /** Selected ids that take text formatting, anchor first (W9 review F6). */
+  textIds?: readonly string[];
   textFormat?: PptxTextFormatSeed;
 }
 
@@ -178,6 +180,8 @@ export interface PptxPanelHostProps {
    *  panel union the engine has not registered yet); absent leaves the panel
    *  honestly disabled. */
   onApplyEdit?: (edit: PptxPanelEdit) => Promise<unknown>;
+  /** One gesture's edits in one call (W9 review F2); the text-format panel uses it. */
+  onApplyEdits?: (edits: readonly PptxPanelEdit[]) => Promise<unknown>;
   /** Bulk edit channel (the editor handle's `edit`), used by the sorter. */
   onEdit?: (edits: readonly PptxEdit[]) => Promise<unknown>;
   onError?: (error: unknown) => void;
@@ -198,6 +202,7 @@ export interface PptxPanelHostProps {
 export function PptxPanelHost({
   panel,
   onApplyEdit,
+  onApplyEdits,
   onEdit,
   onSelectSlide,
   loadLayouts,
@@ -266,8 +271,9 @@ export function PptxPanelHost({
       return (
         <PptxTextFormatPanel
           key={selectionKey}
-          {...(selection ? { selectedElementId: selection.elementId, selectedElementType: selection.elementType, ...selection.textFormat } : {})}
+          {...(selection ? { selectedElementId: selection.elementId, selectedElementType: selection.elementType, ...(selection.textIds ? { targetIds: selection.textIds } : {}), ...selection.textFormat } : {})}
           {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})}
+          {...(onApplyEdits ? { onApplyEdits: (edits) => onApplyEdits(edits) } : {})}
           {...(onError ? { onError } : {})}
           slideIndex={slideIndex}
           className={className}
@@ -283,7 +289,10 @@ export function PptxPanelHost({
           slideIndex={slideIndex}
           notes={data.notes ?? null}
           {...(data.notesLoading !== undefined ? { loading: data.notesLoading } : {})}
-          {...(data.readonly !== undefined ? { readonly: data.readonly } : {})}
+          {...(onApplyEdit
+            ? (data.readonly !== undefined ? { readonly: data.readonly } : {})
+            : // W9 review F3: without an edit channel the notes stay readable, never writable.
+              { readonly: true })}
           {...(onApplyEdit
             ? { onCommitNotes: (index: number, text: string) => void onApplyEdit({ op: "set_notes", slideIndex: index, text }) }
             : {})}
@@ -380,6 +389,8 @@ export function PptxPanelBottom({ children }: { children?: ReactNode }) {
 export interface PptxPanelNodeOptions {
   panelKind?: PptxPanelKind;
   onApplyEdit?: (edit: PptxPanelEdit) => Promise<unknown>;
+  /** One gesture's edits in one call; defaults to the handle edit port. */
+  onApplyEdits?: (edits: readonly PptxPanelEdit[]) => Promise<unknown>;
   /** The editor handle edit port; used when the host binds no onApplyEdit. */
   edit?: (edits: readonly PptxEdit[]) => Promise<unknown>;
   onError?: (error: unknown) => void;
@@ -398,18 +409,20 @@ export interface PptxPanelNodeOptions {
 /** Compose the active panel node (with its aside wrapper) or null. Pure: the
  *  caller passes every port; a missing port leaves the panel honestly disabled. */
 export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
-  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data, selection, onSelectSlide, loadLayouts, placement } = options;
+  const { panelKind, onApplyEdit, onApplyEdits, edit, onError, slideIndex = 0, slides = [], data, selection, onSelectSlide, loadLayouts, placement } = options;
   const Wrapper = placement === "bottom" ? PptxPanelBottom : PptxPanelAside;
   if (!panelKind) return null;
   // The ONE cast of the whole seam: the engine has not registered every panel
   // union in `PptxEdit` yet (WIRE-KINDS owns that), so the committed edit is
   // handed to the same generic handle edit port every other kind uses.
   const applyEdit = onApplyEdit ?? (edit ? (one: PptxPanelEdit) => edit([one as PptxEdit]) : undefined);
+  const applyEdits = onApplyEdits ?? (edit ? (list: readonly PptxPanelEdit[]) => edit(list as readonly PptxEdit[]) : undefined);
   return (
     <Wrapper>
       <PptxPanelHost
         panel={panelKind}
         {...(applyEdit ? { onApplyEdit: applyEdit } : {})}
+        {...(applyEdits ? { onApplyEdits: applyEdits } : {})}
         {...(edit ? { onEdit: edit } : {})}
         {...(onError ? { onError } : {})}
         slideIndex={slideIndex}

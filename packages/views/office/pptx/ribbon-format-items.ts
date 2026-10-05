@@ -3,11 +3,12 @@
  * Paragraph and Arrange groups. No React, no JSX - each function returns shared
  * `RibbonItem[]` data and the integrator wraps them in `RibbonGroup`s.
  *
- * Every enabled handler turns UI state into ONE committed `TextEdit` through the
- * builders of `text/text-format-model.ts` and hands it to `apply`. The builders
- * throw a `PptxEngineError` refusal on input they reject; a ribbon click has no
- * place to show that, so the throw is swallowed (the deck is untouched, which is
- * the honest outcome). A disabled item's handler never calls `apply`.
+ * Every enabled handler turns UI state into one committed `TextEdit` per selected
+ * text element through the builders of `text/text-format-model.ts` and hands the
+ * whole set to `apply` as ONE batch (W9 review F2: one gesture is one undo step).
+ * The builders throw a `PptxEngineError` refusal on input they reject; a refused
+ * id is skipped and the first refusal goes to `onRefused` once. A disabled item's
+ * handler never calls `apply`.
  */
 import {
   AlignCenter,
@@ -47,6 +48,7 @@ import {
   pptxTextFormatAllowed,
   type PptxTextFontToggle,
 } from "./text/text-format-model";
+import { buildPptxTextEditBatch } from "./text/text-format-batch";
 
 export interface PptxFormatTarget {
   slideIndex: number;
@@ -70,7 +72,10 @@ export interface PptxTextFormatState {
 export interface PptxTextGroupOptions {
   target: PptxFormatTarget;
   state: PptxTextFormatState;
-  apply?: (edit: TextEdit) => void;
+  /** One batch per gesture: every edit of one click travels in a single call. */
+  apply?: (edits: readonly TextEdit[]) => void;
+  /** The first builder refusal of a gesture, reported once. */
+  onRefused?: (error: unknown) => void;
   onMoreOptions?: () => void;
 }
 
@@ -138,22 +143,14 @@ function textReason(o: PptxTextGroupOptions): string | null {
 }
 
 /**
- * Runs `build` for every text-capable selected id (anchor first) and forwards
- * each edit; an id whose builder refuses is skipped.
+ * Builds `build` for every text-capable selected id (anchor first) and forwards
+ * the edits as one batch; a refused id is skipped and reported once.
  */
 function send(o: PptxTextGroupOptions, build: (slideIndex: number, elementId: string) => TextEdit): void {
-  const anchor = o.target.elementId;
-  if (!anchor || !o.apply || textReason(o) !== null) return;
-  const ids = o.target.textIds && o.target.textIds.length > 0 ? o.target.textIds : [anchor];
-  for (const id of ids) {
-    let edit: TextEdit;
-    try {
-      edit = build(o.target.slideIndex, id);
-    } catch {
-      continue;
-    }
-    o.apply(edit);
-  }
+  if (!o.apply || textReason(o) !== null) return;
+  const { edits, refusal } = buildPptxTextEditBatch(o.target.elementId, o.target.textIds, (id) => build(o.target.slideIndex, id));
+  if (edits.length > 0) o.apply(edits);
+  if (refusal !== null) o.onRefused?.(refusal);
 }
 
 /**
@@ -167,6 +164,9 @@ function comboItem(reason: string | null, combo: RibbonComboItem): RibbonItem {
     id: combo.id,
     labelKey: combo.labelKey,
     size: "icon",
+    // W9 review F7: RibbonItemView ignores `disabled`/`tooltipKey` on kind "custom";
+    // PptxDisabledCombo renders both itself. They stay as metadata so every item of a
+    // disabled group reads alike to code that inspects the item list.
     disabled: true,
     tooltipKey: reason,
     // Same estimate the ribbon layout gives a combo, so collapse behaves alike.

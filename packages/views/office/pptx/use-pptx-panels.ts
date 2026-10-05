@@ -58,6 +58,12 @@ function createdIdsOf(result: unknown): string[] {
   return typeof createdId === "string" && createdId.length > 0 ? [createdId] : [];
 }
 
+function reportCreated(result: unknown, onCreated: ((ids: readonly string[]) => void) | undefined): unknown {
+  const created = createdIdsOf(result);
+  if (created.length > 0) onCreated?.(created);
+  return result;
+}
+
 const CONTEXTUAL_FLAG: Record<string, keyof PptxRibbonContextualSelection> = {
   "context-shape": "shape",
   "context-picture": "picture",
@@ -105,13 +111,21 @@ export function usePptxPanels(input: PptxPanelsInput) {
   const applyEdit = useMemo(() => {
     const base = hostApply ?? (bulkEdit ? (one: PptxPanelEdit) => bulkEdit([one as PptxEdit]) : undefined);
     if (!base) return undefined;
-    return async (edit: PptxPanelEdit) => {
-      const result = await base(edit);
-      const created = createdIdsOf(result);
-      if (created.length > 0) onCreatedRef.current?.(created);
+    return async (edit: PptxPanelEdit) => reportCreated(await base(edit), onCreatedRef.current);
+  }, [bulkEdit, hostApply]);
+  // W9 review F2: one gesture over several elements is ONE call on the handle's
+  // array channel (one revision, one history entry on the host). A host that bound
+  // only the single-edit port gets the edits in order, one call each.
+  const applyEdits = useMemo(() => {
+    if (!applyEdit) return undefined;
+    return async (edits: readonly PptxPanelEdit[]): Promise<unknown> => {
+      if (edits.length === 1) return applyEdit(edits[0]!);
+      if (bulkEdit) return reportCreated(await bulkEdit(edits as readonly PptxEdit[]), onCreatedRef.current);
+      let result: unknown;
+      for (const edit of edits) result = await applyEdit(edit);
       return result;
     };
-  }, [bulkEdit, hostApply]);
+  }, [applyEdit, bulkEdit]);
   // The pick is remembered per tab: a pick made on another tab never leaks.
   const [pick, setPick] = useState<{ tab: string; kind: PptxPanelKind | null } | null>(null);
   const contextualLive = (tab: string) => {
@@ -158,38 +172,40 @@ export function usePptxPanels(input: PptxPanelsInput) {
 
   const anchor = useMemo(() => pptxPanelSelection(boxes, selectedIds), [boxes, selectedIds]);
   const textState = useMemo(() => pptxTextFormatState(rendition, anchor.elementId), [anchor.elementId, rendition]);
-  // The text-format panel seeds its controls from the selection's live formatting.
-  const selection = useMemo(() => ({ ...anchor, textFormat: textState }), [anchor, textState]);
   // W5 review F9: Font/Paragraph edits reach every selected element that takes
   // text formatting, anchor first, not only the anchor.
   const textIds = useMemo(
     () => selectedIds.filter((id) => pptxTextFormatAllowed(boxes.find((entry) => entry.sourceId === id)?.type)),
     [boxes, selectedIds],
   );
+  // The text-format panel seeds its controls from the selection's live formatting
+  // and (W9 review F6) formats the same `textIds` the ribbon does.
+  const selection = useMemo(() => ({ ...anchor, textIds, textFormat: textState }), [anchor, textIds, textState]);
   const target = useMemo<PptxFormatTarget>(
     () => ({ slideIndex, elementId: selection.elementId, elementType: selection.elementType, ids: selection.ids, textIds }),
     [selection, slideIndex, textIds],
   );
   const groupItems = useMemo<Record<string, readonly RibbonItem[]>>(() => {
-    const apply = applyEdit ? (edit: PptxPanelEdit) => { void applyEdit(edit).catch(onError); } : undefined;
+    const apply = applyEdits ? (edits: readonly PptxPanelEdit[]) => { void applyEdits(edits).catch(onError); } : undefined;
     // W5 review F5: "More colors…" goes through the same guard as every other
     // way into the text-format panel.
     const moreBlocked = Boolean(panelDisabled["text-format"]);
     const onMoreOptions = () => { if (!moreBlocked) openPanel("text-format"); };
-    const text = { target, state: textState, ...(apply ? { apply } : {}), onMoreOptions };
+    const text = { target, state: textState, ...(apply ? { apply } : {}), onRefused: onError, onMoreOptions };
     return {
       font: pptxFontGroupItems(text),
       paragraph: pptxParagraphGroupItems(text),
       arrange: pptxArrangeGroupItems({ target, ...(reorder ? { reorder } : {}), ...(remove ? { remove } : {}) }),
       ...(showItems ? { show: showItems } : {}),
     };
-  }, [applyEdit, onError, openPanel, panelDisabled, remove, reorder, showItems, target, textState]);
+  }, [applyEdits, onError, openPanel, panelDisabled, remove, reorder, showItems, target, textState]);
 
   const placement = !panel && activeKind ? pptxPanelPlacement(activeKind) : "aside";
   const node = panel ?? buildPptxPanel({
     placement,
     ...(activeKind ? { panelKind: activeKind } : {}),
     ...(applyEdit ? { onApplyEdit: applyEdit } : {}),
+    ...(applyEdits ? { onApplyEdits: applyEdits } : {}),
     ...(bulkEdit ? { edit: bulkEdit } : {}),
     onError,
     slideIndex,

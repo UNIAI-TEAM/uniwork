@@ -6,7 +6,7 @@ const none = { open: false, textEdit: false, transform: false, edit: false, prin
 describe("pptxEditorCapabilities", () => {
   it("disables every unbound command with an i18n reason key, never a raw sentence", () => {
     const caps = pptxEditorCapabilities(undefined, none);
-    for (const id of ["open", "edit-text", "edit-shape-image", "export-pdf", "speaker-notes", "animations", "charts", "tables"] as const) {
+    for (const id of ["open", "edit-text", "edit-shape-image", "export-pdf", "animations", "charts", "tables"] as const) {
       const cap = caps[id];
       expect(typeof cap === "object" && cap.status).toBe("unavailable");
       expect(typeof cap === "object" ? cap.reason : "").toMatch(/^office\.pptx\.reasons\./);
@@ -16,6 +16,10 @@ describe("pptxEditorCapabilities", () => {
   it("makes the panel commands available once an edit channel exists", () => {
     const caps = pptxEditorCapabilities(undefined, { ...none, edit: true });
     for (const id of ["speaker-notes", "animations", "charts", "tables"] as const) expect(caps[id]).toEqual({ status: "available" });
+  });
+
+  it("keeps Speaker notes usable on a read-only host: the pane reads, only writing is refused (W9 review F3)", () => {
+    expect(pptxEditorCapabilities(undefined, none)["speaker-notes"]).toEqual({ status: "available" });
   });
 
   it("keeps a host-supplied capability over the derived one", () => {

@@ -13,9 +13,11 @@ import {
 
 const target: PptxFormatTarget = { slideIndex: 2, elementId: "el-1", elementType: "text", ids: ["el-1"] };
 
-function opts(over: Partial<PptxTextGroupOptions> = {}): { o: PptxTextGroupOptions; apply: ReturnType<typeof vi.fn> } {
+/** `apply` records every edit; `batch` records each gesture's single call. */
+function opts(over: Partial<PptxTextGroupOptions> = {}): { o: PptxTextGroupOptions; apply: ReturnType<typeof vi.fn>; batch: ReturnType<typeof vi.fn> } {
   const apply = vi.fn<(e: TextEdit) => void>();
-  return { o: { target, state: {}, apply, ...over }, apply };
+  const batch = vi.fn((edits: readonly TextEdit[]) => edits.forEach((edit) => apply(edit)));
+  return { o: { target, state: {}, apply: batch, ...over }, apply, batch };
 }
 
 function get<T extends RibbonItem>(items: RibbonItem[], id: string): T {
@@ -111,15 +113,24 @@ describe("font group", () => {
 });
 
 describe("font group: multi-selection, disabled combos, more colors", () => {
-  it("applies one edit per text id, anchor first, and skips an id whose builder refuses", () => {
-    const { o, apply } = opts({ target: { ...target, elementId: "a", ids: ["a", "b"], textIds: ["a", "b"] } });
+  it("applies one edit per text id, anchor first, in ONE batch (W9 review F2)", () => {
+    const { o, apply, batch } = opts({ target: { ...target, elementId: "a", ids: ["a", "b"], textIds: ["a", "b"] } });
     press(get(pptxFontGroupItems(o), "font-bold"));
+    expect(batch).toHaveBeenCalledTimes(1);
     expect(apply).toHaveBeenCalledTimes(2);
     expect(apply).toHaveBeenNthCalledWith(1, expect.objectContaining({ elementId: "a", font: { bold: true } }));
     expect(apply).toHaveBeenNthCalledWith(2, expect.objectContaining({ elementId: "b", font: { bold: true } }));
     const single = opts();
     press(get(pptxFontGroupItems(single.o), "font-bold"));
     expect(single.apply).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a refused gesture once, not once per id, and applies nothing", () => {
+    const onRefused = vi.fn();
+    const { o, batch } = opts({ onRefused, target: { ...target, elementId: "a", ids: ["a", "b"], textIds: ["a", "b"] } });
+    get<RibbonComboItem>(pptxFontGroupItems(o), "font-size").onChange("not-a-size");
+    expect(batch).not.toHaveBeenCalled();
+    expect(onRefused).toHaveBeenCalledTimes(1);
   });
 
   it("emits a custom item for a disabled combo and a plain combo when enabled", () => {

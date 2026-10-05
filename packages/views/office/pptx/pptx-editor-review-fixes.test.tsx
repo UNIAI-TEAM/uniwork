@@ -95,13 +95,16 @@ describe("PptxEditor W5 review fixes (UNI-927 W9)", () => {
   });
 
   it("applies Bold to every selected text element, not only the anchor (F9)", async () => {
+    // W10a (W9 review F2): the whole gesture travels as one batch on the handle's array channel.
     const onApplyEdit = vi.fn(async (_edit: PptxPanelEdit) => undefined);
-    await renderEditor({ onApplyEdit }, () => [title(), second(), chart()]);
+    const { editorHandle } = await renderEditor({ onApplyEdit }, () => [title(), second(), chart()]);
+    const edit = (editorHandle as unknown as { edit: ReturnType<typeof vi.fn> }).edit;
     fireEvent.keyDown(canvas(), { key: "a", ctrlKey: true });
     await waitFor(() => expect(item("font-bold")).not.toHaveAttribute("aria-disabled"));
     fireEvent.click(item("font-bold"));
-    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(2));
-    expect(onApplyEdit.mock.calls.map(([edit]) => ("elementId" in edit ? edit.elementId : null))).toEqual(["shape-1", "shape-2"]);
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect((edit.mock.calls[0]?.[0] as PptxPanelEdit[]).map((one) => ("elementId" in one ? one.elementId : null))).toEqual(["shape-1", "shape-2"]);
+    expect(onApplyEdit).not.toHaveBeenCalled();
   });
 
   it("enables the context-menu Edit text row only over an editable selection (F11)", async () => {

@@ -49,4 +49,44 @@ describe("usePptxPanels (UNI-927 W9)", () => {
     expect(applyEdit).toHaveBeenCalledTimes(4);
     expect(onCreated.mock.calls).toEqual([[["new-1"]], [["new-2"]]]);
   });
+
+  const multi: PptxPanelsInput = {
+    ...base,
+    boxes: [{ sourceId: "t1", type: "text", box: box() }, { sourceId: "p1", type: "picture", box: box() }, { sourceId: "s2", type: "shape", box: box() }],
+    selectedIds: ["t1", "p1", "s2"],
+  };
+  const press = (items: readonly RibbonItem[] | undefined, id: string) => {
+    const item = items?.find((entry) => entry.id === id);
+    if (!item || !("onExecute" in item)) throw new Error("no " + id);
+    item.onExecute();
+  };
+
+  it("sends a multi-element format as ONE call on the array channel (W9 review F2)", async () => {
+    const applyEdit = vi.fn(async (_edit: unknown) => undefined);
+    const bulkEdit = vi.fn(async (_edits: readonly unknown[]) => ({ revision: 2 }));
+    const { result } = renderHook(() => usePptxPanels({ ...multi, applyEdit, bulkEdit }));
+    await act(async () => { press(result.current.groupItems.font, "font-bold"); await Promise.resolve(); });
+    expect(bulkEdit).toHaveBeenCalledTimes(1);
+    expect(bulkEdit).toHaveBeenCalledWith([
+      { op: "set_font", slideIndex: 0, elementId: "t1", font: { bold: true } },
+      { op: "set_font", slideIndex: 0, elementId: "s2", font: { bold: true } },
+    ]);
+    expect(applyEdit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a single-element format on the host's single-edit port", async () => {
+    const applyEdit = vi.fn(async (_edit: unknown) => undefined);
+    const bulkEdit = vi.fn(async (_edits: readonly unknown[]) => ({ revision: 2 }));
+    const { result } = renderHook(() => usePptxPanels({ ...base, applyEdit, bulkEdit }));
+    await act(async () => { press(result.current.groupItems.font, "font-bold"); await Promise.resolve(); });
+    expect(applyEdit).toHaveBeenCalledTimes(1);
+    expect(bulkEdit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to ordered single calls when only the single-edit port is bound", async () => {
+    const applyEdit = vi.fn(async (_edit: unknown) => undefined);
+    const { result } = renderHook(() => usePptxPanels({ ...multi, applyEdit }));
+    await act(async () => { press(result.current.groupItems.font, "font-bold"); await Promise.resolve(); await Promise.resolve(); });
+    expect(applyEdit.mock.calls.map(([edit]) => (edit as { elementId: string }).elementId)).toEqual(["t1", "s2"]);
+  });
 });

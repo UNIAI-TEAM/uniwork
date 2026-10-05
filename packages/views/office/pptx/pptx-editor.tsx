@@ -30,7 +30,7 @@ import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
 import { PptxShortcutsHelp } from "./shortcuts/pptx-shortcuts-help";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
 import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from "./text/pptx-text-editor";
-import { collectTextTargets, type PptxTextTarget } from "./text/text-model";
+import { collectTextTargets } from "./text/text-model";
 import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
@@ -38,7 +38,9 @@ import { PptxToolbar } from "./toolbar";
 import { PptxFindBar } from "./toolbar/find-bar";
 import { usePptxEditorRender } from "./use-pptx-editor-render";
 import { usePptxGestureHistory } from "./use-pptx-gesture-history";
+import { usePptxInPlaceText } from "./use-pptx-in-place-text";
 import { usePptxPanels } from "./use-pptx-panels";
+import { usePptxPendingSelect } from "./use-pptx-pending-select";
 
 export interface PptxEditorProps {
   host: OfficeHost;
@@ -150,7 +152,6 @@ export function PptxEditor({
   // so the side panel can be derived from it; the toolbar renders it controlled.
   const [activeTab, setActiveTab] = useState<string>("home");
   const [commandError, setCommandError] = useState<string | null>(null);
-  const [textTarget, setTextTarget] = useState<PptxTextTarget | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fitWidthPx, setFitWidthPx] = useState(PPTX_FALLBACK_FIT_WIDTH);
   const presenterTriggerRef = useRef<HTMLElement | null>(null);
@@ -222,12 +223,14 @@ export function PptxEditor({
   const textTargetsRef = useRef(textTargets);
   useEffect(() => { textTargetsRef.current = textTargets; }, [textTargets]);
 
-  // A1ui: the in-place editor is only mounted when the host bound the commit channel.
-  const openTextEditor = useCallback((target: PptxTextTarget) => {
-    if (!onCommitText) return;
-    setCommandError(null);
-    setTextTarget(target);
-  }, [onCommitText]);
+  const reportCommandError = useCallback((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    setCommandError(message);
+    onCommandError?.(error);
+  }, [onCommandError]);
+  const { textTarget, openTextEditor, closeTextEditor, commitText, flushTextEdit } = usePptxInPlaceText({
+    rootRef: editorRootRef, ...(onCommitText ? { onCommitText } : {}), ...(onDirty ? { onDirty } : {}), onOpen: clearCommandError, onError: reportCommandError,
+  });
 
   // The ribbon Text command (and the editor's onTextEdit seam) opens the in-place editor
   // over the selected text element; with nothing selected it falls back to the seam.
@@ -239,32 +242,6 @@ export function PptxEditor({
     return false;
   }, [openTextEditor]);
 
-  const reportCommandError = useCallback((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    setCommandError(message);
-    onCommandError?.(error);
-  }, [onCommandError]);
-
-  // W2 review F3: closing the in-place editor unmounts the focused contenteditable;
-  // focus that fell to the body returns to the canvas so its keys keep working.
-  const refocusCanvasRef = useRef(false);
-  useEffect(() => {
-    if (textTarget || !refocusCanvasRef.current) return;
-    refocusCanvasRef.current = false;
-    const active = document.activeElement;
-    if (active && active !== document.body) return;
-    editorRootRef.current?.querySelector<HTMLElement>("[data-pptx-canvas]")?.focus();
-  }, [textTarget]);
-  const closeTextEditor = useCallback(() => {
-    refocusCanvasRef.current = true;
-    setTextTarget(null);
-  }, []);
-
-  const commitText = useCallback((commit: PptxTextCommit) => {
-    closeTextEditor();
-    if (!onCommitText) return;
-    void Promise.resolve(onCommitText(commit)).then(() => { onDirty?.(); }).catch(reportCommandError);
-  }, [closeTextEditor, onCommitText, onDirty, reportCommandError]);
 
   const runCommand = useCallback((operation: Promise<unknown>) => {
     void operation.catch(reportCommandError);
@@ -276,19 +253,29 @@ export function PptxEditor({
     runCommand(runTextEdit());
   }, [openTextEditorForSelection, runCommand, runTextEdit]);
 
-  const save = useCallback(() => { if (saveCoordinator) void saveCoordinator.save("button"); }, [saveCoordinator]);
+  // W8 review F2: a save (or print) never serializes the deck without the text still
+  // open in the in-place editor; the edit commits first, then the command runs.
+  const save = useCallback(() => {
+    if (!saveCoordinator) return;
+    const commit = flushTextEdit();
+    if (commit) void commit.then(() => saveCoordinator.save("button"));
+    else void saveCoordinator.save("button");
+  }, [flushTextEdit, saveCoordinator]);
 
   const openPresenter = useCallback(() => {
+    void flushTextEdit();
     presenterTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPresenterOpen(true);
-  }, []);
+  }, [flushTextEdit]);
 
   // F-05: the audience show is opened from the click handler (a user gesture),
   // so the show's requestFullscreen is allowed.
   const startShow = useCallback((fromStart: boolean) => {
+    // The commit starts synchronously; the show opens in this same user gesture.
+    void flushTextEdit();
     if (fromStart) selectSlide(Math.max(slides.findIndex((slide) => slide.hidden !== true), 0));
     setShowOpen(true);
-  }, [selectSlide, slides]);
+  }, [flushTextEdit, selectSlide, slides]);
   const showItems = useMemo(() => pptxShowGroupItems({
     canShow: slides.length > 0,
     onFromStart: () => startShow(true),
@@ -349,15 +336,10 @@ export function PptxEditor({
   // F3: the R4 contextual tabs open only for the object actually selected; the
   // flags come from the live selection ids against the rendition node types.
   const contextual = useMemo(() => pptxContextualSelection(nodeBoxes, selectedIds), [nodeBoxes, selectedIds]);
-  // Select-after-insert: select() only takes ids present in the CURRENT boxes, so
-  // the ids an edit minted wait until the new rendition mounts them.
-  const [pendingSelect, setPendingSelect] = useState<readonly string[] | null>(null);
-  const { select: selectIds } = selection;
-  useEffect(() => {
-    if (!pendingSelect || !pendingSelect.some((id) => nodeBoxes.some((entry) => entry.sourceId === id))) return;
-    selectIds(pendingSelect);
-    setPendingSelect(null);
-  }, [nodeBoxes, pendingSelect, selectIds]);
+  // Select-after-insert, scoped to the slide + revision it was requested on (W9 review F1).
+  const onCreated = usePptxPendingSelect({
+    slideIndex: selectedIndex, revision: deck?.revision, boxes: nodeBoxes, ready: Boolean(rendition) && !building, selectedIds, select: selection.select,
+  });
   // W5 review F11: "Edit text" only when the selection can actually be edited:
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
@@ -404,7 +386,7 @@ export function PptxEditor({
     onSelectSlide: selectSlide,
     ...(loadLayouts ? { loadLayouts } : {}),
     showItems,
-    onCreated: setPendingSelect,
+    onCreated,
     rootRef: editorRootRef,
   });
   const { openCommandPanel } = panels;
@@ -425,7 +407,9 @@ export function PptxEditor({
         // C1: one committed print run through the bound port; nothing is faked
         // when the port is absent (the capability above keeps it disabled).
         if (printPort && deckRenderer) {
-          runCommand(printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) }));
+          const print = () => printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) });
+          const commit = flushTextEdit();
+          runCommand(commit ? commit.then(print) : print());
         }
         break;
       // The tab-row Present control starts the audience show from the current
@@ -442,7 +426,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [deckRenderer, fullscreen, onFullscreenChange, onOpen, openCommandPanel, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, transformRequest]);
+  }, [deckRenderer, flushTextEdit, fullscreen, onFullscreenChange, onOpen, openCommandPanel, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, transformRequest]);
 
   // A7: one dispatch table owns the canvas keys. The chords live in the pure shortcut
   // map (which the help dialog also lists), so a key that runs is a key that is

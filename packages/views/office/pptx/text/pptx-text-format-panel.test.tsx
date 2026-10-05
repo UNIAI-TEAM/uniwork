@@ -252,6 +252,22 @@ describe("PptxTextFormatPanel", () => {
     expect(panel()).toHaveAttribute("data-state", "ready");
   });
 
+  it("formats every target id in ONE batch, like the ribbon (W9 review F2/F6)", async () => {
+    const onApplyEdits = vi.fn(async (_edits: readonly TextEdit[]) => undefined);
+    const { onApplyEdit } = renderPanel({ onApplyEdits, targetIds: ["t1", "t2", "t3"] });
+    fireEvent.click(screen.getByTestId("pptx-text-toggle-bold"));
+    await waitFor(() => expect(onApplyEdits).toHaveBeenCalledTimes(1));
+    expect(onApplyEdits.mock.calls[0]?.[0].map((edit) => edit.elementId)).toEqual(["t1", "t2", "t3"]);
+    expect(onApplyEdit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to ordered single edits for every target when no batch port is bound", async () => {
+    const { onApplyEdit } = renderPanel({ targetIds: ["t1", "t2"] });
+    fireEvent.click(screen.getByTestId("pptx-text-toggle-italic"));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(2));
+    expect(onApplyEdit.mock.calls.map(([edit]) => edit.elementId)).toEqual(["t1", "t2"]);
+  });
+
   it("renders the loading state as a busy status region", () => {
     renderPanel({ loading: true });
     expect(panel()).toHaveAttribute("data-state", "loading");
