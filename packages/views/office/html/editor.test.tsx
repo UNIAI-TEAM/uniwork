@@ -378,7 +378,6 @@ describe("HtmlVisualShell split panes at 390px (VFIXMINOR)", () => {
         viewMode="split"
         onViewModeChange={() => undefined}
         zoom={100}
-        onZoomChange={() => undefined}
       />,
     );
     const canvas = screen.getByTestId("html-canvas");
@@ -403,7 +402,6 @@ describe("HtmlVisualShell split panes at 390px (VFIXMINOR)", () => {
         viewMode="preview"
         onViewModeChange={() => undefined}
         zoom={100}
-        onZoomChange={() => undefined}
       />,
     );
     const canvas = screen.getByTestId("html-canvas");
@@ -421,7 +419,6 @@ describe("HtmlVisualShell overlay contract (F5)", () => {
         viewMode="preview"
         onViewModeChange={() => undefined}
         zoom={100}
-        onZoomChange={() => undefined}
         overlay={<span data-testid="probe-overlay" />}
       />,
     );
@@ -514,6 +511,44 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     const landmark = container.querySelector("[data-testid='html-editor']")!;
     expect(landmark.className).not.toMatch(/rounded-/);
     expect(landmark.className).not.toMatch(/border(\s|$)/);
+  });
+
+  it("puts the status bar in the frame's own slot, below the assets strip (F1)", async () => {
+    const { container } = await renderReady();
+    const frame = container.querySelector<HTMLElement>("[data-office-frame]")!;
+    // Exactly one bar, and it is a DIRECT child of the frame - the frame's
+    // `statusBar` slot, not a row drawn inside the canvas.
+    const bars = container.querySelectorAll("[data-office-status-bar]");
+    expect(bars).toHaveLength(1);
+    expect(bars[0]!.parentElement).toBe(frame);
+    expect(frame.querySelector("[data-office-canvas]")).not.toContainElement(bars[0] as HTMLElement);
+    // Ordering (B2): the assets `bottom` slot paints ABOVE the status bar, so
+    // the bar is the bottom-most row of the frame - never the other way round.
+    const assets = screen.getByTestId("html-assets");
+    expect(assets.compareDocumentPosition(bars[0] as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(frame.lastElementChild).toBe(bars[0]);
+  });
+
+  it("offers a `?` help affordance that opens the shortcuts sheet (F8)", async () => {
+    await renderReady();
+    const trigger = screen.getByTestId("html-shortcuts-help-trigger");
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    // The `?` is the last item of the shared bar (after the zoom ladder).
+    const bar = document.querySelector("[data-office-status-bar]")!;
+    expect(bar.lastElementChild?.lastElementChild).toBe(trigger);
+    expect(screen.queryByTestId("html-shortcuts-dialog")).toBeNull();
+    fireEvent.click(trigger);
+    expect(await screen.findByTestId("html-shortcuts-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("html-shortcuts-list")).toBeInTheDocument();
+  });
+
+  it("suppresses the status bar while presenting (chrome-free)", async () => {
+    const { container } = await renderReady();
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    pressCycle(container); // split -> preview
+    pressCycle(container); // preview -> present
+    expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(0);
   });
 
   it("keeps the open and error states rendering outside the frame", async () => {

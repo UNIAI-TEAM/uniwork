@@ -28,6 +28,7 @@ import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetSt
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
 import { HtmlRibbon } from "./ribbon";
+import { HtmlStatusBar } from "./status-bar";
 import { HtmlVisualShell } from "./visual/shell";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
@@ -328,6 +329,23 @@ export function HtmlEditor<TSnapshot = unknown>({
               {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
             </aside>
           }
+          /*
+            F1/F8: the status bar lives in the frame's own `statusBar` slot, so
+            it is the bottom-most row - BELOW the assets `bottom` slot - and the
+            `?` help affordance is part of the surface. Present mode is chrome-
+            free, so the bar is suppressed while presenting.
+          */
+          statusBar={
+            presenting ? undefined : (
+              <HtmlStatusBar
+                text={text}
+                selection={null}
+                zoom={zoom}
+                onZoomChange={setZoom}
+                zoomDisabled={viewMode === "source"}
+              />
+            )
+          }
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
           <HtmlVisualShell
@@ -342,7 +360,6 @@ export function HtmlEditor<TSnapshot = unknown>({
             manifest={manifest}
             title={effectiveTitle}
             zoom={zoom}
-            onZoomChange={setZoom}
             className="min-h-0 flex-1"
           />
         </OfficeFrame>

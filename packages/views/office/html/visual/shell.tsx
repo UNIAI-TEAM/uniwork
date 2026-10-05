@@ -4,10 +4,12 @@
  * HtmlVisualShell — the HTML editor's view shell.
  *
  * It owns the four view modes (source / split / preview / present), the zoom
- * ladder for the preview pane, and the H3-H8 mount points. It owns NO chrome:
+ * scale for the preview pane, and the H3-H8 mount points. It owns NO chrome:
  * the shared UNI-931 ribbon (task RB) renders the tab row, the command body and
  * the trailing Source | Split | Preview | Present control; the shared save
- * cluster (UNI-930) owns Save. This module is the canvas between them.
+ * cluster (UNI-930) owns Save; the shared `OfficeStatusBar` sits in the frame's
+ * `statusBar` slot, hoisted out of this module (F1/F8). This module is the
+ * canvas between them.
  *
  * The preview pane mounts ONLY through the injected `IsolatedPreviewPort`. No
  * iframe policy, sandbox, CSP or asset rule is built or weakened here; the
@@ -43,7 +45,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { OfficeStatusBar, OfficeStatusZoom } from "../../frame";
 import { HtmlSourceEditor } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
@@ -53,13 +54,8 @@ import { HtmlFloatToolbar, type HtmlFloatToolbarCommands } from "./float-toolbar
 import { useHtmlInlineEdit, type HtmlInlineEditPort } from "./inline-edit";
 import {
   clampZoom,
-  HTML_ZOOM_DEFAULT,
-  HTML_ZOOM_MAX,
-  HTML_ZOOM_MIN,
-  htmlStatusFigures,
   previewVisibleIn,
   sourceVisibleIn,
-  stepZoom,
   type HtmlViewMode,
 } from "./shell-model";
 
@@ -90,11 +86,8 @@ export interface HtmlVisualShellProps {
   onPreviewSelection?(selection: HtmlSelection | null): void;
   /** The document title: the isolated preview iframe's accessible name. */
   title?: string;
-  /** Zoom ladder value in percent; owned by the caller for the status bar. */
+  /** Zoom ladder value in percent; scales the preview pane and the overlay math. */
   zoom: number;
-  onZoomChange: (percent: number) => void;
-  /** Selection in source offsets, or null; owned by the caller (H5-H8). */
-  selection?: { from: number; to: number } | null;
   /**
    * H6 float toolbar actions, injected by the caller. Every one is optional:
    * an absent action leaves its control inert - the icon buttons render
@@ -119,60 +112,6 @@ export interface HtmlVisualShellProps {
    */
   overlay?: ReactNode;
   className?: string;
-}
-
-/**
- * The HTML status bar's LEFT cluster: source length / line count / language.
- * The selection info and the zoom ladder live in the RIGHT cluster
- * (`HtmlStatusEnd`) so they cannot be clipped by this cluster's
- * `truncate whitespace-nowrap` flex at narrow widths, matching the DOCX
- * example and C10. Rendered through the shared `OfficeStatusBar` (F1/F8) -
- * one 28px row, never a chrome row of its own and never a floating control
- * (C9).
- */
-function HtmlStatusFigures({ text }: { text: string }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.html.status" });
-  const figures = htmlStatusFigures(text, null);
-  return (
-    <span data-testid="html-status-figures" data-html-length={figures.length} data-html-lines={figures.lines} data-html-language="HTML">
-      {t("figures", { length: figures.length, lines: figures.lines, language: "HTML" })}
-    </span>
-  );
-}
-
-/** The HTML status bar's RIGHT cluster: selection info and the zoom ladder. */
-function HtmlStatusEnd({
-  text,
-  selection = null,
-  zoom,
-  onZoomChange,
-  zoomDisabled,
-}: {
-  text: string;
-  selection?: { from: number; to: number } | null;
-  zoom: number;
-  onZoomChange: (percent: number) => void;
-  zoomDisabled: boolean;
-}) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.html.status" });
-  const { selection: activeSelection } = htmlStatusFigures(text, selection);
-  return (
-    <>
-      <span data-testid="html-status-selection">
-        {activeSelection ? t("selection", { from: activeSelection.from, to: activeSelection.to }) : t("selectionNone")}
-      </span>
-      <span data-testid="html-zoom">
-        <OfficeStatusZoom
-          value={zoomDisabled ? null : clampZoom(zoom)}
-          min={HTML_ZOOM_MIN}
-          max={HTML_ZOOM_MAX}
-          onZoomIn={zoomDisabled ? undefined : () => onZoomChange(stepZoom(clampZoom(zoom), 1))}
-          onZoomOut={zoomDisabled ? undefined : () => onZoomChange(stepZoom(clampZoom(zoom), -1))}
-          onReset={zoomDisabled ? undefined : () => onZoomChange(HTML_ZOOM_DEFAULT)}
-        />
-      </span>
-    </>
-  );
 }
 
 /** Mount the injected preview port into a container; dispose on unmount. */
@@ -297,8 +236,6 @@ export function HtmlVisualShell({
   onPreviewSelection,
   title,
   zoom,
-  onZoomChange,
-  selection = null,
   floatCommands,
   inlineEdit,
   overlay,
@@ -483,23 +420,6 @@ export function HtmlVisualShell({
           </div>
         ) : null}
       </div>
-      {!presenting ? (
-        <div data-testid="html-status" className="contents">
-          <OfficeStatusBar
-            labelKey="office.html.status.label"
-            start={
-              <span data-testid="html-status-left">
-                <HtmlStatusFigures text={text} />
-              </span>
-            }
-            end={
-              <span className="flex items-center gap-2" data-testid="html-status-right">
-                <HtmlStatusEnd text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
-              </span>
-            }
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

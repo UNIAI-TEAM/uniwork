@@ -93,7 +93,6 @@ function shellElement(preview: IsolatedPreviewPort, options: ShellOptions = {}) 
       onViewModeChange={() => undefined}
       preview={preview}
       zoom={options.zoom ?? 100}
-      onZoomChange={() => undefined}
       onPreviewSelection={options.onPreviewSelection}
     />
   );
@@ -238,8 +237,7 @@ describe("HtmlSelectionOverlay behind the flag", () => {
         onViewModeChange={() => undefined}
         preview={port}
         zoom={100}
-        onZoomChange={() => undefined}
-        onPreviewEvent={onPreviewEvent}
+          onPreviewEvent={onPreviewEvent}
       />,
     );
     await ready();

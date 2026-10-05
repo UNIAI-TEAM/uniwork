@@ -59,7 +59,6 @@ async function renderShell(f: OpenFixture, preview: IsolatedPreviewPort, port: H
       onViewModeChange={() => undefined}
       preview={preview}
       zoom={100}
-      onZoomChange={() => undefined}
       inlineEdit={port}
     />,
   );

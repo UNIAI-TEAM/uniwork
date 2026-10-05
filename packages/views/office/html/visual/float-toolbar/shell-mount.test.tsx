@@ -62,7 +62,6 @@ function renderShell(preview: IsolatedPreviewPort, floatCommands?: HtmlFloatTool
       onViewModeChange={() => undefined}
       preview={preview}
       zoom={100}
-      onZoomChange={() => undefined}
       floatCommands={floatCommands}
     />,
   );
