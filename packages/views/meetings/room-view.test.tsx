@@ -15,6 +15,18 @@ type RoomProps = {
   token?: string;
 };
 
+const meetingScope = vi.hoisted(() => ({ held: [] as string[] }));
+vi.mock("@uniwork/core/realtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/realtime")>();
+  return {
+    ...actual,
+    useMeetingScope: (meetingId: string) => {
+      meetingScope.held.push(meetingId);
+      actual.useMeetingScope(meetingId);
+    },
+  };
+});
+
 const room = vi.hoisted(() => ({
   props: null as null | RoomProps,
   micOn: false,
@@ -54,6 +66,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  meetingScope.held = [];
   room.props = null;
   room.micOn = false;
   room.mounts = 0;
@@ -309,5 +322,22 @@ describe("MeetingRoomView lobby for a member", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("MeetingRoomView meeting scope", () => {
+  it("holds the meeting's realtime scope for a member, from the lobby on", () => {
+    render(
+      wrapWithNav(
+        <MeetingRoomView meetingId="m1" workspaceId="w1" meetingTitle="Standup" onLeave={() => {}} />,
+      ),
+    );
+    expect(meetingScope.held.length).toBeGreaterThan(0);
+    expect(new Set(meetingScope.held)).toEqual(new Set(["m1"]));
+  });
+
+  it("leaves a guest on the lobby socket", () => {
+    renderRoom();
+    expect(new Set(meetingScope.held)).toEqual(new Set([""]));
   });
 });

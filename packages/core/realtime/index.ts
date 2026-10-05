@@ -6,4 +6,5 @@ export { useRealtimeSync } from "./use-realtime-sync";
 export { useMeetingLobbySync } from "./use-meeting-lobby-sync";
 export { useWorkspaceEvents } from "./use-workspace-events";
 export { useChatRoomScopes } from "./use-chat-room-scopes";
+export { useMeetingScope } from "./use-meeting-scope";
 export { WS_SCOPE_CHAT } from "./scopes";

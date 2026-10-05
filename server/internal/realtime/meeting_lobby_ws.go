@@ -19,8 +19,8 @@ type MeetingLobbyChecker interface {
 }
 
 // HandleMeetingLobbyWebSocket upgrades a public lobby socket scoped to one
-// meeting. Clients auto-subscribe to ScopeMeeting and receive admission events
-// only — no workspace membership required.
+// meeting. Clients auto-subscribe to ScopeMeetingLobby and receive admission
+// events only — no workspace membership required.
 //
 // GET /api/v1/meetings/{meetingID}/lobby-ws
 //
