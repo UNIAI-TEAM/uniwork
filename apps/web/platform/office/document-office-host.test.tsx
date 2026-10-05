@@ -22,6 +22,7 @@ vi.mock("next/dynamic", () => ({
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
 vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
+vi.mock("./pptx-office-host", () => ({ PptxOfficeEditorHost: Object.assign(() => null, { __name: "pptx" }) }));
 vi.mock("./md-html-adapter", () => ({
   MarkdownOfficeEditorHost: Object.assign(() => null, { __name: "md" }),
   HtmlOfficeEditorHost: Object.assign(() => null, { __name: "html" }),
@@ -56,6 +57,7 @@ describe("document office host routing", () => {
     ["notes.markdown", "text/markdown", "md"],
     ["page.html", "text/html", "html"],
     ["page.htm", "text/html", "html"],
+    ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "pptx"],
   ])("routes %s to the %s host", async (filename, mime, host) => {
     await route(documentFor(filename, mime));
     expect(container.querySelector(`[data-format-host="${host}"]`)).not.toBeNull();
@@ -72,7 +74,6 @@ describe("document office host routing", () => {
   });
 
   it.each([
-    ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     // The Q7 conversion sources the server detects but never edits in place.
     ["legacy.xls", "application/vnd.ms-excel"],
     ["letter.odt", "application/vnd.oasis.opendocument.text"],
@@ -82,6 +83,11 @@ describe("document office host routing", () => {
     await route(documentFor(filename, mime));
     expect(container.querySelector("[data-office-unsupported]")).not.toBeNull();
     expect(container.querySelector('[data-format-host]')).toBeNull();
+  });
+
+  it("never sends a PowerPoint deck to the XLSX host", async () => {
+    await route(documentFor("slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"));
+    expect(container.querySelector('[data-format-host="xlsx"]')).toBeNull();
   });
 
   it("never routes an .xls or .odt to the DOCX or XLSX host", async () => {

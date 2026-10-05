@@ -7,8 +7,8 @@ describe("desktop document format table", () => {
     expect(desktopDocumentFormatForName("Report.PDF")).toBe("pdf");
     expect(desktopDocumentFormatForName("Plan.docx")).toBe("docx");
     expect(desktopDocumentFormatForName("budget.XLSX")).toBe("xlsx");
-    expect(desktopDocumentFormatForName("deck.pptx")).toBeUndefined();
     expect(desktopDocumentFormatForName("trailing.")).toBeUndefined();
+    expect(desktopDocumentFormatForName("Deck.PPTX")).toBe("pptx");
     expect(desktopDocumentFormatForName("notes.txt")).toBeUndefined();
     expect(desktopDocumentFormatForMime("application/pdf; charset=binary")).toBe("pdf");
     expect(desktopDocumentFormatForMime("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).toBe("xlsx");
@@ -35,6 +35,7 @@ describe("desktop document format table", () => {
       { name: "Markdown", extensions: ["md", "markdown"] },
       { name: "HTML", extensions: ["html", "htm"] },
       { name: "Excel", extensions: ["xlsx"] },
+      { name: "PowerPoint", extensions: ["pptx"] },
     ]);
     expect(desktopUntitledName("pdf")).toBe("Untitled.pdf");
     expect(desktopUntitledName("md")).toBe("Untitled.md");
@@ -49,6 +50,7 @@ describe("desktop document format table", () => {
       "text/x-markdown",
       "text/html",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ]);
   });
 
@@ -59,14 +61,15 @@ describe("desktop document format table", () => {
     expect(isDesktopDocumentFormat("html")).toBe(true);
     expect(isDesktopDocumentFormat("markdown")).toBe(false);
     expect(isDesktopDocumentFormat("xlsx")).toBe(true);
-    expect(isDesktopDocumentFormat("pptx")).toBe(false);
+    expect(isDesktopDocumentFormat("pptx")).toBe(true);
     for (const format of DESKTOP_DOCUMENT_FORMATS) expect(desktopEngineBuild(format).length).toBeGreaterThan(0);
   });
 
   it("creates a blank document for every format with a generator", () => {
-    // XLSX has no blank generator yet: creating one through IPC is refused.
+    // XLSX and PPTX have no blank generator yet: creating one through IPC is refused.
     expect(() => blankDocumentBytes("xlsx")).toThrow("document_format_unbound");
-    for (const format of DESKTOP_DOCUMENT_FORMATS.filter((candidate) => candidate !== "xlsx")) {
+    expect(() => blankDocumentBytes("pptx")).toThrow("document_format_unbound");
+    for (const format of DESKTOP_DOCUMENT_FORMATS.filter((candidate) => candidate !== "xlsx" && candidate !== "pptx")) {
       expect(blankDocumentBytes(format)).toBeInstanceOf(Uint8Array);
       expect(blankDocumentName(format)).toBe(desktopUntitledName(format));
     }

@@ -49,12 +49,12 @@ export interface OfficeShellProps {
   saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   /**
-   * Lane additive prop (UNI-928 md/html END polish; root-merge follow-up).
-   * When true, a clean coordinator (state "ready") renders the header Save as
-   * a quiet outline control with `aria-disabled`, so "no changes" does not
-   * read as a primary action. Absent/false is byte-identical to before; the
-   * control stays in the tab order and the click is blocked in JS, never with
-   * the `disabled` attribute.
+   * UNI-928 md/html END polish. The header Save is always quiet (outline +
+   * `aria-disabled`) while the save state is "ready" or "saved" (UNI-927);
+   * when true it is also quiet before any save state is known, since the
+   * status then reads "ready". Absent and false render the same; the control
+   * stays in the tab order and the click is blocked in JS, never with the
+   * `disabled` attribute.
    */
   saveQuietWhenClean?: boolean;
   /**
@@ -162,9 +162,14 @@ export function OfficeShell({
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
   const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
   const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
+  // A clean document (never edited, or just saved): Save stays in the tab order
+  // (aria-disabled, not disabled) but is inert and not primary, so it never
+  // contradicts the status. Any edit publishes "dirty" and re-enables it.
+  const nothingToSave = ["ready", "saved"].includes(saveStatus ?? coordinatorState?.state ?? "");
   const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
-  // Nothing to save is the same clean predicate the status text uses ("ready").
-  const quietSave = saveQuietWhenClean && saveStatusValue === "ready" && !effectiveSaving;
+  // saveQuietWhenClean (md/html) also quiets Save before any save state is
+  // known, using the same clean predicate the status text uses ("ready").
+  const quietSave = !effectiveSaving && (nothingToSave || (saveQuietWhenClean && saveStatusValue === "ready"));
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;
   const setPanelOpen = (open: boolean) => {
@@ -200,14 +205,14 @@ export function OfficeShell({
       const target = event.target as HTMLElement;
       if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
       event.preventDefault();
-      if (canSave && !effectiveSaving) {
+      if (canSave && !effectiveSaving && !quietSave) {
         if (saveCoordinator) void saveCoordinator.save("shortcut");
         else onSave?.();
       }
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [canSave, effectiveSaving, onSave, saveCoordinator]);
+  }, [canSave, effectiveSaving, quietSave, onSave, saveCoordinator]);
   // One row, never wrapping: status (hidden on phones, where the alert row
   // below the header still carries a failure) · Save · panel · desktop · host.
   const headerActions = (
@@ -221,12 +226,13 @@ export function OfficeShell({
       {canSave ? (
         <Button
           size="sm"
+          variant={quietSave ? "outline" : "default"}
           onClick={performSave}
           disabled={effectiveSaving}
+          aria-disabled={quietSave || undefined}
           aria-label={saveLabel}
           title={saveLabel}
           data-office-save
-          {...(quietSave ? { variant: "outline" as const, "aria-disabled": true } : null)}
         >
           <Save aria-hidden />
           {effectiveSaving ? t("saving") : t("shell.save")}

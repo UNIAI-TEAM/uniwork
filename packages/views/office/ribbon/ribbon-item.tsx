@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
-import { Select } from "@uniwork/ui/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { COMBO_DEFAULT, COMBO_MIN } from "./layout";
@@ -86,7 +86,22 @@ function ComboControl({ item, label }: { item: RibbonComboItem; label: string })
         onValueChange={(value) => {
           if (typeof value === "string") item.onChange(value);
         }}
-      />
+      >
+        {item.placeholderKey ? (
+          <>
+            <SelectTrigger aria-label={label} variant="subtle" className="w-full">
+              <SelectValue placeholder={t(item.placeholderKey)} />
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </>
+        ) : undefined}
+      </Select>
     </div>
   );
 }

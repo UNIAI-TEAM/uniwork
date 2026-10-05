@@ -6,9 +6,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs",
-    "prepare": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs",
-    "build:xlsx-browser": "node ../../scripts/office/build-xlsx-browser.mjs"
+    "build": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs && node ../../scripts/office/build-pptx-browser.mjs",
+    "prepare": "node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs && node ../../scripts/office/build-pptx-browser.mjs",
+    "build:xlsx-browser": "node ../../scripts/office/build-xlsx-browser.mjs",
+    "build:pptx-browser": "node ../../scripts/office/build-pptx-browser.mjs"
   },
   "dependencies": {
     "@tiptap/core": "catalog:",
@@ -54,6 +55,10 @@
     "./xlsx-renderer": {
       "types": "./shims/xlsx-renderer.d.ts",
       "default": "./dist/xlsx-renderer.mjs"
+    },
+    "./pptx-renderer": {
+      "types": "./shims/pptx-renderer.d.ts",
+      "default": "./dist/pptx-renderer.mjs"
     }
   }
 }

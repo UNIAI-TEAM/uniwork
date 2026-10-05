@@ -3,9 +3,40 @@ import type { OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
 import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "../office/session";
+import { createPptxDocumentSession, type PptxDocumentSession } from "../office/pptx-session";
+import { createDesktopPptxSurface } from "../office/pptx-surface";
+import { PPTX_DESKTOP_ENGINE_BUILD } from "../office/pptx-surface";
 import { createDesktopXlsxSession, type DesktopXlsxSession } from "../office/xlsx-session";
 import { createDesktopLocalXlsxSession, type DesktopLocalXlsxSession } from "../office/xlsx-local-session";
 import { closeDocumentTab, cycleDocumentTab, openDocumentTab, selectDocumentTab, type DocumentTabState } from "./tab-model";
+
+/** A document session is format-specific: DOCX and local files share the byte
+ * session, xlsx has its cloud and local engine sessions, PPTX owns the
+ * deck-journal session. The tab strip and shell treat them all through this
+ * shared surface. */
+export type TabSession = ByteDocumentSession | PptxDocumentSession | DesktopXlsxSession | DesktopLocalXlsxSession;
+
+/** The desktop pptx surface for one tab: the opened bytes are already in the
+ * renderer (main read them behind IPC), so readBytes replays them. */
+function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: (generation: number) => void) {
+  const decoded = Uint8Array.from(atob(bytes.dataBase64), (character) => character.charCodeAt(0));
+  return createDesktopPptxSurface({
+    documentId: input.identity.documentId,
+    readBytes: async () => decoded.slice(),
+    identity: input.identity,
+    capability: {
+      format: "pptx",
+      operation: "serialize",
+      host: "desktop",
+      engineBuild: PPTX_DESKTOP_ENGINE_BUILD,
+      contractRevision: "office-editor-host/1",
+      status: bytes.canSave === false ? "readonly" : "available",
+      fidelityWarnings: [],
+    },
+    readOnly: bytes.canSave === false,
+    onDirty,
+  });
+}
 
 export interface OpenTabInput {
   readonly kind: "local" | "cloud";
@@ -14,8 +45,6 @@ export interface OpenTabInput {
   readonly title: string;
   readonly format: DesktopDocumentFormat;
 }
-
-export type TabSession = ByteDocumentSession | DesktopXlsxSession | DesktopLocalXlsxSession;
 
 export interface TabDocument extends OpenTabInput {
   readonly session: TabSession;
@@ -87,10 +116,21 @@ export function useDocumentTabs(bridge: RendererBridge) {
       const existing = current.current.tabs.find((tab) => tab.id === input.identity.documentId);
       if (existing) { commit(selectDocumentTab(current.current, existing.id)); return "focused"; }
       if (current.current.tabs.length >= 8) return "limit";
+      // Save As moves the document to a new handle: main rebinds its context
+      // and the tab follows, so later saves and draft lookups use the new id.
+      const onLocalRebind = (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => {
+        const live = current.current;
+        if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
+        commit({
+          tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
+          activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
+        });
+      };
       // The ONE format->editor mapping: cloud xlsx mounts the shared editor
-      // through the server job seams; every other format (and every local file)
-      // stays the byte/docx path. Both expose the same coordinator surface the
-      // tab layer uses, and the surface dispatches on tab.data.format.
+      // through the server job seams; pptx owns the deck-journal session; every
+      // other format (and every local non-xlsx file) stays the byte/docx path.
+      // All expose the same coordinator surface the tab layer uses, and the
+      // surface dispatches on tab.data.format.
       const session: TabSession = input.format === "xlsx" && input.kind === "cloud"
         ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
         // C1b: a local .xlsx uses the SAME main-owned local file path docx
@@ -98,18 +138,9 @@ export function useDocumentTabs(bridge: RendererBridge) {
         // opaque local handle through desktop:file-save (no network).
         : input.format === "xlsx" && input.kind === "local" && input.bytes.localHandle
         ? createDesktopLocalXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId, localHandle: input.bytes.localHandle })
-        : createByteDocumentSession(bridge, input.identity, input.bytes, {
-            // Save As moves the document to a new handle: main rebinds its context
-            // and the tab follows, so later saves and draft lookups use the new id.
-            onLocalRebind: (next) => {
-              const live = current.current;
-              if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
-              commit({
-                tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
-                activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
-              });
-            },
-          });
+        : input.format === "pptx"
+        ? createPptxDocumentSession(bridge, input.identity, input.bytes, (onDirty) => createPptxTabSurface(input, input.bytes, onDirty), { onLocalRebind })
+        : createByteDocumentSession(bridge, input.identity, input.bytes, { onLocalRebind });
       const result = openDocumentTab(current.current, { id: input.identity.documentId, title: input.title, format: input.format, data: { ...input, session } });
       commit(result.state);
       return result.outcome;

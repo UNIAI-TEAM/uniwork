@@ -26,9 +26,17 @@ import type {
   PptxParagraphLike,
   PptxRenderPort,
 } from "./engine";
+import { PptxEngineError } from "./engine";
 import { PptxSessionModel, type PptxEdit } from "./model";
 import { inventoryPptxAssets, unsupportedPptxWarnings, type PptxAssetInventory } from "./assets";
 import { isEncryptedOoxml } from "../docx/adapter";
+import { readPptxNotesWithoutBodyPlaceholder } from "./notes-read";
+import {
+  readPptxSlideAnimations,
+  readPptxSlideTransition,
+  type PptxSlideAnimationRead,
+  type PptxSlideTransitionRead,
+} from "./slide-motion-read";
 
 function isZipPackage(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && (bytes[2] === 0x03 || bytes[2] === 0x05 || bytes[2] === 0x07);
@@ -155,7 +163,7 @@ export class PptxAdapter {
   edit(
     documentModelRef: string,
     edit: PptxEdit,
-  ): { applied: true; revision: number; createdId?: string; targetId?: string } {
+  ): { applied: true; revision: number; createdId?: string; targetId?: string; elementId?: string } {
     const session = this.sessionOf(documentModelRef);
     const result = session.model.applyEdit(edit);
     return { ...result, applied: true, revision: session.model.revision };
@@ -163,6 +171,53 @@ export class PptxAdapter {
 
   release(documentModelRef: string): boolean {
     return this.sessions.delete(documentModelRef);
+  }
+
+  /** Speaker-notes text of one slide of the held deck (notes.ts:66). The
+   * vendored read is archive surgery keyed by the slide's PART PATH, so this
+   * resolves the path from the live deck exactly as the vendored
+   * `notesPathForSlide` expects (Slide.path, or the conventional
+   * ppt/slides/slide<N>.xml when the model carries no path). '' means the
+   * slide has no notesSlide; a missing bound read is a typed refusal, never
+   * a fabricated empty string. The vendored read only knows the
+   * `type="body"` placeholder; a notes part without one (X1, R2-3) falls
+   * back to its first non-placeholder text shape. */
+  slideNotes(documentModelRef: string, slideIndex: number): string {
+    const { session, slide } = this.liveSlide(documentModelRef, slideIndex, "slideNotes");
+    const getSlideNotes = this.deps.engine.getSlideNotes;
+    if (!getSlideNotes) {
+      throw new PptxEngineError("notes_unbound", "slideNotes: no speaker-notes read is bound for this engine");
+    }
+    const path = typeof slide.path === "string" && slide.path.length > 0 ? slide.path : "ppt/slides/slide" + (slideIndex + 1) + ".xml";
+    const archive = session.model.opened.archive;
+    return getSlideNotes(archive, path) || readPptxNotesWithoutBodyPlaceholder(archive, path);
+  }
+
+  /** Transition kind + auto-advance time of one live slide (X1, R2-1). */
+  slideTransition(documentModelRef: string, slideIndex: number): PptxSlideTransitionRead {
+    return readPptxSlideTransition(this.liveSlide(documentModelRef, slideIndex, "slideTransition").slide);
+  }
+
+  /** Main-sequence animations of one live slide, in timeline order (X1, R2-2). */
+  slideAnimations(documentModelRef: string, slideIndex: number): PptxSlideAnimationRead[] {
+    return readPptxSlideAnimations(this.liveSlide(documentModelRef, slideIndex, "slideAnimations").slide);
+  }
+
+  private liveSlide(documentModelRef: string, slideIndex: number, read: string) {
+    const session = this.sessionOf(documentModelRef);
+    const slide = Number.isInteger(slideIndex) && slideIndex >= 0 ? session.model.opened.deck.slides[slideIndex] : undefined;
+    if (!slide) {
+      throw new PptxEngineError("no_slide", read + ": slide index " + String(slideIndex) + " does not exist");
+    }
+    return { session, slide };
+  }
+
+  /** Slide layouts of the held package (vendored listSlideLayouts over the
+   * opened archive). An engine without the read answers [] — the caller
+   * offers its blank-slide fallback; an unknown ref refuses like every read. */
+  slideLayouts(documentModelRef: string): { name: string; path: string }[] {
+    const session = this.sessionOf(documentModelRef);
+    return this.deps.engine.listSlideLayouts?.(session.model.opened.archive) ?? [];
   }
 
   async serialize(input: {

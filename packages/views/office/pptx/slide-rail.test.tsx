@@ -15,5 +15,47 @@ describe("PptxSlideRail", () => {
     fireEvent.click(slides[1]!);
     expect(onSelect).toHaveBeenCalledWith(1);
   });
-});
 
+  it("renders the generated thumbnail and falls back to the index badge", () => {
+    render(
+      <PptxSlideRail
+        slides={[{ id: "s1", label: "Intro", thumbnailUrl: "data:image/svg+xml;charset=utf-8,%3Csvg/%3E" }, { id: "s2" }]}
+        selectedIndex={0}
+        onSelect={vi.fn()}
+      />,
+    );
+    const [first, second] = screen.getAllByRole("button");
+    const image = first!.querySelector("img");
+    expect(image).toHaveAttribute("src", "data:image/svg+xml;charset=utf-8,%3Csvg/%3E");
+    expect(image).toHaveAttribute("alt", "");
+    expect(second!.querySelector("img")).toBeNull();
+    expect(second).toHaveTextContent("2");
+  });
+
+  it("narrows to a thumbnails-only strip on a phone so the canvas keeps the width (F-09)", () => {
+    render(<PptxSlideRail slides={[{ id: "s1", label: "Intro" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    const rail = screen.getByRole("navigation");
+    expect(rail.className).toContain("max-[480px]:w-16");
+    const [first] = screen.getAllByRole("button");
+    // The caption drops out; the slide stays reachable by its accessible name.
+    expect(first!.querySelector("span.truncate")!.className).toContain("max-[480px]:hidden");
+    expect(first).toHaveAttribute("aria-label", expect.stringContaining("Intro"));
+  });
+
+  it("veils a hidden slide's thumbnail with the page token so it dims in light and dark", () => {
+    render(<PptxSlideRail slides={[{ id: "s1", thumbnailUrl: "data:image/png;base64,AA==" }, { id: "s2", thumbnailUrl: "data:image/png;base64,AA==", hidden: true }]} selectedIndex={0} onSelect={vi.fn()} />);
+    const [shown, hidden] = screen.getAllByRole("button");
+    expect(shown!.querySelector("[data-slide-hidden-veil]")).toBeNull();
+    const veil = hidden!.querySelector("[data-slide-hidden-veil]");
+    expect(veil).not.toBeNull();
+    expect(veil!.className).toMatch(/\bbg-background\//);
+    expect(veil).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps a 44px touch target on a coarse pointer even at phone width", () => {
+    render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    for (const slide of screen.getAllByRole("button")) {
+      expect(slide.className).toContain("pointer-coarse:max-[480px]:min-h-11");
+    }
+  });
+});

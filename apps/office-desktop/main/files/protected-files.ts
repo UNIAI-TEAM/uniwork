@@ -16,6 +16,11 @@ export interface ProtectedCheckpointRef {
   readonly generation: number;
 }
 
+/** The base a draft row is recorded against: the bytes the file holds right now. */
+export function localDraftBase(metadata: OpenFileMetadata): DraftIdentity["base"] {
+  return { version: metadata.checksum, revision: String(Math.trunc(metadata.modifiedAtMs)) };
+}
+
 /** One stable local identity for a file: the caller supplies an opaque id
  * (a path hash) so the raw path never enters the draft envelope. The revision
  * is the file mtime truncated to whole milliseconds: Windows reports
@@ -28,7 +33,7 @@ export function localDraftIdentity(scope: ProtectedFileScope, stableId: string, 
     organizationId: "local",
     workspaceId: "local",
     documentId: stableId,
-    base: { version: metadata.checksum, revision: String(Math.trunc(metadata.modifiedAtMs)) },
+    base: localDraftBase(metadata),
   };
 }
 

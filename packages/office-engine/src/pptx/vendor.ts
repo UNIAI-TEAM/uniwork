@@ -26,6 +26,7 @@ export interface UpstreamPptxEngineModule {
   listSlideLayouts?(archive: unknown): Array<{ name: string; path: string }>;
   shouldOfferBuiltinLayouts?(layouts: Array<{ name: string; path: string }>): boolean;
   builtinLayoutInfos?(size: { cx: number; cy: number }, existing: Set<string>): Array<{ name: string; path: string }>;
+  getSlideNotes?(archive: unknown, slidePath: string): string;
 }
 
 /** The pptx-ops bundle (executor.ts:160); ops self-register at import. */
@@ -57,6 +58,7 @@ export function bindPptxEngine(mod: UpstreamPptxEngineModule): PptxEngineFunctio
     ...(mod.builtinLayoutInfos
       ? { builtinLayoutInfos: (s: { cx: number; cy: number }, e: Set<string>) => mod.builtinLayoutInfos!(s, e) }
       : {}),
+    ...(mod.getSlideNotes ? { getSlideNotes: (a: unknown, p: string) => mod.getSlideNotes!(a, p) } : {}),
   };
 }
 

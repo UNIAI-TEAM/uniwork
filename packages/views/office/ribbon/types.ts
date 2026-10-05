@@ -88,6 +88,8 @@ export interface RibbonComboItem extends RibbonItemBase {
   value: string | null;
   options: readonly RibbonOption[];
   onChange: (value: string) => void;
+  /** Shown in the trigger while `value` is null, so an unknown selection is never a blank box. */
+  placeholderKey?: string;
   /** Width in px. Default 140, never rendered below 56. */
   width?: number;
 }

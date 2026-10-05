@@ -276,6 +276,44 @@ describe("Office save coordinator", () => {
     expect(vi.mocked(mismatch.transport.commit)).toHaveBeenCalledTimes(1);
   });
 
+  it("releases the transport's per-intent state only when an intent settles without a commit", async () => {
+    // Terminal refusal and conflict settle the intent uncommitted: released once each.
+    for (const failure of [
+      { code: "payload_fingerprint_mismatch", error_class: "conflict", status: 409 },
+      { code: "document_version_conflict", error_class: "conflict", status: 409 },
+    ]) {
+      const h = setup();
+      h.transport.release = vi.fn(async () => undefined);
+      h.transport.commit = vi.fn(async () => { throw failure; });
+      h.setDirty(1);
+      await h.coordinator.save();
+      expect(h.transport.release).toHaveBeenCalledExactlyOnceWith({ intent: h.persistedIntents[0] });
+    }
+
+    // A retryable failure keeps the intent for a retry: no release while it is kept.
+    const kept = setup();
+    kept.transport.release = vi.fn(async () => undefined);
+    saveNeverCommits(kept);
+    kept.setDirty(1);
+    await kept.coordinator.save();
+    expect(kept.coordinator.getState().activeIntentId).toBe(kept.persistedIntents[0]?.intentId);
+    expect(kept.transport.release).not.toHaveBeenCalled();
+
+    // A commit is settled "saved": the transport already consumed its state.
+    const committed = setup();
+    committed.transport.release = vi.fn(async () => undefined);
+    committed.setDirty(1);
+    await expect(committed.coordinator.save()).resolves.toMatchObject({ accepted: true });
+    expect(committed.transport.release).not.toHaveBeenCalled();
+
+    // A throwing release never changes the save outcome.
+    const broken = setup();
+    broken.transport.release = vi.fn(async () => { throw new Error("release failed"); });
+    broken.transport.commit = vi.fn(async () => { throw { code: "payload_fingerprint_mismatch", error_class: "conflict", status: 409 }; });
+    broken.setDirty(1);
+    await expect(broken.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+  });
+
   it("saves newer content with a new key after a payload mismatch stopped the old intent", async () => {
     const h = setup();
     h.transport.commit = vi.fn(async () => {

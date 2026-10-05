@@ -44,6 +44,14 @@
       "associationName": "Excel spreadsheet",
       "untitledName": "Untitled.xlsx",
       "engineBuild": "xlsx-desktop-1"
+    },
+    "pptx": {
+      "extensions": ["pptx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+      "dialogFilterName": "PowerPoint",
+      "associationName": "PowerPoint presentation",
+      "untitledName": "Untitled.pptx",
+      "engineBuild": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
     }
   }
 }
