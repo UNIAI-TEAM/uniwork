@@ -8,6 +8,7 @@ import {
   DOCX_ZOOM_PRESETS,
   clampDocxZoomPercent,
   docxZoomOptions,
+  effectiveDocxZoomPercent,
   fitDocxZoomPercent,
   stepDocxZoomPercent,
 } from "./zoom-model";
@@ -196,5 +197,51 @@ describe("DOCX zoom controller", () => {
     const element = document.createElement("div");
     element.style.setProperty(DOCX_ZOOM_CSS_VAR, "nope");
     expect(docxZoomFactorOf(element)).toBe(1);
+  });
+});
+
+describe("DOCX narrow-canvas fit cap", () => {
+  it("caps the zoom so the page fits a canvas narrower than the page", () => {
+    // 390px canvas, 24px breathing room: floor(366 / 816 * 100) = 44%.
+    expect(effectiveDocxZoomPercent(100, { availableWidthPx: 390, pageWidthPx: 816 })).toBe(44);
+    expect(effectiveDocxZoomPercent(150, { availableWidthPx: 390, pageWidthPx: 816 })).toBe(66);
+  });
+
+  it("leaves the user zoom alone when the page already fits", () => {
+    expect(effectiveDocxZoomPercent(100, { availableWidthPx: 1200, pageWidthPx: 816 })).toBe(100);
+    expect(effectiveDocxZoomPercent(125, { availableWidthPx: 848, pageWidthPx: 816 })).toBe(125);
+    expect(effectiveDocxZoomPercent(50, { availableWidthPx: 390, pageWidthPx: 816 })).toBe(22);
+  });
+
+  it("returns the user zoom when the canvas or page cannot be measured", () => {
+    expect(effectiveDocxZoomPercent(100, { availableWidthPx: 0, pageWidthPx: 816 })).toBe(100);
+    expect(effectiveDocxZoomPercent(100, { availableWidthPx: 390, pageWidthPx: 0 })).toBe(100);
+  });
+
+  it("applies the cap to the zoom property and the effective readout, not the user setting", () => {
+    const controller = createDocxZoomController();
+    const zoomElement = document.createElement("div");
+    controller.setPageSize(PAGE);
+    controller.attach({ zoomElement, scrollElement: sizedElement(390, 800) });
+    expect(controller.getState()).toEqual({ percent: 100, mode: "manual" });
+    expect(controller.getEffectivePercent()).toBe(44);
+    expect(zoomElement.style.getPropertyValue(DOCX_ZOOM_CSS_VAR)).toBe("0.44");
+    expect(docxZoomFactorOf(zoomElement)).toBe(0.44);
+    controller.dispose();
+  });
+
+  it("recomputes the cap when the canvas resizes", () => {
+    const controller = createDocxZoomController();
+    const zoomElement = document.createElement("div");
+    const scrollElement = sizedElement(390, 800);
+    const seen: number[] = [];
+    controller.setPageSize(PAGE);
+    controller.attach({ zoomElement, scrollElement });
+    controller.subscribe(() => seen.push(controller.getEffectivePercent()));
+    Object.defineProperty(scrollElement, "clientWidth", { value: 1200, configurable: true });
+    controller.setPageSize(PAGE);
+    expect(controller.getEffectivePercent()).toBe(100);
+    expect(seen).toContain(100);
+    controller.dispose();
   });
 });
