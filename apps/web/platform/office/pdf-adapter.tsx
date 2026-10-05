@@ -2,16 +2,16 @@
 
 import { createElement, lazy, Suspense, type ReactNode } from "react";
 import { sha256Hex } from "@uniwork/office-contracts";
-import { applyPdfOpsInBrowser, readPdfFormFields, readPdfNotes, type BrowserPdfNoteRow } from "@uniwork/office-engine/browser";
+import { applyPdfOpsInBrowser, readPdfFormFields, readPdfNotes } from "@uniwork/office-engine/browser";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, StableSnapshot } from "@uniwork/core/office";
 import {
   bridgePdfOperations,
   createPdfEditorLoader,
   quadsForRange,
+  toNoteThreads,
   type PdfCapability,
   type PdfEditOperation,
   type PdfEditorHandle,
-  type PdfNoteRow,
   type PdfNoteThread,
   type PdfOpenOutcome,
   type PdfOpenPort,
@@ -181,24 +181,6 @@ function createPdfEditorSurface(options: {
     },
   };
 
-  /** Map a browser row onto the views' shape. A row the reader skipped cannot
-      be acted on, so it is marked unbound; a reply is unbound only when the
-      reader skipped it, never because its root was. */
-  const toNoteRow = (row: BrowserPdfNoteRow, unbound: ReadonlySet<string>): PdfNoteRow => {
-    const mapped: PdfNoteRow = {
-      id: row.id,
-      page: row.page,
-      pageIndex: row.pageIndex,
-      objNum: row.objNum,
-      rect: row.rect,
-      contents: row.contents,
-      binding: unbound.has(row.id) ? "unbound" : "bound",
-    };
-    if (row.author !== undefined) mapped.author = row.author;
-    if (row.resolved !== undefined) mapped.resolved = row.resolved;
-    return mapped;
-  };
-
   return {
     format: "pdf",
     open: (signal?: AbortSignal, password?: string) => load(signal, password),
@@ -232,12 +214,7 @@ function createPdfEditorSurface(options: {
       const bytes = current;
       if (!bytes) return [];
       const read = await options.readNotes(bytes);
-      const unbound = new Set(read.skipped.map((skip) => `${skip.pageIndex}:${skip.objNum}`));
-      return read.threads.map((thread) => ({
-        id: thread.id,
-        root: toNoteRow(thread.root, unbound),
-        replies: thread.replies.map((reply) => toNoteRow(reply, unbound)),
-      }));
+      return toNoteThreads(read);
     },
     async searchText(query): Promise<SearchHits> {
       const needle = query.trim().toLowerCase();

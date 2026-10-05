@@ -24,6 +24,7 @@ export type {
   PdfSaveCoordinator,
   PdfViewState,
 } from "./types";
+export { toNoteThreads } from "./note-threads";
 export { bridgePdfOperations, PdfOpsBridgeError, type PdfAssetProvider, type PdfEngineOperation, type PdfObjectMetadata, type PdfOpsBridgeOptions } from "./ops-bridge";
 export { PdfCanvas, PdfPageCanvas, hitTestPdfBox } from "./canvas";
 export { PdfTextMarkupTools } from "./markups";
