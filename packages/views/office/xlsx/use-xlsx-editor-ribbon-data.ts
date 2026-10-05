@@ -5,16 +5,25 @@
 // read-only tab colours). The memo body and dependency list are byte-identical
 // to the shell it replaces.
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort, XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import type { XlsxSheetTab } from "./sheet-tabs";
+import { foldTableEdits } from "./use-xlsx-editor-tables";
+import type { XlsxGridEdit } from "./xlsx-edit-bridge";
+import type { XlsxToolbarTable } from "./toolbar/types";
 
 export function useXlsxEditorRibbonData(
   liveSheets: readonly XlsxGridSheetInfo[],
   rendererHost: XlsxGridHostPort | undefined,
   snapshot: XlsxWorkbookSnapshot | null,
-): readonly XlsxSheetTab[] {
+): { sheetTabInfos: readonly XlsxSheetTab[]; tables: readonly XlsxToolbarTable[]; onTableEdits: (edits: readonly XlsxGridEdit[]) => void } {
+  // R4: the live tables the contextual Table tabs answer to, folded from the
+  // renderer's table edits (kept here so the shell stays within its line cap).
+  const [tables, setTables] = useState<readonly XlsxToolbarTable[]>([]);
+  const onTableEdits = useCallback((edits: readonly XlsxGridEdit[]) => {
+    setTables((current) => foldTableEdits(current, edits, (sheetId) => liveSheets.find((sheet) => sheet.id === sheetId)?.name));
+  }, [liveSheets]);
   // Tab colours have no write path in the vendored gateway: they are shown
   // read-only from the render model (the only reader of <tabColor>).
   const sheetTabInfos = useMemo(() => {
@@ -29,5 +38,5 @@ export function useXlsxEditorRibbonData(
       : sheets.map((sheet) => ({ id: sheet.id, name: sheet.name, hidden: sheet.hidden ?? false }));
     return source.map((sheet) => ({ name: sheet.name, hidden: sheet.hidden, tabColor: colors.get(sheet.id) ?? null }));
   }, [liveSheets, rendererHost, snapshot?.sheets]);
-  return sheetTabInfos;
+  return { sheetTabInfos, tables, onTableEdits };
 }

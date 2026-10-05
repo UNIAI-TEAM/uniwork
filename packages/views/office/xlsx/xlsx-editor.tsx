@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
@@ -261,7 +261,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     setRecalcProgress,
   });
 
-
   // FIX-EDITOR-SPLIT (UNI-926): the sheet-tab action dispatcher (pinned
   // command path + direct-op fallback) lives in ./use-xlsx-editor-sheet-commands.
   const runSheetAction = useXlsxEditorSheetCommands({
@@ -275,7 +274,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     refreshSheets,
     setRecalcError,
   });
-
 
   // FIX-EDITOR-SPLIT (UNI-926): copy / paste / cut, the clipboard failure
   // handler and the folded permissions live in ./use-xlsx-editor-clipboard.
@@ -298,7 +296,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     setFormulaDraft,
     setRecalcError,
   });
-
 
   // The grid context menu (A9): the hook owns the anchor point, the disabled
   // state and the focus return; every item dispatches through the same port and
@@ -355,7 +352,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onError: setRecalcError,
   });
 
-
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
   // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.
   const { keyboardHandler } = useXlsxEditorKeyboard({
@@ -374,7 +370,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): the sheet-tab strip's tab infos (live order +
   // read-only tab colours) live in ./use-xlsx-editor-ribbon-data.
-  const sheetTabInfos = useXlsxEditorRibbonData(liveSheets, rendererHost, snapshot);
+  const { sheetTabInfos, tables, onTableEdits } = useXlsxEditorRibbonData(liveSheets, rendererHost, snapshot);
 
 
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
@@ -444,7 +440,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             host={rendererHost}
             unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
             sheetName={selection?.sheet ?? activeSheet}
-            resolveSheetId={gridSheetId}
+            tables={tables} resolveSheetId={gridSheetId}
             onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
             onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
             onSave={() => save("button")}
@@ -511,7 +507,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 dark={dark}
                 readOnly={readOnly || !canEdit}
                 onContextMenu={contextMenu.open}
-                onEdits={(edits) => { gridEdits.onEdits(edits); refreshFormatState(); refreshSheets(); }}
+                onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
                 onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                 onFailure={(message) => {
                   const failureValue: XlsxOpenFailure = {

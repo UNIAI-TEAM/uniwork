@@ -21,6 +21,23 @@ export interface XlsxToolbarCommands {
   execute(id: string, params?: unknown): boolean | Promise<boolean>;
 }
 
+/** A 0-based inclusive rectangle (a table's area or a selection's span). */
+export interface XlsxToolbarTableRange {
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startColumn: number;
+  readonly endColumn: number;
+}
+
+/** One live table on a sheet, as the contextual Table tabs read it (R4). */
+export interface XlsxToolbarTable {
+  /** The sheet's live name (matches the selection's `sheet`). */
+  readonly sheet: string;
+  readonly name: string;
+  /** Header-inclusive 0-based area. */
+  readonly range: XlsxToolbarTableRange;
+}
+
 /** The slice of the toolbar props a command group may read. It is declared
  *  here, not in `xlsx-toolbar.tsx`, so a group file never imports the shell;
  *  the public `XlsxToolbarProps` extends it and adds the coordinator/save
@@ -79,6 +96,9 @@ export interface XlsxToolbarGroupProps {
   onOpenFunctionLibrary?: () => void;
   /** Opens the editor-owned shortcuts map/help dialog. */
   onOpenShortcuts?: () => void;
+  /** The live tables of the open workbook; the contextual Table tabs (R4)
+   *  show while the selection sits inside one. Absent = no tables. */
+  tables?: readonly XlsxToolbarTable[];
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

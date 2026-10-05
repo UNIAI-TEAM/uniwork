@@ -1,4 +1,4 @@
-﻿import { createElement, type ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import {
   ArrowDownUp,
   BetweenHorizontalStart,
@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
+import { xlsxContextualTabs } from "./contextual-tabs";
 import { XlsxEmptyTabGroup } from "./empty-tab-group";
 import { XLSX_TOOLBAR_GROUPS } from "./registry";
 import { XLSX_TOOLBAR_TABS } from "./tabs";
@@ -92,6 +93,50 @@ export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
 };
 
 /**
+ * R3 (fix round FIX-R3R4): the estimated full-size width (px) of each group's
+ * command area. Every XLSX group mounts as ONE `custom` ribbon item; without a
+ * declared width the layout estimator assumed the 96 px default for all of
+ * them, so the estimate never matched the rendered row, `planRibbonStages`
+ * thought everything fit, and the real row overflowed with a scrollbar and
+ * clipped labels (visual r2 R3). These estimates are approximations from the
+ * controls each group mounts (corrected at runtime by the ribbon's
+ * scrollWidth pass); with them the collapse walks large -> small -> icon -> one
+ * button in declared priority order from the right, as the amendment requires.
+ */
+export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
+  sheets: 36,
+  clipboard: 72,
+  number: 132,
+  font: 414,
+  alignment: 360,
+  borders: 72,
+  "structure-merge": 104,
+  "structure-size": 228,
+  clear: 64,
+  painter: 36,
+  history: 72,
+  find: 36,
+  charts: 36,
+  calculation: 104,
+  formula: 40,
+  "structure-insert": 264,
+  "structure-outline": 132,
+  filter: 132,
+  sort: 104,
+  "page-setup": 72,
+  protect: 104,
+  table: 152,
+  links: 72,
+  "view-zoom": 176,
+  "view-display": 140,
+  "view-goto": 104,
+  "view-shortcuts": 40,
+};
+
+/** Fallback for a group with no measured width entry (an unmeasured group). */
+const XLSX_GROUP_WIDTH_DEFAULT = 96;
+
+/**
  * `order` ascends by usage inside a tab (10 = most used); the ribbon collapses
  * the LOWEST `priority` first, so `-order` makes the highest (least used)
  * order collapse first - the registry's documented overflow order.
@@ -111,6 +156,7 @@ function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGr
     kind: "custom",
     id: group.id,
     labelKey: group.labelKey,
+    width: XLSX_GROUP_WIDTHS[group.id] ?? XLSX_GROUP_WIDTH_DEFAULT,
     render: () => renderGroup(group, context),
   };
   return {
@@ -146,7 +192,7 @@ function toEmptyTabGroup(): RibbonGroup {
  * ribbon body.
  */
 export function xlsxRibbonTabs(context: XlsxToolbarGroupProps): readonly RibbonTab[] {
-  return XLSX_TOOLBAR_TABS.map((tab) => {
+  const fixed = XLSX_TOOLBAR_TABS.map((tab) => {
     const groups = XLSX_TOOLBAR_GROUPS
       .filter((group) => group.tab === tab.id && (group.isAvailable?.(context) ?? true))
       .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -157,4 +203,8 @@ export function xlsxRibbonTabs(context: XlsxToolbarGroupProps): readonly RibbonT
       groups: groups.length > 0 ? groups : [toEmptyTabGroup()],
     };
   });
+  // R4: the contextual Table tabs ride after the fixed tabs; OfficeRibbon
+  // renders them only while `when` is true (selection inside a table), so the
+  // fixed tabs never move.
+  return [...fixed, ...xlsxContextualTabs(context)];
 }

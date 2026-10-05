@@ -57,8 +57,8 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
   };
 }
 
-function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarProps {
-  const props: XlsxToolbarProps = {
+function renderProps(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarProps {
+  return {
     coordinator: coordinator(),
     dirty: true,
     saving: false,
@@ -68,6 +68,10 @@ function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarPr
     ...groupProps(),
     ...overrides,
   };
+}
+
+function renderToolbar(overrides: Partial<XlsxToolbarProps> = {}): XlsxToolbarProps {
+  const props = renderProps(overrides);
   render(<XlsxToolbar {...props} />);
   return props;
 }
@@ -88,7 +92,9 @@ beforeEach(() => {
 
 describe("xlsxRibbonTabs", () => {
   it("re-mounts every registry tab and group 1:1 as one custom item each", () => {
-    const tabs = xlsxRibbonTabs(groupProps());
+    // The fixed tabs first; the contextual Table tabs (R4) ride after them and
+    // are asserted separately below.
+    const tabs = xlsxRibbonTabs(groupProps()).filter((entry) => entry.contextual === undefined);
 
     expect(tabs.map((entry) => entry.id)).toEqual(XLSX_TOOLBAR_TABS.map((entry) => entry.id));
     for (const [index, entry] of tabs.entries()) {
@@ -115,7 +121,7 @@ describe("xlsxRibbonTabs", () => {
   });
 
   it("keeps every group exactly once with a monotonic priority per tab", () => {
-    const tabs = xlsxRibbonTabs(groupProps());
+    const tabs = xlsxRibbonTabs(groupProps()).filter((entry) => entry.contextual === undefined);
     const mapped = tabs.flatMap((entry) => entry.groups);
 
     expect(mapped).toHaveLength(XLSX_TOOLBAR_GROUPS.length);
@@ -143,7 +149,7 @@ describe("xlsxRibbonTabs", () => {
   });
 
   it("keeps the six tabs in the lane's declared order", () => {
-    expect(xlsxRibbonTabs(groupProps()).map((entry) => entry.id)).toEqual([
+    expect(xlsxRibbonTabs(groupProps()).filter((entry) => entry.contextual === undefined).map((entry) => entry.id)).toEqual([
       "home",
       "insert",
       "formulas",
@@ -378,6 +384,53 @@ function toolbarKeyPaths(dictionary: unknown): string[] {
   walk(toolbar, "");
   return paths.sort();
 }
+
+describe("contextual table tabs (R4)", () => {
+  it("shows no contextual tab without a table under the selection", () => {
+    renderToolbar({ selection: { sheet: "Data", address: "A1" } });
+    expect(document.querySelector("[data-ribbon-tab='table-design']")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-tab='table-layout']")).not.toBeInTheDocument();
+  });
+
+  it("shows Table Design and Table Layout, accent bordered, when the selection is inside a table", () => {
+    renderToolbar({
+      selection: { sheet: "Data", address: "B2" },
+      tables: [{ sheet: "Data", name: "Table1", range: { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 } }],
+    });
+    const design = tab("table-design");
+    const layout = tab("table-layout");
+    expect(design).toBeInTheDocument();
+    expect(layout).toBeInTheDocument();
+    // Contextual tabs render AFTER the six fixed tabs.
+    expect(within(ribbon()).getAllByRole("tab").map((node) => node.getAttribute("data-ribbon-tab")).slice(-2)).toEqual(["table-design", "table-layout"]);
+    // Accent label + top border per R4, and selecting the object never
+    // force-switches: Home stays selected.
+    expect(design).toHaveAttribute("data-ribbon-contextual", "brand");
+    expect(design.className).toContain("border-t-brand");
+    expect(tab("home")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("routes a contextual table command through the shared command port", () => {
+    const execute = vi.fn(() => true);
+    renderToolbar({
+      commands: { execute },
+      selection: { sheet: "Data", address: "B2" },
+      tables: [{ sheet: "Data", name: "Table1", range: { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 } }],
+    });
+    fireEvent.click(tab("table-layout"));
+    fireEvent.click(document.querySelector("[data-ribbon-item='table-layout-merge']") as HTMLElement);
+    expect(execute).toHaveBeenCalledWith("sheet.command.add-worksheet-merge-all", {
+      selections: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 1 }],
+    });
+  });
+
+  it("hides the contextual tabs again when the selection leaves the table", () => {
+    const { rerender } = render(<XlsxToolbar {...renderProps({ selection: { sheet: "Data", address: "B2" }, tables: [{ sheet: "Data", name: "Table1", range: { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 } }] })} />);
+    expect(tab("table-design")).toBeInTheDocument();
+    rerender(<XlsxToolbar {...renderProps({ selection: { sheet: "Data", address: "A20" } })} />);
+    expect(document.querySelector("[data-ribbon-tab='table-design']")).not.toBeInTheDocument();
+  });
+});
 
 describe("toolbar i18n", () => {
   it("carries the same toolbar keys in vi and en", () => {

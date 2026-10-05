@@ -8184,6 +8184,8 @@
           "formulas": "Công thức",
           "data": "Dữ liệu",
           "review": "Xem lại",
+          "tableDesign": "Thiết kế bảng",
+          "tableLayout": "Bố cục bảng",
           "view": "Xem"
         },
         "groups": {
@@ -8468,7 +8470,14 @@
         },
         "create": "Tạo bảng",
         "remove": "Xóa bảng",
-        "namePlaceholder": "Tên bảng cần xóa"
+        "namePlaceholder": "Tên bảng cần xóa",
+      "contextual": {
+        "style": "Kiểu bảng",
+        "styleMedium": "Kiểu trung bình",
+        "rows": "Hàng",
+        "columns": "Cột",
+        "cells": "Ô"
+      }
       },
       "links": {
         "groups": {

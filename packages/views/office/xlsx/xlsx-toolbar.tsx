@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Redo2, Save, Search, Undo2 } from "lucide-react";
 import { useState } from "react";
@@ -51,6 +51,7 @@ export function XlsxToolbar({
   unitId,
   sheetName,
   resolveSheetId,
+  tables,
   onOpenFunctionLibrary,
   onOpenShortcuts,
   formatState,
@@ -94,6 +95,7 @@ export function XlsxToolbar({
     unitId,
     sheetName,
     resolveSheetId,
+    tables,
     onOpenFunctionLibrary,
     onOpenShortcuts,
     formatState,

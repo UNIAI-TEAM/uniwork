@@ -8191,7 +8191,9 @@
           "formulas": "Formulas",
           "data": "Data",
           "review": "Review",
-          "view": "View"
+          "view": "View",
+          "tableDesign": "Table Design",
+          "tableLayout": "Table Layout"
         },
         "groups": {
           "history": "History",
@@ -8475,7 +8477,14 @@
         },
         "create": "Create table",
         "remove": "Remove table",
-        "namePlaceholder": "Table name to remove"
+        "namePlaceholder": "Table name to remove",
+      "contextual": {
+        "style": "Table style",
+        "styleMedium": "Medium style",
+        "rows": "Rows",
+        "columns": "Columns",
+        "cells": "Cells"
+      }
       },
       "links": {
         "groups": {
