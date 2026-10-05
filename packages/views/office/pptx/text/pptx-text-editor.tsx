@@ -13,11 +13,12 @@
  * plain run and calls `onCommitText`. Escape cancels without committing. An empty or
  * whitespace-only edit is refused and the overlay stays open - the caller keeps the original.
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { PptxParagraphLike } from "@uniwork/office-engine/pptx";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { PptxPoint } from "../selection/geometry";
+import { matchPptxShortcut } from "../shortcuts/pptx-shortcuts";
 import type { PptxSelectionController } from "../selection/use-pptx-selection";
 import { guardCommitText, paragraphsFromText, type PptxTextTarget } from "./text-model";
 
@@ -32,8 +33,9 @@ export interface PptxTextEditLayerProps {
   slideIndex: number;
   targets: readonly PptxTextTarget[];
   page: { widthPx: number; heightPx: number };
-  displayWidthPx: number;
-  displayHeightPx: number;
+  /** Unused: boxes are percentages of the page. Kept optional so call sites need not pass them. */
+  displayWidthPx?: number;
+  displayHeightPx?: number;
   controller: PptxSelectionController;
   /** Element currently open in the editor; its hit box steps aside. */
   activeId: string | null;
@@ -77,6 +79,13 @@ function readPlainText(root: HTMLElement): string {
   return blocks.join("\n");
 }
 
+/** Chords that run a deck command rather than edit text; the editor lets them bubble. */
+function isHostCommandChord(event: ReactKeyboardEvent<HTMLDivElement>): boolean {
+  if (event.nativeEvent.isComposing) return false;
+  const binding = matchPptxShortcut(event);
+  return binding !== null && (binding.action === "save" || binding.action === "find" || binding.id === "shortcuts-help-f1");
+}
+
 /** A box as a percentage of the page, so drawing and pointer mapping share one frame. */
 function percentBox(box: PptxTextTarget["box"], page: { widthPx: number; heightPx: number }): CSSProperties {
   const w = page.widthPx > 0 ? page.widthPx : 1;
@@ -95,7 +104,7 @@ export function PptxTextEditLayer({
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx.text" });
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const toPage = useCallback((event: ReactPointerEvent<HTMLDivElement>): PptxPoint => {
+  const toPage = useCallback((event: { clientX: number; clientY: number }): PptxPoint => {
     const rect = rootRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
     return {
@@ -112,7 +121,12 @@ export function PptxTextEditLayer({
           data-pptx-text-target={target.sourceId}
           className="pointer-events-auto absolute cursor-text"
           style={percentBox(target.box, page)}
-          onDoubleClick={() => onOpen(target)}
+          onDoubleClick={(event) => {
+            // Resolve through the selection hit test: a picture/shape painted over this text
+            // is what a click selects, so it is also what a double-click must act on.
+            const hit = controller.elementAt(toPage(event));
+            if (hit === null || hit === target.sourceId) onOpen(target);
+          }}
           onPointerDown={(event) => {
             if (event.button === 2) {
               // Right-click selects the element first; the context menu must still open.
@@ -141,8 +155,9 @@ export interface PptxTextEditorOverlayProps {
   slideIndex: number;
   target: PptxTextTarget;
   page: { widthPx: number; heightPx: number };
-  displayWidthPx: number;
-  displayHeightPx: number;
+  /** Unused for positioning (percent of the page); only `displayHeightPx` feeds the font scale. */
+  displayWidthPx?: number;
+  displayHeightPx?: number;
   onCommitText: (commit: PptxTextCommit) => void;
   onCancel: () => void;
 }
@@ -160,7 +175,7 @@ export function PptxTextEditorOverlay({
   const editorRef = useRef<HTMLDivElement>(null);
   const settled = useRef(false);
   const [emptyRefused, setEmptyRefused] = useState(false);
-  const scaleY = page.heightPx > 0 ? displayHeightPx / page.heightPx : 1;
+  const scaleY = page.heightPx > 0 && displayHeightPx !== undefined ? displayHeightPx / page.heightPx : 1;
   const fontSizePx = (target.fontSizePx ?? 18) * scaleY;
 
   // Seed the DOM once per target; React never controls a contenteditable's text.
@@ -212,6 +227,9 @@ export function PptxTextEditorOverlay({
       commit();
       return;
     }
+    // Host commands (save, find, F1 help) are not text editing: let them bubble so the deck
+    // runs them instead of the browser's Save Page / find bar.
+    if (isHostCommandChord(event)) return;
     // Everything else is native text editing (select-all, text undo, caret keys, delete);
     // the canvas shortcuts must never see it.
     event.stopPropagation();

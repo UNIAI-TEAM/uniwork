@@ -55,6 +55,9 @@ export interface PptxSelectionController {
   marquee: PptxBox | null;
   canDelete: boolean;
   clear(): void;
+  /** Replace the selection with the given ids that exist on the current rendition (unknown ids are
+   *  ignored; no gesture or marquee side effects). For programmatic selection, e.g. after an insert. */
+  select(ids: readonly string[]): void;
   selectAll(): void;
   deleteSelection(): void;
   onPointerDown(point: PptxPoint, additive: boolean): void;
@@ -63,6 +66,8 @@ export interface PptxSelectionController {
   onPointerCancel(): void;
   /** Right-click: select the element under the pointer (PowerPoint-like) without a gesture. */
   onContextPointerDown(point: PptxPoint): void;
+  /** Topmost selectable element under a page point - the same hit test a click uses. */
+  elementAt(point: PptxPoint): string | null;
 }
 
 export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectionController {
@@ -104,6 +109,10 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
   const canDelete = Boolean(deleteElements) && selection.ids.length > 0;
 
   const clear = useCallback(() => setSelectionState(EMPTY_SELECTION), []);
+  const select = useCallback((ids: readonly string[]) => {
+    const live = new Set(boxes.filter((entry) => !entry.decoration && !entry.background).map((entry) => entry.sourceId));
+    setSelectionState(setSelection(ids.filter((id) => live.has(id))));
+  }, [boxes]);
   const selectAll = useCallback(() => {
     setSelectionState(setSelection(boxes.filter((entry) => !entry.decoration && !entry.background).map((entry) => entry.sourceId)));
   }, [boxes]);
@@ -155,8 +164,13 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     if (opened) setGesture(opened);
   }, [bounds, boxes, interactive, page, selection]);
 
+  const elementAt = useCallback((point: PptxPoint): string | null => hitElement(boxes, point), [boxes]);
+
   const onContextPointerDown = useCallback((point: PptxPoint) => {
     if (!interactive) return;
+    // Chorded buttons: a right press while a left drag or marquee is open must not replace
+    // the selection under it (the gesture commits against a snapshot of the old members).
+    if (gesture || marqueeStart.current) return;
     const hit = hitElement(boxes, point);
     if (hit === null) {
       setSelectionState(EMPTY_SELECTION);
@@ -165,7 +179,7 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     // Already part of the selection: keep the whole selection so the menu acts on it.
     if (selection.ids.includes(hit)) return;
     setSelectionState(setSelection([hit]));
-  }, [boxes, interactive, selection.ids]);
+  }, [boxes, gesture, interactive, selection.ids]);
 
   const onPointerMove = useCallback((point: PptxPoint, shiftKey: boolean) => {
     if (gesture) {
@@ -225,6 +239,7 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     marquee,
     canDelete,
     clear,
+    select,
     selectAll,
     deleteSelection,
     onPointerDown,
@@ -232,5 +247,6 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     onPointerUp,
     onPointerCancel,
     onContextPointerDown,
+    elementAt,
   };
 }

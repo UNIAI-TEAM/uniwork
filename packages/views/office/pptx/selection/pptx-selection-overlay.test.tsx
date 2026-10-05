@@ -17,6 +17,8 @@ function controller(overrides: Partial<PptxSelectionController> = {}): PptxSelec
     marquee: null,
     canDelete: true,
     clear: vi.fn(),
+    select: vi.fn(),
+    elementAt: vi.fn(() => null),
     selectAll: vi.fn(),
     deleteSelection: vi.fn(),
     onPointerDown: vi.fn(),

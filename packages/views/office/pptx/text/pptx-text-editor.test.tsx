@@ -1,7 +1,11 @@
+import type { ReactElement } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import type { PptxNodeBox } from "../canvas/render-tree";
+import { box } from "../canvas/pptx-render-fixtures";
 import type { PptxSelectionController } from "../selection/use-pptx-selection";
+import { usePptxSelection } from "../selection/use-pptx-selection";
 import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from "./pptx-text-editor";
 import type { PptxTextTarget } from "./text-model";
 
@@ -15,9 +19,9 @@ const target: PptxTextTarget = { sourceId: "title", box: { x: 100, y: 50, w: 400
 function controller(overrides: Partial<PptxSelectionController> = {}): PptxSelectionController {
   return {
     selection: { ids: [] }, bounds: null, previews: [], marquee: null, canDelete: false,
-    clear: vi.fn(), selectAll: vi.fn(), deleteSelection: vi.fn(),
+    clear: vi.fn(), select: vi.fn(), selectAll: vi.fn(), deleteSelection: vi.fn(),
     onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(), onPointerCancel: vi.fn(),
-    onContextPointerDown: vi.fn(),
+    onContextPointerDown: vi.fn(), elementAt: vi.fn(() => null),
     ...overrides,
   } as PptxSelectionController;
 }
@@ -142,5 +146,79 @@ describe("PptxTextEditorOverlay", () => {
     expect(onCommitText).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent("Text cannot be empty");
+  });
+});
+describe("PptxTextEditLayer double-click through the selection hit test (F1)", () => {
+  // A picture painted over the right half of the title, as in a real deck with an occluder.
+  const boxes: PptxNodeBox[] = [
+    { sourceId: "title", type: "text", box: box({ x: 100, y: 50, w: 400, h: 80 }) },
+    { sourceId: "pic", type: "picture", box: box({ x: 300, y: 40, w: 300, h: 100 }) },
+  ];
+
+  function Harness({ onOpen }: { onOpen: (t: PptxTextTarget) => void }): ReactElement {
+    const selection = usePptxSelection({ slideIndex: 0, boxes, page, fitWidthPx: 960, scale: 1, interactive: true });
+    return <PptxTextEditLayer slideIndex={0} targets={[target]} page={page} controller={selection} activeId={null} onOpen={onOpen} />;
+  }
+
+  function mount(onOpen: (t: PptxTextTarget) => void) {
+    const view = render(<Harness onOpen={onOpen} />);
+    const layer = view.container.querySelector("[data-pptx-text-layer]") as HTMLElement;
+    layer.getBoundingClientRect = () => ({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}) });
+    return view.container.querySelector("[data-pptx-text-target='title']") as HTMLElement;
+  }
+
+  it("opens nothing when a picture is painted over the double-click point", () => {
+    const onOpen = vi.fn();
+    fireEvent.doubleClick(mount(onOpen), { clientX: 400, clientY: 90 });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("opens the text on the uncovered part of the element", () => {
+    const onOpen = vi.fn();
+    fireEvent.doubleClick(mount(onOpen), { clientX: 150, clientY: 90 });
+    expect(onOpen).toHaveBeenCalledWith(target);
+  });
+
+  it("asks the controller with the page point of the click", () => {
+    const elementAt = vi.fn(() => "title");
+    const onOpen = vi.fn();
+    const { container } = render(<PptxTextEditLayer slideIndex={0} targets={[target]} page={page} displayWidthPx={480} displayHeightPx={270} controller={controller({ elementAt })} activeId={null} onOpen={onOpen} />);
+    const layer = container.querySelector("[data-pptx-text-layer]") as HTMLElement;
+    layer.getBoundingClientRect = () => ({ left: 10, top: 20, width: 480, height: 270, right: 490, bottom: 290, x: 10, y: 20, toJSON: () => ({}) });
+    fireEvent.doubleClick(container.querySelector("[data-pptx-text-target='title']")!, { clientX: 10 + 240, clientY: 20 + 135 });
+    expect(elementAt).toHaveBeenCalledWith({ x: 480, y: 270 });
+    expect(onOpen).toHaveBeenCalledWith(target);
+  });
+});
+
+describe("PptxTextEditorOverlay host-command chords (F2)", () => {
+  function mountEditor() {
+    const parentKey = vi.fn();
+    const view = render(
+      <div role="presentation" onKeyDown={parentKey}>
+        <PptxTextEditorOverlay slideIndex={2} target={target} page={page} onCommitText={vi.fn()} onCancel={vi.fn()} />
+      </div>,
+    );
+    return { parentKey, editor: view.container.querySelector("[data-pptx-text-editor]") as HTMLElement };
+  }
+
+  it("lets save, find and F1 bubble to the deck without preventing them", () => {
+    const { parentKey, editor } = mountEditor();
+    for (const init of [{ key: "s", ctrlKey: true }, { key: "f", metaKey: true }, { key: "F1" }]) {
+      fireEvent.keyDown(editor, init);
+    }
+    expect(parentKey).toHaveBeenCalledTimes(3);
+  });
+
+  it("still keeps real editing keys, caret keys, typing and composition away from the canvas", () => {
+    const { parentKey, editor } = mountEditor();
+    for (const init of [
+      { key: "a", ctrlKey: true }, { key: "z", ctrlKey: true }, { key: "z", ctrlKey: true, shiftKey: true }, { key: "y", ctrlKey: true },
+      { key: "Delete" }, { key: "Backspace" }, { key: "Home" }, { key: "End" }, { key: "ArrowDown" }, { key: "PageDown" },
+      { key: "F2" }, { key: "x" }, { key: "?", shiftKey: true }, { key: "s" }, { key: "Process", isComposing: true }, { key: "s", ctrlKey: true, isComposing: true },
+    ]) {
+      fireEvent.keyDown(editor, init);
+    }
+    expect(parentKey).not.toHaveBeenCalled();
   });
 });

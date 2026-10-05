@@ -192,3 +192,56 @@ describe("usePptxSelection right-click (F-14)", () => {
     expect(controller.current!.selection.ids).toEqual([]);
   });
 });
+
+describe("usePptxSelection chorded right press (F5)", () => {
+  it("ignores a right press while a drag gesture is open", () => {
+    const controller = harness();
+    act(() => controller.current!.onPointerDown({ x: 150, y: 150 }, false));
+    act(() => controller.current!.onPointerMove({ x: 170, y: 160 }, false));
+    expect(controller.current!.previews).not.toEqual([]);
+    act(() => controller.current!.onContextPointerDown({ x: 350, y: 150 }));
+    expect(controller.current!.selection.ids).toEqual(["a"]);
+    expect(controller.current!.previews).not.toEqual([]);
+    act(() => controller.current!.onContextPointerDown({ x: 800, y: 500 }));
+    expect(controller.current!.selection.ids).toEqual(["a"]);
+  });
+
+  it("ignores a right press while a marquee is open", () => {
+    const controller = harness();
+    act(() => controller.current!.onPointerDown({ x: 150, y: 150 }, false));
+    act(() => controller.current!.onPointerUp());
+    act(() => controller.current!.onPointerDown({ x: 600, y: 400 }, false));
+    act(() => controller.current!.onPointerMove({ x: 650, y: 450 }, false));
+    expect(controller.current!.marquee).not.toBeNull();
+    act(() => controller.current!.onContextPointerDown({ x: 350, y: 150 }));
+    expect(controller.current!.selection.ids).toEqual(["a"]);
+    expect(controller.current!.marquee).not.toBeNull();
+  });
+});
+
+describe("usePptxSelection elementAt", () => {
+  it("answers with the same topmost element a click selects", () => {
+    const controller = harness();
+    expect(controller.current!.elementAt({ x: 150, y: 150 })).toBe("a");
+    expect(controller.current!.elementAt({ x: 350, y: 150 })).toBe("b");
+    expect(controller.current!.elementAt({ x: 800, y: 500 })).toBeNull();
+  });
+});
+
+describe("usePptxSelection select (programmatic)", () => {
+  it("replaces the selection with the ids that exist and ignores unknown ones", () => {
+    const controller = harness();
+    act(() => controller.current!.select(["b", "missing", "a"]));
+    expect(controller.current!.selection.ids).toEqual(["b", "a"]);
+    act(() => controller.current!.select(["missing"]));
+    expect(controller.current!.selection.ids).toEqual([]);
+  });
+
+  it("opens no gesture or marquee", () => {
+    const controller = harness();
+    act(() => controller.current!.select(["a"]));
+    expect(controller.current!.bounds).toEqual({ x: 100, y: 100, w: 100, h: 100 });
+    expect(controller.current!.previews).toEqual([]);
+    expect(controller.current!.marquee).toBeNull();
+  });
+});

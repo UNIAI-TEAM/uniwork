@@ -131,3 +131,22 @@ describe("move / resize / rotate math", () => {
     expect(transformWithinBounds({ x: 10, y: 10, w: 20, h: 20 }, bounds, bounds, 45)).toEqual({ x: 10, y: 10, w: 20, h: 20, rotationDeg: 45 });
   });
 });
+
+describe("hitHandle on a tiny element (F6)", () => {
+  // 8 x 8 page px: every handle sits within the 7px radius of the centre.
+  const tiny = { x: 100, y: 100, w: 8, h: 8 };
+
+  it("picks the nearest handle instead of always the first one in paint order", () => {
+    expect(hitHandle(tiny, { x: 108, y: 108 }, 7)).toBe("se");
+    expect(hitHandle(tiny, { x: 100, y: 108 }, 7)).toBe("sw");
+    expect(hitHandle(tiny, { x: 104, y: 100 }, 7)).toBe("n");
+    expect(hitHandle(tiny, { x: 108, y: 104 }, 7)).toBe("e");
+    expect(hitHandle(tiny, { x: 104, y: 108 }, 7)).toBe("s");
+    expect(hitHandle(tiny, { x: 100, y: 104 }, 7)).toBe("w");
+  });
+
+  it("breaks an exact tie by the fixed order (edges here: n before e, s, w)", () => {
+    // The centre is 4px from all four edge midpoints and ~5.7px from the corners.
+    expect(hitHandle(tiny, { x: 104, y: 104 }, 7)).toBe("n");
+  });
+});

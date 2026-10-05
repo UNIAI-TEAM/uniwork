@@ -31,9 +31,9 @@ beforeAll(async () => {
 function controller(): PptxSelectionController {
   return {
     selection: { ids: [] }, bounds: null, previews: [], marquee: null, canDelete: false,
-    clear: vi.fn(), selectAll: vi.fn(), deleteSelection: vi.fn(),
+    clear: vi.fn(), select: vi.fn(), selectAll: vi.fn(), deleteSelection: vi.fn(),
     onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(), onPointerCancel: vi.fn(),
-    onContextPointerDown: vi.fn(),
+    onContextPointerDown: vi.fn(), elementAt: vi.fn(() => null),
   } as PptxSelectionController;
 }
 

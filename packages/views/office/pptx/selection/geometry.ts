@@ -197,9 +197,14 @@ export function transformWithinBounds(
   };
 }
 
+/** Tie-break order for `hitHandle`: corners before edge midpoints. */
+const HIT_ORDER: readonly Exclude<PptxHandleId, "rotate">[] = ["nw", "ne", "se", "sw", "n", "e", "s", "w"];
+
 /** Handle under a pointer, page px, with a square hit radius. When `page` is given the
  *  rotate grip is hit-tested at the SAME clamped position the overlay draws it at, so a
- *  box near the slide top does not hide the grip from the hit test. */
+ *  box near the slide top does not hide the grip from the hit test. On a box so small that
+ *  several handles share the radius, the NEAREST handle wins (ties: rotate, corners, edges)
+ *  so every handle stays reachable instead of the first one in paint order always winning. */
 export function hitHandle(
   bounds: PptxBox,
   pointer: PptxPoint,
@@ -210,12 +215,24 @@ export function hitHandle(
   const rotate = page
     ? rotateHandlePositionInBounds(bounds, page, rotateOffsetPx)
     : rotateHandlePosition(bounds, rotateOffsetPx);
-  if (Math.abs(pointer.x - rotate.x) <= radiusPx && Math.abs(pointer.y - rotate.y) <= radiusPx) return "rotate";
-  for (const handle of PPTX_RESIZE_HANDLES) {
-    const point = handlePosition(bounds, handle);
-    if (Math.abs(pointer.x - point.x) <= radiusPx && Math.abs(pointer.y - point.y) <= radiusPx) return handle;
+  const candidates: readonly { handle: PptxHandleId; point: PptxPoint }[] = [
+    { handle: "rotate", point: rotate },
+    ...HIT_ORDER.map((handle) => ({ handle, point: handlePosition(bounds, handle) })),
+  ];
+  let best: PptxHandleId | null = null;
+  let bestDistance = Infinity;
+  for (const { handle, point } of candidates) {
+    const dx = Math.abs(pointer.x - point.x);
+    const dy = Math.abs(pointer.y - point.y);
+    if (dx > radiusPx || dy > radiusPx) continue;
+    const distance = Math.hypot(dx, dy);
+    // Strict `<` keeps the earlier (higher-priority) candidate on a tie.
+    if (distance < bestDistance) {
+      best = handle;
+      bestDistance = distance;
+    }
   }
-  return null;
+  return best;
 }
 
 /** Topmost element under a page point (later nodes paint on top). */
