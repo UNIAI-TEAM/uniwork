@@ -265,9 +265,30 @@ export function HtmlEditor<TSnapshot = unknown>({
     if (!restoreFocusRef.current) return;
     restoreFocusRef.current = false;
     const root = rootRef.current;
-    if (!root || root.contains(document.activeElement)) return;
+    if (!root) return;
+    // The preview iframe lives inside the landmark but is a focus boundary:
+    // keys typed in its own document never reach the section, so it does NOT
+    // count as "the landmark holds focus".
+    if (root.contains(document.activeElement) && !(document.activeElement instanceof HTMLIFrameElement)) return;
     root.focus();
   }, [viewMode]);
+  // The preview pane is a sandboxed iframe. Once it owns keyboard focus, a
+  // keydown is delivered inside its own document and never reaches this
+  // window, so both the section handler and the window listener miss it and
+  // the FIRST press from Preview is lost (M-7 r2). Reclaim the landmark the
+  // moment focus lands on the preview frame, so the shortcut owner never
+  // loses the keyboard and one press always advances one mode.
+  useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      const root = rootRef.current;
+      const target = event.target;
+      if (!root || !(target instanceof Node)) return;
+      if (!(target instanceof HTMLIFrameElement) || !root.contains(target)) return;
+      root.focus();
+    };
+    document.addEventListener("focusin", onFocusIn, true);
+    return () => document.removeEventListener("focusin", onFocusIn, true);
+  }, []);
   // The section owns Ctrl+\ only while focus is inside it. When focus sits
   // outside the landmark (the preview iframe, the present overlay, a canvas
   // click) the keydown never reaches the section and the press is lost, so the

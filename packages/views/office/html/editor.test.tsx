@@ -589,6 +589,41 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(view()).toBe("split");
   });
 
+  it("advances from Preview on ONE Ctrl+\\ press while the preview iframe owns focus (M-7 r2)", async () => {
+    // END visual r2 (M-7): from Preview the first press was a no-op. The
+    // visible pane is the sandboxed preview iframe; a keydown delivered inside
+    // that frame's own document never reaches this window, so the press is
+    // lost. The landmark must therefore never hand the keyboard to the preview
+    // frame: a click into the preview reclaims focus, and one press then
+    // advances exactly one mode - preview -> present (the C11 order).
+    const mount = vi.fn(async ({ container }: { container: HTMLElement }) => {
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("sandbox", "");
+      iframe.srcdoc = "<p>preview</p>";
+      container.appendChild(iframe);
+      return { dispose: vi.fn(), update: vi.fn() };
+    });
+    const { container } = await renderReady({ mount });
+    await waitFor(() => expect(container.querySelector("iframe")).not.toBeNull());
+    const view = () => screen.getByTestId("html-shell").getAttribute("data-html-view");
+    const section = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    const press = () => fireEvent.keyDown(document.activeElement ?? section, { key: "\\", code: "Backslash", ctrlKey: true });
+    press(); // split -> preview
+    expect(view()).toBe("preview");
+    // A real user click into the preview focuses the sandboxed frame. The
+    // landmark must reclaim the keyboard so the shortcut still lands.
+    iframe.focus();
+    expect(document.activeElement).toBe(section);
+    press();
+    expect(view()).toBe("present");
+    // The full cycle still returns to source, one press per step.
+    press();
+    expect(view()).toBe("source");
+    press();
+    expect(view()).toBe("split");
+  });
+
   it("clears the draft offer after a successful save (M-8)", async () => {
     // Reloading within ~4 s of a successful save offered a stale draft. The
     // surface must not request a checkpoint for a generation the coordinator
