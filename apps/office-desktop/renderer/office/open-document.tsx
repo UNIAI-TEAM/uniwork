@@ -101,7 +101,8 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
-        <EditorSlot format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
+        {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). */}
+        <EditorSlot className="rounded-none border-0 bg-transparent p-0" format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
         {session.editor.renderSurface && ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="readonly-surface">{session.editor.renderSurface?.()}</section> : null}
       </>} /></>;
 }

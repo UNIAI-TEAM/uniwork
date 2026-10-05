@@ -122,6 +122,23 @@ it("exposes the local-mode AI entry as a labelled group and keeps it locked", as
   expect(within(prompt).getByRole("button", { name: i18n.t("officeDesktop.ai.signIn") })).toBeInTheDocument();
 });
 
+it("renders the desktop editor without a second bordered card under the shell header", async () => {
+  mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
+  const slot = await waitFor(() => {
+    const element = document.querySelector<HTMLElement>("[data-office-editor-slot]");
+    if (!element) throw new Error("editor slot not mounted");
+    return element;
+  });
+  // The OfficeShell header is the single frame (F-9): the shared EditorSlot
+  // must not add its own rounded/bordered/padded card on the desktop, so the
+  // editor fills the page like web.
+  expect(slot).toHaveClass("border-0", "rounded-none", "p-0", "bg-transparent");
+  const classes = slot.className.split(/\s+/);
+  expect(classes).not.toContain("border");
+  expect(classes).not.toContain("p-3");
+  expect(classes.some((name) => /^rounded-(?:lg|md|xl|2xl|3xl|full)$/.test(name))).toBe(false);
+});
+
 it("keeps ONE primary Save in the header and moves Save As and back into the document menu", async () => {
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
   await waitFor(() => expect(screen.getByTestId("office-save-ready")).toBeInTheDocument());
