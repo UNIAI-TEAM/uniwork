@@ -132,6 +132,7 @@ export function EditorSlot<TSnapshot>({
     });
   }, [format, loadEditor, openState, status]);
 
+  const editorMounted = status === "available" && openState === "ready" && lazyEditor !== null;
   let content: ReactNode;
   if (status !== "available") {
     content = <CapabilityMessage status={status} reason={reason} />;
@@ -152,7 +153,7 @@ export function EditorSlot<TSnapshot>({
     content = (
       <Suspense
         fallback={
-          <div className="space-y-3" role="status" aria-live="polite" data-testid="office-editor-loading">
+          <div className="space-y-3 p-4" role="status" aria-live="polite" data-testid="office-editor-loading">
             <Skeleton className="h-[min(55vh,32rem)] min-h-48 w-full" />
             <span className="sr-only">{t("loading")}</span>
           </div>
@@ -165,7 +166,7 @@ export function EditorSlot<TSnapshot>({
 
   return (
     <section
-      className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-border bg-background p-3", className)}
+      className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background", editorMounted ? "overflow-hidden" : "overflow-auto p-4", className)}
       data-office-editor-slot
       data-format={format}
       data-open-state={openState}

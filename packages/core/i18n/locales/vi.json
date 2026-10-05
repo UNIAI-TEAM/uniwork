@@ -6904,6 +6904,14 @@
     }
   },
   "office": {
+    "status": {
+      "label": "Thanh trạng thái",
+      "zoomIn": "Phóng to",
+      "zoomOut": "Thu nhỏ",
+      "zoomReset": "Đặt lại thu phóng",
+      "zoomValue": "{{value}}%",
+      "help": "Trợ giúp"
+    },
     "docx": {
       "title": "Tài liệu DOCX",
       "editor": {
