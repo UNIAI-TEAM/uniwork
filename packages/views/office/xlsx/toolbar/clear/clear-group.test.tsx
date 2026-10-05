@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { XLSX_TOOLBAR_GROUPS } from "../registry";
 import type { XlsxToolbarGroupProps } from "../types";
-import { XlsxClearGroup } from "./clear-group";
+import { OfficeRibbon } from "../../../ribbon";
+import { xlsxEditingRibbonItems } from "./clear-group";
 
 const CLEAR_COMMANDS = [
   { key: "content", command: "sheet.command.clear-selection-content" },
@@ -12,10 +13,7 @@ const CLEAR_COMMANDS = [
   { key: "all", command: "sheet.command.clear-selection-all" },
 ] as const;
 
-const OWNED_GROUPS = [
-  { id: "clear", order: 85, keyPrefix: "clear" },
-  { id: "painter", order: 90, keyPrefix: "painter" },
-] as const;
+const OWNED_SUBTREES = ["clear", "painter"] as const;
 
 function lookup(dictionary: unknown, key: string): unknown {
   return key.split(".").reduce<unknown>((node, part) => {
@@ -67,66 +65,65 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 
 function renderGroup(overrides: Partial<XlsxToolbarGroupProps> = {}) {
   const execute = vi.fn(() => true);
-  render(<XlsxClearGroup {...groupProps({ commands: { execute }, ...overrides })} />);
+  const props = groupProps({ commands: { execute }, ...overrides });
+  render(
+    <OfficeRibbon
+      scope="xlsx-editing-test"
+      activeTabId="home"
+      tabs={[{ id: "home", labelKey: "Home", groups: [{ id: "editing", labelKey: "Editing", priority: 0, items: xlsxEditingRibbonItems(props) }] }]}
+    />,
+  );
   return { execute };
 }
 
-describe("XlsxClearGroup", () => {
-  it("fires each clear variant from the dropdown and closes it", async () => {
+function trigger(): HTMLElement {
+  return document.querySelector<HTMLElement>("[data-ribbon-item='editing-clear']")!;
+}
+
+describe("xlsxEditingRibbonItems", () => {
+  it("fires each clear variant from the dropdown", async () => {
     const { execute } = renderGroup();
-    const trigger = screen.getByTestId("xlsx-clear-trigger");
-    expect(trigger).toHaveAccessibleName(text("office.xlsx.toolbar.groups.clear.label"));
+    expect(trigger()).toHaveTextContent(text("office.xlsx.toolbar.groups.clear.label"));
 
     for (const { key, command } of CLEAR_COMMANDS) {
-      fireEvent.click(trigger);
-      const item = await screen.findByTestId(`xlsx-clear-${key}`);
+      fireEvent.click(trigger());
+      const item = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(`[data-ribbon-menu-entry='editing-clear-${key}']`);
+        expect(found).not.toBeNull();
+        return found!;
+      });
       expect(item).toHaveTextContent(text(`office.xlsx.toolbar.groups.clear.${key}`));
       fireEvent.click(item);
       expect(execute).toHaveBeenLastCalledWith(command);
-      expect(screen.queryByTestId("xlsx-clear-menu")).not.toBeInTheDocument();
     }
     expect(execute).toHaveBeenCalledTimes(CLEAR_COMMANDS.length);
   });
 
-  it("stays closed and inert while read-only", () => {
-    const { execute } = renderGroup({ readOnly: true });
-    const trigger = screen.getByTestId("xlsx-clear-trigger");
-    expect(trigger).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(trigger);
-    expect(screen.queryByTestId("xlsx-clear-menu")).not.toBeInTheDocument();
-    expect(execute).not.toHaveBeenCalled();
-  });
-
-  it("stays inert without a selection", () => {
-    const { execute } = renderGroup({ canFormat: false, selection: null });
-    fireEvent.click(screen.getByTestId("xlsx-clear-trigger"));
-    expect(execute).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("xlsx-clear-menu")).not.toBeInTheDocument();
-  });
-
-  it("stays inert without a command port", () => {
-    renderGroup({ commands: undefined });
-    fireEvent.click(screen.getByTestId("xlsx-clear-trigger"));
-    expect(screen.queryByTestId("xlsx-clear-menu")).not.toBeInTheDocument();
+  it("stays inert while read-only, without a selection format and without a port", () => {
+    for (const overrides of [{ readOnly: true }, { canFormat: false, selection: null }, { commands: undefined }]) {
+      const { execute } = renderGroup(overrides);
+      expect(trigger()).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(trigger());
+      expect(document.querySelector("[data-ribbon-menu-entry]")).toBeNull();
+      expect(execute).not.toHaveBeenCalled();
+      cleanup();
+    }
   });
 });
 
 describe("xlsx clear + painter registry entries", () => {
-  it("registers both groups on the Home tab with labels in both locales", () => {
-    for (const expected of OWNED_GROUPS) {
-      const group = XLSX_TOOLBAR_GROUPS.find((candidate) => candidate.id === expected.id);
-      if (!group) throw new Error(`missing registry group ${expected.id}`);
+  it("registers Editing on the Home tab and keeps the Clipboard group that hosts the painter", () => {
+    for (const id of ["editing", "clipboard"]) {
+      const group = XLSX_TOOLBAR_GROUPS.find((candidate) => candidate.id === id);
+      if (!group) throw new Error(`missing registry group ${id}`);
       expect(group.tab).toBe("home");
-      expect(group.order).toBe(expected.order);
-      expect(group.labelKey).toBe(`office.xlsx.toolbar.groups.${expected.keyPrefix}.label`);
-      for (const locale of [en, viLocale]) {
-        expect(typeof lookup(locale, group.labelKey), `${expected.id} ${group.labelKey}`).toBe("string");
-      }
+      expect(typeof group.ribbonItems).toBe("function");
     }
+    expect(XLSX_TOOLBAR_GROUPS.some((candidate) => candidate.id === "painter" || candidate.id === "clear")).toBe(false);
   });
 
-  it("keeps the clear and painter subtrees in vi/en key parity", () => {
-    for (const id of OWNED_GROUPS.map((group) => group.id)) {
+  it("keeps the clear and painter label subtrees in both locales and in key parity", () => {
+    for (const id of OWNED_SUBTREES) {
       const subtree = (dictionary: unknown) => stringPaths(lookup(dictionary, `office.xlsx.toolbar.groups.${id}`));
       expect(subtree(viLocale).length).toBeGreaterThan(0);
       expect(subtree(viLocale)).toEqual(subtree(en));

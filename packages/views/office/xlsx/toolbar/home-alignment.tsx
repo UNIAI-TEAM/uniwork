@@ -4,7 +4,9 @@ import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEn
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
+import type { RibbonItem } from "../../ribbon";
 import { XLSX_HORIZONTAL_ALIGN, XLSX_TEXT_ROTATIONS, XLSX_VERTICAL_ALIGN, XLSX_WRAP_STRATEGY } from "./home-format";
+import { xlsxMergeRibbonItem } from "./structure-merge";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
 import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
@@ -21,81 +23,140 @@ const VERTICAL_ALIGNMENTS = [
   { key: "bottom", value: XLSX_VERTICAL_ALIGN.bottom, Icon: AlignEndVertical },
 ] as const;
 
-/** Home > alignment: horizontal and vertical alignment, wrap and rotation. */
-export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, formatState }: XlsxToolbarGroupProps) {
-  const { t } = useTranslation();
-  const blocked = readOnly || !canFormat || !commands;
-  const run = (id: string, params?: unknown) => {
-    if (blocked) return;
-    fireCommand(commands, id, params);
-  };
+const ROTATION_WIDTH = 84;
 
+function isBlocked({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps): boolean {
+  return readOnly || !canFormat || !commands;
+}
+
+function wrapParams(wrap: boolean | undefined): { value: number } {
+  return { value: wrap ? XLSX_WRAP_STRATEGY.overflow : XLSX_WRAP_STRATEGY.wrap };
+}
+
+function RotationSelect({ context }: { context: XlsxToolbarGroupProps }) {
+  const { t } = useTranslation();
+  const blocked = isBlocked(context);
   return (
-    <XlsxGroupBody>
-    <XlsxGroupRows>
-    <XlsxGroupRow>
-      {VERTICAL_ALIGNMENTS.map(({ key, value, Icon }) => (
-        <Button
-          key={key}
-          type="button"
-          variant="toolbar"
-          size="icon-sm"
-          className={XLSX_ICON_BUTTON_CLASS}
-          title={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
-          aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
-          aria-pressed={formatState?.verticalAlign === value}
-          aria-disabled={blocked || undefined}
-          onClick={() => run("sheet.command.set-vertical-text-align", { value })}
-        >
-          <Icon aria-hidden />
-        </Button>
-      ))}
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        title={t("office.xlsx.toolbar.groups.alignment.wrap")}
-        aria-label={t("office.xlsx.toolbar.groups.alignment.wrap")}
-        aria-pressed={formatState?.wrap === true}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.set-text-wrap", {
-          value: formatState?.wrap ? XLSX_WRAP_STRATEGY.overflow : XLSX_WRAP_STRATEGY.wrap,
-        })}
-      >
-        <TextWrap aria-hidden />
-      </Button>
-    </XlsxGroupRow>
-    <XlsxGroupRow>
-      {HORIZONTAL_ALIGNMENTS.map(({ key, value, Icon }) => (
-        <Button
-          key={key}
-          type="button"
-          variant="toolbar"
-          size="icon-sm"
-          className={XLSX_ICON_BUTTON_CLASS}
-          title={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
-          aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
-          aria-pressed={formatState?.horizontalAlign === value}
-          aria-disabled={blocked || undefined}
-          onClick={() => run("sheet.command.set-horizontal-text-align", { value })}
-        >
-          <Icon aria-hidden />
-        </Button>
-      ))}
-      <div className="w-20 shrink-0">
+    <div className="w-20 shrink-0">
       <Select
         aria-label={t("office.xlsx.toolbar.groups.alignment.rotation")}
         triggerVariant="subtle"
         disabled={blocked}
-        value={String(formatState?.textRotation ?? 0)}
-        onValueChange={(value) => run("sheet.command.set-text-rotation", { value: Number(value) })}
+        value={String(context.formatState?.textRotation ?? 0)}
+        onValueChange={(value) => {
+          if (blocked) return;
+          fireCommand(context.commands, "sheet.command.set-text-rotation", { value: Number(value) });
+        }}
         items={XLSX_TEXT_ROTATIONS.map((angle) => ({
           value: String(angle),
           label: t("office.xlsx.toolbar.groups.alignment.rotationAngle", { angle }),
         }))}
       />
-      </div>
+    </div>
+  );
+}
+
+/** Home > Alignment as typed ribbon items, in Excel's 2-row icon strip:
+ *  row 1 top / middle / bottom, wrap text, text rotation; row 2 left / centre /
+ *  right and the Merge & center split. Excel's indent buttons are left out:
+ *  the renderer has no indent command (indent only exists as cell padding in
+ *  the edit journal), and no command id is invented for it. */
+export function xlsxAlignmentRibbonItems(context: XlsxToolbarGroupProps): readonly RibbonItem[] {
+  const { commands, formatState } = context;
+  const blocked = isBlocked(context);
+  const run = (id: string, params?: unknown) => {
+    if (blocked) return;
+    fireCommand(commands, id, params);
+  };
+  const vertical: RibbonItem[] = VERTICAL_ALIGNMENTS.map(({ key, value, Icon }) => ({
+    kind: "toggle",
+    id: `align-${key}`,
+    labelKey: `office.xlsx.toolbar.groups.alignment.${key}`,
+    icon: Icon,
+    size: "icon",
+    collapseAs: "icon",
+    pressed: formatState?.verticalAlign === value,
+    disabled: blocked,
+    onExecute: () => run("sheet.command.set-vertical-text-align", { value }),
+  }));
+  const horizontal: RibbonItem[] = HORIZONTAL_ALIGNMENTS.map(({ key, value, Icon }, index) => ({
+    kind: "toggle",
+    id: `align-${key}`,
+    labelKey: `office.xlsx.toolbar.groups.alignment.${key}`,
+    icon: Icon,
+    size: "icon",
+    collapseAs: "icon",
+    rowBreak: index === 0,
+    pressed: formatState?.horizontalAlign === value,
+    disabled: blocked,
+    onExecute: () => run("sheet.command.set-horizontal-text-align", { value }),
+  }));
+  return [
+    ...vertical,
+    {
+      kind: "toggle",
+      id: "align-wrap",
+      labelKey: "office.xlsx.toolbar.groups.alignment.wrap",
+      icon: TextWrap,
+      size: "icon",
+      collapseAs: "icon",
+      pressed: formatState?.wrap === true,
+      disabled: blocked,
+      onExecute: () => run("sheet.command.set-text-wrap", wrapParams(formatState?.wrap)),
+    },
+    {
+      kind: "custom",
+      id: "align-rotation",
+      labelKey: "office.xlsx.toolbar.groups.alignment.rotation",
+      size: "icon",
+      collapseAs: "icon",
+      width: ROTATION_WIDTH,
+      disabled: blocked,
+      render: () => <RotationSelect context={context} />,
+    },
+    ...horizontal,
+    xlsxMergeRibbonItem(context),
+  ];
+}
+
+/** Pre-ribbon group body, kept as the registry's single-item fallback. */
+export function XlsxAlignmentGroup(props: XlsxToolbarGroupProps) {
+  const { t } = useTranslation();
+  const { formatState } = props;
+  const blocked = isBlocked(props);
+  const run = (id: string, params?: unknown) => {
+    if (blocked) return;
+    fireCommand(props.commands, id, params);
+  };
+  const button = (id: string, key: string, Icon: typeof TextWrap, pressed: boolean, params: unknown) => (
+    <Button
+      key={id + key}
+      type="button"
+      variant="toolbar"
+      size="icon-sm"
+      className={XLSX_ICON_BUTTON_CLASS}
+      title={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
+      aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
+      aria-pressed={pressed}
+      aria-disabled={blocked || undefined}
+      onClick={() => run(id, params)}
+    >
+      <Icon aria-hidden />
+    </Button>
+  );
+
+  return (
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
+      {VERTICAL_ALIGNMENTS.map(({ key, value, Icon }) =>
+        button("sheet.command.set-vertical-text-align", key, Icon, formatState?.verticalAlign === value, { value }))}
+      {button("sheet.command.set-text-wrap", "wrap", TextWrap, formatState?.wrap === true, wrapParams(formatState?.wrap))}
+    </XlsxGroupRow>
+    <XlsxGroupRow>
+      {HORIZONTAL_ALIGNMENTS.map(({ key, value, Icon }) =>
+        button("sheet.command.set-horizontal-text-align", key, Icon, formatState?.horizontalAlign === value, { value }))}
+      <RotationSelect context={props} />
     </XlsxGroupRow>
     </XlsxGroupRows>
     </XlsxGroupBody>

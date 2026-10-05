@@ -8,26 +8,22 @@ import {
   Eraser,
   Eye,
   Filter,
-  Grid3X3,
   Hash,
   Keyboard,
   Link2,
   ListTree,
   Navigation,
-  Paintbrush,
   Printer,
   Rows3,
   ShieldCheck,
   Sigma,
-  Square,
   SquareFunction,
   Table2,
-  TableCellsMerge,
   Type,
   ZoomIn,
   type LucideIcon,
 } from "lucide-react";
-import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
+import type { RibbonCustomItem, RibbonGroup, RibbonItem, RibbonTab } from "../../ribbon";
 import { xlsxContextualTabs } from "./contextual-tabs";
 import { XlsxEmptyTabGroup } from "./empty-tab-group";
 import { XLSX_TOOLBAR_GROUPS } from "./registry";
@@ -38,8 +34,9 @@ import type { XlsxToolbarGroupDefinition, XlsxToolbarGroupProps } from "./types"
  * Chrome amendment R (UNI-926): the XLSX command row is the SHARED Office
  * ribbon. This module re-mounts the existing registry (./registry.ts) 1:1 -
  * every tab keeps its id and labelKey, every group keeps its id, labelKey and
- * component and becomes ONE custom ribbon item, so no command, op or journal
- * path can disappear in the migration. `XLSX_TOOLBAR_TABS` and
+ * component (or typed `ribbonItems`) and becomes either ONE custom ribbon item
+ * or the typed items, so no command, op or journal path can disappear in the
+ * migration. `XLSX_TOOLBAR_TABS` and
  * `XLSX_TOOLBAR_GROUPS` stay the single source of truth.
  */
 
@@ -61,16 +58,12 @@ export const XLSX_EMPTY_TAB_GROUP_ID = "empty-tab";
  * command id, op or the save path.
  */
 export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
-  sheets: Grid3X3,
   clipboard: Clipboard,
   number: Hash,
   font: Type,
   alignment: BetweenHorizontalStart,
-  borders: Square,
-  "structure-size": Rows3,
-  "structure-merge": TableCellsMerge,
-  clear: Eraser,
-  painter: Paintbrush,
+  cells: Rows3,
+  editing: Eraser,
   charts: ChartColumn,
   calculation: Sigma,
   formula: SquareFunction,
@@ -100,16 +93,6 @@ export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
  * button in declared priority order from the right, as the amendment requires.
  */
 export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
-  sheets: 36,
-  clipboard: 72,
-  number: 132,
-  font: 414,
-  alignment: 360,
-  borders: 72,
-  "structure-merge": 104,
-  "structure-size": 228,
-  clear: 64,
-  painter: 36,
   charts: 36,
   calculation: 104,
   formula: 40,
@@ -141,24 +124,34 @@ export function xlsxGroupPriority(order: number): number {
 
 /** Renders one registry group component verbatim, so its controls, commands
  *  and disabled/read-only semantics are byte-identical to the old strip. */
-function renderGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): ReactNode {
-  return createElement(group.Component, context);
+function renderGroup(Component: NonNullable<XlsxToolbarGroupDefinition["Component"]>, context: XlsxToolbarGroupProps): ReactNode {
+  return createElement(Component, context);
 }
 
-function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): RibbonGroup {
+/** A group's items: its typed `ribbonItems` when it declares them (the ribbon
+ *  shrinks those item by item), else ONE custom item hosting its component
+ *  (it cannot shrink, so the ribbon folds the whole group). */
+function itemsFor(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): readonly RibbonItem[] {
+  if (group.ribbonItems) return group.ribbonItems(context);
+  const Component = group.Component;
+  if (!Component) return [];
   const item: RibbonCustomItem = {
     kind: "custom",
     id: group.id,
     labelKey: group.labelKey,
     width: XLSX_GROUP_WIDTHS[group.id] ?? XLSX_GROUP_WIDTH_DEFAULT,
-    render: () => renderGroup(group, context),
+    render: () => renderGroup(Component, context),
   };
+  return [item];
+}
+
+function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): RibbonGroup {
   return {
     id: group.id,
     labelKey: group.labelKey,
     priority: xlsxGroupPriority(group.order),
     ...(XLSX_GROUP_ICONS[group.id] === undefined ? {} : { icon: XLSX_GROUP_ICONS[group.id] }),
-    items: [item],
+    items: itemsFor(group, context),
   };
 }
 

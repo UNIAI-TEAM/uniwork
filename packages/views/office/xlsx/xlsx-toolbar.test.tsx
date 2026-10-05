@@ -50,6 +50,7 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
     onRedo: vi.fn(),
     onNumberFormat: vi.fn(),
     onRecalculate: vi.fn(),
+    onCut: vi.fn(),
     onCopy: vi.fn(),
     onPaste: vi.fn(),
     onShowSheets: vi.fn(),
@@ -81,6 +82,11 @@ function ribbon(): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-office-ribbon="${XLSX_RIBBON_SCOPE}"]`)!;
 }
 
+/** A typed ribbon item by id, so assertions do not depend on the locale. */
+function ribbonItem(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-item='${id}']`)!;
+}
+
 /** A tab button by id, so the assertions do not depend on the locale. */
 function tab(id: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
@@ -91,7 +97,7 @@ beforeEach(() => {
 });
 
 describe("xlsxRibbonTabs", () => {
-  it("re-mounts every registry tab and group 1:1 as one custom item each", () => {
+  it("re-mounts every registry tab and group 1:1 (typed items, else one custom item)", () => {
     // The fixed tabs first; the contextual Table tabs (R4) ride after them and
     // are asserted separately below.
     const tabs = xlsxRibbonTabs(groupProps()).filter((entry) => entry.contextual === undefined);
@@ -113,9 +119,14 @@ describe("xlsxRibbonTabs", () => {
         // "highest order collapses first" mapping).
         expect(group.priority).toBe(xlsxGroupPriority(source.order));
         expect(Number.isFinite(group.priority)).toBe(true);
-        // Every group renders as exactly one custom item: no command lost.
-        expect(group.items).toHaveLength(1);
-        expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
+        if (source.ribbonItems) {
+          // A typed group renders exactly the items it declares: no command lost.
+          expect(group.items.map((item) => item.id)).toEqual(source.ribbonItems(groupProps()).map((item) => item.id));
+        } else {
+          // An untyped group renders as exactly one custom item.
+          expect(group.items).toHaveLength(1);
+          expect(group.items[0]).toMatchObject({ kind: "custom", id: source.id, labelKey: source.labelKey });
+        }
       }
     }
   });
@@ -183,7 +194,7 @@ describe("XlsxToolbar on the shared ribbon", () => {
     expect(document.querySelector("[data-ribbon-group='structure-insert']")).toBeInTheDocument();
   });
 
-  it("mounts every Home group once, labelled and hosted as one custom item", () => {
+  it("mounts every Home group once, labelled and hosting its typed items", () => {
     renderToolbar();
     const body = within(ribbon()).getByRole("tabpanel");
     const homeGroups = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === "home");
@@ -191,8 +202,7 @@ describe("XlsxToolbar on the shared ribbon", () => {
       const node = document.querySelector<HTMLElement>(`[data-ribbon-group='${group.id}']`)!;
       expect(body).toContainElement(node);
       expect(node.getAttribute("aria-label")).toBeTruthy();
-      // The group component is hosted verbatim as one custom item.
-      expect(node.querySelector(`[data-ribbon-item='${group.id}']`)).toBeInTheDocument();
+      expect(node.querySelector("[data-ribbon-item]")).toBeInTheDocument();
     }
   });
 
@@ -221,13 +231,17 @@ describe("XlsxToolbar on the shared ribbon", () => {
     // The non-port callbacks still fire from their groups (no path changed).
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
-    fireEvent.click(screen.getByRole("button", { name: "Trang tính" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sao chép ô đã chọn" }));
-    fireEvent.click(screen.getByRole("button", { name: "Dán vào ô đã chọn" }));
+    // The Sheets action lives in the Cells > Format menu now.
+    fireEvent.click(screen.getByTestId("xlsx-cells-format-trigger"));
+    fireEvent.click(screen.getByTestId("xlsx-cells-format-sheets"));
+    fireEvent.click(ribbonItem("clipboard-copy"));
+    fireEvent.click(ribbonItem("clipboard-cut"));
+    fireEvent.click(ribbonItem("clipboard-paste"));
     expect(props.onUndo).toHaveBeenCalledOnce();
     expect(props.onRedo).toHaveBeenCalledOnce();
     expect(props.onShowSheets).toHaveBeenCalledOnce();
     expect(props.onCopy).toHaveBeenCalledOnce();
+    expect(props.onCut).toHaveBeenCalledOnce();
     expect(props.onPaste).toHaveBeenCalledOnce();
 
     fireEvent.click(tab("formulas"));
@@ -254,18 +268,22 @@ describe("XlsxToolbar on the shared ribbon", () => {
     expect(undo).not.toBeDisabled();
     fireEvent.click(undo);
     expect(props.onUndo).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Sao chép ô đã chọn" })).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("button", { name: "Dán vào ô đã chọn" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Định dạng số" })).toHaveAttribute("aria-disabled", "true");
+    expect(ribbonItem("clipboard-copy")).not.toHaveAttribute("aria-disabled");
+    expect(ribbonItem("clipboard-cut")).toHaveAttribute("aria-disabled", "true");
+    expect(ribbonItem("clipboard-paste")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(tab("formulas"));
     expect(screen.getByRole("button", { name: "Tính lại công thức" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("blocks selection commands with no selection and hides recalculate the host lacks", () => {
     renderToolbar({ canRecalculate: false, selection: null });
-    const copy = screen.getByRole("button", { name: "Sao chép ô đã chọn" });
-    expect(copy).toHaveAttribute("aria-disabled", "true");
-    expect(copy).toHaveAttribute("title", "Chưa chọn ô");
+    expect(ribbonItem("clipboard-copy")).toHaveAttribute("aria-disabled", "true");
+    expect(ribbonItem("clipboard-paste")).toHaveAttribute("aria-disabled", "true");
+    expect(xlsxRibbonTabs(groupProps({ selection: null })).find((entry) => entry.id === "home")!.groups[0]!.items[2]).toMatchObject({
+      id: "clipboard-copy",
+      tooltipKey: "office.xlsx.selection.none",
+    });
     fireEvent.click(tab("formulas"));
     expect(screen.queryByRole("button", { name: "Tính lại công thức" })).not.toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='calculation']")).not.toBeInTheDocument();
@@ -285,11 +303,15 @@ describe("XlsxToolbar on the shared ribbon", () => {
 
   it("keeps permission-blocked clipboard controls inert with the permission reason", () => {
     const props = renderToolbar({ permissions: { canCopy: false, canPaste: false } });
-    const copy = screen.getByRole("button", { name: "Sao chép ô đã chọn" });
+    const copy = ribbonItem("clipboard-copy");
     expect(copy).toHaveAttribute("aria-disabled", "true");
-    expect(copy).toHaveAttribute("title", "Trình duyệt này chưa cho phép truy cập bảng nhớ tạm.");
+    expect(xlsxRibbonTabs(groupProps({ permissions: { canCopy: false, canPaste: false } })).find((entry) => entry.id === "home")!.groups[0]!.items[2]).toMatchObject({
+      tooltipKey: "office.xlsx.clipboardUnavailable",
+    });
     fireEvent.click(copy);
+    fireEvent.click(ribbonItem("clipboard-paste"));
     expect(props.onCopy).not.toHaveBeenCalled();
+    expect(props.onPaste).not.toHaveBeenCalled();
   });
 
   it("shows Save progress and cancels through the persistent cluster while saving", () => {

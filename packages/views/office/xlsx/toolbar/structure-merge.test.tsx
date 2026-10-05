@@ -1,11 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import viLocale from "@uniwork/core/i18n/locales/vi.json";
+import type { RibbonItem, RibbonSplitItem } from "../../ribbon";
 import {
   XLSX_MERGE_ACROSS_COMMAND,
   XLSX_MERGE_ALL_COMMAND,
   XLSX_UNMERGE_COMMAND,
-  XlsxStructureMergeGroup,
+  xlsxMergeRibbonItem,
 } from "./structure-merge";
 import type { XlsxToolbarGroupProps } from "./types";
 
@@ -32,90 +31,82 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 }
 
 const executeMock = (props: XlsxToolbarGroupProps) => props.commands!.execute as ReturnType<typeof vi.fn>;
-
-/** The active suite locale is vi (test/setup.ts beforeAll), so the accessible
- *  names the product renders are the Vietnamese strings. */
-const viText = (key: string): string => {
-  const value = key.split(".").reduce<unknown>((node, part) =>
-    node && typeof node === "object" ? (node as Record<string, unknown>)[part] : undefined, viLocale);
-  if (typeof value !== "string") throw new Error(`missing vi locale key ${key}`);
-  return value;
-};
 const RANGE = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
 
-describe("XlsxStructureMergeGroup", () => {
+function split(item: RibbonItem): RibbonSplitItem {
+  if (item.kind !== "split") throw new Error("expected a split item");
+  return item;
+}
+const entry = (item: RibbonSplitItem, id: string) => item.menu.find((candidate) => candidate.id === id)!;
+
+describe("xlsxMergeRibbonItem", () => {
+  it("is an icon split with the three merge commands in its menu", () => {
+    const item = split(xlsxMergeRibbonItem(groupProps()));
+    expect(item).toMatchObject({ id: "align-merge", size: "icon" });
+    expect(item.menu.map((candidate) => candidate.id)).toEqual(["merge-cells", "merge-across", "unmerge-cells"]);
+  });
+
   it("fires the pinned merge and unmerge commands with the selection range", () => {
     const props = groupProps();
-    render(<XlsxStructureMergeGroup {...props} />);
+    const item = split(xlsxMergeRibbonItem(props));
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
+    entry(item, "merge-cells").onSelect();
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ALL_COMMAND, { selections: RANGE });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") }));
+    entry(item, "merge-across").onSelect();
     expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ACROSS_COMMAND, { selections: RANGE });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
+    entry(item, "unmerge-cells").onSelect();
     expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, { ranges: RANGE });
+  });
+
+  it("merge & center merges the selection then centres it", () => {
+    const props = groupProps();
+    split(xlsxMergeRibbonItem(props)).onExecute();
+    expect(executeMock(props).mock.calls).toEqual([
+      [XLSX_MERGE_ALL_COMMAND, { selections: RANGE }],
+      ["sheet.command.set-horizontal-text-align", { value: 2 }],
+    ]);
   });
 
   it("keeps a one-row multi-column selection mergeable and unmergeable", () => {
     const props = groupProps({ selection: { sheet: "Data", address: "B2", endAddress: "D2" } });
-    render(<XlsxStructureMergeGroup {...props} />);
-    const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") }));
-    expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ACROSS_COMMAND, {
-      selections: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }],
-    });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
-    expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, {
-      ranges: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }],
-    });
+    const item = split(xlsxMergeRibbonItem(props));
+    const row = [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }];
+    entry(item, "merge-across").onSelect();
+    expect(executeMock(props)).toHaveBeenCalledWith(XLSX_MERGE_ACROSS_COMMAND, { selections: row });
+    entry(item, "unmerge-cells").onSelect();
+    expect(executeMock(props)).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, { ranges: row });
   });
 
   it("disables merge across on a single-column selection, where each row would merge into itself", () => {
     const props = groupProps({ selection: { sheet: "Data", address: "B2", endAddress: "B4" } });
-    render(<XlsxStructureMergeGroup {...props} />);
-    const execute = executeMock(props);
-    const across = screen.getByRole("button", { name: viText("office.xlsx.structure.mergeAcross") });
-    expect(across).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(across);
-    expect(execute).not.toHaveBeenCalled();
-    // Merge cells and unmerge still act on the column span.
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
-    expect(execute).toHaveBeenCalledWith(XLSX_MERGE_ALL_COMMAND, {
+    const item = split(xlsxMergeRibbonItem(props));
+    const across = entry(item, "merge-across");
+    expect(across.disabled).toBe(true);
+    across.onSelect();
+    expect(executeMock(props)).not.toHaveBeenCalled();
+    expect(entry(item, "merge-cells").disabled).toBe(false);
+    entry(item, "merge-cells").onSelect();
+    expect(executeMock(props)).toHaveBeenCalledWith(XLSX_MERGE_ALL_COMMAND, {
       selections: [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 1 }],
     });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.unmergeCells") }));
-    expect(execute).toHaveBeenCalledWith(XLSX_UNMERGE_COMMAND, {
-      ranges: [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 1 }],
-    });
   });
 
-  it("refuses clicks in a read-only mount", () => {
-    const props = groupProps({ readOnly: true });
-    render(<XlsxStructureMergeGroup {...props} />);
-    for (const name of [viText("office.xlsx.structure.mergeCells"), viText("office.xlsx.structure.mergeAcross"), viText("office.xlsx.structure.unmergeCells")]) {
-      const button = screen.getByRole("button", { name });
-      expect(button).toHaveAttribute("aria-disabled", "true");
-      fireEvent.click(button);
-    }
-    expect(executeMock(props)).not.toHaveBeenCalled();
-  });
-
-  it("disables every control without a selection, with a single cell, or without a commands port", () => {
+  it("refuses everything read-only, without a selection, on a single cell or without a commands port", () => {
     for (const overrides of [
+      { readOnly: true },
       { selection: null },
       { selection: { sheet: "Data", address: "B2" } },
       { commands: undefined },
     ] as Partial<XlsxToolbarGroupProps>[]) {
       const props = groupProps(overrides);
-      const view = render(<XlsxStructureMergeGroup {...props} />);
-      for (const button of view.container.querySelectorAll("button")) {
-        expect(button.getAttribute("aria-disabled")).toBe("true");
+      const item = split(xlsxMergeRibbonItem(props));
+      expect(item.disabled).toBe(true);
+      item.onExecute();
+      for (const candidate of item.menu) {
+        expect(candidate.disabled).toBe(true);
+        candidate.onSelect();
       }
-      if (props.commands) {
-        fireEvent.click(view.getByRole("button", { name: viText("office.xlsx.structure.mergeCells") }));
-        expect(executeMock(props)).not.toHaveBeenCalled();
-      }
-      view.unmount();
+      if (props.commands) expect(executeMock(props)).not.toHaveBeenCalled();
     }
   });
 });

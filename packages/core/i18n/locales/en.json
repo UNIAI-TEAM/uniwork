@@ -8251,7 +8251,8 @@
               "percent-integer": "12%",
               "percent-decimal2": "12.34%",
               "text": "Text"
-            }
+            },
+            "comma": "Comma style"
           },
           "font": {
             "label": "Font",
@@ -8324,6 +8325,18 @@
             "shortcuts": {
               "label": "Shortcuts"
             }
+          },
+          "cells": "Cells",
+          "editing": "Editing",
+          "clipboardItems": {
+            "paste": "Paste",
+            "cut": "Cut",
+            "copy": "Copy"
+          },
+          "cellsItems": {
+            "insert": "Insert",
+            "delete": "Delete",
+            "format": "Format"
           }
         },
         "overflow": "More commands",
@@ -8418,7 +8431,8 @@
         "clearOutline": "Clear outline",
         "mergeCells": "Merge cells",
         "mergeAcross": "Merge across",
-        "unmergeCells": "Unmerge cells"
+        "unmergeCells": "Unmerge cells",
+        "mergeCenter": "Merge & Center"
       },
       "filter": {
         "groups": {

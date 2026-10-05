@@ -434,6 +434,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onUndo={undo}
                 onRedo={redo}
                 onRecalculate={recalculate}
+                onCut={() => { void cut().catch(clipboardFailure); }}
                 onCopy={() => { void copy().catch(clipboardFailure); }}
                 onPaste={() => { void paste().catch(clipboardFailure); }}
                 onShowSheets={() => sheetTabsRef.current?.focus()}

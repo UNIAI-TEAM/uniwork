@@ -6,7 +6,6 @@ import { XLSX_TOOLBAR_GROUPS } from "./registry";
 const A1_GROUPS = [
   { id: "font", order: 50 },
   { id: "alignment", order: 60 },
-  { id: "borders", order: 70 },
 ] as const;
 
 function lookup(dictionary: unknown, key: string): unknown {
@@ -34,6 +33,12 @@ describe("xlsx toolbar registry", () => {
   it("keeps every group id unique", () => {
     const ids = XLSX_TOOLBAR_GROUPS.map((group) => group.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("registers the Excel Home groups in order, all as typed ribbon items", () => {
+    const home = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === "home").sort((left, right) => left.order - right.order);
+    expect(home.map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "cells", "editing"]);
+    for (const group of home) expect(typeof group.ribbonItems, group.id).toBe("function");
   });
 
   it("registers the Home formatting groups with labels in both locales", () => {
