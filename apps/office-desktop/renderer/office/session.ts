@@ -38,6 +38,9 @@ type LaneEditorFacets = {
    * real pages instead of its empty placeholder (U1/U2). */
   renderer?: PdfPageRenderService;
   getCanvasPages?(): readonly PdfCanvasPage[];
+  /** Panel engine envelopes (notes, stamps, forms): forwarded so the note and
+   * form panels get a provider and can place a real write (F-14). */
+  submitEngineOperations?(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] } | void>;
 };
 
 export type LocalFileRebind = Readonly<{
@@ -159,6 +162,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get getPdfSnapshot() { const lane = surface; return lane?.getPdfSnapshot?.bind(lane); },
     get renderer() { return surface?.renderer; },
     get getCanvasPages() { const lane = surface; return lane?.getCanvasPages?.bind(lane); },
+    get submitEngineOperations() { const lane = surface; return lane?.submitEngineOperations?.bind(lane); },
     get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,

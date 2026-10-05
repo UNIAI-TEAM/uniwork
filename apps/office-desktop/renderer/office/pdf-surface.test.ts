@@ -89,6 +89,48 @@ describe("desktop PDF surface", () => {
     expect(surface.getCanvasPages?.()).toHaveLength(1);
   });
 
+  it("submits panel engine envelopes (notes) through the edit channel and reports skips", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64"), warnings: [] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(surface.submitEngineOperations).toBeTypeOf("function");
+    // The panel providers hand over already-bridged camelCase envelopes, so they
+    // must reach the engine unaltered (no second snake_case bridge).
+    const result = (await surface.submitEngineOperations!([{ op: "addNote", attributes: { note: { pageIndex: 0, rect: [10, 20, 34, 44], contents: "Ghi chu" } } }])) as { skipped: { op: string; reason: string }[] };
+    expect(result).toEqual({ skipped: [] });
+    const editCall = call.mock.calls.find(([, payload]) => (payload as { operation: string }).operation === "edit")!;
+    expect(editCall[1]).toMatchObject({ operation: "edit", args: { edits: [{ op: "addNote", attributes: { note: { pageIndex: 0, rect: [10, 20, 34, 44], contents: "Ghi chu" } } }] } });
+    expect(surface.getDirtyGeneration()).toBe(3);
+  });
+
+  it("surfaces an engine note skip so the view reports it instead of claiming success", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64"), warnings: [{ code: "edit_skipped", detail: "note page=1: page out of range" }] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const result = (await surface.submitEngineOperations!([{ op: "addNote", attributes: { note: { pageIndex: 0, rect: [1, 2, 3, 4], contents: "x" } } }])) as { skipped: { op: string; reason: string }[] };
+    expect(result.skipped).toEqual([{ op: "addNote", reason: "note page=1: page out of range" }]);
+  });
+
+  it("keeps a form refusal identifiable in the skipped entries", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64"), warnings: [{ code: "edit_skipped", detail: 'form field "fullName": WinAnsi cannot encode' }] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const result = (await surface.submitEngineOperations!([{ op: "setFormValue", field: { name: "fullName", kind: "text", value: "x" } }])) as { skipped: { op: string; reason: string }[] };
+    expect(result.skipped).toEqual([{ op: "setFormValue", reason: 'form field "fullName": WinAnsi cannot encode' }]);
+  });
+
   it("refuses an edit when the capability is read-only", async () => {
     const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 } }));
     const surface = createDesktopPdfSurface(settings(call, { readOnly: true }));

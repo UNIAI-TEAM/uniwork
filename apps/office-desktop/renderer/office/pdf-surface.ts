@@ -20,6 +20,9 @@ type EngineResponse = {
   width?: number;
   height?: number;
   dataBase64?: string;
+  /** Skips the edit lane reported (a note page out of range, a form value the
+   * font cannot encode); the panel providers turn these into their own message. */
+  warnings?: readonly { code: string; detail?: string }[];
   error?: { kind?: string; status?: string };
 };
 
@@ -48,6 +51,38 @@ function abortError(): DOMException {
   return new DOMException("The pdf render was aborted", "AbortError");
 }
 
+/** The op name each engine warning detail begins with; the detail prefixes the
+ * kind (`note page=1: …`) or, for a form value, the field (`form field "x": …`). */
+const SKIP_OP_BY_PREFIX: Readonly<Record<string, string>> = {
+  text: "putTextEdit",
+  insert: "addTextInsert",
+  image: "addImageEdit",
+  annot: "deleteAnnots",
+  markup: "addMarkup",
+  drawing: "addDrawing",
+  stamp: "addStamp",
+  note: "addNote",
+  "note-edit": "editSavedNote",
+  "note-resolve": "resolveNote",
+};
+
+/** Turn the edit lane's skip warnings into the view's `{op, reason}` shape so a
+ * refused note or form value is reported instead of silently claimed as applied. */
+function skippedFromWarnings(warnings: readonly { code: string; detail?: string }[] | undefined): { op: string; reason: string }[] {
+  const skipped: { op: string; reason: string }[] = [];
+  for (const warning of warnings ?? []) {
+    if (warning.code !== "edit_skipped" || typeof warning.detail !== "string") continue;
+    const detail = warning.detail;
+    if (detail.startsWith('form field "')) {
+      skipped.push({ op: "setFormValue", reason: detail });
+      continue;
+    }
+    const prefix = detail.split(" ")[0] ?? "";
+    skipped.push({ op: SKIP_OP_BY_PREFIX[prefix] ?? prefix, reason: detail });
+  }
+  return skipped;
+}
+
 function passwordFailureClass(error: EngineResponse["error"]): "password_required" | "wrong_password" | null {
   if (error?.kind !== "password") return null;
   return error.status === "wrong" ? "wrong_password" : "password_required";
@@ -61,6 +96,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   getPdfSnapshot(): PdfSnapshot | null;
   selection: PdfSelectionPort;
   edit(operations: readonly unknown[]): Promise<void>;
+  submitEngineOperations(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] }>;
 } {
   let bytes: Uint8Array = Uint8Array.from([]);
   let generation = settings.generation;
@@ -140,6 +176,23 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     }
   };
 
+  /** Apply one batch of engine envelopes, swap the bytes, bump the generation and
+   * report the skips. Shared by the snake_case `edit` path and the camelCase
+   * panel path so both keep one dirty/refresh discipline. */
+  const applyEngineEdits = async (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => {
+    if (settings.readOnly) throw new Error("pdf_readonly");
+    const result = await callEngine("edit", { dataBase64: encodeBase64(bytes), edits: [...edits] });
+    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
+    bytes = Uint8Array.from(decodeBase64(result.dataBase64));
+    await refreshGeometry();
+    generation += 1;
+    // The edited bytes paint differently: drop every cached page and let the
+    // canvas re-request it through the new generation key.
+    clearCache();
+    for (const listener of listeners) listener(generation);
+    return { skipped: skippedFromWarnings(result.warnings) };
+  };
+
   const surface = {
     format: "pdf" as const,
     async open(_signal?: AbortSignal, nextPassword?: string) {
@@ -169,18 +222,13 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       return { generation, fingerprint, value: bytes.slice(), sizeBytes: bytes.byteLength };
     },
     async edit(operations: readonly unknown[]) {
-      if (settings.readOnly) throw new Error("pdf_readonly");
       const edits = await bridgePdfOperations(operations as readonly PdfEditOperation[]);
-      const result = await callEngine("edit", { dataBase64: encodeBase64(bytes), edits: [...edits] });
-      if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-      bytes = Uint8Array.from(decodeBase64(result.dataBase64));
-      await refreshGeometry();
-      generation += 1;
-      // The edited bytes paint differently: drop every cached page and let the
-      // canvas re-request it through the new generation key.
-      clearCache();
-      for (const listener of listeners) listener(generation);
+      await applyEngineEdits(edits);
     },
+    // The panel providers (notes, stamps, forms) hand over already-bridged
+    // camelCase envelopes, so they skip the snake_case bridge and go straight to
+    // the engine. Returning the skips lets the view report a refused write.
+    submitEngineOperations: (operations: readonly unknown[]) => applyEngineEdits(operations),
     getPdfSnapshot: () => snapshot,
     renderer,
     getCanvasPages: canvasPages,

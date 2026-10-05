@@ -202,6 +202,22 @@ it("forwards the pdf lane edit and snapshot facets through the session facade", 
   expect(session.coordinator.getState().dirtyGeneration).toBe(1);
 });
 
+it("forwards the pdf engine-operation facet so the note panel gets a provider (F-14)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+    return { ok: true, operation: "edit", dataBase64: opened.dataBase64, warnings: [] };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.submitEngineOperations).toBeTypeOf("function");
+  const result = await session.editor.submitEngineOperations?.([{ op: "addNote", attributes: { note: { pageIndex: 0, rect: [10, 20, 34, 44], contents: "Ghi chu" } } }]);
+  expect(result).toEqual({ skipped: [] });
+  const edit = call.mock.calls.find(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "edit");
+  expect(edit?.[1]).toMatchObject({ operation: "edit", args: { edits: [{ op: "addNote", attributes: { note: { pageIndex: 0, contents: "Ghi chu" } } }] } });
+  expect(session.coordinator.getState().dirtyGeneration).toBe(1);
+});
+
 it("forwards the pdf renderer and real page sizes so the shared canvas draws pages (U1/U2)", async () => {
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
