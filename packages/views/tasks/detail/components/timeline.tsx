@@ -493,6 +493,7 @@ export function TaskDetailTimeline({
               <div
                 key={entry.thread.root.id}
                 data-testid={`task-timeline-comment-${entry.thread.root.id}`}
+                data-thread-root-id={entry.thread.root.id}
               >
                 {isThreadResolved(entry.thread) ? (
                   <ResolvedThreadBar

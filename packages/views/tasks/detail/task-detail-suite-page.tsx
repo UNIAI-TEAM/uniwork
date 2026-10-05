@@ -14,6 +14,7 @@ import { TaskDetailEditors } from "./components/task-detail-editors";
 import { TaskDetailHeaderActions } from "./components/task-detail-header-actions";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
+import { TaskDetailThreadTocRail } from "./components/thread-toc-rail";
 import { TaskFindScope } from "./find/task-find-scope";
 import { useRecordTaskVisit } from "./hooks/use-record-task-visit";
 import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-restore";
@@ -107,7 +108,7 @@ export function TaskDetailSuitePage(props: {
         sidebarDefaultSize={defaultPropertiesOpen ? "28%" : 0}
         main={
           <div
-            className="flex h-full min-h-0 flex-col"
+            className="relative flex h-full min-h-0 flex-col"
             data-testid="task-detail-main-pane"
           >
             <TaskThreadNavProvider scrollContainerEl={scrollEl}>
@@ -146,6 +147,7 @@ export function TaskDetailSuitePage(props: {
                   onSaveDescription={(description) => saveField({ description })}
                 />
               </TaskFindScope>
+              <TaskDetailThreadTocRail taskId={taskId} />
             </TaskThreadNavProvider>
           </div>
         }

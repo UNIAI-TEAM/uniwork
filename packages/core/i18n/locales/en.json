@@ -1879,6 +1879,10 @@
         "hint_jump": "jump",
         "hint_close": "close"
       },
+      "thread_toc": {
+        "label": "Jump to comment threads",
+        "comment_label": "Comment thread {{index}}"
+      },
       "find": {
         "label": "Find in task",
         "placeholder": "Find in task…",
