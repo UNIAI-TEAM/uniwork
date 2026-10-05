@@ -1,8 +1,9 @@
 "use client";
 
 import { useParticipants } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { Hand } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -19,12 +20,20 @@ const DOCK_RESERVE_BUFFER_PX = 8;
 const MIN_DOCK_RESERVE_PX = 80;
 const COLLAPSED_RESERVE_MIN_PX = 8;
 
-function MeetingHandsBanner({ className }: { className?: string }) {
-  const { t, i18n } = useTranslation();
-  const { hands } = useMeetingSignals();
-  const participants = useParticipants();
+/** Joins and leaves are always followed; a rename is the one other change the names show. */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
+function MeetingHandsBanner({ className }: { className?: string }) {
+  const { hands } = useMeetingSignals();
+  // The roster is only read while a hand is up: the rest of the time the
+  // banner follows no room event at all.
   if (hands.length === 0) return null;
+  return <HandsBannerNames hands={hands} className={className} />;
+}
+
+function HandsBannerNames({ hands, className }: { hands: readonly string[]; className?: string }) {
+  const { t, i18n } = useTranslation();
+  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
 
   const names = new Intl.ListFormat(meetingLocale(i18n.language), {
     style: "long",
@@ -65,7 +74,8 @@ function reserveTotal(contentPx: number, collapsed = false): number {
   return contentPx + edge + buffer;
 }
 
-export function MeetingStageFooter({
+/** Memoized: the stage memoizes the prompt, captions and control bar it passes. */
+export const MeetingStageFooter = memo(function MeetingStageFooter({
   stageContentRef,
   captionsOn,
   captions,
@@ -300,4 +310,4 @@ export function MeetingStageFooter({
       </div>
     </div>
   );
-}
+});

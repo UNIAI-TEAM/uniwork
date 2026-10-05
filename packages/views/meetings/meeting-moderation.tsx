@@ -7,11 +7,13 @@ import { Lock, LockOpen, MicOff, UserMinus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useRemoveParticipant, useSetParticipantPublish } from "@uniwork/core/meetings";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@uniwork/ui/components/ui/dropdown-menu";
+import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { micLockedNow, PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
-import { useRequestMute } from "./use-meeting-signals";
+import { useMeetingSignals, useRequestMute } from "./use-meeting-signals";
 
 function participantIdFromIdentity(identity: string): string | null {
   return identity.startsWith(PARTICIPANT_IDENTITY_PREFIX)
@@ -189,6 +191,44 @@ export function MeetingModerationMenuItems({
           </DropdownMenuItem>
         </>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * The host's "mute everyone", behind a confirm: one data-channel message that
+ * every client but the hosts' honours by muting itself (each may unmute).
+ * Nothing for a viewer who cannot host.
+ */
+export function MeetingMuteAllButton({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  const moderation = useContext(ModerationCtx);
+  const { requestMuteAll } = useMeetingSignals();
+  const [confirming, setConfirming] = useState(false);
+  if (!moderation) return null;
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className={cn("h-9 w-full rounded-xl", className)}
+        onClick={() => setConfirming(true)}
+      >
+        <MicOff aria-hidden className="size-4" />
+        {t("meetings.muteEveryone")}
+      </Button>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("meetings.muteEveryoneTitle")}
+        description={t("meetings.muteEveryoneHint")}
+        confirmLabel={t("meetings.muteEveryone")}
+        destructive={false}
+        onConfirm={() => {
+          requestMuteAll();
+          setConfirming(false);
+        }}
+      />
     </>
   );
 }

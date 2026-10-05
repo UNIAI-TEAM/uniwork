@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { Participant } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -7,19 +7,23 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { MeetingModerationMenuItems, MeetingModerationProvider } from "./meeting-moderation";
+import { MeetingModerationMenuItems, MeetingModerationProvider, MeetingMuteAllButton } from "./meeting-moderation";
 
 const api = vi.hoisted(() => ({
   publish: vi.fn(),
   remove: vi.fn(),
   requestMute: vi.fn(),
+  requestMuteAll: vi.fn(),
 }));
 
 vi.mock("@uniwork/core/meetings", () => ({
   useSetParticipantPublish: () => ({ mutate: api.publish, isPending: false }),
   useRemoveParticipant: () => ({ mutate: api.remove, isPending: false }),
 }));
-vi.mock("./use-meeting-signals", () => ({ useRequestMute: () => api.requestMute }));
+vi.mock("./use-meeting-signals", () => ({
+  useRequestMute: () => api.requestMute,
+  useMeetingSignals: () => ({ requestMuteAll: api.requestMuteAll }),
+}));
 
 beforeAll(() => {
   initI18n();
@@ -29,6 +33,7 @@ beforeEach(() => {
   api.publish.mockClear();
   api.remove.mockClear();
   api.requestMute.mockClear();
+  api.requestMuteAll.mockClear();
 });
 
 function person(micLocked = false): Participant {
@@ -99,5 +104,30 @@ describe("MeetingModerationMenuItems", () => {
   it("shows nothing to someone who cannot host", () => {
     renderMenu(person(), { canHost: false });
     expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingMuteAllButton", () => {
+  it("asks the host first, then mutes the room", () => {
+    render(
+      <MeetingModerationProvider meetingId="m1" canHost>
+        <MeetingMuteAllButton />
+      </MeetingModerationProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tắt mic mọi người" }));
+    expect(api.requestMuteAll).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("alertdialog", { name: "Tắt mic mọi người?" });
+    expect(dialog).toHaveTextContent("trừ chủ trì");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tắt mic mọi người" }));
+    expect(api.requestMuteAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not there for someone who cannot host", () => {
+    render(
+      <MeetingModerationProvider meetingId="m1" canHost={false}>
+        <MeetingMuteAllButton />
+      </MeetingModerationProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Tắt mic mọi người" })).not.toBeInTheDocument();
   });
 });
