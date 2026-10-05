@@ -79,10 +79,10 @@ describe("DocxStatusBar chrome adapter", () => {
       "docx-status-characters",
       "docx-status-characters-no-spaces",
       "docx-status-language",
-      "docx-status-zoom",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });
 

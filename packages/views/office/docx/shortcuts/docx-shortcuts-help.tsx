@@ -23,7 +23,7 @@ interface DocxShortcutRow {
 }
 
 /**
- * The DOCX shortcuts reference: a `?` button and `Mod+/` open a searchable,
+ * The DOCX shortcuts reference: an inline `?` button (rendered in the status bar help slot) and `Mod+/` open a searchable,
  * grouped list of every entry in shortcut-map.ts, with the chord spelled for
  * the current platform. The map owns the bindings; this sheet only renders
  * them, so a new entry needs no change here.
@@ -74,22 +74,17 @@ export function DocxShortcutsHelp({ readOnly = false }: DocxToolbarGroupContext)
 
   return (
     <>
-      {/* Zero-height dock: the trigger floats at the editor's bottom-right
-          corner (clear of the status row) without adding a layout row. */}
-      <div className="relative h-0" data-testid="docx-shortcuts-dock">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("office.docx.shortcuts.title")}
-          aria-haspopup="dialog"
-          data-testid="docx-shortcuts-help-trigger"
-          className="absolute end-14 -top-12 z-20 bg-background shadow-[var(--menu-shadow)]"
-          onClick={() => setOpen(true)}
-        >
-          <CircleHelp aria-hidden />
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label={t("office.docx.shortcuts.title")}
+        aria-haspopup="dialog"
+        data-testid="docx-shortcuts-help-trigger"
+        onClick={() => setOpen(true)}
+      >
+        <CircleHelp aria-hidden />
+      </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           data-testid="docx-shortcuts-dialog"
