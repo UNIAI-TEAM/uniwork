@@ -3,12 +3,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PptxFindReplacePanel } from "./pptx-find-replace";
-import { findI18nResources } from "./find-i18n";
 import type { PptxFindTextTarget } from "./pptx-find-model";
 
-const i18n = initI18n();
-i18n.addResourceBundle("en", "translation", findI18nResources("en"), true, true);
-i18n.addResourceBundle("vi", "translation", findI18nResources("vi"), true, true);
+// The panel strings live in the shared locale files (office.pptx.find.*).
+initI18n();
 beforeEach(async () => { await setLocale("en"); });
 
 const TEXTS: PptxFindTextTarget[] = [
@@ -86,7 +84,26 @@ describe("PptxFindReplacePanel", () => {
       firstOnly: true,
       slideIndex: 1,
       elementId: "t3",
+      occurrence: 0,
     });
+  });
+
+  it("closes on Escape from any control in the panel, not only the query (X4fix F6)", () => {
+    const onClose = vi.fn();
+    renderPanel({ onClose });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Replace with" }), { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Find next" }), { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Find" }), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("clears the active hit when the panel goes away, so no stale intent outlives it (X4fix F9)", () => {
+    const onActiveHitChange = vi.fn();
+    const { view } = renderPanel({ onActiveHitChange });
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "slide" } });
+    expect(onActiveHitChange).toHaveBeenLastCalledWith({ slideIndex: 0, elementId: "t1" });
+    view.unmount();
+    expect(onActiveHitChange).toHaveBeenLastCalledWith(null);
   });
 
   it("honours the match-case toggle", () => {

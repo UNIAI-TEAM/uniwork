@@ -46,6 +46,15 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     expect(onCommand).toHaveBeenCalledWith("find");
   });
 
+  it("drops a hidden command from the quick-access and trailing slots too (X4fix F8)", () => {
+    const hiddenAll = createPptxCommandMap({
+      host: null,
+      capabilities: Object.fromEntries(["undo", "redo", "presenter", "find"].map((id) => [id, { status: "unavailable", reason: "x", hidden: true }])),
+    });
+    render(<PptxToolbar commands={hiddenAll} onCommand={vi.fn()} canUndo={false} canRedo={false} />);
+    for (const id of ["undo", "redo", "presenter", "find"]) expect(document.querySelector(`[data-command="${id}"]`)).toBeNull();
+  });
+
   it("switches the active tab's groups and keeps every command path intact", () => {
     const onCommand = vi.fn();
     render(<PptxToolbar commands={commands} onCommand={onCommand} />);

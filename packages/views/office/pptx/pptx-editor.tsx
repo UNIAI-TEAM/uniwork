@@ -63,9 +63,6 @@ export interface PptxEditorProps {
   /** In-place text commit (A1ui). When bound, double-clicking a text element opens the
    *  contenteditable overlay; the commit carries the typed paragraphs for that element. */
   onCommitText?: (commit: PptxTextCommit) => Promise<unknown> | void;
-  /** Superseded by the find panel's own hit navigation (it reads the bound deck and
-   *  selects the hit on the canvas); the editor no longer calls it. */
-  onFind?: (query: string) => void;
   /** Speaker-notes read (NOTES-WIRE); absent keeps the honest empty-notes line. */
   slideNotes?: (slideIndex: number) => string | null;
   /** The deck's slide layouts for "New slide" (W4 F-03); absent (or the handle's
@@ -86,10 +83,10 @@ export interface PptxEditorProps {
   panelKind?: PptxPanelKind;
   /** Wire-round seam: the deck data the notes/comments/headerfooter/media panels read. */
   panelData?: PptxPanelData;
-  /** The print/PDF port (C1). Absent: the editor prints through the browser print
-   *  frame (the host's `host:pdf-save` channel first when it has one). `null`
-   *  turns Print and Export PDF off (they are hidden, not shown dead). */
-  printPort?: PptxPrintPort | null;
+  /** The print/PDF port (C1), bound explicitly by the host: a port, `"browser"`
+   *  for the browser print frame (Chromium's print dialog, Save as PDF), or
+   *  absent/`null` - then Print and Export PDF are hidden, not shown dead. */
+  printPort?: PptxPrintPort | "browser" | null;
   /** Wire-round seam: ONE generic edit channel every panel port routes to.
    *  Accepts the FormatEdit union too (an engine gap: it is not yet a PptxEdit
    *  kind). Falls back to the editor handle edit port when the host supplies none. */
@@ -178,25 +175,17 @@ export function PptxEditor({
     () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
     [slides, thumbnails],
   );
-  // R2-6: with no host-supplied port the editor prints through the browser print
-  // frame; a deck-less editor has nothing to print, so the commands drop out.
+  // X4fix F2: printing runs only on the path the host bound; a deck-less editor
+  // has nothing to print, so the commands drop out.
   const printPort = useMemo(
-    () => (!deckBound ? null : printPortProp === undefined ? createPptxPrintPort({ host }) : printPortProp),
-    [deckBound, host, printPortProp],
+    () => (!deckBound || !printPortProp ? null : printPortProp === "browser" ? createPptxPrintPort() : printPortProp),
+    [deckBound, printPortProp],
   );
   const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
   const handleEdit = useMemo(
     () => (editableHandle?.edit ? (edits: readonly PptxEdit[]) => editableHandle.edit!(edits) : undefined),
     [editableHandle],
   );
-  const effectiveCapabilities = useMemo(() => pptxEditorCapabilities(capabilities, {
-    open: Boolean(onOpen),
-    textEdit: Boolean(onTextEdit),
-    transform: Boolean(transformRequest),
-    edit: Boolean(onApplyEdit ?? handleEdit),
-    printPort,
-  }), [capabilities, handleEdit, onApplyEdit, onOpen, onTextEdit, printPort, transformRequest]);
-  const commands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
 
   useEffect(() => {
     if (!editorHandle) return;
@@ -387,6 +376,18 @@ export function PptxEditor({
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
   const canEditText = Boolean(onTextEdit) || (Boolean(onCommitText) && selectionHasText);
+  const effectiveCapabilities = useMemo(() => pptxEditorCapabilities(capabilities, {
+    open: Boolean(onOpen),
+    textEdit: Boolean(onTextEdit),
+    // X4fix F4: the in-place editor runs Text over a selected text element.
+    commitText: Boolean(onCommitText),
+    textSelected: selectionHasText,
+    transform: Boolean(transformRequest),
+    edit: Boolean(onApplyEdit ?? handleEdit),
+    // Not before the renderer is loaded: a click then would have nothing to print.
+    printPort: deckRenderer ? printPort : null,
+  }), [capabilities, deckRenderer, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPort, selectionHasText, transformRequest]);
+  const commands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
     return slideDisplaySize(fitWidthPx, zoom, aspect);
@@ -454,9 +455,13 @@ export function PptxEditor({
       case "export-pdf":
       case "print":
         // C1: one committed print run through the bound port; nothing is faked
-        // when the port is absent (the capability above keeps it disabled).
+        // when the port is absent (the capability above hides it). X4fix F1: a
+        // run the port reports as failed surfaces like any refused command.
         if (printPort && deckRenderer) {
-          const print = () => printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) });
+          const print = async () => {
+            const result = await printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) });
+            if (result.outcome === "failed") throw new Error(result.reason);
+          };
           const commit = flushTextEdit();
           runCommand(commit ? commit.then(print) : print());
         }

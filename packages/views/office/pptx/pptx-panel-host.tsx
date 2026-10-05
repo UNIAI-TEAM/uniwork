@@ -7,7 +7,7 @@
  * that belongs to it: Design -> PptxDesignPanel, Insert -> PptxInsertPanel,
  * Animations -> PptxAnimationsPanel, Transitions -> PptxTransitionsPanel,
  * Sorter -> PptxSorterPanel, Tables -> PptxTablesPanel, Charts -> PptxChartsPanel,
- * Format -> PptxFormatPanel, Find -> PptxFindReplacePanel, Links -> PptxLinkEditor,
+ * Format -> PptxFormatPanel, Links -> PptxLinkEditor,
  * Notes -> PptxNotesPane, Comments -> PptxCommentsPanel,
  * Header/footer -> PptxHeaderFooterPanel, Media -> PptxMediaPanel.
  *
@@ -32,7 +32,6 @@ import type { PptxRibbonContextualSelection } from "./pptx-ribbon";
 import { PptxAnimationsPanel } from "./animations";
 import { PptxChartsPanel } from "./charts";
 import { PptxDesignPanel } from "./design";
-import { PptxFindReplacePanel } from "./find";
 import { PptxFormatPanel } from "./format";
 import { PptxInsertPanel } from "./insert";
 import type { PptxInsertElementRef } from "./insert/insert-model";
@@ -55,7 +54,6 @@ export type PptxPanelKind =
   | "charts"
   | "format"
   | "text-format"
-  | "find"
   | "links"
   | "notes"
   | "comments"
@@ -315,8 +313,6 @@ export function PptxPanelHost({
           className={className}
         />
       );
-    case "find":
-      return <PptxFindReplacePanel texts={[]} {...(onApplyEdit ? { onFindReplace: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} className={className} />;
     case "links":
       return <PptxLinkEditor key={selectionKey} {...(selection ? { elementId: selection.ids.length === 1 ? selection.elementId : null } : {})} slideIndex={slideIndex} {...(onApplyEdit ? { onSetLink: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} className={className} />;
     case "notes":

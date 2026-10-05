@@ -6,10 +6,12 @@
  *   - the BROWSER path mounts the document in a hidden iframe and calls
  *     `contentWindow.print()`, which is what Chromium's "Save as PDF" and the
  *     desktop `printToPDF` both consume;
- *   - the HOST path forwards the same HTML to the host's typed `host:pdf-save`
- *     channel when the caller bound one (the genoffice slides desktop export is
- *     `webContents.printToPDF` over an app-owned HTML file), and falls back to
- *     the browser path when the host refuses.
+ *   - the HOST path hands the same HTML to a `pdfSave` function the host bound
+ *     explicitly (the genoffice slides desktop export is `webContents.printToPDF`
+ *     over an app-owned HTML file). A port is either one or the other: it never
+ *     tries a channel nobody bound and then falls back (X4fix F2), so `mode` is
+ *     the path that runs. No host binds `pdfSave` yet: the web host binds the
+ *     browser path, the desktop host binds nothing and the commands are hidden.
  *
  * The port is a seam, not a policy: it never decides whether the command exists.
  * `pptxPrintCapability` answers the command map from what the port can actually
@@ -18,12 +20,8 @@
  * The frame and the document are injectable so a jsdom test drives the whole
  * path without a real window or a real print dialog.
  */
-import type { OfficeHost } from "@uniwork/core/office";
 import type { PptxCommandCapability } from "../command-map";
 import { buildPptxPrintHtml, type PptxPrintSlide } from "./pptx-print";
-
-/** The host channel the contract already declares for a PDF write. */
-export const PPTX_PRINT_HOST_CHANNEL = "host:pdf-save";
 
 export interface PptxPrintRequest {
   slides: readonly PptxPrintSlide[];
@@ -47,9 +45,12 @@ export interface PptxPrintFrame {
   remove(): void;
 }
 
+/** A host-owned PDF write (main-process printToPDF + save dialog). */
+export type PptxPdfSave = (request: { html: string; title?: string; fileName?: string }) => Promise<{ ok?: boolean; path?: string } | undefined>;
+
 export interface PptxPrintPortOptions {
-  /** Host IPC, when the host exposes a printToPDF channel. */
-  host?: OfficeHost | null;
+  /** The host's PDF write. Bound: every run takes the host path, never the browser. */
+  pdfSave?: PptxPdfSave;
   /** Document seam; defaults to the ambient `document` when there is one. */
   document?: Document | null;
   /** Frame factory seam; defaults to a hidden iframe appended to `document.body`. */
@@ -61,7 +62,7 @@ export interface PptxPrintPortOptions {
 export interface PptxPrintPort {
   /** True when the port can print: a frame to print from, or a host channel. */
   readonly available: boolean;
-  /** The path a print run would take. `host` only when the host channel is bound. */
+  /** The path a print run takes. `host` only when the host bound `pdfSave`. */
   readonly mode: PptxPrintMode;
   print(request: PptxPrintRequest): Promise<PptxPrintOutcome>;
 }
@@ -101,10 +102,6 @@ export function createHiddenPrintFrame(doc: Document, html: string): PptxPrintFr
   };
 }
 
-function hasHostChannel(host: OfficeHost | null | undefined): boolean {
-  return typeof host?.ipc?.call === "function";
-}
-
 function wait(ms: number): Promise<void> {
   if (!(ms > 0)) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -118,7 +115,7 @@ function wait(ms: number): Promise<void> {
 export function createPptxPrintPort(options: PptxPrintPortOptions = {}): PptxPrintPort {
   const frameFactory = options.createFrame ?? createHiddenPrintFrame;
   const readyDelayMs = options.readyDelayMs ?? 0;
-  const hostBound = hasHostChannel(options.host);
+  const pdfSave = options.pdfSave;
   /** An explicitly supplied `document` wins (including an explicit null); otherwise the
    *  ambient one. Distinguishing null from undefined keeps "no DOM at all" testable. */
   const resolveDocument = (): Document | null => (options.document !== undefined ? options.document : defaultDocument());
@@ -126,8 +123,8 @@ export function createPptxPrintPort(options: PptxPrintPortOptions = {}): PptxPri
     const doc = resolveDocument();
     return doc != null && doc.body != null;
   };
-  const mode: PptxPrintMode = hostBound ? "host" : "browser";
-  const available = hostBound || canUseBrowser();
+  const mode: PptxPrintMode = pdfSave ? "host" : "browser";
+  const available = pdfSave !== undefined || canUseBrowser();
 
   const printInBrowser = async (html: string): Promise<PptxPrintOutcome> => {
     const doc = resolveDocument();
@@ -154,24 +151,21 @@ export function createPptxPrintPort(options: PptxPrintPortOptions = {}): PptxPri
         slides: request.slides,
         ...(request.title !== undefined ? { title: request.title } : {}),
       });
-      if (hostBound) {
-        const host = options.host;
+      if (pdfSave) {
         try {
-          const result = (await host?.ipc.call(PPTX_PRINT_HOST_CHANNEL, {
+          const result = await pdfSave({
             html,
             ...(request.title !== undefined ? { title: request.title } : {}),
             ...(request.fileName !== undefined ? { fileName: request.fileName } : {}),
-          })) as { ok?: boolean; path?: string } | undefined;
-          if (result?.ok !== false) {
-            return { outcome: "printed", mode: "host", ...(result?.path ? { path: result.path } : {}) };
-          }
-        } catch {
-          // The host refused the channel (the desktop host refuses every `host:`
-          // channel today). Fall through to the browser path, which still prints.
+          });
+          if (result?.ok === false) return { outcome: "failed", reason: "The host did not write the PDF." };
+          return { outcome: "printed", mode: "host", ...(result?.path ? { path: result.path } : {}) };
+        } catch (error) {
+          return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
         }
       }
       if (!canUseBrowser()) {
-        return { outcome: "failed", reason: "Neither a print frame nor a host print channel is bound." };
+        return { outcome: "failed", reason: "No print frame is available." };
       }
       return printInBrowser(html);
     },

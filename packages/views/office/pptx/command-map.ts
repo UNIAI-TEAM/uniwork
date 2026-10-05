@@ -98,7 +98,7 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
         : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
     save: { status: "available" },
     "export-pdf": { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true },
-    print: { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true },
+    print: { status: "unavailable", reason: "office.pptx.reasons.print_unbound", hidden: true },
     "speaker-notes": { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
     "masters-layouts": { status: "unavailable", reason: "office.pptx.reasons.layouts_pending", hidden: true },
     animations: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },

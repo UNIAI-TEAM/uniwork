@@ -15,7 +15,12 @@ type CapabilityInput = PptxCommandCapability | "available" | "readonly" | "unava
 
 export interface PptxEditorChannels {
   open: boolean;
+  /** The host's no-selection text seam (`onTextEdit`). */
   textEdit: boolean;
+  /** The in-place text commit channel (`onCommitText`): Text runs over a selected text element. */
+  commitText?: boolean;
+  /** The current selection is a text element the in-place editor can open on. */
+  textSelected?: boolean;
   transform: boolean;
   /** A generic edit channel (host onApplyEdit or the handle's edit port). */
   edit: boolean;
@@ -31,9 +36,18 @@ function withReasonKey(capability: PptxCommandCapability, reasonKey: string): Pp
   return capability.status === "available" ? capability : { ...capability, reason: reasonKey };
 }
 
-function printCapability(port: PptxPrintPort | null): PptxCommandCapability {
-  const capability = withReasonKey(pptxPrintCapability(port), "office.pptx.reasons.export_pdf_unbound");
+function printCapability(port: PptxPrintPort | null, reasonKey: string): PptxCommandCapability {
+  const capability = withReasonKey(pptxPrintCapability(port), reasonKey);
   return capability.status === "available" ? capability : { ...capability, hidden: true };
+}
+
+/** Text runs through the host seam, or through the in-place editor once a text
+ *  element is selected (disabled with a reason until then); with neither
+ *  channel the host can never run it, so it is hidden. */
+function editTextCapability(channels: PptxEditorChannels): PptxCommandCapability {
+  if (channels.textEdit || (channels.commitText && channels.textSelected)) return AVAILABLE;
+  if (channels.commitText) return { status: "unavailable", reason: "office.pptx.reasons.edit_text_select" };
+  return { status: "unavailable", reason: "office.pptx.reasons.edit_text_unbound", hidden: true };
 }
 
 export function pptxEditorCapabilities(
@@ -51,15 +65,15 @@ export function pptxEditorCapabilities(
     open: channels.open
       ? capabilities?.open ?? AVAILABLE
       : { status: "unavailable", reason: "office.pptx.reasons.open_shell", hidden: true },
-    "edit-text": channels.textEdit
+    "edit-text": editTextCapability(channels).status === "available"
       ? capabilities?.["edit-text"] ?? AVAILABLE
-      : { status: "unavailable", reason: "office.pptx.reasons.edit_text_unbound", hidden: true },
+      : editTextCapability(channels),
     "edit-shape-image": channels.transform
       ? capabilities?.["edit-shape-image"] ?? AVAILABLE
       : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
     // C1: the print/PDF commands report what the bound port can actually do; with
     // no surface to print from they are hidden (R2-6), not shown dead.
-    "export-pdf": capabilities?.["export-pdf"] ?? printCapability(channels.printPort),
-    print: capabilities?.print ?? printCapability(channels.printPort),
+    "export-pdf": capabilities?.["export-pdf"] ?? printCapability(channels.printPort, "office.pptx.reasons.export_pdf_unbound"),
+    print: capabilities?.print ?? printCapability(channels.printPort, "office.pptx.reasons.print_unbound"),
   };
 }

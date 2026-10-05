@@ -14,7 +14,7 @@ import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 import type { PptxDocumentSession } from "./pptx-session";
-import { PptxEditorView, type PptxDeckModel } from "@uniwork/views/office/pptx";
+import { PptxEditorView } from "@uniwork/views/office/pptx";
 import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
@@ -124,30 +124,6 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
       </>} /></>;
 }
 
-/** Plain text of every element on every slide of the opaque deck model; the
- * desktop find port only reads the documented `text.paragraphs[].runs[].text`
- * shape the render tree already consumes. */
-function deckSlideTexts(deck: PptxDeckModel | null): string[] {
-  if (!deck) return [];
-  return deck.slides.map((slide) => {
-    const elements = (slide as { elements?: unknown }).elements;
-    if (!Array.isArray(elements)) return "";
-    return elements
-      .map((element) => {
-        const paragraphs = (element as { text?: { paragraphs?: unknown } }).text?.paragraphs;
-        if (!Array.isArray(paragraphs)) return "";
-        return paragraphs
-          .map((paragraph) => {
-            const runs = (paragraph as { runs?: unknown }).runs;
-            if (!Array.isArray(runs)) return "";
-            return runs.map((run) => (run as { text?: string }).text ?? "").join("");
-          })
-          .join("\n");
-      })
-      .join("\n");
-  });
-}
-
 /** The PPTX tab shell: the shared PptxEditorView mounts the deck canvas and
  * the same save coordinator that DOCX uses (upload + Documents version
  * commit). The editor handle and the opened deck come from the desktop pptx
@@ -223,13 +199,6 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   const applyEdit = useCallback((edit: PptxEdit | FormatEdit) => session.editor.edit([edit]), [session]);
   const deleteElements = useCallback((slideIndex: number, elementIds: readonly string[]) =>
     session.editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))), [session]);
-  // A real find port: jump to the first slide whose element text carries the query.
-  const find = useCallback((query: string) => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return;
-    const index = deckSlideTexts(session.editor.deck()).findIndex((text) => text.toLowerCase().includes(needle));
-    if (index >= 0) setSelected(index);
-  }, [session]);
 
   return <PptxEditorView
     title={title}
@@ -247,7 +216,10 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     onTransform={transform}
     onApplyEdit={applyEdit}
     onDeleteElements={deleteElements}
-    onFind={find}
+    // X4fix F2: no main-owned PDF/print path exists yet (no printToPDF handler,
+    // no host:pdf-save in the IPC allowlist), so Print and Export PDF are hidden
+    // here rather than run through an unverified iframe print in the sandbox.
+    printPort={null}
     saveCoordinator={session.coordinator}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
     fullscreen={false}

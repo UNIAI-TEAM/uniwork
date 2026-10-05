@@ -142,7 +142,6 @@ const PPTX_PANEL_ICONS: Partial<Record<PptxPanelKind, RibbonIcon>> = {
   animations: Sparkles,
   tables: Table,
   charts: BarChart3,
-  find: Search,
 };
 
 /** A side panel opened from a ribbon item (a toggle that shows the panel). */
@@ -213,7 +212,7 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
       {
         id: "images",
         labelKey: g("images"),
-        panels: [{ kind: "insert", labelKey: p("shapes"), tooltipKey: p("shapes_hint") }],
+        panels: [{ kind: "insert", labelKey: p("shapes"), tooltipKey: p("shapes_hint"), icon: Shapes }],
         commands: ["charts"],
         order: "panels-first",
       },

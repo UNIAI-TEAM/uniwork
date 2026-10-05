@@ -104,9 +104,33 @@ describe("PptxEditor find & replace (R2-6)", () => {
     fireEvent.change(query(), { target: { value: "budget" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Replace with" }), { target: { value: "plan" } });
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
-    await waitFor(() => expect(edit).toHaveBeenCalledWith([{ op: "find_replace", find: "budget", replace: "plan", matchCase: false, firstOnly: true, slideIndex: 0, elementId: "shape-1" }]));
+    await waitFor(() => expect(edit).toHaveBeenCalledWith([{ op: "find_replace", find: "budget", replace: "plan", matchCase: false, firstOnly: true, slideIndex: 0, elementId: "shape-1", occurrence: 0 }]));
     fireEvent.click(screen.getByRole("button", { name: "Replace all" }));
     await waitFor(() => expect(edit).toHaveBeenLastCalledWith([{ op: "find_replace", find: "budget", replace: "plan", matchCase: false }]));
+  });
+
+  it("advances to the next remaining hit after Replace instead of jumping back to the first (X4fix F5)", async () => {
+    const edit = vi.fn(async () => ({ revision: 2 }));
+    const view = renderEditor({ editorHandle: handle({ edit }) });
+    fireEvent.keyDown(canvas(), { key: "f", ctrlKey: true });
+    fireEvent.change(query(), { target: { value: "budget" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find next" }));
+    expect(count()).toHaveTextContent("Match 2 of 2");
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(edit).toHaveBeenCalledWith([expect.objectContaining({ slideIndex: 1, elementId: "shape-1", occurrence: 0 })]));
+    // The host re-publishes the deck: slide 2's run lost its first match but keeps a second one.
+    const edited = { ...deck, deck: { ...deck.deck, slides: [deck.deck.slides[0]!, { id: "s2", elements: [{ id: "shape-1", type: "shape", text: textOf("Second plan and budget") }] }] }, revision: 2 };
+    view.rerender(<PptxEditor host={host} editorHandle={handle({ edit })} loadRendererModule={async () => rendererModule} slides={slides} deck={edited} />);
+    await waitFor(() => expect(count()).toHaveTextContent("Match 2 of 2"));
+  });
+
+  it("closes on Escape from the replace field too, and returns focus to the Find trigger (X4fix F6)", () => {
+    renderEditor();
+    const trigger = screen.getByRole("button", { name: "Find" });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Replace with" }), { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Find and replace" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("is search-only without an edit channel: replace stays off and says the deck is read-only", () => {
@@ -123,11 +147,28 @@ describe("PptxEditor find & replace (R2-6)", () => {
 describe("PptxEditor print commands (R2-6)", () => {
   const printPort = (): PptxPrintPort => ({ available: true, mode: "browser", print: vi.fn(async () => ({ outcome: "printed" as const, mode: "browser" as const })) });
 
-  it("shows Print and Export PDF on a bound deck without any host wiring, and hides Open (no channel)", () => {
-    renderEditor();
-    expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
+  it("shows Print and Export PDF once the host binds the browser path and the deck renderer is up; hides Open (no channel)", async () => {
+    renderEditor({ printPort: "browser" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Print" })).toBeEnabled());
     expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Open" })).not.toBeInTheDocument();
+  });
+
+  it("hides both commands when the host binds no print path (X4fix F2: the desktop today)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export PDF" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces a print run the port reports as failed instead of dropping it (X4fix F1)", async () => {
+    const port: PptxPrintPort = { available: true, mode: "browser", print: vi.fn(async () => ({ outcome: "failed" as const, reason: "No print frame is available." })) };
+    const onCommandError = vi.fn();
+    renderEditor({ printPort: port, onCommandError });
+    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No print frame is available."));
+    expect(onCommandError).toHaveBeenCalledWith(expect.objectContaining({ message: "No print frame is available." }));
   });
 
   it("hides both commands when the host turns printing off or there is no deck to print", () => {

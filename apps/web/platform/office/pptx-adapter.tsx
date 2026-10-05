@@ -92,30 +92,6 @@ function runtimeOpenError(outcome: Awaited<ReturnType<PptxSessionRuntime["open"]
   return error;
 }
 
-/** Plain text of every element on every slide of the opaque deck model. The
- * model is owned by the artifact; this walker only reads the documented
- * `text.paragraphs[].runs[].text` shape the render tree already consumes. */
-function deckSlideTexts(deck: PptxDeckModel | null): string[] {
-  if (!deck) return [];
-  return deck.slides.map((slide) => {
-    const elements = (slide as { elements?: unknown }).elements;
-    if (!Array.isArray(elements)) return "";
-    return elements
-      .map((element) => {
-        const paragraphs = (element as { text?: { paragraphs?: unknown } }).text?.paragraphs;
-        if (!Array.isArray(paragraphs)) return "";
-        return paragraphs
-          .map((paragraph) => {
-            const runs = (paragraph as { runs?: unknown }).runs;
-            if (!Array.isArray(runs)) return "";
-            return runs.map((run) => (run as { text?: string }).text ?? "").join("");
-          })
-          .join("\n");
-      })
-      .join("\n");
-  });
-}
-
 /** The web host's OfficeHost for the shared editor. The browser host owns no
  * read/write port (the adapter reads the bytes itself and save goes through the
  * coordinator), so both refuse by name instead of fabricating an open or
@@ -273,23 +249,11 @@ function PptxEditorSurface(props: {
   // the in-place layer is bound through onCommitText (double-click / context
   // "Edit Text"), and onTextEdit is only its no-selection fallback. Binding
   // onTextEdit to a no-op would light the ribbon Text command while doing
-  // nothing, so it stays unbound and the shared editor honestly disables
-  // edit-text; the dead commandCapabilities["edit-text"] entry is gone.
-  // Follow-up row: add a selection-aware text port to PptxEditor and bind it
-  // here. F6: a readonly document binds NO edit port at all (below), so no
+  // nothing, so it stays unbound; the shared editor runs Text over a selected
+  // text element through onCommitText (X4fix F4) and disables it otherwise.
+  // F6: a readonly document binds NO edit port at all (below), so no
   // in-place layer opens over a document whose commit would be refused.
-  // F7: the deck texts are memoized on the published view instead of rescanned
-  // per keystroke. The view object is replaced on every applied edit / undo /
-  // redo / restore (the deck itself mutates in place), so the memo refreshes
-  // exactly when the model moved.
-  const deckText = useMemo(() => deckSlideTexts(current?.deck ?? null), [current]);
-  // A real find: jump the editor to the first slide whose text carries the query.
-  const find = useCallback((query: string) => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return;
-    const index = deckText.findIndex((text) => text.toLowerCase().includes(needle));
-    if (index >= 0) setSelected(index);
-  }, [deckText]);
+  // Find runs inside the shared editor over the bound deck (R2-6): no host port.
 
   if (phase !== "ready") {
     return (
@@ -320,7 +284,8 @@ function PptxEditorSurface(props: {
       // F6: readonly binds no edit port (text/transform/panel/delete); find and
       // slide selection stay live because they never mutate the deck.
       {...(editable ? { onCommitText: commitText, onTransform: transform, onApplyEdit: applyEdit, onDeleteElements: deleteElements } : {})}
-      onFind={find}
+      // X4fix F2: the browser print path, bound explicitly (Chromium print dialog, Save as PDF).
+      printPort="browser"
       slideNotes={slideNotes}
       slideLayouts={slideLayouts}
       saveCoordinator={coordinator}

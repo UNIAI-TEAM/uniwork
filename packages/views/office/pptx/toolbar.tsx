@@ -106,7 +106,7 @@ export function PptxToolbar({
       commands.map((command) => {
         if (!HISTORY_COMMANDS.includes(command.id)) return command;
         const blocked = command.id === "undo" ? canUndo === false : canRedo === false;
-        if (!blocked) return command;
+        if (!blocked || command.capability.hidden === true) return command;
         return { ...command, capability: { status: "unavailable" as const, reason: t("history_empty") } };
       }),
     [canRedo, canUndo, commands, t],
@@ -124,10 +124,12 @@ export function PptxToolbar({
     [activePanel, contextual, groupItems, onCommand, onOpenPanel, panelDisabled, resolved],
   );
 
+  // X4fix F8: the tab-row controls honour `hidden` the same way the ribbon groups do.
+  const shown = (id: PptxCommandId) => resolved.find((entry) => entry.id === id && entry.capability.hidden !== true);
   const quickAccess = (
     <div className="flex shrink-0 items-center gap-0.5" data-pptx-quick-access>
       {PPTX_QUICK_ACCESS_COMMANDS.map((id) => {
-        const command = resolved.find((entry) => entry.id === id);
+        const command = shown(id);
         if (!command) return null;
         const Icon = QUICK_ACCESS_ICONS[id];
         return (
@@ -143,8 +145,8 @@ export function PptxToolbar({
     </div>
   );
 
-  const presenter = resolved.find((entry) => entry.id === PPTX_VIEW_TOGGLE_COMMAND);
-  const find = resolved.find((entry) => entry.id === PPTX_FIND_COMMAND);
+  const presenter = shown(PPTX_VIEW_TOGGLE_COMMAND);
+  const find = shown(PPTX_FIND_COMMAND);
   const trailing = (
     <div className="flex shrink-0 items-center gap-1" data-pptx-tab-row-trailing>
       {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} compactIcon={<Presentation aria-hidden />} tooltipAlign="end" /> : null}

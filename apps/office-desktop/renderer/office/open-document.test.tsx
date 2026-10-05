@@ -189,9 +189,12 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   await waitFor(() => expect(pptxProbe.views.at(-1)?.deck).toBeDefined());
   const props = pptxProbe.views.at(-1)!;
   // The mounted view receives every edit port the desktop surface supports.
-  for (const port of ["onCommitText", "onTransform", "onApplyEdit", "onDeleteElements", "onFind"]) {
+  for (const port of ["onCommitText", "onTransform", "onApplyEdit", "onDeleteElements"]) {
     expect(typeof props[port], port).toBe("function");
   }
+  // X4fix F2: no main-owned print path yet, so the desktop binds none (Print/Export PDF hidden).
+  expect(props.printPort).toBeNull();
+  expect(props).not.toHaveProperty("onFind");
   expect(props.deck).toMatchObject({ revision: 0 });
 
   // A committed text edit reaches the handle's edit channel as edit_text.

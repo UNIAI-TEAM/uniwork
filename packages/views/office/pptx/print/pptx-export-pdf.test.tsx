@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { OfficeHost } from "@uniwork/core/office";
 import { createPptxCommandMap, findPptxCommand } from "../command-map";
 import { PptxToolbar } from "../toolbar";
 import { createPptxPrintPort, pptxPrintCapability, type PptxPrintFrame } from "./pptx-export-pdf";
@@ -26,10 +25,6 @@ function recordingFrame(): { frame: PptxPrintFrame; written: string[]; printed: 
     remove: () => { removed += 1; },
   };
   return { frame, written, printed: () => printed, removed: () => removed };
-}
-
-function hostWith(call: ReturnType<typeof vi.fn>): OfficeHost {
-  return { read: {} as never, write: {} as never, assets: {} as never, ipc: { call: call as unknown as OfficeHost["ipc"]["call"], send: vi.fn(), subscribe: vi.fn() } };
 }
 
 describe("pptx export-pdf command -> print port", () => {
@@ -60,23 +55,31 @@ describe("pptx export-pdf command -> print port", () => {
     expect(rec.removed()).toBe(1);
   });
 
-  it("falls back to the browser print path when the host refuses its channel", async () => {
+  it("reports a failed host write instead of trying a second path (X4fix F2)", async () => {
     const rec = recordingFrame();
-    const call = vi.fn(async () => { throw new Error("desktop host channel is not bound"); });
-    const port = createPptxPrintPort({ host: hostWith(call), document: document, createFrame: () => rec.frame });
+    const pdfSave = vi.fn(async () => { throw new Error("disk full"); });
+    const port = createPptxPrintPort({ pdfSave, document: document, createFrame: () => rec.frame });
     expect(port.mode).toBe("host");
     const result = await port.print({ slides, title: "Deck", fileName: "deck.pdf" });
-    expect(call).toHaveBeenCalledWith("host:pdf-save", expect.objectContaining({ fileName: "deck.pdf" }));
-    expect(result).toMatchObject({ outcome: "printed", mode: "browser" });
-    expect(rec.printed()).toBe(1);
+    expect(pdfSave).toHaveBeenCalledWith(expect.objectContaining({ fileName: "deck.pdf", title: "Deck" }));
+    expect(result).toEqual({ outcome: "failed", reason: "disk full" });
+    expect(rec.printed()).toBe(0);
   });
 
-  it("uses the host channel when the host answers ok", async () => {
+  it("uses the bound host write when the host answers ok, and never the browser frame", async () => {
     const rec = recordingFrame();
-    const call = vi.fn(async () => ({ ok: true, path: "C:/tmp/deck.pdf" }));
-    const port = createPptxPrintPort({ host: hostWith(call), document: document, createFrame: () => rec.frame });
+    const pdfSave = vi.fn(async () => ({ ok: true, path: "C:/tmp/deck.pdf" }));
+    const port = createPptxPrintPort({ pdfSave, document: document, createFrame: () => rec.frame });
     await expect(port.print({ slides, title: "Deck" })).resolves.toMatchObject({ outcome: "printed", mode: "host", path: "C:/tmp/deck.pdf" });
     expect(rec.printed()).toBe(0);
+  });
+
+  it("is a browser port with no host write bound: the mode says so and the run prints in the frame", async () => {
+    const rec = recordingFrame();
+    const port = createPptxPrintPort({ document: document, createFrame: () => rec.frame });
+    expect(port.mode).toBe("browser");
+    await expect(port.print({ slides })).resolves.toEqual({ outcome: "printed", mode: "browser" });
+    expect(rec.printed()).toBe(1);
   });
 
   it("reports failure instead of a silent no-op when no print surface is bound", async () => {

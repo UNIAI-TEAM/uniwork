@@ -90,11 +90,40 @@ export function PptxFindReplacePanel({
 
   const plan = useMemo(() => planFind(texts, query, matchCase), [texts, query, matchCase]);
 
+  // After Replace (one) the deck moves and the plan is rebuilt: the hit that was
+  // replaced either still matches (more matches in its run) or dropped out, so
+  // the next remaining hit sits at the same position (wrapping past the end).
+  const resumeAtRef = useRef<number | null>(null);
+
   // A new query or a changed deck invalidates the active hit; entering the list
   // at the first match keeps Next/Prev honest without a separate "search" step.
   useEffect(() => {
-    setHitIndex(clampHitIndex(PPTX_FIND_UNSET_HIT, plan.hits.length));
+    const resumeAt = resumeAtRef.current;
+    resumeAtRef.current = null;
+    const total = plan.hits.length;
+    setHitIndex(resumeAt !== null && resumeAt < total ? resumeAt : clampHitIndex(PPTX_FIND_UNSET_HIT, total));
   }, [plan]);
+
+  // X4fix F6: Escape closes from any control in the panel, not only the query.
+  const rootRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onCloseRef.current?.();
+    };
+    root.addEventListener("keydown", onKeyDown);
+    return () => root.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // A pending hit intent must not outlive the panel (X4fix F9).
+  const onActiveHitChangeRef = useRef(onActiveHitChange);
+  useEffect(() => { onActiveHitChangeRef.current = onActiveHitChange; }, [onActiveHitChange]);
+  useEffect(() => () => onActiveHitChangeRef.current?.(null), []);
 
   const hitTarget = activeHitTarget(texts, plan, hitIndex);
   const hit = plan.hits[hitIndex];
@@ -115,10 +144,12 @@ export function PptxFindReplacePanel({
     setPending(true);
     setErrorMessage(null);
     try {
+      // Replace (one) advances: the plan effect resumes at this position once
+      // the edited deck arrives. Replace all starts over at the first hit.
+      resumeAtRef.current = edit.occurrence !== undefined || edit.firstOnly === true ? hitIndex : null;
       await onFindReplace(edit);
-      // Replace-one consumes the hit, so the next match slides into its place;
-      // the effect above re-clamps against the new plan.
     } catch (error) {
+      resumeAtRef.current = null;
       const message = error instanceof Error ? error.message : String(error);
       setErrorMessage(message);
       onError?.(error);
@@ -151,6 +182,7 @@ export function PptxFindReplacePanel({
       aria-label={t("find.title")}
       data-pptx-find-replace
       data-state={inFlight ? "busy" : "ready"}
+      ref={rootRef}
       className={cn(
         "flex min-h-9 shrink-0 flex-col gap-2 border-b border-border bg-muted/20 px-2 py-2",
         className,
@@ -164,12 +196,9 @@ export function PptxFindReplacePanel({
           placeholder={t("find.query_placeholder")}
           className="h-7 max-w-56"
           data-pptx-find-query
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => { resumeAtRef.current = null; setQuery(event.target.value); }}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onClose?.();
-            } else if (event.key === "Enter") {
+            if (event.key === "Enter") {
               event.preventDefault();
               move(event.shiftKey ? -1 : 1);
             }
@@ -198,7 +227,7 @@ export function PptxFindReplacePanel({
             checked={matchCase}
             disabled={readonly}
             aria-label={t("find.match_case")}
-            onCheckedChange={(checked) => setMatchCase(checked === true)}
+            onCheckedChange={(checked) => { resumeAtRef.current = null; setMatchCase(checked === true); }}
           />
           <Label htmlFor="pptx-find-match-case">{t("find.match_case")}</Label>
         </span>

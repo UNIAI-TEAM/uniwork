@@ -93,7 +93,23 @@ describe("emitted edits", () => {
       firstOnly: true,
       slideIndex: 1,
       elementId: "t3",
+      occurrence: 0,
     });
+  });
+
+  it("carries the hit's ordinal inside its element, so a later run of the same element is the one replaced", () => {
+    const runs: PptxFindTextTarget[] = [
+      { text: "go west", slideIndex: 0, elementId: "t1" },
+      { text: "nothing", slideIndex: 0, elementId: "t1" },
+      { text: "go go", slideIndex: 0, elementId: "t1" },
+      { text: "go on", slideIndex: 0, elementId: "t2" },
+      { text: "go home", slideIndex: 1, elementId: "t1" },
+    ];
+    const plan = planFind(runs, "go", false);
+    const ordinal = (hitIndex: number) => replaceOneEdit(runs, plan, hitIndex, "go", "X", false)?.occurrence;
+    // t1 on slide 0 holds three matches over two runs: the second hit starts at its 2nd match.
+    expect([0, 1, 2, 3].map(ordinal)).toEqual([0, 1, 0, 0]);
+    expect(replaceOneEdit(runs, plan, 1, "go", "X", false)).toMatchObject({ slideIndex: 0, elementId: "t1", occurrence: 1 });
   });
 
   it("omits the element id when the target has none", () => {

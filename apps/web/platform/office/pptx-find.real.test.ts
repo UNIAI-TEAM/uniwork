@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { openPptx } from "@uniwork/office-upstream/pptx-renderer";
 import { planFindReplace } from "@uniwork/office-engine/pptx";
 import { flattenDeckRuns } from "@uniwork/views/office/pptx";
 import { createWebPptxSessionRuntime } from "./pptx-runtime";
@@ -78,5 +79,56 @@ describe("find over the real deck: table cells", () => {
     expect(tableIds.size).toBeGreaterThan(0);
     const cellRuns = flattenDeckRuns(deck).filter((run) => run.elementId && tableIds.has(run.elementId));
     expect(cellRuns.length).toBeGreaterThan(0);
+  });
+});
+
+// X4fix F3: Replace (one) replaces the SHOWN hit. The vendored op alone always spends its
+// budget on the element's first match; the hit ordinal (`occurrence`) must reach the second.
+describe("replace-one on the real deck: the second match of one element", () => {
+  const MARK = "§";
+  const textOf = (deck: unknown, slideIndex: number, elementId: string) =>
+    flattenDeckRuns(deck).filter((run) => run.slideIndex === slideIndex && run.elementId === elementId).map((run) => run.text).join(MARK);
+  // The real engine re-mints element ids on every reopen (undo/redo replay), so the
+  // element is followed by its position on the slide.
+  const elementIds = (deck: unknown, slideIndex: number) =>
+    (deck as { slides: Array<{ elements: Array<{ id: string }> }> }).slides[slideIndex]!.elements.map((element) => element.id);
+  const textAt = (deck: unknown, slideIndex: number, position: number) => textOf(deck, slideIndex, elementIds(deck, slideIndex)[position]!);
+
+  it("replaces only the second match, survives save + reopen, and undoes/redoes as one step", async () => {
+    const { runtime, ref } = await open("pptx-standard-business.pptx");
+    const runs = flattenDeckRuns(runtime.deck(ref));
+    // The first element (and letter) with at least two case-sensitive matches.
+    let pick: { slideIndex: number; elementId: string; query: string } | null = null;
+    for (const query of ["e", "a", "o", "t"]) {
+      for (const run of runs) {
+        const text = textOf(runtime.deck(ref), run.slideIndex, run.elementId!);
+        if (text.split(query).length - 1 >= 2) { pick = { slideIndex: run.slideIndex, elementId: run.elementId!, query }; break; }
+      }
+      if (pick) break;
+    }
+    if (!pick) throw new Error("fixture has no element with two matches");
+    const position = elementIds(runtime.deck(ref), pick.slideIndex).indexOf(pick.elementId);
+    const before = textOf(runtime.deck(ref), pick.slideIndex, pick.elementId);
+    const first = before.indexOf(pick.query);
+    const second = before.indexOf(pick.query, first + pick.query.length);
+    const expected = before.slice(0, second) + REPLACEMENT + before.slice(second + pick.query.length);
+
+    await runtime.edit(ref, [{ op: "find_replace", find: pick.query, replace: REPLACEMENT, matchCase: true, firstOnly: true, slideIndex: pick.slideIndex, elementId: pick.elementId, occurrence: 1 }]);
+    expect(textAt(runtime.deck(ref), pick.slideIndex, position)).toBe(expected);
+    // No private-use marker survives anywhere in the deck.
+    expect(flattenDeckRuns(runtime.deck(ref)).some((run) => /[-]/.test(run.text))).toBe(false);
+
+    // Undo is the journal replay: one step back to the original text, one step forward again.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(textAt(runtime.deck(ref), pick.slideIndex, position)).toBe(before);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(textAt(runtime.deck(ref), pick.slideIndex, position)).toBe(expected);
+
+    // Save and reopen the bytes independently: the saved file holds exactly that edit.
+    const value = runtime.snapshot(ref);
+    const out = await runtime.serialize(ref, { snapshot: { generation: 1, fingerprint: "fp", value } });
+    const reopened = await openPptx(out.bytes);
+    const saved = flattenDeckRuns(reopened.deck).filter((run) => run.slideIndex === pick.slideIndex).map((run) => run.text).join(MARK);
+    expect(saved).toContain(expected);
   });
 });

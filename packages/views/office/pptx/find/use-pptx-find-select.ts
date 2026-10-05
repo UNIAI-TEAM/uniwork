@@ -27,6 +27,16 @@ export function usePptxFindSelect({ slideIndex, selectSlide, boxes, ready, selec
   const [target, setTarget] = useState<PptxFindHit | null>(null);
   const onActiveHitChange = useCallback((hit: PptxFindHit | null) => setTarget(hit), []);
 
+  // X4fix F9: a pointer press while the hit waits for its slide's rendition is
+  // the user taking over; the stale intent must not select over their click.
+  // (A press on the panel's own Next/Previous lands its new hit after this.)
+  useEffect(() => {
+    if (!target) return;
+    const drop = () => setTarget(null);
+    document.addEventListener("pointerdown", drop, true);
+    return () => document.removeEventListener("pointerdown", drop, true);
+  }, [target]);
+
   useEffect(() => {
     if (!target) return;
     if (target.slideIndex !== slideIndex) {

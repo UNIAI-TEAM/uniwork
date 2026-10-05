@@ -1,3 +1,4 @@
+import { Image, Shapes } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import vi_ from "@uniwork/core/i18n/locales/vi.json";
@@ -145,6 +146,13 @@ describe("pptxRibbonTabs", () => {
       ["panel-links", "small"],
     ]);
     for (const group of insert.groups) expect(group.items.filter((item) => item.size === "large").length, group.id).toBe(1);
+  });
+
+  it("draws the Insert Shapes large item with the shapes icon, not the generic image one (R2-13)", () => {
+    const insert = tabs.find((tab) => tab.id === "insert")!;
+    const shapes = insert.groups.find((group) => group.id === "images")!.items.find((item) => item.id === "panel-insert")!;
+    expect(shapes.icon).toBe(Shapes);
+    expect(shapes.icon).not.toBe(Image);
   });
 
   it("gates the four contextual tabs on the selection flags (R4), chart included", () => {

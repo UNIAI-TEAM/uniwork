@@ -145,8 +145,11 @@ export function replaceAllEdit(
   return { op: "find_replace", find, replace, matchCase };
 }
 
-/** Replace-one edit scoped to the element under the active hit (the vendored
- * "Replace" button acts on the currently hit element). Null when no hit. */
+/** Replace-one edit for exactly the active hit: scoped to its element, with the
+ * hit's ordinal among that element's matches (`occurrence`), so the match the
+ * panel shows is the one replaced - not the element's first match. The ordinal
+ * is the first match of the hit's run: the matches in earlier runs of the same
+ * element, in the engine's scan order. Null when no hit. */
 export function replaceOneEdit(
   targets: readonly PptxFindTextTarget[],
   plan: FindReplacePlan,
@@ -166,6 +169,14 @@ export function replaceOneEdit(
     firstOnly: true,
     slideIndex: target.slideIndex,
   };
-  if (target.elementId) edit.elementId = target.elementId;
+  if (target.elementId) {
+    edit.elementId = target.elementId;
+    let occurrence = 0;
+    for (const earlier of plan.hits.slice(0, hitIndex)) {
+      const run = targets[earlier.index - 1];
+      if (run?.slideIndex === target.slideIndex && run.elementId === target.elementId) occurrence += earlier.count;
+    }
+    edit.occurrence = occurrence;
+  }
   return edit;
 }

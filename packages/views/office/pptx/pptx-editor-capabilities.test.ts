@@ -53,4 +53,18 @@ describe("pptxEditorCapabilities - commands the host can never run are hidden (R
     const printPort = { available: false, mode: "browser" as const, print: async () => ({ outcome: "failed" as const, reason: "x" }) };
     expect(pptxEditorCapabilities(undefined, { ...none, printPort }).print).toEqual(expect.objectContaining({ hidden: true }));
   });
+
+  it("gives print its own reason key, not the PDF export one (X4fix F10)", () => {
+    const caps = pptxEditorCapabilities(undefined, none);
+    expect(caps.print).toEqual(expect.objectContaining({ reason: "office.pptx.reasons.print_unbound" }));
+    expect(caps["export-pdf"]).toEqual(expect.objectContaining({ reason: "office.pptx.reasons.export_pdf_unbound" }));
+  });
+
+  it("keeps Text when only the in-place commit channel is bound: runnable over a text selection, disabled with a reason otherwise (X4fix F4)", () => {
+    expect(pptxEditorCapabilities(undefined, { ...none, commitText: true, textSelected: true })["edit-text"]).toEqual({ status: "available" });
+    expect(pptxEditorCapabilities(undefined, { ...none, commitText: true, textSelected: false })["edit-text"]).toEqual({
+      status: "unavailable",
+      reason: "office.pptx.reasons.edit_text_select",
+    });
+  });
 });
