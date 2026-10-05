@@ -50,6 +50,10 @@ describe("desktop local xlsx session (C1b)", () => {
 
     const result = await session.coordinator.save("button");
     expect(result.accepted).toBe(true);
+    // Narrow the SaveAttemptResult union before reading the receipt: the
+    // rejected branch has no receipt, so the reopen base revision is only
+    // meaningful on the accepted branch.
+    if (!result.accepted) throw new Error("expected the local save to be accepted");
     expect(bridge.call).toHaveBeenCalledWith("desktop:file-xlsx", expect.objectContaining({ operation: "edit", edits: [editOp] }));
     expect(bridge.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle: HANDLE }));
     expect(bridge.saved).toHaveLength(1);

@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -305,11 +305,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
     // a bounded operation; main reads the bytes, drives the bundled gateway +
     // sidecar and returns a bounded snapshot/byte answer. The renderer never
     // reads the file and never names an engine or a path.
-    "desktop:file-xlsx": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly Record<string, unknown>[] }>) => {
+    "desktop:file-xlsx": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly Record<string, unknown>[] }>): Promise<DesktopFileXlsxResponse> => {
       requireOpened(request.handle);
       const session = options.session?.();
       if (!options.xlsx) throw new FileIpcError("write_failed");
       const bytes = await safeFile(() => options.registry.read(request.handle));
+      // The local xlsx job answers the shared DesktopFileXlsxResponse contract
+      // (the same schema the renderer parses), so main and renderer cannot drift.
       if (request.operation === "open") {
         const opened = await options.xlsx.open(bytes);
         assertSession(session);
