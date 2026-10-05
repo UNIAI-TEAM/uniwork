@@ -1,6 +1,15 @@
 /** @vitest-environment jsdom */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { createDesktopTextPreviewPort } from "./text-preview-port";
+
+class TestResizeObserver {
+  static instances: TestResizeObserver[] = [];
+  callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) { this.callback = callback; TestResizeObserver.instances.push(this); }
+  observe() {}
+  disconnect() {}
+  trigger(width: number, height: number) { this.callback([{ contentRect: { width, height } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
+}
 
 afterEach(() => { document.body.innerHTML = ""; document.documentElement.classList.remove("dark"); });
 
@@ -76,6 +85,20 @@ it("rebuilds the copy on update and removes the frame on dispose", async () => {
   expect(copy()).not.toContain("first");
   session.dispose();
   expect(container.querySelector("iframe")).toBeNull();
+});
+
+it.each(["md", "html"] as const)("re-applies srcdoc when a hidden %s pane becomes measurable", async (format) => {
+  vi.stubGlobal("ResizeObserver", TestResizeObserver);
+  const { container, frame, session } = await mountCopy(format, "<p>visible</p>");
+  const initial = frame.getAttribute("srcdoc");
+  frame.removeAttribute("srcdoc");
+  TestResizeObserver.instances.at(-1)?.trigger(0, 0);
+  expect(frame.getAttribute("srcdoc")).toBeNull();
+  TestResizeObserver.instances.at(-1)?.trigger(700, 300);
+  expect(frame.getAttribute("srcdoc")).toBe(initial);
+  session.dispose();
+  expect(container.querySelector("iframe")).toBeNull();
+  vi.unstubAllGlobals();
 });
 
 it("follows the host dark class for the colour scheme", async () => {

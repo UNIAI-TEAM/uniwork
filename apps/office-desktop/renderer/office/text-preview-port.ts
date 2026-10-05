@@ -85,11 +85,22 @@ export function createDesktopTextPreviewPort(format: "md" | "html"): DesktopText
       frame.setAttribute("title", title);
       frame.setAttribute("data-testid", "desktop-text-preview");
       frame.style.cssText = "width:100%;height:100%;border:0;background:transparent";
-      frame.setAttribute("srcdoc", buildSrcdoc(format, title, text));
       container.append(frame);
+      let srcdoc = buildSrcdoc(format, title, text);
+      const apply = () => {
+        frame.setAttribute("srcdoc", srcdoc);
+      };
+      // Chromium can keep a sandboxed srcdoc at zero layout height when its
+      // host pane was display:none during navigation. Re-applying the copy
+      // after the container becomes measurable forces a fresh document layout.
+      const observer = typeof ResizeObserver === "function" ? new ResizeObserver((entries) => {
+        if (entries.some((entry) => entry.contentRect.width > 0 && entry.contentRect.height > 0)) apply();
+      }) : null;
+      observer?.observe(container);
+      apply();
       return {
-        update(next) { frame.setAttribute("srcdoc", buildSrcdoc(format, title, next)); },
-        dispose() { frame.remove(); },
+        update(next) { srcdoc = buildSrcdoc(format, title, next); apply(); },
+        dispose() { observer?.disconnect(); frame.remove(); },
       };
     },
   };
