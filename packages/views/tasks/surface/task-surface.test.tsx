@@ -12,7 +12,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { taskKeys } from "@uniwork/core/tasks";
-import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import {
+  clearTaskSurfaceViewState,
+  getTaskSurfaceViewStore,
+} from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { requestMock, wrap } from "../../test/api-mock";
 import { TaskSurface } from "./task-surface";
@@ -256,7 +259,10 @@ describe("TaskSurface", () => {
 
   it("shows hierarchy chevron when a row reports children", async () => {
     tableChildCount = 2;
-    const store = getTaskSurfaceViewStore("test-ws-table-hierarchy");
+    const surfaceKey = "test-ws-table-hierarchy";
+    clearTaskSurfaceViewState(surfaceKey);
+    const store = getTaskSurfaceViewStore(surfaceKey);
+    store.getState().setViewMode("table");
     store.getState().setTableGrouping("status");
 
     render(
@@ -265,16 +271,28 @@ describe("TaskSurface", () => {
           workspaceId="w1"
           scope={{ type: "workspace" }}
           modes={["table"]}
-          surfaceKey="test-ws-table-hierarchy"
+          surfaceKey={surfaceKey}
         />,
       ),
     );
 
-    expect(await screen.findByText("Task 1")).toBeInTheDocument();
-    // Expanded by default → collapse label; i18n may be vi or en.
-    const chevron = await screen.findByRole("button", {
-      name: /Thu công việc con|Collapse sub-tasks|Mở công việc con|Expand sub-tasks/,
+    await waitFor(() => {
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) =>
+            typeof path === "string" && path.includes("/tasks/table/rows"),
+        ),
+      ).toBe(true);
     });
+    expect(await screen.findByText("Task 1", {}, { timeout: 15_000 })).toBeInTheDocument();
+    // Parents start collapsed → expand label; i18n may be vi or en.
+    const chevron = await screen.findByRole(
+      "button",
+      {
+        name: /Thu công việc con|Collapse sub-tasks|Mở công việc con|Expand sub-tasks/,
+      },
+      { timeout: 15_000 },
+    );
     expect(chevron).toBeEnabled();
   });
 
