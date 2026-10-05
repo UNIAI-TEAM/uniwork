@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
-import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
+import { formatFromFilename, isLocalDocumentFormat } from "../shared/document-format";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
 import type { LoginScreenState } from "./login";
@@ -9,8 +10,9 @@ import { LibraryHost } from "./library/host";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LocalHomeView } from "./local-home";
 import { OpenByteDocument } from "./office/open-document";
+import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
-import { isDocumentDirty, useDocumentTabs } from "./tabs/use-document-tabs";
+import { isDocumentDirty, isXlsxTabSession, useDocumentTabs } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
 import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
@@ -137,9 +139,17 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
     const current = scopeRef.current;
     if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
-    const result = desktopOfficeOpenResponseSchema.parse(raw);
-    if (result.document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
-    if (tabs.open({ kind: "cloud", title: result.document.title, format: result.document.format, bytes: { ...result, canSave: allowSave && result.document.canEdit }, identity: { ...selected, documentId: result.document.id, generation: lifetime.current + 1, baseRevision: result.document.revision, baseVersionId: String(result.document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    // F5: a format whose editor opens through the server job (xlsx) answers a
+    // metadata-only context; every other format answers the byte open.
+    const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
+    const context = opened.success ? null : desktopOfficeContextResponseSchema.safeParse(raw);
+    const document = opened.success ? opened.data.document : context?.success ? context.data.document : undefined;
+    if (!document) throw new Error("office_open_invalid");
+    if (document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
+    const bytes = opened.success
+      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit }
+      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit };
+    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
@@ -152,9 +162,10 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     }
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     const file = result.metadata;
-    if (!/\.docx$/i.test(file.name)) { setActionError(t("officeDesktop.local.unsupported")); return; }
+    const format = formatFromFilename(file.name);
+    if (!format || !isLocalDocumentFormat(format)) { setActionError(t("officeDesktop.local.unsupported")); return; }
     const title = file.untitled ? t("officeDesktop.local.untitled") : file.name;
-    if (tabs.open({ kind: "local", title, format: "docx", bytes: { dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    if (tabs.open({ kind: "local", title, format, bytes: { dataBase64: result.dataBase64, checksum: file.checksum, format, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
   const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void) => {
@@ -172,10 +183,14 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     } catch { if (mounted.current && epoch === lifetime.current) setActionError(t("officeDesktop.library.actionError")); }
     finally { actionBusy.current = false; if (mounted.current) setBusy(false); }
   };
-  const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version">, allowSave = true) => {
+  const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version" | "format">, allowSave = true) => {
     const selected = scopeRef.current;
     if (!selected || !canOpen(document.id)) return;
-    void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
+    // F5: a format whose editor opens through the server job (xlsx) never reads
+    // the raw bytes, so register the context without the byte haul; every other
+    // format keeps the byte open.
+    const channel = document.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
+    void perform(() => bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
   };
   const openLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
   const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
@@ -298,6 +313,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       if (canOpen(request.handle)) void perform(() => bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: request.handle }), handlers.current.acceptLocal);
     } else if (scope && canOpen(request.documentId)) {
       const selected = scope;
+      // A deep-link launch names only the document, not its format, so this path
+      // uses the byte open; the xlsx editor still opens correctly from the job
+      // (the metadata-only shortcut only applies where the format is known).
       void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: request.documentId, ...(request.version === undefined ? {} : { version: request.version }) }), (raw) => acceptCloud(raw, selected, request.operation === "edit"));
     }
   // One FIFO preserves the order of file and launch requests.
@@ -335,7 +353,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
-        <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+        {isXlsxTabSession(tab.data.session)
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}
