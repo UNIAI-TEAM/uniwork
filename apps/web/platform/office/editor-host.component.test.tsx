@@ -137,6 +137,23 @@ async function settle(): Promise<void> {
 }
 
 describe("OfficeEditorHost composition", () => {
+  it("keeps the session alive across a StrictMode mount-unmount-mount and disposes once on a real unmount", async () => {
+    const { session } = makeSession();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(React.createElement(React.StrictMode, null, React.createElement(OfficeEditorHost, {
+        document: officeDocument, wsId: "workspace", readonly: false, session, capability, editorView: React.createElement("div"),
+      })));
+    });
+    await settle();
+    expect(session.dispose).not.toHaveBeenCalled();
+    act(() => root.unmount());
+    await settle();
+    expect(session.dispose).toHaveBeenCalledOnce();
+  });
+
   it("renders a negotiated readonly editor without exposing or invoking Save", async () => {
     const { session, coordinator } = makeSession();
     const rendered = renderHost(session, {
