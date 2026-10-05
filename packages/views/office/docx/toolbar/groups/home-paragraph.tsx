@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import type { RibbonItem } from "../../../ribbon";
+import { homeListsRibbonItems } from "../../lists/home-lists";
 import { ptFromTwips, type ParagraphAlign } from "../../paragraph/paragraph-format";
 import { ParagraphSpacingPicker } from "../../paragraph/spacing-controls";
 import type { DocxToolbarGroupContext } from "../types";
@@ -83,25 +84,28 @@ function HomeParagraphGroupView({ format, commands, readOnly, saving }: DocxTool
 }
 
 /**
- * Typed ribbon items for the paragraph group (R7): outdent/indent as buttons,
- * alignment as a split (primary re-applies the caret's current alignment -
- * left when none is set - and the menu picks any of the four) and the line +
- * paragraph spacing popover as a `custom` item, because its custom multiple and
- * before/after inputs do not fit the dropdown model. Every item calls the same
- * command the legacy component called.
+ * Typed ribbon items for the paragraph group (R7), laid out like Word's two
+ * icon rows. Row 1: list styles, multilevel, outdent, indent (the list controls
+ * come from lists/home-lists.tsx, so their commands are not duplicated; the
+ * Lists group is merged here). Row 2 (rowBreak on Align left): the four
+ * alignments as toggles and the line + paragraph spacing popover, a `custom`
+ * item because its custom multiple and before/after inputs do not fit the
+ * dropdown model. Every item calls the same command the legacy component called.
  */
-export function homeParagraphRibbonItems({ format, commands, readOnly, saving }: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function homeParagraphRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands, readOnly, saving } = context;
   const blocked = readOnly || saving || !commands || !format;
   const align = format?.align ?? null;
-  const current = ALIGNMENTS.find((entry) => entry.align === align) ?? ALIGNMENTS[0]!;
 
   return [
+    ...homeListsRibbonItems(context).map((item) => ({ ...item, size: "icon" as const, collapseAs: "icon" as const })),
     {
       kind: "button",
       id: "docx-indent-decrease",
       labelKey: "office.docx.toolbar.paragraph.indentDecrease",
       icon: IndentDecrease,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       disabled: blocked,
       onExecute: () => commands?.stepParagraphIndent(-1),
     },
@@ -110,33 +114,31 @@ export function homeParagraphRibbonItems({ format, commands, readOnly, saving }:
       id: "docx-indent-increase",
       labelKey: "office.docx.toolbar.paragraph.indentIncrease",
       icon: IndentIncrease,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       disabled: blocked,
       onExecute: () => commands?.stepParagraphIndent(1),
     },
-    {
-      kind: "split",
-      id: "docx-align",
-      labelKey: current.labelKey,
-      icon: current.icon,
-      size: "small",
+    ...ALIGNMENTS.map(({ align: value, icon, labelKey }, index): RibbonItem => ({
+      kind: "toggle",
+      id: `docx-align-${value}`,
+      labelKey,
+      icon,
+      size: "icon",
+      collapseAs: "icon",
+      rowBreak: index === 0,
+      pressed: align === value,
       disabled: blocked,
-      pressed: align !== null,
-      onExecute: () => commands?.setParagraphAlign(current.align),
-      menu: ALIGNMENTS.map(({ align: value, labelKey }) => ({
-        id: `docx-align-${value}`,
-        labelKey,
-        checked: align === value,
-        onSelect: () => commands?.setParagraphAlign(value),
-      })),
-    },
+      onExecute: () => commands?.setParagraphAlign(value),
+    })),
     {
       kind: "custom",
       id: "docx-paragraph-spacing",
       labelKey: "office.docx.toolbar.paragraph.spacing",
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       disabled: blocked,
-      width: 32,
+      width: 34,
       render: () => (
         <ParagraphSpacingPicker
           lineSpacing={format?.lineSpacing ?? null}

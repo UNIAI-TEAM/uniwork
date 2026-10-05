@@ -92,7 +92,10 @@ export function groupBlocks(items: readonly RibbonItem[], stage: RibbonGroupStag
     strip = [];
   };
   for (const item of items) {
-    if (item.kind === "gallery" || item.kind === "custom") {
+    // A custom control that declares `size: "icon"` (colour picker, size field)
+    // packs into the icon strip beside the typed icon items; any other custom
+    // item or gallery stands alone.
+    if (item.kind === "gallery" || (item.kind === "custom" && item.size !== "icon")) {
       flush();
       blocks.push({ kind: "inline", item });
       continue;

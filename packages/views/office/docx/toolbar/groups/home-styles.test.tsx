@@ -59,6 +59,8 @@ describe("homeStylesRibbonItems", () => {
     expect(item.maxVisible).toBe(4);
     expect(item.options).toHaveLength(DOCX_STYLES_GALLERY.length);
     expect(item.minVisible).toBe(1);
+    // The Styles group shows a real gallery (>= 3 cards), not a lone button.
+    expect(item.maxVisible).toBeGreaterThanOrEqual(3);
 
     const headings = item.options.filter((option) => option.id.startsWith("heading-"));
     expect(headings).toHaveLength(6);
