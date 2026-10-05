@@ -33,9 +33,9 @@
  * what `toEditorDocument` produced: the text a block had is either in a raw
  * node or recoverable from the node that represents it.
  */
-import type { JSONContent } from "@tiptap/core";
+import { getSchema } from "@tiptap/core";
+import type { AnyExtension, JSONContent } from "@tiptap/core";
 import { MarkdownManager } from "@tiptap/markdown";
-import type { AnyExtension } from "@tiptap/core";
 import { findFrontmatter } from "@uniwork/office-engine/markdown";
 import { MARKDOWN_LEAD_ATTRIBUTE, MARKDOWN_LIST_INDENT } from "./extensions";
 import { installSelectiveEscaper } from "./escape";
@@ -155,6 +155,49 @@ function representableBlock(manager: MarkdownManager, core: string): JSONContent
   return trimBlockBoundaryNewlines(rendered) === core ? candidate : null;
 }
 
+/**
+ * Node types that hold inline text, so `Selection.atStart` can land a caret in
+ * them. Read from the manager's own extension set (the same one the editor
+ * mounts with) and cached per manager: building a schema is not free and the
+ * extension set never changes after construction.
+ */
+const textblockTypesCache = new WeakMap<MarkdownManager, Set<string>>();
+
+function textblockTypes(manager: MarkdownManager): Set<string> {
+  const cached = textblockTypesCache.get(manager);
+  if (cached) return cached;
+  // `baseExtensions` is private API (`@tiptap/markdown` 3.30.6), the same
+  // manager already exposes `instance.lexer` privately (see `lexBlocks`). The
+  // set only decides whether an empty paragraph is appended, so an empty
+  // fallback keeps a caret home rather than losing bytes.
+  const extensions = (manager as unknown as { baseExtensions?: AnyExtension[] }).baseExtensions;
+  let types = new Set<string>();
+  try {
+    const schema = getSchema(extensions ?? []);
+    types = new Set(
+      Object.values(schema.nodes)
+        .filter((type) => type.isTextblock)
+        .map((type) => type.name),
+    );
+  } catch {
+    types = new Set();
+  }
+  textblockTypesCache.set(manager, types);
+  return types;
+}
+
+/**
+ * True when some node in `nodes` (or a descendant) can hold a caret. Atoms
+ * carry no `content` in the JSON, so recursing through `content` never enters a
+ * raw block or a math atom - exactly the nodes `atStart` skips.
+ */
+function containsTextblock(nodes: JSONContent[], types: Set<string>): boolean {
+  return nodes.some(
+    (node) =>
+      (typeof node.type === "string" && types.has(node.type)) || containsTextblock(node.content ?? [], types),
+  );
+}
+
 function rawBlock(source: string, lead: string): JSONContent {
   return {
     type: MARKDOWN_RAW_NODE_NAME,
@@ -210,9 +253,14 @@ export function toEditorDocument(source: string, manager: MarkdownManager): JSON
     pending += chunk.trail;
   }
 
-  // ProseMirror requires at least one block; an empty or whitespace-only
-  // source still round-trips because an empty paragraph serialises to "".
-  if (content.length === 0) {
+  // ProseMirror requires at least one block, and `Selection.atStart` needs a
+  // TEXTBLOCK to land a caret in: with only atoms (front matter, raw HTML,
+  // math) it returns `AllSelection`, and the first keystroke replaces the whole
+  // document - the front matter is destroyed. Guarantee a caret home by
+  // appending an empty paragraph whenever the parsed blocks hold no textblock.
+  // The stored empty `mdLead` keeps the paragraph from injecting a separator,
+  // and an empty paragraph serialises to "", so byte-identity is preserved.
+  if (content.length === 0 || !containsTextblock(content, textblockTypes(manager))) {
     content.push({ type: "paragraph", attrs: { [MARKDOWN_LEAD_ATTRIBUTE]: "" } });
   }
 

@@ -27,7 +27,7 @@
  */
 import { Node, mergeAttributes } from "@tiptap/core";
 import type { JSONContent, MarkdownToken } from "@tiptap/core";
-import { NodeSelection, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
+import { AllSelection, NodeSelection, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 
 export const MARKDOWN_RAW_NODE_NAME = "markdownRaw";
 
@@ -149,7 +149,18 @@ export const MarkdownRawExtension = Node.create({
           const { selection } = newState;
           if (!(selection instanceof NodeSelection)) return null;
           if (selection.node.type.name !== MARKDOWN_RAW_NODE_NAME) return null;
-          const repaired = Selection.near(newState.doc.resolve(selection.from), 1);
+          // Search TEXTBLOCKS only. `Selection.near` accepts ANY valid
+          // selection, so on `[markdownRaw, blockMath]` it returned a
+          // NodeSelection on the adjacent selectable atom and the repair bailed,
+          // leaving the raw node selected for the next keystroke. A textblock is
+          // the only safe caret home. `AllSelection` is the last resort for a
+          // document that has no textblock at all; the Markdown codec always
+          // appends one, so in the editor this branch is unreachable.
+          const $from = newState.doc.resolve(selection.from);
+          const repaired =
+            Selection.findFrom($from, 1, true) ??
+            Selection.findFrom($from, -1, true) ??
+            new AllSelection(newState.doc);
           if (repaired instanceof NodeSelection) return null;
           return newState.tr.setSelection(repaired).setMeta("addToHistory", false);
         },

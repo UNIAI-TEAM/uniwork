@@ -107,4 +107,47 @@ describe("front matter selection (B-2)", () => {
     expect(live!.state.selection).toBeInstanceOf(TextSelection);
     expect(live!.state.selection.$from.parent.textContent).toBe("xHeading one");
   });
+
+  it("keeps the caret in an appended empty paragraph for a front-matter-ONLY document", async () => {
+    // A document whose blocks are ALL unrepresentable parses to `[markdownRaw]`
+    // with no textblock, so `Selection.atStart` returned `AllSelection` and the
+    // first keystroke replaced the WHOLE document - the front matter included.
+    // `toEditorDocument` now appends an empty paragraph when there is no
+    // textblock, which gives `atStart` a caret home; the empty paragraph
+    // serialises to "" so byte-identity is preserved.
+    const only = "---\ntitle: Only\n---\n";
+    const source = createTextSource(only);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    render(
+      <MarkdownWysiwygEditor documentKey="doc-only" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+
+    // The only real block is the raw node; the caret sits in the appended
+    // paragraph after it, not in an `AllSelection` over the document.
+    const doc = live!.state.doc;
+    expect(doc.child(0).type.name).toBe(MARKDOWN_RAW_NODE_NAME);
+    expect(doc.lastChild?.type.name).toBe("paragraph");
+    expect(live!.state.selection).toBeInstanceOf(TextSelection);
+    expect(live!.state.selection.$from.parent.type.name).toBe("paragraph");
+
+    // Type one character at the caret. Pre-fix the `AllSelection` replaced the
+    // front matter with the character.
+    const { from, to } = live!.state.selection;
+    await act(async () => {
+      live!.commands.command(({ tr }) => {
+        tr.insertText("x", from, to);
+        return true;
+      });
+    });
+
+    await waitFor(() => expect(source.getText()).toContain("x"));
+    // The front matter is still present, byte-identical, and the typed `x` is
+    // NOT inside the raw block.
+    expect(source.getText().startsWith(only)).toBe(true);
+    expect(source.getText().slice(0, only.length)).toBe(only);
+    const raw = live!.state.doc.child(0);
+    expect(raw.textContent).toBe("");
+  });
 });

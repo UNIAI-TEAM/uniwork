@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { generateHTML, generateJSON } from "@tiptap/core";
+import { Editor, generateHTML, generateJSON } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { createMarkdownEditorExtensions } from "./extensions";
 import { createMarkdownSourceCodec, createMarkdownSourceManager, toEditorDocument } from "./serialize";
 import { MARKDOWN_RAW_NODE_NAME, rawNodeSource } from "./raw-node";
@@ -94,11 +95,44 @@ describe("markdownRaw opaque node", () => {
       const reparsed = generateJSON(html, extensions) as JSONContent;
       const raw = (reparsed.content ?? []).find((node) => node.type === MARKDOWN_RAW_NODE_NAME);
       expect(raw).toBeDefined();
-      // The block's own bytes survive; only the doc-level tail (`mdLead`) is
-      // not carried by HTML, so compare against the block content, not the
-      // trailing newline.
+      // The block's own bytes survive — this is the assertion the regression
+      // guard rests on (pre-fix `source` parsed as "" and this was "").
       expect(rawNodeSource(raw)).toBe(text.trimEnd());
-      expect(codec.serialize(reparsed)).toBe(text.trimEnd());
+      // HTML carries neither `mdLead` nor the appended caret paragraph's stored
+      // empty separator (`toEditorDocument` adds one empty paragraph when the
+      // document has no textblock, so `Selection.atStart` has a caret home).
+      // The doc-level tail and that separator are therefore re-serialised with
+      // the default blank line; the raw block's bytes are unchanged.
+      expect(codec.serialize(reparsed)).toBe(text.trimEnd() + "\n\n");
+    }
+  });
+
+  it("repairs a NodeSelection over the raw node even when the next block is a selectable atom", () => {
+    // `Selection.near` accepts ANY valid selection, so on `[markdownRaw,
+    // blockMath]` it returned a NodeSelection on the adjacent math atom and the
+    // guard bailed, leaving the raw node selected (and the next keystroke able
+    // to replace the front matter). The repair must search TEXTBLOCKS only.
+    const extensions = createMarkdownEditorExtensions();
+    const codec = createMarkdownSourceCodec(extensions);
+    const text = "---\ntitle: X\n---\n\n$$\nx = 1\n$$\n";
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const editor = new Editor({ element, extensions, content: codec.parse(text), contentType: "json" });
+    try {
+      // The codec appends an empty paragraph because neither block is a
+      // textblock, so there is a caret home to repair into.
+      const types = editor.state.doc.children.map((child) => child.type.name);
+      expect(types).toContain("markdownRaw");
+      expect(types).toContain("blockMath");
+      expect(types).toContain("paragraph");
+
+      editor.commands.setNodeSelection(0);
+      const selection = editor.state.selection;
+      expect(selection).toBeInstanceOf(TextSelection);
+      expect(selection.$from.parent.type.name).toBe("paragraph");
+    } finally {
+      editor.destroy();
+      element.remove();
     }
   });
 
