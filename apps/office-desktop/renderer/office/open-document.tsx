@@ -15,6 +15,7 @@ import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopEditorLoader } from "./editor-registry";
+import { printTextDocument } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
  * desktop package does not depend on the icon set directly. */
@@ -71,6 +72,13 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
     return loader(requestedFormat);
   }, [capability, documentKey, session, effectiveTitle, surfaceVersion]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [active, bridge, documentKey, ready, session]);
+  const printText = async () => {
+    setActionFailed(false);
+    const text = session.editor.getText?.();
+    if ((format !== "md" && format !== "html") || text === undefined) { setActionFailed(true); return; }
+    const result = await printTextDocument(format, text, effectiveTitle);
+    if (result.outcome === "failed") setActionFailed(true);
+  };
   const saveAs = async () => {
     setActionFailed(false);
     try {
@@ -94,6 +102,7 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
         <DropdownMenuContent align="end" className="min-w-56">
           {kind === "local" ? <DropdownMenuGroup aria-label={tAi("entry")} className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></DropdownMenuGroup> : null}
           {ready && session.canSave && session.localHandle ? <DropdownMenuItem className="gap-2 px-2 py-2" disabled={saveState === "saving"} onClick={() => { void saveAs(); }}>{t("saveAs")}</DropdownMenuItem> : null}
+          {ready && (format === "md" || format === "html") ? <DropdownMenuItem className="gap-2 px-2 py-2" onClick={() => { void printText(); }}>{tOffice("markdown.print.title")}</DropdownMenuItem> : null}
           <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>}
