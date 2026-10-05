@@ -213,6 +213,12 @@ export function applyWaveOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord | 
       el.ungrouped = true;
       return { op, after: { el: el.id } };
     }
+    case "addConnector": {
+      const { slide } = resolveSlide(opened, op);
+      const el: PptxElementLike = { id: "cxn_" + nextSeq(), type: "connector", stCxn: op.from, endCxn: op.to, kind: op.kind ?? "straight" };
+      slide.elements.push(el);
+      return { op, created: [el.id] };
+    }
     case "groupElements": {
       const { slide } = resolveSlide(opened, op);
       const els = (op.els as string[]) ?? [];
@@ -387,6 +393,7 @@ export function validateWaveOp(opened: OpenedPptxLike, op: PptxOp): boolean {
     case "setTextBodyProps":
       resolveElement(opened, op);
       break;
+    case "addConnector":
     case "groupElements":
     case "flipElements":
     case "alignElements":

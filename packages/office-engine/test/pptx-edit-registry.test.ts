@@ -80,6 +80,7 @@ const DECLARED_KINDS: PptxEdit["op"][] = [
   "add_media",
   "add_smartart",
   "add_model3d",
+  "add_connector",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -230,6 +231,7 @@ const ONE_OF_EACH: PptxEdit[] = [
     wPx: 120,
     hPx: 90,
   },
+  { op: "add_connector", slideIndex: 0, elementIds: ["t1", "s1"], kind: "elbow", arrow: "end" },
 ];
 
 describe("pptx edit-kind registry", () => {

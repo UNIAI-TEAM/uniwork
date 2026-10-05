@@ -16,6 +16,7 @@ import {
   type PptxTxnResult,
 } from "./engine";
 import type { AnimationEdit } from "./edits/animation-edits";
+import type { ConnectorEdit } from "./edits/connector-edits";
 import type { ChartEdit } from "./edits/chart-edits";
 import type { FindLinkEdit } from "./edits/find-link-edits";
 import type { FormatEdit } from "./edits/format-edits";
@@ -30,6 +31,7 @@ import type { TransitionEdit } from "./edits/transition-edits";
 import {
   addAnimationGesture,
   addChartGesture,
+  addConnectorGesture,
   addCommentGesture,
   addMediaGesture,
   addModel3dGesture,
@@ -170,6 +172,7 @@ export type PptxEdit =
   | AnimationEdit
   | TextEdit
   | FormatEdit
+  | ConnectorEdit
   | NotesCommentEdit
   | HeaderFooterEdit
   | MediaEdit;
@@ -582,6 +585,8 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
   add_media: (model, edit) => addMediaGesture(model, edit),
   add_smartart: (model, edit) => addSmartArtGesture(model, edit),
   add_model3d: (model, edit) => addModel3dGesture(model, edit),
+  // Glued connector insert (R4fix-connector-engine).
+  add_connector: (model, edit) => addConnectorGesture(model, edit),
 };
 
 /** Registered edit kinds, in registry order — the surface the B track extends. */

@@ -34,7 +34,7 @@ import { PptxChartsPanel } from "./charts";
 import { PptxDesignPanel } from "./design";
 import { PptxFormatPanel } from "./format";
 import { PptxInsertPanel } from "./insert";
-import type { PptxInsertElementRef } from "./insert/insert-model";
+import type { PptxInsertConnectorRequest, PptxInsertElementRef } from "./insert/insert-model";
 import { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";
 import { PptxLinkEditor } from "./links";
 import { PptxSorterPanel } from "./sorter";
@@ -259,6 +259,10 @@ export function PptxPanelHost({
                 // Group selection rides the registered group_elements edit; the picker already
                 // narrowed the ids to the groupable, selected ones.
                 onGroupSelection: (elementIds: readonly string[]) => onApplyEdit({ op: "group_elements", slideIndex: slideIndex ?? 0, elementIds: [...elementIds] }),
+                // The connector request rides the registered add_connector edit (vendored addConnector,
+                // glued to both shapes); the picker already validated the pair.
+                onInsertConnector: (request: PptxInsertConnectorRequest) =>
+                  onApplyEdit({ op: "add_connector", slideIndex: request.slideIndex, elementIds: [request.from, request.to], kind: request.kind, arrow: request.arrow }),
               }
             : {})}
           className={className}

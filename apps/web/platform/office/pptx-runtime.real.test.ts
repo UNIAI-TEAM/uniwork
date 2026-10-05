@@ -311,4 +311,43 @@ describe("web PPTX runtime on the real engine - panel read-back (X1)", () => {
     await runtime.release(ref);
     await reopened.runtime.release(reopened.ref);
   }, 60_000);
+
+  it("add_connector glues a p:cxnSp to two shapes and survives undo, redo, save and reopen (R4fix-connector-engine)", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "real-connector" });
+    const result = await runtime.open({ bytes: fixture(), documentId: "real-connector" });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("fixture did not open: " + String(result.message));
+    const ref = result.document_model_ref;
+    const baseCount = elementsOf(runtime.deck(ref)).length;
+    const rect = (xPx: number): PptxEdit => ({ op: "add_element", slideIndex: 0, kind: "rect", xPx, yPx: 300, wPx: 80, hPx: 50 });
+    const a = (await runtime.edit(ref, [rect(40)])).createdIds?.[0];
+    const b = (await runtime.edit(ref, [rect(400)])).createdIds?.[0];
+    expect(a && b).toBeTruthy();
+    await runtime.edit(ref, [{ op: "add_connector", slideIndex: 0, elementIds: [a!, b!], kind: "elbow", arrow: "end" }]);
+    const xmlOf = (element: RealElement | undefined): string =>
+      String((element as unknown as { anchor?: { originalXml?: string } } | undefined)?.anchor?.originalXml ?? "");
+    const tip = elementsOf(runtime.deck(ref));
+    expect(tip).toHaveLength(baseCount + 3);
+    const glued = xmlOf(tip.at(-1));
+    expect(glued).toContain("<p:cxnSp");
+    expect(glued).toMatch(/<a:stCxn id="\d+" idx="\d+"\/>/);
+    expect(glued).toMatch(/<a:endCxn id="\d+" idx="\d+"\/>/);
+    expect(glued).toContain('prst="bentConnector3"');
+
+    // Undo removes it (reopen + replay of the two inserts); redo re-glues it.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(elementsOf(runtime.deck(ref))).toHaveLength(baseCount + 2);
+    expect(elementsOf(runtime.deck(ref)).some((element) => xmlOf(element).includes("<p:cxnSp"))).toBe(false);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(xmlOf(elementsOf(runtime.deck(ref)).at(-1))).toContain("<a:endCxn");
+
+    const value = runtime.snapshot(ref);
+    const out = await runtime.serialize(ref, { snapshot: { generation: value.revision, fingerprint: "fp", value } });
+    const saved = elementsOf((await openPptx(out.bytes)).deck);
+    expect(saved).toHaveLength(baseCount + 3);
+    const savedXml = xmlOf(saved.at(-1));
+    expect(savedXml).toContain("<p:cxnSp");
+    expect(savedXml).toContain("<a:stCxn");
+    expect(savedXml).toContain("<a:endCxn");
+    await runtime.release(ref);
+  }, 60_000);
 });

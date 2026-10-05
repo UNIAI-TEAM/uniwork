@@ -22,6 +22,7 @@ import {
   type PptxTxnResult,
 } from "./engine";
 import { buildAnimationOps, type AnimationEdit } from "./edits/animation-edits";
+import { buildConnectorOps, type ConnectorEdit } from "./edits/connector-edits";
 import { buildChartOps, type ChartEdit } from "./edits/chart-edits";
 import { buildFindLinkOps, type FindLinkEdit } from "./edits/find-link-edits";
 import { buildFormatOps, type FormatEdit } from "./edits/format-edits";
@@ -329,6 +330,13 @@ export function groupElementsGesture(
 ): { applied: true; createdId: string } {
   const result = model.runBuiltTxn(buildFormatOps(model.opened, model.fitWidthPx, edit));
   return { applied: true, createdId: requireCreated(result.records, "groupElements") };
+}
+
+/** add_connector -> buildConnectorOps.addConnector (arrange-ops.ts:286). The
+ * vendored apply records the inserted connector (created:[id]). */
+export function addConnectorGesture(model: WaveGestureModel, edit: ConnectorEdit): { applied: true; createdId: string } {
+  const result = model.runBuiltTxn(buildConnectorOps(model.opened, model.fitWidthPx, edit));
+  return { applied: true, createdId: requireCreated(result.records, "addConnector") };
 }
 
 /** flip_elements -> buildFormatOps.flipElements (element-ops.ts:228). */

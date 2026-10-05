@@ -210,6 +210,31 @@ describe("PptxEditor panel mounting (UNI-927 W5)", () => {
     await waitFor(() => expect(onApplyEdit).toHaveBeenCalledWith({ op: "group_elements", slideIndex: 0, elementIds: ["shape-1", "shape-2"] }));
   });
 
+  it("enables Add connector with two shapes and sends add_connector through onApplyEdit (R4fix-connector-engine)", async () => {
+    const nodes = [
+      shapeNode({ text: textLayout({ lines: [{ runs: [run({ text: "Title" })], top: 0, height: 24 }] }) }),
+      shapeNode({ id: "r_shape-2", sourceId: "shape-2", box: box({ x: 520, y: 40, w: 120, h: 80 }) }),
+    ];
+    const loadRendererModule = async (): Promise<PptxRendererModule> => ({
+      makeViewport: (size, fitWidthPx) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+      buildRenderSlide: () => slide(nodes),
+    });
+    const onApplyEdit = vi.fn(async () => undefined);
+    render(<PptxEditor host={makeHost()} editorHandle={makeHandle().handle} loadRendererModule={loadRendererModule} slides={[{ id: "s1" }]} onApplyEdit={onApplyEdit} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    // Select both shapes first so the pickers seed start/end from the selection.
+    clickSlideAt(100, 80);
+    const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    fireEvent.pointerDown(overlay, { button: 0, clientX: 560, clientY: 70, shiftKey: true });
+    fireEvent.pointerUp(overlay, { button: 0, clientX: 560, clientY: 70, shiftKey: true });
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    await waitFor(() => expect(screen.getByTestId("pptx-connector-insert")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("pptx-connector-insert"));
+    await waitFor(() =>
+      expect(onApplyEdit).toHaveBeenCalledWith({ op: "add_connector", slideIndex: 0, elementIds: ["shape-1", "shape-2"], kind: "straight", arrow: "end" }),
+    );
+  });
+
   it("shows the rail's generated thumbnails on the sorter tiles (R2-12)", async () => {
     await renderEditor();
     fireEvent.click(screen.getByRole("tab", { name: "View" }));
