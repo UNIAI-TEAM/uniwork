@@ -268,7 +268,7 @@ describe("token contract", () => {
       "--destructive", "--success", "--warning", "--info",
       "--brand", "--brand-foreground",
       "--border", "--input", "--ring", "--radius",
-      "--app-shell", "--page-canvas",
+      "--app-shell", "--page-canvas", "--office-band", "--office-canvas",
       "--surface", "--surface-foreground", "--surface-raised",
       "--surface-hover", "--surface-selected",
       "--surface-selected-foreground", "--surface-border",
