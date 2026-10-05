@@ -135,6 +135,52 @@ export function getMermaidThemeVariables(host: HTMLElement | null) {
   };
 }
 
+/**
+ * Whether the host sits in the app's dark theme. The app switches themes by
+ * putting `.dark` on <html> (a `.dark` subtree is possible too), so the class —
+ * not a media query — is the source of truth.
+ */
+function isDarkHost(host: HTMLElement | null): boolean {
+  if (!host) return false;
+  return (
+    host.closest(".dark") !== null ||
+    host.ownerDocument.documentElement.classList.contains("dark")
+  );
+}
+
+/**
+ * The exact `mermaid.initialize` argument. `themeVariables` alone is not enough
+ * for a dark host: Mermaid's `base` theme derives a second layer of surfaces
+ * (git-graph commit highlights, `rowOdd`/`rowEven`, the `surface*` ramp) from
+ * its own `darkMode` flag, which defaults to false. With it unset those stay
+ * light — `gitGraph` painted `.commit-highlight0 { fill:#ffffff }` in a dark
+ * document. The flag is set both at the config root (diagrams that read
+ * `options.darkMode`) and inside `themeVariables` (what `Theme.calculate`
+ * copies before `updateColors`).
+ */
+export function getMermaidInitializeOptions(host: HTMLElement | null) {
+  const darkMode = isDarkHost(host);
+
+  return {
+    startOnLoad: false,
+    securityLevel: "strict" as const,
+    theme: "base" as const,
+    // Render labels as SVG <text> instead of Mermaid's default HTML-in-
+    // <foreignObject>. Browsers do not rasterize foreignObject when an SVG is
+    // drawn through an <img> — verified in Chromium, the label paints zero
+    // pixels AND taints the canvas, so PNG export produces nothing at all. SVG
+    // text keeps the export self-contained.
+    htmlLabels: false,
+    // On invalid syntax, make render() throw instead of drawing Mermaid's
+    // built-in error graphic into the DOM. The caller's catch then shows its
+    // own compact error state — no orphaned error SVG, and no extra parse pass
+    // over valid charts.
+    suppressErrorRendering: true,
+    darkMode,
+    themeVariables: { ...getMermaidThemeVariables(host), darkMode },
+  };
+}
+
 function getSandboxCssVariables(host: HTMLElement | null): string {
   const styles = host ? getComputedStyle(host) : null;
   return ["--muted", "--primary", "--foreground", "--muted-foreground"]
@@ -402,23 +448,11 @@ export function MermaidDiagram({ chart }: { chart: string }) {
         // a flash of the loading skeleton on every theme toggle.
         setSkeletonLayout(readCachedLayout(chart));
         const mermaid = await getMermaid();
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: "base",
-          // Render labels as SVG <text> instead of Mermaid's default HTML-in-
-          // <foreignObject>. Browsers do not rasterize foreignObject when an
-          // SVG is drawn through an <img> — verified in Chromium, the label
-          // paints zero pixels AND taints the canvas, so PNG export produces
-          // nothing at all. SVG text keeps the export self-contained.
-          htmlLabels: false,
-          themeVariables: getMermaidThemeVariables(containerRef.current),
-          // On invalid syntax, make render() throw instead of drawing Mermaid's
-          // built-in error graphic into the DOM. The catch below then shows our
-          // own compact error state — no orphaned error SVG, and no extra parse
-          // pass over valid charts.
-          suppressErrorRendering: true,
-        });
+        // One source of truth for the render config: it also derives
+        // `darkMode` from the host, so Mermaid's own light defaults for the
+        // surfaces our tokens do not name (git-graph highlights, row/surface
+        // ramps) follow the theme instead of staying white.
+        mermaid.initialize(getMermaidInitializeOptions(containerRef.current));
         const { svg: renderedSvg } = await mermaid.render(diagramId, chart);
         if (cancelled) return;
 

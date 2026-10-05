@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getMermaidThemeVariables } from "./mermaid-diagram";
+import { getMermaidInitializeOptions, getMermaidThemeVariables } from "./mermaid-diagram";
 
 // Resolved from the views package root, which vitest always uses as the working
 // directory, so the assertions read the palette the app actually ships.
@@ -133,4 +133,80 @@ describe("getMermaidThemeVariables", () => {
       expect(value).not.toContain("var(");
     }
   });
+});
+
+/**
+ * Mermaid paints a second layer of surfaces from its own `darkMode` flag, which
+ * defaults to false: git-graph commit highlights (`fill:#ffffff`), the
+ * `rowOdd`/`rowEven` pair and the `surface*` ramp. `themeVariables` alone does
+ * not reach them, so a dark host still got a light default — the reported white
+ * box survived commit a9b71454 for exactly this reason. These render the real
+ * SVG through the component's own config and read what Mermaid actually wrote.
+ */
+describe("getMermaidInitializeOptions", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.documentElement.classList.remove("dark");
+    document.body.replaceChildren();
+  });
+
+  /**
+   * Mermaid's own light defaults, as concrete colour values. Matching the value
+   * (not the bare word) keeps `lightgrey` — the commit-id ink — out of the net;
+   * light ink on a dark ground is correct, a light *surface* is not.
+   */
+  const LIGHT_DEFAULT = /#f4f4f4|#ffffff|#fff\b|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)|\bwhite\b/i;
+
+  async function renderWith(chart: string, dark: boolean): Promise<string> {
+    installThemeResolution();
+    document.documentElement.classList.toggle("dark", dark);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const mermaid = (await import("mermaid")).default;
+    // jsdom has no SVG layout; Mermaid measures text through these two.
+    const svgProto = SVGElement.prototype as unknown as {
+      getBBox: () => DOMRect;
+      getComputedTextLength: () => number;
+    };
+    svgProto.getBBox = () => ({ x: 0, y: 0, width: 200, height: 100 }) as DOMRect;
+    svgProto.getComputedTextLength = () => 40;
+
+    mermaid.initialize(getMermaidInitializeOptions(host));
+    const { svg } = await mermaid.render(`regression-${dark ? "dark" : "light"}`, chart);
+    return svg;
+  }
+
+  const GIT_GRAPH = "gitGraph\n  commit\n  branch dev\n  commit\n";
+  const SEQUENCE =
+    "sequenceDiagram\n  participant A\n  participant B\n  A->>B: Hi\n  Note over A,B: n\n  alt y\n    B->>A: ok\n  end\n";
+
+  it("carries no light default when the host is dark", async () => {
+    // gitGraph is the family the token map could not reach: its commit
+    // highlights come from `darkMode`, not from a theme variable. On the
+    // pre-fix tip this renders `.commit-highlight0 { fill:#ffffff }`.
+    const gitGraph = await renderWith(GIT_GRAPH, true);
+
+    expect(gitGraph).not.toMatch(LIGHT_DEFAULT);
+    expect(gitGraph).not.toContain("commit-highlight0{stroke:#ffffff;fill:#ffffff;}");
+
+    // A second family, so the guard is not git-graph-specific.
+    const sequence = await renderWith(SEQUENCE, true);
+    expect(sequence).not.toMatch(LIGHT_DEFAULT);
+  }, 60_000);
+
+  it("keeps light mode's own rendering (light is not regressed)", async () => {
+    const light = await renderWith(GIT_GRAPH, false);
+
+    // Light still paints the commit highlight it always did — the value is
+    // derived from the light `mainBkg`, and it is a real SVG.
+    expect(light).toContain("regression-light");
+    expect(light).toMatch(/\.commit-highlight0\{stroke:rgb\([^)]*\);fill:rgb\([^)]*\);\}/);
+  }, 60_000);
+
+  it("renders a different SVG for dark than for light", async () => {
+    const light = await renderWith(GIT_GRAPH, false);
+    const dark = await renderWith(GIT_GRAPH, true);
+
+    expect(dark).not.toBe(light);
+  }, 60_000);
 });
