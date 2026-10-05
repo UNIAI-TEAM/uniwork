@@ -7,9 +7,14 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
+import type { PdfCanvasPage, PdfPageRenderService } from "./canvas/types";
+import type { PdfSearchHit } from "./find/types";
+import type { PdfFormField } from "./forms/types";
+import type { PdfNoteThread } from "./notes/types";
 
 /** A selection is an adapter identity, never a DOM range or a decoded PDF object. */
 export interface PdfSelection {
+  /** 1-based displayed page position; the host bridge maps it to the original engine index. */
   page: number;
   objectId: string | null;
   kind: "text" | "image" | "page";
@@ -38,11 +43,32 @@ export interface PdfFontReport {
   embedded: readonly string[];
 }
 
+export type PdfMarkupType = "highlight" | "underline" | "strikeout";
+
+export interface PdfTextMarkupSelection {
+  page: number;
+  /** PDF user-space quads: [x1,yTop,x2,yTop,x1,yBottom,x2,yBottom]. */
+  quads: readonly (readonly number[])[];
+}
+
+export type PdfDrawingType = "rect" | "ellipse" | "line" | "arrow";
+export type PdfDrawingRect = [number, number, number, number];
+export type PdfDrawingGeometry =
+  | { rect: { x: number; y: number; width: number; height: number } }
+  | { start: { x: number; y: number }; end: { x: number; y: number } }
+  | { points: { x: number; y: number }[] };
+
 /** Public browser operations. Images are provider-owned asset references; raw
  * image bytes and codecs never cross into this package. */
 export type PdfEditOperation =
+  /** target.page is the 1-based displayed position at the time of the operation. */
   | { op: "replace_text"; target: { page: number; objectId: string }; text: string }
   | { op: "replace_image"; target: { page: number; objectId: string }; assetId: string }
+  | { op: "add_markup"; target: PdfTextMarkupSelection; type: PdfMarkupType; color: [number, number, number] }
+  | { op: "add_drawing"; target: { page: number; geometry: PdfDrawingGeometry }; kind: PdfDrawingType | "ink"; color: [number, number, number]; width: number; fill?: [number, number, number] }
+  | { op: "add_note"; target: { page: number; rect: [number, number, number, number]; contents: string; author?: string; replyTo?: { objNum: number; rect: [number, number, number, number]; contents: string } } }
+  | { op: "edit_note"; target: { page: number; objNum: number; rect: [number, number, number, number]; contents: string }; contents: string }
+  | { op: "resolve_note"; target: { page: number; objNum: number; rect: [number, number, number, number]; contents: string }; resolved: boolean }
   | { op: "insert_page"; target: { index: number } }
   | { op: "delete_page"; target: { page: number } }
   | { op: "rotate_page"; target: { page: number }; degrees: 90 | 180 | 270 }
@@ -61,6 +87,17 @@ export type PdfEditorHandle<TSnapshot = PdfSnapshot> = EditorHandle<TSnapshot> &
     getPdfSnapshot?(): PdfSnapshot | null;
     getFontReport?(): PdfFontReport | null;
     cancel?: (reason?: string) => Promise<void> | void;
+    /** Host page renderer; with `getCanvasPages` it makes the surface draw real pages. */
+    renderer?: PdfPageRenderService;
+    getCanvasPages?(): readonly PdfCanvasPage[];
+    /** Engine-envelope operations (camelCase) from the panel providers. */
+    submitEngineOperations?(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] } | void>;
+    readFormFields?(): Promise<readonly PdfFormField[]>;
+    /** Saved note threads read from the file; absent when the host cannot read them. */
+    readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
+    searchText?(query: string): Promise<readonly PdfSearchHit[]>;
+    /** Fires when the document bytes changed (edit, undo, redo). */
+    subscribe?(listener: () => void): () => void;
   };
 
 export type PdfOpenSuccess = Extract<OpenOutcome, { outcome: "opened" }>;
@@ -71,7 +108,14 @@ export type PdfOpenFailure = Extract<OpenOutcome, { outcome: "failed" }> & {
 export type PdfOpenOutcome = PdfOpenSuccess | PdfOpenFailure;
 
 export interface PdfOpenPort {
-  open(signal?: AbortSignal): Promise<PdfOpenOutcome>;
+  /**
+   * Open the document. `password` is supplied only on a retry after an
+   * outcome failed with failure_class "password_required" or "wrong_password";
+   * the port verifies it in the engine and the caller never stores it. A port
+   * that cannot carry a password leaves those failures to the error state
+   * instead of retrying.
+   */
+  open(signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome>;
 }
 
 export interface PdfSaveCoordinator {

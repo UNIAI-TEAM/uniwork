@@ -1,0 +1,28 @@
+/*
+ * Print scope for the PDF document surface. Every rule is inert until
+ * markPdfPrintSurface() sets `data-pdf-print-active` on the document root for
+ * the duration of window.print(); the app chrome around the surface stays out
+ * of the printout.
+ */
+@media print {
+  html[data-pdf-print-active] body * {
+    visibility: hidden;
+  }
+
+  html[data-pdf-print-active] [data-pdf-print-surface],
+  html[data-pdf-print-active] [data-pdf-print-surface] * {
+    visibility: visible;
+  }
+
+  html[data-pdf-print-active] [data-pdf-print-ancestor] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html[data-pdf-print-active] [data-pdf-print-surface] {
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    width: 100%;
+  }
+}

@@ -213,7 +213,8 @@ it("keeps the AI entry locked and never calls a cloud channel from it", async ()
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   const before = h.channels().length;
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.ai.entry") }));
+  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.ai.entry") }));
   const prompt = await screen.findByRole("dialog");
   expect(within(prompt).getByText(i18n.t("officeDesktop.ai.title"))).toBeInTheDocument();
   fireEvent.click(within(prompt).getByRole("button", { name: i18n.t("officeDesktop.ai.signIn") }));
@@ -233,7 +234,8 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
   editor.bump();
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.saveAs") }));
+  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.local.saveAs") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle })));
   await screen.findByRole("tab", { name: /copy\.docx/ });
   expect(screen.queryByRole("tab", { name: /Local\.docx/ })).toBeNull();

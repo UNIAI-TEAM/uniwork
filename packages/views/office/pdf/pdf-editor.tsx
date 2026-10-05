@@ -2,16 +2,18 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor landmark owns keyboard shortcuts */
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
-import { Notice } from "../../common/notice";
 import { PdfErrorState } from "./pdf-error-state";
-import { PdfPagePanel } from "./pdf-page-panel";
-import { PdfToolbar } from "./pdf-toolbar";
+import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
+import { PdfRibbonBar, PdfStatusBar } from "./chrome";
+import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
+import { pdfEditErrorKey } from "./pdf-edit-error";
+import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
+import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
+import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
 
 function unexpectedFailure(documentId: string, error: unknown): PdfOpenFailure {
@@ -25,7 +27,84 @@ function isFailure(outcome: PdfOpenOutcome): outcome is PdfOpenFailure {
   return outcome.outcome === "failed";
 }
 
+function passwordMode(failure: PdfOpenFailure): PdfPasswordMode | null {
+  if (failure.failure_class === "password_required") return "required";
+  if (failure.failure_class === "wrong_password") return "wrong";
+  return null;
+}
+
 const DEFAULT_PAGE: PdfPage = { pageNumber: 1, rotation: 0 };
+
+/** Which panel each ribbon command opens. Commands with no panel (save, undo,
+ * redo, rotate) and panels without a command id (signatures, page size,
+ * properties, drawings, ink) are not listed. Highlight, note, stamp and forms
+ * live on the Annotate tab; delete and reorder open the page strip. */
+const PANEL_FOR_COMMAND: Readonly<Partial<Record<PdfCommandId, PdfSurfacePanelId>>> = {
+  [PDF_COMMANDS.editText]: "text",
+  [PDF_COMMANDS.replaceImage]: "image",
+  [PDF_COMMANDS.annotations]: "markups",
+  [PDF_COMMANDS.highlight]: "markups",
+  [PDF_COMMANDS.note]: "notes",
+  [PDF_COMMANDS.stamp]: "stamps",
+  [PDF_COMMANDS.forms]: "forms",
+  [PDF_COMMANDS.insertPage]: "page-ops",
+  [PDF_COMMANDS.deletePage]: "pages",
+  [PDF_COMMANDS.reorderPage]: "pages",
+  [PDF_COMMANDS.extractPage]: "page-ops",
+  [PDF_COMMANDS.mergePages]: "page-ops",
+};
+
+/** The capability row each command id is gated on. `PDF_COMMAND_CAPABILITIES`
+ * is keyed by the command's name (`editText`), while a command's id is its
+ * value (`edit-text`), so this bridges the two once instead of at every lookup. */
+const CAPABILITY_FOR_COMMAND: Readonly<Record<PdfCommandId, string>> = {
+  [PDF_COMMANDS.undo]: PDF_COMMAND_CAPABILITIES.undo,
+  [PDF_COMMANDS.redo]: PDF_COMMAND_CAPABILITIES.redo,
+  [PDF_COMMANDS.editText]: PDF_COMMAND_CAPABILITIES.editText,
+  [PDF_COMMANDS.replaceImage]: PDF_COMMAND_CAPABILITIES.replaceImage,
+  [PDF_COMMANDS.insertPage]: PDF_COMMAND_CAPABILITIES.insertPage,
+  [PDF_COMMANDS.deletePage]: PDF_COMMAND_CAPABILITIES.deletePage,
+  [PDF_COMMANDS.rotatePage]: PDF_COMMAND_CAPABILITIES.rotatePage,
+  [PDF_COMMANDS.reorderPage]: PDF_COMMAND_CAPABILITIES.reorderPage,
+  [PDF_COMMANDS.extractPage]: PDF_COMMAND_CAPABILITIES.extractPage,
+  [PDF_COMMANDS.mergePages]: PDF_COMMAND_CAPABILITIES.mergePages,
+  [PDF_COMMANDS.annotations]: PDF_COMMAND_CAPABILITIES.annotations,
+  [PDF_COMMANDS.highlight]: PDF_COMMAND_CAPABILITIES.highlight,
+  [PDF_COMMANDS.note]: PDF_COMMAND_CAPABILITIES.note,
+  [PDF_COMMANDS.stamp]: PDF_COMMAND_CAPABILITIES.stamp,
+  [PDF_COMMANDS.forms]: PDF_COMMAND_CAPABILITIES.forms,
+  [PDF_COMMANDS.save]: PDF_COMMAND_CAPABILITIES.save,
+  [PDF_COMMANDS.zoomOut]: PDF_COMMAND_CAPABILITIES.zoomOut,
+  [PDF_COMMANDS.zoomIn]: PDF_COMMAND_CAPABILITIES.zoomIn,
+  [PDF_COMMANDS.fitWidth]: PDF_COMMAND_CAPABILITIES.fitWidth,
+  [PDF_COMMANDS.fitPage]: PDF_COMMAND_CAPABILITIES.fitPage,
+};
+
+/** Every command the ribbon may render, in the catalogue's stable order. */
+const COMMAND_ORDER: readonly PdfCommandId[] = [
+  PDF_COMMANDS.save,
+  PDF_COMMANDS.undo,
+  PDF_COMMANDS.redo,
+  PDF_COMMANDS.editText,
+  PDF_COMMANDS.replaceImage,
+  PDF_COMMANDS.annotations,
+  PDF_COMMANDS.highlight,
+  PDF_COMMANDS.note,
+  PDF_COMMANDS.stamp,
+  PDF_COMMANDS.forms,
+  PDF_COMMANDS.insertPage,
+  PDF_COMMANDS.deletePage,
+  PDF_COMMANDS.rotatePage,
+  PDF_COMMANDS.reorderPage,
+  PDF_COMMANDS.extractPage,
+  PDF_COMMANDS.mergePages,
+  PDF_COMMANDS.zoomOut,
+  PDF_COMMANDS.zoomIn,
+  PDF_COMMANDS.fitWidth,
+  PDF_COMMANDS.fitPage,
+];
+
+const ZOOM_STEP = 0.1;
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
@@ -34,18 +113,25 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [snapshot, setSnapshot] = useState<PdfSnapshot | null>(null);
   const [selection, setSelection] = useState<PdfSelection | null>(null);
   const [fontReport, setFontReport] = useState(() => editor.getFontReport?.() ?? null);
-  const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [retryToken, setRetryToken] = useState(0);
-  const [textDraft, setTextDraft] = useState("");
-  const [imageAssetId, setImageAssetId] = useState("");
+  const [passwordPending, setPasswordPending] = useState(false);
+  const [activePanel, setActivePanel] = useState<PdfSurfacePanelId | null>(null);
+  const [activeTab, setActiveTab] = useState<PdfToolbarTab>("home");
+  const [findOpen, setFindOpen] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
+  const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
   const coordinatorRef = useRef(coordinator);
   const capabilityRef = useRef(capability);
   const onOpenRef = useRef(onOpen);
   const translateRef = useRef(t);
-  const [editFailure, setEditFailure] = useState(false);
+  const queueRef = useRef<Promise<unknown> | null>(null);
   editorRef.current = editor;
   openRef.current = open;
   coordinatorRef.current = coordinator;
@@ -59,11 +145,6 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const effectiveTitle = title ?? t("office.pdf.title");
   const pages = snapshot?.pages ?? [];
   const selectedPage = selection?.page ?? pages[0]?.pageNumber ?? null;
-
-  useEffect(() => {
-    setCoordinatorState(coordinator.getState());
-    return coordinator.subscribe(setCoordinatorState);
-  }, [coordinator, documentKey]);
 
   useEffect(() => {
     const port = editor.selection;
@@ -91,7 +172,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     disposedRef.current = false;
     setViewState("opening");
     setFailure(null);
-    setEditFailure(false);
+    setPasswordPending(false);
+    setEditErrorKey(null);
     setSnapshot(null);
     setFontReport(activeEditor.getFontReport?.() ?? null);
 
@@ -130,11 +212,72 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     return () => {
       disposedRef.current = true;
       controller.abort();
+      passwordControllerRef.current?.abort();
+      passwordControllerRef.current = null;
       void activeEditor.cancel?.("document_changed");
       void activeCoordinator.cancel?.();
       void activeEditor.dispose();
     };
   }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
+
+  useEffect(() => {
+    if (viewState !== "ready") return undefined;
+    const apply = () => {
+      if (initialFitDoneRef.current === documentKey) return;
+      const pane = canvasRef.current;
+      const page = editorRef.current.getCanvasPages?.()?.[0];
+      if (!pane || !page || pane.clientWidth <= 0) return;
+      const fitted = fitPdfZoom("fit-width", { width: pane.clientWidth, height: pane.clientHeight }, page);
+      if (fitted !== null && fitted < 1) setZoom(fitted);
+      initialFitDoneRef.current = documentKey;
+    };
+    apply();
+    // The pane is zero-sized at the first paint; a resize is the first chance
+    // to measure it in a real host (and the only signal jsdom offers).
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [documentKey, viewState]);
+
+  const submitPassword = useCallback(async (password: string) => {
+    const activeOpen = openRef.current;
+    const activeEditor = editorRef.current;
+    const activeOnOpen = onOpenRef.current;
+    const controller = new AbortController();
+    passwordControllerRef.current = controller;
+    setPasswordPending(true);
+    try {
+      const outcome = await activeOpen.open(controller.signal, password);
+      if (disposedRef.current) return;
+      activeOnOpen?.(outcome);
+      if (isFailure(outcome)) {
+        setFailure(outcome);
+        setViewState("error");
+        return;
+      }
+      await activeEditor.open();
+      if (disposedRef.current) return;
+      setFailure(null);
+      setSnapshot(activeEditor.getPdfSnapshot?.() ?? { pages: [DEFAULT_PAGE], pageCount: 1 });
+      setFontReport(activeEditor.getFontReport?.() ?? null);
+      setViewState("ready");
+    } catch (error) {
+      if (disposedRef.current) return;
+      const next = unexpectedFailure(documentKey, error);
+      setFailure(next);
+      setViewState("error");
+      activeOnOpen?.(next);
+    } finally {
+      if (passwordControllerRef.current === controller) passwordControllerRef.current = null;
+      if (!disposedRef.current) setPasswordPending(false);
+    }
+  }, [documentKey]);
+
+  const cancelPassword = useCallback(() => {
+    const next: PdfOpenFailure = { outcome: "failed", document_id: documentKey, format: "pdf", failure_class: "password_cancelled" };
+    setFailure(next);
+    setViewState("error");
+    onOpenRef.current?.(next);
+  }, [documentKey]);
 
   const refreshSnapshot = useCallback(() => {
     const next = editor.getPdfSnapshot?.();
@@ -145,68 +288,204 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const markDirty = useCallback(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
     refreshSnapshot();
+    setRevision((value) => value + 1);
   }, [coordinator, editor, refreshSnapshot]);
 
-  const applyEdit = useCallback(async (operation: Parameters<NonNullable<typeof editor.edit>>[0][number]) => {
-    if (readOnly || !editor.edit) return;
-    setEditFailure(false);
-    try {
-      await editor.edit([operation]);
-      markDirty();
-    } catch {
-      setEditFailure(true);
-    }
-  }, [editor, markDirty, readOnly]);
+  // A host that reports byte changes itself (async undo/redo) refreshes the view
+  // and re-marks dirty with the generation the swap produced. undo/redo mark
+  // synchronously, before the adapter's queued byte swap bumps the generation, so
+  // without this the coordinator still holds the pre-step generation and refuses
+  // Save with `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking
+  // on every notify is safe for the edit path too.
+  useEffect(() => editor.subscribe?.(() => {
+    coordinator.markDirty?.(editor.getDirtyGeneration());
+    refreshSnapshot();
+    setRevision((value) => value + 1);
+  }), [coordinator, editor, refreshSnapshot]);
 
-  const selectPage = useCallback((page: number) => {
-    const next: PdfSelection = { page, objectId: null, kind: "page" };
+  /** One document change at a time, in order: two quick edits must not both start from the same bytes.
+   * An idle queue starts the action synchronously. */
+  const runEdit = useCallback(<T,>(action: () => Promise<T> | T): Promise<T> => {
+    if (readOnly) return Promise.reject(new Error("pdf_read_only"));
+    setEditErrorKey(null);
+    const execute = async (): Promise<T> => {
+      try {
+        const value = await action();
+        markDirty();
+        return value;
+      } catch (error) {
+        if (!disposedRef.current) setEditErrorKey(pdfEditErrorKey(error));
+        throw error;
+      }
+    };
+    const previous = queueRef.current;
+    const result = previous ? previous.catch(() => undefined).then(execute) : execute();
+    queueRef.current = result;
+    const release = () => { if (queueRef.current === result) queueRef.current = null; };
+    result.then(release, release);
+    return result;
+  }, [markDirty, readOnly]);
+
+  const rotateSelected = useCallback(() => {
+    if (!editor.edit || selectedPage === null) return;
+    const edit = editor.edit;
+    const page = selectedPage;
+    runEdit(async () => { await edit([{ op: "rotate_page", target: { page }, degrees: 90 }]); }).catch(() => undefined);
+  }, [editor, runEdit, selectedPage]);
+
+  const selectPage = useCallback((next: PdfSelection) => {
     setSelection(next);
     editor.selection?.setSelection?.(next);
     onSelectionChange?.(next);
   }, [editor.selection, onSelectionChange]);
+  const selectPageNumber = useCallback((page: number) => selectPage({ page, objectId: null, kind: "page" }), [selectPage]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;
     void coordinator.save(entryPoint);
   }, [coordinator, readOnly, viewState]);
 
-  const undo = useCallback(() => { if (readOnly) return; editor.undo?.(); markDirty(); }, [editor, markDirty, readOnly]);
-  const redo = useCallback(() => { if (readOnly) return; editor.redo?.(); markDirty(); }, [editor, markDirty, readOnly]);
+  // Ctrl+Z/Y and the ribbon's undo/redo only mark dirty when the handle can
+  // actually step: without the facet the call is a no-op and re-marking would
+  // let a later Save commit identical bytes.
+  const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
+  const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
+  const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
+  const zoomOut = useCallback(() => setZoom((value) => clampPdfZoom(value - ZOOM_STEP)), []);
+  const zoomIn = useCallback(() => setZoom((value) => clampPdfZoom(value + ZOOM_STEP)), []);
+  /** F-12: fit the page into the measured canvas pane instead of resetting to
+   *  100%. The pane is the frame's scroll container; the page box (including its
+   *  /Rotate) comes from the host renderer's page geometry. A pane or page that
+   *  cannot be measured yet keeps the current zoom. */
+  const fitTo = useCallback((mode: "fit-width" | "fit-page") => {
+    const pane = canvasRef.current;
+    const canvasPages = editorRef.current.getCanvasPages?.() ?? [];
+    const selected = selection?.page;
+    const page = canvasPages.find((candidate) => candidate.pageNumber === selected) ?? canvasPages[0];
+    if (!pane || !page) return;
+    const next = fitPdfZoom(mode, { width: pane.clientWidth, height: pane.clientHeight }, page);
+    if (next !== null) setZoom(next);
+  }, [selection]);
+  const fitWidth = useCallback(() => fitTo("fit-width"), [fitTo]);
+  const fitPage = useCallback(() => fitTo("fit-page"), [fitTo]);
+  const executeCommand = useCallback((id: PdfCommandId) => {
+    if (id === PDF_COMMANDS.save) save("button");
+    else if (id === PDF_COMMANDS.undo) undo();
+    else if (id === PDF_COMMANDS.redo) redo();
+    else if (id === PDF_COMMANDS.rotatePage) rotateSelected();
+    else if (id === PDF_COMMANDS.zoomOut) zoomOut();
+    else if (id === PDF_COMMANDS.zoomIn) zoomIn();
+    else if (id === PDF_COMMANDS.fitWidth) fitWidth();
+    else if (id === PDF_COMMANDS.fitPage) fitPage();
+    else {
+      const panel = PANEL_FOR_COMMAND[id];
+      if (panel) setActivePanel(panel);
+    }
+  }, [fitPage, fitWidth, redo, rotateSelected, save, undo, zoomIn, zoomOut]);
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     const key = event.key.toLowerCase();
     if (key === "s") { event.preventDefault(); save("shortcut"); }
+    else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
     else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); undo(); }
     else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); redo(); }
-  }, [redo, save, undo]);
+  }, [redo, save, toggleFind, undo]);
 
-  const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
-  const saving = coordinatorState.state === "saving";
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
   const canReplaceImage = canEditText;
   const canPageOps = canEditText;
-  const canAnnotate = false;
+  const canAnnotate = capability?.operation === "serialize" && capability.status === "available";
+  /** The browser host owns an in-process page renderer and routes every engine
+   * envelope to `applyPdfOpsInBrowser`, which rewrites no content streams and
+   * has no Buffer-based page producer, so edit-text, replace-image, insert,
+   * extract and merge are refused there (`BROWSER_UNSUPPORTED_COMMANDS`). A
+   * handle with no `renderer` is the desktop/Node lane, where they all work. */
+  const browserLane = editor.renderer !== undefined;
+  const canRunBrowserUnsupported = canEditText && !browserLane;
+  const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
+  const promptMode = failure ? passwordMode(failure) : null;
 
+  // One row per command the ribbon can render; the chrome decides which rows a
+  // tab shows and falls back to the catalogue label for each id.
+  const commands = useMemo<readonly PdfToolbarCommand[]>(() => {
+    // Delete, rotate and reorder share the page-ops capability row and stay on
+    // the capability gate; the browser-unsupported commands below are overridden
+    // per id because the browser host cannot run them even when the row is
+    // available. Each disabled one carries the honest reason in its label so the
+    // control never silently does nothing (F-01: the guard below still blocks the
+    // action in JS, and the button stays in the tab order via `aria-disabled`).
+    const availableByCapability: Readonly<Record<string, boolean>> = {
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.save]]: !readOnly && viewState === "ready",
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.editText]]: canEditText,
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.replaceImage]]: canReplaceImage,
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.deletePage]]: canPageOps,
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.annotations]]: canAnnotate,
+      // Zoom and fit are view-only: no document capability gates them, so a
+      // ready editor on either lane can always change the zoom.
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.zoomOut]]: viewState === "ready",
+    };
+    return COMMAND_ORDER.map((id) => {
+      const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
+      // A handle with no undo/redo facet (e.g. desktop) cannot step history, so
+      // disable the control instead of letting it no-op and mark the document dirty.
+      const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
+      const disabled = facetMissing
+        || (browserReasonKey !== undefined
+          ? !canRunBrowserUnsupported
+          : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true);
+      return {
+        id,
+        disabled,
+        label: disabled && browserReasonKey ? t(browserReasonKey) : undefined,
+        onExecute: () => { if (!disabled) executeCommand(id); },
+      };
+    });
+  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, editor.redo, editor.undo, executeCommand, readOnly, t, viewState]);
+
+  // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
+  // status bar) is the only chrome; the page header owns the title and Save.
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2"><h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1><span className="text-caption text-muted-foreground" data-testid="pdf-open-state">{viewState === "opening" ? t("office.pdf.state.opening") : viewState === "ready" ? t(`office.pdf.saveState.${coordinatorState.state}`) : t("office.pdf.state.error")}</span></header>
+    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
-        <>
-          <PdfToolbar coordinator={coordinator} dirty={dirty} saving={saving} readOnly={readOnly} selection={selection} canUndo={typeof editor.undo === "function"} canRedo={typeof editor.redo === "function"} canEditText={canEditText} canReplaceImage={canReplaceImage} canPageOps={canPageOps} canAnnotate={canAnnotate} onUndo={undo} onRedo={redo} onEditText={() => { if (selection?.kind === "text") setTextDraft(""); }} onReplaceImage={() => { setImageAssetId(""); }} onInsertPage={() => void applyEdit({ op: "insert_page", target: { index: pages.length } })} onDeletePage={() => { if (selectedPage !== null) void applyEdit({ op: "delete_page", target: { page: selectedPage } }); }} onRotatePage={() => { if (selectedPage !== null) void applyEdit({ op: "rotate_page", target: { page: selectedPage }, degrees: 90 }); }} onReorderPage={() => { if (selectedPage !== null) void applyEdit({ op: "reorder_page", target: { page: selectedPage }, index: Math.max(0, selectedPage - 2) }); }} onExtractPage={() => { if (selectedPage !== null) void applyEdit({ op: "extract_page", target: { page: selectedPage } }); }} onMergePages={() => void applyEdit({ op: "merge_pages", target: { pages: pages.map((page) => page.pageNumber) } })} onSave={() => save("button")} />
-          <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
-            <PdfPagePanel pages={pages} selectedPage={selectedPage} disabled={readOnly} onSelect={selectPage} onReorder={(page, index) => void applyEdit({ op: "reorder_page", target: { page }, index })} onExtract={(page) => void applyEdit({ op: "extract_page", target: { page } })} />
-            <div className="min-h-64 min-w-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-8">
-              {editFailure ? <Notice tone="destructive" icon={AlertTriangle} live="assertive" className="mb-3">{t("office.pdf.errors.editFailed")}</Notice> : null}
-              {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite" className="mb-3">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
-              <div className="mx-auto min-h-[24rem] w-full max-w-4xl rounded-lg border border-border bg-background p-8 shadow-sm" data-testid="pdf-document-surface"><p className="text-caption text-muted-foreground">{t("office.pdf.surface.ready")}</p><p className="mt-2 text-caption text-muted-foreground">{t("office.pdf.surface.page", { page: selectedPage ?? 1, count: pages.length })}</p></div>
-              {selection?.kind === "text" && !readOnly ? <div className="mt-3 flex gap-2"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) void applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div> : null}
-              {selection?.kind === "image" && !readOnly ? <div className="mt-3 flex gap-2"><label htmlFor="pdf-image-asset" className="sr-only">{t("office.pdf.edit.imageLabel")}</label><input id="pdf-image-asset" value={imageAssetId} onChange={(event) => setImageAssetId(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.imagePlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId && imageAssetId) void applyEdit({ op: "replace_image", target: { page: selection.page, objectId: selection.objectId }, assetId: imageAssetId }); }}>{t("office.pdf.edit.applyImage")}</Button></div> : null}
-            </div>
+        <PdfEditorSurface
+          editor={editor}
+          pages={pages}
+          readOnly={readOnly}
+          zoom={zoom}
+          canvasRef={canvasRef}
+          selection={selection}
+          selectedPage={selectedPage}
+          revision={revision}
+          activePanel={activePanel}
+          onActivePanelChange={setActivePanel}
+          findOpen={findOpen}
+          onFindClose={() => setFindOpen(false)}
+          onSelectPage={selectPageNumber}
+          onCanvasSelect={selectPage}
+          fontReport={fontReport}
+          errorKey={editErrorKey}
+          run={runEdit}
+          ribbon={<PdfRibbonBar activeTab={activeTab} onTabChange={setActiveTab} commands={commands} findOpen={findOpen} onFindToggle={toggleFind} />}
+          banner={browserUnsupportedHint ? (
+            <p className="text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
+              {t(PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
+            </p>
+          ) : null}
+          // The page readout already follows the selected page; object kinds
+          // have no translated summary yet, so no raw kind string is shown.
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} />}
+        />
+      ) : viewState === "error" && failure ? (
+        promptMode ? (
+          <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center overflow-x-auto p-3" data-testid="pdf-password-prompt">
+            <PdfPasswordPrompt open mode={promptMode} pending={passwordPending} onSubmit={(password) => { void submitPassword(password); }} onCancel={cancelPassword} />
           </div>
-        </>
-      ) : viewState === "error" && failure ? <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} /> : <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
+        ) : (
+          <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
+        )
+      ) : <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center px-3 text-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
     </div>
   );
 }

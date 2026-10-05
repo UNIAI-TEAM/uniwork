@@ -64,7 +64,7 @@ async function cloudHarness() {
       return handler(payload);
     }) as LibraryBridge["call"] };
     const opened = await office["desktop:office-open"]({ sessionGeneration: scope.sessionId, workspaceId: "ws", documentId: "doc" });
-    const session = createByteDocumentSession(bridge, { ...docxIdentity, baseRevision: opened.document.revision, baseVersionId: String(opened.document.version) }, opened);
+    const session = createByteDocumentSession(bridge, { ...docxIdentity, baseRevision: opened.document.revision, baseVersionId: String(opened.document.version) }, { ...opened, format: "docx" });
     sessions.push(session);
     await session.openEditor();
     return session;

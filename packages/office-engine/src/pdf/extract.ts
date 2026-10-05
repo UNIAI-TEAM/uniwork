@@ -37,6 +37,9 @@ export interface ReadPdfTextOptions {
   toPage?: number
   /** stop extracting once the accumulated text reaches this many chars */
   charBudget?: number
+  /** Password for an encrypted document; pdfium decrypts with it for this
+      read only, and the password is never stored or returned. */
+  password?: string
 }
 
 /**
@@ -160,6 +163,6 @@ export function readPdfText(
         }
       }
       return { pageCount, info, pages, truncated }
-    })
+    }, options.password)
   })
 }

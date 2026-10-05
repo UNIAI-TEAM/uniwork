@@ -1,11 +1,11 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   __clearDraftCleanupRegistryForTest,
   clearRegisteredOfficeDraftMemory,
 } from "@uniwork/core/drafts/cleanup-registry";
-import type { EditorHandle, OfficeIdentity, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
+import type { DraftIdentity, EditorHandle, OfficeIdentity, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import { createBrowserOfficeDraftAdapter, createOfficeEditorSession } from "./editor-host-core";
@@ -90,7 +90,7 @@ describe("browser Office host draft adapter", () => {
     let checkpointStarted!: () => void;
     const started = new Promise<void>((resolve) => { checkpointStarted = resolve; });
     const released = new Promise<void>((resolve) => { releaseCheckpoint = resolve; });
-    let record: { draftId: string; generation: number; identity: OfficeIdentity } | undefined;
+    let record: { draftId: string; generation: number; identity: OfficeIdentity | DraftIdentity } | undefined;
     const store = fakeStore();
     vi.mocked(store.checkpointEncrypted).mockImplementation(async ({ snapshot }) => {
       checkpointStarted();
@@ -109,6 +109,30 @@ describe("browser Office host draft adapter", () => {
     releaseCheckpoint();
     await Promise.all([checkpoint, discard]);
     expect(record).toBeUndefined();
+    await adapter.dispose();
+  });
+
+  it("does not let the host checkpoint timer recreate the draft a Save already consumed", async () => {
+    let record: { draftId: string; generation: number; identity: OfficeIdentity | DraftIdentity } | undefined;
+    const store = fakeStore();
+    vi.mocked(store.checkpointEncrypted).mockImplementation(async ({ snapshot }) => {
+      record = { draftId: snapshot.draftId, generation: snapshot.generation, identity: snapshot.identity };
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.list).mockImplementation(async () => (record ? [{ ...record, byteLength: 1, updatedAt: 1 } as never] : []));
+    vi.mocked(store.deleteDurable).mockImplementation(async ({ generation }) => {
+      if (record?.generation === generation) record = undefined;
+    });
+    const adapter = createBrowserOfficeDraftAdapter({ identity, session, draftStore: store, keyProvider: fakeKeyProvider() });
+    await adapter.checkpointDurable({ generation: 1, fingerprint: "fp", value: { text: "edit" } });
+    expect(record).toBeDefined();
+    await adapter.discardDurable(1);
+    expect(record).toBeUndefined();
+    // The 2s host timer fires after the Save and asks for the same generation
+    // again; the durable draft must not come back (F-6 stale offer on reload).
+    await adapter.checkpointDurable({ generation: 1, fingerprint: "fp", value: { text: "edit" } });
+    expect(record).toBeUndefined();
+    expect(vi.mocked(store.checkpointEncrypted)).toHaveBeenCalledTimes(1);
     await adapter.dispose();
   });
 

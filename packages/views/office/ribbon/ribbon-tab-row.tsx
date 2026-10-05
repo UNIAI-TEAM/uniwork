@@ -112,7 +112,7 @@ export function RibbonTabRow({
         // Tabs scroll rather than clip when they outgrow the row (phones, many
         // contextual tabs); the simplified layout relies on it.
         className={cn(
-          "flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none]",
+          "flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]",
           fadeEnd && "[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]",
         )}
       >

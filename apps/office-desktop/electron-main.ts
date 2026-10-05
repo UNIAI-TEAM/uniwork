@@ -8,6 +8,8 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
+import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
+import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
@@ -323,9 +325,9 @@ async function startElectronHost(): Promise<void> {
    * immediately before a write, so a plain open never offers a draft of the
    * file's own unchanged bytes. Opening also refreshes the encrypted recent list. */
   const localOpenContext = (metadata: OpenFileMetadata) => {
-    // The desktop host is DOCX-only; a non-docx pick/drop is refused before it
-    // can register a context or enter the recent list.
-    if (!/\.docx$/i.test(metadata.name)) { fileRegistry.revoke(metadata.handle); return; }
+    // A local open outside the shared format table is refused before it can
+    // register a context or enter the recent list.
+    if (!desktopDocumentFormatForName(metadata.name)) { fileRegistry.revoke(metadata.handle); return; }
     setLocalDocument(metadata);
     const path = fileRegistry.pathOf(metadata.handle);
     if (path && recentFiles) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
@@ -454,7 +456,7 @@ async function startElectronHost(): Promise<void> {
     });
   });
   const host = createDesktopHost({
-    handlers: { "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }) },
@@ -480,11 +482,11 @@ async function startElectronHost(): Promise<void> {
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
     localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
-        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickSaveAs: async () => {
-        const result = await dialog.showSaveDialog(window, { filters: [{ name: "Word", extensions: ["docx"] }] });
+        const result = await dialog.showSaveDialog(window, { filters: desktopDialogFilters() });
         return result.canceled ? undefined : result.filePath;
       },
     },
@@ -548,6 +550,9 @@ async function startElectronHost(): Promise<void> {
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
+    // A dropped file outside the shared format table never reaches the handle
+    // registry: the renderer receives the same typed unsupported answer as a pick.
+    if (!desktopDocumentFormatForName(payload.path)) return desktopFileResponseSchema.parse({ opened: false, unsupported: true });
     const session = deviceScope();
     const metadata = await fileRegistry.openEvent(payload.path);
     const bytes = await fileRegistry.read(metadata.handle);
@@ -556,15 +561,15 @@ async function startElectronHost(): Promise<void> {
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });
   const announceFile = async (path: string) => {
-    if (!isAbsolute(path) || !/\.docx$/i.test(path)) return;
+    if (!isAbsolute(path) || !desktopDocumentFormatForName(path)) return;
     try {
       const metadata = await fileRegistry.openEvent(path);
       window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
     } catch { /* Refused local files never cross the preload seam. */ }
   };
-  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => /\.docx$/i.test(arg))) void announceFile(path); });
+  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => desktopDocumentFormatForName(arg))) void announceFile(path); });
   app.on("open-file", (_event, path) => { if (!window.webContents.isLoading()) void announceFile(path); });
-  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => /\.docx$/i.test(arg))]) void announceFile(path); });
+  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => desktopDocumentFormatForName(arg))]) void announceFile(path); });
 
   window.once("ready-to-show", () => {
     if (!SMOKE_MODE) {
