@@ -47,6 +47,12 @@ export interface EditorSlotProps<TSnapshot = unknown> {
   className?: string;
 }
 
+/** Display name of an office format ("md" -> "Markdown"); unknown ids fall back to the uppercase id. */
+export function useOfficeFormatName(): (format: string) => string {
+  const { t } = useTranslation();
+  return (format) => t(`office.formatName.${format}`, { defaultValue: format.toUpperCase() });
+}
+
 function capabilityStatus(capability: EditorSlotProps["capability"]): OfficeCapabilityStatus {
   return typeof capability === "string" ? capability : capability.status;
 }
@@ -101,10 +107,11 @@ function OpenMessage({
 
 function PendingEditorMessage({ format }: { format: OfficeFormat }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.editor" });
+  const formatName = useOfficeFormatName();
   return (
-    <Alert data-testid="office-editor-pending">
+    <Alert data-testid="office-editor-pending" className="border-border">
       <AlertTitle>{t("editor_pending_title")}</AlertTitle>
-      <AlertDescription>{t("editor_pending", { format })}</AlertDescription>
+      <AlertDescription>{t("editor_pending", { format: formatName(format) })}</AlertDescription>
     </Alert>
   );
 }
@@ -122,6 +129,7 @@ export function EditorSlot<TSnapshot>({
   className,
 }: EditorSlotProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.editor" });
+  const formatName = useOfficeFormatName();
   const status = capabilityStatus(capability);
   const reason = capabilityReason(capability);
   const lazyEditor = useMemo(() => {
@@ -170,7 +178,7 @@ export function EditorSlot<TSnapshot>({
       data-office-editor-slot
       data-format={format}
       data-open-state={openState}
-      aria-label={t("canvas_label", { format })}
+      aria-label={t("canvas_label", { format: formatName(format) })}
     >
       {content}
     </section>

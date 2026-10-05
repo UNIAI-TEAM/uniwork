@@ -13,7 +13,7 @@
 import { useEffect } from "react";
 import { DocxRuler } from "./ruler";
 import { getDocxZoomController, type DocxZoomController } from "./zoom-controller";
-import { useDocxZoomState } from "./zoom-control";
+import { useDocxEffectiveZoomPercent } from "./zoom-control";
 import { useDocxViewSurface } from "./surface-targets";
 
 export interface DocxViewChromeProps {
@@ -26,7 +26,7 @@ export interface DocxViewChromeProps {
 export function DocxViewChrome({ controller }: DocxViewChromeProps) {
   const resolved = controller ?? getDocxZoomController();
   const surface = useDocxViewSurface();
-  const zoom = useDocxZoomState(resolved);
+  const zoomPercent = useDocxEffectiveZoomPercent(resolved);
 
   useEffect(() => {
     if (!surface) return undefined;
@@ -41,7 +41,7 @@ export function DocxViewChrome({ controller }: DocxViewChromeProps) {
   if (!surface?.settings) return null;
   return (
     <div className="flex shrink-0 justify-center px-3 pt-1" data-testid="docx-view-chrome">
-      <DocxRuler settings={surface.settings} zoomPercent={zoom.percent} />
+      <DocxRuler settings={surface.settings} zoomPercent={zoomPercent} />
     </div>
   );
 }

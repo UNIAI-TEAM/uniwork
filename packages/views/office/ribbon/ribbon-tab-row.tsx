@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -46,6 +46,28 @@ export function RibbonTabRow({
 }: RibbonTabRowProps) {
   const { t } = useTranslation();
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const listRef = useRef<HTMLDivElement>(null);
+  const [fadeEnd, setFadeEnd] = useState(false);
+
+  // The selected tab stays visible when the row scrolls (phones).
+  useEffect(() => {
+    tabRefs.current.get(activeId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
+
+  // A fade on the right edge shows there are more tabs, instead of a hard clip.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+    const update = () => setFadeEnd(list.scrollWidth - list.clientWidth - list.scrollLeft > 1);
+    update();
+    list.addEventListener("scroll", update, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(list);
+    return () => {
+      list.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, [tabs]);
 
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const last = tabs.length - 1;
@@ -84,11 +106,15 @@ export function RibbonTabRow({
         </div>
       ) : null}
       <div
+        ref={listRef}
         role="tablist"
         aria-label={t("office.ribbon.tabs")}
         // Tabs scroll rather than clip when they outgrow the row (phones, many
         // contextual tabs); the simplified layout relies on it.
-        className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
+        className={cn(
+          "flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none]",
+          fadeEnd && "[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]",
+        )}
       >
         {tabs.map((tab, index) => {
           const selected = tab.id === activeId;

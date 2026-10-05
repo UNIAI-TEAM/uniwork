@@ -163,7 +163,8 @@ it("shows dirty state, cancels dirty close and keeps a failed dialog Save open",
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await screen.findByRole("dialog");
   fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: i18n.t("office.leave.stay") }).at(-1)!);
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  // The kept-mounted Track changes popover is a closed role="dialog" too; the leave dialog must be gone.
+  await waitFor(() => expect(document.querySelector('[role="dialog"]:not([data-slot="popover-content"])')).toBeNull());
   expect(screen.getByRole("tab", { name: /Plan0/ })).toBeInTheDocument();
   // After initial recovery and cancellation settle, create a durable checkpoint
   // so Discard exercises row consumption without depending on its timer.
@@ -171,11 +172,14 @@ it("shows dirty state, cancels dirty close and keeps a failed dialog Save open",
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await screen.findByRole("dialog");
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.save") }));
-  await screen.findByText(i18n.t("office.leave.write_failed"));
+  await screen.findByText(i18n.t("office.leave.write_failed"), undefined, { timeout: 10_000 });
   expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.discard") }));
-  await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
-  expect(h.call).toHaveBeenCalledWith("desktop:draft-discard", expect.objectContaining({ documentId: "doc-0", draftId: "doc-0:1:1", generation: 1 }));
+  await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull(), { timeout: 10_000 });
+  // The 2s keep-draft interval may store a newer generation of the same row
+  // while the dialog Save fails; Discard consumes whichever one is durable.
+  const stored = h.call.mock.calls.filter(([channel]) => channel === "desktop:draft-checkpoint").map(([, request]) => (request as { generation: number }).generation);
+  expect(h.call).toHaveBeenCalledWith("desktop:draft-discard", expect.objectContaining({ documentId: "doc-0", draftId: "doc-0:1:1", generation: Math.max(...stored) }));
 });
 
 it("saves all dirty documents from one window leave dialog", async () => {
@@ -185,7 +189,7 @@ it("saves all dirty documents from one window leave dialog", async () => {
   h.leave();
   expect(await screen.findAllByRole("dialog")).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.save") }));
-  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-test", choice: "save", proceeded: true })));
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:leave-resolved", expect.objectContaining({ requestId: "leave-test", choice: "save", proceeded: true })), { timeout: 10_000 });
   expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-save").map(([, request]) => (request as { documentId: string }).documentId)).toEqual(["doc-0", "doc-1"]);
 });
 

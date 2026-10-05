@@ -6,6 +6,7 @@ import type { Document } from "@uniwork/core/types/document";
 import { detectDesktopPlatform, DESKTOP_PLATFORMS, type DesktopPlatformHints, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, type OfficeChannel } from "@uniwork/views/office";
+import { useOfficeFormatName } from "@uniwork/views/office/editor-slot";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -103,6 +104,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
+  const formatName = useOfficeFormatName();
   const activeSession = formatAdapter?.session ?? session;
   const activeEditorView = formatAdapter?.editorView ?? editorView;
   const activeCapability = formatAdapter?.capability ?? capability;
@@ -242,10 +244,10 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         embedded
         editor={activeEditorView && (effectiveCapability.status === "available" || (readonly && effectiveCapability.status === "readonly")) ? activeEditorView : (
           // The shell no longer pads the editor area (UNI-933 F1), so a message keeps its own margin.
-          <Alert data-testid="office-host-unbound" className="m-4 w-auto">
+          <Alert data-testid="office-host-unbound" className="m-4 w-auto border-border">
             <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.capability_unavailable") : t("office.editor.capability_unknown")}</AlertTitle>
             <AlertDescription>{!activeSession && !activeCapability
-              ? t("office.editor.editor_pending", { format: effectiveCapability.format })
+              ? t("office.editor.editor_pending", { format: formatName(effectiveCapability.format) })
               : t("office.editor.capability_hint")}</AlertDescription>
           </Alert>
         )}

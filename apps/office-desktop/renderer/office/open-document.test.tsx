@@ -99,3 +99,14 @@ it("shows no recovery prompt when the store holds no draft for this document", a
   await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument());
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
 });
+
+it("renders the header actions at the compact size the web Save cluster uses", async () => {
+  mount(async () => ({}));
+  const back = await screen.findByRole("button", { name: i18n.t("officeDesktop.library.back") });
+  const save = document.querySelector("[data-office-save]");
+  expect(save).not.toBeNull();
+  for (const token of ["h-7", "text-label"]) {
+    expect(save?.className).toContain(token);
+    expect(back.className).toContain(token);
+  }
+});
