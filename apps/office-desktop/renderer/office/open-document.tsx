@@ -26,6 +26,31 @@ function MoreIcon() {
   return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>;
 }
 
+/** The one draft-recovery flow both tab shells share: list this document's
+ * rows once per session, offer the newest through DraftRecoveryPrompt (a row
+ * recorded against another base is a conflict and is not recoverable), and
+ * surface locked/blocked/unavailable as the typed notice. */
+function useDraftRecovery(session: Pick<ByteDocumentSession, "listDrafts" | "recoverDraft" | "discardDraft">, onRecovered?: () => void) {
+  const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
+  const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
+  const [recovered, setRecovered] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void session.listDrafts().then((view) => {
+      if (!active) return;
+      if (view.status === "found") setOffer({ metadata: view.metadata, conflict: view.conflict });
+      else if (view.status === "locked" || view.status === "blocked" || view.status === "unavailable") setNotice(view.status);
+    });
+    return () => { active = false; };
+  }, [session]);
+  const prompt = (open: boolean) => offer ? <DraftRecoveryPrompt open={open} metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
+    onOpenChange={(next) => { if (!next) setOffer(null); }}
+    onRecover={async () => { const outcome = await session.recoverDraft(offer.metadata); if (outcome === "locked") { setNotice("locked"); setOffer(null); return true; } const applied = outcome === "recovered"; setRecovered(applied); if (applied) { setOffer(null); onRecovered?.(); } return applied; }}
+    onKeep={async () => { setOffer(null); return true; }}
+    onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null;
+  return { prompt, notice, recovered };
+}
+
 /** Format dispatcher: a tab's session already knows its format, so the byte
  * shell (DOCX/PDF through the editor registry) and the PPTX deck shell each
  * stay typed to their own session. */
@@ -44,10 +69,8 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
-  const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
-  const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
-  const [recovered, setRecovered] = useState(false);
   const [surfaceVersion, setSurfaceVersion] = useState(0);
+  const { prompt, notice, recovered } = useDraftRecovery(session, () => setSurfaceVersion((value) => value + 1));
   const [openAttempt, setOpenAttempt] = useState(0);
   const [actionFailed, setActionFailed] = useState(false);
   const [localFile, setLocalFile] = useState<{ handleId: string; displayName: string } | null>(null);
@@ -66,16 +89,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
     });
     return () => { active = false; };
   }, [format, identity.documentId, session, openAttempt]);
-  useEffect(() => {
-    let active = true;
-    void session.listDrafts().then((view) => {
-      if (!active) return;
-      if (view.status === "found") setOffer({ metadata: view.metadata, conflict: view.conflict });
-      else if (view.status === "locked" || view.status === "blocked" || view.status === "unavailable") setNotice(view.status);
-    });
-    return () => { active = false; };
-  }, [session]);
-  const capability = useMemo(() => ({ format, operation: "serialize", host: "desktop", engineBuild: desktopEngineBuild(format as DesktopDocumentFormat), contractRevision: "office-editor-host/1", status: session.canSave ? "available" as const : "readonly" as const, fidelityWarnings: [] }), [format, session]);
+  const capability = useMemo(() => ({ format,operation: "serialize", host: "desktop", engineBuild: desktopEngineBuild(format as DesktopDocumentFormat), contractRevision: "office-editor-host/1", status: session.canSave ? "available" as const : "readonly" as const, fidelityWarnings: [] }), [format, session]);
   const host = useMemo<OfficeHost>(() => ({
     read: { readDocument: async () => (await session.editor.captureSnapshot()).value, openDocument: async () => ({ outcome: "opened", document_id: identity.documentId, document_model_ref: identity.documentId, warnings: [] }) },
     write: { writeOutput: async () => { throw new Error("use_save_coordinator"); } },
@@ -97,11 +111,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
       setLocalFile(rebound); onLocalFileRebound?.(rebound);
     } catch { setActionFailed(true); }
   };
-  return <>{offer ? <DraftRecoveryPrompt open={active} metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
-    onOpenChange={(open) => { if (!open) setOffer(null); }}
-    onRecover={async () => { const outcome = await session.recoverDraft(offer.metadata); if (outcome === "locked") { setNotice("locked"); setOffer(null); return true; } const applied = outcome === "recovered"; setRecovered(applied); if (applied) { setOffer(null); setSurfaceVersion((value) => value + 1); } return applied; }}
-    onKeep={async () => { setOffer(null); return true; }}
-    onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
+  return <>{prompt(active)}
     <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && ready && session.canSave}
       saveDestination={session.localHandle ? "local" : "cloud"}
       actions={<DropdownMenu>
@@ -140,6 +150,9 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   const [selected, setSelected] = useState(0);
   const [revision, setRevision] = useState(() => session.editor.revision());
   const [openAttempt, setOpenAttempt] = useState(0);
+  // Restore replays the draft journal onto the opened deck and publishes a new
+  // revision through the coordinator, so no surface remount is needed here.
+  const { prompt, notice, recovered } = useDraftRecovery(session);
   useEffect(() => () => session.dispose(), [session]);
   useEffect(() => {
     if (!active) return undefined;
@@ -200,7 +213,11 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   const deleteElements = useCallback((slideIndex: number, elementIds: readonly string[]) =>
     session.editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))), [session]);
 
-  return <PptxEditorView
+  // The prompt waits for the deck: Recover replays the journal onto the opened model.
+  return <>{prompt(active && ready)}
+    {recovered ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
+    {notice ? <RecoveryNotice state={notice} className="mx-4 my-2" /> : null}
+    <PptxEditorView
     title={title}
     host={host}
     editorHandle={session.editor}
@@ -223,5 +240,5 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     saveCoordinator={session.coordinator}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
     fullscreen={false}
-  />;
+  /></>;
 }
