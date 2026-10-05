@@ -28,15 +28,24 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
+import { Clipboard, Copy, MoreHorizontal, Redo2, Undo2 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { PreviewSession } from "../source-editor-types";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { MarkdownWysiwygEditor } from "./wysiwyg/editor";
 import { MarkdownRibbon } from "./wysiwyg/ribbon";
+import { MarkdownSlash } from "./wysiwyg/slash";
+import { MarkdownTableMenu } from "./wysiwyg/table-menu";
+import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
+import { MarkdownOutlinePane } from "./wysiwyg/outline";
+import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
+import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
+import type { MarkdownPrintPort } from "./wysiwyg/print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
@@ -65,6 +74,31 @@ function sourceManifest<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["edito
 function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): boolean {
   return Boolean(editor.source?.setText || editor.setText);
 }
+
+/**
+ * The web host's print path for this surface (M8 contract: the view calls the
+ * INJECTED port and never `window.print()`). The sanitized copy the menu built
+ * is written into an off-screen frame and only that frame prints, so the app
+ * chrome is never part of the job.
+ */
+const browserPrintPort: MarkdownPrintPort = {
+  print({ html, title }) {
+    if (typeof document === "undefined") return { outcome: "failed", reason: "no_dom" };
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(frame);
+    const view = frame.contentWindow;
+    if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
+    view.document.open();
+    view.document.write(html);
+    view.document.close();
+    view.document.title = title;
+    try { view.focus(); view.print(); } catch { frame.remove(); return { outcome: "failed", reason: "print_blocked" }; }
+    window.setTimeout(() => frame.remove(), 0);
+    return { outcome: "printed" };
+  },
+};
 
 function statusLabel(status: AssetStatus, t: (key: string) => string): string {
   if (status === "ready") return t("asset.ready");
@@ -125,7 +159,12 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const [uploadFailures, setUploadFailures] = useState<Readonly<Record<string, AssetStatus>>>({});
   const [previewState, setPreviewState] = useState<"idle" | "ready" | "unavailable">("idle");
   const [retryToken, setRetryToken] = useState(0);
+  // M6/M7 chrome state: the ribbon owns the toggles, the host owns the panes.
+  const [outlineVisible, setOutlineVisible] = useState(false);
+  const [frontmatterVisible, setFrontmatterVisible] = useState(false);
+  const findRef = useRef<MarkdownFindHandle>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const sourceWrapperRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewSessionRef = useRef<PreviewSession | null>(null);
   const latestTextRef = useRef(text);
@@ -191,6 +230,9 @@ export function MarkdownEditor<TSnapshot = unknown>({
     setMode("visual");
     setInstance(null);
     setUploadFailures({});
+    setOutlineVisible(false);
+    setFrontmatterVisible(false);
+    canvasCheckpointArmedRef.current = false;
 
     const run = async () => {
       // The gate refuses an engine that cannot serialize, or a handle with no
@@ -302,11 +344,26 @@ export function MarkdownEditor<TSnapshot = unknown>({
     checkpoint();
   }, [checkpoint]);
   // The visual canvas publishes through the same text port; this only mirrors
-  // the value into the host state and marks the document dirty.
+  // the value into the host state and marks the document dirty. A canvas
+  // transaction that leaves the bytes alone - a find/replace highlight paint,
+  // or the first publish after mount - is NOT an edit: it must neither dirty
+  // the document nor ask the coordinator for a checkpoint.
+  const wysiwygEditedRef = useRef(false);
   const onWysiwygChange = useCallback((next: string) => {
+    wysiwygEditedRef.current = next !== latestTextRef.current;
     setText(next);
-    markDirty();
+    if (wysiwygEditedRef.current) markDirty();
   }, [markDirty]);
+  // The canvas publishes once on mount (the parse/serialize normalisation), and
+  // a find-highlight repaint dispatches a transaction that can make an
+  // extension append a trailing block. Neither is a user edit: the first
+  // checkpoint after the canvas mounts is dropped, so opening a document never
+  // mints a draft checkpoint for bytes the user did not touch.
+  const canvasCheckpointArmedRef = useRef(false);
+  const onWysiwygCheckpoint = useCallback(() => {
+    if (!canvasCheckpointArmedRef.current) { canvasCheckpointArmedRef.current = true; return; }
+    if (wysiwygEditedRef.current) checkpoint();
+  }, [checkpoint]);
   const onAssetFailure = useCallback((name: string, status: AssetStatus) => {
     setUploadFailures((current) => ({ ...current, [name]: status }));
   }, []);
@@ -341,6 +398,13 @@ export function MarkdownEditor<TSnapshot = unknown>({
       area.selectionStart = area.selectionEnd = start + incoming.length;
     });
   }, [checkpoint, permissions.canPaste, writeText]);
+  // The ribbon's trailing Find affordance (C6) opens the panel through this
+  // handle; Ctrl+F / Ctrl+H are owned by MarkdownFind itself.
+  const openFind = useCallback(() => findRef.current?.open(false), []);
+  // M8 print: render the CURRENT source through the engine's browser-safe
+  // preview renderer, then let the sanitizer + port take over. Never the raw
+  // source, never `window.print()`.
+  const renderPrintHtml = useCallback(() => buildMarkdownPreviewCopy({ source: sourceText(editorRef.current, latestTextRef.current), document_path: "document.md" }), []);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -383,7 +447,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   }, [copySelection, history, mode, pasteText, permissions.canCopy, permissions.canPaste, save]);
 
   return (
-    <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
       <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="md-open-state">
@@ -397,7 +461,24 @@ export function MarkdownEditor<TSnapshot = unknown>({
             Source | Visual control. The host owns the mode so the control stays
             reachable while the visual canvas is unmounted (source mode).
           */}
-          <MarkdownRibbon editor={instance} editable={!readOnly && mode === "visual"} viewMode={mode} onViewModeChange={setMode} scope="markdown" />
+          <MarkdownRibbon
+            editor={instance}
+            editable={!readOnly && mode === "visual"}
+            viewMode={mode}
+            onViewModeChange={setMode}
+            onOutlineChange={setOutlineVisible}
+            onFrontmatterChange={setFrontmatterVisible}
+            outline={outlineVisible}
+            frontmatter={frontmatterVisible}
+            onFind={openFind}
+            scope="markdown"
+          />
+          {/*
+            M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
+            replace) and Escape. It is mounted for BOTH canvases: the visual
+            half searches the flattened document, the source half the textarea.
+          */}
+          <MarkdownFind ref={findRef} editor={instance} handle={editor} mode={mode} editable={!readOnly} sourceTextarea={textAreaRef} sourceOverlayTarget={sourceWrapperRef} />
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="md-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
             {mode === "source" ? (
               <>
@@ -408,50 +489,93 @@ export function MarkdownEditor<TSnapshot = unknown>({
               </>
             ) : null}
             <span className="min-w-0 flex-1" />
+            {/*
+              M8 print/export entries (C4/C9): a menu in the host's own row, the
+              way the DOCX export group exposes its menu. Print goes through the
+              injected port with the SANITIZED copy; the PDF/DOCX exports stay
+              disabled with their "not available yet" tooltip.
+            */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="toolbar"
+                    size="icon-sm"
+                    aria-label={t("office.common.chrome.more")}
+                    aria-haspopup="menu"
+                    data-testid="md-more"
+                  />
+                }
+              >
+                <MoreHorizontal aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button type="button" variant="brand" size="sm" data-testid="md-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
               {saving ? t("actions.saving") : t("actions.save")}
             </Button>
           </div>
-          {mode === "visual" ? (
-            <MarkdownWysiwygEditor
-              documentKey={documentKey}
-              editor={editor}
-              editable={!readOnly}
-              onEditorReady={setInstance}
-              onChange={onWysiwygChange}
-              onCheckpoint={checkpoint}
-              showRibbon={false}
-              image={image}
-              className="min-h-0 flex-1"
-              ariaLabel={effectiveTitle}
-            />
-          ) : (
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-cols-2">
-              <div className="flex min-h-64 min-w-0 flex-col gap-2">
-                <label className="text-label font-medium" htmlFor="md-source">{t("source.label")}</label>
-                <textarea
-                  ref={textAreaRef}
-                  id="md-source"
-                  className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  value={text}
-                  readOnly={readOnly}
-                  spellCheck={false}
-                  onChange={onTextChange}
-                  onCompositionStart={onCompositionStart}
-                  onCompositionEnd={onCompositionEnd}
-                  data-testid="md-source"
-                  aria-label={t("source.label")}
-                />
-              </div>
-              <div className="flex min-h-64 min-w-0 flex-col gap-2">
-                <span className="text-label font-medium">{t("preview.label")}</span>
-                <div ref={previewContainerRef} className="min-h-64 flex-1 overflow-hidden rounded-md border border-border bg-muted/10" data-testid="md-preview">
-                  {previewState === "unavailable" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.unavailable")}</p> : null}
-                  {previewState === "idle" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.loading")}</p> : null}
+          <div className="flex min-h-0 flex-1">
+            {outlineVisible ? <MarkdownOutlinePane editor={instance} className="max-h-full" /> : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {mode === "visual" ? (
+                <>
+                  {/*
+                    M3 slash menu + table context toolbar: both mount against the
+                    live TipTap instance (the same `onEditorReady` hook the rest
+                    of the surface uses) and render nothing until their trigger
+                    fires - a typed `/`, or a selection inside a table.
+                  */}
+                  <MarkdownSlash editor={instance} />
+                  <MarkdownTableMenu editor={instance} />
+                  <MarkdownWysiwygEditor
+                    documentKey={documentKey}
+                    editor={editor}
+                    editable={!readOnly}
+                    onEditorReady={setInstance}
+                    onChange={onWysiwygChange}
+                    onCheckpoint={onWysiwygCheckpoint}
+                    showRibbon={false}
+                    image={image}
+                    className="min-h-0 flex-1"
+                    ariaLabel={effectiveTitle}
+                  />
+                </>
+              ) : (
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-cols-2">
+                  <div ref={sourceWrapperRef} className="relative flex min-h-64 min-w-0 flex-col gap-2">
+                    <label className="text-label font-medium" htmlFor="md-source">{t("source.label")}</label>
+                    <textarea
+                      ref={textAreaRef}
+                      id="md-source"
+                      className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      value={text}
+                      readOnly={readOnly}
+                      spellCheck={false}
+                      onChange={onTextChange}
+                      onCompositionStart={onCompositionStart}
+                      onCompositionEnd={onCompositionEnd}
+                      data-testid="md-source"
+                      aria-label={t("source.label")}
+                    />
+                  </div>
+                  <div className="flex min-h-64 min-w-0 flex-col gap-2">
+                    <span className="text-label font-medium">{t("preview.label")}</span>
+                    <div ref={previewContainerRef} className="min-h-64 flex-1 overflow-hidden rounded-md border border-border bg-muted/10" data-testid="md-preview">
+                      {previewState === "unavailable" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.unavailable")}</p> : null}
+                      {previewState === "idle" ? <p className="p-3 text-body text-muted-foreground" role="status">{t("preview.loading")}</p> : null}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+              {/* M6 front matter: the YAML block, edited as text and written
+                  back by replacing exactly its span (byte-identity preserved). */}
+              {frontmatterVisible ? <MarkdownFrontmatterPanel editor={editor} editable={!readOnly} className="max-h-64" /> : null}
             </div>
-          )}
+          </div>
           <aside className="border-t border-border" aria-label={t("asset.label")} data-testid="md-assets">
             <AssetManifestPanel manifest={manifest} failures={failures} />
             {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
