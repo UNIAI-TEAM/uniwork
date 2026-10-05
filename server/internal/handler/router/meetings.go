@@ -7,6 +7,10 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
+// liveKitWebhookPath is the webhook route under /api/v1; router.go exempts
+// it from the global rate limiter by this exact path.
+const liveKitWebhookPath = "/integrations/livekit/webhook"
+
 func registerMeetings(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
@@ -197,19 +201,21 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Cancel own join request (member or guest)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{},
 	})
 	r.With(lobbyWSLimit).Get("/meetings/{meetingID}/lobby-ws", h.MeetingLobbyWS, apiOp{})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
+	// Every client in a room refetches the roster, the chat history, the vote
+	// items and the recordings list, and a formal meeting often sits behind one
+	// office NAT: these reads live on the global budget only (per signed-in
+	// user, per address for guests), not the 60/min credential one, or a refused
+	// refetch hides a participant, a message or an open vote.
+	r.Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
 		summary: "List participants (member or active guest)", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{},
 	})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
+	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
 		summary: "List persisted in-room chat messages (member or active guest)", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
 	})
-	// Every client refetches this after every ballot, and a formal meeting often
-	// sits behind one office NAT: it lives on the global per-IP budget only, not
-	// the 60/min credential one, or a refused refetch hides an open vote.
 	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",
 		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED, voters chỉ khi CLOSED và công khai.",
@@ -224,7 +230,7 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
 		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
 	})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
+	r.Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
 	})
 	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/playback-url", h.GetMeetingRecordingPlaybackURL, apiOp{
@@ -238,7 +244,7 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		description: "Phát bản ghi cuộc họp (MP4) qua proxy S3 cho thành viên hoặc khách đang tham gia.",
 		tags:        []string{"meetings"},
 	})
-	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
+	r.Post(liveKitWebhookPath, h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},
 	})

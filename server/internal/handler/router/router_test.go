@@ -91,7 +91,8 @@ func TestAdminRoutesNeedPlatformRoleSource(t *testing.T) {
 // ballot, and a formal meeting often sits behind one office NAT. Behind the
 // 60/min credential budget a refused refetch right after a vote opens hides
 // the vote from members; the list is a session/guest-gated read and lives on
-// the global per-IP budget only.
+// the global budget only (per signed-in user; per address for guests and
+// anonymous callers).
 func TestMotionListIsNotOnTheCredentialBudget(t *testing.T) {
 	refuse := func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
