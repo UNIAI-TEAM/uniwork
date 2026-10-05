@@ -209,7 +209,8 @@ export function PptxPanelHost({
   selection,
   className,
 }: PptxPanelHostProps) {
-  const selectionKey = selection?.elementId ?? "none";
+  // W5 review F14: element ids repeat across slides, so the slide is part of the key.
+  const selectionKey = `${slideIndex ?? "none"}:${selection?.elementId ?? "none"}`;
   switch (panel) {
     case "design":
       return <PptxDesignPanel {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
@@ -297,6 +298,11 @@ export function PptxPanelHost({
           {...(data.commentsLoading !== undefined ? { loading: data.commentsLoading } : {})}
           {...(data.defaultAuthor !== undefined ? { defaultAuthor: data.defaultAuthor } : {})}
           {...(data.readonly !== undefined ? { readonly: data.readonly } : {})}
+          {...(onApplyEdit
+            ? {}
+            : // W5 review F3: without an edit channel the comments stay readable;
+              // only the writing controls give way to the reason.
+              { readonly: true, readonlyReasonKey: "reasons.edit_unbound" })}
           {...(onApplyEdit
             ? {
                 onAddComment: (index: number, text: string, author: string) =>

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import vi_ from "@uniwork/core/i18n/locales/vi.json";
 import { createPptxCommandMap } from "./command-map";
+import { pptxShowGroupItems } from "./ribbon-show-items";
 import {
   PPTX_RIBBON_CONTEXTUAL_TABS,
   PPTX_RIBBON_TABS,
@@ -101,6 +102,36 @@ describe("pptxRibbonTabs", () => {
     expect(PPTX_TAB_ROW_COMMANDS).toEqual(["undo", "redo", "presenter", "find"]);
   });
 
+  it("keeps only injected non-command items out of pptxRibbonCommandIds", () => {
+    const wired = pptxRibbonTabs(commands, {
+      groupItems: { font: [button("font-bold")], arrange: [button("arrange-front")], show: [button("show-from-start", "large")] },
+    });
+    expect(pptxRibbonCommandIds(wired)).toEqual(pptxRibbonCommandIds(tabs));
+  });
+
+  it("makes From Beginning the only large item of the Slide Show group, first", () => {
+    const show = pptxShowGroupItems({ canShow: true, onFromStart: vi.fn(), onFromCurrent: vi.fn(), onPresenterView: vi.fn() });
+    const wired = pptxRibbonTabs(commands, { groupItems: { show } });
+    const group = wired.find((tab) => tab.id === "slide-show")!.groups.find((entry) => entry.id === "show")!;
+    expect(group.items.map((item) => item.id)).toEqual(["show-from-start", "show-from-current", "show-presenter-view", "fullscreen"]);
+    expect(group.items.filter((item) => item.size === "large").map((item) => item.id)).toEqual(["show-from-start"]);
+    expect(group.items[0]!.size).toBe("large");
+  });
+
+  it("regroups Insert into Office-like groups with one large item each", () => {
+    const insert = tabs.find((tab) => tab.id === "insert")!;
+    expect(insert.groups.map((group) => group.id)).toEqual(["slides", "tables", "images", "text", "media"]);
+    expect(insert.groups.find((group) => group.id === "images")!.items.map((item) => [item.id, item.size])).toEqual([
+      ["panel-insert", "large"],
+      ["charts", "small"],
+    ]);
+    expect(insert.groups.find((group) => group.id === "text")!.items.map((item) => [item.id, item.size])).toEqual([
+      ["panel-headerfooter", "large"],
+      ["panel-links", "small"],
+    ]);
+    for (const group of insert.groups) expect(group.items.filter((item) => item.size === "large").length, group.id).toBe(1);
+  });
+
   it("gates the four contextual tabs on the selection flags (R4), chart included", () => {
     expect(PPTX_RIBBON_CONTEXTUAL_TABS.map((tab) => tab.labelKey)).toEqual([
       "office.pptx.context.picture",
@@ -184,7 +215,7 @@ describe("pptxRibbonTabs", () => {
     const home = wired[0]!;
     expect(home.groups.find((group) => group.id === "font")!.items).toEqual([font]);
     expect(home.groups.find((group) => group.id === "font")!.launcher).toBeDefined();
-    expect(itemsOf(wired.find((tab) => tab.id === "slide-show")!).map((item) => item.id)).toEqual(["fullscreen", "start-show"]);
+    expect(itemsOf(wired.find((tab) => tab.id === "slide-show")!).map((item) => item.id)).toEqual(["start-show", "fullscreen"]);
     const sizes = home.groups.filter((group) => group.id === "font" || group.id === "paragraph").flatMap((group) => group.items.map((item) => item.size));
     expect(sizes).not.toContain("large");
   });

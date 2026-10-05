@@ -43,6 +43,9 @@ export interface PptxCommentsPanelProps {
   loading?: boolean;
   /** Read-only document. */
   readonly?: boolean;
+  /** Key (under office.pptx) of the read-only line; defaults to `comments.readonly`.
+   *  A read-only panel lists the comments even with no write port bound. */
+  readonlyReasonKey?: string;
   /** No comments port is bound to this editor. */
   unbound?: boolean;
   /** A host error to surface. */
@@ -64,6 +67,7 @@ export function PptxCommentsPanel({
   onDeleteComment,
   loading = false,
   readonly = false,
+  readonlyReasonKey = "comments.readonly",
   unbound = false,
   error = null,
   pending = false,
@@ -76,7 +80,7 @@ export function PptxCommentsPanel({
   const authorId = useId();
   const boundAdd = typeof onAddComment === "function";
   const boundDelete = typeof onDeleteComment === "function";
-  const mode = commentsPanelMode({ slideIndex, loading, unbound: unbound || (!boundAdd && !boundDelete) });
+  const mode = commentsPanelMode({ slideIndex, loading, unbound: unbound || (!readonly && !boundAdd && !boundDelete) });
   const [author, setAuthor] = useState(defaultAuthor);
   const [authorTouched, setAuthorTouched] = useState(false);
   const [draft, setDraft] = useState("");
@@ -233,7 +237,7 @@ export function PptxCommentsPanel({
           ) : null}
 
           {readonly ? (
-            <p className="text-caption text-muted-foreground" data-pptx-comments-readonly data-testid="pptx-comments-readonly">{t("comments.readonly")}</p>
+            <p className="text-caption text-muted-foreground" data-pptx-comments-readonly data-testid="pptx-comments-readonly">{t(readonlyReasonKey)}</p>
           ) : (
             <div className="flex min-w-0 flex-col gap-1" data-pptx-comment-composer>
               <label className="text-caption text-muted-foreground" htmlFor={authorId}>{t("comments.author_label")}</label>

@@ -14,7 +14,7 @@
  * Arrange) from the live selection, so formatting is one click away and bound to
  * the same single edit channel every panel uses.
  */
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { RibbonItem } from "../ribbon";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import type { PptxNodeBox, PptxRenderSlide } from "./canvas/render-tree";
@@ -32,6 +32,7 @@ import {
 import type { PptxRibbonContextualSelection } from "./pptx-ribbon";
 import { pptxArrangeGroupItems, pptxFontGroupItems, pptxParagraphGroupItems, pptxTextFormatState, type PptxFormatTarget } from "./ribbon-format-items";
 import type { PptxSlideView } from "./slide-rail";
+import { pptxTextFormatAllowed } from "./text/text-format-model";
 
 /** Ribbon commands that open a panel instead of running an action. */
 const COMMAND_PANELS: Partial<Record<PptxCommandId, PptxPanelKind>> = {
@@ -42,11 +43,20 @@ const COMMAND_PANELS: Partial<Record<PptxCommandId, PptxPanelKind>> = {
 };
 
 /** Panels that write to the deck: without an edit channel their ribbon item is
- *  disabled with the reason instead of opening a panel that can only refuse. */
+ *  disabled with the reason instead of opening a panel that can only refuse.
+ *  Notes and comments read the deck too, so they open read-only instead (W5 review F3). */
 const EDITING_PANELS: readonly PptxPanelKind[] = [
   "design", "insert", "animations", "transitions", "tables", "charts", "format",
-  "text-format", "links", "comments", "headerfooter", "media",
+  "text-format", "links", "headerfooter", "media",
 ];
+
+/** The element ids an edit result says it minted (`{ createdIds }` or `{ createdId }`). */
+function createdIdsOf(result: unknown): string[] {
+  if (!result || typeof result !== "object") return [];
+  const { createdIds, createdId } = result as { createdIds?: unknown; createdId?: unknown };
+  if (Array.isArray(createdIds)) return createdIds.filter((id): id is string => typeof id === "string" && id.length > 0);
+  return typeof createdId === "string" && createdId.length > 0 ? [createdId] : [];
+}
 
 const CONTEXTUAL_FLAG: Record<string, keyof PptxRibbonContextualSelection> = {
   "context-shape": "shape",
@@ -79,16 +89,29 @@ export interface PptxPanelsInput {
   loadLayouts?: () => Promise<readonly { name: string; path: string }[]>;
   /** Slide Show tab items, built by the editor that owns the show state. */
   showItems?: readonly RibbonItem[];
+  /** Element ids an applied edit minted, so the editor can select the new insert. */
+  onCreated?: (ids: readonly string[]) => void;
+  /** The editor root, to move focus into a panel a command re-opens. */
+  rootRef?: RefObject<HTMLElement | null>;
 }
 
 export function usePptxPanels(input: PptxPanelsInput) {
-  const { activeTab, contextual, panelKind, panel, panelData, applyEdit: hostApply, bulkEdit, onError, slideIndex, slides, boxes, selectedIds, rendition, reorder, remove, onSelectSlide, loadLayouts, showItems } = input;
+  const { activeTab, contextual, panelKind, panel, panelData, applyEdit: hostApply, bulkEdit, onError, slideIndex, slides, boxes, selectedIds, rendition, reorder, remove, onSelectSlide, loadLayouts, showItems, onCreated, rootRef } = input;
   // Same fallback as buildPptxPanel: an unregistered panel union travels the
   // generic handle edit port (WIRE-KINDS owns the engine registration).
-  const applyEdit = useMemo(
-    () => hostApply ?? (bulkEdit ? (one: PptxPanelEdit) => bulkEdit([one as PptxEdit]) : undefined),
-    [bulkEdit, hostApply],
-  );
+  const onCreatedRef = useRef(onCreated);
+  useEffect(() => { onCreatedRef.current = onCreated; }, [onCreated]);
+  // Every panel edit reports the ids it minted, so an insert ends selected.
+  const applyEdit = useMemo(() => {
+    const base = hostApply ?? (bulkEdit ? (one: PptxPanelEdit) => bulkEdit([one as PptxEdit]) : undefined);
+    if (!base) return undefined;
+    return async (edit: PptxPanelEdit) => {
+      const result = await base(edit);
+      const created = createdIdsOf(result);
+      if (created.length > 0) onCreatedRef.current?.(created);
+      return result;
+    };
+  }, [bulkEdit, hostApply]);
   // The pick is remembered per tab: a pick made on another tab never leaks.
   const [pick, setPick] = useState<{ tab: string; kind: PptxPanelKind | null } | null>(null);
   const contextualLive = (tab: string) => {
@@ -106,13 +129,27 @@ export function usePptxPanels(input: PptxPanelsInput) {
     });
   }, [activeTab, tabDefault]);
 
-  /** Returns true when the command was a panel command (and opened it). */
+  // W5 review F12: a panel command never closes a pane it did not open. The
+  // first press on a pane already open by default claims and focuses it; only
+  // a second press (now the user's own pick) toggles it closed.
+  const [focusRequest, setFocusRequest] = useState(0);
   const openCommandPanel = useCallback((id: PptxCommandId) => {
     const kind = COMMAND_PANELS[id];
     if (!kind) return false;
-    openPanel(kind);
+    if (activeKind === kind && userPick?.kind !== kind) {
+      setPick({ tab: activeTab, kind });
+      setFocusRequest((n) => n + 1);
+    } else {
+      if (activeKind !== kind) setFocusRequest((n) => n + 1);
+      openPanel(kind);
+    }
     return true;
-  }, [openPanel]);
+  }, [activeKind, activeTab, openPanel, userPick?.kind]);
+  useEffect(() => {
+    if (focusRequest === 0) return;
+    const host = rootRef?.current?.querySelector("[data-pptx-panel-host]");
+    host?.querySelector<HTMLElement>("textarea:not([disabled]), input:not([disabled]), [contenteditable='true'], button:not([disabled])")?.focus();
+  }, [focusRequest, rootRef]);
 
   const panelDisabled = useMemo<Partial<Record<PptxPanelKind, string>>>(() => {
     if (applyEdit) return {};
@@ -123,20 +160,30 @@ export function usePptxPanels(input: PptxPanelsInput) {
   const textState = useMemo(() => pptxTextFormatState(rendition, anchor.elementId), [anchor.elementId, rendition]);
   // The text-format panel seeds its controls from the selection's live formatting.
   const selection = useMemo(() => ({ ...anchor, textFormat: textState }), [anchor, textState]);
+  // W5 review F9: Font/Paragraph edits reach every selected element that takes
+  // text formatting, anchor first, not only the anchor.
+  const textIds = useMemo(
+    () => selectedIds.filter((id) => pptxTextFormatAllowed(boxes.find((entry) => entry.sourceId === id)?.type)),
+    [boxes, selectedIds],
+  );
   const target = useMemo<PptxFormatTarget>(
-    () => ({ slideIndex, elementId: selection.elementId, elementType: selection.elementType, ids: selection.ids }),
-    [selection, slideIndex],
+    () => ({ slideIndex, elementId: selection.elementId, elementType: selection.elementType, ids: selection.ids, textIds }),
+    [selection, slideIndex, textIds],
   );
   const groupItems = useMemo<Record<string, readonly RibbonItem[]>>(() => {
     const apply = applyEdit ? (edit: PptxPanelEdit) => { void applyEdit(edit).catch(onError); } : undefined;
-    const text = { target, state: textState, ...(apply ? { apply } : {}), onMoreOptions: () => openPanel("text-format") };
+    // W5 review F5: "More colors…" goes through the same guard as every other
+    // way into the text-format panel.
+    const moreBlocked = Boolean(panelDisabled["text-format"]);
+    const onMoreOptions = () => { if (!moreBlocked) openPanel("text-format"); };
+    const text = { target, state: textState, ...(apply ? { apply } : {}), onMoreOptions };
     return {
       font: pptxFontGroupItems(text),
       paragraph: pptxParagraphGroupItems(text),
       arrange: pptxArrangeGroupItems({ target, ...(reorder ? { reorder } : {}), ...(remove ? { remove } : {}) }),
       ...(showItems ? { show: showItems } : {}),
     };
-  }, [applyEdit, onError, openPanel, remove, reorder, showItems, target, textState]);
+  }, [applyEdit, onError, openPanel, panelDisabled, remove, reorder, showItems, target, textState]);
 
   const placement = !panel && activeKind ? pptxPanelPlacement(activeKind) : "aside";
   const node = panel ?? buildPptxPanel({

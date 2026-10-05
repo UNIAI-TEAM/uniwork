@@ -110,6 +110,34 @@ describe("font group", () => {
   });
 });
 
+describe("font group: multi-selection, disabled combos, more colors", () => {
+  it("applies one edit per text id, anchor first, and skips an id whose builder refuses", () => {
+    const { o, apply } = opts({ target: { ...target, elementId: "a", ids: ["a", "b"], textIds: ["a", "b"] } });
+    press(get(pptxFontGroupItems(o), "font-bold"));
+    expect(apply).toHaveBeenCalledTimes(2);
+    expect(apply).toHaveBeenNthCalledWith(1, expect.objectContaining({ elementId: "a", font: { bold: true } }));
+    expect(apply).toHaveBeenNthCalledWith(2, expect.objectContaining({ elementId: "b", font: { bold: true } }));
+    const single = opts();
+    press(get(pptxFontGroupItems(single.o), "font-bold"));
+    expect(single.apply).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits a custom item for a disabled combo and a plain combo when enabled", () => {
+    const off = pptxFontGroupItems(opts({ apply: undefined }).o);
+    for (const id of ["font-family", "font-size"]) expect(get(off, id).kind).toBe("custom");
+    expect(get(off, "font-family").id).toBe("font-family");
+    expect(get(pptxParagraphGroupItems(opts({ apply: undefined }).o), "para-line-spacing").kind).toBe("custom");
+    expect(get(pptxFontGroupItems(opts().o), "font-family").kind).toBe("combo");
+  });
+
+  it("disables More colors with the reason, and keeps it live when enabled", () => {
+    const off = get<RibbonDropdownItem>(pptxFontGroupItems(opts({ apply: undefined, onMoreOptions: vi.fn() }).o), "font-color").menu;
+    expect(off.find((m) => m.id === "font-color-more")?.disabled).toBe(true);
+    const on = get<RibbonDropdownItem>(pptxFontGroupItems(opts({ onMoreOptions: vi.fn() }).o), "font-color").menu;
+    expect(on.find((m) => m.id === "font-color-more")?.disabled).toBeUndefined();
+  });
+});
+
 describe("paragraph group", () => {
   it("align toggles reflect state and emit set_paragraph_format", () => {
     const { o, apply } = opts({ state: { align: "center" } });

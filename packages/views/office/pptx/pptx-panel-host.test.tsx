@@ -144,4 +144,23 @@ describe("selection wiring", () => {
     view.rerender(build([]));
     expect(screen.getByText(hint)).toBeInTheDocument();
   });
+
+  it("remounts a selection panel when the same element id is selected on another slide (W5 review F14)", () => {
+    const build = (slideIndex: number) => buildPptxPanel({ panelKind: "text-format", onApplyEdit: async () => undefined, slideIndex, slides: [{ id: "s1" }, { id: "s2" }], selection: pptxPanelSelection(boxes, ["t1"]) });
+    const view = render(build(0));
+    fireEvent.click(screen.getByTestId("pptx-text-toggle-bold"));
+    expect(screen.getByTestId("pptx-text-toggle-bold")).toHaveAttribute("aria-pressed", "true");
+    view.rerender(build(0));
+    expect(screen.getByTestId("pptx-text-toggle-bold")).toHaveAttribute("aria-pressed", "true");
+    view.rerender(build(1));
+    expect(screen.getByTestId("pptx-text-toggle-bold")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("lists comments read-only, with the reason, when no edit channel is bound (W5 review F3)", () => {
+    render(buildPptxPanel({ panelKind: "comments", slideIndex: 0, slides: [], data: { comments: [{ authorId: 4, author: "An", initials: "AN", dt: "", idx: 2, text: "hi" }] } }));
+    expect(screen.getByTestId("pptx-comments-panel")).toHaveAttribute("data-pptx-comments-mode", "ready");
+    expect(screen.getByText("hi")).toBeInTheDocument();
+    expect(screen.getByTestId("pptx-comments-readonly")).toHaveTextContent("This presentation cannot be edited here");
+    expect(screen.queryByRole("textbox", { name: "Write a comment" })).toBeNull();
+  });
 });

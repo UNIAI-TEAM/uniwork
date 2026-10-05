@@ -6,7 +6,7 @@
  * current/next content built from the SAME renderer. Pulled out of
  * pptx-editor.tsx so the editor stays a composition of hooks.
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { buildSlideSvg, type SlideSvgDocument, type SlideSvgOptions } from "./canvas/build-slide-svg";
 import type { PptxCanvasContent } from "./canvas/pptx-canvas-surface";
 import type { PptxRendererModule } from "./canvas/renderer-module";
@@ -33,10 +33,11 @@ export function usePptxEditorRender({ deck, loadRendererModule, idPrefix, select
   const presetPolygon = module?.presetPolygon;
   // F10: an inline `imageSize` prop must not rebuild the whole SvgNode tree on every
   // parent render, so it is ref-stabilized the same way the deck renderer stabilizes
-  // its own seam. A host that swaps the resolver mid-session bumps `deck.revision`.
-  const imageSize = deck?.imageSize;
-  const imageSizeRef = useRef(imageSize);
-  useEffect(() => { imageSizeRef.current = imageSize; }, [imageSize]);
+  // its own seam. A host that swaps the resolver mid-session bumps `deck.revision`;
+  // the ref is written during render (W5 review F6), so the memo that recomputes in
+  // that same render reads the new resolver instead of the one an effect has yet to copy.
+  const imageSizeRef = useRef(deck?.imageSize);
+  imageSizeRef.current = deck?.imageSize;
   const svgOptions = useCallback(
     (prefix: string): SlideSvgOptions => ({
       idPrefix: prefix,

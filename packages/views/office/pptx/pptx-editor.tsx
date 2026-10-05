@@ -162,6 +162,8 @@ export function PptxEditor({
   const clearCommandError = useCallback(() => setCommandError(null), []);
   const { gesturePending, waitForGesture, requestHistory, runTransform } = usePptxGestureHistory({
     host, editorHandle, ...(onTransform ? { onTransform } : {}), ...(onDirty ? { onDirty } : {}), onStart: clearCommandError, rootRef: editorRootRef,
+    // W5 review F1: a modal surface over the editor owns the history chords.
+    suspended: presenterOpen || showOpen || shortcutsOpen,
   });
   const railIdPrefix = `pptx-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
   const { palette, rendererState, deckRenderer, rendition, svgBuild, presenterContent, presenterNext, building } = usePptxEditorRender({
@@ -243,13 +245,26 @@ export function PptxEditor({
     onCommandError?.(error);
   }, [onCommandError]);
 
-  const commitText = useCallback((commit: PptxTextCommit) => {
+  // W2 review F3: closing the in-place editor unmounts the focused contenteditable;
+  // focus that fell to the body returns to the canvas so its keys keep working.
+  const refocusCanvasRef = useRef(false);
+  useEffect(() => {
+    if (textTarget || !refocusCanvasRef.current) return;
+    refocusCanvasRef.current = false;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    editorRootRef.current?.querySelector<HTMLElement>("[data-pptx-canvas]")?.focus();
+  }, [textTarget]);
+  const closeTextEditor = useCallback(() => {
+    refocusCanvasRef.current = true;
     setTextTarget(null);
+  }, []);
+
+  const commitText = useCallback((commit: PptxTextCommit) => {
+    closeTextEditor();
     if (!onCommitText) return;
     void Promise.resolve(onCommitText(commit)).then(() => { onDirty?.(); }).catch(reportCommandError);
-  }, [onCommitText, onDirty, reportCommandError]);
-
-  const cancelTextEdit = useCallback(() => setTextTarget(null), []);
+  }, [closeTextEditor, onCommitText, onDirty, reportCommandError]);
 
   const runCommand = useCallback((operation: Promise<unknown>) => {
     void operation.catch(reportCommandError);
@@ -334,6 +349,19 @@ export function PptxEditor({
   // F3: the R4 contextual tabs open only for the object actually selected; the
   // flags come from the live selection ids against the rendition node types.
   const contextual = useMemo(() => pptxContextualSelection(nodeBoxes, selectedIds), [nodeBoxes, selectedIds]);
+  // Select-after-insert: select() only takes ids present in the CURRENT boxes, so
+  // the ids an edit minted wait until the new rendition mounts them.
+  const [pendingSelect, setPendingSelect] = useState<readonly string[] | null>(null);
+  const { select: selectIds } = selection;
+  useEffect(() => {
+    if (!pendingSelect || !pendingSelect.some((id) => nodeBoxes.some((entry) => entry.sourceId === id))) return;
+    selectIds(pendingSelect);
+    setPendingSelect(null);
+  }, [nodeBoxes, pendingSelect, selectIds]);
+  // W5 review F11: "Edit text" only when the selection can actually be edited:
+  // the host seam, or the in-place editor over a selected text element.
+  const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
+  const canEditText = Boolean(onTextEdit) || (Boolean(onCommitText) && selectionHasText);
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
     return slideDisplaySize(fitWidthPx, zoom, aspect);
@@ -376,6 +404,8 @@ export function PptxEditor({
     onSelectSlide: selectSlide,
     ...(loadLayouts ? { loadLayouts } : {}),
     showItems,
+    onCreated: setPendingSelect,
+    rootRef: editorRootRef,
   });
   const { openCommandPanel } = panels;
 
@@ -437,7 +467,7 @@ export function PptxEditor({
       case "previous-slide": event.preventDefault(); selectSlide(selectedIndex - 1); return;
       case "dismiss":
         // An open in-place text editor owns Escape first (A1ui); only then clear.
-        if (textTarget) { setTextTarget(null); return; }
+        if (textTarget) { closeTextEditor(); return; }
         selection.clear();
         return;
       case "shortcuts-help": event.preventDefault(); setShortcutsOpen(true); return;
@@ -506,7 +536,7 @@ export function PptxEditor({
             slideBound={slides.length > 0}
             selectionCount={selectedIds.length}
             canDelete={Boolean(deleteElements)}
-            canEditText={Boolean(onTextEdit) || Boolean(onCommitText)}
+            canEditText={canEditText}
             canReorder={Boolean(reorderElements)}
             canInsert={Boolean(onApplyEdit ?? handleEdit)}
             gesturePending={gesturePending}
@@ -528,7 +558,7 @@ export function PptxEditor({
                     <PptxTextEditLayer slideIndex={selectedIndex} targets={textTargets} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} controller={selection} activeId={textTarget?.sourceId ?? null} onOpen={openTextEditor} />
                   ) : null}
                   {onCommitText && textTarget ? (
-                    <PptxTextEditorOverlay slideIndex={selectedIndex} target={textTarget} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} onCommitText={commitText} onCancel={cancelTextEdit} />
+                    <PptxTextEditorOverlay slideIndex={selectedIndex} target={textTarget} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} onCommitText={commitText} onCancel={closeTextEditor} />
                   ) : null}
                 </>
               ) : null}

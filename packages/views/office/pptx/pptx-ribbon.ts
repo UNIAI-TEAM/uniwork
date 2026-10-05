@@ -159,6 +159,8 @@ export interface PptxRibbonGroupSpec {
   panels?: readonly PptxRibbonPanelSpec[];
   /** Items the editor injects for this group id via options.groupItems[id], appended after commands+panels. */
   injected?: boolean;
+  /** Injected items lead the group (the primary, large item); spec items follow as small. */
+  injectedFirst?: boolean;
   /** Default true: the first item renders large. false = all small (Font/Paragraph groups, F4). */
   largeFirst?: boolean;
   /** Item order inside the group. Default commands-first. */
@@ -204,10 +206,21 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
     groups: [
       { id: "slides", labelKey: g("slides"), panels: [newSlide] },
       { id: "tables", labelKey: g("tables"), commands: ["tables"] },
-      { id: "images", labelKey: g("images"), panels: [{ kind: "insert", labelKey: p("shapes"), tooltipKey: p("shapes_hint") }] },
-      { id: "charts", labelKey: g("charts"), commands: ["charts"] },
-      { id: "links", labelKey: g("links"), panels: [{ kind: "links", labelKey: p("link") }] },
-      { id: "text", labelKey: g("text"), panels: [{ kind: "headerfooter", labelKey: p("header_footer") }] },
+      {
+        id: "images",
+        labelKey: g("images"),
+        panels: [{ kind: "insert", labelKey: p("shapes"), tooltipKey: p("shapes_hint") }],
+        commands: ["charts"],
+        order: "panels-first",
+      },
+      {
+        id: "text",
+        labelKey: g("text"),
+        panels: [
+          { kind: "headerfooter", labelKey: p("header_footer") },
+          { kind: "links", labelKey: p("link") },
+        ],
+      },
       { id: "media", labelKey: g("media"), panels: [{ kind: "media", labelKey: p("media") }] },
     ],
   },
@@ -225,7 +238,7 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
     groups: [{ id: "transitions", labelKey: g("transitions"), panels: [{ kind: "transitions", labelKey: p("transitions") }] }],
   },
   { id: "animations", labelKey: "office.pptx.tabs.animations", groups: [{ id: "animations", labelKey: g("animations"), commands: ["animations"] }] },
-  { id: "slide-show", labelKey: "office.pptx.tabs.slide_show", groups: [{ id: "show", labelKey: g("show"), commands: ["fullscreen"], injected: true }] },
+  { id: "slide-show", labelKey: "office.pptx.tabs.slide_show", groups: [{ id: "show", labelKey: g("show"), commands: ["fullscreen"], injected: true, injectedFirst: true }] },
   {
     id: "review",
     labelKey: "office.pptx.tabs.review",
@@ -395,7 +408,9 @@ function mapGroup(
   usedIds: Set<string>,
 ): RibbonGroup {
   const largeFirst = spec.largeFirst !== false;
-  const sizeAt = (position: number) => (largeFirst && position === 0 ? ("large" as const) : ("small" as const));
+  const injected = spec.injected ? (options.groupItems?.[spec.id] ?? []) : [];
+  const lead = spec.injectedFirst ? injected : [];
+  const sizeAt = (position: number) => (largeFirst && lead.length + position === 0 ? ("large" as const) : ("small" as const));
   const commandEntries: GroupEntry[] = (spec.commands ?? [])
     .map((id) => commands.find((command) => command.id === id))
     .filter((command): command is PptxCommand => Boolean(command))
@@ -407,7 +422,8 @@ function mapGroup(
       ? mapItem(entry.command, sizeAt(position), options)
       : mapPanel(entry.panel, spec.id, sizeAt(position), options, usedIds),
   );
-  if (spec.injected) items.push(...(options.groupItems?.[spec.id] ?? []));
+  if (spec.injectedFirst) items.unshift(...lead);
+  else items.push(...injected);
   const launcher = spec.launcher;
   return {
     id: spec.id,
@@ -449,7 +465,8 @@ export function pptxRibbonTabs(commands: readonly PptxCommand[], options: PptxRi
 
 /** Every command id the FIXED tabs place, in render order (tab-row, panel and injected items excluded). */
 export function pptxRibbonCommandIds(tabs: readonly RibbonTab[]): PptxCommandId[] {
+  const placed = new Set<string>(PPTX_RIBBON_TABS.flatMap((tab) => tab.groups.flatMap((group) => group.commands ?? [])));
   return tabs
     .filter((tab) => !tab.contextual)
-    .flatMap((tab) => tab.groups.flatMap((group) => group.items.filter((item) => !item.id.startsWith("panel-")).map((item) => item.id as PptxCommandId)));
+    .flatMap((tab) => tab.groups.flatMap((group) => group.items.filter((item) => placed.has(item.id)).map((item) => item.id as PptxCommandId)));
 }

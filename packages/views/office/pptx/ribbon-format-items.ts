@@ -25,7 +25,10 @@ import {
   Underline,
 } from "lucide-react";
 import type { PptxTextAlign, TextEdit } from "@uniwork/office-engine/pptx";
-import type { RibbonIcon, RibbonItem, RibbonMenuEntry, RibbonOption } from "../ribbon/types";
+import { createElement } from "react";
+import type { RibbonComboItem, RibbonIcon, RibbonItem, RibbonMenuEntry, RibbonOption } from "../ribbon/types";
+import { COMBO_DEFAULT, COMBO_MIN } from "../ribbon/layout";
+import { PptxDisabledCombo } from "./ribbon-disabled-combo";
 import type { PptxRenderNode, PptxRenderSlide, PptxTextLayout } from "./canvas/render-tree";
 import {
   buildAlignEdit,
@@ -50,6 +53,8 @@ export interface PptxFormatTarget {
   elementId: string | null;
   elementType: string | null;
   ids: readonly string[];
+  /** Selected ids that accept text formatting, anchor first; defaults to [elementId]. */
+  textIds?: readonly string[];
 }
 
 export interface PptxTextFormatState {
@@ -132,17 +137,49 @@ function textReason(o: PptxTextGroupOptions): string | null {
   return null;
 }
 
-/** Runs `build` and forwards the edit; a builder refusal is swallowed. */
+/**
+ * Runs `build` for every text-capable selected id (anchor first) and forwards
+ * each edit; an id whose builder refuses is skipped.
+ */
 function send(o: PptxTextGroupOptions, build: (slideIndex: number, elementId: string) => TextEdit): void {
-  const id = o.target.elementId;
-  if (!id || !o.apply || textReason(o) !== null) return;
-  let edit: TextEdit;
-  try {
-    edit = build(o.target.slideIndex, id);
-  } catch {
-    return;
+  const anchor = o.target.elementId;
+  if (!anchor || !o.apply || textReason(o) !== null) return;
+  const ids = o.target.textIds && o.target.textIds.length > 0 ? o.target.textIds : [anchor];
+  for (const id of ids) {
+    let edit: TextEdit;
+    try {
+      edit = build(o.target.slideIndex, id);
+    } catch {
+      continue;
+    }
+    o.apply(edit);
   }
-  o.apply(edit);
+}
+
+/**
+ * An enabled combo stays a plain `combo`. A disabled one becomes a `custom`
+ * item so its reason surfaces (the shared combo control has no tooltip).
+ */
+function comboItem(reason: string | null, combo: RibbonComboItem): RibbonItem {
+  if (!reason) return combo;
+  return {
+    kind: "custom",
+    id: combo.id,
+    labelKey: combo.labelKey,
+    size: "icon",
+    disabled: true,
+    tooltipKey: reason,
+    // Same estimate the ribbon layout gives a combo, so collapse behaves alike.
+    width: Math.max(COMBO_MIN, combo.width ?? COMBO_DEFAULT) + 2,
+    render: () =>
+      createElement(PptxDisabledCombo, {
+        labelKey: combo.labelKey,
+        reasonKey: reason,
+        width: combo.width,
+        value: combo.value,
+        options: combo.options,
+      }),
+  };
 }
 
 function disabledFields(reason: string | null): { disabled?: true; tooltipKey?: string } {
@@ -189,11 +226,11 @@ export function pptxFontGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
   }));
   if (o.onMoreOptions) {
     const more = o.onMoreOptions;
-    colorMenu.push({ id: "font-color-more", labelKey: "office.pptx.colors.more", onSelect: () => more() });
+    colorMenu.push({ id: "font-color-more", labelKey: "office.pptx.colors.more", ...(reason ? { disabled: true } : {}), onSelect: () => more() });
   }
 
   const items: RibbonItem[] = [
-    {
+    comboItem(reason, {
       kind: "combo",
       id: "font-family",
       labelKey: K + "font_family",
@@ -201,10 +238,9 @@ export function pptxFontGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
       width: 140,
       value: family ?? null,
       options: families,
-      ...dis,
       onChange: (v) => send(o, (s, id) => buildFontFamilyEdit(s, id, v)),
-    },
-    {
+    }),
+    comboItem(reason, {
       kind: "combo",
       id: "font-size",
       labelKey: K + "font_size",
@@ -212,14 +248,13 @@ export function pptxFontGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
       width: 56,
       value: size === undefined ? null : String(size),
       options: sizes,
-      ...dis,
       onChange: (v) =>
         send(o, (s, id) => {
           const pt = parsePptxFontSizePt(v);
           if (pt === null) throw new RangeError("font size");
           return buildFontSizeEdit(s, id, pt);
         }),
-    },
+    }),
   ];
   TOGGLES.forEach((t, i) => {
     const pressed = o.state[t.toggle] === true;
@@ -289,7 +324,7 @@ export function pptxParagraphGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
       onSelect: () => send(o, (s, id) => buildBulletEdit(s, id, b)),
     })),
   });
-  items.push({
+  items.push(comboItem(reason, {
     kind: "combo",
     id: "para-line-spacing",
     labelKey: K + "line_spacing",
@@ -297,14 +332,13 @@ export function pptxParagraphGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
     width: 64,
     value: null,
     options: PPTX_TEXT_LINE_SPACING_PCT_PRESETS.map((p) => ({ value: String(p), label: spacingLabel(p) })),
-    ...dis,
     onChange: (v) =>
       send(o, (s, id) => {
         const pct = parsePptxLineSpacingPct(v);
         if (pct === null) throw new RangeError("line spacing");
         return buildLineSpacingEdit(s, id, pct);
       }),
-  });
+  }));
   return items;
 }
 

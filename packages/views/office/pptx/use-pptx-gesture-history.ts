@@ -11,6 +11,9 @@
  * ribbon. The listener is on `document` in the bubble phase, so React's canvas
  * handler (which prevents the event) has already run; it only acts for events
  * from inside the editor root and leaves native text undo to text inputs.
+ * While a modal surface owns the keyboard (presenter console, slide show,
+ * shortcuts help) the listener is `suspended`, so nothing edits the deck
+ * behind it (W5 review F1).
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
@@ -36,9 +39,11 @@ export interface PptxGestureHistoryInput {
   onDirty?: () => void;
   onStart: () => void;
   rootRef: RefObject<HTMLElement | null>;
+  /** True while a modal surface is open over the editor: the chords do nothing. */
+  suspended?: boolean;
 }
 
-export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty, onStart, rootRef }: PptxGestureHistoryInput) {
+export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty, onStart, rootRef, suspended = false }: PptxGestureHistoryInput) {
   const [gesturePending, setGesturePending] = useState(false);
   const gestureRef = useRef<GestureState | null>(null);
   const historyQueue = useRef<"undo" | "redo" | null>(null);
@@ -86,6 +91,7 @@ export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty
   }, [finishGesture, host.ipc, onDirty, onStart, onTransform]);
 
   useEffect(() => {
+    if (suspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const root = rootRef.current;
       if (event.defaultPrevented || !root || !(event.target instanceof Node) || !root.contains(event.target)) return;
@@ -98,7 +104,7 @@ export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [requestHistory, rootRef]);
+  }, [requestHistory, rootRef, suspended]);
 
   return { gesturePending, waitForGesture, requestHistory, runTransform };
 }
