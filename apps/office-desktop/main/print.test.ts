@@ -1,6 +1,10 @@
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createIpcDispatcher, IpcValidationError, IPC_MAX_BYTES, PRINT_HTML_MAX_BYTES, validateIpcRequest } from "./ipc";
-import { createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintWindow, type PrintWindowOptions } from "./print";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const request = { sessionGeneration: "session_1234", title: "Doc.md", html: `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body><p>x</p></body></html>` };
@@ -142,5 +146,30 @@ describe("print helpers", () => {
     expect(verdict("file:///C:/Users/me/secret.txt")).toBe(true);
     expect(verdict("https://evil.test/x.png")).toBe(true);
     expect(verdict("uniwork-office-app://app/index.html")).toBe(true);
+  });
+});
+
+describe("print job files", () => {
+  it("writes each job to its own directory and removes it on cleanup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "uniwork-print-test-"));
+    const write = createPrintFileWriter(root);
+    const first = await write("<p>a</p>", "Doc.html");
+    const second = await write("<p>b</p>", "Doc.html");
+    expect(first.path).not.toBe(second.path);
+    expect(await readFile(first.path, "utf8")).toBe("<p>a</p>");
+    await first.cleanup();
+    expect(existsSync(first.path)).toBe(false);
+    expect(await readdir(root)).toHaveLength(1);
+    await clearPrintRoot(root);
+    expect(existsSync(root)).toBe(false);
+  });
+  it("removes the job directory when the write fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "uniwork-print-test-"));
+    await expect(createPrintFileWriter(root)("<p>a</p>", join("missing", "Doc.html"))).rejects.toThrow();
+    expect(await readdir(root)).toEqual([]);
+    await writeFile(join(root, "stale.html"), "x");
+    await clearPrintRoot(root);
+    await clearPrintRoot(root);
+    expect(existsSync(root)).toBe(false);
   });
 });

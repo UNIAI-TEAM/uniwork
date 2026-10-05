@@ -1,3 +1,5 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { DesktopIpcRequest, DesktopPrintResponse } from "../shared/ipc";
 
 /**
@@ -107,7 +109,31 @@ export function createPrintIpcHandler(options: PrintDocumentOptions) {
   };
 }
 
-type RequestFilter = (details: { url: string }, callback: (response: { cancel: boolean }) => void) => void;
+/** Each print gets its own private directory under `root`; the hidden window
+ * loads only that file. A failed write removes the directory it made. */
+export function createPrintFileWriter(root: string): PrintDocumentOptions["writeFile"] {
+  return async (html, fileName) => {
+    await mkdir(root, { recursive: true });
+    const directory = await mkdtemp(join(root, "job-"));
+    const path = join(directory, fileName);
+    const cleanup = () => rm(directory, { recursive: true, force: true });
+    try {
+      await writeFile(path, html, { encoding: "utf8", mode: 0o600 });
+    } catch (error) {
+      await cleanup().catch(() => undefined);
+      throw error;
+    }
+    return { path, cleanup };
+  };
+}
+
+/** Remove jobs a previous process left behind (it quit with a dialog open).
+ * The single-instance lock means no other process is printing from `root`. */
+export async function clearPrintRoot(root: string): Promise<void> {
+  await rm(root, { recursive: true, force: true }).catch(() => undefined);
+}
+
+type RequestFilter =(details: { url: string }, callback: (response: { cancel: boolean }) => void) => void;
 
 /** Limit the print partition to the print files and inline data. Anything
  * else (remote, app protocol, other local files) is cancelled even if a later

@@ -3,7 +3,6 @@
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from "electron";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { release as osRelease } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -35,7 +34,7 @@ import { createDocumentLeaveEvidence } from "./main/document-leave";
 import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
-import { createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, type PrintFile } from "./main/print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -460,16 +459,8 @@ async function startElectronHost(): Promise<void> {
   const printRoot = join(app.getPath("temp"), "uniwork-print");
   installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
   // A process that quit with a print dialog open never ran its cleanup.
-  await rm(printRoot, { recursive: true, force: true }).catch(() => undefined);
-  // Each print gets its own private directory; the hidden window loads only that file.
-  const writePrintFile = async (html: string, fileName: string): Promise<PrintFile> => {
-    await mkdir(printRoot, { recursive: true });
-    const directory = await mkdtemp(join(printRoot, "job-"));
-    const path = join(directory, fileName);
-    await writeFile(path, html, { encoding: "utf8", mode: 0o600 });
-    return { path, cleanup: () => rm(directory, { recursive: true, force: true }) };
-  };
-  const printHandlers = createPrintIpcHandler({ createWindow: (options) => new BrowserWindow(options), writeFile: writePrintFile });
+  await clearPrintRoot(printRoot);
+  const printHandlers = createPrintIpcHandler({ createWindow: (options) => new BrowserWindow(options), writeFile: createPrintFileWriter(printRoot) });
   const host = createDesktopHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
