@@ -11,10 +11,13 @@
  * (the DOCX status bar's rule). Selection/position text lives ONLY here, never
  * in the ribbon (C6).
  */
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
+import { CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
-import { PptxCanvasZoom } from "./canvas/pptx-canvas-zoom";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { OfficeStatusBar, OfficeStatusZoom } from "../frame/office-status-bar";
+import { PPTX_ZOOM_MAX, PPTX_ZOOM_MIN, stepZoom, zoomPercent } from "./canvas/zoom";
 
 /** Counts the wiring can precompute; a missing field renders the unknown mark. */
 export interface PptxStatusCounts {
@@ -35,6 +38,8 @@ export interface PptxStatusBarProps {
   gesturePending?: boolean;
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  /** The shortcuts-help trigger; always the last item of the row. */
+  help?: ReactNode;
   className?: string;
 }
 
@@ -65,6 +70,7 @@ export function PptxStatusBar({
   gesturePending = false,
   zoom,
   onZoomChange,
+  help,
   className,
 }: PptxStatusBarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -89,36 +95,54 @@ export function PptxStatusBar({
   ];
 
   return (
-    <div
-      role="group"
-      aria-label={t("status.label")}
-      // Counts change on every edit; a live region would read out each one.
-      aria-live="off"
-      data-pptx-status-bar
-      className={cn(
-        "flex h-7 min-w-0 shrink-0 flex-nowrap items-center justify-between gap-2 overflow-hidden whitespace-nowrap border-t border-border bg-muted/20 px-2 text-caption text-muted-foreground",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
-        {left.map((item, index) => (
-          <Fragment key={item.testId}>
-            {index > 0 ? (
-              <span aria-hidden="true" className="shrink-0 text-faint-foreground">{SEPARATOR}</span>
+    <div className={cn("contents", className)} data-pptx-status-bar aria-live="off">
+      <OfficeStatusBar
+        labelKey="office.pptx.status.label"
+        start={
+          <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
+            {left.map((item, index) => (
+              <Fragment key={item.testId}>
+                {index > 0 ? (
+                  <span aria-hidden="true" className="shrink-0 text-faint-foreground">{SEPARATOR}</span>
+                ) : null}
+                <span className="min-w-0 truncate" data-testid={item.testId}>{item.text}</span>
+              </Fragment>
+            ))}
+            {gesturePending ? (
+              <span role="status" data-testid="pptx-gesture-pending" className="shrink-0">{t("gesture_pending")}</span>
             ) : null}
-            <span className="min-w-0 truncate" data-testid={item.testId}>{item.text}</span>
-          </Fragment>
-        ))}
-        {gesturePending ? (
-          <span role="status" data-testid="pptx-gesture-pending" className="shrink-0">{t("gesture_pending")}</span>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span data-testid="pptx-status-selection">
-          {selected ? t("status.selection", { value: String(selectionCount) }) : t("status.selection_none")}
-        </span>
-        <PptxCanvasZoom zoom={zoom} onZoomChange={onZoomChange} showFit={false} className="gap-0" />
-      </div>
+          </div>
+        }
+        end={
+          <>
+            <span data-testid="pptx-status-selection">
+              {selected ? t("status.selection", { value: String(selectionCount) }) : t("status.selection_none")}
+            </span>
+            <span data-pptx-zoom className="contents">
+              <OfficeStatusZoom
+                value={zoomPercent(zoom)}
+                onZoomIn={() => onZoomChange(stepZoom(zoom, 1))}
+                onZoomOut={() => onZoomChange(stepZoom(zoom, -1))}
+                onReset={() => onZoomChange(1)}
+                min={PPTX_ZOOM_MIN * 100}
+                max={PPTX_ZOOM_MAX * 100}
+              />
+            </span>
+          </>
+        }
+        help={help}
+      />
     </div>
+  );
+}
+
+/** The shortcuts-help trigger; the last item of the row. */
+export function PptxStatusHelpButton({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation();
+  const label = t("office.pptx.shortcuts.help");
+  return (
+    <Button type="button" variant="ghost" size="icon-xs" aria-label={label} title={label} data-pptx-status-help onClick={onOpen}>
+      <CircleHelp aria-hidden />
+    </Button>
   );
 }
