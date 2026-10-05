@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
-import type { JSONContent } from "@tiptap/core";
+import { mergeAttributes, type DOMOutputSpec, type JSONContent } from "@tiptap/core";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { createMarkdownEditorExtensions } from "./extensions";
@@ -34,6 +34,7 @@ import { MarkdownImageScopeProvider, type MarkdownImageScope } from "./image-sco
 import type { ImageAssetPort } from "./image-resolve";
 import { MarkdownRibbon, type MarkdownRibbonOptions } from "./ribbon";
 import { createMarkdownSourceCodec, type MarkdownSourceCodec } from "./serialize";
+import { MARKDOWN_RAW_NODE_NAME, MarkdownRawExtension } from "./raw-node";
 import "katex/dist/katex.min.css";
 // The shared editor stylesheet (prose/page/code/media/mermaid/shell), scoped to
 // `.rich-text-editor`. The Markdown canvas carries that class on its ProseMirror
@@ -42,6 +43,112 @@ import "katex/dist/katex.min.css";
 import "../../../editor/styles/index.css";
 import type { AssetManifestLike, AssetStatus } from "../../asset-manifest";
 import type { TextEditorHandle } from "../../source-editor-types";
+
+/**
+ * A GFM table parsed out of a raw block, or null when the block is not one.
+ *
+ * The M1 byte-identity rule keeps a table whose source the Markdown manager
+ * would re-pad (single-space padding, e.g. the kitchen-sink fixture's
+ * `| a | b |` rows) as an opaque `markdownRaw` block, so its bytes survive
+ * open -> save untouched. That is correct, but the opaque node rendered as a
+ * `<pre>`, so an AUTHORED table looked like code. This reads the raw source
+ * just far enough to draw a real table; the bytes remain the node's attribute
+ * and are what serialises back, so nothing is normalised.
+ */
+export interface GfmTable {
+  header: string[];
+  rows: string[][];
+}
+
+/** One `| a | b |` line -> its cells. Escaped `\|` stays inside a cell. */
+function splitTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let current = "";
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === "\\" && trimmed[index + 1] === "|") {
+      current += "|";
+      index += 1;
+    } else if (char === "|") {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+/** The `| --- | :--: |` delimiter row GFM requires under the header. */
+function isDelimiterRow(line: string): boolean {
+  const cells = splitTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-+:?$/.test(cell));
+}
+
+/**
+ * Parse a raw block as a GFM table, or return null (the caller falls back to
+ * the `<pre>` render). Conservative: a header line, a delimiter line and every
+ * body line must be pipe-delimited, so prose that merely contains a `|` never
+ * becomes a table.
+ */
+export function parseGfmTable(source: string): GfmTable | null {
+  const lines = source.split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return null;
+  const [headerLine, delimiterLine, ...bodyLines] = lines;
+  if (!headerLine.trim().startsWith("|") || !delimiterLine.trim().startsWith("|")) return null;
+  if (!isDelimiterRow(delimiterLine)) return null;
+  const header = splitTableRow(headerLine);
+  const width = header.length;
+  const rows = bodyLines.map((line) => {
+    if (!line.trim().startsWith("|")) return null;
+    const cells = splitTableRow(line);
+    // Pad/trim so every row has exactly the header's column count.
+    return Array.from({ length: width }, (_, index) => cells[index] ?? "");
+  });
+  if (rows.some((row) => row === null)) return null;
+  return { header, rows: rows as string[][] };
+}
+
+/** The `<tr>` list for a parsed table: a `<th>` header row, then `<td>` rows. */
+function gfmTableRows(table: GfmTable): DOMOutputSpec[] {
+  const headerRow: DOMOutputSpec = ["tr", {}, ...table.header.map((cell) => ["th", {}, cell] as DOMOutputSpec)];
+  const bodyRows = table.rows.map(
+    (row): DOMOutputSpec => ["tr", {}, ...row.map((cell) => ["td", {}, cell] as DOMOutputSpec)],
+  );
+  return [headerRow, ...bodyRows];
+}
+
+/**
+ * The shared raw node with ONE render-only change: a raw block that is a GFM
+ * table draws as a real table inside the shared `.tableWrapper` (so the
+ * `.rich-text-editor` table rules apply), instead of a `<pre>`. Parse,
+ * `renderMarkdown` and the `source` attribute are inherited untouched, so the
+ * byte-identity contract is unaffected — only the DOM the block draws changes.
+ */
+const MarkdownRawTableExtension = MarkdownRawExtension.extend({
+  renderHTML({ node, HTMLAttributes }) {
+    const source = String(node.attrs.source ?? "");
+    const table = parseGfmTable(source);
+    if (!table) {
+      return [
+        "div",
+        mergeAttributes(HTMLAttributes, { "data-markdown-raw": "", "data-source": source }),
+        ["pre", { class: "markdown-raw-source" }, ["code", {}, source]],
+      ];
+    }
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        class: "tableWrapper markdown-raw-table",
+        "data-markdown-raw": "",
+        "data-source": source,
+      }),
+      ["table", {}, ["tbody", {}, ...gfmTableRows(table)]],
+    ];
+  },
+});
 
 /**
  * The image wiring a host injects: the manifest + port an image node resolves
@@ -149,22 +256,25 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
   // manifest-resolving one and append the paste/drop upload plugin. Without the
   // option the extension array is byte-for-byte the shared Markdown set, so the
   // M1 round-trip contract is untouched.
-  const extensions = useMemo(
-    () =>
-      image
-        ? createMarkdownEditorExtensions({
-            image: createMarkdownImageExtension(),
-            extraExtensions: [
-              createMarkdownImageUploadExtension({
-                getUploader: () => uploaderRef.current,
-                onAssetFailure: (name, status) => imageScopeRef.current.onAssetFailure?.(name, status),
-                onPendingChange: (pending) => onPendingChangeRef.current?.(pending),
-              }),
-            ],
-          })
-        : createMarkdownEditorExtensions(),
-    [image],
-  );
+  const extensions = useMemo(() => {
+    const base = image
+      ? createMarkdownEditorExtensions({
+          image: createMarkdownImageExtension(),
+          extraExtensions: [
+            createMarkdownImageUploadExtension({
+              getUploader: () => uploaderRef.current,
+              onAssetFailure: (name, status) => imageScopeRef.current.onAssetFailure?.(name, status),
+              onPendingChange: (pending) => onPendingChangeRef.current?.(pending),
+            }),
+          ],
+        })
+      : createMarkdownEditorExtensions();
+    // Draw an authored (raw-preserved) GFM table as a real table. The node is
+    // swapped in place so parse and serialise keep the shared raw extension.
+    return base.map((extension) =>
+      extension.name === MARKDOWN_RAW_NODE_NAME ? MarkdownRawTableExtension : extension,
+    );
+  }, [image]);
 
   // One codec per mount: the SAME extension set and indentation the editor
   // mounts with, so parse and serialise agree on what is representable.

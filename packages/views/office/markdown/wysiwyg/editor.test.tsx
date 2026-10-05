@@ -91,6 +91,20 @@ function ToggleHarness({
   );
 }
 
+/**
+ * The kitchen-sink fixture's table shape: single-space padding, which the
+ * Markdown manager would re-pad to column-aligned form. M1 therefore keeps it
+ * as an opaque raw block, and this surface must still DRAW it as a table.
+ */
+const FIXTURE_TABLE = [
+  "## Bang so lieu",
+  "",
+  "| Hang muc | Quy I | Quy II |",
+  "| --- | --- | --- |",
+  "| Doanh thu | 1.250.000.000 | 1.410.000.000 |",
+  "",
+].join("\n");
+
 describe("SelectiveMarkdown wiring", () => {
   it("keeps the base onBeforeCreate: editor.markdown, getMarkdown and the selective escaper", () => {
     // `Markdown.extend({ onBeforeCreate })` shallow-merges config, so the child
@@ -295,5 +309,68 @@ describe("MarkdownWysiwygEditor image pipeline", () => {
     await waitFor(() => expect(uploader).toHaveBeenCalledTimes(1));
     // Only the RELATIVE path the host returned is authored into the Markdown.
     await waitFor(() => expect(handle.source!.getText()).toContain("assets/pasted.png"));
+  });
+});
+
+describe("Markdown WYSIWYG canvas styling and GFM table render", () => {
+  it("carries the shared editor class so the repo's editor stylesheet applies", async () => {
+    // The canvas never imported packages/views/editor/styles/index.css, so
+    // every rule (typography, tables, code) scoped to `.rich-text-editor` was
+    // absent and the surface rendered unstyled next to DOCX/PDF. The class the
+    // stylesheet expects must be on the ProseMirror element.
+    const handle = createHandle(createTextSource(FIXTURE));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    const surface = container.querySelector(".ProseMirror");
+    expect(surface).toBeTruthy();
+    expect(surface!.classList.contains("rich-text-editor")).toBe(true);
+    expect(surface!.classList.contains("text-body")).toBe(true);
+    expect(surface!.classList.contains("markdown-wysiwyg-content")).toBe(true);
+  });
+
+  it("draws an authored (raw-preserved) GFM table as a real table, not a <pre>", async () => {
+    const handle = createHandle(createTextSource(FIXTURE_TABLE));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    // The block is still the opaque raw node (byte-identity preserved) ...
+    const raw = container.querySelector("[data-markdown-raw]");
+    expect(raw).toBeTruthy();
+    expect(raw!.getAttribute("data-source")).toContain("| Hang muc | Quy I | Quy II |");
+    // ... but it draws as a table with a header row and cells.
+    expect(container.querySelector("pre.markdown-raw-source")).toBeNull();
+    expect(container.querySelector("table")).toBeTruthy();
+    expect(container.querySelectorAll("th").length).toBe(3);
+    expect(container.querySelectorAll("td").length).toBe(3);
+    expect(raw!.classList.contains("tableWrapper")).toBe(true);
+  });
+
+  it("keeps a non-table raw block (a stray pipe) as the opaque <pre>", async () => {
+    const handle = createHandle(createTextSource("A line with a | pipe, not a table.\n"));
+    let live: Editor | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />,
+    );
+    await waitFor(() => expect(live).not.toBeNull());
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it("serialises the authored table back byte-identical after the table render", async () => {
+    const source = createTextSource(FIXTURE_TABLE);
+    const handle = createHandle(source);
+    let live: Editor | null = null;
+    render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
+    await waitFor(() => expect(live).not.toBeNull());
+    // A no-op edit republishes through the same codec; the source must not move.
+    await act(async () => {
+      live!.commands.insertContentAt(live!.state.doc.content.size, { type: "paragraph", content: [{ type: "text", text: "Them." }] });
+    });
+    await waitFor(() => expect(source.getText()).toContain("Them."));
+    expect(source.getText().startsWith(FIXTURE_TABLE)).toBe(true);
   });
 });
