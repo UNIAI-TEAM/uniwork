@@ -81,6 +81,10 @@
      the lightest of them, so it holds on the bands too. */
   --app-shell: #f4f4f5;
   --page-canvas: #ffffff;
+  /* Office editor chrome surfaces (UNI-933): ribbon band + status bar, and the
+     grey workspace behind the pages. */
+  --office-band: #f5f5f6;
+  --office-canvas: #e8e8ea;
   --background: #ffffff;
   --foreground: #202020;
 
@@ -341,6 +345,9 @@
      #111111), which inverted the elevation the light theme draws. */
   --app-shell: #0a0a0a;
   --page-canvas: #111111;
+  /* Office editor chrome surfaces (UNI-933). */
+  --office-band: #1a1a1a;
+  --office-canvas: #0b0b0b;
   --background: #111111;
   --foreground: #f8f9fa;
 
@@ -565,6 +572,8 @@ html.dark[data-accent] {
   --color-foreground: var(--foreground);
   --color-app-shell: var(--app-shell);
   --color-page-canvas: var(--page-canvas);
+  --color-office-band: var(--office-band);
+  --color-office-canvas: var(--office-canvas);
   --color-surface: var(--surface);
   --color-surface-foreground: var(--surface-foreground);
   --color-surface-raised: var(--surface-raised);

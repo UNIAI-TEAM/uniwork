@@ -89,6 +89,15 @@ describe("DocxEditor", () => {
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
     expect(screen.queryByTestId("docx-open-state")).not.toBeInTheDocument();
     expect(screen.getByTestId("docx-toolbar")).toBeInTheDocument();
+    // One shared frame: ribbon inside it, status row last, help trigger in that row.
+    const frame = document.querySelector("[data-office-frame]");
+    expect(frame).not.toBeNull();
+    expect(frame).toContainElement(screen.getByTestId("docx-toolbar"));
+    expect(frame).toContainElement(screen.getByTestId("docx-canvas"));
+    const statusRow = document.querySelector("[data-office-status-bar]");
+    expect(frame?.lastElementChild).toBe(statusRow?.parentElement);
+    expect(statusRow).toContainElement(screen.getByTestId("docx-shortcuts-help-trigger"));
+    expect(screen.getByTestId("docx-shortcuts-help-trigger").className).not.toMatch(/absolute|fixed/);
     fireEvent.keyDown(screen.getByTestId("docx-editor"), { key: "s", ctrlKey: true });
     expect(saveCoordinator.save).toHaveBeenCalledWith("shortcut");
   });
@@ -278,8 +287,12 @@ describe("DocxEditor", () => {
     expect(root.className).toContain("overflow-hidden");
     const canvas = screen.getByTestId("docx-canvas");
     expect(canvas.className).toContain("min-h-0");
-    expect(canvas.className).toContain("flex-1");
-    expect(canvas.className).toContain("overflow-auto");
+    expect(canvas.className).toContain("h-full");
+    // The frame canvas is the scroll container and carries the Office grey.
+    const frameCanvas = canvas.closest("[data-office-canvas]");
+    expect(frameCanvas?.className).toContain("flex-1");
+    expect(frameCanvas?.className).toContain("overflow-auto");
+    expect(frameCanvas?.className).toContain("bg-office-canvas");
   });
 
   it("opens the context menu on right click over a live document surface (M-2)", async () => {

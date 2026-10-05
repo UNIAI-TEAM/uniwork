@@ -88,7 +88,7 @@ export interface RibbonComboItem extends RibbonItemBase {
   value: string | null;
   options: readonly RibbonOption[];
   onChange: (value: string) => void;
-  /** Width in px. Default 112. */
+  /** Width in px. Default 140, never rendered below 56. */
   width?: number;
 }
 
@@ -111,6 +111,8 @@ export interface RibbonGalleryItem extends RibbonItemBase {
   maxVisible?: number;
   /** Cards shown once the group shrinks. Default 1. */
   minVisible?: number;
+  /** Specimen text on cards without a `preview`. Default "AaBbCcDd". */
+  sample?: string;
   /** Card width in px. Default 76. */
   cardWidth?: number;
 }

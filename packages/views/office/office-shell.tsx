@@ -275,7 +275,7 @@ export function OfficeShell({
         </div>
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
-        <main className="flex min-h-48 min-w-0 flex-1 flex-col overflow-hidden p-3">{editor}</main>
+        <main className="flex min-h-48 min-w-0 flex-1 flex-col overflow-hidden">{editor}</main>
       {rightPanel && isPanelOpen ? (
           <aside
             className="fixed inset-y-0 right-0 z-30 flex w-[min(22rem,calc(100vw-2rem))] flex-col border-l border-border bg-background shadow-lg lg:static lg:z-auto lg:w-80 lg:shrink-0 lg:shadow-none"
