@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../../common/notice";
+import { OfficeFrame } from "../frame";
 import { PdfCanvas, type PdfCanvasHighlight, type PdfCanvasHighlightQuad, type PdfCanvasPage, type PdfCanvasRegion, type PdfCanvasTool } from "./canvas";
 import { PdfThumbnailsRail } from "./chrome";
 import { PdfFindBar } from "./find/pdf-find-bar";
@@ -50,6 +51,12 @@ export interface PdfEditorSurfaceProps {
   fontReport: PdfFontReport | null;
   errorKey: string | null;
   run: PdfSurfaceRun;
+  /** The ribbon band; the surface mounts it as the frame's first row. */
+  ribbon?: ReactNode;
+  /** The status bar; the surface mounts it as the frame's last row. */
+  statusBar?: ReactNode;
+  /** A shell-owned notice shown above the surface's own notices. */
+  banner?: ReactNode;
 }
 
 const NOTE_SIZE = 24;
@@ -100,12 +107,13 @@ function noop(): void {
 }
 
 /**
- * The document area of the PDF editor: thumbnails, the rendered page canvas with
- * its annotate tool, find, and the side panels. Every change goes through `run`,
+ * The ready-state PDF editor inside the shared Office frame (F1-F10): the shell's
+ * ribbon and status bar, find and notices as sub-bars, thumbnails in the rail,
+ * the rendered page canvas with its annotate tool, and the side panels. Every change goes through `run`,
  * so a successful edit marks the save coordinator dirty and a failure shows a
  * translated message instead of crashing the editor.
  */
-export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run }: PdfEditorSurfaceProps) {
+export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner }: PdfEditorSurfaceProps) {
   const { t } = useTranslation();
   const canvasMode = editor.renderer !== undefined && editor.getCanvasPages !== undefined;
   const [canvasPages, setCanvasPages] = useState<readonly PdfCanvasPage[]>(() => (canvasMode ? freshPages(editor) : NO_PAGES));
@@ -239,44 +247,61 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
       : activePanel === "stamps" ? t("office.pdf.surface.hintStamp") : null;
   const closePanel = () => onActivePanelChange(null);
 
-  return (
-    <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
-      <PdfThumbnailsRail className="hidden sm:flex" pages={pages} activePage={selectedPage ?? undefined} onSelect={navigate} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex flex-col gap-2 px-3 pt-3 empty:hidden">
-          {errorKey ? <Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(errorKey)}</Notice> : null}
-          {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t(skipped)}</Notice> : null}
-          {findOpen ? <PdfFindBar query={query} hits={hits} activeIndex={hitIndex} loading={finding} onQueryChange={setQuery} onNext={() => setHitIndex((index) => (hits.length ? (index + 1) % hits.length : 0))} onPrevious={() => setHitIndex((index) => (hits.length ? (index - 1 + hits.length) % hits.length : 0))} onClose={onFindClose} onHitActivate={onHitActivate} /> : null}
-          {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
-          {hint ? <p className="text-caption text-muted-foreground" role="status" data-testid="pdf-surface-hint">{hint}</p> : null}
-        </div>
-        {canvasMode && editor.renderer ? (
-          <div className="flex min-h-0 flex-1 flex-col" data-testid="pdf-document-surface">
-            <PdfCanvas pages={canvasPages} renderer={editor.renderer} zoom={zoom} selection={selection} onSelectionChange={onCanvasSelect} tool={tool} onPageRegion={onPageRegion} focusPage={focus} highlights={highlights} />
-          </div>
-        ) : (
-          <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center overflow-auto p-4 text-body text-muted-foreground sm:p-8" data-testid="pdf-document-surface">
-            {t("office.pdf.surface.ready")}
-          </div>
-        )}
-        {selection?.kind === "text" && !readOnly ? <div className="flex gap-2 border-t border-border bg-background p-2"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div> : null}
-        {selection?.kind === "image" && !readOnly ? <div className="flex gap-2 border-t border-border bg-background p-2"><label htmlFor="pdf-image-asset" className="sr-only">{t("office.pdf.edit.imageLabel")}</label><input id="pdf-image-asset" value={imageAssetId} onChange={(event) => setImageAssetId(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.imagePlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId && imageAssetId) applyEdit({ op: "replace_image", target: { page: selection.page, objectId: selection.objectId }, assetId: imageAssetId }); }}>{t("office.pdf.edit.applyImage")}</Button></div> : null}
-      </div>
-      {activePanel === "pages" ? (
-        <aside className="flex w-64 shrink-0 flex-col gap-3 overflow-auto border-l border-border bg-muted/10 p-2" data-testid="pdf-pages-panel">
-          <div className="flex items-center justify-between">
-            <h2 className="text-label font-medium">{t("office.pdf.pages.title")}</h2>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={closePanel}><X aria-hidden /></Button>
-          </div>
-          <PdfPages
-            pages={pages}
-            disabled={!canEdit}
-            rotatePages={(selected, dir) => editOps(selected.map((page): PdfEditOperation => ({ op: "rotate_page", target: { page }, degrees: dir === -90 ? 270 : dir })))}
-            deletePage={(page) => editOps([{ op: "delete_page", target: { page } }])}
-            setPageOrder={canEngine ? (order) => submitEngine([{ op: "setPageOrder", attributes: { order: order.map((page) => page - 1) } }]) : undefined}
-          />
-        </aside>
-      ) : <PdfEditorPanels activePanel={activePanel} onActivePanelChange={onActivePanelChange} slots={slots} />}
+  const notices = errorKey || skipped || fontReport?.missing.length || hint || banner ? (
+    <div className="flex shrink-0 flex-col gap-2 border-b border-border bg-office-band px-3 py-2" data-testid="pdf-surface-notices">
+      {banner}
+      {errorKey ? <Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(errorKey)}</Notice> : null}
+      {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t(skipped)}</Notice> : null}
+      {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
+      {hint ? <p className="text-caption text-muted-foreground" role="status" data-testid="pdf-surface-hint">{hint}</p> : null}
     </div>
+  ) : null;
+  const findBar = findOpen ? (
+    <div className="shrink-0 border-b border-border bg-office-band px-3 py-1.5">
+      <PdfFindBar query={query} hits={hits} activeIndex={hitIndex} loading={finding} onQueryChange={setQuery} onNext={() => setHitIndex((index) => (hits.length ? (index + 1) % hits.length : 0))} onPrevious={() => setHitIndex((index) => (hits.length ? (index - 1 + hits.length) % hits.length : 0))} onClose={onFindClose} onHitActivate={onHitActivate} />
+    </div>
+  ) : null;
+  const objectEditor = selection?.kind === "text" && !readOnly ? (
+    <div className="flex shrink-0 gap-2 border-t border-border bg-office-band p-2" data-testid="pdf-object-editor"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded-control border border-input bg-background px-2 py-1 text-body" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div>
+  ) : selection?.kind === "image" && !readOnly ? (
+    <div className="flex shrink-0 gap-2 border-t border-border bg-office-band p-2" data-testid="pdf-object-editor"><label htmlFor="pdf-image-asset" className="sr-only">{t("office.pdf.edit.imageLabel")}</label><input id="pdf-image-asset" value={imageAssetId} onChange={(event) => setImageAssetId(event.target.value)} className="min-w-0 flex-1 rounded-control border border-input bg-background px-2 py-1 text-body" placeholder={t("office.pdf.edit.imagePlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId && imageAssetId) applyEdit({ op: "replace_image", target: { page: selection.page, objectId: selection.objectId }, assetId: imageAssetId }); }}>{t("office.pdf.edit.applyImage")}</Button></div>
+  ) : null;
+  const aside = activePanel === "pages" ? (
+    <aside className="flex w-64 shrink-0 flex-col gap-3 overflow-auto border-l border-border bg-office-band p-2" data-testid="pdf-pages-panel">
+      <div className="flex items-center justify-between">
+        <h2 className="text-label font-medium">{t("office.pdf.pages.title")}</h2>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={closePanel}><X aria-hidden /></Button>
+      </div>
+      <PdfPages
+        pages={pages}
+        disabled={!canEdit}
+        rotatePages={(selected, dir) => editOps(selected.map((page): PdfEditOperation => ({ op: "rotate_page", target: { page }, degrees: dir === -90 ? 270 : dir })))}
+        deletePage={(page) => editOps([{ op: "delete_page", target: { page } }])}
+        setPageOrder={canEngine ? (order) => submitEngine([{ op: "setPageOrder", attributes: { order: order.map((page) => page - 1) } }]) : undefined}
+      />
+    </aside>
+  ) : <PdfEditorPanels className="bg-office-band" activePanel={activePanel} onActivePanelChange={onActivePanelChange} slots={slots} />;
+
+  return (
+    <OfficeFrame
+      data-testid="pdf-canvas"
+      ribbon={ribbon}
+      subbar={findBar || notices ? <>{findBar}{notices}</> : undefined}
+      rail={<PdfThumbnailsRail className="hidden sm:flex" pages={pages} activePage={selectedPage ?? undefined} onSelect={navigate} />}
+      aside={aside}
+      bottom={objectEditor}
+      statusBar={statusBar}
+      canvasClassName="flex flex-col overflow-hidden"
+    >
+      {canvasMode && editor.renderer ? (
+        <div className="flex h-full min-h-0 flex-1 flex-col" data-testid="pdf-document-surface">
+          <PdfCanvas pages={canvasPages} renderer={editor.renderer} zoom={zoom} selection={selection} onSelectionChange={onCanvasSelect} tool={tool} onPageRegion={onPageRegion} focusPage={focus} highlights={highlights} />
+        </div>
+      ) : (
+        <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center overflow-auto p-4 text-body text-muted-foreground sm:p-8" data-testid="pdf-document-surface">
+          {t("office.pdf.surface.ready")}
+        </div>
+      )}
+    </OfficeFrame>
   );
 }

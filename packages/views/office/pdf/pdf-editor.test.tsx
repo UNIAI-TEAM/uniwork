@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeHost } from "@uniwork/core/office";
 import { setLocale } from "@uniwork/core/i18n";
@@ -97,6 +97,21 @@ describe("PdfEditor", () => {
     expect(screen.queryByTestId("pdf-open-state")).not.toBeInTheDocument();
   });
 
+  it("mounts the shared Office frame as the only ready-state chrome (F1, F2, F9, F10)", async () => {
+    renderEditor(opened());
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const frame = screen.getByTestId("pdf-canvas");
+    expect(frame).toHaveAttribute("data-office-frame");
+    // Ribbon first, status bar last, thumbnails in the rail beside the canvas.
+    expect(frame.firstElementChild).toContainElement(screen.getByTestId("pdf-ribbon-bar"));
+    expect(frame.lastElementChild).toHaveAttribute("data-testid", "pdf-status-bar");
+    expect(frame.lastElementChild?.querySelector("[data-office-status-bar]")).not.toBeNull();
+    expect(frame.querySelector("[data-office-canvas]")?.parentElement?.parentElement).toContainElement(screen.getByTestId("pdf-thumbnails-rail"));
+    expect(frame).toContainElement(frame.querySelector("[data-office-canvas] [data-testid='pdf-document-surface']") as HTMLElement);
+    expect(frame.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    expect(screen.getByTestId("pdf-editor").textContent ?? "").not.toMatch(/office\.[a-z]+\./);
+  });
+
   it("mounts the handle, submits text edits, undo/redo, and routes Save via coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const handle = editor({ selection: { getSelection: () => ({ page: 1, objectId: "text-1", kind: "text" as const }), subscribe: () => () => undefined } });
@@ -144,7 +159,8 @@ describe("PdfEditor", () => {
     renderEditor(opened(), { editor: handle });
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Mã tài sản của provider"), { target: { value: "asset-42" } });
-    fireEvent.click(screen.getByRole("button", { name: "Thay ảnh" }));
+    // The ribbon's Home tab carries a "Thay ảnh" command too; apply from the object row.
+    fireEvent.click(within(screen.getByTestId("pdf-object-editor")).getByRole("button", { name: "Thay ảnh" }));
     expect(handle.edit).toHaveBeenCalledWith([{ op: "replace_image", target: { page: 2, objectId: "image-1" }, assetId: "asset-42" }]);
   });
 
@@ -442,8 +458,8 @@ describe("PdfEditor", () => {
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ markDirty }) });
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
 
-    expect(screen.getByTestId("pdf-chrome-undo")).toBeDisabled();
-    expect(screen.getByTestId("pdf-chrome-redo")).toBeDisabled();
+    expect(screen.getByTestId("pdf-chrome-undo")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("pdf-chrome-redo")).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
     expect(markDirty).not.toHaveBeenCalled();

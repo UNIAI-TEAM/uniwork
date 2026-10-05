@@ -416,22 +416,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     });
   }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, editor.redo, editor.undo, executeCommand, readOnly, t, viewState]);
 
+  // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
+  // status bar) is the only chrome; the page header owns the title and Save.
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      {viewState === "ready" ? (
-        <PdfRibbonBar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          commands={commands}
-          findOpen={findOpen}
-          onFindToggle={toggleFind}
-        />
-      ) : null}
-      {browserUnsupportedHint ? (
-        <p className="border-b border-border bg-muted/30 px-3 py-1 text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
-          {t(PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
-        </p>
-      ) : null}
+    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <PdfEditorSurface
           editor={editor}
@@ -450,6 +438,15 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           fontReport={fontReport}
           errorKey={editErrorKey}
           run={runEdit}
+          ribbon={<PdfRibbonBar activeTab={activeTab} onTabChange={setActiveTab} commands={commands} findOpen={findOpen} onFindToggle={toggleFind} />}
+          banner={browserUnsupportedHint ? (
+            <p className="text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
+              {t(PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
+            </p>
+          ) : null}
+          // The page readout already follows the selected page; object kinds
+          // have no translated summary yet, so no raw kind string is shown.
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} />}
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (
@@ -460,7 +457,6 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           <PdfErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
         )
       ) : <div className="flex min-h-64 min-w-0 flex-1 items-center justify-center px-3 text-center text-body text-muted-foreground" role="status" data-testid="pdf-opening">{t("office.pdf.state.opening")}</div>}
-      {viewState === "ready" ? <PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} counts={{}} language={undefined} selection={selection ? String(selection.kind) : null} zoom={zoom} onZoomChange={setZoom} /> : null}
     </div>
   );
 }

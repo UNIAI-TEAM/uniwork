@@ -39,7 +39,7 @@ export function PdfThumbnailsRail({
   const { t } = useTranslation();
   return (
     <aside
-      className={cn("flex w-36 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border bg-muted/10 p-2", className)}
+      className={cn("flex w-36 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border bg-office-band p-2", className)}
       aria-label={t("office.pdf.chrome.thumbnailsLabel")}
       data-testid="pdf-thumbnails-rail"
     >
