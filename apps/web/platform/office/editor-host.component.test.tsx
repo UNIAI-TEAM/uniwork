@@ -205,7 +205,7 @@ describe("OfficeEditorHost composition", () => {
     });
     await settle();
     expect(container.textContent).toContain("This editor is unavailable");
-    expect(container.textContent).toContain("docx editing is not available yet.");
+    expect(container.textContent).toContain("DOCX editing is not available yet.");
     root.unmount();
   });
 

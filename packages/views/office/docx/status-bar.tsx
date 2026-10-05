@@ -5,7 +5,7 @@ import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
 import { docxEditorCounts, readDocxPagePosition, type DocxPagePosition } from "./status";
 import { DocxStatusBar as DocxStatusBarView } from "./status/status-bar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
-import { getDocxZoomController, useDocxZoomState } from "./view";
+import { getDocxZoomController, useDocxEffectiveZoomPercent } from "./view";
 import { useDocxViewSurface } from "./view/surface-targets";
 
 /**
@@ -44,7 +44,7 @@ export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext,
   const live = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
   const surface = useDocxViewSurface();
   const controller = getDocxZoomController();
-  const zoom = useDocxZoomState(controller);
+  const zoom = useDocxEffectiveZoomPercent(controller);
   const [page, setPage] = useState<DocxPagePosition | null>(null);
   // Counts change on every transaction; the revision just re-renders the bar.
   const [, setRevision] = useState(0);
@@ -76,7 +76,7 @@ export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext,
       counts={live ? docxEditorCounts(live) : null}
       page={page}
       language={live ? readDocumentLang(live.view.dom as HTMLElement | null, scrollElement) : null}
-      zoom={surface ? zoom.percent : null}
+      zoom={surface ? zoom : null}
       selection={selection ? { from: selection.from, to: selection.to } : null}
       onZoomIn={surface ? () => controller.zoomIn() : undefined}
       onZoomOut={surface ? () => controller.zoomOut() : undefined}

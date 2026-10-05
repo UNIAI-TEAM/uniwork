@@ -24,6 +24,7 @@ import {
   DOCX_ZOOM_DEFAULT_PERCENT,
   DOCX_ZOOM_FIT_PADDING_PX,
   clampDocxZoomPercent,
+  effectiveDocxZoomPercent,
   fitDocxZoomPercent,
   stepDocxZoomPercent,
   type DocxZoomState,
@@ -61,6 +62,8 @@ export interface DocxZoomTarget {
 
 export interface DocxZoomController {
   getState(): DocxZoomState;
+  /** The zoom painted: the user's percent capped to a narrow canvas. */
+  getEffectivePercent(): number;
   subscribe(listener: (state: DocxZoomState) => void): () => void;
   /** Attach to a mounted surface. Re-attaching replaces the previous target;
    *  the zoom state (a view setting) is kept across documents. A page size
@@ -98,19 +101,41 @@ export function createDocxZoomController(): DocxZoomController {
   // it: the value rides into the next attach unless that attach carries one.
   let knownPageSize: DocxZoomPageSize | null = null;
 
+  let effectivePercent = state.percent;
+
+  const computeEffective = (): number => {
+    if (!attachment) return state.percent;
+    return effectiveDocxZoomPercent(state.percent, {
+      availableWidthPx: attachment.scrollElement.clientWidth,
+      pageWidthPx: attachment.pageSize?.widthPx ?? 0,
+    });
+  };
+
   const applyZoom = (): void => {
+    effectivePercent = computeEffective();
     if (!attachment) return;
     const element = attachment.zoomElement;
     installDocxZoomStyles(element.ownerDocument);
     element.setAttribute(DOCX_ZOOM_DATA_ATTRIBUTE, "");
-    element.style.setProperty(DOCX_ZOOM_CSS_VAR, String(state.percent / 100));
+    element.style.setProperty(DOCX_ZOOM_CSS_VAR, String(effectivePercent / 100));
+  };
+
+  const notify = (): void => {
+    for (const listener of [...listeners]) listener({ ...state });
+  };
+
+  /** Re-derive the narrow cap; listeners hear about a change only. */
+  const reapply = (): void => {
+    const before = effectivePercent;
+    applyZoom();
+    if (effectivePercent !== before) notify();
   };
 
   const publish = (next: DocxZoomState): void => {
     if (next.percent === state.percent && next.mode === state.mode) return;
     state = next;
     applyZoom();
-    for (const listener of [...listeners]) listener(state);
+    notify();
   };
 
   const setManual = (percent: number): void => {
@@ -140,6 +165,7 @@ export function createDocxZoomController(): DocxZoomController {
   const refit = (): void => {
     if (state.mode === "fit-width") fitTo("width");
     else if (state.mode === "fit-page") fitTo("page");
+    reapply();
   };
 
   const onWheel = (event: WheelEvent): void => {
@@ -173,6 +199,7 @@ export function createDocxZoomController(): DocxZoomController {
 
   return {
     getState: () => state,
+    getEffectivePercent: () => effectivePercent,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

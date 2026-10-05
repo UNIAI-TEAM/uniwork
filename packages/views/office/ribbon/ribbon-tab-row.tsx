@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
-import { PanelTopClose, PanelTopOpen, Pin } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -30,17 +30,8 @@ export interface RibbonTabRowProps {
   onEnterBody: () => void;
 }
 
-/**
- * Tab row: quick access (↶ ↷) left, tabs, contextual tabs after the fixed
- * ones, then the trailing slot (Find, view toggles) and the collapse toggle.
- * The tab list is the one flexible, horizontally scrollable region, so a long
- * tab set scrolls under the trailing controls instead of pushing them off the
- * row or overlapping a tab (a 390px phone keeps Find reachable).
- *
- * The collapse affordance is a labelled ribbon panel button (PanelTopOpen /
- * PanelTopClose), never a bare up/down chevron pair: a chevron next to Find
- * read as a stray spinner. Peeking uses the pin glyph.
- */
+/** Tab row: quick access (↶ ↷) left, tabs, contextual tabs after the fixed
+ * ones, then the trailing slot (Find, view toggles) and the collapse toggle. */
 export function RibbonTabRow({
   tabs,
   activeId,
@@ -55,6 +46,28 @@ export function RibbonTabRow({
 }: RibbonTabRowProps) {
   const { t } = useTranslation();
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const listRef = useRef<HTMLDivElement>(null);
+  const [fadeEnd, setFadeEnd] = useState(false);
+
+  // The selected tab stays visible when the row scrolls (phones).
+  useEffect(() => {
+    tabRefs.current.get(activeId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
+
+  // A fade on the right edge shows there are more tabs, instead of a hard clip.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+    const update = () => setFadeEnd(list.scrollWidth - list.clientWidth - list.scrollLeft > 1);
+    update();
+    list.addEventListener("scroll", update, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(list);
+    return () => {
+      list.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, [tabs]);
 
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const last = tabs.length - 1;
@@ -78,7 +91,7 @@ export function RibbonTabRow({
 
   const toggleLabel = t(collapsed ? (peek ? "office.ribbon.pin" : "office.ribbon.expand") : "office.ribbon.collapse");
   const toggleTitle = t("office.ribbon.withShortcut", { label: toggleLabel, shortcut: RIBBON_TOGGLE_SHORTCUT });
-  const ToggleIcon = collapsed ? (peek ? Pin : PanelTopOpen) : PanelTopClose;
+  const ToggleIcon = collapsed ? (peek ? Pin : ChevronDown) : ChevronUp;
 
   return (
     <div className="flex h-9 min-w-0 items-stretch gap-1 px-1.5 pointer-coarse:h-11" data-ribbon-tab-row="">
@@ -93,15 +106,15 @@ export function RibbonTabRow({
         </div>
       ) : null}
       <div
+        ref={listRef}
         role="tablist"
         aria-label={t("office.ribbon.tabs")}
         // Tabs scroll rather than clip when they outgrow the row (phones, many
-        // contextual tabs); the simplified layout relies on it. `flex-1
-        // min-w-0` reserves the trailing cluster its width, so the scroll
-        // region can never reach under Find, and the right inset keeps a
-        // part-scrolled tab's clipped edge off the cluster (visual r4 F-10: at
-        // 390px the third tab sat flush against the Find button).
-        className="flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]"
+        // contextual tabs); the simplified layout relies on it.
+        className={cn(
+          "flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]",
+          fadeEnd && "[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]",
+        )}
       >
         {tabs.map((tab, index) => {
           const selected = tab.id === activeId;
@@ -137,14 +150,11 @@ export function RibbonTabRow({
         })}
       </div>
       {trailing ? (
-        // Reserved cluster: `shrink-0` so it never yields width to the scroll
-        // region, opaque and stacked above it so nothing that does reach the
-        // edge can render behind the controls at narrow widths.
-        <div className="relative z-10 flex shrink-0 items-center gap-0.5 bg-background" data-ribbon-trailing="">
+        <div className="flex shrink-0 items-center gap-0.5" data-ribbon-trailing="">
           {trailing}
         </div>
       ) : null}
-      <div className="relative z-10 flex shrink-0 items-center bg-background">
+      <div className="flex shrink-0 items-center">
         <Button
           type="button"
           variant="ghost"

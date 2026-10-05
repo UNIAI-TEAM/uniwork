@@ -14,6 +14,8 @@ export interface FontFamilyPickerProps {
   value: string | null;
   /** Fonts the open document declares, appended after the built-in list. */
   documentFonts: readonly string[];
+  /** The document's effective family, shown when the run has no explicit font. */
+  defaultFamily?: string | null;
   disabled?: boolean;
   onPick(family: string | null): void;
   /** Fired when the panel opens, so the host can re-read the document fonts. */
@@ -23,7 +25,7 @@ export interface FontFamilyPickerProps {
 const OPTION_CLASS =
   "flex w-full items-center justify-between gap-1.5 rounded-md px-1.5 py-1 text-start text-body outline-hidden select-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground";
 
-export function FontFamilyPicker({ value, documentFonts, disabled = false, onPick, onOpen }: FontFamilyPickerProps) {
+export function FontFamilyPicker({ value, documentFonts, defaultFamily = null, disabled = false, onPick, onOpen }: FontFamilyPickerProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -94,14 +96,14 @@ export function FontFamilyPicker({ value, documentFonts, disabled = false, onPic
             type="button"
             variant="toolbar"
             size="sm"
-            className="w-28 justify-between"
+            className="w-36 min-w-36 justify-between"
             disabled={disabled}
             aria-label={t("office.docx.character.fontFamily")}
             data-testid="docx-font-family"
           />
         }
       >
-        <span className="min-w-0 truncate text-label">{value ?? t("office.docx.character.fontFamilyDefault")}</span>
+        <span className="min-w-0 truncate text-label">{value ?? defaultFamily ?? t("office.docx.character.fontFamilyDefault")}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 gap-1.5 p-2">
         <Input

@@ -58,11 +58,9 @@ describe("OfficeShell", () => {
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
   });
 
-  it("ignores a Ctrl+S whose target is the window instead of a node", () => {
+  it("ignores a shortcut dispatched on the window, whose target is not a Node", () => {
     const saveCoordinator = coordinator("ready");
-    render(<OfficeShell title="Document" editor={<div data-testid="canvas" />} editorReady saveCoordinator={saveCoordinator} />);
-    // A real window shortcut can target window/document, which is not a Node;
-    // Node.contains throws on those, so the shell must skip them without error.
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
     expect(() => fireEvent.keyDown(window, { key: "s", ctrlKey: true })).not.toThrow();
     expect(saveCoordinator.save).not.toHaveBeenCalled();
   });

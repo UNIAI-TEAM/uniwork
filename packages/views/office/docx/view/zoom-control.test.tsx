@@ -1,8 +1,9 @@
 // UNI-924 A6: the View ▸ Zoom control renders the controller state and turns
 // each control into the matching controller command.
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { DocxZoomControl, createDocxZoomController } from "./index";
+import { DocxZoomControl, createDocxZoomController, useDocxEffectiveZoomPercent } from "./index";
 
 const ZOOM_LABEL = "Mức thu phóng";
 
@@ -68,5 +69,32 @@ describe("DocxZoomControl", () => {
     // The toolbar variant has no pressed paint of its own; the class carries it.
     expect(fitWidth).toHaveClass("aria-pressed:bg-surface-hover");
     controller.dispose();
+  });
+});
+
+describe("useDocxEffectiveZoomPercent", () => {
+  it("picks up a narrow-canvas cap that lands before it subscribes", () => {
+    // The controller attaches (and caps 100% to 44% on a phone) in the editor's
+    // effect, which can run between this hook's render and its subscription.
+    const real = createDocxZoomController();
+    let effective = 100;
+    const controller = { ...real, getEffectivePercent: () => effective };
+    function Attach() {
+      // Runs before Probe subscribes: the cap changes with no notification.
+      useEffect(() => {
+        effective = 44;
+      }, []);
+      return null;
+    }
+    function Probe() {
+      return <output>{useDocxEffectiveZoomPercent(controller)}</output>;
+    }
+    render(
+      <>
+        <Attach />
+        <Probe />
+      </>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("44");
   });
 });
