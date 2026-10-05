@@ -76,6 +76,21 @@ describe("PdfEditorSurface", () => {
     expect(screen.getByTestId("pdf-page-1")).toBeInTheDocument();
   });
 
+  it("shows rendered page previews in the frame rail, scaled to the rail width", async () => {
+    const { handle, renderer } = host();
+    await mount(handle);
+    const rail = screen.getByTestId("pdf-thumbnails-rail");
+    await waitFor(() => expect(within(rail).getByTestId("pdf-rail-thumbnail-2").querySelector("img")).not.toBeNull());
+    expect(renderer.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 2, scale: 112 / 200 }));
+    expect(within(rail).queryByTestId("pdf-thumbnail-placeholder-1")).toBeNull();
+  });
+
+  it("keeps the numbered rail placeholders when the host has no renderer", async () => {
+    const { handle } = host({ renderer: undefined, getCanvasPages: undefined });
+    await mount(handle);
+    expect(within(screen.getByTestId("pdf-thumbnails-rail")).getByTestId("pdf-thumbnail-placeholder-1")).toBeInTheDocument();
+  });
+
   it("fills the shell content area with one frame: no inner bordered card around the pages", async () => {
     // U4: the editor must not draw a second bordered, rounded card inside the
     // shell. Neither the document surface nor the canvas scroll region may carry

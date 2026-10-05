@@ -15,6 +15,7 @@ import type { PdfFormField } from "./forms";
 import { createPdfNoteOperationProvider } from "./notes";
 import type { PdfNoteAddTarget, PdfNoteThread } from "./notes";
 import { PdfPages } from "./pages/pdf-pages";
+import { PdfRailThumbnail } from "./pdf-rail-thumbnail";
 import { PdfEditorPanels, type PdfEditorPanelId, type PdfEditorPanelSlots } from "./pdf-editor-panels";
 import { createPdfStampOperationProvider } from "./stamps/provider";
 import type { PdfStampPlacement } from "./stamps";
@@ -282,12 +283,22 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
     </aside>
   ) : <PdfEditorPanels className="bg-office-band" activePanel={activePanel} onActivePanelChange={onActivePanelChange} slots={slots} />;
 
+  // With a renderer the rail shows rendered previews captioned by number, like
+  // the Office page rail; without one it keeps the numbered placeholders.
+  const renderer = canvasMode ? editor.renderer : undefined;
+  const railPages = useMemo(() => (renderer ? pages.map((page) => ({ pageNumber: page.pageNumber, label: String(page.pageNumber) })) : pages), [pages, renderer]);
+  const canvasPageByNumber = useMemo(() => new Map(canvasPages.map((page) => [page.pageNumber, page] as const)), [canvasPages]);
+  const renderThumbnail = useCallback((page: { pageNumber: number }): ReactNode => {
+    const canvasPage = canvasPageByNumber.get(page.pageNumber);
+    return renderer && canvasPage ? <PdfRailThumbnail page={canvasPage} renderer={renderer} /> : null;
+  }, [canvasPageByNumber, renderer]);
+
   return (
     <OfficeFrame
       data-testid="pdf-canvas"
       ribbon={ribbon}
       subbar={findBar || notices ? <>{findBar}{notices}</> : undefined}
-      rail={<PdfThumbnailsRail className="hidden sm:flex" pages={pages} activePage={selectedPage ?? undefined} onSelect={navigate} />}
+      rail={<PdfThumbnailsRail className="hidden sm:flex" pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />}
       aside={aside}
       bottom={objectEditor}
       statusBar={statusBar}
