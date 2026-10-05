@@ -36,7 +36,7 @@ import { CodeBlockToolbar } from "../code-block";
 import { MathPopover } from "../math";
 import { BlockStyleDropdown } from "./block-style-dropdown";
 import { LinkPopover } from "./link-popover";
-import { MARKDOWN_TOOLBAR_GROUPS } from "./groups";
+import { MARKDOWN_GROUP_ROW_BREAK, MARKDOWN_TOOLBAR_GROUPS } from "./groups";
 import type { MarkdownToolbarActions, MarkdownToolbarState } from "./types";
 
 const ICONS: Record<string, RibbonIcon> = {
@@ -96,18 +96,21 @@ export interface BuildMarkdownToolbarItemsOptions {
 }
 
 /**
- * The ONE primary control per group, rendered `large` (Amendment R, R2). The
- * ribbon's group body then reads as a word-processor group - a large primary
- * plus its icon strip - instead of a flat row of equal icons. `clipboard` is
- * not here: the ribbon declares its undo/redo directly, with `undo` large.
+ * The group's ONE `large` primary, where Office shows a labelled primary
+ * (Amendment R, R2 / F4). `blockStyle` and `link` are `custom` controls that
+ * own their own sizing; `insertTable` is the Insert group's labelled primary.
+ *
+ * Deliberately absent: `inline`, `lists` and `view`. Office draws B I U S and
+ * the list kinds as equal icon rows, and the pane toggles as icons too, so a
+ * lone `large` Bold (or list/outline) beside smaller neighbours read as an
+ * accident, not as a group primary (M-3/F4). Those groups are all `icon`.
+ * `clipboard` is gone entirely: undo/redo are the tab row's quick access (C6),
+ * so a group holding only them duplicated the ↶ ↷ pair (M-3).
  */
 const GROUP_PRIMARY: Readonly<Record<string, string>> = {
   blockStyle: "blockStyle",
-  inline: "bold",
   link: "link",
-  lists: "bulletList",
   insert: "insertTable",
-  view: "viewOutline",
 };
 
 /** The controls of one group, ready for the ribbon or the chrome. */
@@ -118,12 +121,17 @@ export function buildMarkdownGroupItems(
   const group = MARKDOWN_TOOLBAR_GROUPS.find((candidate) => candidate.id === groupId);
   if (!group) return [];
   const primary = GROUP_PRIMARY[groupId];
+  const rowBreaks = MARKDOWN_GROUP_ROW_BREAK[groupId] ?? [];
   return group.controls.map<RibbonItem>((control) => {
     const icon = ICONS[control.id];
     const readOnly = state.readOnly;
-    // R2: the group's one primary stays `large`; every other item is `icon`.
+    // R2/F4: the group's one primary stays `large`; every other item is
+    // `icon`. A group with no primary (inline, lists, view) is all icons.
     // A `custom` control owns its own sizing, so `size` is declarative there.
     const size: RibbonItem["size"] = control.id === primary ? "large" : "icon";
+    // F4: pack the icon strip 2 + 2 (or into one short row) instead of one
+    // long run. Only typed icon items pack into a strip, so only they need it.
+    const rowBreak = rowBreaks.includes(control.id);
     if (control.id === "blockStyle") {
       return {
         kind: "custom",
@@ -194,6 +202,7 @@ export function buildMarkdownGroupItems(
         labelKey: control.labelKey,
         icon,
         size,
+        rowBreak,
         pressed: pressedOf(control.id, state),
         shortcut: control.shortcut,
         disabled: readOnly,
@@ -211,6 +220,7 @@ export function buildMarkdownGroupItems(
       labelKey: control.labelKey,
       icon,
       size,
+      rowBreak,
       disabled: readOnly || unavailable,
       tooltipKey: unavailable ? "office.markdown.toolbar.notAvailableYet" : undefined,
       onExecute: () => executeControl(control.id, actions),

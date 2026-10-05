@@ -13,6 +13,11 @@
  * pure ops - never a string splice. Undo/redo ride the ribbon's quick-access
  * slot (C6) and Find plus the Source | Split | Preview | Present control its
  * trailing slot (C6/C11). No floating controls (C9).
+ *
+ * There is deliberately NO Clipboard group: undo/redo are the tab row's quick
+ * access, so a group holding only them drew a second, larger Undo beside the
+ * ↶ ↷ pair (M-3/F4). A group is dropped rather than left holding a repeated
+ * command.
  */
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -59,7 +64,6 @@ export const HTML_RIBBON_KEYS = {
   label: "office.html.ribbon.label",
   home: "office.html.ribbon.tabs.home",
   insert: "office.html.ribbon.tabs.insert",
-  clipboard: "office.html.ribbon.groups.clipboard",
   inline: "office.html.ribbon.groups.inline",
   paragraph: "office.html.ribbon.groups.paragraph",
   tableSizeLabel: "office.html.ribbon.tableSizeLabel",
@@ -153,7 +157,10 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
         id,
         labelKey: MARK_LABEL_KEYS[id],
         icon: MARK_ICONS[id],
-        size: index === 0 ? "large" : "icon",
+        // F4: Office draws B I U S as equal icons, so no lone large Bold
+        // beside smaller neighbours (M-3); the strip packs 2 + 2 + 1.
+        size: "icon",
+        rowBreak: index === 2 || index === 4,
         pressed: mark(id),
         disabled: readOnly || !commands.onInlineMark,
         onExecute: () => commands.onInlineMark?.(id),
@@ -266,38 +273,7 @@ export function useHtmlRibbonTabs(options: HtmlRibbonOptions = {}): RibbonTab[] 
       {
         id: "home",
         labelKey: HTML_RIBBON_KEYS.home,
-        groups: [
-          {
-            id: "clipboard",
-            labelKey: HTML_RIBBON_KEYS.clipboard,
-            priority: 60,
-            icon: Undo2,
-            items: [
-              {
-                kind: "button",
-                id: "undo",
-                labelKey: "office.html.actions.undo",
-                icon: Undo2,
-                size: "large",
-                shortcut: "Ctrl+Z",
-                disabled: readOnly || !commands.onUndo,
-                onExecute: () => commands.onUndo?.(),
-              },
-              {
-                kind: "button",
-                id: "redo",
-                labelKey: "office.html.actions.redo",
-                icon: Redo2,
-                size: "icon",
-                shortcut: "Ctrl+Y",
-                disabled: readOnly || !commands.onRedo,
-                onExecute: () => commands.onRedo?.(),
-              },
-            ],
-          },
-          paragraph,
-          inline,
-        ],
+        groups: [paragraph, inline],
       },
       { id: "insert", labelKey: HTML_RIBBON_KEYS.insert, groups: [insert] },
     ];

@@ -15,6 +15,12 @@
  * The ribbon owns the tab row and the group body; undo/redo ride the ribbon's
  * quick-access slot (C6) and Find plus the Source | Visual control its trailing
  * slot (C6/C11). Nothing here draws a floating control over the canvas (C9).
+ *
+ * There is deliberately NO Clipboard group: Markdown has no paste/cut/copy
+ * command in the ribbon (the source pane's clipboard controls live on the
+ * frame's subbar), so the group could only hold undo/redo - the tab row's
+ * quick access already draws those, and a second pair read as a duplicate
+ * (M-3/F4). A group is dropped rather than left holding a repeated command.
  */
 import { useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/core";
@@ -50,7 +56,6 @@ export const MARKDOWN_RIBBON_KEYS = {
   insert: "office.markdown.ribbon.tabs.insert",
   table: "office.markdown.ribbon.tabs.table",
   code: "office.markdown.ribbon.tabs.code",
-  clipboard: "office.markdown.ribbon.groups.clipboard",
   paragraph: "office.markdown.ribbon.groups.paragraph",
   tableGroup: "office.markdown.ribbon.groups.table",
   tableAddRowBefore: "office.markdown.ribbon.table.addRowBefore",
@@ -139,35 +144,6 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
     const itemsOf = (groupId: string): RibbonItem[] =>
       buildMarkdownGroupItems(groupId, { state, actions, onOutlineChange, onFrontmatterChange });
 
-    const clipboard: RibbonGroup = {
-      id: "clipboard",
-      labelKey: MARKDOWN_RIBBON_KEYS.clipboard,
-      priority: 60,
-      icon: Undo2,
-      items: [
-        {
-          kind: "button",
-          id: "undo",
-          labelKey: "office.markdown.actions.undo",
-          icon: Undo2,
-          size: "large",
-          shortcut: "Ctrl+Z",
-          disabled: readOnly,
-          onExecute: () => editor?.chain().focus().undo().run(),
-        },
-        {
-          kind: "button",
-          id: "redo",
-          labelKey: "office.markdown.actions.redo",
-          icon: Redo2,
-          size: "icon",
-          shortcut: "Ctrl+Y",
-          disabled: readOnly,
-          onExecute: () => editor?.chain().focus().redo().run(),
-        },
-      ],
-    };
-
     const tableGroup: RibbonGroup = {
       id: "table",
       labelKey: MARKDOWN_RIBBON_KEYS.tableGroup,
@@ -215,7 +191,6 @@ export function useMarkdownRibbonTabs(editor: Editor | null, options: MarkdownRi
       id: "home",
       labelKey: MARKDOWN_RIBBON_KEYS.home,
       groups: [
-        clipboard,
         { id: "blockStyle", labelKey: MARKDOWN_RIBBON_KEYS.paragraph, priority: 50, items: itemsOf("blockStyle") },
         { id: "inline", labelKey: "office.markdown.toolbar.groups.inline", priority: 40, items: itemsOf("inline") },
         { id: "link", labelKey: "office.markdown.toolbar.groups.link", priority: 20, items: itemsOf("link") },

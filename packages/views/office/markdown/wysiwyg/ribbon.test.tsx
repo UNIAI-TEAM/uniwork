@@ -140,8 +140,10 @@ describe("useMarkdownRibbonTabs", () => {
     render(<Probe />);
     const byId = Object.fromEntries(tabs.map((tab) => [tab.id, tab]));
     expect(Object.keys(byId)).toEqual(["home", "insert", "table", "code"]);
-    // Home carries the C6/C7 order: clipboard, block style, inline, link, lists, view.
-    expect(byId.home!.groups.map((group) => group.id)).toEqual(["clipboard", "blockStyle", "inline", "link", "lists", "view"]);
+    // Home carries the C6/C7 order. There is no `clipboard` group: undo/redo
+    // are the tab row's quick access, and a group holding only them repeated
+    // that pair (M-3/F4).
+    expect(byId.home!.groups.map((group) => group.id)).toEqual(["blockStyle", "inline", "link", "lists", "view"]);
     expect(byId.insert!.groups.map((group) => group.id)).toEqual(["insert"]);
     // Every group declares a numeric priority (the ribbon's collapse order).
     for (const tab of tabs) for (const group of tab.groups) expect(typeof group.priority).toBe("number");
@@ -153,7 +155,7 @@ describe("useMarkdownRibbonTabs", () => {
     expect(byId.code!.contextual).toEqual({ when: false, accent: "warning" });
   });
 
-  it("gives every group exactly one large primary (R2/RB-3)", () => {
+  it("keeps at most one large primary per group, and none where Office shows icons (M-3/F4)", () => {
     let tabs: ReturnType<typeof useMarkdownRibbonTabs> = [];
     function Probe() {
       tabs = useMarkdownRibbonTabs(null);
@@ -165,18 +167,41 @@ describe("useMarkdownRibbonTabs", () => {
     // The RibbonItem data model carries the size; assert it on every group.
     for (const group of home.groups) {
       const large = group.items.filter((item) => item.size === "large");
-      expect(large, `group ${group.id}`).toHaveLength(1);
+      expect(large.length, `group ${group.id}`).toBeLessThanOrEqual(1);
     }
-    expect(ribbonItemId(home, "clipboard", "large")).toBe("undo");
     expect(ribbonItemId(home, "blockStyle", "large")).toBe("blockStyle");
-    expect(ribbonItemId(home, "inline", "large")).toBe("bold");
     expect(ribbonItemId(home, "link", "large")).toBe("link");
-    expect(ribbonItemId(home, "lists", "large")).toBe("bulletList");
-    expect(ribbonItemId(home, "view", "large")).toBe("viewOutline");
     expect(ribbonItemId(byId.insert!, "insert", "large")).toBe("insertTable");
+    // M-3/F4: no lone large Bold beside small italic/strike/code, no large
+    // bullet-list or outline toggle. Those groups are all icons.
+    for (const [groupId, ids] of [
+      ["inline", ["bold", "italic", "strike", "inlineCode"]],
+      ["lists", ["bulletList", "orderedList", "taskList"]],
+      ["view", ["viewOutline", "viewFrontmatter"]],
+    ] as const) {
+      const group = home.groups.find((candidate) => candidate.id === groupId)!;
+      for (const id of ids) {
+        const item = group.items.find((candidate) => candidate.id === id)!;
+        expect(item.size, `${groupId}/${id}`).not.toBe("large");
+      }
+    }
     // The contextual Table tab's group carries one too (RB-3/RBF-1); the Code
     // tab's single item is a `custom` control, which owns its own sizing.
     expect(ribbonItemId(byId.table!, "table", "large")).toBe("table-delete");
+  });
+
+  it("packs the inline icon strip 2 + 2 with a row break (F4)", () => {
+    let tabs: ReturnType<typeof useMarkdownRibbonTabs> = [];
+    function Probe() {
+      tabs = useMarkdownRibbonTabs(null);
+      return null;
+    }
+    render(<Probe />);
+    const byId = Object.fromEntries(tabs.map((tab) => [tab.id, tab]));
+    const inline = byId.home!.groups.find((group) => group.id === "inline")!;
+    // Office draws B I U S as equal icons; four in one run would make the
+    // group a wide line, so the strip breaks before the third.
+    expect(inline.items.filter((item) => item.rowBreak).map((item) => item.id)).toEqual(["strike"]);
   });
 });
 
@@ -194,9 +219,12 @@ describe("MarkdownRibbon", () => {
     render(<Harness />);
     await waitForRibbon();
     const root = ribbonRegion();
-    for (const id of ["clipboard", "blockStyle", "inline", "link", "lists", "view"]) {
+    for (const id of ["blockStyle", "inline", "link", "lists", "view"]) {
       expect(ribbonGroup(root, id)).toBeInTheDocument();
     }
+    // The Undo-only Clipboard group is gone (M-3/F4): undo/redo are the tab
+    // row's quick access, never a duplicated ribbon group.
+    expect(ribbonRegion().querySelector('[data-ribbon-group="clipboard"]')).toBeNull();
     await act(async () => {
       live!.chain().selectAll().run();
     });

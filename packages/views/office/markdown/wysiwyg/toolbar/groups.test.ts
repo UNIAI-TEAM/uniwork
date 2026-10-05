@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MARKDOWN_BLOCK_STYLES, MARKDOWN_TOOLBAR_GROUPS, blockStyleOf, headingLevelOf } from "./groups";
+import { MARKDOWN_BLOCK_STYLES, MARKDOWN_GROUP_ROW_BREAK, MARKDOWN_TOOLBAR_GROUPS, blockStyleOf, headingLevelOf } from "./groups";
 
 /** Every control id the command row declares, in row order. */
 const controlIds = () => MARKDOWN_TOOLBAR_GROUPS.flatMap((group) => group.controls.map((control) => control.id));
@@ -49,6 +49,19 @@ describe("MARKDOWN_TOOLBAR_GROUPS", () => {
     expect(at("link")).toBeLessThan(at("lists"));
     expect(at("lists")).toBeLessThan(at("inline"));
     expect(at("inline")).toBeLessThan(at("blockStyle"));
+  });
+
+  it("declares icon-strip row breaks only for groups with no large primary (F4)", () => {
+    // Office draws B I U S as equal icons, so the four-item inline group packs
+    // 2 + 2 instead of one long run; the other groups are small enough to fit
+    // one row or carry a labelled primary that anchors their column.
+    expect(MARKDOWN_GROUP_ROW_BREAK).toEqual({ inline: ["strike"] });
+    for (const [groupId, ids] of Object.entries(MARKDOWN_GROUP_ROW_BREAK)) {
+      const group = MARKDOWN_TOOLBAR_GROUPS.find((candidate) => candidate.id === groupId)!;
+      for (const id of ids) {
+        expect(group.controls.some((control) => control.id === id), `${groupId}/${id}`).toBe(true);
+      }
+    }
   });
 
   it("has one compact block-style dropdown covering paragraph, H1-H6, quote and code", () => {

@@ -98,6 +98,17 @@ export const MARKDOWN_TOOLBAR_GROUPS: readonly MarkdownToolbarGroupDefinition[] 
   },
 ];
 
+/**
+ * F4 icon-strip rows: per group, the item id that starts a new row. The
+ * `inline` group has no large primary (Office draws B I U S as four equal
+ * icons), so its four items break 2 + 2 instead of running one long row; the
+ * break sits here, with the rest of the group data, rather than being inferred
+ * from the item count. Groups of two or three icons fit one row and need none.
+ */
+export const MARKDOWN_GROUP_ROW_BREAK: Readonly<Record<string, readonly string[]>> = {
+  inline: ["strike"],
+};
+
 /** The heading level a block style stands for, or null for the other styles. */
 export function headingLevelOf(style: MarkdownBlockStyle): number | null {
   const match = /^heading([1-6])$/.exec(style);

@@ -66,7 +66,7 @@ describe("htmlImageUrlAllowed", () => {
 });
 
 describe("useHtmlRibbonTabs", () => {
-  it("declares Home (clipboard, paragraph, inline) and Insert as pure data", () => {
+  it("declares Home (paragraph, inline) and Insert as pure data", () => {
     let tabs: ReturnType<typeof useHtmlRibbonTabs> = [];
     function Probe() {
       tabs = useHtmlRibbonTabs();
@@ -75,15 +75,34 @@ describe("useHtmlRibbonTabs", () => {
     render(<Probe />);
     const byId = Object.fromEntries(tabs.map((tab) => [tab.id, tab]));
     expect(Object.keys(byId)).toEqual(["home", "insert"]);
-    expect(byId.home!.groups.map((group) => group.id)).toEqual(["clipboard", "paragraph", "inline"]);
+    // No Clipboard group: undo/redo are the tab row's quick access, and a
+    // group holding only them repeated that pair (M-3/F4).
+    expect(byId.home!.groups.map((group) => group.id)).toEqual(["paragraph", "inline"]);
     expect(byId.insert!.groups.map((group) => group.id)).toEqual(["insert"]);
     for (const tab of tabs) for (const group of tab.groups) expect(typeof group.priority).toBe("number");
-    // R2: one large primary per group (undo in Clipboard, bold in Inline).
-    expect(byId.home!.groups[0]!.items.find((item) => item.id === "undo")?.size).toBe("large");
-    expect(byId.home!.groups[2]!.items.find((item) => item.id === "bold")?.size).toBe("large");
+    // F4: at most one large primary per group, and the inline marks carry
+    // none - Office draws B I U S as equal icons, so a lone large Bold beside
+    // smaller neighbours is exactly the M-3 defect.
+    for (const group of byId.home!.groups) {
+      expect(group.items.filter((item) => item.size === "large").length, group.id).toBeLessThanOrEqual(1);
+    }
+    const inline = byId.home!.groups.find((group) => group.id === "inline")!;
+    expect(inline.items.every((item) => item.size !== "large")).toBe(true);
     // RB-6: the dead groups.image entry is gone. `image` was never a group
     // property, so pin the value instead: the key itself must not return.
     expect("image" in HTML_RIBBON_KEYS).toBe(false);
+  });
+
+  it("packs the inline icon strip 2 + 2 + 1 with a row break (F4)", () => {
+    let tabs: ReturnType<typeof useHtmlRibbonTabs> = [];
+    function Probe() {
+      tabs = useHtmlRibbonTabs();
+      return null;
+    }
+    render(<Probe />);
+    const byId = Object.fromEntries(tabs.map((tab) => [tab.id, tab]));
+    const inline = byId.home!.groups.find((group) => group.id === "inline")!;
+    expect(inline.items.filter((item) => item.rowBreak).map((item) => item.id)).toEqual(["underline", "code"]);
   });
 
   it("gives each heading level and the two list kinds a distinct icon (R2)", () => {
@@ -112,7 +131,9 @@ describe("HtmlRibbon", () => {
     const c = commands();
     const { container } = render(<HtmlRibbon commands={c} state={{ block: "paragraph" }} />);
     const root = region(container);
-    for (const id of ["clipboard", "paragraph", "inline"]) expect(group(root, id)).toBeInTheDocument();
+    for (const id of ["paragraph", "inline"]) expect(group(root, id)).toBeInTheDocument();
+    // The Undo-only Clipboard group is gone (M-3/F4).
+    expect(root.querySelector('[data-ribbon-group="clipboard"]')).toBeNull();
     fireEvent.click(item(group(root, "inline"), "bold"));
     expect(c.onInlineMark).toHaveBeenCalledWith("bold");
     fireEvent.click(item(group(root, "paragraph"), "block-blockquote"));
