@@ -175,7 +175,7 @@ export function OfficeRibbon({
         data-ribbon-body=""
         data-ribbon-peek={collapsed && peek ? "true" : undefined}
         className={cn(
-          simplified ? "h-12 pointer-coarse:h-14" : "h-23",
+          simplified ? "h-12 pointer-coarse:h-14" : "h-24",
           collapsed && peek && "absolute inset-x-0 top-full border-b border-border bg-office-band shadow-[var(--menu-shadow)]",
         )}
       >
