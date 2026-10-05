@@ -11,6 +11,8 @@ import type { ByteDocumentSession } from "../renderer/office/session";
  */
 export async function settleDocxSessions(sessions: Map<string, ByteDocumentSession>): Promise<void> {
   await Promise.all([...sessions.values()].map((session) => session.openEditor().catch(() => undefined)));
+  // Drain queued setImmediate chunk ticks while jsdom is still alive.
+  for (let tick = 0; tick < 20; tick += 1) await new Promise<void>((resolve) => setImmediate(resolve));
   cleanup();
   for (const session of sessions.values()) session.dispose();
   sessions.clear();

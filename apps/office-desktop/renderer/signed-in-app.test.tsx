@@ -16,6 +16,10 @@ vi.mock("./office/session", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./office/session")>();
   return { ...actual, createByteDocumentSession: (...args: Parameters<typeof actual.createByteDocumentSession>) => {
     const session = actual.createByteDocumentSession(...args);
+    // A document reopened under the same id replaces the entry; keep the old
+    // session reachable so teardown still settles its load.
+    const previous = sessions.get(args[1].documentId);
+    if (previous) sessions.set(`${args[1].documentId}#replaced${sessions.size}`, previous);
     sessions.set(args[1].documentId, session);
     return session;
   } };
