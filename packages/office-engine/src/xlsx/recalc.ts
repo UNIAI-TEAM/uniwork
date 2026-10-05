@@ -15,10 +15,13 @@ import {
   type XlsxFormulaValue,
   type XlsxRecalcCell,
   type XlsxRecalcEdit,
+  type XlsxRecalcPort,
   type XlsxRecalcRead,
   type XlsxRecalcResult,
   type XlsxSheetFormulaValues,
+  type XlsxWorkbookSnapshot,
 } from "./engine.ts";
+import { a1ToRowColumn } from "./ops-shared.ts";
 
 /** Sidecar wire bounds (recalc.rs:24-25). */
 export const XLSX_MAX_RECALC_EDITS = 10_000;
@@ -157,4 +160,34 @@ export function recalcToFormulaValues(
     values: [...bySheet.entries()].map(([sheetName, cells]) => ({ sheetName, cells })),
     kept,
   };
+}
+
+/** Every formula cell a parsed workbook carries, in its own sheet names —
+ *  the read set for a recalc over bytes that already hold every edit. */
+export function formulaCellsOfSnapshot(snapshot: XlsxWorkbookSnapshot): FormulaCell[] {
+  const out: FormulaCell[] = [];
+  for (const sheet of snapshot.sheets) {
+    for (const [address, cell] of Object.entries(sheet.cells)) {
+      if (cell.formula === undefined) continue;
+      const { row, column } = a1ToRowColumn(address, "<snapshot>", "address");
+      out.push({ sheetName: sheet.name, row, column });
+    }
+  }
+  return out;
+}
+
+/** One recalc over `bytes` + `edits`, batched under the sidecar's read
+ *  budget, reduced to the save's formulaValues argument. */
+export async function recalcFormulaCells(
+  port: XlsxRecalcPort,
+  bytes: Uint8Array,
+  cells: readonly FormulaCell[],
+  edits: readonly XlsxRecalcEdit[],
+): Promise<RecalcFormulaValues> {
+  const answered: XlsxRecalcCell[] = [];
+  for (const batch of buildRecalcReadBatches(cells, edits)) {
+    const result = await port.recalc(bytes, edits, batch);
+    answered.push(...result.cells);
+  }
+  return recalcToFormulaValues(cells, { cells: answered });
 }

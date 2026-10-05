@@ -40,7 +40,7 @@ import {
 } from "./engine.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
-import { buildRecalcReadBatches, recalcToFormulaValues, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
+import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 
 const ZIP_MAGIC = [0x50, 0x4b];
 function isZipPackage(bytes: Uint8Array): boolean {
@@ -281,7 +281,9 @@ export class XlsxAdapter {
    * Serialize — the only output path. Order is load-bearing:
    *   1. digest-check the base bytes (the binding open created)
    *   2. native recalc → <v> map for every post-edit formula cell
-   *   3. one assemble pass (edits + formulaValues) + preservation assertion
+   *   3. one assemble pass (edits + formulaValues) + preservation assertion;
+   *      a structural or sheet-identity save skips step 2 and instead
+   *      recalcs the produced bytes, then runs a values-only assemble
    *   4. rebase the model onto the produced bytes (new digest + generation)
    * A missing recalc port while formulas exist is a typed refusal — shipping
    * stale cached values is never a fallback. Any failure before step 4 leaves
@@ -381,66 +383,46 @@ export class XlsxAdapter {
       .model
       .pendingNoteStates()
       .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
-    // A structural save cannot refresh formula caches: the sidecar recalc runs
-    // against the ORIGINAL bytes, where a shifted sheet's coordinates are the
-    // pre-op ones, and a cross-sheet formula may read cells this envelope also
-    // moved (or edited). Genoffice clears its recalc overlay on a structural
-    // edit and lets the file's cached values — which shift with their cells —
-    // stand; this lane does the same and says so in a warning rather than
-    // shipping a wrong-coordinate refresh. The same reasoning covers a sheet
-    // plan that changes sheet identity (rename/add/remove): the sidecar cannot
-    // see the final sheet set. A hidden-only plan keeps identity, so recalc
-    // still runs.
+    // The pre-assemble recalc runs against the ORIGINAL bytes plus the cell
+    // edits, so it is only sound when the save keeps every coordinate and the
+    // sheet set: a structural op moves cells the sidecar would read at their
+    // pre-op address, and a sheet plan that changes identity (rename/add/
+    // remove/reorder) names sheets the original package does not hold. Those
+    // saves refresh their caches in a second pass instead (R3-1): assemble
+    // first, then recalc the PRODUCED bytes - where coordinates and names are
+    // final and every edit is already in the cells - and patch each <f>
+    // cell's <v>. A hidden-only plan keeps identity, so the single pass runs.
     const identityChange =
       sheetPlan !== undefined &&
       (sheetPlan.renames.length > 0 ||
         sheetPlan.additions.length > 0 ||
         sheetPlan.removals.length > 0 ||
         sheetPlan.orderChanged === true);
-    const formulaCellsAfterEdits = session.model.formulaCellsAfterEdits();
-    const formulaCells = (structuralOps.length > 0 || identityChange ? [] : formulaCellsAfterEdits).map((cell) => ({
+    const recalcAfterAssemble = structuralOps.length > 0 || identityChange;
+    const formulaCells = (recalcAfterAssemble ? [] : session.model.formulaCellsAfterEdits()).map((cell) => ({
       ...cell,
       sheetName: gatewayName(cell.sheetName),
     }));
-    if (structuralOps.length > 0 && formulaCellsAfterEdits.length > 0) {
-      warnings.push({
-        code: "structure_formula_cache_kept",
-        detail: `${formulaCellsAfterEdits.length} formula cell(s) keep their file-cached values while row/column changes replay`,
-      });
-    }
-    if (identityChange && formulaCellsAfterEdits.length > 0) {
-      warnings.push({
-        code: "sheet_formula_cache_kept",
-        detail: `${formulaCellsAfterEdits.length} formula cell(s) keep their file-cached values while sheet changes replay`,
-      });
-    }
-    let formulaValues: XlsxSheetFormulaValues[] | undefined;
-    if (formulaCells.length > 0) {
-      if (!this.deps.recalc) {
-        throw new EngineBoundaryError("unsupported_operation", {
-          detail: "workbook contains formulas; serialize requires the native recalc sidecar (unbound in this runtime)",
-          formula_cells: formulaCells.length,
+    const keptWarning = (kept: number) => {
+      if (kept > 0) {
+        warnings.push({
+          code: "formula_cache_kept",
+          detail: `${kept} formula cell(s) keep their file-cached values (engine coverage gap)`,
         });
       }
+    };
+    let formulaValues: XlsxSheetFormulaValues[] | undefined;
+    if (formulaCells.length > 0) {
+      const recalc = this.requireRecalc(formulaCells.length);
       const recalcEdits = session.model.pendingRecalcEdits().map((edit) => ({ ...edit, sheet: gatewayName(edit.sheet) }));
       if (recalcEdits.length > XLSX_MAX_RECALC_EDITS) {
         throw new EngineBoundaryError("unsupported_operation", {
           detail: `${recalcEdits.length} edits exceed the sidecar's ${XLSX_MAX_RECALC_EDITS}-edit request bound`,
         });
       }
-      const cells = [];
-      for (const batch of buildRecalcReadBatches(formulaCells, recalcEdits)) {
-        const result = await this.deps.recalc.recalc(session.inputBytes, recalcEdits, batch);
-        cells.push(...result.cells);
-      }
-      const mapped = recalcToFormulaValues(formulaCells, { cells });
+      const mapped = await recalcFormulaCells(recalc, session.inputBytes, formulaCells, recalcEdits);
       formulaValues = mapped.values;
-      if (mapped.kept > 0) {
-        warnings.push({
-          code: "formula_cache_kept",
-          detail: `${mapped.kept} formula cell(s) keep their file-cached values (engine coverage gap)`,
-        });
-      }
+      keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
       structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
@@ -456,14 +438,58 @@ export class XlsxAdapter {
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
             ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };
+    let out = await this.assemble(
+      session.inputBytes,
+      edits,
+      formulaValues,
+      Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
+    );
+    // Rebase on the produced bytes: a saved package that does not re-parse is
+    // an engine bug the caller must never inherit as the new base.
+    let rebased = await this.reparse(out);
+    if (recalcAfterAssemble) {
+      // Second pass (R3-1): the produced package holds every edit at its final
+      // coordinate under its final sheet name, so a zero-edit recalc over it
+      // answers every formula cell - pre-existing dependents, shifted ones and
+      // formulas typed this session - and a values-only assemble writes the <v>.
+      const finalCells = formulaCellsOfSnapshot(rebased.snapshot);
+      if (finalCells.length > 0) {
+        const mapped = await recalcFormulaCells(this.requireRecalc(finalCells.length), out, finalCells, []);
+        keptWarning(mapped.kept);
+        if (mapped.values.length > 0) {
+          out = await this.assemble(out, [], mapped.values, undefined);
+          rebased = await this.reparse(out);
+        }
+      }
+    }
+    const checksum = await hash(out);
+    // Only after every fallible step: rebase the model and the byte store.
+    session.inputBytes = out;
+    session.model.rebase(rebased.snapshot, checksum);
+    session.sheetNamesById = rebased.sheetNamesById;
+    return { bytes: out, checksum, warnings };
+  }
+
+  private requireRecalc(formulaCellCount: number): XlsxRecalcPort {
+    if (!this.deps.recalc) {
+      throw new EngineBoundaryError("unsupported_operation", {
+        detail: "workbook contains formulas; serialize requires the native recalc sidecar (unbound in this runtime)",
+        formula_cells: formulaCellCount,
+      });
+    }
+    return this.deps.recalc;
+  }
+
+  /** One assemble pass + preservation assertion, output bounded. */
+  private async assemble(
+    source: Uint8Array,
+    edits: Parameters<XlsxGatewayFunctions["applyCellEdits"]>[1],
+    formulaValues: readonly XlsxSheetFormulaValues[] | undefined,
+    gatewayArguments: XlsxGatewayArguments | undefined,
+  ): Promise<Uint8Array> {
     let mutation;
     try {
-      mutation = await this.deps.engine.applyCellEdits(
-        session.inputBytes,
-        edits,
-        formulaValues,
-        Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
-      );
+      mutation = await this.deps.engine.applyCellEdits(source, edits, formulaValues, gatewayArguments);
       this.deps.engine.assertPreserved(mutation);
     } catch (error) {
       if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
@@ -476,22 +502,17 @@ export class XlsxAdapter {
     if (out.length > ENGINE_LIMITS.max_output_bytes) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
-    // Rebase on the produced bytes: a saved package that does not re-parse is
-    // an engine bug the caller must never inherit as the new base.
-    let rebased;
+    return out;
+  }
+
+  private async reparse(bytes: Uint8Array): Promise<Awaited<ReturnType<XlsxGatewayFunctions["readWorkbook"]>>> {
     try {
-      rebased = await this.deps.engine.readWorkbook(out);
+      return await this.deps.engine.readWorkbook(bytes);
     } catch (error) {
       throw new EngineBoundaryError("engine_result_invalid", {
         detail: "saved package does not re-parse: " + String((error as Error)?.message ?? error),
       });
     }
-    const checksum = await hash(out);
-    // Only after every fallible step: rebase the model and the byte store.
-    session.inputBytes = out;
-    session.model.rebase(rebased.snapshot, checksum);
-    session.sheetNamesById = rebased.sheetNamesById;
-    return { bytes: out, checksum, warnings };
   }
 
   /** Honest capability rows for format xlsx (module-runtime-map states). Rows

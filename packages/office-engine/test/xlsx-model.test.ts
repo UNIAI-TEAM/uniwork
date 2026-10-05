@@ -173,13 +173,13 @@ describe("XLSX structural journal", () => {
     expect(model.isDirty).toBe(false);
   });
 
-  it("drives the gateway structuralOps slot and skips recalc reads on shifted sheets", async () => {
+  it("drives the gateway structuralOps slot and recalcs only the produced bytes", async () => {
     const engine = createFakeXlsxEngine();
     const recalc = createFakeRecalc();
-    let gatewayArguments: unknown;
+    const gatewayArguments: unknown[] = [];
     const nativeApply = engine.applyCellEdits.bind(engine);
     engine.applyCellEdits = async (bytes, edits, values, args) => {
-      gatewayArguments = args;
+      gatewayArguments.push(args);
       return nativeApply(bytes, edits, values);
     };
     const adapter = createXlsxAdapter({ engine, recalc });
@@ -187,10 +187,14 @@ describe("XLSX structural journal", () => {
     if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
     adapter.edit(opened.document_model_ref, [{ op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } }]);
     await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
-    expect(gatewayArguments).toEqual({ structuralOps: [{ sheetName: "Data", ops: [{ kind: "insert-rows", index: 0, count: 1 }] }] });
-    // B1's formula lives on the shifted sheet: no recalc read may run against
-    // the original bytes' coordinates.
-    expect(recalc.calls).toEqual([]);
+    // Pass 1 carries the structural ops; pass 2 only writes recalculated <v>s.
+    expect(gatewayArguments[0]).toEqual({ structuralOps: [{ sheetName: "Data", ops: [{ kind: "insert-rows", index: 0, count: 1 }] }] });
+    expect(gatewayArguments.slice(1)).toEqual([undefined]);
+    // B1's formula lives on the shifted sheet: no recalc may replay edits
+    // against the original bytes' coordinates - the only recalc reads the
+    // produced package with zero edits (R3-1).
+    expect(recalc.calls.length).toBeGreaterThan(0);
+    expect(recalc.calls.every((call) => call.edits.length === 0)).toBe(true);
   });
 });
 

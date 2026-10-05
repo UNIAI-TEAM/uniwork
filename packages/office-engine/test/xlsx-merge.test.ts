@@ -184,8 +184,8 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx merge ops on the real gateway", () 
       { op: "merge_cells", target: { sheet: "Data" }, range: "A1:B2" },
       { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
     ], recalc);
-    expect(recalc.calls).toBe(0);
-    expect(saved.warnings).toContainEqual(expect.objectContaining({ code: "structure_formula_cache_kept" }));
+    expect(recalc.calls).toBeGreaterThan(0);
+    expect((saved.warnings as { code: string }[]).some((warning) => warning.code === "structure_formula_cache_kept")).toBe(false);
     const xml = await sheetXml(engine, saved.bytes);
     expect(xml).toContain('<mergeCell ref="A2:B3"/>');
     // The inserted row moved the value the merge covers one row down.

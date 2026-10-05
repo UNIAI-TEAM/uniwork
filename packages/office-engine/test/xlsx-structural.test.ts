@@ -81,10 +81,10 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx structural ops on the real gateway"
     const saved = await savedWith(engine, KITCHEN_SINK, [
       { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
     ], recalc);
-    // A formula-bearing workbook, but a structural save refills no caches:
-    // the sidecar recalc must not run against pre-shift coordinates.
-    expect(recalc.calls).toBe(0);
-    expect(saved.warnings).toContainEqual(expect.objectContaining({ code: "structure_formula_cache_kept" }));
+    // A structural save recalcs the PRODUCED bytes (final coordinates), after
+    // assemble; the no-answer port leaves the caches and says so.
+    expect(recalc.calls).toBeGreaterThan(0);
+    expect((saved.warnings as { code: string }[]).some((warning) => warning.code === "structure_formula_cache_kept")).toBe(false);
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(cells(reopened.snapshot, "Data").B3?.value).toBe(1_250_000_000);
     expect(cells(reopened.snapshot, "Data").B2?.value).toBe("Quý I");
@@ -105,11 +105,11 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx structural ops on the real gateway"
     const engine = await load();
     const saved = await savedWith(engine, KITCHEN_SINK, [
       { op: "insert_cols", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } },
-    ]);
+    ], recordingRecalc());
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(cells(reopened.snapshot, "Data").C2?.value).toBe(1_250_000_000);
-    expect(cells(reopened.snapshot, "Data").C5?.formula).toBe("=SUM(C2:C4)");
-    expect(cells(reopened.snapshot, "Data").D5?.formula).toBe("=SUM(D2:D4)");
+    expect(cells(reopened.snapshot, "Data").C6?.formula).toBe("=SUM(C2:C4)");
+    expect(cells(reopened.snapshot, "Data").D6?.formula).toBe("=SUM(D2:D4)");
     expect(cells(reopened.snapshot, "PhuLuc").B2?.formula).toBe("=SUM(Data!C2:C4)");
     const xml = await sheetXml(engine, saved.bytes);
     expect(xml).toContain('sqref="B2:B4"');

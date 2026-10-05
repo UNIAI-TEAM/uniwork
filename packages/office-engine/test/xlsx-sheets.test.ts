@@ -230,7 +230,7 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx sheet ops on the real gateway", () 
     const saved = await saveOps(engine, fixture(COMPAT_STRUCTURE), [
       { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Budget" } },
       { op: "set_cell", target: { sheet: "Budget", cell: "D10" }, attributes: { value: 42 } },
-    ]);
+    ], recordingRecalc());
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(sheetNames(reopened.snapshot)).toEqual(["Budget", "PhuLuc"]);
     expect(reopened.snapshot.sheets[0]?.cells.D10?.value).toBe(42);
@@ -257,7 +257,7 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx sheet ops on the real gateway", () 
     const saved = await saveOps(engine, fixture(COMPAT_STRUCTURE), [
       { op: "set_cell", target: { sheet: "Data", cell: "D10" }, attributes: { value: 7 } },
       { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } },
-    ]);
+    ], recordingRecalc());
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(sheetNames(reopened.snapshot)).toEqual(["Data", "PhuLuc", "Data copy"]);
     const source = reopened.snapshot.sheets[0];
@@ -271,7 +271,7 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx sheet ops on the real gateway", () 
   it("hides and unhides a sheet through two saves", async () => {
     const engine = await load();
     // A hidden-only plan keeps sheet identity, so the recalc pass still runs
-    // (the workbook carries formulas); only identity-changing plans skip it.
+    // (the workbook carries formulas); identity-changing plans recalc after assemble.
     const recalc = recordingRecalc();
     const hidden = await saveOps(engine, fixture(COMPAT_STRUCTURE), [
       { op: "set_sheet_hidden", target: { sheet: "PhuLuc" }, attributes: { hidden: true } },
@@ -310,15 +310,15 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx sheet ops on the real gateway", () 
     });
   });
 
-  it("skips native recalc for an identity-changing sheet plan and says so", async () => {
+  it("recalcs the produced bytes for an identity-changing sheet plan", async () => {
     const engine = await load();
     const recalc = recordingRecalc();
     const saved = await saveOps(engine, fixture(KITCHEN_SINK), [
       { op: "rename_sheet", target: { sheet: "PhuLuc" }, attributes: { newName: "Phụ lục" } },
       { op: "set_cell", target: { sheet: "Phụ lục", cell: "C10" }, attributes: { value: 1 } },
     ], recalc);
-    expect(recalc.calls).toBe(0);
-    expect(saved.warnings).toContainEqual(expect.objectContaining({ code: "sheet_formula_cache_kept" }));
+    expect(recalc.calls).toBeGreaterThan(0);
+    expect(saved.warnings.some((warning) => warning.code === "sheet_formula_cache_kept")).toBe(false);
     const reopened = await engine.readWorkbook(saved.bytes);
     expect(sheetNames(reopened.snapshot)).toEqual(["Data", "Phụ lục"]);
     expect(reopened.snapshot.sheets[1]?.cells.C10?.value).toBe(1);

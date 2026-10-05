@@ -237,17 +237,18 @@ not a deployment knob.
   save + reopen shows the correct total, never the file's stale cache (F7).
 - Known upstream engine gaps stay honest: cells the engine deliberately skips (`CELL("filename")`, the `RATE`
   `#NUM!` solver case) keep their file-cached `<v>` and the save reports a `formula_cache_kept` warning with a
-  count - it does not fabricate a value. A structural or sheet-identity change likewise keeps the file cache and
-  warns (`structure_formula_cache_kept` / `sheet_formula_cache_kept`), since the sidecar cannot see the final
-  coordinates or sheet set.
+  count - it does not fabricate a value. A structural (row/column) or sheet-identity (add/rename/remove/reorder)
+  save cannot recalc the original bytes, so it assembles first, recalculates the PRODUCED package with zero edits
+  (final coordinates and sheet names) and writes every formula cell's `<v>` in a values-only second assemble
+  (R3-1); such a save without the sidecar is refused like any other formula-bearing save.
 - Preservation is fail-closed: `assertOnlyTouchedEntriesChanged` sha256-verifies every package part outside the
   plan's touch set; a chart part, macro payload or unsupported OOXML entry that drifted fails the save instead of
   shipping a silently different package.
 - Fixture-replay acceptance (AC-1) runs natively in Linux — the sidecar is an ELF binary and the independent
   oracle needs the upstream lockfile's jszip — via a dedicated Dockerfile stage that is never shipped:
   `docker build -f apps/office-engine/Dockerfile --target xlsx-replay -t uniwork-office-engine:xlsx-replay .`
-  then `docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay`. Exit 0 means all
-  12 capability-matrix rows passed on the real engine; the result/extraction/version-manifest JSONs land in the
+  then `docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay`. Exit 0 means every
+  capability-matrix row (14 at R3-1) passed on the real engine; the result/extraction/version-manifest JSONs land in the
   mounted dir.
 
 ### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
