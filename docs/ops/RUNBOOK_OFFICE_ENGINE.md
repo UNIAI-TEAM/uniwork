@@ -232,9 +232,14 @@ not a deployment knob.
 - Sidecar wire protocol is NDJSON v1 (`recalc_cells`/`cancel`, `requestId`-matched) with closed bounds: 10_000 edits
   and 20_000 summed read cells per request, 2 resident models, 256 cancelled ids. The client maps sidecar codes to
   contract codes (`cancelled`, `recalc_busy` → `engine_overloaded`, `unsupported_version` → `protocol_mismatch`).
+- Every formula cell whose precedents were edited in the session gets a freshly recalculated `<v>` on save
+  (recalc-on-serialize: the sidecar evaluates the edit set and the writer patches each covered `<f>` cell), so a
+  save + reopen shows the correct total, never the file's stale cache (F7).
 - Known upstream engine gaps stay honest: cells the engine deliberately skips (`CELL("filename")`, the `RATE`
   `#NUM!` solver case) keep their file-cached `<v>` and the save reports a `formula_cache_kept` warning with a
-  count — it does not fabricate a value.
+  count - it does not fabricate a value. A structural or sheet-identity change likewise keeps the file cache and
+  warns (`structure_formula_cache_kept` / `sheet_formula_cache_kept`), since the sidecar cannot see the final
+  coordinates or sheet set.
 - Preservation is fail-closed: `assertOnlyTouchedEntriesChanged` sha256-verifies every package part outside the
   plan's touch set; a chart part, macro payload or unsupported OOXML entry that drifted fails the save instead of
   shipping a silently different package.

@@ -329,9 +329,9 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
 
     // ── native rows: the real Rust sidecar ──────────────────────────────
 
-    // xlsx-recalc-oracle (AC-1): kitchen-sink Data!B2 → B5=SUM(B2:B4) and the
-    // cross-sheet PhuLuc!B2 must equal the oracle's own arithmetic read from
-    // the OUTPUT package, and the cells must still carry <f>.
+    // xlsx-recalc-oracle (AC-1): kitchen-sink Data!B2 -> Data!B6=SUM(B2:B4) and
+    // the cross-sheet PhuLuc!B2 must equal the oracle's own arithmetic read
+    // from the OUTPUT package, and the cells must still carry <f>.
     if (needNative(probe, 'xlsx-recalc-oracle', sidecarPath)) {
       const bytes = readFx(KITCHEN);
       const nativeAdapter = native();
@@ -345,11 +345,10 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         probe.save('recalc-oracle', saved.bytes);
         const post = await xlsxExtract(JSZip, saved.bytes);
         // Independent oracle: read the stored literals out of the output XML
-        // and compute the sums ourselves. Kitchen-sink's Data sheet is
-        // pathological — a <row r="6"> element carries cells labelled r="B5"/
-        // "C5", so the engine relocates those formulas and the writer cannot
-        // patch their cache: the file's own <v> is kept and warned. The clean
-        // cross-sheet cell PhuLuc!B2 is the real recalc proof.
+        // and compute the sums ourselves. The fixture's row-6 cells are
+        // labelled B6/C6 (the malformed duplicate-B5 row was repaired), so the
+        // engine recalculates the SUM formulas in place and the writer patches
+        // their <v>; no formula_cache_kept warning may remain.
         const data = post.sheets['Data'] ?? {};
         const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
@@ -357,17 +356,17 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         const warns = saved.warnings ?? [];
         const keptWarned = warns.some((w) => w.code === 'formula_cache_kept');
         const ok =
-          data['B5']?.formula === '=SUM(B2:B4)' &&
+          data['B6']?.formula === '=SUM(B2:B4)' &&
           phu['B2']?.formula === '=SUM(Data!B2:B4)' &&
           phu['B2']?.value === oracleSum &&
           phu['B3']?.value === countA &&
-          data['B5']?.value === 4908000000 &&
-          keptWarned;
-        probe.extract('recalc-oracle', { b5: data['B5'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA, keptWarned });
+          data['B6']?.value === oracleSum &&
+          !keptWarned;
+        probe.extract('recalc-oracle', { b6: data['B6'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA, keptWarned });
         probe.row(
           'xlsx-recalc-oracle',
           ok,
-          `PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA}); B5 kept stale <v>=${data['B5']?.value} warned=${keptWarned}`,
+          `PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA}); B6 <v>=${data['B6']?.value} (oracle ${oracleSum}) warned=${keptWarned}`,
         );
         nativeAdapter.release(ref);
       }
@@ -392,9 +391,9 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         const data = post.sheets['Data'] ?? {};
         const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
-        // Kitchen-sink's pathological Data formulas keep their file cache
-        // (engine relocates them), so the fresh-value proof is PhuLuc!B2.
-        const ok = data['B5']?.formula === '=SUM(B2:B4)' && phu['B2']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
+        // Both the in-sheet Data!B6 and the cross-sheet PhuLuc!B2 refresh
+        // against the edits from the two chained saves.
+        const ok = data['B6']?.formula === '=SUM(B2:B4)' && data['B6']?.value === oracleSum && phu['B2']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
         probe.row('xlsx-two-save', ok, `save2 PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); B2=${data['B2']?.value}, B3=${data['B3']?.value}; checksums differ=${s1.checksum !== s2.checksum}`);
         nativeAdapter.release(ref);
       }
