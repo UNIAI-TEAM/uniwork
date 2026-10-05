@@ -75,6 +75,15 @@ export function HtmlStatusBar({
                 onReset={zoomDisabled ? undefined : () => onZoomChange(HTML_ZOOM_DEFAULT)}
               />
             </span>
+            {/*
+              m2: the shared `OfficeStatusZoom` carries no live region, so a step
+              is silent. The old local `html-zoom-value` announced it; mirror the
+              value here instead of editing the shared frame. The region stays
+              mounted and only its text changes, so every step is announced.
+            */}
+            <span className="sr-only" role="status" aria-live="polite" data-testid="html-zoom-live">
+              {zoomDisabled ? "" : t("office.html.zoom.level", { percent: clamped })}
+            </span>
           </span>
         }
         help={

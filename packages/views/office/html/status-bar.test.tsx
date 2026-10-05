@@ -1,0 +1,107 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { HtmlStatusBar } from "./status-bar";
+
+const i18n = initI18n();
+beforeEach(async () => { await setLocale("en"); });
+
+/** Every string this suite asserts, resolved through the real dictionary. */
+const KEYS = [
+  "office.html.shortcuts.title",
+  "office.html.shortcuts.description",
+  "office.html.status.figures",
+  "office.html.status.selection",
+  "office.html.status.selectionNone",
+  "office.html.zoom.level",
+  "office.html.actions.undo",
+  "office.html.actions.redo",
+  "office.html.actions.save",
+  "office.html.view.label",
+] as const;
+
+function renderBar(over: Partial<Parameters<typeof HtmlStatusBar>[0]> = {}) {
+  return render(
+    <HtmlStatusBar
+      text={"<p>hi</p>"}
+      selection={null}
+      zoom={100}
+      onZoomChange={vi.fn()}
+      zoomDisabled={false}
+      {...over}
+    />,
+  );
+}
+
+describe("HtmlStatusBar", () => {
+  it("every asserted key resolves in both locales (a missing key fails here)", () => {
+    for (const lng of ["en", "vi"] as const) {
+      for (const key of KEYS) {
+        expect(i18n.exists(key, { lng }), `${lng} ${key}`).toBe(true);
+      }
+    }
+  });
+
+  it("spells the shortcuts sheet copy from the resolved keys, not the raw keys", async () => {
+    renderBar();
+    fireEvent.click(screen.getByTestId("html-shortcuts-help-trigger"));
+    const dialog = await screen.findByTestId("html-shortcuts-dialog");
+    // The resolved copy, literal: a missing key would render the key path here.
+    expect(within(dialog).getByRole("heading", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Shortcuts available while editing this document.");
+    expect(dialog).not.toHaveTextContent("office.html.shortcuts");
+    // Each row's label is the resolved string, not its key.
+    expect(within(dialog).getAllByRole("term").map((node) => node.textContent)).toEqual([
+      "Undo",
+      "Redo",
+      "Save to UniWork",
+      "View mode",
+    ]);
+    expect(within(dialog).getAllByRole("definition").map((node) => node.textContent)).toEqual([
+      "Ctrl+Z",
+      "Ctrl+Y",
+      "Ctrl+S",
+      "Ctrl+\\",
+    ]);
+  });
+
+  it("names the trigger with the resolved shortcuts title", () => {
+    renderBar();
+    expect(screen.getByTestId("html-shortcuts-help-trigger")).toHaveAccessibleName("Keyboard shortcuts");
+  });
+
+  it("reads the figures, the selection and the zoom from the resolved keys", () => {
+    renderBar({ text: "<p>hi</p>\n<section>", selection: { from: 3, to: 8 }, zoom: 110 });
+    expect(screen.getByTestId("html-status-figures")).toHaveTextContent("19 chars · 2 lines · HTML");
+    expect(screen.getByTestId("html-status-selection")).toHaveTextContent("3–8 selected");
+    expect(screen.getByTestId("html-zoom")).toHaveTextContent("110%");
+  });
+
+  it("says 'no selection' from the resolved key when nothing is selected", () => {
+    renderBar({ selection: { from: 4, to: 4 } });
+    expect(screen.getByTestId("html-status-selection")).toHaveTextContent("No selection");
+  });
+
+  it("announces every zoom step through a polite live region (m2)", () => {
+    const onZoomChange = vi.fn();
+    const { rerender } = render(
+      <HtmlStatusBar text="x" selection={null} zoom={100} onZoomChange={onZoomChange} zoomDisabled={false} />,
+    );
+    const live = screen.getByTestId("html-zoom-live");
+    // A live region only announces a CHANGE, so it must already be in the DOM
+    // with the initial value before the step happens.
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveAttribute("role", "status");
+    expect(live).toHaveTextContent("Zoom level 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(onZoomChange).toHaveBeenCalledWith(110);
+    rerender(<HtmlStatusBar text="x" selection={null} zoom={110} onZoomChange={onZoomChange} zoomDisabled={false} />);
+    expect(screen.getByTestId("html-zoom-live")).toHaveTextContent("Zoom level 110%");
+  });
+
+  it("keeps the live region silent in source mode, where zoom is unavailable", () => {
+    renderBar({ zoomDisabled: true });
+    expect(screen.getByTestId("html-zoom-live").textContent).toBe("");
+    expect(screen.getByTestId("html-zoom")).toHaveTextContent("–");
+  });
+});
