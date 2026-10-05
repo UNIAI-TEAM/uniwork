@@ -5,8 +5,9 @@
 //   applyTheme      packages/pptx-ops/src/ops/slide-ops.ts:730
 //                   (validate 731-746: name non-empty, colors a slot → hex
 //                   record; apply 747-774: commitSaved, patch theme parts,
-//                   remap explicit colors, materialize backgrounds for slides
-//                   without one)
+//                   materialize backgrounds for slides without one; explicit
+//                   srgbClr colors are NOT remapped — office-upstream patch
+//                   0007 makes the vendored remap opt-in)
 //   setSlideSize    packages/pptx-ops/src/ops/slide-ops.ts:318
 //                   (validate 319-330: cx/cy must be finite and > 0)
 //   setBackground   packages/pptx-ops/src/ops/slide-ops.ts:382

@@ -1,0 +1,15 @@
+--- a/packages/pptx-ops/src/ops/slide-ops.ts
++++ b/packages/pptx-ops/src/ops/slide-ops.ts
+@@ -753,7 +753,11 @@
+     }
+     commitSaved(ctx.opened)
+     const patched = applyThemeToArchive(ctx.opened, spec)
+-    const remapped = remapDeckColors(ctx.opened, spec)
++    // UniWork: PowerPoint semantics - explicit srgbClr fills, outlines and text
++    // runs keep their RGB when a theme is applied; only scheme colours follow
++    // the theme. The wholesale explicit-colour remap (built for AI-generated
++    // decks that never reference the scheme) is opt-in via `remapExplicit`.
++    const remapped = op.remapExplicit === true ? remapDeckColors(ctx.opened, spec) : 0
+     let backgrounds = 0
+     const lt1 = spec.colors.lt1
+     if ((patched > 0 || remapped > 0) && lt1) {
