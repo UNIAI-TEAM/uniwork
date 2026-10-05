@@ -122,12 +122,26 @@ export interface HtmlVisualShellProps {
 }
 
 /**
- * The HTML status figures: source length / line count / language on the left;
- * selection info and the zoom ladder on the right. Rendered through the shared
- * `OfficeStatusBar` / `OfficeStatusZoom` (F1/F8) - one 28px row, never a
- * chrome row of its own and never a floating control (C9).
+ * The HTML status bar's LEFT cluster: source length / line count / language.
+ * The selection info and the zoom ladder live in the RIGHT cluster
+ * (`HtmlStatusEnd`) so they cannot be clipped by this cluster's
+ * `truncate whitespace-nowrap` flex at narrow widths, matching the DOCX
+ * example and C10. Rendered through the shared `OfficeStatusBar` (F1/F8) -
+ * one 28px row, never a chrome row of its own and never a floating control
+ * (C9).
  */
-function HtmlStatusFigures({
+function HtmlStatusFigures({ text }: { text: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "office.html.status" });
+  const figures = htmlStatusFigures(text, null);
+  return (
+    <span data-testid="html-status-figures" data-html-length={figures.length} data-html-lines={figures.lines} data-html-language="HTML">
+      {t("figures", { length: figures.length, lines: figures.lines, language: "HTML" })}
+    </span>
+  );
+}
+
+/** The HTML status bar's RIGHT cluster: selection info and the zoom ladder. */
+function HtmlStatusEnd({
   text,
   selection = null,
   zoom,
@@ -141,15 +155,11 @@ function HtmlStatusFigures({
   zoomDisabled: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.status" });
-  const figures = htmlStatusFigures(text, selection);
+  const { selection: activeSelection } = htmlStatusFigures(text, selection);
   return (
     <>
-      <span data-testid="html-status-figures" data-html-length={figures.length} data-html-lines={figures.lines} data-html-language="HTML">
-        {t("figures", { length: figures.length, lines: figures.lines, language: "HTML" })}
-      </span>
-      <span className="text-faint-foreground" aria-hidden="true">·</span>
       <span data-testid="html-status-selection">
-        {figures.selection ? t("selection", { from: figures.selection.from, to: figures.selection.to }) : t("selectionNone")}
+        {activeSelection ? t("selection", { from: activeSelection.from, to: activeSelection.to }) : t("selectionNone")}
       </span>
       <span data-testid="html-zoom">
         <OfficeStatusZoom
@@ -479,7 +489,12 @@ export function HtmlVisualShell({
             labelKey="office.html.status.label"
             start={
               <span data-testid="html-status-left">
-                <HtmlStatusFigures text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
+                <HtmlStatusFigures text={text} />
+              </span>
+            }
+            end={
+              <span className="flex items-center gap-2" data-testid="html-status-right">
+                <HtmlStatusEnd text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
               </span>
             }
           />

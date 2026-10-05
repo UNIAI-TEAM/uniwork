@@ -476,6 +476,23 @@ describe("HtmlEditor zoom and status bar", () => {
     expect(screen.getByTestId("html-status-selection")).toHaveTextContent("No selection");
     expect(document.querySelector("[data-office-status-bar]")).toContainElement(screen.getByTestId("html-zoom"));
   });
+
+  it("splits the status bar: figures left, selection + zoom right (M1/C10)", async () => {
+    await renderReady();
+    const left = screen.getByTestId("html-status-left");
+    const right = screen.getByTestId("html-status-right");
+    // M1: figures stay in the LEFT cluster; the selection info and the zoom
+    // ladder move to the RIGHT cluster, matching the DOCX example and C10, so
+    // the ladder is not clipped by the left cluster's `truncate` flex.
+    expect(left).toContainElement(screen.getByTestId("html-status-figures"));
+    expect(left).not.toContainElement(screen.getByTestId("html-status-selection"));
+    expect(left).not.toContainElement(screen.getByTestId("html-zoom"));
+    expect(right).toContainElement(screen.getByTestId("html-status-selection"));
+    expect(right).toContainElement(screen.getByTestId("html-zoom"));
+    // The `end` cluster is the shared bar's trailing `shrink-0` flex, so the
+    // zoom ladder is not inside the truncating `start` cluster.
+    expect(document.querySelector("[data-office-status-bar]")).toContainElement(right);
+  });
 });
 
 /**
