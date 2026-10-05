@@ -62,6 +62,18 @@ describe("PptxTextFormatPanel", () => {
     }
   });
 
+  it("lets the font family and size rows wrap instead of overflowing the pane (R2-11)", () => {
+    renderPanel();
+    const row = document.querySelector("[data-pptx-font-row]") as HTMLElement;
+    expect(row).toHaveClass("flex-wrap");
+    const family = screen.getByTestId("pptx-text-apply-font-family").parentElement as HTMLElement;
+    const size = screen.getByTestId("pptx-text-apply-size").parentElement as HTMLElement;
+    for (const inner of [family, size]) {
+      expect(inner).toHaveClass("flex-wrap");
+      expect(inner.parentElement).toHaveClass("min-w-0", "max-w-full");
+    }
+  });
+
   it("emits one set_font per character toggle on click", async () => {
     const { onApplyEdit } = renderPanel();
     fireEvent.click(screen.getByTestId("pptx-text-toggle-bold"));

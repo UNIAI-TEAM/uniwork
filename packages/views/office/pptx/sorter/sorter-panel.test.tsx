@@ -144,7 +144,7 @@ describe("PptxSorterPanel", () => {
       selectedIndex: 0,
     });
     fireEvent.click(button("office.pptx.sorter.new_label"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Title and Content" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: copy("office.pptx.sorter.layout.title_content") }));
     await waitFor(() => expect(onEdit).toHaveBeenCalledWith([{ op: "add_slide_with_layout", layout: 1, slideIndex: 0 }]));
   });
 
@@ -242,6 +242,30 @@ describe("PptxSorterPanel", () => {
     const label = document.querySelector("[data-pptx-sorter-tile-label]")!;
     expect(label.className).not.toContain("truncate");
     expect(label).toHaveTextContent(copy("office.pptx.sorter.slide_label", { index: 1, label: ": Intro" }));
+  });
+
+  it("localises standard layout names and keeps a custom one verbatim (R2-11)", async () => {
+    renderPanel({
+      layouts: [
+        { name: "Blank", path: "ppt/slideLayouts/slideLayout7.xml" },
+        { name: "Quarterly KPI", path: "ppt/slideLayouts/slideLayout12.xml" },
+      ],
+    });
+    fireEvent.click(button("office.pptx.sorter.new_label"));
+    const items = await screen.findAllByRole("menuitem");
+    const names = items.map((item) => item.textContent);
+    expect(names).toContain(copy("office.pptx.sorter.layout.blank"));
+    expect(names).toContain("Quarterly KPI");
+    expect(names).not.toContain("Blank");
+  });
+
+  it("keeps the grid at a readable height and scrolls the panel instead of clipping a row (R2-12)", () => {
+    renderPanel();
+    const grid = document.querySelector("[data-pptx-sorter-grid]")!;
+    expect(grid.className).toContain("min-h-64");
+    expect(grid.className).toContain("flex-1");
+    expect(document.querySelector("[data-pptx-sorter-panel]")!.className).toContain("overflow-y-auto");
+    expect(document.querySelector("[data-pptx-sorter-sections]")!.className).toContain("shrink-0");
   });
 
   it("opens the picker on an empty catalog and explains it", async () => {

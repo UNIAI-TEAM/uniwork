@@ -62,7 +62,7 @@ export function PptxSorterSections({
   return (
     <section
       aria-label={t("office.pptx.sections.label")}
-      className="flex min-h-0 flex-col gap-1.5 rounded-md border border-border bg-muted/10 p-2"
+      className="flex shrink-0 flex-col gap-1.5 rounded-md border border-border bg-muted/10 p-2"
       data-pptx-sorter-sections
     >
       <header className="flex items-center justify-between gap-2">

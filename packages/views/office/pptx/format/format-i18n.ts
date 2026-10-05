@@ -91,22 +91,9 @@ export const PPTX_FORMAT_I18N: Readonly<Record<string, PptxFormatI18nEntry>> = {
   "office.pptx.format.soft_edge_label": { en: "Soft edge in points", vi: "Làm mờ cạnh (điểm)" },
 
   // Size / geometry
-  "office.pptx.format.geometry_label": { en: "Shape geometry", vi: "Hình dạng hình học" },
-  "office.pptx.format.geometry_prst": { en: "Preset shape name", vi: "Tên hình dựng sẵn" },
-  "office.pptx.format.geometry_hint": {
-    en: "An OOXML preset name such as roundRect or ellipse.",
-    vi: "Tên dựng sẵn OOXML như roundRect hoặc ellipse.",
-  },
-  "office.pptx.format.adjust_label": { en: "Shape adjustment", vi: "Điều chỉnh hình dạng" },
-  "office.pptx.format.adjust_placeholder": { en: "adj=0.25", vi: "adj=0.25" },
-  "office.pptx.format.adjust_hint": {
-    en: "One or more name=value pairs, separated by commas.",
-    vi: "Một hoặc nhiều cặp tên=giá trị, cách nhau bằng dấu phẩy.",
-  },
-  "office.pptx.format.adjust_invalid": {
-    en: "Enter name=value pairs with numeric values, for example adj=0.25.",
-    vi: "Nhập các cặp tên=giá trị với giá trị số, ví dụ adj=0.25.",
-  },
+  "office.pptx.format.geometry_label": { en: "Shape", vi: "Hình dạng" },
+  "office.pptx.format.geometry_prst": { en: "Change shape", vi: "Đổi hình dạng" },
+  "office.pptx.format.geometry_placeholder": { en: "Choose a shape", vi: "Chọn hình dạng" },
 
   // Arrange
   "office.pptx.format.arrange_label": { en: "Arrange", vi: "Sắp xếp" },

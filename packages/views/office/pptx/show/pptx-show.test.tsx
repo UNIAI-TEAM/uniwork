@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode, useLayoutEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -207,6 +207,22 @@ describe("PptxSlideShow", () => {
   it("keeps the controls visible on coarse pointers", () => {
     render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
     expect(document.querySelector("[data-pptx-show-controls]")).toHaveClass("pointer-coarse:opacity-100");
+  });
+
+  it("draws the controls on a dark bar that stays readable at idle (R2-14)", () => {
+    render(<PptxSlideShow slideCount={3} index={1} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+    const bar = document.querySelector("[data-pptx-show-controls]") as HTMLElement;
+    // Token surface, not bare chips on a (usually white) slide.
+    expect(bar).toHaveClass("bg-meeting-bar-bg", "border-meeting-bar-border", "text-meeting-bar-foreground");
+    // Idle is dimmed but legible; hover and keyboard focus bring it to full strength.
+    expect(bar).toHaveClass("opacity-70", "hover:opacity-100", "focus-within:opacity-100");
+    expect(bar.className).not.toMatch(/(^|s)opacity-0(s|$)/);
+    // The positioning shell must not swallow stage clicks.
+    expect(bar.parentElement).toHaveClass("pointer-events-none");
+    expect(bar).toHaveClass("pointer-events-auto");
+    for (const name of ["Previous slide", "Next slide", "End show"]) {
+      expect(within(bar).getByRole("button", { name })).toBeInTheDocument();
+    }
   });
 
   it("opens on the first visible slide when asked to start on a hidden one", () => {

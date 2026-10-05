@@ -240,10 +240,10 @@ export function PptxTextFormatPanel({
       </div>
 
       {/* Font family + size */}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-end gap-2" data-pptx-font-row>
+        <div className="flex min-w-0 max-w-full flex-col gap-1">
           <span className="text-caption font-medium text-muted-foreground">{t("format.font_family")}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={family}
               items={PPTX_TEXT_FONT_FAMILIES.map((value) => ({ value, label: value }))}
@@ -285,9 +285,9 @@ export function PptxTextFormatPanel({
             </Button>
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 max-w-full flex-col gap-1">
           <span className="text-caption font-medium text-muted-foreground">{t("format.font_size")}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={size}
               items={PPTX_TEXT_FONT_SIZE_PT_PRESETS.map((value) => ({ value: String(value), label: String(value) }))}

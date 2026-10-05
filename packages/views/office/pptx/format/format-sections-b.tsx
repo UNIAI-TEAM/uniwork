@@ -32,14 +32,13 @@ import {
   buildDistributeEdit,
   buildFlipEdit,
   buildGroupEdit,
-  buildShapeAdjustEdit,
   buildShapeGeometryEdit,
   buildTextAnchorEdit,
   buildUngroupEdit,
   buildWrapEdit,
   formatAlignKey,
-  parseAdjustField,
 } from "./format-model";
+import { PPTX_INSERT_SHAPE_GROUPS } from "../insert/insert-model";
 
 export interface PptxFormatArrangeSectionProps {
   slide: number;
@@ -68,6 +67,14 @@ export interface PptxFormatTextSectionProps {
   wrapText?: boolean | null;
 }
 
+/** Every preset the Insert gallery offers, flattened once: the format pane changes a shape to one of these. */
+const GEOMETRY_PRESETS = PPTX_INSERT_SHAPE_GROUPS.flatMap((group) => group.shapes);
+
+/**
+ * "Change shape": a named list instead of the raw OOXML preset field the pane used
+ * to expose. The shape's adjust-handle map (`set_shape_adjust`) has no user-facing
+ * spelling, so it is not offered here.
+ */
 export function PptxFormatGeometrySection({
   slide,
   elementId,
@@ -75,63 +82,33 @@ export function PptxFormatGeometrySection({
   onApply,
 }: Omit<PptxFormatArrangeSectionProps, "ids" | "elementType">) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
-  const [prst, setPrst] = useState("");
-  const [adjust, setAdjust] = useState("");
-  const adjustParsed = adjust.length === 0 ? null : parseAdjustField(adjust);
-  const adjustInvalid = adjust.length > 0 && adjustParsed === null;
+  const { t: tRoot } = useTranslation();
+  const items = useMemo(
+    () => GEOMETRY_PRESETS.map((shape) => ({ value: shape.prst, label: tRoot(shape.labelKey) })),
+    [tRoot],
+  );
 
   return (
     <section aria-label={t("format.geometry_label")} data-pptx-format-section="geometry" className="flex flex-col gap-2">
       <span className="text-caption font-medium text-muted-foreground">{t("format.geometry_label")}</span>
-      <Input
-        aria-label={t("format.geometry_prst")}
-        data-testid="pptx-format-prst"
-        placeholder={t("format.geometry_hint")}
-        value={prst}
-        disabled={blocked}
-        onChange={(event) => setPrst(event.target.value)}
-        className="w-40"
-      />
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="w-fit"
-        disabled={blocked || prst.trim().length === 0}
-        data-testid="pptx-format-apply-prst"
-        onClick={() => onApply(() => buildShapeGeometryEdit(slide, elementId, prst))}
-      >
-        {t("format.apply")}
-      </Button>
-      <Input
-        aria-label={t("format.adjust_label")}
-        data-testid="pptx-format-adjust"
-        placeholder={t("format.adjust_placeholder")}
-        value={adjust}
-        disabled={blocked}
-        aria-invalid={adjustInvalid ? true : undefined}
-        onChange={(event) => setAdjust(event.target.value)}
-        className="w-40"
-      />
-      {adjustInvalid ? (
-        <p role="alert" className="text-caption text-destructive">
-          {t("format.adjust_invalid")}
-        </p>
-      ) : null}
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="w-fit"
-        disabled={blocked || adjustParsed === null}
-        data-testid="pptx-format-apply-adjust"
-        onClick={() => {
-          const parsed = adjustParsed;
-          if (parsed) onApply(() => buildShapeAdjustEdit(slide, elementId, parsed));
+      <Select
+        value={null}
+        items={items}
+        onValueChange={(value) => {
+          if (value) onApply(() => buildShapeGeometryEdit(slide, elementId, value));
         }}
       >
-        {t("format.apply")}
-      </Button>
+        <SelectTrigger aria-label={t("format.geometry_prst")} data-testid="pptx-format-prst" size="sm" disabled={blocked} className="w-44">
+          <SelectValue placeholder={t("format.geometry_placeholder")} />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </section>
   );
 }

@@ -11,6 +11,7 @@ import {
   reorderSlideTargets,
   sectionIdAtSlide,
   sorterSectionGroups,
+  standardLayoutKey,
 } from "./sorter-helpers";
 
 const layouts = [
@@ -96,5 +97,11 @@ describe("sorter name + layout picker helpers", () => {
     expect(layoutPickerValue(layouts, 1)).toBe(1);
     expect(layoutPickerValue(layouts, 2)).toBeNull();
     expect(layoutPickerValue(layouts, -1)).toBeNull();
+  });
+
+  it("maps the standard Office layout names to a copy key and leaves custom names alone", () => {
+    expect(standardLayoutKey("Blank")).toBe("office.pptx.sorter.layout.blank");
+    expect(standardLayoutKey("  title and CONTENT ")).toBe("office.pptx.sorter.layout.title_content");
+    expect(standardLayoutKey("Quarterly KPI")).toBeNull();
   });
 });

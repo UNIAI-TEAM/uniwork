@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { FormatEdit } from "@uniwork/office-engine/pptx";
+import { pptxInsertNestedDictionary } from "../insert/insert-i18n";
 import { formatPanelDictionary } from "./format-i18n";
 import { PptxFormatPanel, type PptxFormatPanelProps } from "./pptx-format-panel";
 
@@ -11,6 +12,8 @@ import { PptxFormatPanel, type PptxFormatPanelProps } from "./pptx-format-panel"
 const instance = initI18n();
 for (const locale of ["en", "vi"] as const) {
   instance.addResourceBundle(locale, "translation", formatPanelDictionary(locale), true, true);
+  // The shape names come from the Insert gallery dictionary.
+  instance.addResourceBundle(locale, "translation", pptxInsertNestedDictionary(locale), true, true);
 }
 beforeEach(async () => {
   await setLocale("en");
@@ -157,10 +160,15 @@ describe("PptxFormatPanel", () => {
     });
   });
 
-  it("applies a preset geometry and a shape adjustment", async () => {
+  it("changes the shape from a named list, not a raw OOXML preset field (R2-11)", async () => {
     const { onApplyEdit } = renderPanel();
-    fireEvent.change(screen.getByTestId("pptx-format-prst"), { target: { value: "roundRect" } });
-    fireEvent.click(screen.getByTestId("pptx-format-apply-prst"));
+    const trigger = screen.getByTestId("pptx-format-prst");
+    expect(trigger).toHaveAccessibleName("Change shape");
+    expect(trigger).toHaveTextContent("Choose a shape");
+    fireEvent.click(trigger);
+    const option = screen.getByRole("option", { name: "Rounded rectangle" });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
     await waitFor(() =>
       expect(onApplyEdit).toHaveBeenCalledWith({
         op: "set_shape_geometry",
@@ -169,24 +177,13 @@ describe("PptxFormatPanel", () => {
         prst: "roundRect",
       }),
     );
-    fireEvent.change(screen.getByTestId("pptx-format-adjust"), { target: { value: "adj=0.25" } });
-    fireEvent.click(screen.getByTestId("pptx-format-apply-adjust"));
-    await waitFor(() =>
-      expect(onApplyEdit).toHaveBeenCalledWith({
-        op: "set_shape_adjust",
-        slideIndex: 1,
-        elementId: "sh1",
-        adjust: { adj: 0.25 },
-      }),
-    );
   });
 
-  it("refuses a malformed adjustment field before it reaches the deck", () => {
-    const { onApplyEdit } = renderPanel();
-    fireEvent.change(screen.getByTestId("pptx-format-adjust"), { target: { value: "adj" } });
-    expect(screen.getByRole("alert")).toHaveTextContent("name=value");
-    expect(screen.getByTestId("pptx-format-apply-adjust")).toBeDisabled();
-    expect(onApplyEdit).not.toHaveBeenCalled();
+  it("shows no developer fields: no OOXML hint, no adj=0.25 field (R2-11)", () => {
+    renderPanel();
+    const geometry = document.querySelector('[data-pptx-format-section="geometry"]') as HTMLElement;
+    expect(geometry.textContent).not.toMatch(/OOXML|adj=/);
+    expect(screen.queryByTestId("pptx-format-adjust")).toBeNull();
   });
 
   it("groups, flips and aligns the selection through arrange ops", async () => {

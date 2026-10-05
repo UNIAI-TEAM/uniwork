@@ -11,6 +11,7 @@ import { PPTX_SORTER_MESSAGES, pptxSorterI18nResources } from "./sorter-i18n";
  *    panel asks for and this table lacks would render as a raw key in the app.
  */
 const PANEL_FILES = ["./sorter-panel.tsx", "./sorter-sections.tsx", "./sortable-slide-tile.tsx"];
+const HELPERS_FILE = "./sorter-helpers.ts";
 
 /** i18next JSON v4 plural forms collapse onto one stem (the panel calls the stem). */
 const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
@@ -28,6 +29,9 @@ function calledKeys(): Set<string> {
       keys.add(match[1] as string);
     }
   }
+  // Standard layout names resolve through full-key literals in the helpers (the panel's t() takes them dynamically).
+  const helpers = readFileSync(new URL(HELPERS_FILE, import.meta.url), "utf8");
+  for (const match of helpers.matchAll(/"(office[.]pptx[.]sorter[.]layout[.][a-z_]+)"/g)) keys.add(match[1] as string);
   return keys;
 }
 

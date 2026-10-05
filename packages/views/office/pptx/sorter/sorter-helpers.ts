@@ -129,3 +129,25 @@ export function groupRangeLabel(group: PptxSectionGroup): { start: number; end: 
 export function layoutPickerValue(layouts: readonly PptxSorterLayout[], index: number): number | null {
   return index >= 0 && index < layouts.length ? index : null;
 }
+
+/** The standard Office layout names (what every default template ships) and the
+ *  full i18n key that carries their copy, so a Vietnamese UI never
+ *  shows "Blank" next to "Trang chiếu trống". A deck's own custom name has no entry. */
+const STANDARD_LAYOUT_KEYS: Readonly<Record<string, string>> = {
+  "title slide": "office.pptx.sorter.layout.title_slide",
+  "title and content": "office.pptx.sorter.layout.title_content",
+  "section header": "office.pptx.sorter.layout.section_header",
+  "two content": "office.pptx.sorter.layout.two_content",
+  comparison: "office.pptx.sorter.layout.comparison",
+  "title only": "office.pptx.sorter.layout.title_only",
+  blank: "office.pptx.sorter.layout.blank",
+  "content with caption": "office.pptx.sorter.layout.content_caption",
+  "picture with caption": "office.pptx.sorter.layout.picture_caption",
+  "title and vertical text": "office.pptx.sorter.layout.title_vertical_text",
+  "vertical title and text": "office.pptx.sorter.layout.vertical_title_text",
+};
+
+/** The i18n key for a standard layout name, or null for a custom (deck-authored) name. */
+export function standardLayoutKey(name: string): string | null {
+  return STANDARD_LAYOUT_KEYS[name.trim().toLowerCase()] ?? null;
+}

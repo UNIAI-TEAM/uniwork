@@ -217,28 +217,31 @@ export function PptxSlideShow({
           <span className="text-body text-meeting-bar-muted-foreground">{t(building ? "render_building" : "render_pending")}</span>
         )}
       </button>
-      <div
-        className={cn(
-          "absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 px-4 py-3",
-          "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-          // No hover on touch: keep the controls on screen (the buttons are 44px targets).
-          "pointer-coarse:opacity-100",
-        )}
-        data-pptx-show-controls
-      >
-        <Button type="button" size="sm" variant="meetingChip" disabled={atStart && !ended} aria-label={t("show.previous")} onClick={() => navigate("previous")}>
-          <ChevronLeft aria-hidden />
-          <span>{t("show.previous")}</span>
-        </Button>
-        <span className="px-2 text-caption text-meeting-bar-muted-foreground" data-testid="pptx-show-counter">{counter}</span>
-        <Button type="button" size="sm" variant="meetingChip" disabled={ended} aria-label={t("show.next")} onClick={() => navigate("next")}>
-          <span>{t("show.next")}</span>
-          <ChevronRight aria-hidden />
-        </Button>
-        <Button type="button" size="sm" variant="meetingChip" onClick={exit} aria-label={t("show.exit")}>
-          <X aria-hidden />
-          <span>{t("show.exit")}</span>
-        </Button>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4 py-3">
+        <div
+          className={cn(
+            // A dark bar, not bare chips: the slide fills the stage and is usually white, so
+            // chips drawn straight on it vanish. Dimmed at idle, full on hover/focus.
+            "pointer-events-auto flex items-center gap-2 rounded-full border border-meeting-bar-border bg-meeting-bar-bg px-3 py-1.5 text-meeting-bar-foreground",
+            "opacity-70 transition-opacity group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100",
+            "pointer-coarse:opacity-100",
+          )}
+          data-pptx-show-controls
+        >
+          <Button type="button" size="sm" variant="meetingChip" disabled={atStart && !ended} aria-label={t("show.previous")} onClick={() => navigate("previous")}>
+            <ChevronLeft aria-hidden />
+            <span>{t("show.previous")}</span>
+          </Button>
+          <span className="px-2 text-caption text-meeting-bar-muted-foreground" data-testid="pptx-show-counter">{counter}</span>
+          <Button type="button" size="sm" variant="meetingChip" disabled={ended} aria-label={t("show.next")} onClick={() => navigate("next")}>
+            <span>{t("show.next")}</span>
+            <ChevronRight aria-hidden />
+          </Button>
+          <Button type="button" size="sm" variant="meetingChip" onClick={exit} aria-label={t("show.exit")}>
+            <X aria-hidden />
+            <span>{t("show.exit")}</span>
+          </Button>
+        </div>
       </div>
     </div>
   );
