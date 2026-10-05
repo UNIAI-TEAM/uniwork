@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
+import type { Editor } from "@tiptap/react";
 import { MarkdownEditor } from "./editor";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
@@ -25,8 +26,8 @@ const CAPABILITY: TextCapability & { format: "md" } = { format: "md", operation:
 
 const FIXTURE = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean } = {}) {
-  let text = FIXTURE;
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string } = {}) {
+  let text = options.text ?? FIXTURE;
   const listeners = new Set<(next: string) => void>();
   const handle: MarkdownEditorHandle = {
     format: "md",
@@ -214,5 +215,120 @@ describe("MarkdownEditor source mode", () => {
     expect(handle.undo).toHaveBeenCalledTimes(1);
     expect(handle.redo).toHaveBeenCalledTimes(1);
     expect(source.value).toBe(before);
+  });
+});
+
+/** The live TipTap instance the production surface mounted (M1's `onEditorReady`
+ *  publishes it on the ProseMirror DOM node, the hook every other test uses). */
+function liveEditor(): Editor {
+  const dom = document.querySelector<HTMLElement & { editor: Editor }>(".ProseMirror");
+  if (!dom?.editor) throw new Error("the production surface mounted no live editor");
+  return dom.editor;
+}
+
+/** Route characters through `handleTextInput` exactly the way prosemirror-view
+ *  does, so the slash plugin's trigger arming sees a real typed `/`. */
+function typeChars(editor: Editor, input: string) {
+  for (const char of input) {
+    const { from, to } = editor.state.selection;
+    const handled = editor.view.someProp("handleTextInput", (fn) =>
+      fn(editor.view, from, to, char, () => editor.state.tr.insertText(char, from, to)));
+    if (!handled) editor.view.dispatch(editor.state.tr.insertText(char, from, to));
+  }
+}
+
+/** Park the cursor inside the document's first table cell. */
+function selectFirstTableCell(editor: Editor) {
+  let inside = -1;
+  editor.state.doc.descendants((node, pos) => {
+    if (inside === -1 && node.type.name === "tableCell") { inside = pos + 2; return false; }
+    return true;
+  });
+  expect(inside).toBeGreaterThan(0);
+  act(() => { editor.commands.setTextSelection(inside); });
+}
+
+/** A PADDED GFM table: M1's byte-identity rule keeps an unpadded one opaque. */
+const TABLE_FIXTURE = ["# Title", "", "| col a | col b |", "| ----- | ----- |", "| 1     | 2     |", ""].join("\n");
+
+describe("MarkdownEditor mounts the Markdown features (production surface)", () => {
+  it("registers the slash menu on the live instance: a typed / opens it", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".ProseMirror[contenteditable='true']")).toBeTruthy());
+    expect(document.querySelector('[data-testid="md-slash-list"]')).toBeNull();
+    await act(async () => {
+      liveEditor().commands.focus("end");
+      typeChars(liveEditor(), "/");
+    });
+    await waitFor(() => expect(document.querySelector('[data-testid="md-slash-list"]')).not.toBeNull());
+    // The 14 block items the demo needs (table + code block among them).
+    const ids = [...document.querySelectorAll("[data-slash-item]")].map((node) => node.getAttribute("data-slash-item"));
+    expect(ids).toContain("table");
+    expect(ids).toContain("codeBlock");
+  });
+
+  it("mounts the table context toolbar once the selection is inside a table", async () => {
+    renderEditor({ text: TABLE_FIXTURE });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".ProseMirror[contenteditable='true']")).toBeTruthy());
+    expect(document.querySelector('[data-testid="md-table-menu"]')).toBeNull();
+    selectFirstTableCell(liveEditor());
+    await waitFor(() => expect(document.querySelector('[data-testid="md-table-menu"]')).not.toBeNull());
+    expect(document.querySelector('[data-table-action="deleteTable"]')).not.toBeNull();
+  });
+
+  it("opens the find panel on Ctrl+F and the replace row on Ctrl+H", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    expect(screen.queryByTestId("find-replace-panel")).toBeNull();
+    fireEvent.keyDown(document, { key: "f", ctrlKey: true });
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Find-only: no replace row.
+    expect(screen.queryByTestId("find-replace-value")).toBeNull();
+    fireEvent.keyDown(document, { key: "h", ctrlKey: true });
+    await waitFor(() => expect(screen.getByTestId("find-replace-value")).toBeInTheDocument());
+  });
+
+  it("renders the far-right Find affordance the ribbon only shows when onFind is passed", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const trailing = document.querySelector<HTMLElement>("[data-ribbon-trailing]")!;
+    const find = within(trailing).getByRole("button", { name: "Find" });
+    fireEvent.click(find);
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+  });
+
+  it("toggles the outline and front-matter panes from the ribbon's view controls", async () => {
+    renderEditor({ text: "---\ntitle: Keep\n---\n\n# Title\n\nBody paragraph.\n" });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    expect(screen.queryByTestId("md-outline")).toBeNull();
+    expect(screen.queryByTestId("md-frontmatter")).toBeNull();
+    fireEvent.click(document.querySelector('[data-ribbon-item="viewOutline"]')!);
+    await waitFor(() => expect(screen.getByTestId("md-outline")).toBeInTheDocument());
+    // The outline lists the fixture's heading and jumps the editor on click.
+    const jump = await waitFor(() => {
+      const button = screen.getByTestId("md-outline-list").querySelector("button");
+      expect(button).not.toBeNull();
+      return button!;
+    });
+    act(() => { fireEvent.click(jump); });
+    expect(liveEditor().state.selection.from).toBeGreaterThan(0);
+    fireEvent.click(document.querySelector('[data-ribbon-item="viewFrontmatter"]')!);
+    await waitFor(() => expect(screen.getByTestId("md-frontmatter")).toBeInTheDocument());
+    expect((screen.getByTestId("md-frontmatter-text") as HTMLTextAreaElement).value).toContain("title: Keep");
+  });
+
+  it("offers the print/export entries in the host menu, with the exports disabled", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("md-more"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Print" })).toBeInTheDocument();
+    for (const label of ["Export PDF", "Export DOCX"]) {
+      const item = within(menu).getByRole("menuitem", { name: label });
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      expect(item).toHaveAttribute("title", "This export format is not supported yet.");
+    }
   });
 });
