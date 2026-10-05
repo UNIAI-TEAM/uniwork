@@ -77,8 +77,11 @@ describe("HtmlEditor", () => {
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
     expect(cmView(container).state.doc.toString()).toContain("data-x=\"1\"");
-    fireEvent.click(screen.getByTestId("html-save"));
-    expect(coordinator.save).toHaveBeenCalledWith("button");
+    // F2: no per-surface Save button; the Ctrl+S handshake still routes to the
+    // coordinator from the editor landmark.
+    expect(screen.queryByTestId("html-save")).toBeNull();
+    fireEvent.keyDown(container.querySelector('[data-testid="html-editor"]')!, { key: "s", ctrlKey: true });
+    expect(coordinator.save).toHaveBeenCalledWith("shortcut");
     expect(editor.dispose).not.toHaveBeenCalled();
   });
 
@@ -162,7 +165,7 @@ describe("HtmlEditor", () => {
     // The ribbon owns undo/redo; the shell must not draw dead Copy/Paste buttons.
     expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Paste" })).toBeNull();
-    expect(screen.getByTestId("html-save")).toBeInTheDocument();
+    expect(screen.queryByTestId("html-save")).toBeNull();
   });
 
   it("grows the Source | Split | Preview segmented control to a 44px touch target (VFIXMINOR)", async () => {
@@ -310,10 +313,9 @@ describe("HtmlEditor view modes", () => {
     expect(view()).toBe("split");
   });
 
-  it("drops its own Save button and open-state text when the shell provides them (VFIXMINOR)", async () => {
-    // The shared UNI-930 cluster is the single Save/status owner. When the web
-    // document page supplies the header-actions slot, OfficeShell fills it and
-    // this surface must not draw a second Save or a second status text.
+  it("never draws an inner header, title or Save row (F1/F2)", async () => {
+    // The page header cluster owns Save and the title; the surface mounts only
+    // the shared frame, whether or not a header-actions slot exists above it.
     let source = SOURCE;
     const editor: HtmlEditorHandle = {
       format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
@@ -332,24 +334,20 @@ describe("HtmlEditor view modes", () => {
     expect(screen.queryByTestId("html-save")).toBeNull();
     expect(screen.queryByTestId("html-open-state")).toBeNull();
     expect(screen.queryByTestId("html-toolbar")).toBeNull();
-  });
-
-  it("keeps its own Save and open-state text when no shell slot exists (VFIXMINOR)", async () => {
-    await renderReady();
-    expect(screen.getByTestId("html-save")).toBeInTheDocument();
-    expect(screen.getByTestId("html-open-state")).toBeInTheDocument();
+    expect(document.querySelector("[data-testid='html-editor'] header")).toBeNull();
+    expect(document.querySelector("[data-testid='html-editor'] h1")).toBeNull();
   });
 
   it("moves focus into present and restores it on exit (N2)", async () => {
     const { container } = await renderReady();
-    const save = screen.getByTestId("html-save");
-    save.focus();
-    expect(document.activeElement).toBe(save);
+    const landmark = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    landmark.focus();
+    expect(document.activeElement).toBe(landmark);
     pressCycle(container); // split -> preview
     pressCycle(container); // preview -> present
     expect(document.activeElement).toBe(screen.getByTestId("html-shell"));
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(document.activeElement).toBe(save);
+    expect(document.activeElement).toBe(landmark);
   });
 
   it("mounts the preview through the injected port in every preview mode", async () => {
@@ -441,37 +439,76 @@ describe("HtmlVisualShell overlay contract (F5)", () => {
 });
 
 describe("HtmlEditor zoom and status bar", () => {
-  it("shows the zoom value and changes it with − / + / reset", async () => {
+  it("shows the zoom value and changes it with the shared OfficeStatusZoom ladder", async () => {
     await renderReady();
-    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
-    fireEvent.click(screen.getByTestId("html-zoom-in"));
-    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("110");
+    const zoomValue = () => screen.getByTestId("html-zoom").querySelector("[data-office-status-zoom]")!.textContent;
+    expect(zoomValue()).toBe("100%");
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(zoomValue()).toBe("110%");
     expect(screen.getByTestId("html-preview-scroll")).toHaveAttribute("data-html-zoom", "110");
-    fireEvent.click(screen.getByTestId("html-zoom-out"));
-    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
-    fireEvent.click(screen.getByTestId("html-zoom-in"));
-    fireEvent.click(screen.getByTestId("html-zoom-reset"));
-    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(zoomValue()).toBe("100%");
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    fireEvent.click(screen.getByRole("button", { name: /Reset zoom/ }));
+    expect(zoomValue()).toBe("100%");
   });
 
-  it("keeps the zoom controls in the status bar, not a chrome row of their own (C10)", async () => {
+  it("keeps one shared status bar, with the zoom ladder in it (C10/F8)", async () => {
     await renderReady();
-    // F1: the − / + / reset ladder is the right cluster of the status bar. The
-    // dedicated `html-shell-toolbar` row is gone for every mode, so the chrome
-    // height does not grow a row the layout does not define.
+    // F1/F8: exactly one 28px OfficeStatusBar carries the figures and the zoom;
+    // the local `html-shell-toolbar` row and the hand-rolled status row are gone.
     expect(screen.queryByTestId("html-shell-toolbar")).toBeNull();
-    expect(screen.getByTestId("html-status")).toContainElement(screen.getByTestId("html-zoom"));
+    expect(document.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    const status = document.querySelector("[data-office-status-bar]")!;
+    expect(status.className).toContain("h-7");
+    expect(status).toContainElement(screen.getByTestId("html-zoom"));
   });
 
   it("shows the source length / line count and the zoom in the status bar", async () => {
     await renderReady();
     const figures = screen.getByTestId("html-status-figures");
     // The source has three lines; the status bar carries the raw length and line
-    // count as data attributes (the copy is a MISSING i18n key until S5 lands it).
+    // count as data attributes and renders the copy through the real keys.
     expect(figures).toHaveAttribute("data-html-length", String(SOURCE.length));
     expect(figures).toHaveAttribute("data-html-lines", "3");
     expect(figures).toHaveAttribute("data-html-language", "HTML");
-    expect(screen.getByTestId("html-status")).toContainElement(screen.getByTestId("html-zoom-value"));
-    expect(screen.getByTestId("html-zoom-value")).toHaveTextContent("100");
+    expect(figures).toHaveTextContent(`${SOURCE.length} chars`);
+    expect(screen.getByTestId("html-status-selection")).toHaveTextContent("No selection");
+    expect(document.querySelector("[data-office-status-bar]")).toContainElement(screen.getByTestId("html-zoom"));
+  });
+});
+
+/**
+ * UNI-928 F1/F2/F8: the HTML ready state is the shared Office frame, edge to
+ * edge - one ribbon region, one 28px status bar with the shared zoom ladder,
+ * no inner card and no per-surface Save.
+ */
+describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
+  it("mounts OfficeFrame with the HTML ribbon, one status bar and no inner chrome", async () => {
+    const { container } = await renderReady();
+    const frame = container.querySelector<HTMLElement>("[data-office-frame]");
+    expect(frame).not.toBeNull();
+    expect(frame!.querySelector('[data-office-ribbon="html"]')).not.toBeNull();
+    expect(frame!.querySelector("[data-office-canvas]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    expect(container.querySelector("[data-office-status-zoom]")).not.toBeNull();
+    expect(screen.queryByTestId("html-save")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    const landmark = container.querySelector("[data-testid='html-editor']")!;
+    expect(landmark.className).not.toMatch(/rounded-/);
+    expect(landmark.className).not.toMatch(/border(\s|$)/);
+  });
+
+  it("keeps the open and error states rendering outside the frame", async () => {
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source: SOURCE } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => SOURCE, setText: () => undefined },
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "failed", document_id: "doc", format: "html", failure_class: "engine_error", message: "boom" };
+    const { container } = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("html-error-state")).toBeInTheDocument());
+    expect(container.querySelector("[data-office-frame]")).toBeNull();
   });
 });

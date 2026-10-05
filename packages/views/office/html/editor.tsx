@@ -25,8 +25,8 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
-import { useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
+import { OfficeFrame } from "../frame";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlVisualShell } from "./visual/shell";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
@@ -105,13 +105,6 @@ export function HtmlEditor<TSnapshot = unknown>({
   onOpen,
 }: HtmlEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
-  // The shared UNI-930 save cluster owns Save + the save status. When the web
-  // document page provides the header-actions slot, OfficeShell fills it with
-  // that cluster (embedded mode), so this surface must not draw a second Save
-  // or a second open/save-state text - the visual saw both. Without a shell
-  // (unit render, or a host with no slot) the surface keeps its own controls,
-  // exactly like DOCX's `showDocumentControls`.
-  const shellOwnsChrome = useHeaderActionsSlotAvailable();
   const [viewState, setViewState] = useState<TextViewState>("opening");
   const [failure, setFailure] = useState<Extract<HtmlOpenOutcome, { outcome: "failed" }> | null>(null);
   const [text, setText] = useState("");
@@ -145,7 +138,6 @@ export function HtmlEditor<TSnapshot = unknown>({
 
   const effectiveTitle = title ?? t("title");
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
-  const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
   const blockedAsset = hasFailedAsset(manifest, assetFailures);
 
@@ -300,7 +292,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   return (
     <section
       ref={rootRef}
-      className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)}
+      className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}
       data-testid="html-editor"
       data-document-key={documentKey}
       onKeyDown={onKeyDown}
@@ -308,42 +300,36 @@ export function HtmlEditor<TSnapshot = unknown>({
       aria-label={effectiveTitle}
       tabIndex={0}
     >
-      {!shellOwnsChrome ? (
-        <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
-          <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
-          <span className="text-caption text-muted-foreground" data-testid="html-open-state">
-            {viewState === "opening" ? t("state.opening") : viewState === "ready" ? t(`saveState.${coordinatorState.state}`) : t("state.error")}
-          </span>
-        </header>
-      ) : null}
       {viewState === "ready" ? (
-        <>
-          {/*
-            The shared UNI-931 ribbon (RB-1) is the HTML surface's chrome: the
-            tab row, the command body and the trailing
-            Source | Split | Preview | Present control. Undo/redo ride its
-            quick-access slot and the view modes its trailing control, so H1's
-            source editor and H2's modes are reachable from the ribbon. The
-            inline/insert intents stay disabled until an H3-op-wired caller
-            supplies `commands` (the shell has no patch port), which is the
-            documented contract of `HtmlRibbon` - disabled, never hidden.
-          */}
-          <HtmlRibbon
-            commands={ribbonCommands}
-            state={{ readOnly }}
-            viewMode={ribbonViewMode}
-            onViewModeChange={onRibbonViewModeChange}
-            presenting={presenting}
-            onTogglePresent={onTogglePresent}
-          />
-          {!shellOwnsChrome ? (
-            <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="html-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
-              <span className="min-w-0 flex-1" />
-              <Button type="button" variant="brand" size="sm" data-testid="html-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
-                {saving ? t("actions.saving") : t("actions.save")}
-              </Button>
-            </div>
-          ) : null}
+        <OfficeFrame
+          ribbon={
+            /*
+              The shared UNI-931 ribbon (RB-1) is the HTML surface's chrome: the
+              tab row, the command body and the trailing
+              Source | Split | Preview | Present control. Undo/redo ride its
+              quick-access slot and the view modes its trailing control. The
+              inline/insert intents stay disabled until an H3-op-wired caller
+              supplies `commands`, which is the documented contract of
+              `HtmlRibbon` - disabled, never hidden. Save is NOT here: the page
+              header cluster owns it (F2).
+            */
+            <HtmlRibbon
+              commands={ribbonCommands}
+              state={{ readOnly }}
+              viewMode={ribbonViewMode}
+              onViewModeChange={onRibbonViewModeChange}
+              presenting={presenting}
+              onTogglePresent={onTogglePresent}
+            />
+          }
+          bottom={
+            <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="html-assets">
+              <AssetManifestPanel manifest={manifest} failures={assetFailures} />
+              {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
+            </aside>
+          }
+          canvasClassName="flex min-h-0 flex-col overflow-hidden"
+        >
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}
@@ -359,11 +345,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             onZoomChange={setZoom}
             className="min-h-0 flex-1"
           />
-          <aside className="border-t border-border" aria-label={t("asset.label")} data-testid="html-assets">
-            <AssetManifestPanel manifest={manifest} failures={assetFailures} />
-            {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
-          </aside>
-        </>
+        </OfficeFrame>
       ) : viewState === "error" && failure ? (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="html-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>

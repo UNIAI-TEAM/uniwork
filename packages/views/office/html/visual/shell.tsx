@@ -41,10 +41,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Minus, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { OfficeStatusBar, OfficeStatusZoom } from "../../frame";
 import { HtmlSourceEditor } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
@@ -123,58 +122,12 @@ export interface HtmlVisualShellProps {
 }
 
 /**
- * ZoomControls — − / value / + with a reset. It lives in the status bar's right
- * cluster beside the selection info (brief C10: "selection info + zoom
- * (− value +)"), never in a chrome row of its own and never floating over the
- * canvas (C9).
+ * The HTML status figures: source length / line count / language on the left;
+ * selection info and the zoom ladder on the right. Rendered through the shared
+ * `OfficeStatusBar` / `OfficeStatusZoom` (F1/F8) - one 28px row, never a
+ * chrome row of its own and never a floating control (C9).
  */
-function ZoomControls({ zoom, onZoomChange, disabled }: { zoom: number; onZoomChange: (percent: number) => void; disabled: boolean }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.html.zoom" });
-  return (
-    <div className="flex items-center gap-0.5" data-testid="html-zoom">
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("out")} disabled={disabled || zoom <= HTML_ZOOM_MIN} data-testid="html-zoom-out" onClick={() => onZoomChange(stepZoom(zoom, -1))} />
-          }
-        >
-          <Minus aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{t("out")}</TooltipContent>
-      </Tooltip>
-      <span className="w-14 select-none text-center text-caption tabular-nums text-muted-foreground" aria-live="polite" data-testid="html-zoom-value">
-        {t("level", { percent: zoom })}
-      </span>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("in")} disabled={disabled || zoom >= HTML_ZOOM_MAX} data-testid="html-zoom-in" onClick={() => onZoomChange(stepZoom(zoom, 1))} />
-          }
-        >
-          <Plus aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{t("in")}</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("reset")} disabled={disabled || zoom === HTML_ZOOM_DEFAULT} data-testid="html-zoom-reset" onClick={() => onZoomChange(HTML_ZOOM_DEFAULT)} />
-          }
-        >
-          <RotateCcw aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{t("reset")}</TooltipContent>
-      </Tooltip>
-    </div>
-  );
-}
-
-/**
- * The status bar's HTML figures: source length / line count / language on the
- * left; selection info and the zoom ladder on the right. Rendered through the
- * shell's status slot, never inside the tab or command row (brief C6/C10).
- */
-function HtmlStatusBar({
+function HtmlStatusFigures({
   text,
   selection = null,
   zoom,
@@ -194,12 +147,20 @@ function HtmlStatusBar({
       <span data-testid="html-status-figures" data-html-length={figures.length} data-html-lines={figures.lines} data-html-language="HTML">
         {t("figures", { length: figures.length, lines: figures.lines, language: "HTML" })}
       </span>
-      <div className="flex items-center gap-2">
-        <span data-testid="html-status-selection">
-          {figures.selection ? t("selection", { from: figures.selection.from, to: figures.selection.to }) : t("selectionNone")}
-        </span>
-        <ZoomControls zoom={clampZoom(zoom)} onZoomChange={onZoomChange} disabled={zoomDisabled} />
-      </div>
+      <span className="text-faint-foreground" aria-hidden="true">·</span>
+      <span data-testid="html-status-selection">
+        {figures.selection ? t("selection", { from: figures.selection.from, to: figures.selection.to }) : t("selectionNone")}
+      </span>
+      <span data-testid="html-zoom">
+        <OfficeStatusZoom
+          value={zoomDisabled ? null : clampZoom(zoom)}
+          min={HTML_ZOOM_MIN}
+          max={HTML_ZOOM_MAX}
+          onZoomIn={zoomDisabled ? undefined : () => onZoomChange(stepZoom(clampZoom(zoom), 1))}
+          onZoomOut={zoomDisabled ? undefined : () => onZoomChange(stepZoom(clampZoom(zoom), -1))}
+          onReset={zoomDisabled ? undefined : () => onZoomChange(HTML_ZOOM_DEFAULT)}
+        />
+      </span>
     </>
   );
 }
@@ -513,13 +474,15 @@ export function HtmlVisualShell({
         ) : null}
       </div>
       {!presenting ? (
-        <div
-          className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-border px-2 text-caption text-muted-foreground"
-          role="group"
-          aria-label={t("status.label")}
-          data-testid="html-status"
-        >
-          <HtmlStatusBar text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
+        <div data-testid="html-status" className="contents">
+          <OfficeStatusBar
+            labelKey="office.html.status.label"
+            start={
+              <span data-testid="html-status-left">
+                <HtmlStatusFigures text={text} selection={selection} zoom={clampedZoom} onZoomChange={onZoomChange} zoomDisabled={!showPreview} />
+              </span>
+            }
+          />
         </div>
       ) : null}
     </div>
