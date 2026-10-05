@@ -32,7 +32,7 @@ describe("BreadcrumbHeader action wrapper", () => {
   it("keeps the exact default wrapper classes when no override is supplied", () => {
     const { actions } = renderHeader();
     expect(actions.className).toBe(
-      "flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-none",
+      "flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto overflow-y-hidden sm:max-w-none sm:overflow-visible",
     );
   });
 
