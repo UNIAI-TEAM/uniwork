@@ -38,6 +38,21 @@ export function selectionSpan(selection: XlsxSelection | null): XlsxSelectionSpa
   return { startRow, endRow, startColumn, endColumn, rows: endRow - startRow + 1, columns: endColumn - startColumn + 1 };
 }
 
+/** Default Univer grid size: a selection spanning it from the first row/column
+ *  is a whole-column/whole-row selection (the toolbar has no sheet bounds). */
+const WHOLE_COLUMN_ROWS = 1000;
+const WHOLE_ROW_COLUMNS = 26;
+
+/** How many rows/columns the "insert before" commands default to. Excel
+ *  inserts the selection's own span on that axis, but with whole columns
+ *  selected the row span is the entire sheet (and vice versa), which is never
+ *  what an Insert-Rows click means: that axis falls back to one. */
+export function insertCounts(span: XlsxSelectionSpan): { rows: number; columns: number } {
+  const wholeColumns = span.startRow === 0 && span.rows >= WHOLE_COLUMN_ROWS;
+  const wholeRows = span.startColumn === 0 && span.columns >= WHOLE_ROW_COLUMNS;
+  return { rows: wholeColumns && !wholeRows ? 1 : span.rows, columns: wholeRows && !wholeColumns ? 1 : span.columns };
+}
+
 /** Digits only, 1..XLSX_STRUCTURE_MAX_COUNT; null keeps the last good count. */
 export function normalizeRowColCount(value: string): number | null {
   const trimmed = value.trim();
@@ -53,8 +68,9 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
   const { t } = useTranslation();
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
-  const rowSpan = span?.rows ?? 0;
-  const colSpan = span?.columns ?? 0;
+  const defaults = span ? insertCounts(span) : null;
+  const rowSpan = defaults?.rows ?? 0;
+  const colSpan = defaults?.columns ?? 0;
   const [rowCountDraft, setRowCountDraft] = useState("1");
   const [colCountDraft, setColCountDraft] = useState("1");
 
@@ -65,8 +81,8 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
     if (colSpan > 0) setColCountDraft(String(colSpan));
   }, [colSpan]);
 
-  const rowCount = normalizeRowColCount(rowCountDraft) ?? span?.rows ?? 1;
-  const colCount = normalizeRowColCount(colCountDraft) ?? span?.columns ?? 1;
+  const rowCount = normalizeRowColCount(rowCountDraft) ?? defaults?.rows ?? 1;
+  const colCount = normalizeRowColCount(colCountDraft) ?? defaults?.columns ?? 1;
   const run = (id: string, params?: unknown) => {
     if (blocked) return;
     fireCommand(commands, id, params);

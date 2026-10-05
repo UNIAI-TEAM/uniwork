@@ -137,6 +137,26 @@ describe("XlsxStructureInsertGroup", () => {
     expect(colCount).toHaveValue("2");
   });
 
+  it("does not echo the unrelated axis span for whole-column or whole-row selections", () => {
+    // Whole columns B:C (every one of 1000 rows): Insert Rows is not the
+    // 1000-row span; it falls back to one row, label and action agreeing.
+    const columns = groupProps({ selection: { sheet: "Data", address: "B1", endAddress: "C1000" } });
+    const first = render(<XlsxStructureInsertGroup {...columns} />);
+    expect(screen.getByLabelText(viText("office.xlsx.structure.rowCount"))).toHaveValue("1");
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 1) }));
+    expect(executeMock(columns)).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 1 });
+    // The column axis keeps its real span.
+    expect(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 2) })).toBeInTheDocument();
+    first.unmount();
+    // Whole rows 2:3 (A:Z): Insert Columns falls back to one column.
+    const rows = groupProps({ selection: { sheet: "Data", address: "A2", endAddress: "Z3" } });
+    render(<XlsxStructureInsertGroup {...rows} />);
+    expect(screen.getByLabelText(viText("office.xlsx.structure.colCount"))).toHaveValue("1");
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 1) }));
+    expect(executeMock(rows)).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 1 });
+    expect(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 2) })).toBeInTheDocument();
+  });
+
   it("refuses clicks in a read-only mount", () => {
     const props = groupProps({ readOnly: true });
     render(<XlsxStructureInsertGroup {...props} />);

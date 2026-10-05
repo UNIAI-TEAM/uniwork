@@ -7,7 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { RibbonItem } from "../../ribbon";
 import { fireCommand } from "../fire-command";
-import { selectionSpan } from "./structure-insert";
+import { insertCounts, selectionSpan } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
 import type { XlsxToolbarGroupProps } from "./types";
 
@@ -99,10 +99,11 @@ function InsertMenu(context: XlsxToolbarGroupProps) {
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
   const run = (command: string, params?: unknown) => () => fireCommand(commands, command, params);
-  const entries: readonly CellsMenuEntry[] = span === null ? [] : [
-    { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: span.rows }), onSelect: run("sheet.command.insert-row-before", { value: span.rows }) },
+  const counts = span === null ? null : insertCounts(span);
+  const entries: readonly CellsMenuEntry[] = span === null || counts === null ? [] : [
+    { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: counts.rows }), onSelect: run("sheet.command.insert-row-before", { value: counts.rows }) },
     { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-row-after") },
-    { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: span.columns }), onSelect: run("sheet.command.insert-col-before", { value: span.columns }) },
+    { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: counts.columns }), onSelect: run("sheet.command.insert-col-before", { value: counts.columns }) },
     { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-col-after") },
   ];
   return <CellsMenu id="cells-insert" labelKey="office.xlsx.toolbar.groups.cellsItems.insert" icon={SquarePlus} blocked={blocked} entries={entries} />;
