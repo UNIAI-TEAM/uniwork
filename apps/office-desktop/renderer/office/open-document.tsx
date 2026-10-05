@@ -45,7 +45,7 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
   useEffect(() => {
     let active = true;
     void session.openEditor().then(() => { if (active) setLoaded({ session }); }).catch((error: unknown) => {
-      if (active) setLoaded({ session, failure: { outcome: "failed", document_id: identity.documentId, format, failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) } as DocxOpenFailure | PdfOpenFailure });
+      if (active) setLoaded({ session, failure: { outcome: "failed", document_id: identity.documentId, format, failure_class: (error as { failureClass?: string })?.failureClass ?? "engine_error", message: error instanceof Error ? error.message : String(error) } as DocxOpenFailure | PdfOpenFailure });
     });
     return () => { active = false; };
   }, [format, identity.documentId, session, openAttempt]);

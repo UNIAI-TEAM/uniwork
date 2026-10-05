@@ -4,6 +4,7 @@ import type { OfficeEditorLoader } from "@uniwork/views/office/editor-slot";
 import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { ByteDocumentSession } from "./session";
+import { textEditorLoader } from "./text-editor-loader";
 import type { DesktopDocxSurface } from "./docx-surface";
 
 export interface DesktopEditorLoaderConfig {
@@ -22,6 +23,8 @@ const EDITOR_LOADERS: Partial<Record<DesktopDocumentFormat, (config: DesktopEdit
     const editor = session.editor as DesktopDocxSurface;
     return <DocxEditor key={surfaceVersion} documentKey={documentKey} title={title} editor={editor} coordinator={session.coordinator} capability={capability as never} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor() as DesktopDocxSurface).openOutcome()! }} />;
   } }),
+  md: (config) => textEditorLoader("md", config),
+  html: (config) => textEditorLoader("html", config),
   pdf: ({ documentKey, title, session, capability }) => (async (format) => await createPdfEditorLoader({
     documentKey,
     title,
