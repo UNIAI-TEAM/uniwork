@@ -392,6 +392,17 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 	}
 	oldDigest := hashToken(rawToken)
 	if !secureDigestEqual(device.RefreshTokenDigest, oldDigest) {
+		// Only a token this family really issued and later rotated out is a
+		// replay worth revoking the family for. Anything else is a guess by
+		// someone who knows the device id: refuse it with the same 401 and
+		// change nothing, or a device id alone would log its owner out.
+		issued, err := q.RefreshTokenIssuedToFamily(ctx, db.RefreshTokenIssuedToFamilyParams{TokenHash: oldDigest, UserID: device.UserID, SessionID: device.SessionFamilyID})
+		if err != nil {
+			return DesktopSession{}, err
+		}
+		if !issued {
+			return DesktopSession{}, desktopRefreshReused()
+		}
 		if revokeErr := q.RevokeDesktopSessionFamily(ctx, db.RevokeDesktopSessionFamilyParams{UserID: device.UserID, SessionFamilyID: device.SessionFamilyID}); revokeErr != nil {
 			return DesktopSession{}, revokeErr
 		}
@@ -492,8 +503,29 @@ func (s *DesktopAuthService) List(ctx context.Context, userID string) ([]Desktop
 	return out, nil
 }
 
+// Revoke revokes one of the caller's own devices. A device id that is missing
+// or belongs to another account is ErrNotFound either way, so the answer never
+// confirms that someone else's device exists. Revoking an already revoked own
+// device stays an idempotent success.
 func (s *DesktopAuthService) Revoke(ctx context.Context, userID, deviceID string) error {
-	return s.Logout(ctx, userID, deviceID, s.deviceDeployment(ctx, userID, deviceID), "device")
+	if userID == "" || deviceID == "" {
+		return ErrNotFound
+	}
+	row, err := s.q.GetDeviceSession(ctx, deviceID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && row.UserID != userID) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	// Logout re-reads the row under lock and re-checks the owner.
+	if err := s.Logout(ctx, userID, deviceID, row.DeploymentID, "device"); err != nil {
+		if errors.Is(err, ErrDesktopDeviceRevoked) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, sessionID string) error {
@@ -573,14 +605,6 @@ func (s *DesktopAuthService) refreshTTL() time.Duration {
 		return s.cfg.RefreshTokenTTL
 	}
 	return 30 * 24 * time.Hour
-}
-
-func (s *DesktopAuthService) deviceDeployment(ctx context.Context, userID, deviceID string) string {
-	row, err := s.q.GetDeviceSession(ctx, deviceID)
-	if err != nil || row.UserID != userID {
-		return ""
-	}
-	return row.DeploymentID
 }
 
 func validChallenge(v string) bool { return len(v) == 43 && isBase64URL(v) }

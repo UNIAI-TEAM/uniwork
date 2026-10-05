@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -163,11 +162,9 @@ func (h *handlers) desktopRevokeDevice(w http.ResponseWriter, r *http.Request) {
 	if !h.desktopReady(w) {
 		return
 	}
+	// A missing or foreign device id is ErrNotFound (404); the service never
+	// lets the answer confirm another account's device.
 	if err := h.DesktopAuth.Revoke(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "deviceSessionID")); err != nil {
-		if errors.Is(err, service.ErrDesktopDeviceRevoked) {
-			respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
-			return
-		}
 		h.mapServiceError(w, err)
 		return
 	}
