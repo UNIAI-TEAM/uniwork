@@ -6,7 +6,47 @@ INSERT INTO outbox_events (
   event_version, correlation_id, actor_kind, actor_id, available_at
 ) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, now());
 
--- name: MarkOutboxDoneAt :exec
+-- name: ClaimPendingOutboxTopics :many
+-- tenant: system
+-- One dispatcher lane claims only its own topics, so a slow lane's backlog
+-- never sits in front of another lane's rows. Same lease as ClaimPendingOutbox.
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = sqlc.arg('locked_by'),
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => sqlc.arg('lease_seconds')::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+    AND topic = ANY(sqlc.arg('topics')::text[])
+  ORDER BY created_at
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- name: ClaimPendingOutboxExcept :many
+-- tenant: system
+-- The realtime lane claims every topic no other lane owns, so a topic nobody
+-- consumes yet is still completed instead of pending forever.
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = sqlc.arg('locked_by'),
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => sqlc.arg('lease_seconds')::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+    AND topic <> ALL(sqlc.arg('excluded')::text[])
+  ORDER BY created_at
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- name: MarkOutboxDoneBatch :exec
 -- tenant: system
 UPDATE outbox_events SET
   status = 'DONE',
@@ -16,7 +56,7 @@ UPDATE outbox_events SET
   locked_at = NULL,
   locked_until = NULL,
   updated_at = now()
-WHERE id = $1;
+WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: MarkOutboxDead :exec
 -- tenant: system
