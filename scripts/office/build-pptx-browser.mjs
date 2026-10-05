@@ -51,10 +51,13 @@ export const PPTX_ARTIFACT_SYMBOLS = [
   'layoutText',
 ];
 
-/** No patch in patches/ targets pptx sources today; the apply guards below
- * still run for the whole (shared) series so a future pptx patch cannot be
- * missed, and a patch that stops applying fails the build here. */
-const PATCHED_SYMBOLS = [];
+/** Symbols each pptx patch must have introduced before the bundle may build.
+ * The apply guards below run for the whole (shared) series, so a patch that
+ * stops applying fails the build here; this list also pins that a pptx patch
+ * actually changed the pptx sources the bundle reads. */
+const PATCHED_SYMBOLS = [
+  { patch: '0007', file: 'packages/pptx-ops/src/ops/slide-ops.ts', symbol: 'remapExplicit' },
+];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;
 

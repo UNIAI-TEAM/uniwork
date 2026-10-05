@@ -75,19 +75,39 @@ describe("apply_theme keeps explicit colours on the real engine (R2-5)", () => {
     expect(theme).toContain('name="Rung xanh"');
   }, 60_000);
 
-  it.each(["pptx-standard-business.pptx", "pptx-table.pptx", "pptx-chart.pptx", "pptx-vietnamese.pptx"])(
-    "%s: no explicit srgbClr of the source deck is rewritten by apply_theme",
-    async (name) => {
-      const before = await slideXmls(bytesOf(name));
+  // Every row seeds explicit colours first: three of the four G0 decks carry no
+  // srgbClr in their slide XML, so comparing only the source deck proved nothing.
+  // A table fixture also gets explicit cell shading, the table-cell fill risk
+  // area (those fills live in slide XML and were remapped before patch 0007).
+  it.each([
+    { name: "pptx-standard-business.pptx", table: false },
+    { name: "pptx-table.pptx", table: true },
+    { name: "pptx-chart.pptx", table: false },
+    { name: "pptx-vietnamese.pptx", table: false },
+  ])(
+    "$name: explicit srgbClr (source and seeded) survive apply_theme",
+    async ({ name, table }) => {
       const adapter = newAdapter();
       const ref = await open(adapter, name);
-      adapter.edit(ref, GREEN_THEME);
-      const after = await slideXmls((await adapter.serialize({ document_model_ref: ref, format: "pptx" })).bytes);
-      for (const [path, xml] of Object.entries(before)) {
-        const was = count(srgbValues(xml));
-        const now = count(srgbValues(after[path] ?? ""));
-        for (const [value, n] of was) expect(now.get(value) ?? 0, `${name} ${path} ${value}`).toBeGreaterThanOrEqual(n);
+      const created = adapter.edit(ref, { op: "add_element", slideIndex: 0, kind: "rect", xPx: 40, yPx: 40, wPx: 120, hPx: 60 }).createdId;
+      adapter.edit(ref, { op: "set_fill", slideIndex: 0, elementId: created!, fill: "#FF0000" });
+      adapter.edit(ref, { op: "set_stroke", slideIndex: 0, elementId: created!, stroke: { color: "#0000FF", widthEmu: 12700 } });
+      if (table) {
+        const tableId = adapter.sessionOf(ref).model.opened.deck.slides[0]!.elements.find((el) => el.type === "table")?.id;
+        expect(tableId, "pptx-table.pptx slide 1 has a table").toBeTruthy();
+        adapter.edit(ref, { op: "set_table_style", slideIndex: 0, elementId: tableId!, shadingColor: "#C0FFEE" });
       }
+      const save = async () => slideXmls((await adapter.serialize({ document_model_ref: ref, format: "pptx" })).bytes);
+      const before = await save();
+      const seeded = count(Object.values(before).flatMap(srgbValues));
+      // The seeding itself landed (a vacuous row would have nothing to protect).
+      expect(seeded.get("FF0000") ?? 0).toBeGreaterThanOrEqual(1);
+      expect(seeded.get("0000FF") ?? 0).toBeGreaterThanOrEqual(1);
+      if (table) expect(seeded.get("C0FFEE") ?? 0).toBeGreaterThanOrEqual(1);
+
+      adapter.edit(ref, GREEN_THEME);
+      const after = count(Object.values(await save()).flatMap(srgbValues));
+      for (const [value, n] of seeded) expect(after.get(value) ?? 0, `${name} ${value}`).toBeGreaterThanOrEqual(n);
     },
     60_000,
   );
