@@ -68,6 +68,7 @@ export function XlsxToolbar({
   onOpenPageSetup,
   onPrint,
   onExportCsv,
+  onOpenProtect,
   onSave,
   onCancelSave,
   showSave = true,
@@ -114,6 +115,7 @@ export function XlsxToolbar({
     onOpenPageSetup,
     onPrint,
     onExportCsv,
+    onOpenProtect,
   };
   const findBlocked = blocked || !commands || !onOpenFind;
 

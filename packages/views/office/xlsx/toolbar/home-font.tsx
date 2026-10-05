@@ -122,7 +122,7 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
         <Minus aria-hidden />
       </Button>
       <Input
-        className="h-6 w-12 min-w-12 px-1 text-center text-caption"
+        className="h-6 w-14 min-w-14 px-1 text-center text-caption"
         inputMode="numeric"
         aria-label={t("office.xlsx.toolbar.groups.font.size")}
         disabled={blocked}

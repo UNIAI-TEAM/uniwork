@@ -375,7 +375,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): the sheet-tab strip's tab infos (live order +
   // read-only tab colours) live in ./use-xlsx-editor-ribbon-data.
-  const { sheetTabInfos, tables, onTableEdits } = useXlsxEditorRibbonData(liveSheets, rendererHost, snapshot);
+  const { sheetTabInfos, tables, onTableEdits } = useXlsxEditorRibbonData(liveSheets, rendererHost, snapshot, documentKey);
 
 
   // A9 r3/r4: bind the catalog keys the pinned UI does not (Ctrl+F, Shift+F11,
