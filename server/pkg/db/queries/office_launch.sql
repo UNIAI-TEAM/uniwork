@@ -16,10 +16,12 @@ INSERT INTO office_launch_sessions (
 RETURNING *;
 
 -- name: GetOfficeLaunchSessionByHash :one
+-- tenant: token
 SELECT * FROM office_launch_sessions
 WHERE ticket_hash = sqlc.arg(ticket_hash);
 
 -- name: GetOfficeLaunchSessionByID :one
+-- tenant: by-id
 SELECT * FROM office_launch_sessions
 WHERE id = sqlc.arg(id);
 

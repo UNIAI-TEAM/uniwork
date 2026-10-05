@@ -40,6 +40,7 @@ SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, 
 WHERE ticket_hash = $1
 `
 
+// tenant: token
 func (q *Queries) GetOfficeLaunchSessionByHash(ctx context.Context, ticketHash string) (OfficeLaunchSession, error) {
 	row := q.db.QueryRow(ctx, getOfficeLaunchSessionByHash, ticketHash)
 	var i OfficeLaunchSession
@@ -70,6 +71,7 @@ SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, 
 WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetOfficeLaunchSessionByID(ctx context.Context, id string) (OfficeLaunchSession, error) {
 	row := q.db.QueryRow(ctx, getOfficeLaunchSessionByID, id)
 	var i OfficeLaunchSession
