@@ -3,7 +3,7 @@
 // layout catalog, and a released session reads empty instead of a freed ref.
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeIdentity } from "@uniwork/core/office";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import { pptxSessionDivergedError, type PptxEdit } from "@uniwork/office-engine/pptx";
 import { createDesktopPptxAdapter } from "./pptx-adapter";
 import type { PptxSessionRuntime } from "./pptx-runtime";
 
@@ -37,5 +37,34 @@ describe("desktop PPTX adapter handle", () => {
     expect(await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }])).toEqual({ revision: 1 });
     await adapter.editor.dispose();
     expect(adapter.editor.slideLayouts()).toEqual([]);
+  });
+
+  // UNI-927 W12b: a diverged session must not look like a no-op undo/redo.
+  it("marks the deck dirty on a diverged undo/redo and swallows a plain refusal", async () => {
+    const engine = runtime();
+    const onDirty = vi.fn();
+    const adapter = createDesktopPptxAdapter({ identity, runtime: engine, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability, onDirty });
+    await adapter.open();
+    const viewBefore = adapter.editor.revision();
+
+    // A refusal that left the model untouched stays a silent no-op.
+    vi.mocked(engine.undo).mockRejectedValueOnce(new Error("pptx_undo_replay_failed"));
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(engine.undo).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
+    expect(onDirty).not.toHaveBeenCalled();
+
+    // The diverged refusal marks the deck dirty so the save runs and fails loudly.
+    vi.mocked(engine.redo).mockRejectedValueOnce(pptxSessionDivergedError(new Error("fmt_no_element")));
+    adapter.editor.redo();
+    await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(1));
+    expect(onDirty).toHaveBeenCalledWith(1);
+    expect(adapter.editor.revision()).toBe(viewBefore + 1);
+
+    vi.mocked(engine.undo).mockRejectedValueOnce(pptxSessionDivergedError(new Error("fmt_no_element")));
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(2));
+    await adapter.editor.dispose();
   });
 });

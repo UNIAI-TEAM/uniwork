@@ -8,7 +8,7 @@
 "use client";
 
 import type { EditorHandle, OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import { isPptxSessionDiverged, type PptxEdit } from "@uniwork/office-engine/pptx";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
 import { fingerprintPptxSnapshot, type PptxDeckSnapshot, type PptxSessionRuntime, type PptxSlideSummary } from "./pptx-runtime";
 
@@ -122,28 +122,29 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
       return result;
     },
     // Journal-backed history. The shared EditorHandle methods return void, so
-    // each advances the dirty generation and the canvas revision on success.
+    // each advances the dirty generation and the canvas revision on success. A
+    // refused replay that left the model untouched is swallowed: the void
+    // contract has no error channel. A diverged session (the replay failed after
+    // the engine swap, so the model no longer matches the journal) is not: it is
+    // marked dirty, so the coordinator's save runs and fails loudly with
+    // pptx_session_diverged instead of the deck silently looking undone.
     undo() {
       if (disposed || !modelRef) return;
       const ref = modelRef;
       void options.runtime.undo(ref).then((applied) => {
-        if (!applied || disposed || modelRef !== ref) return;
-        generation += 1;
-        revision = options.runtime.snapshot(ref).revision;
-        viewRevision += 1;
-        options.onDirty?.(generation);
-      }).catch(() => undefined);
+        if (applied) historyMoved(ref);
+      }).catch((error: unknown) => {
+        if (isPptxSessionDiverged(error)) historyMoved(ref);
+      });
     },
     redo() {
       if (disposed || !modelRef) return;
       const ref = modelRef;
       void options.runtime.redo(ref).then((applied) => {
-        if (!applied || disposed || modelRef !== ref) return;
-        generation += 1;
-        revision = options.runtime.snapshot(ref).revision;
-        viewRevision += 1;
-        options.onDirty?.(generation);
-      }).catch(() => undefined);
+        if (applied) historyMoved(ref);
+      }).catch((error: unknown) => {
+        if (isPptxSessionDiverged(error)) historyMoved(ref);
+      });
     },
     async restore(snapshot) {
       if (disposed) throw new Error("pptx_editor_disposed");
@@ -169,6 +170,15 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
     slideLayouts: () => (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []),
     revision: () => viewRevision,
   };
+
+  /** One history move (or a divergence) is a content change the coordinator must save. */
+  function historyMoved(ref: string): void {
+    if (disposed || modelRef !== ref) return;
+    generation += 1;
+    revision = options.runtime.snapshot(ref).revision;
+    viewRevision += 1;
+    options.onDirty?.(generation);
+  }
 
   return {
     editor,
