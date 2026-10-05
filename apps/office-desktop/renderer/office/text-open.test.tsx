@@ -8,7 +8,8 @@ import type { RendererBridge } from "../app";
 import { createByteTestEditor } from "../../test/byte-editor";
 
 const printTextDocument = vi.hoisted(() => vi.fn());
-vi.mock("./text-print", () => ({ printTextDocument }));
+const createDesktopPrintPort = vi.hoisted(() => vi.fn(() => ({ print: vi.fn() })));
+vi.mock("./text-print", () => ({ printTextDocument, createDesktopPrintPort }));
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = `sha256:${"b".repeat(64)}`;

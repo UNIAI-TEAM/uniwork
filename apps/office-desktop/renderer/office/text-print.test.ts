@@ -1,6 +1,19 @@
 /** @vitest-environment jsdom */
 import { afterEach, expect, it, vi } from "vitest";
-import { buildDesktopPrintCopy, printTextDocument } from "./text-print";
+import * as viewsMarkdown from "@uniwork/views/office/markdown";
+import { buildDesktopPrintCopy, createDesktopPrintPort, printTextDocument } from "./text-print";
+
+// The desktop no longer mirrors the sanitizer: it must go through the shared
+// view building blocks. Spy on the barrel (keeping the real implementation) so
+// the tests prove the call, not just the output shape.
+vi.mock("@uniwork/views/office/markdown", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/views/office/markdown")>();
+  return {
+    ...actual,
+    sanitizePrintCopy: vi.fn(actual.sanitizePrintCopy),
+    printMarkdownDocument: vi.fn(actual.printMarkdownDocument),
+  };
+});
 
 const hostileHtml = `<html><head><base href="https://evil.test/"><meta http-equiv="refresh" content="0;url=https://evil.test"></head><body onload="x()">
 <script>alert(1)</script><img src="data:image/png;base64,AAAA" onerror="alert(2)"><a href="javascript:alert(3)">go</a>
@@ -9,7 +22,7 @@ const hostileMd = `# Title\n\n<script>alert(1)</script>\n\n<img src=x onerror="a
 
 const ACTIVE = "script, img[onerror], iframe, object, base, embed, [onclick], [onload], meta[http-equiv=refresh i]";
 
-afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
+afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); document.body.innerHTML = ""; });
 
 it.each([["html", hostileHtml], ["md", hostileMd]] as const)("%s copy carries no active content and pins the CSP first", (format, source) => {
   const copy = buildDesktopPrintCopy(format, source);
@@ -21,6 +34,14 @@ it.each([["html", hostileHtml], ["md", hostileMd]] as const)("%s copy carries no
   expect(first?.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
   expect(first?.getAttribute("content")).toContain("script-src 'none'");
   if (format === "md") { expect(copy).not.toContain("# Title"); expect(copy).not.toContain("**body**"); expect(copy).toContain("<strong>body</strong>"); }
+});
+
+it("builds the copy through the shared sanitizer, not a local mirror", () => {
+  const sanitize = vi.mocked(viewsMarkdown.sanitizePrintCopy);
+  expect(sanitize).not.toHaveBeenCalled();
+  buildDesktopPrintCopy("md", hostileMd);
+  expect(sanitize).toHaveBeenCalledTimes(1);
+  expect(sanitize).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ csp: viewsMarkdown.PRINT_COPY_CSP }));
 });
 
 function stubFrame(print: () => void) {
@@ -49,7 +70,16 @@ it("prints the sanitized copy from a sandboxed frame and removes it", async () =
   expect(document.querySelector("iframe")).toBeNull();
 });
 
-it("returns a typed failure when print throws, and still removes the frame", async () => {
+it("routes the desktop path through the shared printMarkdownDocument flow", async () => {
+  stubFrame(() => undefined);
+  const shared = vi.mocked(viewsMarkdown.printMarkdownDocument);
+  const result = await printTextDocument("html", hostileHtml, "Doc.html");
+  expect(result).toEqual({ outcome: "printed" });
+  expect(shared).toHaveBeenCalledTimes(1);
+  expect(shared).toHaveBeenCalledWith(expect.objectContaining({ title: "Doc.html", csp: viewsMarkdown.PRINT_COPY_CSP }));
+});
+
+it("returns a typed failure when the port throws, and still removes the frame", async () => {
   stubFrame(() => { throw new Error("boom"); });
   expect(await printTextDocument("html", hostileHtml, "Doc.html")).toEqual({ outcome: "failed", reason: "boom" });
   expect(document.querySelector("iframe")).toBeNull();
@@ -60,4 +90,10 @@ it("fails typed when the frame has no contentWindow", async () => {
   contentWindow.mockReturnValue(null);
   expect(await printTextDocument("html", "<p>x</p>", "t")).toEqual({ outcome: "failed", reason: "print_frame_unavailable" });
   expect(document.querySelector("iframe")).toBeNull();
+});
+
+it("exposes a MarkdownPrintPort whose failure is a typed failed outcome", async () => {
+  const port = createDesktopPrintPort();
+  vi.spyOn(document.body, "append").mockImplementation(() => { throw new Error("append_denied"); });
+  expect(await port.print({ html: "<p>x</p>", title: "t" })).toEqual({ outcome: "failed", reason: "append_denied" });
 });
