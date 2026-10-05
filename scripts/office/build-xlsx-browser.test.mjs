@@ -49,8 +49,8 @@ test('the built xlsx artifact carries its contract symbols', () => {
 
 test('every vendored t() key ships in the en/vi editor packs', () => {
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer-build.json'), 'utf8'));
-  const english = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/office.en.json'), 'utf8')).office.xlsx.editor;
-  const vietnamese = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/office.vi.json'), 'utf8')).office.xlsx.editor;
+  const english = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/en.json'), 'utf8')).office.xlsx.editor;
+  const vietnamese = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/vi.json'), 'utf8')).office.xlsx.editor;
   let checked = 0;
   for (const input of record.inputs.filter((entry) => entry.includes('/apps/sheets/src/renderer/'))) {
     if (!fs.existsSync(path.resolve(REPO_ROOT, input))) continue;

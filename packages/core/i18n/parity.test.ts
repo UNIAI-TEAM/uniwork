@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import en from "./locales/en.json";
 import vi from "./locales/vi.json";
-import officeEn from "./locales/office.en.json";
-import officeVi from "./locales/office.vi.json";
 
 type Entry = string | Entry[] | { [k: string]: Entry };
 type Dict = { [k: string]: Entry };
@@ -16,10 +14,8 @@ function flatten(obj: Dict | Entry[], prefix = "", out: Record<string, string> =
   return out;
 }
 
-// The Office strings live in their own files (office-resources.ts) but are one
-// dictionary to the user, so parity is checked over the union.
-const VI = flatten({ ...vi, ...officeVi } as Dict);
-const EN = flatten({ ...en, ...officeEn } as Dict);
+const VI = flatten(vi as Dict);
+const EN = flatten(en as Dict);
 
 /** i18next JSON v4: một khoá đếm được có thể tồn tại dưới dạng `_one`/`_other`. */
 const PLURAL = ["_one", "_other", "_zero", "_two", "_few", "_many"];

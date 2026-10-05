@@ -20,8 +20,8 @@ test('DOCX browser entry bundles the real renderer with only shared browser impo
     assert.ok(record.inputs.some(input => input.endsWith(required)), required);
   }
   for (const specifier of record.externalImports) assert.match(specifier, /^(@tiptap\/|i18next$|react(?:\/|$))/);
-  const english = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/office.en.json'), 'utf8')).office.docx.editor;
-  const vietnamese = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/office.vi.json'), 'utf8')).office.docx.editor;
+  const english = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/en.json'), 'utf8')).office.docx.editor;
+  const vietnamese = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages/core/i18n/locales/vi.json'), 'utf8')).office.docx.editor;
   for (const input of record.inputs.filter(input => input.includes('/apps/docs/src/renderer/') && !input.startsWith('docx-renderer-sheet:'))) {
     const source = fs.readFileSync(path.resolve(REPO_ROOT, input), 'utf8');
     for (const match of source.matchAll(/\bt\(['"]([^'"]+)['"]/g)) {

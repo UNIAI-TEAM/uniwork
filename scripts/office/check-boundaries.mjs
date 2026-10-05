@@ -55,9 +55,6 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // shared host-agnostic i18n singleton. Same package-boundary argument as
   // the entries above - their exports contain no Node/Electron import.
   "@uniwork/core/i18n",
-  // The Office strings bundle: JSON plus the i18next singleton, registered by
-  // the editor hosts so the strings stay out of the shared dictionary.
-  "@uniwork/core/i18n/office-resources",
   "@uniwork/ui/brand",
   "@uniwork/ui/components/ui/button",
   "@uniwork/ui/components/ui/avatar",

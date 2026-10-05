@@ -1,6 +1,5 @@
 import { createRoot } from "react-dom/client";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import "@uniwork/core/i18n/office-resources";
 import { App, type RendererBridge } from "./app";
 import { DesktopFrame } from "./desktop-frame";
 

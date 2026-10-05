@@ -2,12 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const FILES = [
-  "packages/core/i18n/locales/vi.json",
-  "packages/core/i18n/locales/en.json",
-  "packages/core/i18n/locales/office.vi.json",
-  "packages/core/i18n/locales/office.en.json",
-];
+const FILES = ["packages/core/i18n/locales/vi.json", "packages/core/i18n/locales/en.json"];
 
 /**
  * Hai khoá trùng tên trong cùng một object là hợp lệ với JSON.parse: bản sau

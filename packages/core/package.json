@@ -131,7 +131,6 @@
     "./i18n/types": "./i18n/types.ts",
     "./i18n/locales/en.json": "./i18n/locales/en.json",
     "./i18n/locales/vi.json": "./i18n/locales/vi.json",
-    "./i18n/office-resources": "./i18n/office-resources.ts",
     "./types/*": "./types/*.ts",
     "./api/http": "./api/http.ts",
     "./api/guest-session": "./api/guest-session.ts",
