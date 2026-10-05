@@ -416,8 +416,9 @@ describe("MarkdownEditor mounts the shared Office frame (F1/F2/F8)", () => {
   });
 
   it("opens the shortcuts help dialog from the status bar ?", async () => {
-    // The dialog copy awaits the MISSING `office.markdown.shortcuts.*` keys, so
-    // this pins the mount, the row count and the literal chords only.
+    // Mount-level coverage only: the status bar "?" opens the dialog with the
+    // six chord rows. The resolved `office.markdown.shortcuts.*` copy is
+    // asserted in markdown/status-bar.test.tsx.
     renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("md-shortcuts-help-trigger"));
