@@ -12,7 +12,7 @@
 // `file.sheets[].tables`; `fileTablesToToolbar` seeds the list from there and
 // session edits fold on top (FB-3).
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
-import { isTableGridEdit } from "./xlsx-edit-bridge";
+import { isSheetGridEdit, isTableGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxToolbarTable, XlsxToolbarTableRange } from "./toolbar/types";
 import type { RendererWorkbookSheet } from "./xlsx-render-model-bridge";
 
@@ -40,6 +40,17 @@ export function foldTableEdits(
 ): readonly XlsxToolbarTable[] {
   let next: XlsxToolbarTable[] | null = null;
   for (const edit of edits) {
+    if (isSheetGridEdit(edit)) {
+      // A rename carries the OLD name in `sheetName` (see XlsxGridSheetEdit), so
+      // every entry keyed by it - file-native or session-created - moves to the
+      // new name; a rename that touches no table leaves the list untouched.
+      if (edit.sheetOp.kind !== "rename-sheet" || edit.sheetOp.newName === edit.sheetName) continue;
+      const { newName } = edit.sheetOp;
+      const source: readonly XlsxToolbarTable[] = next ?? tables;
+      if (!source.some((table) => table.sheet === edit.sheetName)) continue;
+      next = source.map((table) => (table.sheet === edit.sheetName ? { ...table, sheet: newName } : table));
+      continue;
+    }
     if (!isTableGridEdit(edit)) continue;
     const sheet = edit.sheetName ?? sheetName(edit.sheetId);
     if (!sheet) continue;
