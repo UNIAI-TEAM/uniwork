@@ -134,6 +134,21 @@ describe("pdf jobs through the service", () => {
   });
 
   it("fails an unbound pdf op vocabulary as unsupported_operation", async () => {
+    // addMarkup is bound since the G3 PDF lane; ocrPage is the vocabulary the
+    // engine build deliberately leaves unbound (no optical engine in service).
+    const input = await pdfFixture("pdf-text-editable.pdf");
+    const job = pdfJob(h.target, {
+      bytes: input,
+      operation: "edit",
+      payload: { edits: [{ op: "ocrPage", attributes: {} }] },
+    });
+    await submit(h, job);
+    const done = await waitTerminal(h, job);
+    expect(done.body.state).toBe("failed");
+    expect(errorCode(done)).toBe("unsupported_operation");
+  });
+
+  it("fails a bound pdf op with a malformed payload as engine_result_invalid", async () => {
     const input = await pdfFixture("pdf-text-editable.pdf");
     const job = pdfJob(h.target, {
       bytes: input,
@@ -143,7 +158,7 @@ describe("pdf jobs through the service", () => {
     await submit(h, job);
     const done = await waitTerminal(h, job);
     expect(done.body.state).toBe("failed");
-    expect(errorCode(done)).toBe("unsupported_operation");
+    expect(errorCode(done)).toBe("engine_result_invalid");
   });
 
   it("reports a skipped (stale) text edit as a warning, not a failure", async () => {

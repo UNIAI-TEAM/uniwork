@@ -311,13 +311,13 @@ describe("narrow-width tab row", () => {
     const tabRow = document.querySelector("[data-ribbon-tab-row]") as HTMLElement;
     const tablist = within(tabRow).getByRole("tablist");
 
-    // The scroll region is the one flexible child and reserves a right inset.
+    // The scroll region (inside the one flexible wrapper) reserves a right inset.
     expect(tablist.className).toContain("flex-1");
     expect(tablist.className).toContain("min-w-0");
     expect(tablist.className).toContain("overflow-x-auto");
     expect(tablist.className).toContain("pr-1");
     const flexible = (Array.from(tabRow.children) as HTMLElement[]).filter((node) => node.className.includes("flex-1"));
-    expect(flexible).toEqual([tablist]);
+    expect(flexible).toEqual([tablist.parentElement]);
 
     // Every tab stays in the scroll region and reachable, never inside the
     // trailing cluster.

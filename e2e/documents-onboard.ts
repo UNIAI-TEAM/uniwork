@@ -68,7 +68,7 @@ export async function createPageWithText(page: Page, w: WorkspaceSeed, text: str
   await expect(surface).toBeVisible({ timeout: 60_000 });
   await surface.click();
   await page.keyboard.type(text);
-  await expect(page.getByText(/^Đã lưu/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
   return page.url();
 }
 

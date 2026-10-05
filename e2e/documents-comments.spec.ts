@@ -94,7 +94,7 @@ test("comments panel posts, replies, reacts, resolves and survives a reload", as
   await expect(surface).toBeVisible({ timeout: 60_000 });
   await surface.click();
   await page.keyboard.type("Tài liệu có bình luận");
-  await expect(page.getByText(/^Đã lưu/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
 
   await openPanel(page);
   const rail = pane(page);

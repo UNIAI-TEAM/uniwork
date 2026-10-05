@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Pin } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -48,17 +48,21 @@ export function RibbonTabRow({
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
   const listRef = useRef<HTMLDivElement>(null);
   const [fadeEnd, setFadeEnd] = useState(false);
+  const [fadeStart, setFadeStart] = useState(false);
 
   // The selected tab stays visible when the row scrolls (phones).
   useEffect(() => {
     tabRefs.current.get(activeId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [activeId]);
 
-  // A fade on the right edge shows there are more tabs, instead of a hard clip.
+  // A fade on each overflowing edge shows there are more tabs, instead of a hard clip.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
-    const update = () => setFadeEnd(list.scrollWidth - list.clientWidth - list.scrollLeft > 1);
+    const update = () => {
+      setFadeEnd(list.scrollWidth - list.clientWidth - list.scrollLeft > 1);
+      setFadeStart(list.scrollLeft > 0);
+    };
     update();
     list.addEventListener("scroll", update, { passive: true });
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
@@ -89,8 +93,13 @@ export function RibbonTabRow({
     tabRefs.current.get(tab.id)?.focus();
   };
 
+  const scrollTabs = (direction: -1 | 1) => listRef.current?.scrollBy({ left: direction * 160, behavior: "smooth" });
+
   const toggleLabel = t(collapsed ? (peek ? "office.ribbon.pin" : "office.ribbon.expand") : "office.ribbon.collapse");
-  const toggleTitle = t("office.ribbon.withShortcut", { label: toggleLabel, shortcut: RIBBON_TOGGLE_SHORTCUT });
+  const toggleTitle = t("office.ribbon.withShortcut", {
+    label: toggleLabel,
+    shortcut: RIBBON_TOGGLE_SHORTCUT,
+  });
   const ToggleIcon = collapsed ? (peek ? Pin : ChevronDown) : ChevronUp;
 
   return (
@@ -105,49 +114,83 @@ export function RibbonTabRow({
           {quickAccess}
         </div>
       ) : null}
-      <div
-        ref={listRef}
-        role="tablist"
-        aria-label={t("office.ribbon.tabs")}
-        // Tabs scroll rather than clip when they outgrow the row (phones, many
-        // contextual tabs); the simplified layout relies on it.
-        className={cn(
-          "flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]",
-          fadeEnd && "[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]",
-        )}
-      >
-        {tabs.map((tab, index) => {
-          const selected = tab.id === activeId;
-          const accent = tab.contextual ? (tab.contextual.accent ?? "brand") : null;
-          return (
-            <button
-              key={tab.id}
-              ref={(node) => {
-                if (node) tabRefs.current.set(tab.id, node);
-                else tabRefs.current.delete(tab.id);
-              }}
-              type="button"
-              role="tab"
-              id={ids.tab(tab.id)}
-              aria-selected={selected}
-              aria-controls={ids.panel}
-              tabIndex={selected ? 0 : -1}
-              data-ribbon-tab={tab.id}
-              data-ribbon-contextual={accent ?? undefined}
-              className={cn(
-                "relative shrink-0 cursor-pointer rounded-t-sm px-3 text-label whitespace-nowrap text-muted-foreground transition-colors select-none hover:bg-surface-hover hover:text-foreground aria-selected:font-medium aria-selected:text-foreground pointer-coarse:min-h-11",
-                "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full aria-selected:after:bg-brand",
-                accent && "border-t-2",
-                accent && ACCENT_CLASS[accent],
-              )}
-              onClick={() => onSelect(tab.id, "pointer")}
-              onDoubleClick={onToggleCollapsed}
-              onKeyDown={(event) => move(event, index)}
-            >
-              {t(tab.labelKey)}
-            </button>
-          );
-        })}
+      <div className="relative flex min-w-0 flex-1 items-stretch" data-ribbon-tabs-wrap="">
+        <div
+          ref={listRef}
+          role="tablist"
+          aria-label={t("office.ribbon.tabs")}
+          // Tabs scroll rather than clip when they outgrow the row (phones, many
+          // contextual tabs); the simplified layout relies on it.
+          className={cn(
+            "flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]",
+            fadeStart &&
+              fadeEnd &&
+              "[mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-20px),transparent)]",
+            fadeStart && !fadeEnd && "[mask-image:linear-gradient(to_right,transparent,black_20px)]",
+            !fadeStart && fadeEnd && "[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]",
+          )}
+        >
+          {tabs.map((tab, index) => {
+            const selected = tab.id === activeId;
+            const accent = tab.contextual ? (tab.contextual.accent ?? "brand") : null;
+            return (
+              <button
+                key={tab.id}
+                ref={(node) => {
+                  if (node) tabRefs.current.set(tab.id, node);
+                  else tabRefs.current.delete(tab.id);
+                }}
+                type="button"
+                role="tab"
+                id={ids.tab(tab.id)}
+                aria-selected={selected}
+                aria-controls={ids.panel}
+                tabIndex={selected ? 0 : -1}
+                data-ribbon-tab={tab.id}
+                data-ribbon-contextual={accent ?? undefined}
+                className={cn(
+                  "relative shrink-0 cursor-pointer rounded-t-sm px-3 text-label whitespace-nowrap text-muted-foreground transition-colors select-none hover:bg-surface-hover hover:text-foreground aria-selected:font-medium aria-selected:text-foreground pointer-coarse:min-h-11",
+                  "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full aria-selected:after:bg-brand",
+                  accent && "border-t-2",
+                  accent && ACCENT_CLASS[accent],
+                )}
+                onClick={() => onSelect(tab.id, "pointer")}
+                onDoubleClick={onToggleCollapsed}
+                onKeyDown={(event) => move(event, index)}
+              >
+                {t(tab.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+        {fadeStart ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            tabIndex={-1}
+            aria-label={t("office.ribbon.tabsPrev")}
+            className="absolute top-1/2 left-0 -translate-y-1/2"
+            data-ribbon-tabs-prev=""
+            onClick={() => scrollTabs(-1)}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+        ) : null}
+        {fadeEnd ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            tabIndex={-1}
+            aria-label={t("office.ribbon.tabsNext")}
+            className="absolute top-1/2 right-0 -translate-y-1/2"
+            data-ribbon-tabs-next=""
+            onClick={() => scrollTabs(1)}
+          >
+            <ChevronRight aria-hidden />
+          </Button>
+        ) : null}
       </div>
       {trailing ? (
         <div className="flex shrink-0 items-center gap-0.5" data-ribbon-trailing="">

@@ -98,7 +98,7 @@ test("a page is created, typed into, and survives a reload", async ({ page }) =>
   await page.keyboard.type("Biên bản họp G1-06a");
 
   // Nothing may read as saved before the server answered.
-  await expect(page.getByText(/^Đã lưu/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
   await shot(page, "document-page-light-vi");
 
   await page.reload();
