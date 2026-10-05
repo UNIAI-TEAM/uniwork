@@ -154,7 +154,8 @@ const ICONS_PER_ROW = 2;
 
 /**
  * Build the PDF ribbon tabs for the commands a host supplies. A group keeps its
- * declared order. With up to three present items the first renders large and
+ * declared order. A pair renders two equal large buttons (never a lopsided
+ * large + small); with three present items the first renders large and
  * the rest small (icon + label); with more, every item is an icon packed in rows
  * of two, `rowBreak` on each later row's first item (F4). Groups
  * with no present command are dropped so no empty labelled box appears. The
@@ -182,7 +183,7 @@ export function createPdfRibbonTabs(
             id,
             labelKey: PDF_RIBBON_COMMAND_LABEL_KEYS[id],
             icon: PDF_RIBBON_ICONS[id],
-            size: packed ? "icon" : position === 0 ? "large" : "small",
+            size: packed ? "icon" : position === 0 || present.length === 2 ? "large" : "small",
             ...(packed && position > 0 && position % ICONS_PER_ROW === 0 ? { rowBreak: true } : {}),
             disabled: command.disabled,
             onExecute: () => {

@@ -113,7 +113,7 @@ describe("createPdfRibbonTabs", () => {
       "office.pdf.view.zoomGroup",
     ]);
     expect(home?.groups.map((group) => group.items.map((item) => item.size))).toEqual([
-      ["large", "small"],
+      ["large", "large"],
       ["large", "small", "small"],
       ["large", "small", "small"],
       ["icon", "icon", "icon", "icon"],
@@ -138,6 +138,11 @@ describe("createPdfRibbonTabs", () => {
     expect(view?.groups[0]?.items.map((item) => item.id)).toEqual(["zoom-out", "zoom-in"]);
     expect(view?.groups[1]?.items.map((item) => item.id)).toEqual(["fit-width", "fit-page"]);
     expect(view?.groups[0]?.items.map((item) => item.labelKey)).toEqual(["office.pdf.commands.zoomOut", "office.pdf.commands.zoomIn"]);
+  });
+
+  it("renders a pair of items as two equal large buttons", () => {
+    const view = createPdfRibbonTabs(viewCommands).find((tab) => tab.id === "view");
+    expect(view?.groups.map((group) => group.items.map((item) => item.size))).toEqual([["large", "large"], ["large", "large"]]);
   });
 
   it("renders the first item of a group large and the rest small", () => {
