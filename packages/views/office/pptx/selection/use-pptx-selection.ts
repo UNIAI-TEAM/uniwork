@@ -61,6 +61,8 @@ export interface PptxSelectionController {
   onPointerMove(point: PptxPoint, shiftKey: boolean): void;
   onPointerUp(): void;
   onPointerCancel(): void;
+  /** Right-click: select the element under the pointer (PowerPoint-like) without a gesture. */
+  onContextPointerDown(point: PptxPoint): void;
 }
 
 export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectionController {
@@ -153,6 +155,18 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     if (opened) setGesture(opened);
   }, [bounds, boxes, interactive, page, selection]);
 
+  const onContextPointerDown = useCallback((point: PptxPoint) => {
+    if (!interactive) return;
+    const hit = hitElement(boxes, point);
+    if (hit === null) {
+      setSelectionState(EMPTY_SELECTION);
+      return;
+    }
+    // Already part of the selection: keep the whole selection so the menu acts on it.
+    if (selection.ids.includes(hit)) return;
+    setSelectionState(setSelection([hit]));
+  }, [boxes, interactive, selection.ids]);
+
   const onPointerMove = useCallback((point: PptxPoint, shiftKey: boolean) => {
     if (gesture) {
       setGesture(applyGesture(gesture, point, page, shiftKey));
@@ -217,5 +231,6 @@ export function usePptxSelection(options: UsePptxSelectionOptions): PptxSelectio
     onPointerMove,
     onPointerUp,
     onPointerCancel,
+    onContextPointerDown,
   };
 }

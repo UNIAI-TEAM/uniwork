@@ -23,6 +23,7 @@ function controller(overrides: Partial<PptxSelectionController> = {}): PptxSelec
     onPointerMove: vi.fn(),
     onPointerUp: vi.fn(),
     onPointerCancel: vi.fn(),
+    onContextPointerDown: vi.fn(),
     ...overrides,
   };
 }
@@ -83,5 +84,59 @@ describe("PptxSelectionOverlay", () => {
   it("renders no outline when nothing is selected", () => {
     const { container } = render(<PptxSelectionOverlay page={{ widthPx: 960, heightPx: 540 }} displayWidthPx={960} displayHeightPx={540} controller={controller({ selection: { ids: [] }, bounds: null })} />);
     expect(container.querySelector("[data-pptx-selection-outline]")).toBeNull();
+  });
+
+  it("B4: handles sit on the outline corners, not at a doubled page offset", () => {
+    const bounds = { x: 56, y: 175, w: 400, h: 100 };
+    const { container } = render(
+      <PptxSelectionOverlay page={{ widthPx: 960, heightPx: 540 }} displayWidthPx={1620} displayHeightPx={911.25} controller={controller({ bounds })} />,
+    );
+    const outline = container.querySelector("[data-pptx-selection-outline]") as HTMLElement;
+    expect(parseFloat(outline.style.left)).toBeCloseTo((56 / 960) * 100, 4);
+    expect(parseFloat(outline.style.top)).toBeCloseTo((175 / 540) * 100, 4);
+    expect(parseFloat(outline.style.width)).toBeCloseTo((400 / 960) * 100, 4);
+    expect(parseFloat(outline.style.height)).toBeCloseTo((100 / 540) * 100, 4);
+    // Handles are children of the outline: their offset is a fraction of the outline box.
+    const at = (id: string) => container.querySelector(`[data-pptx-handle="${id}"]`) as HTMLElement;
+    const pct = (value: string) => parseFloat(/calc\((-?[\d.]+)%/.exec(value)?.[1] ?? "NaN");
+    expect(pct(at("nw").style.left)).toBeCloseTo(0, 4);
+    expect(pct(at("nw").style.top)).toBeCloseTo(0, 4);
+    expect(pct(at("se").style.left)).toBeCloseTo(100, 4);
+    expect(pct(at("se").style.top)).toBeCloseTo(100, 4);
+    expect(pct(at("n").style.left)).toBeCloseTo(50, 4);
+    expect(pct(at("e").style.top)).toBeCloseTo(50, 4);
+    expect(pct(at("rotate").style.left)).toBeCloseTo(50, 4);
+    expect(pct(at("rotate").style.top)).toBeLessThan(0);
+  });
+
+  it("B4: previews and the marquee are drawn in percent of the page", () => {
+    const { container } = render(
+      <PptxSelectionOverlay
+        page={{ widthPx: 960, heightPx: 540 }}
+        displayWidthPx={1}
+        displayHeightPx={1}
+        controller={controller({ previews: [{ sourceId: "a", box: { x: 96, y: 54, w: 192, h: 108 } }], marquee: { x: 480, y: 270, w: 96, h: 54 } })}
+      />,
+    );
+    const preview = container.querySelector("[data-pptx-gesture-preview='a']") as HTMLElement;
+    expect(preview.style.left).toBe("10%");
+    expect(preview.style.top).toBe("10%");
+    expect(preview.style.width).toBe("20%");
+    const marquee = container.querySelector("[data-pptx-marquee]") as HTMLElement;
+    expect(marquee.style.left).toBe("50%");
+    expect(marquee.style.height).toBe("10%");
+  });
+
+  it("F-14: a right button press goes to onContextPointerDown without preventing the menu", () => {
+    const c = controller({ onContextPointerDown: vi.fn() });
+    const { container } = render(<PptxSelectionOverlay page={{ widthPx: 960, heightPx: 540 }} displayWidthPx={960} displayHeightPx={540} controller={c} />);
+    const overlay = container.querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    const notPrevented = fireEvent.pointerDown(overlay, { button: 2, clientX: 10, clientY: 10 });
+    expect(notPrevented).toBe(true);
+    expect(c.onContextPointerDown).toHaveBeenCalledTimes(1);
+    expect(c.onPointerDown).not.toHaveBeenCalled();
+    fireEvent.pointerDown(overlay, { button: 1, clientX: 10, clientY: 10 });
+    expect(c.onContextPointerDown).toHaveBeenCalledTimes(1);
+    expect(c.onPointerDown).not.toHaveBeenCalled();
   });
 });

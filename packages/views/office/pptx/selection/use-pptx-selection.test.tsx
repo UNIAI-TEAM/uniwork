@@ -171,3 +171,24 @@ describe("usePptxSelection", () => {
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("usePptxSelection right-click (F-14)", () => {
+  it("selects only the element under the pointer, keeps a selection it is part of, clears on empty canvas", () => {
+    const controller = harness();
+    act(() => controller.current!.onContextPointerDown({ x: 150, y: 150 }));
+    expect(controller.current!.selection.ids).toEqual(["a"]);
+    act(() => controller.current!.onContextPointerDown({ x: 350, y: 150 }));
+    expect(controller.current!.selection.ids).toEqual(["b"]);
+    expect(controller.current!.marquee).toBeNull();
+    expect(controller.current!.previews).toEqual([]);
+    act(() => controller.current!.onPointerDown({ x: 150, y: 150 }, false));
+    act(() => controller.current!.onPointerUp());
+    act(() => controller.current!.onPointerDown({ x: 350, y: 150 }, true));
+    act(() => controller.current!.onPointerUp());
+    expect(controller.current!.selection.ids).toEqual(["a", "b"]);
+    act(() => controller.current!.onContextPointerDown({ x: 150, y: 150 }));
+    expect(controller.current!.selection.ids).toEqual(["a", "b"]);
+    act(() => controller.current!.onContextPointerDown({ x: 800, y: 500 }));
+    expect(controller.current!.selection.ids).toEqual([]);
+  });
+});

@@ -13,7 +13,7 @@
  * plain run and calls `onCommitText`. Escape cancels without committing. An empty or
  * whitespace-only edit is refused and the overlay stays open - the caller keeps the original.
  */
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { PptxParagraphLike } from "@uniwork/office-engine/pptx";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -77,20 +77,23 @@ function readPlainText(root: HTMLElement): string {
   return blocks.join("\n");
 }
 
+/** A box as a percentage of the page, so drawing and pointer mapping share one frame. */
+function percentBox(box: PptxTextTarget["box"], page: { widthPx: number; heightPx: number }): CSSProperties {
+  const w = page.widthPx > 0 ? page.widthPx : 1;
+  const h = page.heightPx > 0 ? page.heightPx : 1;
+  return { left: `${(box.x / w) * 100}%`, top: `${(box.y / h) * 100}%`, width: `${(box.w / w) * 100}%`, height: `${(box.h / h) * 100}%` };
+}
+
 /** Transparent pointer targets over the rendered text, in page coordinates. */
 export function PptxTextEditLayer({
   targets,
   page,
-  displayWidthPx,
-  displayHeightPx,
   controller,
   activeId,
   onOpen,
 }: PptxTextEditLayerProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx.text" });
   const rootRef = useRef<HTMLDivElement>(null);
-  const scaleX = page.widthPx > 0 ? displayWidthPx / page.widthPx : 1;
-  const scaleY = page.heightPx > 0 ? displayHeightPx / page.heightPx : 1;
 
   const toPage = useCallback((event: ReactPointerEvent<HTMLDivElement>): PptxPoint => {
     const rect = rootRef.current?.getBoundingClientRect();
@@ -108,9 +111,14 @@ export function PptxTextEditLayer({
           key={target.sourceId}
           data-pptx-text-target={target.sourceId}
           className="pointer-events-auto absolute cursor-text"
-          style={{ left: target.box.x * scaleX, top: target.box.y * scaleY, width: target.box.w * scaleX, height: target.box.h * scaleY }}
+          style={percentBox(target.box, page)}
           onDoubleClick={() => onOpen(target)}
           onPointerDown={(event) => {
+            if (event.button === 2) {
+              // Right-click selects the element first; the context menu must still open.
+              controller.onContextPointerDown(toPage(event));
+              return;
+            }
             if (event.button !== 0) return;
             event.currentTarget.setPointerCapture?.(event.pointerId);
             controller.onPointerDown(toPage(event), event.shiftKey);
@@ -144,7 +152,6 @@ export function PptxTextEditorOverlay({
   slideIndex,
   target,
   page,
-  displayWidthPx,
   displayHeightPx,
   onCommitText,
   onCancel,
@@ -153,7 +160,6 @@ export function PptxTextEditorOverlay({
   const editorRef = useRef<HTMLDivElement>(null);
   const settled = useRef(false);
   const [emptyRefused, setEmptyRefused] = useState(false);
-  const scaleX = page.widthPx > 0 ? displayWidthPx / page.widthPx : 1;
   const scaleY = page.heightPx > 0 ? displayHeightPx / page.heightPx : 1;
   const fontSizePx = (target.fontSizePx ?? 18) * scaleY;
 
@@ -204,14 +210,18 @@ export function PptxTextEditorOverlay({
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       commit();
+      return;
     }
+    // Everything else is native text editing (select-all, text undo, caret keys, delete);
+    // the canvas shortcuts must never see it.
+    event.stopPropagation();
   };
 
   return (
     <div
       data-pptx-text-editor-overlay
       className="absolute z-30 flex flex-col"
-      style={{ left: target.box.x * scaleX, top: target.box.y * scaleY, width: target.box.w * scaleX, height: target.box.h * scaleY }}
+      style={percentBox(target.box, page)}
     >
       <div
         ref={editorRef}

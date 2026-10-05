@@ -17,8 +17,9 @@ function controller(overrides: Partial<PptxSelectionController> = {}): PptxSelec
     selection: { ids: [] }, bounds: null, previews: [], marquee: null, canDelete: false,
     clear: vi.fn(), selectAll: vi.fn(), deleteSelection: vi.fn(),
     onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(), onPointerCancel: vi.fn(),
+    onContextPointerDown: vi.fn(),
     ...overrides,
-  };
+  } as PptxSelectionController;
 }
 
 describe("PptxTextEditLayer", () => {
@@ -27,6 +28,25 @@ describe("PptxTextEditLayer", () => {
     const { container } = render(<PptxTextEditLayer slideIndex={0} targets={[target]} page={page} displayWidthPx={960} displayHeightPx={540} controller={controller()} activeId={null} onOpen={onOpen} />);
     fireEvent.doubleClick(container.querySelector("[data-pptx-text-target='title']")!);
     expect(onOpen).toHaveBeenCalledWith(target);
+  });
+
+  it("positions hit boxes in percent of the page", () => {
+    const { container } = render(<PptxTextEditLayer slideIndex={0} targets={[target]} page={page} displayWidthPx={1234} displayHeightPx={700} controller={controller()} activeId={null} onOpen={vi.fn()} />);
+    const hit = container.querySelector("[data-pptx-text-target='title']") as HTMLElement;
+    expect(hit.style.left).toBe(`${(100 / 960) * 100}%`);
+    expect(hit.style.top).toBe(`${(50 / 540) * 100}%`);
+    expect(hit.style.width).toBe(`${(400 / 960) * 100}%`);
+    expect(hit.style.height).toBe(`${(80 / 540) * 100}%`);
+  });
+
+  it("selects the element first on right-click without capture or default prevention", () => {
+    const c = controller();
+    const { container } = render(<PptxTextEditLayer slideIndex={0} targets={[target]} page={page} displayWidthPx={960} displayHeightPx={540} controller={c} activeId={null} onOpen={vi.fn()} />);
+    const hit = container.querySelector("[data-pptx-text-target='title']") as HTMLElement;
+    const notPrevented = fireEvent.pointerDown(hit, { button: 2, clientX: 0, clientY: 0 });
+    expect(c.onContextPointerDown).toHaveBeenCalledTimes(1);
+    expect(c.onPointerDown).not.toHaveBeenCalled();
+    expect(notPrevented).toBe(true);
   });
 
   it("forwards pointer gestures to the selection controller and hides the active target", () => {
@@ -81,6 +101,28 @@ describe("PptxTextEditorOverlay", () => {
     editor.innerHTML = "<div>First</div><div>Second</div>";
     fireEvent.blur(editor);
     expect(onCommitText).toHaveBeenCalledWith({ slideIndex: 2, elementId: "title", paragraphs: [{ runs: [{ text: "First" }] }, { runs: [{ text: "Second" }] }] });
+  });
+
+  it("keeps native editing keys away from the canvas handler", () => {
+    const parentKey = vi.fn();
+    const view = render(
+      <div role="presentation" onKeyDown={parentKey}>
+        <PptxTextEditorOverlay slideIndex={2} target={target} page={page} displayWidthPx={960} displayHeightPx={540} onCommitText={vi.fn()} onCancel={vi.fn()} />
+      </div>,
+    );
+    const editor = view.container.querySelector("[data-pptx-text-editor]") as HTMLElement;
+    for (const init of [{ key: "a", ctrlKey: true }, { key: "z", ctrlKey: true }, { key: "y", ctrlKey: true }, { key: "Delete" }, { key: "Backspace" }, { key: "ArrowRight" }]) {
+      const notPrevented = fireEvent.keyDown(editor, init);
+      expect(notPrevented).toBe(true);
+    }
+    expect(parentKey).not.toHaveBeenCalled();
+  });
+
+  it("positions the overlay in percent of the page", () => {
+    const { view } = open();
+    const overlay = view.container.querySelector("[data-pptx-text-editor-overlay]") as HTMLElement;
+    expect(overlay.style.left).toBe(`${(100 / 960) * 100}%`);
+    expect(overlay.style.width).toBe(`${(400 / 960) * 100}%`);
   });
 
   it("cancels on Escape without committing", () => {
