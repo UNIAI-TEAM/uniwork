@@ -34,6 +34,12 @@ import { MarkdownImageScopeProvider, type MarkdownImageScope } from "./image-sco
 import type { ImageAssetPort } from "./image-resolve";
 import { MarkdownRibbon, type MarkdownRibbonOptions } from "./ribbon";
 import { createMarkdownSourceCodec, type MarkdownSourceCodec } from "./serialize";
+import "katex/dist/katex.min.css";
+// The shared editor stylesheet (prose/page/code/media/mermaid/shell), scoped to
+// `.rich-text-editor`. The Markdown canvas carries that class on its ProseMirror
+// element below, so the same typography and table/code rules the DOCX/PDF surfaces
+// use apply here instead of a forked copy.
+import "../../../editor/styles/index.css";
 import type { AssetManifestLike, AssetStatus } from "../../asset-manifest";
 import type { TextEditorHandle } from "../../source-editor-types";
 
@@ -213,7 +219,7 @@ export function MarkdownWysiwygEditor<TSnapshot = unknown>({
       immediatelyRender: false,
       editorProps: {
         attributes: {
-          class: "markdown-wysiwyg-content prose",
+          class: "markdown-wysiwyg-content rich-text-editor text-body outline-none prose",
           role: "textbox",
           "aria-multiline": "true",
           "aria-label": ariaLabel ?? t("label"),
