@@ -5,7 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
-import type { PdfCanvasPage, PdfEditOperation, PdfPageRenderService, PdfSnapshot } from "@uniwork/views/office/pdf";
+import type { PdfCanvasPage, PdfEditOperation, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
 export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
@@ -41,6 +41,9 @@ type LaneEditorFacets = {
   /** Panel engine envelopes (notes, stamps, forms): forwarded so the note and
    * form panels get a provider and can place a real write (F-14). */
   submitEngineOperations?(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] } | void>;
+  /** Find: the shared surface searches through this facet. The desktop renderer
+   * has no pdfium, so the surface reads the engine's text layer (F-13). */
+  searchText?(query: string): Promise<readonly PdfSearchHit[]>;
 };
 
 export type LocalFileRebind = Readonly<{
@@ -163,6 +166,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get renderer() { return surface?.renderer; },
     get getCanvasPages() { const lane = surface; return lane?.getCanvasPages?.bind(lane); },
     get submitEngineOperations() { const lane = surface; return lane?.submitEngineOperations?.bind(lane); },
+    get searchText() { const lane = surface; return lane?.searchText?.bind(lane); },
     get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,

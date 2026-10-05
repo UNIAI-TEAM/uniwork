@@ -176,4 +176,5 @@ export type {
   PdfPageSizeDialogProps,
 } from "./page-box";
 export { quadsForRange } from "./find/search-model";
+export type { PdfSearchHit } from "./find/types";
 export * from "./chrome";

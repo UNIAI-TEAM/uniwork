@@ -84,4 +84,29 @@ describe("desktop PDF engine host", () => {
   it("keeps the original bytes when an edit is refused", async () => {
     await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), edits: [] } })).rejects.toMatchObject({ name: "PdfTypedError", reason: "encrypted_pdf" });
   });
+  it("returns per-page text and display-space char boxes so desktop find can match", async () => {
+    const result = await handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: b64("pdf-table.pdf") } });
+    if (!result.ok || result.operation !== "text") throw new Error("unreachable");
+    expect(result.pages).toHaveLength(result.pageCount);
+    const page = result.pages[0]!;
+    expect(page.text).toContain("Bao cao");
+    // One box per text character, so the find quad union stays aligned.
+    expect(page.charBoxes).toHaveLength(page.text.length);
+    for (const box of page.charBoxes) {
+      expect(Number.isFinite(box.x)).toBe(true);
+      expect(Number.isFinite(box.y)).toBe(true);
+      expect(box.width).toBeGreaterThanOrEqual(0);
+      expect(box.height).toBeGreaterThanOrEqual(0);
+      expect(box.x).toBeGreaterThanOrEqual(-0.01);
+      expect(box.y).toBeGreaterThanOrEqual(-0.01);
+      expect(box.x + box.width).toBeLessThanOrEqual(page.width + 0.01);
+      expect(box.y + box.height).toBeLessThanOrEqual(page.height + 0.01);
+    }
+    // The page has a real text layer: most glyphs carry a positive-width box.
+    expect(page.charBoxes.filter((box) => box.width > 0).length).toBeGreaterThan(3);
+  });
+
+  it("answers a password wall on the text channel as typed data", async () => {
+    await expect(handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+  });
 });

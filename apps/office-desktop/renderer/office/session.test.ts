@@ -217,6 +217,22 @@ it("forwards the pdf engine-operation facet so the note panel gets a provider (F
   expect(edit?.[1]).toMatchObject({ operation: "edit", args: { edits: [{ op: "addNote", attributes: { note: { pageIndex: 0, contents: "Ghi chu" } } }] } });
   expect(session.coordinator.getState().dirtyGeneration).toBe(1);
 });
+it("forwards the pdf find facet so desktop search reaches the engine text layer (F-13)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+    return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "Bao cao", charBoxes: [{ x: 0, y: 10, width: 8, height: 8 }, { x: 8, y: 10, width: 8, height: 8 }] }] };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.searchText).toBeTypeOf("function");
+  const hits = await session.editor.searchText!("bao");
+  expect(hits).toHaveLength(1);
+  expect(hits[0]).toMatchObject({ page: 1, start: 0, end: 3, text: "Bao" });
+  expect(hits[0]!.quads).toEqual([[0, 82, 16, 90]]);
+  expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true);
+});
+
 
 it("forwards the pdf renderer and real page sizes so the shared canvas draws pages (U1/U2)", async () => {
   const call = vi.fn(async (_channel: string, payload: unknown) => {

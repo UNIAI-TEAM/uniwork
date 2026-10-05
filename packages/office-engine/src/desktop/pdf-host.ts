@@ -1,17 +1,18 @@
 // @uniwork/office-engine/desktop — the PDF host lane. The desktop main process
 // owns pdfium/pdf-lib (Node only); the renderer reaches it through the typed
 // `desktop:engine-call` payload and never imports this module (ADR 0021). The
-// three entries below are the whole lane: `open` probes the bytes into a
-// view-safe page summary plus per-page sizes, `edit` applies one batch and
-// returns the verified output bytes, and `render` rasterises one page to a PNG.
-// Paths and file handles stay on the host side.
+// entries below are the whole lane: `open` probes the bytes into a view-safe
+// page summary plus per-page sizes, `edit` applies one batch and returns the
+// verified output bytes, `render` rasterises one page to a PNG, and `text` reads
+// the text layer plus per-character display-space boxes so the renderer can run
+// find. Paths and file handles stay on the host side.
 import { applyPdfEditBytes, PdfPasswordError, probePdf, type PdfEditOutcome, type PdfPasswordStatus, type PdfProbe } from "../pdf/index";
-import { readPdfPageSizes, renderPdfPagePng } from "./pdf-render.ts";
+import { readPdfPageSizes, readPdfTextPages, renderPdfPagePng, type DesktopPdfTextResult } from "./pdf-render.ts";
 
-/** Operations the IPC schema lets a caller name. Only `open`, `edit` and
- * `render` are bound; the rest answer `engine_operation_unsupported` before any
+/** Operations the IPC schema lets a caller name. `open`, `edit`, `render` and
+ * `text` are bound; the rest answer `engine_operation_unsupported` before any
  * payload is read. */
-export type DesktopEngineOperation = "open" | "edit" | "render" | "capability" | "serialize" | "cancel";
+export type DesktopEngineOperation = "open" | "edit" | "render" | "text" | "capability" | "serialize" | "cancel";
 
 export interface DesktopEngineCall {
   readonly operation: DesktopEngineOperation;
@@ -65,7 +66,12 @@ export interface DesktopEnginePasswordRefusal {
   readonly error: { readonly kind: "password"; readonly status: PdfPasswordStatus };
 }
 
-export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEnginePasswordRefusal;
+export interface DesktopEngineTextResult extends DesktopPdfTextResult {
+  readonly ok: true;
+  readonly operation: "text";
+}
+
+export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEngineTextResult | DesktopEnginePasswordRefusal;
 
 /** Typed refusal for a malformed call: the IPC dispatcher turns a thrown
  * error into the channel's failure surface, so a missing payload never
@@ -99,6 +105,12 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     if (!Array.isArray(call.args.edits)) throw new DesktopEngineCallError("engine_input_missing");
     const result = await applyPdfEditBytes(bytes, call.args.edits);
     return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
+  }
+  if (call.operation === "text") {
+    const bytes = decode(call.args.dataBase64);
+    const password = typeof call.args.password === "string" ? call.args.password : undefined;
+    const result = await readPdfTextPages(bytes, password);
+    return { ok: true, operation: "text", pageCount: result.pageCount, pages: result.pages };
   }
   if (call.operation === "render") {
     const bytes = decode(call.args.dataBase64);

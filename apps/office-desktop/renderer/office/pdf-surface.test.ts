@@ -161,4 +161,62 @@ describe("desktop PDF surface", () => {
     await surface.open(undefined, "    ");
     expect(surface.openOutcome()).toMatchObject({ outcome: "opened" });
   });
+  it("searches the engine text layer and returns per-line quads so find paints on desktop (F-13)", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      return {
+        ok: true,
+        operation: "text",
+        pageCount: 1,
+        pages: [{
+          page: 1,
+          width: 100,
+          height: 100,
+          text: "Bao cao tong hop",
+          // Two boxes on one line, display space (top-left origin).
+          charBoxes: "Bao cao tong hop".split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })),
+        }],
+      };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(surface.searchText).toBeTypeOf("function");
+    const hits = await surface.searchText!("Bao cao");
+    expect(hits).toEqual([{ id: "1:0", page: 1, start: 0, end: 7, text: "Bao cao", quads: [[0, 72, 35, 80]] }]);
+    // The engine read the text layer for this document, not the render lane.
+    const textCall = call.mock.calls.find(([, payload]) => (payload as { operation: string }).operation === "text")!;
+    expect(textCall[1]).toMatchObject({ operation: "text", handle: "doc-1" });
+    expect(await surface.searchText!("   ")).toEqual([]);
+    expect(await surface.searchText!("absent")).toEqual([]);
+  });
+
+  it("reads the engine text layer once per generation and drops the cache after an edit", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64") };
+      return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "alpha", charBoxes: [{ x: 0, y: 0, width: 1, height: 1 }] }] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    await surface.searchText!("alpha");
+    await surface.searchText!("alpha");
+    const textReads = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "text").length;
+    expect(textReads()).toBe(1);
+    await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+    await surface.searchText!("alpha");
+    expect(textReads()).toBe(2);
+  });
+
+  it("reports no hits when the engine answers a password wall on the text channel", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      return { ok: false, error: { kind: "password", status: "required" } };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    await expect(surface.searchText!("anything")).resolves.toEqual([]);
+  });
 });

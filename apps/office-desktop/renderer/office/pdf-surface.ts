@@ -1,4 +1,4 @@
-import { bridgePdfOperations, type PdfCanvasPage, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPageRenderService, type PdfRenderPageRequest, type PdfRenderResult, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
+import { bridgePdfOperations, quadsForRange, type PdfCanvasPage, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPageRenderService, type PdfRenderPageRequest, type PdfRenderResult, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
 import type { DesktopSurfaceSettings } from "./surface";
@@ -10,6 +10,20 @@ interface PageSize {
   height: number;
 }
 
+/** One page's text layer plus one display-space box per character, from the
+ * desktop engine's text read. */
+interface EngineTextPage {
+  page: number;
+  width: number;
+  height: number;
+  text: string;
+  charBoxes: readonly { x: number; y: number; width: number; height: number }[];
+}
+
+/** The find-hit shape the shared surface consumes; quads are optional so a page
+ * with no readable geometry still reports the match. */
+type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>>;
+
 type EngineResponse = {
   ok: boolean;
   probe?: { pageCount: number };
@@ -20,6 +34,9 @@ type EngineResponse = {
   width?: number;
   height?: number;
   dataBase64?: string;
+  /** Per-page text layer + per-character display-space boxes (text read). */
+  pageCount?: number;
+  pages?: readonly EngineTextPage[];
   /** Skips the edit lane reported (a note page out of range, a form value the
    * font cannot encode); the panel providers turn these into their own message. */
   warnings?: readonly { code: string; detail?: string }[];
@@ -113,7 +130,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     setSelection: (next) => { selected = next ?? null; },
     subscribe: (listener) => { listener(selected); return () => undefined; },
   };
-  const callEngine = async (operation: "open" | "edit" | "render", args: Record<string, unknown>): Promise<EngineResponse> => {
+  const callEngine = async (operation: "open" | "edit" | "render" | "text", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
     return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
   };
@@ -123,6 +140,27 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
    * render is dropped from the cache instead of poisoning it. */
   let cache = new Map<string, Promise<PdfRenderResult>>();
   const clearCache = (): void => { cache = new Map(); };
+
+  /** The engine's page-text read, keyed by generation: a find query reuses one
+   * text-layer read per page until an edit bumps the generation. A failed read
+   * is dropped instead of poisoning the cache, and the entry is cleared with the
+   * render cache so edited bytes never answer with the pre-edit text. */
+  let textCache: Promise<readonly EngineTextPage[]> | null = null;
+  const clearTextCache = (): void => { textCache = null; };
+  const readTextPages = (): Promise<readonly EngineTextPage[]> => {
+    if (!textCache) {
+      const args: Record<string, unknown> = { dataBase64: encodeBase64(bytes) };
+      if (password !== undefined) args.password = password;
+      const pending = (async () => {
+        const result = await callEngine("text", args);
+        if (!result.ok || !Array.isArray(result.pages)) return [] as readonly EngineTextPage[];
+        return result.pages;
+      })();
+      textCache = pending;
+      pending.catch(() => { if (textCache === pending) textCache = null; });
+    }
+    return textCache;
+  };
 
   /** The stable renderer identity React holds. Its methods close over the live
    * bytes/generation, so the object never has to be recreated. */
@@ -189,6 +227,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     // The edited bytes paint differently: drop every cached page and let the
     // canvas re-request it through the new generation key.
     clearCache();
+    clearTextCache();
     for (const listener of listeners) listener(generation);
     return { skipped: skippedFromWarnings(result.warnings) };
   };
@@ -204,6 +243,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       if (result.ok && result.probe) {
         password = nextPassword;
         clearCache();
+        clearTextCache();
         applyGeometry(result.probe, result.pageSizes ?? []);
         outcome = { outcome: "opened", document_id: settings.documentId, document_model_ref: `desktop:pdf:${settings.documentId}`, warnings: [] };
         return;
@@ -229,12 +269,37 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     // camelCase envelopes, so they skip the snake_case bridge and go straight to
     // the engine. Returning the skips lets the view report a refused write.
     submitEngineOperations: (operations: readonly unknown[]) => applyEngineEdits(operations),
+    /** Search the engine's text layer and return per-line display-space quads so
+     * the shared find overlay paints a hit (F-13). The web host reads page text
+     * from its in-process render session; the desktop renderer has no pdfium, so
+     * the text layer comes from the host engine's `text` read. A page whose
+     * geometry is unreadable still reports the match without quads. */
+    async searchText(query: string): Promise<SearchHits> {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return [];
+      const pages = await readTextPages();
+      const hits: SearchHits[number][] = [];
+      for (const page of pages) {
+        const haystack = page.text.toLowerCase();
+        for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) {
+          const end = at + needle.length;
+          const hit: SearchHits[number] = { id: `${page.page}:${at}`, page: page.page, start: at, end, text: page.text.slice(at, end) };
+          // The engine emits boxes already in the page's DISPLAY space, the same
+          // space as the raster and the reported page size, so flip with the
+          // display height the surface lays the page out with.
+          const quads = quadsForRange(page.charBoxes, at, end, page.height);
+          if (quads.length > 0) hit.quads = quads;
+          hits.push(hit);
+        }
+      }
+      return hits;
+    },
     getPdfSnapshot: () => snapshot,
     renderer,
     getCanvasPages: canvasPages,
     selection,
     subscribeDirty: (listener: (next: number) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    dispose: () => { disposed = true; listeners.clear(); clearCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    dispose: () => { disposed = true; listeners.clear(); clearCache(); clearTextCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

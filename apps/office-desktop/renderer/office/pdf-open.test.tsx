@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
@@ -39,4 +39,32 @@ it("opens the PDF through the validated engine channel, not a renderer engine", 
   const { call } = mount();
   await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
   await waitFor(() => expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "open")).toBe(true));
+});
+
+it("finds text on the desktop host through the engine text layer and paints the hit (F-13)", async () => {
+  const call = vi.fn(async (channel: string, payload: unknown) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.operation === "text") {
+        const text = "Bao cao tong hop";
+        return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text, charBoxes: text.split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })) }] };
+      }
+      return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
+    }
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
+
+  fireEvent.click(await screen.findByTestId("pdf-chrome-find"));
+  const input = await screen.findByLabelText("Tìm chữ trong PDF");
+  fireEvent.change(input, { target: { value: "Bao cao" } });
+
+  // The desktop host must reach the engine text layer and report a match.
+  await waitFor(() => expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true), { timeout: 10000 });
+  await waitFor(() => expect(screen.getByText("1 trên 1 kết quả")).toBeInTheDocument(), { timeout: 10000 });
 });
