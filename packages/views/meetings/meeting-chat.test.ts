@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  chatWatermark,
   dedupePersistedChatMessages,
   groupChatMessages,
   mergeLiveChatArchive,
   toChatItems,
   toEphemeralChatItems,
+  unreadChatSince,
   type MeetingChatItem,
 } from "./meeting-chat";
 
@@ -174,5 +176,32 @@ describe("toEphemeralChatItems", () => {
       },
     ]);
     expect(items.map((m) => m.message)).toEqual(["first", "second"]);
+  });
+});
+
+describe("unreadChatSince", () => {
+  const row = (id: string, sec: number, from = "them") => ({
+    id,
+    sender_identity: from,
+    sender_name: from,
+    message: id,
+    sent_at: `2026-08-29T02:00:${String(sec).padStart(2, "0")}Z`,
+  });
+
+  it("counts others' messages past the watermark, not the reader's own", () => {
+    const rows = [row("a", 1), row("b", 2), row("c", 3, "me"), row("d", 4)];
+    const mark = chatWatermark(rows.slice(0, 2));
+    expect(unreadChatSince(rows, mark, "me").map((m) => m.id)).toEqual(["d"]);
+  });
+
+  it("splits a shared second by id, and counts everything when the room opened empty", () => {
+    const rows = [row("a", 1), row("b", 1)];
+    expect(unreadChatSince(rows, chatWatermark([row("a", 1)]), "me").map((m) => m.id)).toEqual(["b"]);
+    expect(unreadChatSince(rows, chatWatermark([]), "me").map((m) => m.id)).toEqual(["a", "b"]);
+  });
+
+  it("still holds when a refetch replaced the row the watermark came from", () => {
+    const mark = chatWatermark([row("gone", 5)]);
+    expect(unreadChatSince([row("x", 4), row("y", 6)], mark, "me").map((m) => m.id)).toEqual(["y"]);
   });
 });

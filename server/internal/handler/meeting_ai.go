@@ -92,16 +92,20 @@ func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
-	segs, err := h.Meetings.Transcript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	q, ok := meetingFeedQuery(w, r)
+	if !ok {
+		return
+	}
+	page, err := h.Meetings.Transcript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), q)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.TranscriptSegmentDTO, 0, len(segs))
-	for _, s := range segs {
+	out := make([]sdo.TranscriptSegmentDTO, 0, len(page.Items))
+	for _, s := range page.Items {
 		out = append(out, toTranscriptDTO(s))
 	}
-	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out})
+	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page)})
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {

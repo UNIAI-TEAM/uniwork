@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { ChevronDown, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { motionDenominator, tallyPercent } from "@uniwork/core/meetings/motions";
+import { motionDenominator, tallyPercent, useMotionVoters } from "@uniwork/core/meetings/motions";
 import { BALLOT_CHOICES, type BallotChoice, type MeetingMotion } from "@uniwork/core/types/meeting";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ToneBadge } from "./meeting-status-badge";
@@ -16,12 +17,52 @@ const SEGMENT: Record<BallotChoice, string> = {
 const COUNT_OF = { YES: "yes", NO: "no", ABSTAIN: "abstain" } as const;
 
 /**
+ * Who chose what, read only once the result is unfolded: the list every
+ * client refetches on each ballot carries no names.
+ */
+function MotionVotersList({ meetingId, motionId }: { meetingId: string; motionId: string }) {
+  const { t } = useTranslation();
+  const { data: voters, isPending, isError, refetch } = useMotionVoters(meetingId, motionId, true);
+  if (isPending) {
+    return <p className="px-1 pt-1 text-caption text-muted-foreground">{t("common.loading")}</p>;
+  }
+  // A closed public motion always has names: null here is a drifted body, and
+  // "nobody" under every choice would contradict the tallies.
+  if (isError || !voters) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 px-1 pt-1 text-caption text-muted-foreground">
+        <span>{t("meetings.governance.motionsLoadFailed")}</span>
+        <Button type="button" variant="ghost" size="sm" onClick={() => void refetch()}>
+          {t("common.retry")}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <dl className="space-y-1.5 px-1 pt-1">
+      {BALLOT_CHOICES.map((c) => {
+        const names = voters[COUNT_OF[c]];
+        return (
+          <div key={c} className="grid grid-cols-[8rem_1fr] gap-2 text-caption">
+            <dt className="text-muted-foreground">{t(`meetings.governance.choice_${c}`)}</dt>
+            <dd className="text-foreground">
+              {names.length > 0 ? names.join(", ") : t("meetings.governance.motionVotersNone")}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+/**
  * A closed vote's result: outcome, the bar against the denominator it was
  * counted on (with the passing mark), counts and shares per choice, and —
- * for an open ballot only — who chose what, folded away by default. A secret
- * ballot says why there are no names instead.
+ * for an open ballot only — who chose what, folded away by default and
+ * fetched on first unfold. A secret ballot says why there are no names
+ * instead.
  */
-export function MeetingMotionResult({ motion }: { motion: MeetingMotion }) {
+export function MeetingMotionResult({ meetingId, motion }: { meetingId: string; motion: MeetingMotion }) {
   const { t } = useTranslation();
   const [votersOpen, setVotersOpen] = useState(false);
   const result = motion.result;
@@ -29,7 +70,6 @@ export function MeetingMotionResult({ motion }: { motion: MeetingMotion }) {
   const denominator = motionDenominator(motion.base, motion.roll_size ?? 0, motion.total_members ?? 0);
   const passed = result.outcome === "PASSED";
   const secret = motion.ballot_mode === "SECRET";
-  const voters = secret ? null : motion.voters;
   return (
     <div className="@container space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -77,7 +117,7 @@ export function MeetingMotionResult({ motion }: { motion: MeetingMotion }) {
           <EyeOff aria-hidden className="size-3.5 shrink-0" />
           {t("meetings.governance.motionSecretNote")}
         </p>
-      ) : voters ? (
+      ) : (
         <Collapsible open={votersOpen} onOpenChange={setVotersOpen}>
           <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-1 text-label text-muted-foreground transition-colors duration-fast hover:bg-surface-hover hover:text-foreground pointer-coarse:min-h-11">
             <ChevronDown
@@ -90,22 +130,10 @@ export function MeetingMotionResult({ motion }: { motion: MeetingMotion }) {
             {t("meetings.governance.motionVoters")}
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <dl className="space-y-1.5 px-1 pt-1">
-              {BALLOT_CHOICES.map((c) => {
-                const names = voters[COUNT_OF[c]];
-                return (
-                  <div key={c} className="grid grid-cols-[8rem_1fr] gap-2 text-caption">
-                    <dt className="text-muted-foreground">{t(`meetings.governance.choice_${c}`)}</dt>
-                    <dd className="text-foreground">
-                      {names.length > 0 ? names.join(", ") : t("meetings.governance.motionVotersNone")}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
+            {votersOpen ? <MotionVotersList meetingId={meetingId} motionId={motion.id} /> : null}
           </CollapsibleContent>
         </Collapsible>
-      ) : null}
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
 import { ConnectionState, RoomEvent, type RemoteParticipant } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
-import { toChatItems } from "./meeting-chat";
+import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
 import { reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -21,7 +21,8 @@ const PRESENCE_BATCH_MS = 1200;
 export function ReactionAnnouncer() {
   const { t } = useTranslation();
   const { reactions, localIdentity } = useMeetingSignals();
-  const participants = useLiveKitParticipants();
+  // Names are all it reads: speaking and quality changes must not re-render it.
+  const participants = useLiveKitParticipants({ updateOnlyOn: [RoomEvent.ParticipantNameChanged] });
   const latest = reactions.at(-1);
   let text = "";
   if (latest) {
@@ -116,24 +117,30 @@ export function ParticipantPresenceAnnouncer() {
 
 /**
  * Messages from others that arrived while the chat was not on screen. The
- * history already there when the room opened counts as read.
+ * history already there when the room opened counts as read. The count is
+ * taken against a watermark, so it reads only the rows past it.
  */
 export function useMeetingChatUnread(meetingId: string | undefined, visible: boolean) {
   const { localParticipant } = useLocalParticipant();
   const localIdentity = localParticipant.identity;
   const { data } = useMeetingChat(meetingId ?? "");
-  const incoming = useMemo(
-    () => (data ? toChatItems(data, localIdentity).filter((m) => !m.isLocal) : null),
-    [data, localIdentity],
-  );
-  const [seen, setSeen] = useState<ReadonlySet<string> | null>(null);
+  const newest = data ? chatWatermark(data) : null;
+  const newestAt = newest?.at;
+  const newestId = newest?.id;
+  const [mark, setMark] = useState<ChatWatermark | null>(null);
 
   useEffect(() => {
-    if (!incoming) return;
-    setSeen((prev) => (prev === null || visible ? new Set(incoming.map((m) => m.id)) : prev));
-  }, [incoming, visible]);
+    if (newestAt === undefined || newestId === undefined) return;
+    setMark((prev) => {
+      if (prev !== null && !visible) return prev;
+      return prev?.at === newestAt && prev.id === newestId ? prev : { at: newestAt, id: newestId };
+    });
+  }, [newestAt, newestId, visible]);
 
-  const unseen = seen && incoming ? incoming.filter((m) => !seen.has(m.id)) : [];
+  const unseen = useMemo(
+    () => (data && mark ? unreadChatSince(data, mark, localIdentity) : []),
+    [data, mark, localIdentity],
+  );
   return { unread: unseen.length, latest: unseen.at(-1) };
 }
 

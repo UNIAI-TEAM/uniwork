@@ -92,13 +92,19 @@ func TestMeetingMotionSchema(t *testing.T) {
 	})
 
 	t.Run("one ballot per member and a secret ballot keeps no choice", func(t *testing.T) {
-		if err := s.q.InsertMeetingMotionBallot(ctx, db.InsertMeetingMotionBallotParams{
-			ID: util.NewID(), OrganizationID: orgID, MeetingID: m.ID, MotionID: secret.ID, ParticipantID: memberPID,
+		hostPID := hostParticipant(t, s, m.ID, ua.ID).ID
+		if err := s.q.InsertMeetingMotionBallots(ctx, db.InsertMeetingMotionBallotsParams{
+			Ids: []string{util.NewID(), util.NewID()}, OrganizationID: orgID, MeetingID: m.ID, MotionID: secret.ID,
+			ParticipantIds: []string{memberPID, hostPID},
 		}); err != nil {
 			t.Fatal(err)
 		}
-		err := s.q.InsertMeetingMotionBallot(ctx, db.InsertMeetingMotionBallotParams{
-			ID: util.NewID(), OrganizationID: orgID, MeetingID: m.ID, MotionID: secret.ID, ParticipantID: memberPID,
+		if roll := ballotRoll(t, s, secret.ID); len(roll) != 2 || !roll[memberPID] || !roll[hostPID] {
+			t.Fatalf("bulk roll = %v, want member and host", roll)
+		}
+		err := s.q.InsertMeetingMotionBallots(ctx, db.InsertMeetingMotionBallotsParams{
+			Ids: []string{util.NewID()}, OrganizationID: orgID, MeetingID: m.ID, MotionID: secret.ID,
+			ParticipantIds: []string{memberPID},
 		})
 		expectUniqueViolation(t, err, "uidx_meeting_motion_ballots_participant")
 
@@ -116,7 +122,7 @@ func TestMeetingMotionSchema(t *testing.T) {
 		if n, err := s.q.CastSecretMeetingBallot(ctx, db.CastSecretMeetingBallotParams{MotionID: secret.ID, ParticipantID: memberPID}); err != nil || n != 0 {
 			t.Fatalf("second cast = %d, %v; want 0 rows", n, err)
 		}
-		if err := s.q.CountMeetingMotionVote(ctx, db.CountMeetingMotionVoteParams{Choice: "YES", ID: secret.ID}); err != nil {
+		if err := s.q.CountSecretMeetingMotionVote(ctx, db.CountSecretMeetingMotionVoteParams{Choice: "YES", ID: secret.ID}); err != nil {
 			t.Fatal(err)
 		}
 		closed, err := s.q.CloseMeetingMotion(ctx, db.CloseMeetingMotionParams{Outcome: "PASSED", ClosedBy: strText(""), ID: secret.ID})
@@ -135,28 +141,35 @@ func TestMeetingMotionSchema(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("open after the other item closed: %v", err)
 		}
-		if err := s.q.InsertMeetingMotionBallot(ctx, db.InsertMeetingMotionBallotParams{
-			ID: util.NewID(), OrganizationID: orgID, MeetingID: m.ID, MotionID: public.ID, ParticipantID: memberPID,
+		if err := s.q.InsertMeetingMotionBallots(ctx, db.InsertMeetingMotionBallotsParams{
+			Ids: []string{util.NewID()}, OrganizationID: orgID, MeetingID: m.ID, MotionID: public.ID,
+			ParticipantIds: []string{memberPID},
 		}); err != nil {
 			t.Fatal(err)
 		}
 		n, err := s.q.CastPublicMeetingBallot(ctx, db.CastPublicMeetingBallotParams{
-			Choice: strText("NO"), MotionID: public.ID, ParticipantID: memberPID,
+			Choice: "NO", MotionID: public.ID, ParticipantID: memberPID,
 		})
 		if err != nil || n != 1 {
 			t.Fatalf("CastPublicMeetingBallot = %d, %v; want 1 row", n, err)
+		}
+		counted, err := s.q.GetMeetingMotion(ctx, db.GetMeetingMotionParams{ID: public.ID, MeetingID: m.ID})
+		if err != nil || counted.NoCount != 1 || counted.YesCount != 0 {
+			t.Fatalf("public cast counted = %+v, %v; want one NO", counted, err)
 		}
 		member, err := s.q.GetMeetingParticipant(ctx, memberPID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		voters, err := s.q.ListPublicMeetingVoters(ctx, m.ID)
+		voters, err := s.q.ListPublicMotionVoters(ctx, public.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(voters) != 1 || voters[0].MotionID != public.ID || voters[0].Choice.String != "NO" ||
-			voters[0].DisplayNameSnapshot != member.DisplayNameSnapshot {
-			t.Fatalf("public voters = %+v; want only %q voting NO on the public item", voters, member.DisplayNameSnapshot)
+		if len(voters) != 1 || voters[0].Choice.String != "NO" || voters[0].DisplayNameSnapshot != member.DisplayNameSnapshot {
+			t.Fatalf("public voters = %+v; want only %q voting NO", voters, member.DisplayNameSnapshot)
+		}
+		if secretVoters, err := s.q.ListPublicMotionVoters(ctx, secret.ID); err != nil || len(secretVoters) != 0 {
+			t.Fatalf("secret voters = %+v, %v; want none", secretVoters, err)
 		}
 		mine, err := s.q.ListMeetingBallotsForParticipant(ctx, db.ListMeetingBallotsForParticipantParams{MeetingID: m.ID, ParticipantID: memberPID})
 		if err != nil || len(mine) != 2 {

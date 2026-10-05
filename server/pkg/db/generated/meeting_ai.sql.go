@@ -435,18 +435,117 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 	return items, nil
 }
 
-const listTranscriptSegments = `-- name: ListTranscriptSegments :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at ASC, id ASC LIMIT $2
+const listTranscriptSegmentsBefore = `-- name: ListTranscriptSegmentsBefore :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at <= $2::timestamptz
+  AND (spoken_at, id) < ($2::timestamptz, $3::text)
+ORDER BY spoken_at DESC, id DESC
+LIMIT $4
 `
 
-type ListTranscriptSegmentsParams struct {
+type ListTranscriptSegmentsBeforeParams struct {
+	MeetingID string             `json:"meeting_id"`
+	BeforeAt  pgtype.Timestamptz `json:"before_at"`
+	BeforeID  string             `json:"before_id"`
+	RowLimit  int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// The page older than the cursor row; the plain spoken_at bound lets the
+// (meeting_id, spoken_at) index start the scan at the cursor.
+func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTranscriptSegmentsBeforeParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsBefore,
+		arg.MeetingID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+WHERE meeting_id = $1 AND created_at >= $2::timestamptz
+ORDER BY created_at ASC, id ASC
+LIMIT $3
+`
+
+type ListTranscriptSegmentsCreatedSinceParams struct {
+	MeetingID string             `json:"meeting_id"`
+	Since     pgtype.Timestamptz `json:"since"`
+	RowLimit  int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Delta read keyed on created_at, not spoken_at: spoken_at comes from the
+// caption client or the STT agent and can land behind rows already read.
+func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg ListTranscriptSegmentsCreatedSinceParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince, arg.MeetingID, arg.Since, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsLatest = `-- name: ListTranscriptSegmentsLatest :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2
+`
+
+type ListTranscriptSegmentsLatestParams struct {
 	MeetingID string `json:"meeting_id"`
 	Limit     int32  `json:"limit"`
 }
 
 // tenant: parent meeting_id
-func (q *Queries) ListTranscriptSegments(ctx context.Context, arg ListTranscriptSegmentsParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegments, arg.MeetingID, arg.Limit)
+// Newest first; callers reverse the page into reading order (G18).
+func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTranscriptSegmentsLatestParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest, arg.MeetingID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

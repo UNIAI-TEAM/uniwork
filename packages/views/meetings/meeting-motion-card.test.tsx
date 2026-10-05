@@ -212,7 +212,11 @@ describe("MeetingMotionCard — closed", () => {
     });
 
   it("shows the outcome, the bar's numbers and a folded list of who chose what", async () => {
-    renderCard(closed({ voters: { yes: ["An", "Bình", "Chi"], no: ["Dũng"], abstain: [] } }));
+    const VOTERS = "/api/v1/meetings/m1/motions/mo1/voters";
+    requestMock.mockImplementation(async (path: string) =>
+      path === VOTERS ? { motion_id: "mo1", voters: { yes: ["An", "Bình", "Chi"], no: ["Dũng"], abstain: [] } } : null,
+    );
+    renderCard(closed());
     expect(screen.getByText("Đã đóng")).toBeInTheDocument();
     expect(screen.getByText("Thông qua")).toBeInTheDocument();
     expect(screen.getByText("Cần 3/4 phiếu tán thành")).toBeInTheDocument();
@@ -220,8 +224,11 @@ describe("MeetingMotionCard — closed", () => {
     expect(screen.getByText("Không tán thành: 1 (25%)")).toBeInTheDocument();
     expect(screen.getByText("Không ý kiến: 0 (0%)")).toBeInTheDocument();
     expect(screen.queryByText("An, Bình, Chi")).not.toBeInTheDocument();
+    // Names are a read of their own, made only when someone unfolds them.
+    expect(requestMock.mock.calls.map((c) => c[0])).not.toContain(VOTERS);
     fireEvent.click(screen.getByRole("button", { name: "Xem ai chọn gì" }));
     expect(await screen.findByText("An, Bình, Chi")).toBeInTheDocument();
+    expect(requestMock.mock.calls.filter((c) => c[0] === VOTERS)).toHaveLength(1);
     expect(screen.getByText("Dũng")).toBeInTheDocument();
     expect(screen.getByText("Không ai")).toBeInTheDocument();
   });
@@ -235,8 +242,28 @@ describe("MeetingMotionCard — closed", () => {
     expect(screen.getByText("Tán thành: 3 (50%)")).toBeInTheDocument();
   });
 
+  it("offers to retry when the names cannot be read", async () => {
+    requestMock.mockRejectedValueOnce(new ApiError("boom", "internal", 500));
+    renderCard(closed());
+    fireEvent.click(screen.getByRole("button", { name: "Xem ai chọn gì" }));
+    expect(await screen.findByText("Không tải được biểu quyết")).toBeInTheDocument();
+    requestMock.mockResolvedValueOnce({ motion_id: "mo1", voters: { yes: ["An"], no: [], abstain: [] } });
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("An")).toBeInTheDocument();
+  });
+
+  // A closed public motion always has names; a body without them is drift, and
+  // "nobody" under each choice would contradict the tallies above it.
+  it("does not claim nobody voted when the names come back unreadable", async () => {
+    requestMock.mockResolvedValueOnce({ motion_id: "mo1", voters: "garbled" });
+    renderCard(closed());
+    fireEvent.click(screen.getByRole("button", { name: "Xem ai chọn gì" }));
+    expect(await screen.findByText("Không tải được biểu quyết")).toBeInTheDocument();
+    expect(screen.queryByText("Không ai")).not.toBeInTheDocument();
+  });
+
   it("never lists names for a secret ballot", () => {
-    renderCard(closed({ ballot_mode: "SECRET", voters: null }));
+    renderCard(closed({ ballot_mode: "SECRET" }));
     expect(screen.getByText("Bỏ phiếu kín — không hiện ai chọn gì.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Xem ai chọn gì" })).not.toBeInTheDocument();
     expect(screen.getByText("Tán thành: 3 (75%)")).toBeInTheDocument();
@@ -248,7 +275,6 @@ describe("MeetingMotionCard — closed", () => {
         roll_size: 0,
         cast_count: 0,
         result: { yes: 0, no: 0, abstain: 0, required: 0, outcome: "FAILED" },
-        voters: { yes: [], no: [], abstain: [] },
       }),
     );
     expect(screen.getByText("Không thông qua")).toBeInTheDocument();

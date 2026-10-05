@@ -7,8 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -29,8 +32,13 @@ const (
 	RecordingComplete   = "COMPLETE"
 	RecordingFailed     = "FAILED"
 
-	transcriptLimit = 5000
-	chatLimit       = 500
+	// The summary reads the newest rows and keeps what fits its rune budget
+	// (summaryWindow); ai.estimateTokens counts ~4 runes per token, so the
+	// budgets are ~15k tokens of transcript and ~4k of chat (G18).
+	summaryTranscriptRows  = 2000
+	summaryChatRows        = 500
+	summaryTranscriptRunes = 60000
+	summaryChatRunes       = 16000
 
 	// autoEndOvertime is the hard cap after ends_at while a conference is still open.
 	autoEndOvertime = 2 * time.Hour
@@ -138,11 +146,49 @@ func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingI
 	return seg, nil
 }
 
-func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string) ([]db.MeetingTranscriptSegment, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
-		return nil, err
+// transcriptFeedKeys pages by spoken_at, which the caption client or the STT
+// agent supplies, and follows deltas by created_at, which the database does:
+// a segment delivered late must still reach a client that holds newer ones.
+var transcriptFeedKeys = feedKeys[db.MeetingTranscriptSegment]{
+	id:    func(s db.MeetingTranscriptSegment) string { return s.ID },
+	key:   func(s db.MeetingTranscriptSegment) time.Time { return s.SpokenAt.Time },
+	delta: func(s db.MeetingTranscriptSegment) time.Time { return s.CreatedAt.Time },
+}
+
+// Transcript reads one page of the meeting's transcript (see FeedQuery).
+func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
+	if err := q.validate(); err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
-	return s.q.ListTranscriptSegments(ctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
+	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	limit := q.limit()
+	switch {
+	case q.After != "":
+		at, _, _ := decodeFeedCursor(q.After)
+		rows, err := s.q.ListTranscriptSegmentsCreatedSince(ctx, db.ListTranscriptSegmentsCreatedSinceParams{
+			MeetingID: meetingID, Since: pgtype.Timestamptz{Time: at.Add(-feedDeltaOverlap), Valid: true}, RowLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return FeedPage[db.MeetingTranscriptSegment]{}, err
+		}
+		return pageFromDelta(rows, limit, transcriptFeedKeys, q.After), nil
+	case q.Before != "":
+		at, id, _ := decodeFeedCursor(q.Before)
+		rows, err := s.q.ListTranscriptSegmentsBefore(ctx, db.ListTranscriptSegmentsBeforeParams{
+			MeetingID: meetingID, BeforeAt: pgtype.Timestamptz{Time: at, Valid: true}, BeforeID: id, RowLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return FeedPage[db.MeetingTranscriptSegment]{}, err
+		}
+		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
+	}
+	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(limit + 1)})
+	if err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	return pageFromNewest(rows, limit, transcriptFeedKeys, true), nil
 }
 
 // ---- AI summary --------------------------------------------------------------
@@ -206,7 +252,8 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		segs, err = s.q.ListTranscriptSegments(gctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
+		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
+		slices.Reverse(segs)
 		return err
 	})
 	g.Go(func() error {
@@ -216,7 +263,8 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	})
 	g.Go(func() error {
 		var err error
-		chat, err = s.q.ListMeetingChatMessages(gctx, db.ListMeetingChatMessagesParams{MeetingID: meetingID, Limit: chatLimit})
+		chat, err = s.q.ListMeetingChatMessagesLatest(gctx, db.ListMeetingChatMessagesLatestParams{MeetingID: meetingID, Limit: summaryChatRows})
+		slices.Reverse(chat)
 		return err
 	})
 	g.Go(func() error {
@@ -245,6 +293,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, sg := range segs {
 		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
 	}
+	transcript = windowSummaryLines(transcript, summaryTranscriptRunes,
+		func(l ai.TranscriptLine) int {
+			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
+		},
+		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
 	noteBodies := make([]string, 0, len(notes))
 	for _, n := range notes {
 		noteBodies = append(noteBodies, n.Body)
@@ -253,6 +306,9 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, c := range chat {
 		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
 	}
+	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
+		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
+		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
 	resp, err := s.AI.Complete(ctx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
@@ -290,6 +346,50 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "summary.created", Payload: map[string]string{"meeting_id": meetingID}})
 	return row, nil
 }
+
+// summaryWindow picks which lines of a too-long transcript or chat the
+// summary reads, given each line's size in runes: lines[:head] and
+// lines[tailStart:]. Everything fits → (n, n). Otherwise an eighth of the
+// budget keeps how the meeting opened and the rest goes to its end, where
+// the conclusions are; the middle is what is dropped. Deterministic.
+func summaryWindow(sizes []int, budget int) (head, tailStart int) {
+	n, total := len(sizes), 0
+	for _, sz := range sizes {
+		total += sz
+	}
+	if total <= budget {
+		return n, n
+	}
+	used := 0
+	for head < n && used+sizes[head] <= budget/8 {
+		used += sizes[head]
+		head++
+	}
+	tailStart = n
+	for tailStart > head && used+sizes[tailStart-1] <= budget {
+		used += sizes[tailStart-1]
+		tailStart--
+	}
+	return head, tailStart
+}
+
+// windowSummaryLines applies summaryWindow and marks the cut with a line.
+func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) []T {
+	sizes := make([]int, len(lines))
+	for i, l := range lines {
+		sizes[i] = size(l)
+	}
+	head, tailStart := summaryWindow(sizes, budget)
+	if tailStart == head {
+		return lines[:head]
+	}
+	out := make([]T, 0, head+1+len(lines)-tailStart)
+	out = append(out, lines[:head]...)
+	out = append(out, marker(tailStart-head))
+	return append(out, lines[tailStart:]...)
+}
+
+func summaryOmitted(n int) string { return "(" + strconv.Itoa(n) + " lines omitted)" }
 
 // summaryAttendanceFacts turns the attendance report into prompt facts.
 // Counted members only (attendanceReport's summary): observers, and anyone

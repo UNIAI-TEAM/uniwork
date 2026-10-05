@@ -399,6 +399,8 @@ func New(d Deps) http.Handler {
 		FinalizeAttendance:             h.finalizeAttendance,
 		ReopenAttendance:               h.reopenAttendance,
 		ListMotions:                    h.listMotions,
+		ListMyBallots:                  h.listMyBallots,
+		ListMotionVoters:               h.listMotionVoters,
 		CreateMotion:                   h.createMotion,
 		UpdateMotion:                   h.updateMotion,
 		DeleteMotion:                   h.deleteMotion,

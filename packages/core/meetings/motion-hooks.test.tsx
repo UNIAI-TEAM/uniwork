@@ -6,7 +6,7 @@ import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import type { MeetingMotion } from "../types/meeting";
 import { meetingKeys, useEndMeeting } from "./hooks";
-import { useCastBallot, useUpdateMotion } from "./motion-hooks";
+import { motionKeys, useCastBallot, useMeetingMotions, useMotionVoters, useUpdateMotion } from "./motion-hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -24,8 +24,6 @@ const open: MeetingMotion = {
   total_members: 4,
   cast_count: 1,
   result: null,
-  voters: null,
-  my_ballot: { on_roll: true, cast: false, choice: null },
 };
 
 const motionsKey = JSON.stringify(["meeting-motions", "m1"]);
@@ -59,7 +57,7 @@ afterEach(() => {
 describe("useCastBallot — not optimistic: the server decides whether a ballot counts", () => {
   it("leaves the cached list alone until the server answers, then refreshes list and timeline", async () => {
     const qc = newClient();
-    qc.setQueryData(meetingKeys.motions("m1"), [open]);
+    qc.setQueryData(motionKeys.list("m1"), [open]);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     let release: (response: Response) => void = () => undefined;
     vi.mocked(fetch).mockImplementationOnce(
@@ -74,7 +72,7 @@ describe("useCastBallot — not optimistic: the server decides whether a ballot 
       result.current.mutate({ motionId: "mo1", choice: "NO" });
     });
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
-    expect(qc.getQueryData(meetingKeys.motions("m1"))).toEqual([open]);
+    expect(qc.getQueryData(motionKeys.list("m1"))).toEqual([open]);
     expect(invalidate).not.toHaveBeenCalled();
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/meetings/m1/motions/mo1/ballot");
@@ -137,5 +135,71 @@ describe("useEndMeeting", () => {
       await result.current.mutateAsync("m1");
     });
     expect(keysCalled(invalidate)).toContain(motionsKey);
+  });
+});
+
+const urlOf = (input: unknown) => String(input);
+
+describe("useMeetingMotions — one list for everyone, the caller's roll joined in", () => {
+  it("reads the list and the caller's ballots and joins them as my_ballot", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      urlOf(input).endsWith("/my-ballots")
+        ? json({ ballots: [{ motion_id: "mo1", cast: false, choice: null }] })
+        : json({ motions: [open, { ...open, id: "mo2", status: "CLOSED" }] }),
+    );
+    const qc = newClient();
+    const { result } = renderHook(() => useMeetingMotions("m1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(result.current.data?.[0]?.my_ballot).toBeDefined());
+    expect(result.current.data?.map((m) => m.my_ballot)).toEqual([
+      { on_roll: true, cast: false, choice: null },
+      { on_roll: false, cast: false, choice: null },
+    ]);
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => urlOf(input));
+    expect(urls).toEqual(
+      expect.arrayContaining([
+        "http://api.test/api/v1/meetings/m1/motions",
+        "http://api.test/api/v1/meetings/m1/my-ballots",
+      ]),
+    );
+    // The cache holds the shared list as the server sent it.
+    expect(qc.getQueryData<MeetingMotion[]>(motionKeys.list("m1"))?.[0]?.my_ballot).toBeUndefined();
+  });
+
+  it("keeps the list usable when the roll cannot be read", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      urlOf(input).endsWith("/my-ballots")
+        ? json({ error: { code: "not_found", message: "x" } }, 404)
+        : json({ motions: [open] }),
+    );
+    const qc = newClient();
+    const { result } = renderHook(() => useMeetingMotions("m1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.map((m) => m.id)).toEqual(["mo1"]);
+  });
+
+  it("keys the list and the roll under the meeting's motions, and voters outside it", () => {
+    const prefix = JSON.stringify(meetingKeys.motions("m1")).slice(0, -1);
+    expect(JSON.stringify(motionKeys.list("m1")).startsWith(prefix)).toBe(true);
+    expect(JSON.stringify(motionKeys.myBallots("m1")).startsWith(prefix)).toBe(true);
+    expect(JSON.stringify(motionKeys.voters("m1", "mo1")).startsWith(prefix)).toBe(false);
+    expect(motionKeys.list("m1")).not.toEqual(motionKeys.myBallots("m1"));
+  });
+});
+
+describe("useMotionVoters — loaded only when someone opens the result", () => {
+  it("does not fetch while folded, then fetches once", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ motion_id: "mo1", voters: { yes: ["An"], no: [], abstain: [] } }));
+    const qc = newClient();
+    const { result, rerender } = renderHook(({ on }: { on: boolean }) => useMotionVoters("m1", "mo1", on), {
+      wrapper: wrapperFor(qc),
+      initialProps: { on: false },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.data?.yes).toEqual(["An"]));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/motions/mo1/voters");
+    rerender({ on: false });
+    rerender({ on: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

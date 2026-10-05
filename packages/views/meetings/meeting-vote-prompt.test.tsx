@@ -12,9 +12,11 @@ const open = {
   id: "mo1", title: TITLE, description: "", position: 1,
   ballot_mode: "SECRET", threshold: "MAJORITY", base: "PRESENT", status: "OPEN",
   opened_at: "2026-10-01T02:10:00Z", roll_size: 3, total_members: 4, cast_count: 0,
-  result: null, voters: null, my_ballot: { on_roll: true, cast: false, choice: null },
+  result: null,
 };
+/** The shared list (GET /motions) and this person's roll (GET /my-ballots). */
 let motions: unknown[] = [];
+let ballots: unknown[] = [];
 
 function renderPrompt(onOpenTab = vi.fn()) {
   render(
@@ -32,14 +34,17 @@ beforeAll(() => {
 
 beforeEach(() => {
   motions = [open];
+  ballots = [{ motion_id: "mo1", cast: false, choice: null }];
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown) => {
     const p = String(path);
     if (p === BALLOT) {
       // The server now reports the ballot as cast; the card must not come back.
-      motions = [{ ...open, cast_count: 1, my_ballot: { on_roll: true, cast: true, choice: null } }];
+      motions = [{ ...open, cast_count: 1 }];
+      ballots = [{ motion_id: "mo1", cast: true, choice: null }];
       return Promise.resolve({ status: "ok" });
     }
+    if (p.endsWith("/my-ballots")) return Promise.resolve({ ballots });
     return Promise.resolve(p.endsWith("/motions") ? { motions } : {});
   });
 });

@@ -428,22 +428,24 @@ func TestSecretBallotKeepsNoChoice(t *testing.T) {
 
 	// While open nobody sees a result, the host included.
 	v := viewByID(t, motionsFor(t, s, ua.ID, "", m.ID), mo.ID)
-	if v.Result != nil || v.CastCount != 2 || !v.MyBallot.OnRoll || !v.MyBallot.Cast || v.MyBallot.Choice != "" {
+	if v.Result != nil || v.CastCount != 2 {
 		t.Fatalf("host view while open = %+v", v)
+	}
+	if b, ok := myBallotFor(t, s, ua.ID, "", m.ID, mo.ID); !ok || !b.Cast || b.Choice != "" {
+		t.Fatalf("host's secret ballot = %+v on roll %v", b, ok)
 	}
 	if _, err := s.CloseMotion(ctx, ua.ID, m.ID, mo.ID); err != nil {
 		t.Fatal(err)
 	}
 	v = viewByID(t, motionsFor(t, s, ua.ID, "", m.ID), mo.ID)
-	if v.Voters != nil {
-		t.Fatalf("secret motion lists voters: %+v", v.Voters)
+	if voters, err := s.MotionVoters(ctx, ua.ID, "", m.ID, mo.ID); err != nil || voters != nil {
+		t.Fatalf("secret motion lists voters: %+v, %v", voters, err)
 	}
 	if v.Result == nil || v.Result.Yes != 1 || v.Result.No != 1 || v.Result.Required != 2 || v.Result.Outcome != OutcomeFailed {
 		t.Fatalf("secret result = %+v", v.Result)
 	}
-	gv := viewByID(t, motionsFor(t, s, "", g.GuestID.String, m.ID), mo.ID)
-	if !gv.MyBallot.Cast || gv.MyBallot.Choice != "" {
-		t.Fatalf("guest ballot view = %+v", gv.MyBallot)
+	if gb, ok := myBallotFor(t, s, "", g.GuestID.String, m.ID, mo.ID); !ok || !gb.Cast || gb.Choice != "" {
+		t.Fatalf("guest ballot view = %+v", gb)
 	}
 }
 
@@ -474,23 +476,24 @@ func TestPublicBallotAuditAndVoters(t *testing.T) {
 	}
 
 	v := viewByID(t, motionsFor(t, s, ua.ID, "", m.ID), mo.ID)
-	if v.Result != nil || v.Voters != nil {
-		t.Fatalf("open public motion leaks result %+v voters %+v", v.Result, v.Voters)
+	if voters, err := s.MotionVoters(ctx, ua.ID, "", m.ID, mo.ID); v.Result != nil || err != nil || voters != nil {
+		t.Fatalf("open public motion leaks result %+v voters %+v (%v)", v.Result, voters, err)
 	}
-	if v.MyBallot.Choice != ChoiceYes {
-		t.Fatalf("host's own choice = %q", v.MyBallot.Choice)
+	if b, _ := myBallotFor(t, s, ua.ID, "", m.ID, mo.ID); b.Choice != ChoiceYes {
+		t.Fatalf("host's own choice = %q", b.Choice)
 	}
-	if bv := viewByID(t, motionsFor(t, s, ub.ID, "", m.ID), mo.ID); bv.MyBallot.Choice != ChoiceNo {
-		t.Fatalf("member's own choice = %q", bv.MyBallot.Choice)
+	if b, _ := myBallotFor(t, s, ub.ID, "", m.ID, mo.ID); b.Choice != ChoiceNo {
+		t.Fatalf("member's own choice = %q", b.Choice)
 	}
 
 	if _, err := s.CloseMotion(ctx, ua.ID, m.ID, mo.ID); err != nil {
 		t.Fatal(err)
 	}
 	v = viewByID(t, motionsFor(t, s, ub.ID, "", m.ID), mo.ID)
-	if v.Voters == nil || len(v.Voters.Yes) != 1 || v.Voters.Yes[0] != "A" ||
-		len(v.Voters.No) != 1 || v.Voters.No[0] != "B" || v.Voters.Abstain == nil || len(v.Voters.Abstain) != 0 {
-		t.Fatalf("voters = %+v", v.Voters)
+	voters, err := s.MotionVoters(ctx, ub.ID, "", m.ID, mo.ID)
+	if err != nil || voters == nil || len(voters.Yes) != 1 || voters.Yes[0] != "A" ||
+		len(voters.No) != 1 || voters.No[0] != "B" || voters.Abstain == nil || len(voters.Abstain) != 0 {
+		t.Fatalf("voters = %+v, %v", voters, err)
 	}
 	if r := v.Result; r == nil || r.Yes != 1 || r.No != 1 || r.Abstain != 0 || r.Required != 2 || r.Outcome != OutcomeFailed {
 		t.Fatalf("public result = %+v", r)
@@ -512,9 +515,12 @@ func TestMotionsHidesDraftsFromNonClerks(t *testing.T) {
 		"member": motionsFor(t, s, ub.ID, "", m.ID),
 		"guest":  motionsFor(t, s, "", g.GuestID.String, m.ID),
 	} {
-		if len(views) != 1 || views[0].Motion.ID != live.ID || views[0].MyBallot.OnRoll {
-			t.Fatalf("%s sees %+v, want only the open motion, off the roll", name, views)
+		if len(views) != 1 || views[0].Motion.ID != live.ID {
+			t.Fatalf("%s sees %+v, want only the open motion", name, views)
 		}
+	}
+	if _, onRoll := myBallotFor(t, s, "", g.GuestID.String, m.ID, live.ID); onRoll {
+		t.Fatal("an observer guest is on the roll")
 	}
 	// A secretary clerks, so drafts show up for them.
 	yes := true

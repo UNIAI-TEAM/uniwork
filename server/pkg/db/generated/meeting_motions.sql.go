@@ -12,18 +12,30 @@ import (
 )
 
 const castPublicMeetingBallot = `-- name: CastPublicMeetingBallot :execrows
-UPDATE meeting_motion_ballots SET cast_at = now(), choice = $1
-WHERE motion_id = $2 AND participant_id = $3 AND cast_at IS NULL
+WITH cast_ballot AS (
+  UPDATE meeting_motion_ballots SET cast_at = now(), choice = $1::text
+  WHERE motion_id = $2 AND participant_id = $3 AND cast_at IS NULL
+  RETURNING motion_id
+)
+UPDATE meeting_motions SET
+  yes_count = yes_count + CASE WHEN $1::text = 'YES' THEN 1 ELSE 0 END,
+  no_count = no_count + CASE WHEN $1::text = 'NO' THEN 1 ELSE 0 END,
+  abstain_count = abstain_count + CASE WHEN $1::text = 'ABSTAIN' THEN 1 ELSE 0 END,
+  updated_at = now()
+FROM cast_ballot
+WHERE meeting_motions.id = cast_ballot.motion_id
 `
 
 type CastPublicMeetingBallotParams struct {
-	Choice        pgtype.Text `json:"choice"`
-	MotionID      string      `json:"motion_id"`
-	ParticipantID string      `json:"participant_id"`
+	Choice        string `json:"choice"`
+	MotionID      string `json:"motion_id"`
+	ParticipantID string `json:"participant_id"`
 }
 
 // tenant: parent motion_id
-// Zero rows: not on the roll, or already voted (the caller tells them apart).
+// Fills the blank ballot and counts it in one statement. Zero rows: not on
+// the roll, or already voted (the caller tells them apart). The caller holds
+// the motion row (LockMeetingMotion), so the count cannot race a close.
 func (q *Queries) CastPublicMeetingBallot(ctx context.Context, arg CastPublicMeetingBallotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, castPublicMeetingBallot, arg.Choice, arg.MotionID, arg.ParticipantID)
 	if err != nil {
@@ -43,8 +55,11 @@ type CastSecretMeetingBallotParams struct {
 }
 
 // tenant: parent motion_id
-// A secret ballot records only that the member voted: choice is never written,
-// the vote lands in the motion's counters (CountMeetingMotionVote) instead.
+// A secret ballot records only that the member voted: choice is never written
+// to the ballot, and never sent in the same statement as the participant, so
+// no statement log that keeps parameters can tie the two together. The vote
+// lands in the counters through CountSecretMeetingMotionVote. Zero rows: not
+// on the roll, or already voted (the caller tells them apart).
 func (q *Queries) CastSecretMeetingBallot(ctx context.Context, arg CastSecretMeetingBallotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, castSecretMeetingBallot, arg.MotionID, arg.ParticipantID)
 	if err != nil {
@@ -107,7 +122,7 @@ func (q *Queries) CloseMeetingMotion(ctx context.Context, arg CloseMeetingMotion
 	return i, err
 }
 
-const countMeetingMotionVote = `-- name: CountMeetingMotionVote :exec
+const countSecretMeetingMotionVote = `-- name: CountSecretMeetingMotionVote :exec
 UPDATE meeting_motions SET
   yes_count = yes_count + CASE WHEN $1::text = 'YES' THEN 1 ELSE 0 END,
   no_count = no_count + CASE WHEN $1::text = 'NO' THEN 1 ELSE 0 END,
@@ -116,14 +131,17 @@ UPDATE meeting_motions SET
 WHERE id = $2
 `
 
-type CountMeetingMotionVoteParams struct {
+type CountSecretMeetingMotionVoteParams struct {
 	Choice string `json:"choice"`
 	ID     string `json:"id"`
 }
 
 // tenant: by-id
-func (q *Queries) CountMeetingMotionVote(ctx context.Context, arg CountMeetingMotionVoteParams) error {
-	_, err := q.db.Exec(ctx, countMeetingMotionVote, arg.Choice, arg.ID)
+// The secret choice, by motion only. The caller holds the motion row
+// (LockMeetingMotion) and calls this only after CastSecretMeetingBallot
+// stamped a ballot in the same transaction.
+func (q *Queries) CountSecretMeetingMotionVote(ctx context.Context, arg CountSecretMeetingMotionVoteParams) error {
+	_, err := q.db.Exec(ctx, countSecretMeetingMotionVote, arg.Choice, arg.ID)
 	return err
 }
 
@@ -213,6 +231,51 @@ func (q *Queries) DeleteMeetingMotionDraft(ctx context.Context, id string) (int6
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getMeetingMotion = `-- name: GetMeetingMotion :one
+SELECT id, organization_id, workspace_id, meeting_id, title, description, position, ballot_mode, threshold, base, status, total_members, roll_size, yes_count, no_count, abstain_count, outcome, opened_at, opened_by, closed_at, closed_by, created_by, created_by_kind, created_at, updated_at, version FROM meeting_motions WHERE id = $1 AND meeting_id = $2
+`
+
+type GetMeetingMotionParams struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+}
+
+// tenant: by-id
+// A plain read for the voters panel; scoped by meeting like LockMeetingMotion.
+func (q *Queries) GetMeetingMotion(ctx context.Context, arg GetMeetingMotionParams) (MeetingMotion, error) {
+	row := q.db.QueryRow(ctx, getMeetingMotion, arg.ID, arg.MeetingID)
+	var i MeetingMotion
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.MeetingID,
+		&i.Title,
+		&i.Description,
+		&i.Position,
+		&i.BallotMode,
+		&i.Threshold,
+		&i.Base,
+		&i.Status,
+		&i.TotalMembers,
+		&i.RollSize,
+		&i.YesCount,
+		&i.NoCount,
+		&i.AbstainCount,
+		&i.Outcome,
+		&i.OpenedAt,
+		&i.OpenedBy,
+		&i.ClosedAt,
+		&i.ClosedBy,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
 }
 
 const getMeetingMotionAtPosition = `-- name: GetMeetingMotionAtPosition :one
@@ -328,27 +391,35 @@ func (q *Queries) GetOpenMeetingMotion(ctx context.Context, meetingID string) (M
 	return i, err
 }
 
-const insertMeetingMotionBallot = `-- name: InsertMeetingMotionBallot :exec
+const insertMeetingMotionBallots = `-- name: InsertMeetingMotionBallots :exec
 INSERT INTO meeting_motion_ballots (id, organization_id, meeting_id, motion_id, participant_id)
-VALUES ($1, $2, $3, $4, $5)
+SELECT
+  unnest($1::text[]),
+  $2::text,
+  $3::text,
+  $4::text,
+  unnest($5::text[])
 `
 
-type InsertMeetingMotionBallotParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	MeetingID      string `json:"meeting_id"`
-	MotionID       string `json:"motion_id"`
-	ParticipantID  string `json:"participant_id"`
+type InsertMeetingMotionBallotsParams struct {
+	Ids            []string `json:"ids"`
+	OrganizationID string   `json:"organization_id"`
+	MeetingID      string   `json:"meeting_id"`
+	MotionID       string   `json:"motion_id"`
+	ParticipantIds []string `json:"participant_ids"`
 }
 
-// One roll row per eligible member; choice and cast_at stay NULL until the vote.
-func (q *Queries) InsertMeetingMotionBallot(ctx context.Context, arg InsertMeetingMotionBallotParams) error {
-	_, err := q.db.Exec(ctx, insertMeetingMotionBallot,
-		arg.ID,
+// The whole roll in one statement: one row per eligible member. Two unnests
+// in one select list advance together, so ids[i] goes with participant_ids[i]
+// (the arrays are always the same length). choice and cast_at stay NULL until
+// the vote.
+func (q *Queries) InsertMeetingMotionBallots(ctx context.Context, arg InsertMeetingMotionBallotsParams) error {
+	_, err := q.db.Exec(ctx, insertMeetingMotionBallots,
+		arg.Ids,
 		arg.OrganizationID,
 		arg.MeetingID,
 		arg.MotionID,
-		arg.ParticipantID,
+		arg.ParticipantIds,
 	)
 	return err
 }
@@ -547,32 +618,32 @@ func (q *Queries) ListOpenMeetingMotionsForUpdate(ctx context.Context, meetingID
 	return items, nil
 }
 
-const listPublicMeetingVoters = `-- name: ListPublicMeetingVoters :many
-SELECT b.motion_id, b.choice, p.display_name_snapshot
+const listPublicMotionVoters = `-- name: ListPublicMotionVoters :many
+SELECT b.choice, p.display_name_snapshot
 FROM meeting_motion_ballots b
 JOIN meeting_participants p ON p.id = b.participant_id
-WHERE b.meeting_id = $1 AND b.cast_at IS NOT NULL AND b.choice IS NOT NULL
+WHERE b.motion_id = $1 AND b.cast_at IS NOT NULL AND b.choice IS NOT NULL
 ORDER BY b.cast_at
 `
 
-type ListPublicMeetingVotersRow struct {
-	MotionID            string      `json:"motion_id"`
+type ListPublicMotionVotersRow struct {
 	Choice              pgtype.Text `json:"choice"`
 	DisplayNameSnapshot string      `json:"display_name_snapshot"`
 }
 
-// tenant: parent meeting_id
+// tenant: parent motion_id
+// One motion's named ballots, loaded only when someone opens its result.
 // Secret ballots never carry a choice, so they fall out of choice IS NOT NULL.
-func (q *Queries) ListPublicMeetingVoters(ctx context.Context, meetingID string) ([]ListPublicMeetingVotersRow, error) {
-	rows, err := q.db.Query(ctx, listPublicMeetingVoters, meetingID)
+func (q *Queries) ListPublicMotionVoters(ctx context.Context, motionID string) ([]ListPublicMotionVotersRow, error) {
+	rows, err := q.db.Query(ctx, listPublicMotionVoters, motionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPublicMeetingVotersRow{}
+	items := []ListPublicMotionVotersRow{}
 	for rows.Next() {
-		var i ListPublicMeetingVotersRow
-		if err := rows.Scan(&i.MotionID, &i.Choice, &i.DisplayNameSnapshot); err != nil {
+		var i ListPublicMotionVotersRow
+		if err := rows.Scan(&i.Choice, &i.DisplayNameSnapshot); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

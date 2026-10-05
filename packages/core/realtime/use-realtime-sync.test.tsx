@@ -879,7 +879,6 @@ describe("useRealtimeSync › meeting motions", () => {
     { type: "motion.created", extra: [] as string[] },
     { type: "motion.updated", extra: [] as string[] },
     { type: "motion.deleted", extra: [] as string[] },
-    { type: "motion.ballot_cast", extra: [] as string[] },
     // Opening and closing are timeline rows.
     { type: "motion.opened", extra: [activity] },
     { type: "motion.closed", extra: [activity] },
@@ -897,6 +896,25 @@ describe("useRealtimeSync › meeting motions", () => {
     const keys = keysCalled(invalidate);
     expect(keys).toContain(motions);
     for (const k of extra) expect(keys).toContain(k);
+  });
+
+  it("refreshes only the tallies on a ballot, at most once a second", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    const list = JSON.stringify(["meeting-motions", "m1", "list"]);
+    for (let i = 0; i < 20; i++) {
+      client.emit({ type: "motion.ballot_cast", payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    }
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(list);
+    act(() => {
+      vi.advanceTimersByTime(750);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys.filter((k) => k === list)).toHaveLength(1);
+    expect(keys).not.toContain(motions);
   });
 
   it("keeps the timeline still for a ballot", () => {

@@ -9,6 +9,7 @@ import {
   pendingBallot,
   requiredYes,
   tallyPercent,
+  withMyBallots,
 } from "./motion-utils";
 
 const motion = (over: Partial<MeetingMotion> = {}): MeetingMotion => ({
@@ -138,5 +139,30 @@ describe("tallyPercent", () => {
   it("never shows a cast vote as 0% or a split as 100%", () => {
     expect(tallyPercent(1, 1000)).toBe(1);
     expect(tallyPercent(999, 1000)).toBe(99);
+  });
+});
+
+describe("withMyBallots — the list is the same for everyone; the caller's roll joins it here", () => {
+  const open = motion({ id: "mo1", status: "OPEN", my_ballot: undefined });
+  const closed = motion({ id: "mo2", status: "CLOSED", my_ballot: undefined });
+
+  it("puts each motion on or off the caller's roll", () => {
+    const got = withMyBallots([open, closed], [{ motion_id: "mo2", cast: true, choice: "NO" }]);
+    expect(got.map((m) => m.my_ballot)).toEqual([
+      { on_roll: false, cast: false, choice: null },
+      { on_roll: true, cast: true, choice: "NO" },
+    ]);
+    expect(pendingBallot(got)).toBeNull();
+  });
+
+  it("an uncast line on the open motion is the pending ballot", () => {
+    const got = withMyBallots([open], [{ motion_id: "mo1", cast: false }]);
+    expect(pendingBallot(got)?.id).toBe("mo1");
+  });
+
+  it("leaves the list untouched until the roll is known", () => {
+    const list = [open, closed];
+    expect(withMyBallots(list, undefined)).toBe(list);
+    expect(withMyBallots(list, null)).toBe(list);
   });
 });

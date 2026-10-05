@@ -298,3 +298,31 @@ describe("MeetingSummaryPanel › voted decisions", () => {
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
   });
 });
+
+describe("MeetingSummaryPanel transcript pages", () => {
+  it("says more lines exist and loads the earlier transcript on demand", async () => {
+    const seg = (id: string, min: number) => ({
+      id,
+      meeting_id: "m1",
+      text: `câu ${id}`,
+      spoken_at: `2026-09-22T02:${String(min).padStart(2, "0")}:00Z`,
+    });
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t2", 20)], older_cursor: "o2", after_cursor: "x" });
+      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", 10)] });
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    fireEvent.click(await screen.findByRole("button", { name: /Xem lời thoại \(1\+ câu\)/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tải lời thoại trước đó" }));
+    const list = await screen.findByTestId("meeting-transcript");
+    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
+    expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
+  });
+});
