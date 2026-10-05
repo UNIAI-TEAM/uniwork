@@ -193,7 +193,7 @@ export function FindReplacePanel({
       ? ""
       : count === 0
         ? t("noMatches")
-        : t("position", { current: safeIndex + 1, total: count, defaultValue: "{{current}}/{{total}}" });
+        : t("position", { current: safeIndex + 1, total: count });
 
   if (!open) return null;
 

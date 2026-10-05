@@ -6935,6 +6935,7 @@
         "previous": "Previous match",
         "matchCount_one": "{{count}} match",
         "matchCount_other": "{{count}} matches",
+        "position": "{{current}}/{{total}}",
         "noMatches": "No matches",
         "close": "Close find"
       }

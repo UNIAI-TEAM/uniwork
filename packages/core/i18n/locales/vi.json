@@ -6929,6 +6929,7 @@
         "previous": "Kết quả trước",
         "matchCount_one": "{{count}} kết quả",
         "matchCount_other": "{{count}} kết quả",
+        "position": "{{current}}/{{total}}",
         "noMatches": "Không có kết quả",
         "close": "Đóng thanh tìm"
       }

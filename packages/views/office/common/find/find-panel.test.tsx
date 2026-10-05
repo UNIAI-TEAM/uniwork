@@ -10,7 +10,7 @@ import {
   type FindReplacePanelProps,
 } from "./index";
 
-initI18n();
+const i18n = initI18n();
 
 beforeEach(async () => {
   await setLocale("en");
@@ -150,6 +150,17 @@ describe("FindReplacePanel", () => {
     expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
     fireEvent.click(screen.getByRole("button", { name: "Previous match" }));
     expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2");
+  });
+
+  it("resolves the counter from office.common.find.position in both locales (F1)", () => {
+    // The key is the dictionary's, not an inline default: it must exist in both
+    // files (the parity suite pins the pair) and the counter renders it.
+    for (const lng of ["en", "vi"] as const) {
+      expect(i18n.exists("office.common.find.position", { lng }), lng).toBe(true);
+    }
+    render(<FindReplacePanel text="one two one" />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "one" } });
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
   });
 
   it("offers a visible close affordance that calls onClose (M-1)", () => {
