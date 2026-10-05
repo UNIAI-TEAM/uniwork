@@ -156,8 +156,12 @@ it("opens an OS file in a new tab while another document remains mounted", async
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   // f40808f2 moved back-to-library out of the document header into the "..."
   // menu, so reach it as a menuitem (open-document.test.tsx does the same).
+  // Let the first DOCX finish parsing before opening the menu: on a loaded CI
+  // runner the parse blocks the main thread and the 1s default findBy window
+  // closed before the menu painted (passed locally, failed on Linux CI).
+  await screen.findByTestId("docx-document-surface", undefined, { timeout: 10_000 });
   fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
-  await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") });
+  await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") }, { timeout: 10_000 });
   act(() => fileOpen?.({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF" }));
   await waitFor(() => expect(calls).toContain("desktop:file-open"));
   expect(await screen.findByRole("tab", { name: /Local plan\.docx/ })).toBeInTheDocument();
