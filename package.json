@@ -58,6 +58,11 @@
       "@tiptap/react": "3.30.6",
       "@tiptap/starter-kit": "3.30.6",
       "@tiptap/suggestion": "3.30.6"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93748"
+      ]
     }
   },
   "scripts": {

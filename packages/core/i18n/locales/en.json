@@ -8016,6 +8016,8 @@
     "ribbon": {
       "label": "Ribbon",
       "tabs": "Ribbon tabs",
+      "tabsPrev": "Previous tabs",
+      "tabsNext": "Next tabs",
       "quickAccess": "Quick access",
       "collapse": "Collapse the ribbon",
       "expand": "Show the ribbon",

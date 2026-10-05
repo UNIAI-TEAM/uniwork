@@ -173,6 +173,11 @@ catalog:
   vaul: "^1.1.2"
   date-fns: "^4.1.0"
 
+  # Desktop renderer fonts, bundled offline (apps/office-desktop)
+  "@fontsource-variable/inter": "^5.3.0"
+  "@fontsource-variable/plus-jakarta-sans": "^5.3.0"
+  "@fontsource-variable/jetbrains-mono": "^5.3.0"
+
   # Calendar hub month view (packages/views/calendar)
   "@fullcalendar/core": "^6.1.19"
   "@fullcalendar/react": "^6.1.19"

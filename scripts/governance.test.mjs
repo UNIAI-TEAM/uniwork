@@ -280,7 +280,9 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
 
   const modules = fs.readdirSync(path.join(root, CORE), { withFileTypes: true })
     .filter((e) => e.isDirectory() && !e.name.startsWith(".") &&
-                   e.name !== "test" && e.name !== "node_modules")
+                   e.name !== "test" && e.name !== "node_modules" &&
+                   // vitest --coverage output (gitignored), not source
+                   e.name !== "coverage")
     .map((e) => e.name);
 
   // A specifier resolves to a top-level core module, the core barrel, or nothing.
