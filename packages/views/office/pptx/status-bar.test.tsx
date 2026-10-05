@@ -40,6 +40,38 @@ describe("PptxStatusBar", () => {
     expect(screen.getByRole("button", { name: /100%/ })).toBeInTheDocument();
   });
 
+  it("keeps one phone-width row: only the slide position, zoom and help stay, never truncated fragments (F-09)", () => {
+    render(
+      <PptxStatusBar
+        slideCurrent={1}
+        slideTotal={5}
+        counts={{ words: 3, characters: 9 }}
+        language="vi"
+        selectionCount={0}
+        zoom={1}
+        onZoomChange={vi.fn()}
+        help={<PptxStatusHelpButton onOpen={vi.fn()} />}
+      />,
+    );
+    const hiddenBelow480 = (testId: string) => screen.getByTestId(testId).className.includes("max-[480px]:hidden");
+    // The slide readout never shrinks to "S..." and is never hidden.
+    const slide = screen.getByTestId("pptx-status-slide");
+    expect(slide.className).toContain("shrink-0");
+    expect(slide.className).not.toContain("truncate");
+    expect(hiddenBelow480("pptx-status-slide")).toBe(false);
+    for (const id of ["pptx-status-words", "pptx-status-characters", "pptx-status-language", "pptx-status-selection"]) {
+      expect(hiddenBelow480(id)).toBe(true);
+    }
+    // Zoom and the help "?" have no narrow-hidden ancestor.
+    expect(screen.getByRole("button", { name: /100%/ }).closest("[class*='max-[480px]:hidden']")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show this help" }).closest("[class*='max-[480px]:hidden']")).toBeNull();
+  });
+
+  it("keeps a real selection count visible on a phone (F-09)", () => {
+    render(<PptxStatusBar slideCurrent={1} slideTotal={1} selectionCount={2} zoom={1} onZoomChange={vi.fn()} />);
+    expect(screen.getByTestId("pptx-status-selection").className).not.toContain("max-[480px]:hidden");
+  });
+
   it("shows a real selection count and the compact zoom control", () => {
     const onZoomChange = vi.fn();
     render(<PptxStatusBar slideCurrent={1} slideTotal={1} selectionCount={3} zoom={1} onZoomChange={onZoomChange} />);

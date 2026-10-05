@@ -46,6 +46,9 @@ export interface PptxStatusBarProps {
 // Structural decoration between readouts, not copy.
 const SEPARATOR = "\u00b7";
 
+/** Phone width (<= 480px): the readout is not rendered, the row stays one line. */
+const NARROW_HIDDEN = "max-[480px]:hidden";
+
 /** First subtag of a BCP-47 tag: `vi-VN` reads as `vi`; a blank tag has none. */
 export function pptxLanguageLabel(language: string | null | undefined): string | null {
   if (typeof language !== "string") return null;
@@ -87,8 +90,11 @@ export function PptxStatusBar({
         });
   const selected = typeof selectionCount === "number" && selectionCount > 0;
 
-  const left: ReadonlyArray<{ testId: string; text: string }> = [
-    { testId: "pptx-status-slide", text: slideText },
+  // F-09: the slide position is the one readout a phone keeps (it never
+  // truncates); the counts and language drop out below 480px instead of
+  // shrinking into "S... W.. Ch..".
+  const left: ReadonlyArray<{ testId: string; text: string; essential?: boolean }> = [
+    { testId: "pptx-status-slide", text: slideText, essential: true },
     { testId: "pptx-status-words", text: t("status.words", { value: countText(counts?.words, unknown) }) },
     { testId: "pptx-status-characters", text: t("status.characters", { value: countText(counts?.characters, unknown) }) },
     { testId: "pptx-status-language", text: t("status.language", { language: languageLabel ?? unknown }) },
@@ -103,9 +109,9 @@ export function PptxStatusBar({
             {left.map((item, index) => (
               <Fragment key={item.testId}>
                 {index > 0 ? (
-                  <span aria-hidden="true" className="shrink-0 text-faint-foreground">{SEPARATOR}</span>
+                  <span aria-hidden="true" className={cn("shrink-0 text-faint-foreground", !item.essential && NARROW_HIDDEN)}>{SEPARATOR}</span>
                 ) : null}
-                <span className="min-w-0 truncate" data-testid={item.testId}>{item.text}</span>
+                <span className={cn(item.essential ? "shrink-0" : cn("min-w-0 truncate", NARROW_HIDDEN))} data-testid={item.testId}>{item.text}</span>
               </Fragment>
             ))}
             {gesturePending ? (
@@ -115,7 +121,7 @@ export function PptxStatusBar({
         }
         end={
           <>
-            <span data-testid="pptx-status-selection">
+            <span data-testid="pptx-status-selection" className={cn(!selected && NARROW_HIDDEN)}>
               {selected ? t("status.selection", { value: String(selectionCount) }) : t("status.selection_none")}
             </span>
             <span data-pptx-zoom className="contents">

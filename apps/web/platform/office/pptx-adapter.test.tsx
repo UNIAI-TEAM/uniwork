@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, isValidElement, type ReactElement } from "react";
+import { act, createElement, isValidElement, StrictMode, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
@@ -277,6 +277,69 @@ describe("web PPTX format adapter", () => {
     await act(async () => { root.unmount(); });
     container.remove();
     await adapter.session.dispose();
+  });
+
+  // F-11: `next dev` mounts every tree twice (mount -> cleanup -> mount). The
+  // shared host disposes the session in its unmount cleanup, which used to kill
+  // the adapter before the remount opened it ("pptx_editor_disposed").
+  async function mountStrict(adapter: ReturnType<typeof createPptxFormatAdapter>) {
+    const container = document.createElement("div");
+    document.body.append(container);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    function Host(): ReactElement {
+      useEffect(() => () => { void adapter.session.dispose(); }, []);
+      return adapter.editorView as ReactElement;
+    }
+    let root!: Root;
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(Host))); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    return { container, root };
+  }
+
+  it("survives a StrictMode double mount: the deck renders and the model is not released", async () => {
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const { container, root } = await mountStrict(adapter);
+    expect(container.querySelector("[data-pptx-open-state=error]")).toBeNull();
+    expect(container.querySelector("[data-pptx-canvas]")).not.toBeNull();
+    expect(engine.released).toEqual([]);
+    expect(adapter.editor.deck()).not.toBeNull();
+
+    // A real unmount still releases the model.
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(engine.released).toEqual(["model-1"]);
+    container.remove();
+  });
+
+  it("retries a failed open on the same adapter under StrictMode", async () => {
+    const engine = runtime();
+    const open = vi.mocked(engine.open);
+    const succeed = open.getMockImplementation()!;
+    open.mockImplementationOnce(() => Promise.reject(new Error("transient")));
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const { container, root } = await mountStrict(adapter);
+    const retry = container.querySelector("[data-pptx-open-state=error] button") as HTMLButtonElement | null;
+    expect(retry).not.toBeNull();
+    expect(container.querySelector("[data-pptx-open-state=error]")?.textContent).not.toContain("pptx_editor_disposed");
+    open.mockImplementation(succeed);
+    await act(async () => { retry!.click(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(container.querySelector("[data-pptx-canvas]")).not.toBeNull();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    container.remove();
+  });
+
+  it("makes session dispose idempotent and lets a later open cancel a pending disposal", async () => {
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    await adapter.open.open();
+    const first = adapter.session.dispose();
+    expect(adapter.session.dispose()).toBe(first);
+    await adapter.open.open();
+    await first;
+    expect(engine.released).toEqual([]);
+    await adapter.session.dispose();
+    await adapter.session.dispose();
+    expect(engine.released).toEqual(["model-1"]);
   });
 
   it("advances the published revision on undo, redo and restore", async () => {

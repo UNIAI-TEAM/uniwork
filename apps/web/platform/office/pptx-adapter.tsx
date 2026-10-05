@@ -216,6 +216,11 @@ function PptxEditorSurface(props: {
   }, [attempt, open]);
 
   const host = useMemo(() => makePptxEditorHost(editor, editable), [editable, editor]);
+  // The session (OfficeEditorHost unmount) owns disposal. The canvas disposes
+  // the handle it is given on its own unmount, and under StrictMode that
+  // simulated unmount would release the live model, so it gets a handle whose
+  // dispose is inert.
+  const viewHandle = useMemo<PptxEditorHandle>(() => ({ ...editor, dispose: async () => undefined }), [editor]);
 
   const slides = useMemo<readonly PptxSlideView[]>(
     () => (current?.slides ?? []).map((slide, index) => ({ id: slide.id, label: String(index + 1), ...(slide.hidden ? { hidden: true } : {}) })),
@@ -300,7 +305,7 @@ function PptxEditorSurface(props: {
   return (
     <PptxEditor
       host={host}
-      editorHandle={editor}
+      editorHandle={viewHandle}
       slides={slides}
       deck={deck}
       selectedIndex={selected}
@@ -322,6 +327,11 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
+  // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
+  // cleanup disposes the session and the remount opens it again. Disposal is
+  // therefore deferred one task and cancelled by the next open(), so the
+  // remount revives the live session instead of reading a disposed one.
+  let cancelPendingDispose: () => void = () => undefined;
   let viewRevision = 0;
   let view: PptxSurfaceView | null = null;
   const listeners = new Set<() => void>();
@@ -340,6 +350,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const editor: PptxEditorHandle = {
     format: "pptx",
     async open() {
+      cancelPendingDispose();
       if (disposed) throw new Error("pptx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
@@ -444,6 +455,24 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   });
   const session = createOfficeEditorSession({ ...options, editor, transport });
   session.coordinator.setCapability(options.capability);
+  const originalDispose = session.dispose;
+  let disposal: Promise<void> | null = null;
+  session.dispose = () => {
+    if (disposal) return disposal;
+    disposal = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cancelPendingDispose = () => undefined;
+        originalDispose().then(resolve, reject);
+      }, 0);
+      cancelPendingDispose = () => {
+        clearTimeout(timer);
+        cancelPendingDispose = () => undefined;
+        disposal = null;
+        resolve();
+      };
+    });
+    return disposal;
+  };
 
   const open = {
     async open(signal?: AbortSignal): Promise<PptxOpenOutcome> {

@@ -31,4 +31,14 @@ describe("PptxSlideRail", () => {
     expect(second!.querySelector("img")).toBeNull();
     expect(second).toHaveTextContent("2");
   });
+
+  it("narrows to a thumbnails-only strip on a phone so the canvas keeps the width (F-09)", () => {
+    render(<PptxSlideRail slides={[{ id: "s1", label: "Intro" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    const rail = screen.getByRole("navigation");
+    expect(rail.className).toContain("max-[480px]:w-16");
+    const [first] = screen.getAllByRole("button");
+    // The caption drops out; the slide stays reachable by its accessible name.
+    expect(first!.querySelector("span.truncate")!.className).toContain("max-[480px]:hidden");
+    expect(first).toHaveAttribute("aria-label", expect.stringContaining("Intro"));
+  });
 });
