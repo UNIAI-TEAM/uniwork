@@ -58,6 +58,13 @@ describe("OfficeShell", () => {
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
   });
 
+  it("ignores a shortcut dispatched on the window, whose target is not a Node", () => {
+    const saveCoordinator = coordinator("ready");
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    expect(() => fireEvent.keyDown(window, { key: "s", ctrlKey: true })).not.toThrow();
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
+  });
+
   it("uses the scalar cloud-save translation for the toolbar control", () => {
     render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
     const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
