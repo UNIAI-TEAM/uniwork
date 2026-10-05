@@ -281,11 +281,17 @@ export function PptxPanelHost({
           {...(data.transition ? { currentKind: data.transition.kind, advanceMs: data.transition.advanceMs } : {})}
           {...(onApplyEdit
             ? {
-                // "Apply to all" is one gesture over every slide (one history entry when the bulk port is bound).
+                // "Apply to all" is one gesture over every slide: one history entry when the bulk port is bound
+                // (usePptxPanels always binds it next to the single port). A caller that passes only onApplyEdit
+                // gets the edits in order, one awaited call each - one history entry apiece, never concurrent.
                 onApplyTransition: (kind, allSlides) => {
                   const targets = allSlides && slideCount > 0 ? Array.from({ length: slideCount }, (_, index) => index) : [slideIndex ?? 0];
                   const edits = targets.map((index): PptxPanelEdit => ({ op: "set_transition", slideIndex: index, kind }));
-                  void (onApplyEdits && edits.length > 1 ? onApplyEdits(edits) : Promise.all(edits.map((edit) => onApplyEdit(edit))));
+                  void (onApplyEdits && edits.length > 1
+                    ? onApplyEdits(edits)
+                    : (async () => {
+                        for (const edit of edits) await onApplyEdit(edit);
+                      })());
                 },
                 onApplyAdvance: (ms) => void onApplyEdit({ op: "set_advance_time", slideIndex: slideIndex ?? 0, ms }),
               }

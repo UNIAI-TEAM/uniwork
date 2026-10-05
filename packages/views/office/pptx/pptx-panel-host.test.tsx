@@ -195,6 +195,27 @@ describe("panel read-back (X1)", () => {
     expect(onApplyEdit).not.toHaveBeenCalled();
   });
 
+  it("applies 'Apply to all' sequentially, one awaited call per slide, when only the single-edit port is bound (X1 review F2)", async () => {
+    const order: string[] = [];
+    let release: () => void = () => undefined;
+    const onApplyEdit = vi.fn((edit: PptxPanelEdit) => {
+      order.push("start " + String((edit as { slideIndex: number }).slideIndex));
+      return new Promise<undefined>((resolve) => {
+        release = () => { order.push("end " + String((edit as { slideIndex: number }).slideIndex)); resolve(undefined); };
+      });
+    });
+    render(buildPptxPanel({ panelKind: "transitions", onApplyEdit, slideIndex: 0, slides: [{ id: "s1" }, { id: "s2" }] }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Apply to all slides" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fade" }));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(1));
+    // The second slide waits for the first call to settle (Promise.all would have started both).
+    expect(order).toEqual(["start 0"]);
+    release();
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledTimes(2));
+    release();
+    await waitFor(() => expect(order).toEqual(["start 0", "end 0", "start 1", "end 1"]));
+  });
+
   it("lists the slide's animations as read (R2-2)", () => {
     render(buildPptxPanel({
       panelKind: "animations",
