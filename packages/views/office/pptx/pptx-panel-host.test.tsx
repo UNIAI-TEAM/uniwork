@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import { box } from "./canvas/pptx-render-fixtures";
-import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, type PptxPanelEdit } from "./pptx-panel-host";
+import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, pptxPanelPlacement, type PptxPanelEdit } from "./pptx-panel-host";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -78,5 +78,22 @@ describe("pptxContextualSelection", () => {
     expect(pptxContextualSelection(shapeBoxes, ["shape-1"])).toEqual({ shape: true });
     const tableBoxes = [{ sourceId: "table-1", type: "table" as const, box: box() }];
     expect(pptxContextualSelection(tableBoxes, ["table-1"])).toEqual({ table: true });
+  });
+});
+
+describe("pptxPanelPlacement", () => {
+  it("puts notes at the bottom and every other panel in the aside", () => {
+    expect(pptxPanelPlacement("notes")).toBe("bottom");
+    expect(pptxPanelPlacement("design")).toBe("aside");
+    expect(pptxPanelPlacement("comments")).toBe("aside");
+  });
+
+  it("wraps the panel in the placement requested", () => {
+    const { container, unmount } = render(buildPptxPanel({ panelKind: "notes", slideIndex: 0, slides: [], data: { notes: "n" }, placement: "bottom" }));
+    expect(container.querySelector("section[data-pptx-panel-placement='bottom']")).not.toBeNull();
+    expect(container.querySelector("aside")).toBeNull();
+    unmount();
+    const aside = render(buildPptxPanel({ panelKind: "notes", slideIndex: 0, slides: [], data: { notes: "n" } }));
+    expect(aside.container.querySelector("aside[data-pptx-panel-placement='aside']")).not.toBeNull();
   });
 });

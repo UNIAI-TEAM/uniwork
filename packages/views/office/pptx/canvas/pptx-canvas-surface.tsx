@@ -82,7 +82,7 @@ export function PptxCanvasSurface({
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)} data-pptx-canvas-root>
       <div
-        className="relative flex min-h-48 flex-1 items-start justify-center overflow-auto rounded-md border border-border bg-background p-4"
+        className="relative flex min-h-48 flex-1 items-start justify-center overflow-auto bg-office-canvas p-4"
         role="application"
         aria-label={t("canvas_label")}
         tabIndex={0}
@@ -90,10 +90,10 @@ export function PptxCanvasSurface({
         data-pptx-canvas
       >
         <div ref={fitProbeRef} aria-hidden="true" className="pointer-events-none absolute inset-x-4 top-4 h-0" data-pptx-fit-probe />
-        {slideCount === 0 ? <p className="self-center text-sm text-muted-foreground">{t("no_slides")}</p> : null}
+        {slideCount === 0 ? <p className="self-center text-body text-muted-foreground">{t("no_slides")}</p> : null}
         {slideCount > 0 && content ? (
           <div
-            className="relative shrink-0 overflow-hidden border border-border bg-white shadow-sm"
+            className="relative shrink-0 overflow-hidden bg-white shadow-surface"
             style={{ width: display.widthPx, height: display.heightPx }}
             data-slide-canvas
             data-slide-index={slideIndex}
@@ -117,7 +117,7 @@ export function PptxCanvasSurface({
             ) : null}
           </div>
         ) : null}
-        {slideCount > 0 && !content ? <p className="self-center text-sm text-muted-foreground" data-testid="pptx-render-pending" data-pptx-render-pending>{t(building ? "render_building" : "render_pending")}</p> : null}
+        {slideCount > 0 && !content ? <p className="self-center text-body text-muted-foreground" data-testid="pptx-render-pending" data-pptx-render-pending>{t(building ? "render_building" : "render_pending")}</p> : null}
       </div>
     </div>
   );

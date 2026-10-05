@@ -264,10 +264,30 @@ export function PptxPanelAside({ children }: { children?: ReactNode }) {
   return (
     <aside
       data-pptx-panel-host
+      data-pptx-panel-placement="aside"
       className="hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-background lg:flex"
     >
       {children}
     </aside>
+  );
+}
+
+/** Where a panel mounts in the Office frame: notes under the canvas, the rest in the aside. */
+export function pptxPanelPlacement(kind: PptxPanelKind): "aside" | "bottom" {
+  return kind === "notes" ? "bottom" : "aside";
+}
+
+/** Bottom strip (frame `bottom` slot) for panels that live under the canvas. */
+export function PptxPanelBottom({ children }: { children?: ReactNode }) {
+  if (!children) return null;
+  return (
+    <section
+      data-pptx-panel-host
+      data-pptx-panel-placement="bottom"
+      className="flex max-h-48 min-h-24 shrink-0 flex-col overflow-y-auto border-t border-border bg-background"
+    >
+      {children}
+    </section>
   );
 }
 
@@ -280,19 +300,22 @@ export interface PptxPanelNodeOptions {
   slideIndex?: number;
   slides?: readonly PptxSlideView[];
   data?: PptxPanelData;
+  /** Wrapper to use; defaults to the aside. Callers pass `pptxPanelPlacement(kind)`. */
+  placement?: "aside" | "bottom";
 }
 
 /** Compose the active panel node (with its aside wrapper) or null. Pure: the
  *  caller passes every port; a missing port leaves the panel honestly disabled. */
 export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
-  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data } = options;
+  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data, placement } = options;
+  const Wrapper = placement === "bottom" ? PptxPanelBottom : PptxPanelAside;
   if (!panelKind) return null;
   // The ONE cast of the whole seam: the engine has not registered every panel
   // union in `PptxEdit` yet (WIRE-KINDS owns that), so the committed edit is
   // handed to the same generic handle edit port every other kind uses.
   const applyEdit = onApplyEdit ?? (edit ? (one: PptxPanelEdit) => edit([one as PptxEdit]) : undefined);
   return (
-    <PptxPanelAside>
+    <Wrapper>
       <PptxPanelHost
         panel={panelKind}
         {...(applyEdit ? { onApplyEdit: applyEdit } : {})}
@@ -303,8 +326,6 @@ export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
         slides={slides}
         {...(data ? { data } : {})}
       />
-    </PptxPanelAside>
+    </Wrapper>
   );
 }
-
-

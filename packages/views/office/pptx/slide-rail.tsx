@@ -29,7 +29,7 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, className }: Pp
     buttonRefs.current[bounded]?.focus();
   };
   return (
-    <nav className={cn("flex w-28 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border p-2 sm:w-36", className)} aria-label={t("slide_rail_label")} data-pptx-slide-rail>
+    <nav className={cn("flex w-28 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border bg-office-canvas p-2 sm:w-36", className)} aria-label={t("slide_rail_label")} data-pptx-slide-rail>
       {slides.length === 0 ? <p className="px-1 text-caption text-muted-foreground">{t("no_slides")}</p> : null}
       {slides.map((slide, index) => {
         const selected = selectedIndex === index;
