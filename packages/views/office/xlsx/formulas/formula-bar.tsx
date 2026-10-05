@@ -88,11 +88,8 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
   const hints = useFormulaHints({ draft: value, caret, enabled: !disabled, onComplete: complete });
 
   return (
-    <div className="flex items-center gap-2 border-b border-border bg-muted/10 px-3 py-2">
-      <label htmlFor="xlsx-formula-bar" className="text-caption font-medium">
-        {t("office.xlsx.formula.label")}
-      </label>
-      <div className="relative flex min-w-0 flex-1 items-center">
+    <div className="flex h-full min-w-0 items-stretch bg-background">
+      <div className="relative flex h-full min-w-0 flex-1 items-stretch">
         <input
           ref={inputRef}
           id="xlsx-formula-bar"
@@ -121,7 +118,7 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
             hints.dismiss();
             commit();
           }}
-          className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-sans text-caption pointer-coarse:min-h-11"
+          className="h-full min-w-0 flex-1 border-0 bg-background px-2 font-sans text-caption outline-offset-[-2px]"
           data-testid="xlsx-formula-bar"
           aria-label={t("office.xlsx.formula.label")}
         />

@@ -2,6 +2,7 @@
 // by the open:xlsx job) to the shapes the vendored genoffice sheets renderer
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
+import { seedFittedColumnWidths } from "./xlsx-column-autofit";
 import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
 
 /** One file-native table in the genoffice `WorkbookFile` sheet shape (the
@@ -140,7 +141,7 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
     sha256: meta.sha256,
     ...(meta.fileBytes === undefined ? {} : { fileBytes: meta.fileBytes }),
     entryCount: meta.entryCount ?? 0,
-    sheets: model.sheets.map((sheet) => toRendererWorkbookSheet(sheet)),
+    sheets: model.sheets.map((sheet) => toRendererWorkbookSheet(sheet, model.styles)),
     styles: model.styles as RendererWorkbookStyle[],
     dxfStyles: model.dxfStyles as RendererWorkbookStyle[],
     visuals: [],
@@ -188,7 +189,7 @@ function toRendererWorkbookTable(table: XlsxRenderTable): RendererWorkbookTable 
   };
 }
 
-function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet {
+function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRenderStyle[]): RendererWorkbookSheet {
   return {
     id: sheet.id,
     name: sheet.name,
@@ -206,7 +207,9 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet 
     ...(sheet.baseColWidth === undefined ? {} : { baseColumnWidth: sheet.baseColWidth }),
     freeze: sheet.freeze ?? null,
     ...(sheet.zoomScale === undefined ? {} : { zoomScale: sheet.zoomScale }),
-    columnWidths: sheet.columnWidths.map((column) => ({ ...column })),
+    // Renderer-only: unsized columns get a content-fitted width (never a
+    // customWidth); the model the save path reads is not touched.
+    columnWidths: seedFittedColumnWidths(sheet, styles),
     pivotTables: [],
     tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
