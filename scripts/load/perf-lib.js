@@ -40,6 +40,24 @@ export function readOnce(s) {
   });
 }
 
+/** Default workspace channel + message page (creates the room on first GET /chat/room). */
+export function chatReadOnce(s) {
+  const opts = (name) => ({ headers: s.headers, tags: { name, kind: "read" } });
+  const ws = s.workspaceId;
+  check(http.get(`${BASE}/api/v1/workspaces/${ws}/chat/rooms`, opts("chat_rooms")), {
+    "chat rooms 200": (r) => r.status === 200,
+  });
+  const roomRes = http.get(`${BASE}/api/v1/workspaces/${ws}/chat/room`, opts("chat_room"));
+  check(roomRes, { "chat room 200": (r) => r.status === 200 });
+  const roomId = roomRes.json("room_id");
+  if (roomId) {
+    check(
+      http.get(`${BASE}/api/v1/workspaces/${ws}/chat/rooms/${roomId}/messages?limit=50`, opts("chat_messages")),
+      { "chat messages 200": (r) => r.status === 200 },
+    );
+  }
+}
+
 export function writeOnce(s) {
   const opts = (name, kind) => ({ headers: s.headers, tags: { name, kind } });
   const created = http.post(
