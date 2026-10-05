@@ -12,5 +12,5 @@
  *   />
  */
 export { PptxFindReplacePanel, type PptxFindReplacePanelProps } from "./pptx-find-replace";
-export { flattenDeckRuns, type PptxFindHit, type PptxFindReplaceEdit } from "./pptx-find-model";
+export { flattenDeckRuns, type PptxFindReplaceEdit } from "./pptx-find-model";
 export { usePptxFindSelect } from "./use-pptx-find-select";
