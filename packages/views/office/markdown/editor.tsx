@@ -34,6 +34,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
+import { useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import type { PreviewSession } from "../source-editor-types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
@@ -145,6 +146,10 @@ export function MarkdownEditor<TSnapshot = unknown>({
   onOpen,
 }: MarkdownEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
+  // The shared UNI-930 cluster owns Save + status; when the page supplies the
+  // header-actions slot it is already drawn, so hide this surface's copies.
+  // Without a shell the surface keeps them, like DOCX's `showDocumentControls`.
+  const shellOwnsChrome = useHeaderActionsSlotAvailable();
   const [viewState, setViewState] = useState<"opening" | "ready" | "error">("opening");
   const [failure, setFailure] = useState<Extract<MarkdownOpenOutcome, { outcome: "failed" }> | null>(null);
   const [text, setText] = useState("");
@@ -443,7 +448,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
 
   return (
     <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
+      <header className={cn("flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2", shellOwnsChrome && "hidden")}>
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="md-open-state">
           {viewState === "opening" ? t("state.opening") : viewState === "ready" ? t(`saveState.${coordinatorState.state}`) : t("state.error")}
@@ -509,7 +514,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
                 <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button type="button" variant="brand" size="sm" data-testid="md-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
+            <Button type="button" variant="brand" size="sm" data-testid="md-save" className={cn(shellOwnsChrome && "hidden")} disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
               {saving ? t("actions.saving") : t("actions.save")}
             </Button>
           </div>

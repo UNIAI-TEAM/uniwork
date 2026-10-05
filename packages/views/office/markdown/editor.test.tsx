@@ -4,6 +4,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/react";
 import { MarkdownEditor } from "./editor";
+import { HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
 
@@ -196,6 +197,42 @@ describe("MarkdownEditor source mode", () => {
     expect(screen.getByRole("button", { name: "Copy" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Paste" })).toBeDisabled();
     denied.unmount();
+  });
+
+  it("drops its own Save button and open-state text when the shell provides them (VFIXMINOR)", async () => {
+    // The shared UNI-930 cluster is the single Save/status owner. When the web
+    // document page supplies the header-actions slot, OfficeShell fills it and
+    // this surface must not draw a second Save or a second status text.
+    const saveCoordinator = coordinator();
+    const rendered = renderEditor({ coordinator: saveCoordinator });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // Control: with no shell above it the surface keeps its own controls.
+    expect(screen.getByTestId("md-save")).toBeInTheDocument();
+    expect(screen.getByTestId("md-open-state")).toBeInTheDocument();
+    rendered.unmount();
+
+    let text = FIXTURE;
+    const handle: MarkdownEditorHandle = {
+      format: "md",
+      open: vi.fn(async () => undefined),
+      getDirtyGeneration: () => 2,
+      captureSnapshot: vi.fn(async () => ({ generation: 2, fingerprint: "fp", value: { text } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => text, setText: (next) => { text = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    render(
+      <HeaderActionsSlotProvider>
+        <MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator()} capability={CAPABILITY} />
+      </HeaderActionsSlotProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // The surface HIDES its copies (the shared cluster is the visible owner);
+    // removal would push the 500-line file over its cap, so the duplicate is
+    // display-none - still one visible Save/status on the page.
+    expect(screen.getByTestId("md-save")).toHaveClass("hidden");
+    expect(screen.getByTestId("md-open-state").closest("header")).toHaveClass("hidden");
   });
 
   it("routes undo and redo to the engine in source mode", async () => {
