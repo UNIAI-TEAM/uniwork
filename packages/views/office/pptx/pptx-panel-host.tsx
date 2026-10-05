@@ -35,8 +35,11 @@ import { PptxDesignPanel } from "./design";
 import { PptxFindReplacePanel } from "./find";
 import { PptxFormatPanel } from "./format";
 import { PptxInsertPanel } from "./insert";
+import type { PptxInsertElementRef } from "./insert/insert-model";
+import { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";
 import { PptxLinkEditor } from "./links";
 import { PptxSorterPanel } from "./sorter";
+import type { PptxSorterLayout } from "./sorter/sorter-helpers";
 import { PptxTablesPanel } from "./tables";
 import { PptxTransitionsPanel } from "./transitions";
 import type { PptxTabId } from "./pptx-ribbon";
@@ -51,6 +54,7 @@ export type PptxPanelKind =
   | "tables"
   | "charts"
   | "format"
+  | "text-format"
   | "find"
   | "links"
   | "notes"
@@ -78,6 +82,8 @@ export interface PptxPanelData {
   headerFooterSettings?: PptxHeaderFooterSettings | null;
   headerFooterLoading?: boolean;
   mediaElementId?: string | null;
+  /** Top-level elements of the current slide for the insert panel pickers. */
+  insertElements?: readonly PptxInsertElementRef[];
   readonly?: boolean;
 }
 
@@ -99,10 +105,54 @@ export function pptxContextualSelection(
       case "shape":
       case "text": selection.shape = true; break;
       case "table": selection.table = true; break;
+      case "chart": selection.chart = true; break;
       default: break;
     }
   }
   return Object.keys(selection).length > 0 ? selection : undefined;
+}
+
+/** Seed values for the text-format controls (the selection current formatting). */
+export type PptxTextFormatSeed = Pick<
+  PptxTextFormatPanelProps,
+  "bold" | "italic" | "underline" | "strike" | "fontFamily" | "fontSizePt" | "textColor" | "align" | "bullet" | "lineSpacingPct"
+>;
+
+/** What the selection-driven panels read: the anchor (first selected id) and the
+ *  typed anchors derived from the rendition node types. */
+export interface PptxPanelSelection {
+  elementId: string | null;
+  elementType: string | null;
+  ids: readonly string[];
+  tableId: string | null;
+  chartId: string | null;
+  pictureId: string | null;
+  textFormat?: PptxTextFormatSeed;
+}
+
+/** Derive the panel selection from the rendition boxes and the selected ids. */
+export function pptxPanelSelection(boxes: readonly PptxNodeBox[], ids: readonly string[]): PptxPanelSelection {
+  const elementId = ids[0] ?? null;
+  const elementType = elementId === null ? null : (boxes.find((box) => box.sourceId === elementId)?.type ?? null);
+  return {
+    elementId,
+    elementType,
+    ids,
+    tableId: elementType === "table" ? elementId : null,
+    chartId: elementType === "chart" ? elementId : null,
+    pictureId: elementType === "picture" ? elementId : null,
+  };
+}
+
+/** The contextual ribbon tab -> panel mapping; null for any other tab. */
+export function pptxPanelForContextualTab(tabId: string): PptxPanelKind | null {
+  switch (tabId) {
+    case "context-shape":
+    case "context-picture": return "format";
+    case "context-table": return "tables";
+    case "context-chart": return "charts";
+    default: return null;
+  }
 }
 
 /**
@@ -136,6 +186,12 @@ export interface PptxPanelHostProps {
   slides?: readonly PptxSlideView[];
   /** Deck data for the notes/comments/headerfooter/media panels. */
   data?: PptxPanelData;
+  /** The live canvas selection; selection-driven panels remount when it changes. */
+  selection?: PptxPanelSelection;
+  /** Sorter ports (W4 F-13/F-03): a tile click selects that slide in the
+   *  editor; the layout list feeds "New slide". Absent keeps them inert. */
+  onSelectSlide?: (index: number) => void;
+  loadLayouts?: () => Promise<readonly PptxSorterLayout[]>;
   className?: string;
 }
 
@@ -143,23 +199,36 @@ export function PptxPanelHost({
   panel,
   onApplyEdit,
   onEdit,
+  onSelectSlide,
+  loadLayouts,
   onError,
   slideIndex = null,
   slideCount = 0,
   slides = [],
   data = {},
+  selection,
   className,
 }: PptxPanelHostProps) {
+  const selectionKey = selection?.elementId ?? "none";
   switch (panel) {
     case "design":
       return <PptxDesignPanel {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
     case "insert":
-      return <PptxInsertPanel slideIndex={slideIndex} {...(onApplyEdit ? { onEdit: (edit) => onApplyEdit(edit) } : {})} className={className} />;
+      return (
+        <PptxInsertPanel
+          slideIndex={slideIndex}
+          {...(data.insertElements ? { elements: data.insertElements } : {})}
+          {...(selection ? { selectedIds: selection.ids, pictureId: selection.pictureId } : {})}
+          {...(onApplyEdit ? { onEdit: (edit) => onApplyEdit(edit) } : {})}
+          className={className}
+        />
+      );
     case "animations":
       return (
         <PptxAnimationsPanel
           slideIndex={slideIndex}
           entries={[]}
+          {...(selection ? { targetElementId: selection.elementId } : {})}
           {...(onApplyEdit
             ? {
                 onAdd: (entry: PptxAnimationEntry, elementId: string) =>
@@ -185,17 +254,28 @@ export function PptxPanelHost({
         />
       );
     case "sorter":
-      return <PptxSorterPanel slides={slides} selectedIndex={slideIndex ?? 0} {...(onEdit ? { onEdit } : {})} className={className} />;
+      return <PptxSorterPanel slides={slides} selectedIndex={slideIndex ?? 0} {...(onEdit ? { onEdit } : {})} {...(onSelectSlide ? { onSelectSlide } : {})} {...(loadLayouts ? { loadLayouts } : {})} className={className} />;
     case "tables":
-      return <PptxTablesPanel {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
+      return <PptxTablesPanel key={selectionKey} {...(selection ? { tableElementId: selection.tableId } : {})} {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
     case "charts":
-      return <PptxChartsPanel {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
+      return <PptxChartsPanel key={selectionKey} {...(selection ? { chartElementId: selection.chartId } : {})} {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} slideIndex={slideIndex} className={className} />;
     case "format":
-      return <PptxFormatPanel {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideIndex={slideIndex} className={className} />;
+      return <PptxFormatPanel key={selectionKey} {...(selection ? { selectedElementId: selection.elementId, selectedElementType: selection.elementType, selectedIds: selection.ids } : {})} {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideIndex={slideIndex} className={className} />;
+    case "text-format":
+      return (
+        <PptxTextFormatPanel
+          key={selectionKey}
+          {...(selection ? { selectedElementId: selection.elementId, selectedElementType: selection.elementType, ...selection.textFormat } : {})}
+          {...(onApplyEdit ? { onApplyEdit: (edit) => onApplyEdit(edit) } : {})}
+          {...(onError ? { onError } : {})}
+          slideIndex={slideIndex}
+          className={className}
+        />
+      );
     case "find":
       return <PptxFindReplacePanel texts={[]} {...(onApplyEdit ? { onFindReplace: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} className={className} />;
     case "links":
-      return <PptxLinkEditor slideIndex={slideIndex} {...(onApplyEdit ? { onSetLink: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} className={className} />;
+      return <PptxLinkEditor key={selectionKey} {...(selection ? { elementId: selection.ids.length === 1 ? selection.elementId : null } : {})} slideIndex={slideIndex} {...(onApplyEdit ? { onSetLink: (edit) => onApplyEdit(edit) } : {})} {...(onError ? { onError } : {})} slideCount={slideCount} className={className} />;
     case "notes":
       return (
         <PptxNotesPane
@@ -300,6 +380,11 @@ export interface PptxPanelNodeOptions {
   slideIndex?: number;
   slides?: readonly PptxSlideView[];
   data?: PptxPanelData;
+  selection?: PptxPanelSelection;
+  /** Sorter ports (W4 F-13/F-03): a tile click selects that slide in the
+   *  editor; the layout list feeds "New slide". Absent keeps them inert. */
+  onSelectSlide?: (index: number) => void;
+  loadLayouts?: () => Promise<readonly PptxSorterLayout[]>;
   /** Wrapper to use; defaults to the aside. Callers pass `pptxPanelPlacement(kind)`. */
   placement?: "aside" | "bottom";
 }
@@ -307,7 +392,7 @@ export interface PptxPanelNodeOptions {
 /** Compose the active panel node (with its aside wrapper) or null. Pure: the
  *  caller passes every port; a missing port leaves the panel honestly disabled. */
 export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
-  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data, placement } = options;
+  const { panelKind, onApplyEdit, edit, onError, slideIndex = 0, slides = [], data, selection, onSelectSlide, loadLayouts, placement } = options;
   const Wrapper = placement === "bottom" ? PptxPanelBottom : PptxPanelAside;
   if (!panelKind) return null;
   // The ONE cast of the whole seam: the engine has not registered every panel
@@ -325,6 +410,9 @@ export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
         slideCount={slides.length}
         slides={slides}
         {...(data ? { data } : {})}
+        {...(selection ? { selection } : {})}
+        {...(onSelectSlide ? { onSelectSlide } : {})}
+        {...(loadLayouts ? { loadLayouts } : {})}
       />
     </Wrapper>
   );

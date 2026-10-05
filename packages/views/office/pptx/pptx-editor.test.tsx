@@ -51,6 +51,13 @@ function tableRendererModule(): { module: PptxRendererModule } {
   return { module };
 }
 
+/** The presenter console lives on the Slide Show tab (F-05: the tab-row Present
+ *  control starts the audience show instead). */
+function presenterViewItem(): HTMLElement {
+  fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
+  return document.querySelector('[data-ribbon-item="show-presenter-view"]') as HTMLElement;
+}
+
 function renderEditor(props: Partial<PptxEditorProps> = {}, text = "Rendered title") {
   const { module, buildRenderSlide } = fakeRendererModule(text);
   const view = render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} loadRendererModule={async () => module} {...props} />);
@@ -161,7 +168,7 @@ describe("PptxEditor", () => {
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
     const canvasSvg = document.querySelector("[data-pptx-slide-svg]") as SVGElement;
     fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     const dialog = screen.getByRole("dialog", { name: "Presenter view" });
     const presenterSvg = dialog.querySelector("[data-pptx-presenter-svg]") as SVGElement;
     expect(presenterSvg).not.toBeNull();
@@ -229,7 +236,7 @@ describe("PptxEditor", () => {
     renderEditor({ slides: [{ id: "s1", label: "Intro" }], deck });
     await waitFor(() => expect(screen.getByRole("navigation", { name: "Slides" }).querySelector("img")).not.toBeNull());
     fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     const dialog = screen.getByRole("dialog", { name: "Presenter view" });
     expect(dialog.querySelector("img")).toBeNull();
     expect(dialog.querySelector("[data-pptx-presenter-svg]")).not.toBeNull();
@@ -238,14 +245,14 @@ describe("PptxEditor", () => {
   it("renders the bound speaker-notes port in the presenter (NOTES-WIRE)", async () => {
     renderEditor({ slides: [{ id: "s1" }], deck, slideNotes: (slideIndex) => (slideIndex === 0 ? "Open with the customer story" : null) });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("Open with the customer story");
   });
 
   it("keeps the honest empty-notes line without a slideNotes port (NOTES-WIRE)", async () => {
     renderEditor({ slides: [{ id: "s1" }], deck });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("No speaker notes for this slide.");
   });
 
@@ -253,7 +260,7 @@ describe("PptxEditor", () => {
     const editorHandle = { ...handle(), slideNotes: (slideIndex: number) => (slideIndex === 0 ? "Desktop notes" : null) } as unknown as EditorHandle;
     render(<PptxEditor host={makeHost(vi.fn())} editorHandle={editorHandle} loadRendererModule={async () => fakeRendererModule().module} slides={[{ id: "s1" }]} deck={deck} />);
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     expect(screen.getByTestId("pptx-presenter-notes")).toHaveTextContent("Desktop notes");
   });
 
@@ -342,19 +349,31 @@ describe("PptxEditor", () => {
     expect(document.activeElement).toBe(find);
   });
 
-  it("marks the presenter view toggle pressed while the presenter is open (C6)", () => {
+  it("marks the tab-row Present toggle pressed while the audience show is open (C6, F-05)", () => {
     renderEditor({ slides: [{ id: "s1" }] });
-    const toggle = screen.getByRole("button", { name: "Presenter" });
+    const toggle = screen.getByRole("button", { name: "Present" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(toggle);
-    expect(screen.getByRole("dialog", { name: "Presenter view" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close presenter" }));
-    expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("dialog", { name: "Slide show" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getAllByRole("button", { name: "End show" }).at(-1) as HTMLElement);
+    expect(screen.queryByRole("dialog", { name: "Slide show" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "false");
   });
+
+  it("starts the audience show from the first visible slide on the Slide Show tab (F-05)", () => {
+    const onSlideSelect = vi.fn();
+    renderEditor({ slides: [{ id: "s1", hidden: true }, { id: "s2" }, { id: "s3" }], selectedIndex: 2, onSlideSelect });
+    fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
+    fireEvent.click(document.querySelector('[data-ribbon-item="show-from-start"]') as HTMLElement);
+    expect(onSlideSelect).toHaveBeenCalledWith(1);
+    expect(screen.getByRole("dialog", { name: "Slide show" })).toBeInTheDocument();
+  });
+
   it("advances and goes back from the presenter controls", async () => {
     renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1");
     fireEvent.click(screen.getByRole("button", { name: "Next slide" }));
     await waitFor(() => expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 2"));
@@ -365,7 +384,7 @@ describe("PptxEditor", () => {
   it("advances with the presenter nav keys and never exits on Space (F1)", async () => {
     renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    fireEvent.click(presenterViewItem());
     expect(screen.getByTestId("pptx-presenter-current")).toHaveTextContent("Current slide 1");
     // ArrowRight advances the show (the presenter owns the nav contract now).
     fireEvent.keyDown(window, { key: "ArrowRight" });
@@ -380,7 +399,7 @@ describe("PptxEditor", () => {
   it("exits the presenter on Escape and returns focus to the trigger", async () => {
     renderEditor({ slides: [{ id: "s1" }, { id: "s2" }], deck });
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    const trigger = screen.getByRole("button", { name: "Presenter" });
+    const trigger = presenterViewItem();
     // F2: fireEvent.click never moves focus in jsdom; focus the trigger for real
     // so the focus-return assertion tests the product behaviour, not the harness.
     trigger.focus();

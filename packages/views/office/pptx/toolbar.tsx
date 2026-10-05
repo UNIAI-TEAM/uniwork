@@ -18,7 +18,7 @@
  * are untouched here.
  */
 import { useMemo, useState } from "react";
-import { Redo2, Search, Undo2 } from "lucide-react";
+import { Presentation, Redo2, Search, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { OfficeRibbon } from "../ribbon";
@@ -30,6 +30,7 @@ import {
   PPTX_VIEW_TOGGLE_COMMAND,
   pptxRibbonTabs,
   type PptxRibbonContextualSelection,
+  type PptxRibbonOptions,
   type PptxTabId,
 } from "./pptx-ribbon";
 
@@ -56,6 +57,14 @@ export interface PptxToolbarProps {
   findButtonRef?: (element: HTMLButtonElement | null) => void;
   /** R4: which contextual tabs the caller says are live. Absent = none. */
   contextual?: PptxRibbonContextualSelection;
+  /** Side panel currently open; its ribbon toggle renders pressed. */
+  activePanel?: PptxRibbonOptions["activePanel"];
+  /** Ribbon panel items and dialog launchers call this. */
+  onOpenPanel?: PptxRibbonOptions["onOpenPanel"];
+  /** Panel kind -> full i18n reason key; that panel item is disabled. */
+  panelDisabled?: PptxRibbonOptions["panelDisabled"];
+  /** Items the editor injects into ribbon groups, keyed by group id. */
+  groupItems?: PptxRibbonOptions["groupItems"];
   className?: string;
 }
 
@@ -77,6 +86,10 @@ export function PptxToolbar({
   presenterOpen = false,
   findButtonRef,
   contextual,
+  activePanel,
+  onOpenPanel,
+  panelDisabled,
+  groupItems,
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -99,8 +112,16 @@ export function PptxToolbar({
     [canRedo, canUndo, commands, t],
   );
   const tabs = useMemo(
-    () => pptxRibbonTabs(resolved, { onCommand, ...(contextual ? { contextual } : {}) }),
-    [contextual, onCommand, resolved],
+    () =>
+      pptxRibbonTabs(resolved, {
+        onCommand,
+        ...(contextual ? { contextual } : {}),
+        ...(activePanel !== undefined ? { activePanel } : {}),
+        ...(onOpenPanel ? { onOpenPanel } : {}),
+        ...(panelDisabled ? { panelDisabled } : {}),
+        ...(groupItems ? { groupItems } : {}),
+      }),
+    [activePanel, contextual, groupItems, onCommand, onOpenPanel, panelDisabled, resolved],
   );
 
   const quickAccess = (
@@ -126,7 +147,7 @@ export function PptxToolbar({
   const find = resolved.find((entry) => entry.id === PPTX_FIND_COMMAND);
   const trailing = (
     <div className="flex shrink-0 items-center gap-1" data-pptx-tab-row-trailing>
-      {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} /> : null}
+      {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} compactIcon={<Presentation aria-hidden />} /> : null}
       {find ? (
         <PptxCommandButton
           command={find}
@@ -144,7 +165,6 @@ export function PptxToolbar({
       <OfficeRibbon
         scope="pptx"
         tabs={tabs}
-        emptyKey="office.pptx.tab_empty"
         activeTabId={tab}
         onActiveTabChange={(id) => setTab(id as PptxTabId)}
         quickAccess={quickAccess}

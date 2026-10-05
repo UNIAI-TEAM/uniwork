@@ -22,6 +22,17 @@ import {
   CaseSensitive,
   FileDown,
   FolderOpen,
+  Film,
+  Image,
+  Link,
+  MessageSquare,
+  Palette,
+  Paintbrush,
+  PanelTop,
+  Plus,
+  Replace,
+  LayoutGrid,
+  ArrowRightLeft,
   LayoutTemplate,
   Maximize,
   Monitor,
@@ -37,6 +48,7 @@ import {
   Undo2,
 } from "lucide-react";
 import type { PptxCommand, PptxCommandId } from "./command-map";
+import type { PptxPanelKind } from "./pptx-panel-host";
 import type { RibbonAccent, RibbonGroup, RibbonIcon, RibbonItem, RibbonTab } from "../ribbon";
 
 export type PptxTabId =
@@ -57,7 +69,24 @@ export type PptxGroupId =
   | "animations"
   | "show"
   | "review"
-  | "view";
+  | "view"
+  | "slides"
+  | "font"
+  | "paragraph"
+  | "drawing"
+  | "tables"
+  | "images"
+  | "charts"
+  | "links"
+  | "text"
+  | "media"
+  | "themes"
+  | "customize"
+  | "transitions"
+  | "comments"
+  | "notes"
+  | "views"
+  | "arrange";
 
 /** Quick-access undo/redo, pinned at the far left of the tab row (C6). */
 export const PPTX_QUICK_ACCESS_COMMANDS: readonly PptxCommandId[] = ["undo", "redo"];
@@ -93,11 +122,49 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   fullscreen: Maximize,
 };
 
+/** Default icon per panel kind; a spec may override it. */
+const PPTX_PANEL_ICONS: Partial<Record<PptxPanelKind, RibbonIcon>> = {
+  sorter: LayoutGrid,
+  format: Paintbrush,
+  "text-format": Type,
+  insert: Image,
+  links: Link,
+  headerfooter: PanelTop,
+  media: Film,
+  design: Palette,
+  transitions: ArrowRightLeft,
+  comments: MessageSquare,
+  notes: StickyNote,
+  animations: Sparkles,
+  tables: Table,
+  charts: BarChart3,
+  find: Search,
+};
+
+/** A side panel opened from a ribbon item (a toggle that shows the panel). */
+export interface PptxRibbonPanelSpec {
+  kind: PptxPanelKind;
+  /** FULL i18next key. */
+  labelKey: string;
+  /** FULL i18next key; defaults to the label. */
+  tooltipKey?: string;
+  icon?: RibbonIcon;
+}
+
 export interface PptxRibbonGroupSpec {
   id: PptxGroupId | string;
   /** FULL i18next key. */
   labelKey: string;
-  commands: readonly PptxCommandId[];
+  commands?: readonly PptxCommandId[];
+  panels?: readonly PptxRibbonPanelSpec[];
+  /** Items the editor injects for this group id via options.groupItems[id], appended after commands+panels. */
+  injected?: boolean;
+  /** Default true: the first item renders large. false = all small (Font/Paragraph groups, F4). */
+  largeFirst?: boolean;
+  /** Item order inside the group. Default commands-first. */
+  order?: "commands-first" | "panels-first";
+  /** Dialog launcher that opens a panel. */
+  launcher?: { panel: PptxPanelKind; labelKey: string };
 }
 
 export interface PptxRibbonTabSpec {
@@ -107,28 +174,71 @@ export interface PptxRibbonTabSpec {
   groups: readonly PptxRibbonGroupSpec[];
 }
 
+const g = (id: string) => `office.pptx.groups.${id}`;
+const p = (key: string) => `office.pptx.panels.${key}`;
+
+const newSlide: PptxRibbonPanelSpec = { kind: "sorter", labelKey: p("new_slide"), icon: Plus };
+
 /**
  * Fixed ribbon order. Every command the command map can produce appears exactly
- * once across the tab row plus these tabs; Transitions owns no command yet, so
- * it is present and reachable but honestly empty. Undo/redo and the presenter
- * toggle live in the tab row, so no tab repeats them.
+ * once across the tab row plus these tabs. Undo/redo, the presenter toggle and
+ * Find live in the tab row, so no tab repeats them. Side panels open from the
+ * panel items here (UNI-927 F-02/F-10).
  */
 export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
   {
     id: "home",
     labelKey: "office.pptx.tabs.home",
     groups: [
-      { id: "file", labelKey: "office.pptx.groups.file", commands: ["open", "save", "export-pdf"] },
-      { id: "editing", labelKey: "office.pptx.groups.editing", commands: ["edit-text", "edit-shape-image"] },
+      { id: "slides", labelKey: g("slides"), panels: [newSlide] },
+      { id: "font", labelKey: g("font"), injected: true, largeFirst: false, launcher: { panel: "text-format", labelKey: p("font_dialog") } },
+      { id: "paragraph", labelKey: g("paragraph"), injected: true, largeFirst: false, launcher: { panel: "text-format", labelKey: p("paragraph_dialog") } },
+      { id: "drawing", labelKey: g("drawing"), panels: [{ kind: "format", labelKey: p("format") }], launcher: { panel: "format", labelKey: p("format") } },
+      { id: "editing", labelKey: g("editing"), commands: ["edit-text", "edit-shape-image"] },
+      { id: "file", labelKey: g("file"), commands: ["open", "save", "export-pdf"] },
     ],
   },
-  { id: "insert", labelKey: "office.pptx.tabs.insert", groups: [{ id: "insert", labelKey: "office.pptx.groups.insert", commands: ["charts", "tables"] }] },
-  { id: "design", labelKey: "office.pptx.tabs.design", groups: [{ id: "design", labelKey: "office.pptx.groups.design", commands: ["masters-layouts", "embedded-fonts"] }] },
-  { id: "transitions", labelKey: "office.pptx.tabs.transitions", groups: [] },
-  { id: "animations", labelKey: "office.pptx.tabs.animations", groups: [{ id: "animations", labelKey: "office.pptx.groups.animations", commands: ["animations"] }] },
-  { id: "slide-show", labelKey: "office.pptx.tabs.slide_show", groups: [{ id: "show", labelKey: "office.pptx.groups.show", commands: ["fullscreen"] }] },
-  { id: "review", labelKey: "office.pptx.tabs.review", groups: [{ id: "review", labelKey: "office.pptx.groups.review", commands: ["speaker-notes"] }] },
-  { id: "view", labelKey: "office.pptx.tabs.view", groups: [{ id: "view", labelKey: "office.pptx.groups.view", commands: ["render-fidelity"] }] },
+  {
+    id: "insert",
+    labelKey: "office.pptx.tabs.insert",
+    groups: [
+      { id: "slides", labelKey: g("slides"), panels: [newSlide] },
+      { id: "tables", labelKey: g("tables"), commands: ["tables"] },
+      { id: "images", labelKey: g("images"), panels: [{ kind: "insert", labelKey: p("shapes"), tooltipKey: p("shapes_hint") }] },
+      { id: "charts", labelKey: g("charts"), commands: ["charts"] },
+      { id: "links", labelKey: g("links"), panels: [{ kind: "links", labelKey: p("link") }] },
+      { id: "text", labelKey: g("text"), panels: [{ kind: "headerfooter", labelKey: p("header_footer") }] },
+      { id: "media", labelKey: g("media"), panels: [{ kind: "media", labelKey: p("media") }] },
+    ],
+  },
+  {
+    id: "design",
+    labelKey: "office.pptx.tabs.design",
+    groups: [
+      { id: "themes", labelKey: g("themes"), panels: [{ kind: "design", labelKey: p("themes") }] },
+      { id: "customize", labelKey: g("customize"), commands: ["masters-layouts", "embedded-fonts"] },
+    ],
+  },
+  {
+    id: "transitions",
+    labelKey: "office.pptx.tabs.transitions",
+    groups: [{ id: "transitions", labelKey: g("transitions"), panels: [{ kind: "transitions", labelKey: p("transitions") }] }],
+  },
+  { id: "animations", labelKey: "office.pptx.tabs.animations", groups: [{ id: "animations", labelKey: g("animations"), commands: ["animations"] }] },
+  { id: "slide-show", labelKey: "office.pptx.tabs.slide_show", groups: [{ id: "show", labelKey: g("show"), commands: ["fullscreen"], injected: true }] },
+  {
+    id: "review",
+    labelKey: "office.pptx.tabs.review",
+    groups: [
+      { id: "comments", labelKey: g("comments"), panels: [{ kind: "comments", labelKey: p("comments") }] },
+      { id: "notes", labelKey: g("notes"), commands: ["speaker-notes"] },
+    ],
+  },
+  {
+    id: "view",
+    labelKey: "office.pptx.tabs.view",
+    groups: [{ id: "views", labelKey: g("views"), panels: [{ kind: "sorter", labelKey: p("sorter") }], commands: ["render-fidelity"], order: "panels-first" }],
+  },
 ];
 
 export interface PptxRibbonContextualTabSpec {
@@ -139,6 +249,9 @@ export interface PptxRibbonContextualTabSpec {
   accent: RibbonAccent;
   groups: readonly PptxRibbonGroupSpec[];
 }
+
+const arrange: PptxRibbonGroupSpec = { id: "arrange", labelKey: g("arrange"), injected: true };
+const linksGroup: PptxRibbonGroupSpec = { id: "links", labelKey: g("links"), panels: [{ kind: "links", labelKey: p("link") }] };
 
 /**
  * R4 contextual tabs. They appear after the fixed tabs only while the caller
@@ -151,21 +264,44 @@ export const PPTX_RIBBON_CONTEXTUAL_TABS: readonly PptxRibbonContextualTabSpec[]
     labelKey: "office.pptx.context.picture",
     when: "picture",
     accent: "info",
-    groups: [{ id: "context-picture-format", labelKey: "office.pptx.context.picture", commands: ["edit-shape-image"] }],
+    groups: [
+      {
+        id: "picture",
+        labelKey: g("picture"),
+        panels: [
+          { kind: "format", labelKey: p("format") },
+          { kind: "insert", labelKey: p("change_picture"), icon: Replace },
+        ],
+      },
+      linksGroup,
+      arrange,
+    ],
   },
   {
     id: "context-shape",
     labelKey: "office.pptx.context.shape",
     when: "shape",
     accent: "info",
-    groups: [{ id: "context-shape-format", labelKey: "office.pptx.context.shape", commands: ["edit-shape-image"] }],
+    groups: [
+      { id: "shape_styles", labelKey: g("shape_styles"), panels: [{ kind: "format", labelKey: p("format") }] },
+      { id: "text", labelKey: g("text"), panels: [{ kind: "text-format", labelKey: p("text_format") }] },
+      linksGroup,
+      arrange,
+    ],
   },
   {
     id: "context-table",
     labelKey: "office.pptx.context.table",
     when: "table",
     accent: "info",
-    groups: [{ id: "context-table-design", labelKey: "office.pptx.context.table", commands: ["tables"] }],
+    groups: [{ id: "table", labelKey: g("table"), commands: ["tables"] }, arrange],
+  },
+  {
+    id: "context-chart",
+    labelKey: "office.pptx.context.chart",
+    when: "chart",
+    accent: "info",
+    groups: [{ id: "chart", labelKey: g("chart"), commands: ["charts"] }, arrange],
   },
 ];
 
@@ -173,6 +309,7 @@ export interface PptxRibbonContextualSelection {
   picture?: boolean;
   shape?: boolean;
   table?: boolean;
+  chart?: boolean;
 }
 
 export interface PptxRibbonOptions {
@@ -182,6 +319,14 @@ export interface PptxRibbonOptions {
   onCommand?: (id: PptxCommandId) => void;
   /** Toggle commands that should render pressed. */
   pressedCommands?: readonly PptxCommandId[];
+  /** Panel toggle items render pressed when equal. */
+  activePanel?: PptxPanelKind | null;
+  /** Panel items and launchers call it (never when disabled). */
+  onOpenPanel?: (kind: PptxPanelKind) => void;
+  /** kind -> FULL i18n reason key; the item is disabled with tooltipKey = reason. */
+  panelDisabled?: Partial<Record<PptxPanelKind, string>>;
+  /** Injected items by group id. */
+  groupItems?: Readonly<Record<string, readonly RibbonItem[]>>;
 }
 
 /** Group 0 collapses last (10), group 1 next (5), the rest first (0). */
@@ -189,14 +334,14 @@ export function pptxGroupPriority(index: number): number {
   return index === 0 ? 10 : index === 1 ? 5 : 0;
 }
 
-function mapItem(command: PptxCommand, primary: boolean, options: PptxRibbonOptions): RibbonItem {
+function mapItem(command: PptxCommand, size: "large" | "small", options: PptxRibbonOptions): RibbonItem {
   const disabled = command.capability.status !== "available";
   const pressed = options.pressedCommands?.includes(command.id) === true;
   const base = {
     id: command.id,
     labelKey: `office.pptx.${command.labelKey}`,
     icon: PPTX_COMMAND_ICONS[command.id],
-    size: primary ? ("large" as const) : ("small" as const),
+    size,
     disabled,
     ...(disabled && command.capability.reason ? { tooltipKey: command.capability.reason } : {}),
   };
@@ -211,37 +356,100 @@ function mapItem(command: PptxCommand, primary: boolean, options: PptxRibbonOpti
   return { ...base, kind: "button", onExecute };
 }
 
-function mapGroup(spec: PptxRibbonGroupSpec, index: number, commands: readonly PptxCommand[], options: PptxRibbonOptions): RibbonGroup {
-  const items = spec.commands
+function openPanel(kind: PptxPanelKind, options: PptxRibbonOptions): void {
+  if (options.panelDisabled?.[kind]) return;
+  options.onOpenPanel?.(kind);
+}
+
+function mapPanel(
+  spec: PptxRibbonPanelSpec,
+  groupId: string,
+  size: "large" | "small",
+  options: PptxRibbonOptions,
+  usedIds: Set<string>,
+): RibbonItem {
+  const reason = options.panelDisabled?.[spec.kind];
+  const plain = `panel-${spec.kind}`;
+  const id = usedIds.has(plain) ? `panel-${groupId}-${spec.kind}` : plain;
+  usedIds.add(id);
+  const tooltipKey = reason ?? spec.tooltipKey;
+  return {
+    id,
+    kind: "toggle",
+    labelKey: spec.labelKey,
+    icon: spec.icon ?? PPTX_PANEL_ICONS[spec.kind],
+    size,
+    disabled: Boolean(reason),
+    ...(tooltipKey ? { tooltipKey } : {}),
+    pressed: options.activePanel === spec.kind,
+    onExecute: () => openPanel(spec.kind, options),
+  };
+}
+
+type GroupEntry = { command: PptxCommand } | { panel: PptxRibbonPanelSpec };
+
+function mapGroup(
+  spec: PptxRibbonGroupSpec,
+  commands: readonly PptxCommand[],
+  options: PptxRibbonOptions,
+  usedIds: Set<string>,
+): RibbonGroup {
+  const largeFirst = spec.largeFirst !== false;
+  const sizeAt = (position: number) => (largeFirst && position === 0 ? ("large" as const) : ("small" as const));
+  const commandEntries: GroupEntry[] = (spec.commands ?? [])
     .map((id) => commands.find((command) => command.id === id))
     .filter((command): command is PptxCommand => Boolean(command))
-    .map((command, commandIndex) => mapItem(command, commandIndex === 0, options));
-  return { id: spec.id, labelKey: spec.labelKey, priority: pptxGroupPriority(index), items };
+    .map((command) => ({ command }));
+  const panelEntries: GroupEntry[] = (spec.panels ?? []).map((panel) => ({ panel }));
+  const ordered = spec.order === "panels-first" ? [...panelEntries, ...commandEntries] : [...commandEntries, ...panelEntries];
+  const items: RibbonItem[] = ordered.map((entry, position) =>
+    "command" in entry
+      ? mapItem(entry.command, sizeAt(position), options)
+      : mapPanel(entry.panel, spec.id, sizeAt(position), options, usedIds),
+  );
+  if (spec.injected) items.push(...(options.groupItems?.[spec.id] ?? []));
+  const launcher = spec.launcher;
+  return {
+    id: spec.id,
+    labelKey: spec.labelKey,
+    priority: 0,
+    ...(launcher ? { launcher: { labelKey: launcher.labelKey, onOpen: () => openPanel(launcher.panel, options) } } : {}),
+    items,
+  };
+}
+
+function mapGroups(specs: readonly PptxRibbonGroupSpec[], commands: readonly PptxCommand[], options: PptxRibbonOptions): RibbonGroup[] {
+  const usedIds = new Set<string>();
+  // Empty groups are dropped; priority is positional among the rendered ones.
+  return specs
+    .map((spec) => mapGroup(spec, commands, options, usedIds))
+    .filter((group) => group.items.length > 0)
+    .map((group, index) => ({ ...group, priority: pptxGroupPriority(index) }));
 }
 
 /**
  * Map the PPTX command capabilities onto the shared ribbon tabs. Fixed tabs
- * first (in the existing order), then the three contextual tabs gated by
- * `options.contextual`.
+ * first (in the existing order), then the contextual tabs gated by
+ * `options.contextual`. Groups with no resulting item are dropped.
  */
 export function pptxRibbonTabs(commands: readonly PptxCommand[], options: PptxRibbonOptions = {}): RibbonTab[] {
   const fixed: RibbonTab[] = PPTX_RIBBON_TABS.map((tab) => ({
     id: tab.id,
     labelKey: tab.labelKey,
-    groups: tab.groups.map((group, index) => mapGroup(group, index, commands, options)),
+    groups: mapGroups(tab.groups, commands, options),
   }));
   const contextual: RibbonTab[] = PPTX_RIBBON_CONTEXTUAL_TABS.map((tab) => ({
     id: tab.id,
     labelKey: tab.labelKey,
     contextual: { when: options.contextual?.[tab.when] === true, accent: tab.accent },
-    groups: tab.groups.map((group, index) => mapGroup(group, index, commands, options)),
+    groups: mapGroups(tab.groups, commands, options),
   }));
   return [...fixed, ...contextual];
 }
 
-/** Every command id the FIXED tabs place, in render order (tab-row excluded). */
+/** Every command id the FIXED tabs place, in render order (tab-row, panel and injected items excluded). */
 export function pptxRibbonCommandIds(tabs: readonly RibbonTab[]): PptxCommandId[] {
   return tabs
     .filter((tab) => !tab.contextual)
-    .flatMap((tab) => tab.groups.flatMap((group) => group.items.map((item) => item.id as PptxCommandId)));
+    .flatMap((tab) => tab.groups.flatMap((group) => group.items.filter((item) => !item.id.startsWith("panel-")).map((item) => item.id as PptxCommandId)));
 }

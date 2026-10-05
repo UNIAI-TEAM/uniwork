@@ -24,6 +24,9 @@ export interface PptxCommandButtonProps {
   /** Icon-only form (quick access, Find): the icon replaces the visible label
    *  while `aria-label` keeps the button named. */
   icon?: ReactNode;
+  /** Icon + label that collapses to the icon below 480px (W6, F-09): the label
+   *  stays in the accessibility tree (sr-only) and `aria-label` names it. */
+  compactIcon?: ReactNode;
   /** Extra tooltip copy for an ENABLED command; a disabled command still shows
    *  its capability reason instead. */
   hint?: string;
@@ -41,6 +44,7 @@ export function PptxCommandButton({
   active = false,
   pressed = false,
   icon,
+  compactIcon,
   hint,
   onCommand,
   tabIndex,
@@ -49,13 +53,17 @@ export function PptxCommandButton({
   className,
 }: PptxCommandButtonProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  // Capability reasons are FULL i18n keys (office.pptx.reasons.*); a reason that
+  // is already translated text (the history remap) passes through unchanged.
+  const { t: tRoot } = useTranslation();
   const enabled = command.capability.status === "available";
   const label = t(command.labelKey);
   const isToggle = command.toggle === true;
   // F4: the reason/hint is a real `role="tooltip"` node. A native `title` is
   // suppressed on a disabled control and never reaches a keyboard user, which
   // is exactly the audience that needs to hear why the control is dead.
-  const tooltip = enabled ? hint : command.capability.reason ?? hint;
+  const reason = command.capability.reason;
+  const tooltip = enabled ? hint : reason ? tRoot(reason, { defaultValue: reason }) : hint;
   // F6: a pressed toggle paints the selected token wash as well as setting
   // `aria-pressed`; a momentary action never paints the pressed state.
   const pressedStyle =
@@ -81,7 +89,7 @@ export function PptxCommandButton({
         onKeyDown={onKeyDown}
         tabIndex={tabIndex}
       >
-        {icon ?? label}
+        {icon ?? (compactIcon ? <>{compactIcon}<span className="max-[480px]:sr-only">{label}</span></> : label)}
       </Button>
       {tooltip ? (
         <span

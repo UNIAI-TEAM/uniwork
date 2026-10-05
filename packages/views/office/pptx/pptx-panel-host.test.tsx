@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import { box } from "./canvas/pptx-render-fixtures";
-import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, pptxPanelPlacement, type PptxPanelEdit } from "./pptx-panel-host";
+import { buildPptxPanel, pptxContextualSelection, pptxPanelForContextualTab, pptxPanelForTab, pptxPanelSelection, pptxPanelPlacement, type PptxPanelEdit } from "./pptx-panel-host";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -95,5 +95,53 @@ describe("pptxPanelPlacement", () => {
     unmount();
     const aside = render(buildPptxPanel({ panelKind: "notes", slideIndex: 0, slides: [], data: { notes: "n" } }));
     expect(aside.container.querySelector("aside[data-pptx-panel-placement='aside']")).not.toBeNull();
+  });
+});
+
+describe("selection wiring", () => {
+  const boxes = [
+    { sourceId: "t1", type: "text" as const, box: box() },
+    { sourceId: "pic1", type: "picture" as const, box: box() },
+    { sourceId: "tbl1", type: "table" as const, box: box() },
+    { sourceId: "ch1", type: "chart" as const, box: box() },
+  ];
+
+  it("derives the anchor and typed ids from the boxes", () => {
+    expect(pptxPanelSelection(boxes, [])).toEqual({ elementId: null, elementType: null, ids: [], tableId: null, chartId: null, pictureId: null });
+    expect(pptxPanelSelection(boxes, ["pic1", "t1"])).toMatchObject({ elementId: "pic1", elementType: "picture", pictureId: "pic1", tableId: null, chartId: null });
+    expect(pptxPanelSelection(boxes, ["tbl1"])).toMatchObject({ elementType: "table", tableId: "tbl1", pictureId: null });
+    expect(pptxPanelSelection(boxes, ["ch1"])).toMatchObject({ elementType: "chart", chartId: "ch1" });
+    expect(pptxPanelSelection(boxes, ["t1"])).toMatchObject({ elementType: "text", tableId: null });
+    expect(pptxPanelSelection(boxes, ["gone"])).toMatchObject({ elementId: "gone", elementType: null });
+  });
+
+  it("flags chart in the contextual selection", () => {
+    expect(pptxContextualSelection(boxes, ["ch1"])).toEqual({ chart: true });
+  });
+
+  it("maps contextual tabs to panels", () => {
+    expect(pptxPanelForContextualTab("context-shape")).toBe("format");
+    expect(pptxPanelForContextualTab("context-picture")).toBe("format");
+    expect(pptxPanelForContextualTab("context-table")).toBe("tables");
+    expect(pptxPanelForContextualTab("context-chart")).toBe("charts");
+    expect(pptxPanelForContextualTab("design")).toBeNull();
+  });
+
+  it("routes a text-format edit with the selected element", async () => {
+    const onApplyEdit = vi.fn(async (_edit: PptxPanelEdit) => undefined);
+    render(buildPptxPanel({ panelKind: "text-format", onApplyEdit, slideIndex: 2, slides: [], selection: pptxPanelSelection(boxes, ["t1"]) }));
+    fireEvent.click(screen.getByTestId("pptx-text-toggle-bold"));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledWith({ op: "set_font", slideIndex: 2, elementId: "t1", font: { bold: true } }));
+  });
+
+  it("gives the tables panel its table and remounts on selection change", () => {
+    const hint = "Select a table on the slide to edit it.";
+    const build = (ids: string[]) => buildPptxPanel({ panelKind: "tables", onApplyEdit: async () => undefined, slideIndex: 0, slides: [{ id: "s1" }], selection: pptxPanelSelection(boxes, ids) });
+    const view = render(build([]));
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    view.rerender(build(["tbl1"]));
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
+    view.rerender(build([]));
+    expect(screen.getByText(hint)).toBeInTheDocument();
   });
 });

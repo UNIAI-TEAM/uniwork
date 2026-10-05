@@ -58,9 +58,9 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
 
   it("shows the presenter toggle pressed while the presenter is open", () => {
     const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen={false} />);
-    expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "false");
     view.rerender(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen />);
-    expect(screen.getByRole("button", { name: "Presenter" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("restores the F4 disabled-reason tooltip: undo says why it is dead, without a native title", () => {
@@ -79,7 +79,7 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
 
   it("restores the F6 presenter pressed wash: a pressed toggle paints the selected token", () => {
     const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen={false} />);
-    const presenter = () => screen.getByRole("button", { name: "Presenter" });
+    const presenter = () => screen.getByRole("button", { name: "Present" });
     expect(presenter().className).not.toContain("bg-surface-selected");
     view.rerender(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen />);
     expect(presenter()).toHaveAttribute("aria-pressed", "true");
@@ -95,11 +95,35 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     expect(screen.queryByText("No edit history yet.")).not.toBeInTheDocument();
   });
 
-  it("restores the empty-tab note: the Transitions tab explains itself instead of a blank band", () => {
-    render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
+  it("gives the Transitions tab a real panel command instead of an empty note", () => {
+    const onOpenPanel = vi.fn();
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} onOpenPanel={onOpenPanel} activePanel="transitions" />);
     fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
-    expect(screen.getByText("This tab has no commands yet.")).toBeInTheDocument();
+    expect(screen.queryByText("This tab has no commands yet.")).not.toBeInTheDocument();
+    const panel = document.querySelector('[data-ribbon-item="panel-transitions"]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(panel);
+    expect(onOpenPanel).toHaveBeenCalledWith("transitions");
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("renders injected group items and a disabled panel with aria-disabled", () => {
+    const groupItems = {
+      show: [{ kind: "button" as const, id: "start-show", labelKey: "office.pptx.commands.find", onExecute: vi.fn() }],
+    };
+    render(
+      <PptxToolbar
+        commands={commands}
+        onCommand={vi.fn()}
+        groupItems={groupItems}
+        panelDisabled={{ comments: "office.pptx.reasons.edit_unbound" }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Slide Show" }));
+    expect(document.querySelector('[data-ribbon-item="start-show"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Review" }));
+    expect(document.querySelector('[data-ribbon-item="panel-comments"]')).toHaveAttribute("aria-disabled", "true");
   });
 
   it("adds a contextual tab only when the caller says the object is selected (R4)", () => {
@@ -110,5 +134,13 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     expect(tableTab).toHaveAttribute("data-ribbon-contextual", "info");
     // Selecting the object does not force-switch the active tab.
     expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+  });
+  it("collapses the Present label to its icon below 480px but keeps the accessible name (W6 F-09)", () => {
+    render(<PptxToolbar commands={createPptxCommandMap({ includePresentation: true })} onCommand={vi.fn()} />);
+    const present = screen.getByRole("button", { name: "Present" });
+    expect(present.querySelector("svg")).not.toBeNull();
+    const label = present.querySelector("span");
+    expect(label).toHaveTextContent("Present");
+    expect(label?.className).toContain("max-[480px]:sr-only");
   });
 });

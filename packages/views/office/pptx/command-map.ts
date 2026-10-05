@@ -22,6 +22,7 @@ export type PptxCommandId =
 
 export interface PptxCommandCapability {
   status: OfficeCapabilityStatus;
+  /** FULL i18next key (e.g. `office.pptx.reasons.edit_unbound`), translated where it is shown. */
   reason?: string;
 }
 
@@ -88,16 +89,16 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
       ? asCapability(transform, { status: "unavailable" })
       : hasTransformChannel(options.host)
         ? { status: "available" }
-        : { status: "unavailable", reason: "host:slides-edit-transform is not bound" },
+        : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound" },
     save: { status: "available" },
-    "export-pdf": { status: "unavailable", reason: "PPTX PDF export is not bound in the browser build" },
-    "speaker-notes": { status: "unavailable", reason: "Speaker notes are pending the PPTX acceptance cycle" },
-    "masters-layouts": { status: "unavailable", reason: "Masters and layouts are pending the PPTX acceptance cycle" },
-    animations: { status: "unavailable", reason: "Animations and transitions are pending the PPTX acceptance cycle" },
-    charts: { status: "unavailable", reason: "Charts are pending the PPTX acceptance cycle" },
-    tables: { status: "unavailable", reason: "Tables are pending the PPTX acceptance cycle" },
-    "embedded-fonts": { status: "unavailable", reason: "Embedded fonts are pending the PPTX acceptance cycle" },
-    "render-fidelity": { status: "unknown", reason: "Render fidelity is measured in 06b against the genoffice oracle" },
+    "export-pdf": { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound" },
+    "speaker-notes": { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
+    "masters-layouts": { status: "unavailable", reason: "office.pptx.reasons.layouts_pending" },
+    animations: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
+    charts: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
+    tables: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
+    "embedded-fonts": { status: "unavailable", reason: "office.pptx.reasons.embedded_fonts_pending" },
+    "render-fidelity": { status: "unknown", reason: "office.pptx.reasons.render_fidelity_pending" },
     find: { status: "available" },
     undo: { status: "available" },
     redo: { status: "available" },
