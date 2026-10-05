@@ -22,7 +22,8 @@ import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { pptxEditorCapabilities } from "./pptx-editor-capabilities";
 import { pptxContextualSelection, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
 import type { PptxTabId } from "./pptx-ribbon";
-import { collectPptxPrintSlides, type PptxPrintPort } from "./print";
+import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
+import { collectPptxPrintSlides, createPptxPrintPort, type PptxPrintPort } from "./print";
 import { PptxPresenter } from "./presenter";
 import { pptxShowGroupItems } from "./ribbon-show-items";
 import { PptxSlideShow } from "./show/pptx-slide-show";
@@ -35,7 +36,6 @@ import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
-import { PptxFindBar } from "./toolbar/find-bar";
 import { usePptxEditorRender } from "./use-pptx-editor-render";
 import { usePptxGestureHistory } from "./use-pptx-gesture-history";
 import { usePptxInPlaceText } from "./use-pptx-in-place-text";
@@ -63,7 +63,8 @@ export interface PptxEditorProps {
   /** In-place text commit (A1ui). When bound, double-clicking a text element opens the
    *  contenteditable overlay; the commit carries the typed paragraphs for that element. */
   onCommitText?: (commit: PptxTextCommit) => Promise<unknown> | void;
-  /** Find channel (C6). Absent leaves the find bar honest about being unbound. */
+  /** Superseded by the find panel's own hit navigation (it reads the bound deck and
+   *  selects the hit on the canvas); the editor no longer calls it. */
   onFind?: (query: string) => void;
   /** Speaker-notes read (NOTES-WIRE); absent keeps the honest empty-notes line. */
   slideNotes?: (slideIndex: number) => string | null;
@@ -85,7 +86,9 @@ export interface PptxEditorProps {
   panelKind?: PptxPanelKind;
   /** Wire-round seam: the deck data the notes/comments/headerfooter/media panels read. */
   panelData?: PptxPanelData;
-  /** Wire-round seam: the committed print/PDF port (C1). Absent keeps export-pdf honestly disabled. */
+  /** The print/PDF port (C1). Absent: the editor prints through the browser print
+   *  frame (the host's `host:pdf-save` channel first when it has one). `null`
+   *  turns Print and Export PDF off (they are hidden, not shown dead). */
   printPort?: PptxPrintPort | null;
   /** Wire-round seam: ONE generic edit channel every panel port routes to.
    *  Accepts the FormatEdit union too (an engine gap: it is not yet a PptxEdit
@@ -122,7 +125,6 @@ export function PptxEditor({
   onDeleteElements,
   onTextEdit,
   onCommitText,
-  onFind,
   slideNotes,
   slideLayouts,
   onOpen,
@@ -137,7 +139,7 @@ export function PptxEditor({
   panel,
   panelKind,
   panelData,
-  printPort = null,
+  printPort: printPortProp,
   onApplyEdit,
   className,
 }: PptxEditorProps) {
@@ -147,7 +149,6 @@ export function PptxEditor({
   const [showOpen, setShowOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
   // WIRE-PANEL-TABS: the editor owns the active ribbon tab (fixed or contextual)
   // so the side panel can be derived from it; the toolbar renders it controlled.
   const [activeTab, setActiveTab] = useState<string>("home");
@@ -176,6 +177,12 @@ export function PptxEditor({
   const railSlides = useMemo<readonly PptxSlideView[]>(
     () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
     [slides, thumbnails],
+  );
+  // R2-6: with no host-supplied port the editor prints through the browser print
+  // frame; a deck-less editor has nothing to print, so the commands drop out.
+  const printPort = useMemo(
+    () => (!deckBound ? null : printPortProp === undefined ? createPptxPrintPort({ host }) : printPortProp),
+    [deckBound, host, printPortProp],
   );
   const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
   const handleEdit = useMemo(
@@ -340,6 +347,42 @@ export function PptxEditor({
   const onCreated = usePptxPendingSelect({
     slideIndex: selectedIndex, revision: deck?.revision, boxes: nodeBoxes, ready: Boolean(rendition) && !building, selectedIds, select: selection.select,
   });
+  // R2-6: the find panel counts hits over the bound deck, one entry per run (the
+  // engine's replace unit), and shows the active hit on the canvas. The deck model
+  // mutates in place, so the revision is what refreshes the runs after an edit.
+  const deckModel = deck?.deck;
+  const deckRevision = deck?.revision;
+  const findTexts = useMemo(() => {
+    void deckRevision; // the model is mutated in place: only the revision says the runs moved
+    return findOpen ? flattenDeckRuns(deckModel) : [];
+  }, [deckModel, deckRevision, findOpen]);
+  const findReplace = useMemo(() => {
+    if (onApplyEdit) return (edit: PptxFindReplaceEdit) => onApplyEdit(edit);
+    if (handleEdit) return (edit: PptxFindReplaceEdit) => handleEdit([edit]);
+    return undefined;
+  }, [handleEdit, onApplyEdit]);
+  const onFindHit = usePptxFindSelect({
+    slideIndex: selectedIndex, selectSlide, boxes: nodeBoxes, ready: Boolean(rendition) && !building, select: selection.select,
+  });
+  // R2-6: Ctrl+F opens the bar (or refocuses it) from anywhere in the editor, also
+  // with nothing focused yet; the browser's own page find would search the chrome.
+  useEffect(() => {
+    if (presenterOpen || showOpen || shortcutsOpen) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const root = editorRootRef.current;
+      const target = event.target;
+      const inside = target instanceof Node && root?.contains(target) === true;
+      const idle = target === document.body || target === document.documentElement;
+      if (event.defaultPrevented || (!inside && !idle) || matchPptxShortcut(event)?.action !== "find") return;
+      event.preventDefault();
+      setFindOpen(true);
+      const field = root?.querySelector<HTMLInputElement>("[data-pptx-find-query]");
+      field?.focus();
+      field?.select();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [presenterOpen, showOpen, shortcutsOpen]);
   // W5 review F11: "Edit text" only when the selection can actually be edited:
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
@@ -404,6 +447,7 @@ export function PptxEditor({
       case "save": save(); break;
       case "find": setFindOpen((open) => !open); break;
       case "export-pdf":
+      case "print":
         // C1: one committed print run through the bound port; nothing is faked
         // when the port is absent (the capability above keeps it disabled).
         if (printPort && deckRenderer) {
@@ -438,7 +482,6 @@ export function PptxEditor({
       case "undo": event.preventDefault(); requestHistory("undo"); return;
       case "redo": event.preventDefault(); requestHistory("redo"); return;
       case "save": event.preventDefault(); save(); return;
-      case "find": event.preventDefault(); setFindOpen(true); return;
       case "edit-text": event.preventDefault(); runCommand(runTextEdit()); return;
       case "select-all": event.preventDefault(); selection.selectAll(); return;
       case "delete-selection":
@@ -502,7 +545,7 @@ export function PptxEditor({
           />
         }
         subbar={<>
-          {findOpen ? <PptxFindBar query={findQuery} onQueryChange={setFindQuery} onClose={closeFind} {...(onFind ? { onSearch: onFind } : {})} /> : null}
+          {findOpen ? <PptxFindReplacePanel texts={findTexts} onActiveHitChange={onFindHit} onClose={closeFind} onError={reportCommandError} readonly={!findReplace} {...(findReplace ? { onFindReplace: findReplace } : {})} /> : null}
           {alerts}
         </>}
         rail={<PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />}

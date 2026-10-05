@@ -21,7 +21,75 @@ export interface PptxFindTextTarget {
   elementId?: string;
 }
 
+/** Where the active hit sits: enough for the editor to show it. */
+export interface PptxFindHit {
+  slideIndex: number;
+  elementId?: string;
+}
+
 export type PptxFindReplaceEdit = Extract<FindLinkEdit, { op: "find_replace" }>;
+
+type Loose = Record<string, unknown>;
+
+const asRecord = (value: unknown): Loose | null => (value && typeof value === "object" ? (value as Loose) : null);
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/** The runs of one `text.paragraphs` block that the engine's replace visits: not
+ * a dynamic field, not empty (`replaceAllInDeck` skips both). */
+function paragraphRuns(text: unknown): string[] {
+  const out: string[] = [];
+  for (const paragraph of asArray(asRecord(text)?.paragraphs)) {
+    for (const run of asArray(asRecord(paragraph)?.runs)) {
+      const record = asRecord(run);
+      if (!record || record.field || typeof record.text !== "string" || record.text === "") continue;
+      out.push(record.text);
+    }
+  }
+  return out;
+}
+
+/**
+ * The deck flattened to the op's match unit: one entry per run, in the order
+ * the vendored `replaceAllInDeck` visits them - text/shape elements, table
+ * cells (merged ones skipped) and the direct text/shape children of a group.
+ * Table and group runs carry the table's / group's element id, the only id the
+ * edit can be scoped to. Reads the opaque deck model structurally (the same
+ * documented `text.paragraphs[].runs[].text` shape the render tree consumes).
+ */
+export function flattenDeckRuns(deck: unknown): PptxFindTextTarget[] {
+  const out: PptxFindTextTarget[] = [];
+  asArray(asRecord(deck)?.slides).forEach((slide, slideIndex) => {
+    const push = (text: string, elementId: unknown) => {
+      out.push({ text, slideIndex, ...(typeof elementId === "string" ? { elementId } : {}) });
+    };
+    const pushText = (element: Loose) => {
+      if (element.type !== "text" && element.type !== "shape") return;
+      for (const text of paragraphRuns(element.text)) push(text, element.id);
+    };
+    for (const raw of asArray(asRecord(slide)?.elements)) {
+      const element = asRecord(raw);
+      if (!element) continue;
+      if (element.type === "table") {
+        for (const row of asArray(element.rows)) {
+          for (const cell of asArray(row)) {
+            const record = asRecord(cell);
+            if (!record || record.merged) continue;
+            for (const text of paragraphRuns(record.text)) push(text, element.id);
+          }
+        }
+      } else if (element.type === "group") {
+        for (const child of asArray(element.children)) {
+          const record = asRecord(child);
+          if (!record || (record.type !== "text" && record.type !== "shape")) continue;
+          for (const text of paragraphRuns(record.text)) push(text, element.id);
+        }
+      } else {
+        pushText(element);
+      }
+    }
+  });
+  return out;
+}
 
 /** No active hit (empty query or no matches). */
 export const PPTX_FIND_UNSET_HIT = -1;

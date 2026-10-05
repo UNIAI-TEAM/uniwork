@@ -38,6 +38,7 @@ import {
   replaceAllEdit,
   replaceOneEdit,
   stepHitIndex,
+  type PptxFindHit,
   type PptxFindReplaceEdit,
   type PptxFindTextTarget,
 } from "./pptx-find-model";
@@ -52,6 +53,9 @@ export interface PptxFindReplacePanelProps {
   onFindReplace?: (edit: PptxFindReplaceEdit) => Promise<unknown> | void;
   /** A refused edit surfaces here as well as in the panel's own alert. */
   onError?: (error: unknown) => void;
+  /** The run under the active hit changed (null: no hit). The editor moves the
+   *  canvas to that slide and selects the element, so the match is visible. */
+  onActiveHitChange?: (hit: PptxFindHit | null) => void;
   /** A replace is in flight. */
   busy?: boolean;
   /** Read-only document. */
@@ -65,6 +69,7 @@ export function PptxFindReplacePanel({
   initialQuery = "",
   onFindReplace,
   onError,
+  onActiveHitChange,
   busy = false,
   readonly = false,
   onClose,
@@ -93,6 +98,14 @@ export function PptxFindReplacePanel({
 
   const hitTarget = activeHitTarget(texts, plan, hitIndex);
   const hit = plan.hits[hitIndex];
+  // Reported on the hit's identity (index + slide + element), not on every deck
+  // change, so an edit made while the panel is open never re-selects over a
+  // canvas click the user made since.
+  const hitSlide = hitTarget?.slideIndex;
+  const hitElement = hitTarget?.elementId;
+  useEffect(() => {
+    onActiveHitChange?.(hitSlide === undefined ? null : { slideIndex: hitSlide, ...(hitElement ? { elementId: hitElement } : {}) });
+  }, [hitIndex, hitSlide, hitElement, onActiveHitChange]);
   const canReplaceOne = !blocked && hitTarget !== null;
   const canReplaceAll = !blocked && plan.replaceCount > 0;
 

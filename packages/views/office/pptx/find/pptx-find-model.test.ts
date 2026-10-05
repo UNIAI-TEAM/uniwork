@@ -8,6 +8,7 @@ import {
   PPTX_FIND_UNSET_HIT,
   activeHitTarget,
   clampHitIndex,
+  flattenDeckRuns,
   planFind,
   replaceAllEdit,
   replaceOneEdit,
@@ -111,5 +112,45 @@ describe("emitted edits", () => {
   it("emits no replace-one edit without a hit", () => {
     const plan = planFind(targets, "zzz", false);
     expect(replaceOneEdit(targets, plan, 0, "zzz", "x", false)).toBeNull();
+  });
+});
+
+describe("flattenDeckRuns", () => {
+  const para = (...texts: string[]) => ({ paragraphs: [{ runs: texts.map((text) => ({ text })) }] });
+  const deck = {
+    slides: [
+      {
+        elements: [
+          { id: "t1", type: "text", text: para("Hello ", "world") },
+          { id: "p1", type: "picture" },
+          { id: "f1", type: "shape", text: { paragraphs: [{ runs: [{ text: "5", field: "slidenum" }, { text: "" }, { text: "kept" }] }] } },
+          {
+            id: "tbl",
+            type: "table",
+            rows: [[{ text: para("cell a") }, { merged: true, text: para("hidden") }], [{ text: para("cell b") }]],
+          },
+          { id: "grp", type: "group", children: [{ id: "c1", type: "text", text: para("child") }, { id: "c2", type: "picture" }] },
+        ],
+      },
+      { elements: [{ id: "t1", type: "text", text: para("second slide") }] },
+    ],
+  };
+
+  it("lists one entry per run in the replace order, skipping field and empty runs", () => {
+    expect(flattenDeckRuns(deck)).toEqual([
+      { text: "Hello ", slideIndex: 0, elementId: "t1" },
+      { text: "world", slideIndex: 0, elementId: "t1" },
+      { text: "kept", slideIndex: 0, elementId: "f1" },
+      { text: "cell a", slideIndex: 0, elementId: "tbl" },
+      { text: "cell b", slideIndex: 0, elementId: "tbl" },
+      { text: "child", slideIndex: 0, elementId: "grp" },
+      { text: "second slide", slideIndex: 1, elementId: "t1" },
+    ]);
+  });
+
+  it("degrades to nothing on a deck of an unexpected shape", () => {
+    for (const bad of [null, undefined, 3, {}, { slides: "x" }, { slides: [null, { elements: 4 }, { elements: [null, 1, { type: "table", rows: [3] }] }] }]) {
+      expect(flattenDeckRuns(bad)).toEqual([]);
+    }
   });
 });

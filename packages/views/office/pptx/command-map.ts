@@ -7,6 +7,7 @@ export type PptxCommandId =
   | "edit-shape-image"
   | "save"
   | "export-pdf"
+  | "print"
   | "speaker-notes"
   | "masters-layouts"
   | "animations"
@@ -24,6 +25,10 @@ export interface PptxCommandCapability {
   status: OfficeCapabilityStatus;
   /** FULL i18next key (e.g. `office.pptx.reasons.edit_unbound`), translated where it is shown. */
   reason?: string;
+  /** The host can never run this command (no channel bound, or the feature is
+   *  not built yet). The ribbon drops it instead of showing a dead control;
+   *  a state-dependent refusal (read-only, empty history) keeps its reason. */
+  hidden?: boolean;
 }
 
 export interface PptxCommand {
@@ -53,6 +58,7 @@ const ROWS: Array<Pick<PptxCommand, "id" | "labelKey" | "mandatoryRow" | "gestur
   { id: "edit-shape-image", labelKey: "commands.edit_shape_image", mandatoryRow: "pptx-edit-shape-image", gesture: true },
   { id: "save", labelKey: "commands.save", mandatoryRow: "pptx-save" },
   { id: "export-pdf", labelKey: "commands.export_pdf", mandatoryRow: "pptx-export-pdf" },
+  { id: "print", labelKey: "commands.print" },
   { id: "speaker-notes", labelKey: "commands.speaker_notes", mandatoryRow: "pptx-notes" },
   { id: "masters-layouts", labelKey: "commands.masters_layouts", mandatoryRow: "pptx-masters-layouts" },
   { id: "animations", labelKey: "commands.animations", mandatoryRow: "pptx-animations" },
@@ -89,16 +95,17 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
       ? asCapability(transform, { status: "unavailable" })
       : hasTransformChannel(options.host)
         ? { status: "available" }
-        : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound" },
+        : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
     save: { status: "available" },
-    "export-pdf": { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound" },
+    "export-pdf": { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true },
+    print: { status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true },
     "speaker-notes": { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
-    "masters-layouts": { status: "unavailable", reason: "office.pptx.reasons.layouts_pending" },
+    "masters-layouts": { status: "unavailable", reason: "office.pptx.reasons.layouts_pending", hidden: true },
     animations: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
     charts: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
     tables: { status: "unavailable", reason: "office.pptx.reasons.edit_unbound" },
-    "embedded-fonts": { status: "unavailable", reason: "office.pptx.reasons.embedded_fonts_pending" },
-    "render-fidelity": { status: "unknown", reason: "office.pptx.reasons.render_fidelity_pending" },
+    "embedded-fonts": { status: "unavailable", reason: "office.pptx.reasons.embedded_fonts_pending", hidden: true },
+    "render-fidelity": { status: "unknown", reason: "office.pptx.reasons.render_fidelity_pending", hidden: true },
     find: { status: "available" },
     undo: { status: "available" },
     redo: { status: "available" },

@@ -14,8 +14,8 @@
  * write port and cannot bypass the save coordinator. Undo/redo availability is
  * passed in so the control shows the engine journal's real state.
  *
- * The Find bar body (`PptxFindBar`) and the status bar (C10) stay lane UI and
- * are untouched here.
+ * The find panel (`PptxFindReplacePanel`) and the status bar (C10) stay lane UI
+ * and are untouched here.
  */
 import { useMemo, useState } from "react";
 import { Presentation, Redo2, Search, Undo2 } from "lucide-react";
@@ -147,13 +147,14 @@ export function PptxToolbar({
   const find = resolved.find((entry) => entry.id === PPTX_FIND_COMMAND);
   const trailing = (
     <div className="flex shrink-0 items-center gap-1" data-pptx-tab-row-trailing>
-      {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} compactIcon={<Presentation aria-hidden />} /> : null}
+      {presenter ? <PptxCommandButton command={presenter} pressed={presenterOpen} onCommand={onCommand} compactIcon={<Presentation aria-hidden />} tooltipAlign="end" /> : null}
       {find ? (
         <PptxCommandButton
           command={find}
           onCommand={onCommand}
           icon={<Search aria-hidden />}
           hint={t("find_hint")}
+          tooltipAlign="end"
           buttonRef={findButtonRef}
         />
       ) : null}

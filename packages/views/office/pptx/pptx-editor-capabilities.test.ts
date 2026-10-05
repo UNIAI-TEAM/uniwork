@@ -27,3 +27,30 @@ describe("pptxEditorCapabilities", () => {
     expect(caps.charts).toEqual({ status: "readonly" });
   });
 });
+
+describe("pptxEditorCapabilities - commands the host can never run are hidden (R2-6)", () => {
+  it("hides open, text, transform and print while their channel is unbound", () => {
+    const caps = pptxEditorCapabilities(undefined, none);
+    for (const id of ["open", "edit-text", "edit-shape-image", "export-pdf", "print"] as const) {
+      expect(caps[id], id).toEqual(expect.objectContaining({ status: "unavailable", hidden: true }));
+    }
+  });
+
+  it("keeps the state-dependent refusals visible with their reason", () => {
+    const caps = pptxEditorCapabilities(undefined, none);
+    for (const id of ["animations", "charts", "tables"] as const) {
+      expect(caps[id], id).toEqual({ status: "unavailable", reason: "office.pptx.reasons.edit_unbound" });
+    }
+  });
+
+  it("makes open, text, transform and both print commands available once bound", () => {
+    const printPort = { available: true, mode: "browser" as const, print: async () => ({ outcome: "printed" as const, mode: "browser" as const }) };
+    const caps = pptxEditorCapabilities(undefined, { open: true, textEdit: true, transform: true, edit: true, printPort });
+    for (const id of ["open", "edit-text", "edit-shape-image", "export-pdf", "print"] as const) expect(caps[id], id).toEqual({ status: "available" });
+  });
+
+  it("hides print when the port has no surface to print from", () => {
+    const printPort = { available: false, mode: "browser" as const, print: async () => ({ outcome: "failed" as const, reason: "x" }) };
+    expect(pptxEditorCapabilities(undefined, { ...none, printPort }).print).toEqual(expect.objectContaining({ hidden: true }));
+  });
+});

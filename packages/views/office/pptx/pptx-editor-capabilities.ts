@@ -31,6 +31,11 @@ function withReasonKey(capability: PptxCommandCapability, reasonKey: string): Pp
   return capability.status === "available" ? capability : { ...capability, reason: reasonKey };
 }
 
+function printCapability(port: PptxPrintPort | null): PptxCommandCapability {
+  const capability = withReasonKey(pptxPrintCapability(port), "office.pptx.reasons.export_pdf_unbound");
+  return capability.status === "available" ? capability : { ...capability, hidden: true };
+}
+
 export function pptxEditorCapabilities(
   capabilities: Partial<Record<PptxCommandId, CapabilityInput>> | undefined,
   channels: PptxEditorChannels,
@@ -45,14 +50,16 @@ export function pptxEditorCapabilities(
     ...panelCommands,
     open: channels.open
       ? capabilities?.open ?? AVAILABLE
-      : { status: "unavailable", reason: "office.pptx.reasons.open_shell" },
+      : { status: "unavailable", reason: "office.pptx.reasons.open_shell", hidden: true },
     "edit-text": channels.textEdit
       ? capabilities?.["edit-text"] ?? AVAILABLE
-      : { status: "unavailable", reason: "office.pptx.reasons.edit_text_unbound" },
+      : { status: "unavailable", reason: "office.pptx.reasons.edit_text_unbound", hidden: true },
     "edit-shape-image": channels.transform
       ? capabilities?.["edit-shape-image"] ?? AVAILABLE
-      : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound" },
-    // C1: the print/PDF command reports what the bound port can actually do.
-    "export-pdf": capabilities?.["export-pdf"] ?? withReasonKey(pptxPrintCapability(channels.printPort), "office.pptx.reasons.export_pdf_unbound"),
+      : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
+    // C1: the print/PDF commands report what the bound port can actually do; with
+    // no surface to print from they are hidden (R2-6), not shown dead.
+    "export-pdf": capabilities?.["export-pdf"] ?? printCapability(channels.printPort),
+    print: capabilities?.print ?? printCapability(channels.printPort),
   };
 }

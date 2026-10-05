@@ -77,6 +77,18 @@ describe("PptxToolbar over the shared OfficeRibbon", () => {
     expect(within(undoWrap).getByRole("tooltip")).toHaveTextContent("No edit history yet.");
   });
 
+  it("sizes the Find tooltip to its text and hangs it from the right edge, so it neither wraps per word nor leaves the screen (R2-6)", () => {
+    render(<PptxToolbar commands={commands} onCommand={vi.fn()} />);
+    const tooltip = (screen.getByRole("button", { name: "Find" }).closest("span") as HTMLElement).querySelector('[role="tooltip"]') as HTMLElement;
+    expect(tooltip).toHaveTextContent("Search the current presentation");
+    expect(tooltip.className).toContain("w-max");
+    expect(tooltip.className).toContain("right-0");
+    expect(tooltip.className).not.toContain("left-0");
+    // Left-hand controls keep hanging from their own left edge.
+    const undoTip = (screen.getByRole("button", { name: "Undo" }).closest("span") as HTMLElement).querySelector('[role="tooltip"]');
+    if (undoTip) expect(undoTip.className).toContain("left-0");
+  });
+
   it("restores the F6 presenter pressed wash: a pressed toggle paints the selected token", () => {
     const view = render(<PptxToolbar commands={commands} onCommand={vi.fn()} presenterOpen={false} />);
     const presenter = () => screen.getByRole("button", { name: "Present" });

@@ -5,8 +5,10 @@
  * layout onto the SHARED `RibbonTab` model in `packages/views/office/ribbon`.
  * It only decides where a command sits, never whether it is enabled: the
  * enabled/disabled state and its reason come straight from the EXISTING
- * `createPptxCommandMap` capability, so a wave-B/C command stays visibly
- * disabled with the same reason instead of being faked.
+ * `createPptxCommandMap` capability, so a state-dependent refusal stays
+ * visibly disabled with the same reason instead of being faked. A command whose
+ * capability is `hidden` (no channel bound on this host, or not built yet) is
+ * left out of the ribbon altogether.
  *
  * Keys are FULL i18next paths (`office.pptx.tabs.home`, not `tabs.home`):
  * the shared ribbon translates at the root (`useTranslation()`), so a relative
@@ -37,6 +39,7 @@ import {
   Maximize,
   Monitor,
   Presentation,
+  Printer,
   Redo2,
   Save,
   Search,
@@ -108,6 +111,7 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   "edit-shape-image": Shapes,
   save: Save,
   "export-pdf": FileDown,
+  print: Printer,
   "speaker-notes": StickyNote,
   "masters-layouts": LayoutTemplate,
   animations: Sparkles,
@@ -197,7 +201,7 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
       { id: "paragraph", labelKey: g("paragraph"), injected: true, largeFirst: false, launcher: { panel: "text-format", labelKey: p("paragraph_dialog") } },
       { id: "drawing", labelKey: g("drawing"), panels: [{ kind: "format", labelKey: p("format") }], launcher: { panel: "format", labelKey: p("format") } },
       { id: "editing", labelKey: g("editing"), commands: ["edit-text", "edit-shape-image"] },
-      { id: "file", labelKey: g("file"), commands: ["open", "save", "export-pdf"] },
+      { id: "file", labelKey: g("file"), commands: ["open", "save", "export-pdf", "print"] },
     ],
   },
   {
@@ -413,7 +417,8 @@ function mapGroup(
   const sizeAt = (position: number) => (largeFirst && lead.length + position === 0 ? ("large" as const) : ("small" as const));
   const commandEntries: GroupEntry[] = (spec.commands ?? [])
     .map((id) => commands.find((command) => command.id === id))
-    .filter((command): command is PptxCommand => Boolean(command))
+    // A command the host can never run is dropped, not shown dead (R2-6).
+    .filter((command): command is PptxCommand => Boolean(command) && command?.capability.hidden !== true)
     .map((command) => ({ command }));
   const panelEntries: GroupEntry[] = (spec.panels ?? []).map((panel) => ({ panel }));
   const ordered = spec.order === "panels-first" ? [...panelEntries, ...commandEntries] : [...commandEntries, ...panelEntries];

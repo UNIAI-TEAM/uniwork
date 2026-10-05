@@ -30,6 +30,9 @@ export interface PptxCommandButtonProps {
   /** Extra tooltip copy for an ENABLED command; a disabled command still shows
    *  its capability reason instead. */
   hint?: string;
+  /** Which edge of the button the tooltip hangs from. `end` for controls at the
+   *  right edge of the tab row, so the tooltip opens leftward instead of off-screen. */
+  tooltipAlign?: "start" | "end";
   onCommand: (id: PptxCommandId) => void;
   /** Roving tab-index of this control inside its tab panel. */
   tabIndex?: number;
@@ -46,6 +49,7 @@ export function PptxCommandButton({
   icon,
   compactIcon,
   hint,
+  tooltipAlign = "start",
   onCommand,
   tabIndex,
   onKeyDown,
@@ -94,7 +98,12 @@ export function PptxCommandButton({
       {tooltip ? (
         <span
           role="tooltip"
-          className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden max-w-56 rounded border border-border bg-popover p-2 text-caption text-popover-foreground shadow group-hover:block group-focus-within:block"
+          // `w-max`: an absolutely positioned box otherwise shrinks to the (tiny)
+          // button it hangs from and wraps one word per line.
+          className={cn(
+            "pointer-events-none absolute top-full z-10 mt-1 hidden w-max max-w-56 rounded border border-border bg-popover p-2 text-caption text-popover-foreground shadow group-hover:block group-focus-within:block",
+            tooltipAlign === "end" ? "right-0" : "left-0",
+          )}
         >
           {tooltip}
         </span>

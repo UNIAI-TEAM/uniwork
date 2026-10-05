@@ -79,24 +79,39 @@ describe("pptxRibbonTabs", () => {
     expect(filled[0]!.groups.map((group) => group.priority)).toEqual([10, 5, 0, 0, 0]);
   });
 
-  it("maps commands as large-first buttons that are disabled with their i18n reason", () => {
+  it("maps commands as large-first buttons; a state-dependent refusal keeps its i18n reason", () => {
     const file = tabs[0]!.groups.find((group) => group.id === "file")!;
-    expect(file.items.map((item) => item.id)).toEqual(["open", "save", "export-pdf"]);
-    expect(file.items.map((item) => item.size)).toEqual(["large", "small", "small"]);
+    // Print and Export PDF have no surface on the default map, so they are not shown dead (R2-6).
+    expect(file.items.map((item) => item.id)).toEqual(["open", "save"]);
+    expect(file.items.map((item) => item.size)).toEqual(["large", "small"]);
     const open = file.items[0]!;
     expect(open.disabled).toBe(false);
     expect(open.tooltipKey).toBeUndefined();
-    const exportPdf = file.items[2]!;
-    expect(exportPdf.disabled).toBe(true);
-    expect(exportPdf.tooltipKey).toBe(commands.find((command) => command.id === "export-pdf")!.capability.reason);
-    expect(exportPdf.tooltipKey).toBe("office.pptx.reasons.export_pdf_unbound");
+    const notes = find(tabs, "review", "speaker-notes");
+    expect(notes.disabled).toBe(true);
+    expect(notes.tooltipKey).toBe("office.pptx.reasons.edit_unbound");
+  });
+
+  it("drops a command the host can never run instead of showing it dead (R2-6)", () => {
+    const hidden = commands.filter((command) => command.capability.hidden).map((command) => command.id);
+    expect(hidden).toEqual(expect.arrayContaining(["export-pdf", "print", "masters-layouts", "embedded-fonts", "render-fidelity", "edit-shape-image"]));
+    const placed = allItems(tabs).map((item) => item.id);
+    for (const id of hidden) expect(placed, id).not.toContain(id);
+    // Binding the print surface brings both commands back, enabled, in the File group.
+    const wired = pptxRibbonTabs(createPptxCommandMap({ host: null, capabilities: { "export-pdf": "available", print: "available" } }));
+    const file = wired[0]!.groups.find((group) => group.id === "file")!;
+    expect(file.items.map((item) => [item.id, item.disabled])).toEqual([["open", false], ["save", false], ["export-pdf", false], ["print", false]]);
   });
 
   it("places every tab command exactly once and keeps the tab-row commands out", () => {
     const ids = pptxRibbonCommandIds(tabs);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual(
-      commands.map((command) => command.id).filter((id) => !PPTX_TAB_ROW_COMMANDS.includes(id)).sort(),
+      commands
+        .filter((command) => command.capability.hidden !== true)
+        .map((command) => command.id)
+        .filter((id) => !PPTX_TAB_ROW_COMMANDS.includes(id))
+        .sort(),
     );
     for (const id of PPTX_TAB_ROW_COMMANDS) expect(ids).not.toContain(id);
     expect(PPTX_TAB_ROW_COMMANDS).toEqual(["undo", "redo", "presenter", "find"]);
@@ -195,7 +210,7 @@ describe("pptxRibbonTabs", () => {
       const ids = itemsOf(tab).map((item) => item.id);
       expect(new Set(ids).size, tab.id).toBe(ids.length);
     }
-    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter", "render-fidelity"]);
+    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter"]);
   });
 
   it("opens the matching panel from a group launcher, and never when it is disabled", () => {
@@ -246,7 +261,7 @@ describe("pptxRibbonTabs", () => {
   it("refuses to dispatch a dead command and dispatches a live one", () => {
     const seen: string[] = [];
     const wired = pptxRibbonTabs(commands, { onCommand: (id) => seen.push(id) });
-    exec(find(wired, "home", "export-pdf"));
+    exec(find(wired, "review", "speaker-notes"));
     expect(seen).toEqual([]);
     exec(find(wired, "home", "open"));
     expect(seen).toEqual(["open"]);

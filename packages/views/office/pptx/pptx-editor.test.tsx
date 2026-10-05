@@ -97,18 +97,20 @@ describe("PptxEditor", () => {
   });
 
   it("does not advertise edit commands without a bound host operation", () => {
-    // The disabled flag and its reason tooltip are pinned on the mapped data in
-    // pptx-ribbon.test.ts. With no host operation bound the three commands are
-    // inert: clicking them must not run a handler or surface a command error.
+    // R2-6: a command whose host channel is unbound is left out of the ribbon
+    // instead of shown dead (the capability data is pinned in pptx-ribbon.test.ts).
+    const onOpen = vi.fn();
     const onCommandError = vi.fn();
-    renderEditor({ slides: [{ id: "s1" }], onCommandError });
-    for (const id of ["open", "edit-text", "edit-shape-image"]) {
-      const button = document.querySelector(`[data-ribbon-item="${id}"]`) as HTMLButtonElement;
-      expect(button).not.toBeNull();
-      fireEvent.click(button);
+    const { view } = renderEditor({ slides: [{ id: "s1" }], onCommandError });
+    for (const id of ["open", "edit-text", "edit-shape-image", "masters-layouts", "embedded-fonts", "render-fidelity"]) {
+      expect(document.querySelector(`[data-ribbon-item="${id}"]`), id).toBeNull();
     }
     expect(onCommandError).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // Binding the channel brings the command back, live.
+    view.unmount();
+    renderEditor({ slides: [{ id: "s1" }], onOpen });
+    fireEvent.click(document.querySelector('[data-ribbon-item="open"]') as HTMLButtonElement);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces a rejected transform as a typed command error", async () => {
@@ -179,7 +181,7 @@ describe("PptxEditor", () => {
   });
 
   it("mounts the shared Office ribbon instead of the raw command-id row", () => {
-    renderEditor({ slides: [{ id: "s1" }] });
+    renderEditor({ slides: [{ id: "s1" }], onOpen: vi.fn() });
     // The tablist label now belongs to the shared ribbon (amendment R), not the
     // lane's own strip.
     expect(screen.getByRole("tablist", { name: "Ribbon tabs" })).toBeInTheDocument();
@@ -319,23 +321,23 @@ describe("PptxEditor", () => {
     expect(screen.queryByRole("button", { name: "Insert image" })).not.toBeInTheDocument();
   });
 
-  it("toggles the find bar from the ribbon and Ctrl+F (C6)", () => {
+  it("toggles the find panel from the ribbon and Ctrl+F (C6)", () => {
     renderEditor({ slides: [{ id: "s1" }] });
     fireEvent.click(screen.getByRole("button", { name: "Find" }));
-    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Find and replace" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Find" }));
-    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Find and replace" })).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "f", ctrlKey: true });
-    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Find and replace" })).toBeInTheDocument();
   });
 
   it("returns focus to the Find trigger when the find bar closes (F9)", () => {
     renderEditor({ slides: [{ id: "s1" }] });
     const find = screen.getByRole("button", { name: "Find" });
     fireEvent.click(find);
-    expect(screen.getByRole("search", { name: "Find in presentation" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close find" }));
-    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Find and replace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close find and replace" }));
+    expect(screen.queryByRole("region", { name: "Find and replace" })).not.toBeInTheDocument();
     // F9: focus returns to the control that opened the bar, not document.body.
     expect(document.activeElement).toBe(find);
   });
@@ -344,8 +346,8 @@ describe("PptxEditor", () => {
     renderEditor({ slides: [{ id: "s1" }] });
     const find = screen.getByRole("button", { name: "Find" });
     fireEvent.click(find);
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "Find text" }), { key: "Escape" });
-    expect(screen.queryByRole("search", { name: "Find in presentation" })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Find" }), { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Find and replace" })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(find);
   });
 

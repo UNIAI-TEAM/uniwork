@@ -119,4 +119,16 @@ describe("PptxFindReplacePanel", () => {
     await waitFor(() => expect(screen.getByTestId("pptx-find-error")).toBeInTheDocument());
     expect(screen.getByRole("textbox", { name: "Find" })).toHaveValue("slide");
   });
+
+  it("reports the active hit's slide and element, and null when nothing matches (R2-6)", () => {
+    const onActiveHitChange = vi.fn();
+    renderPanel({ onActiveHitChange });
+    expect(onActiveHitChange).toHaveBeenLastCalledWith(null);
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "slide" } });
+    expect(onActiveHitChange).toHaveBeenLastCalledWith({ slideIndex: 0, elementId: "t1" });
+    fireEvent.click(screen.getByRole("button", { name: "Find next" }));
+    expect(onActiveHitChange).toHaveBeenLastCalledWith({ slideIndex: 1, elementId: "t3" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "zzz" } });
+    expect(onActiveHitChange).toHaveBeenLastCalledWith(null);
+  });
 });
