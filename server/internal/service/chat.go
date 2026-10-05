@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -41,6 +42,8 @@ type ChatService struct {
 	ai          *ai.Gateway
 	files       files.Service
 	TenorAPIKey string
+	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
+	presenceTracker atomic.Pointer[presenceTracker]
 }
 
 func NewChatService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {

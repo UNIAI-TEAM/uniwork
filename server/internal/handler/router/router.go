@@ -131,7 +131,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerAudit(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
-			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
+			// Presence beats from every shell page and typing: per signed-in
+			// person, so an office NAT does not pool everyone's budget.
+			chatTypingLimit := mw.RateLimitByIdentity(d.Redis, 30, time.Minute, proxies, bearerUser(d.Minter))
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
 			registerChatChannels(authed, h, chatWriteLimit)
 			registerChatThreads(authed, h, chatWriteLimit)
