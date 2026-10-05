@@ -68,6 +68,10 @@ const COMMAND_TABS: Readonly<Record<PdfCommandId, PdfToolbarTab>> = {
   [PDF_COMMANDS.reorderPage]: "pages",
   [PDF_COMMANDS.extractPage]: "pages",
   [PDF_COMMANDS.mergePages]: "pages",
+  [PDF_COMMANDS.zoomOut]: "view",
+  [PDF_COMMANDS.zoomIn]: "view",
+  [PDF_COMMANDS.fitWidth]: "view",
+  [PDF_COMMANDS.fitPage]: "view",
 };
 
 const DEFAULT_ICONS: Readonly<Partial<Record<PdfCommandId, ReactNode>>> = {
@@ -111,6 +115,10 @@ function defaultCommandLabel(t: (key: string) => string, id: PdfCommandId): stri
     [PDF_COMMANDS.reorderPage]: "office.pdf.commands.reorderPage",
     [PDF_COMMANDS.extractPage]: "office.pdf.commands.extractPage",
     [PDF_COMMANDS.mergePages]: "office.pdf.commands.mergePages",
+    [PDF_COMMANDS.zoomOut]: "office.pdf.commands.zoomOut",
+    [PDF_COMMANDS.zoomIn]: "office.pdf.commands.zoomIn",
+    [PDF_COMMANDS.fitWidth]: "office.pdf.commands.fitWidth",
+    [PDF_COMMANDS.fitPage]: "office.pdf.commands.fitPage",
   };
   return t(keys[id]);
 }

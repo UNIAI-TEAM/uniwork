@@ -4,7 +4,9 @@ import {
   Highlighter,
   ImagePlus,
   ListRestart,
+  Maximize,
   MessageSquareText,
+  MoveHorizontal,
   Redo2,
   RotateCw,
   Scissors,
@@ -14,6 +16,8 @@ import {
   Trash2,
   Type,
   Undo2,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import type { RibbonIcon, RibbonItem, RibbonTab } from "../../ribbon";
 import { PDF_COMMANDS, type PdfCommandId } from "../pdf-command-map";
@@ -47,6 +51,10 @@ const PDF_RIBBON_COMMAND_LABEL_KEYS: Readonly<Record<PdfCommandId, string>> = {
   [PDF_COMMANDS.reorderPage]: "office.pdf.commands.reorderPage",
   [PDF_COMMANDS.extractPage]: "office.pdf.commands.extractPage",
   [PDF_COMMANDS.mergePages]: "office.pdf.commands.mergePages",
+  [PDF_COMMANDS.zoomOut]: "office.pdf.commands.zoomOut",
+  [PDF_COMMANDS.zoomIn]: "office.pdf.commands.zoomIn",
+  [PDF_COMMANDS.fitWidth]: "office.pdf.commands.fitWidth",
+  [PDF_COMMANDS.fitPage]: "office.pdf.commands.fitPage",
 };
 
 const PDF_RIBBON_ICONS: Readonly<Partial<Record<PdfCommandId, RibbonIcon>>> = {
@@ -65,6 +73,10 @@ const PDF_RIBBON_ICONS: Readonly<Partial<Record<PdfCommandId, RibbonIcon>>> = {
   [PDF_COMMANDS.reorderPage]: ListRestart,
   [PDF_COMMANDS.extractPage]: Scissors,
   [PDF_COMMANDS.mergePages]: Combine,
+  [PDF_COMMANDS.zoomOut]: ZoomOut,
+  [PDF_COMMANDS.zoomIn]: ZoomIn,
+  [PDF_COMMANDS.fitWidth]: MoveHorizontal,
+  [PDF_COMMANDS.fitPage]: Maximize,
 };
 
 interface PdfRibbonGroupSpec {
@@ -78,7 +90,8 @@ interface PdfRibbonGroupSpec {
  * command row expressed, grouped like the desktop ribbon. Undo/redo stay in the
  * tab row's quick-access pair and Save in the shared header cluster, so Save is
  * not repeated here; `home` still carries an undo/redo group so its body is
- * never an empty band (U3). `view` has no command-map entries and stays empty.
+ * never an empty band (U3). `view` carries real zoom and fit groups (F-8) so
+ * its body is never an empty band either.
  */
 const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRibbonGroupSpec[] }> = [
   {
@@ -107,7 +120,21 @@ const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRi
       { id: "pageOps", labelKey: "office.pdf.pageOps.title", ids: [PDF_COMMANDS.reorderPage, PDF_COMMANDS.extractPage, PDF_COMMANDS.mergePages] },
     ],
   },
-  { id: "view", groups: [] },
+  {
+    id: "view",
+    groups: [
+      {
+        id: "zoom",
+        labelKey: "office.pdf.view.zoomGroup",
+        ids: [PDF_COMMANDS.zoomOut, PDF_COMMANDS.zoomIn],
+      },
+      {
+        id: "fit",
+        labelKey: "office.pdf.view.fitGroup",
+        ids: [PDF_COMMANDS.fitWidth, PDF_COMMANDS.fitPage],
+      },
+    ],
+  },
 ];
 
 /**

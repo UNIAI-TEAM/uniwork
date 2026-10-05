@@ -73,6 +73,10 @@ const CAPABILITY_FOR_COMMAND: Readonly<Record<PdfCommandId, string>> = {
   [PDF_COMMANDS.stamp]: PDF_COMMAND_CAPABILITIES.stamp,
   [PDF_COMMANDS.forms]: PDF_COMMAND_CAPABILITIES.forms,
   [PDF_COMMANDS.save]: PDF_COMMAND_CAPABILITIES.save,
+  [PDF_COMMANDS.zoomOut]: PDF_COMMAND_CAPABILITIES.zoomOut,
+  [PDF_COMMANDS.zoomIn]: PDF_COMMAND_CAPABILITIES.zoomIn,
+  [PDF_COMMANDS.fitWidth]: PDF_COMMAND_CAPABILITIES.fitWidth,
+  [PDF_COMMANDS.fitPage]: PDF_COMMAND_CAPABILITIES.fitPage,
 };
 
 /** Every command the ribbon may render, in the catalogue's stable order. */
@@ -93,7 +97,19 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
   PDF_COMMANDS.reorderPage,
   PDF_COMMANDS.extractPage,
   PDF_COMMANDS.mergePages,
+  PDF_COMMANDS.zoomOut,
+  PDF_COMMANDS.zoomIn,
+  PDF_COMMANDS.fitWidth,
+  PDF_COMMANDS.fitPage,
 ];
+
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(value.toFixed(2))));
+}
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
@@ -320,16 +336,24 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
   const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
+  const zoomOut = useCallback(() => setZoom((value) => clampZoom(value - ZOOM_STEP)), []);
+  const zoomIn = useCallback(() => setZoom((value) => clampZoom(value + ZOOM_STEP)), []);
+  const fitWidth = useCallback(() => setZoom(1), []);
+  const fitPage = useCallback(() => setZoom(1), []);
   const executeCommand = useCallback((id: PdfCommandId) => {
     if (id === PDF_COMMANDS.save) save("button");
     else if (id === PDF_COMMANDS.undo) undo();
     else if (id === PDF_COMMANDS.redo) redo();
     else if (id === PDF_COMMANDS.rotatePage) rotateSelected();
+    else if (id === PDF_COMMANDS.zoomOut) zoomOut();
+    else if (id === PDF_COMMANDS.zoomIn) zoomIn();
+    else if (id === PDF_COMMANDS.fitWidth) fitWidth();
+    else if (id === PDF_COMMANDS.fitPage) fitPage();
     else {
       const panel = PANEL_FOR_COMMAND[id];
       if (panel) setActivePanel(panel);
     }
-  }, [redo, rotateSelected, save, undo]);
+  }, [fitPage, fitWidth, redo, rotateSelected, save, undo, zoomIn, zoomOut]);
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
     const modifier = event.metaKey || event.ctrlKey;
@@ -370,6 +394,9 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.replaceImage]]: canReplaceImage,
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.deletePage]]: canPageOps,
       [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.annotations]]: canAnnotate,
+      // Zoom and fit are view-only: no document capability gates them, so a
+      // ready editor on either lane can always change the zoom.
+      [CAPABILITY_FOR_COMMAND[PDF_COMMANDS.zoomOut]]: viewState === "ready",
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);

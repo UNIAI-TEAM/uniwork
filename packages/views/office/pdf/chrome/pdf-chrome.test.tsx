@@ -37,6 +37,13 @@ const undoRedo: readonly PdfToolbarCommand[] = [
   command(PDF_COMMANDS.save, "Save"),
 ];
 
+const viewCommands: readonly PdfToolbarCommand[] = [
+  command(PDF_COMMANDS.zoomOut, "Zoom out"),
+  command(PDF_COMMANDS.zoomIn, "Zoom in"),
+  command(PDF_COMMANDS.fitWidth, "Fit width"),
+  command(PDF_COMMANDS.fitPage, "Fit page"),
+];
+
 const baseProps = {
   onTabChange: vi.fn(),
   onCommand: vi.fn(),
@@ -89,6 +96,15 @@ describe("createPdfRibbonTabs", () => {
     expect(group?.items.map((item) => item.id)).toEqual(["undo", "redo"]);
     expect(group?.items.map((item) => item.labelKey)).toEqual(["office.pdf.actions.undo", "office.pdf.actions.redo"]);
     expect(group?.items.map((item) => item.size)).toEqual(["large", "small"]);
+  });
+
+  it("gives View real zoom and fit groups so its body is never empty (F-8)", () => {
+    const view = createPdfRibbonTabs(viewCommands).find((tab) => tab.id === "view");
+    expect(view?.groups.map((group) => group.id)).toEqual(["zoom", "fit"]);
+    expect(view?.groups.map((group) => group.labelKey)).toEqual(["office.pdf.view.zoomGroup", "office.pdf.view.fitGroup"]);
+    expect(view?.groups[0]?.items.map((item) => item.id)).toEqual(["zoom-out", "zoom-in"]);
+    expect(view?.groups[1]?.items.map((item) => item.id)).toEqual(["fit-width", "fit-page"]);
+    expect(view?.groups[0]?.items.map((item) => item.labelKey)).toEqual(["office.pdf.commands.zoomOut", "office.pdf.commands.zoomIn"]);
   });
 
   it("renders the first item of a group large and the rest small", () => {
@@ -195,6 +211,18 @@ describe("PdfRibbonBar", () => {
     render(<PdfRibbonBar {...baseProps} onTabChange={onTabChange} activeTab="home" commands={pageCommands} />);
     fireEvent.click(screen.getByRole("tab", { name: "Pages" }));
     expect(onTabChange).toHaveBeenCalledWith("pages");
+  });
+
+  it("renders a non-empty View body with the four zoom and fit items (F-8)", () => {
+    render(<PdfRibbonBar {...baseProps} activeTab="view" commands={viewCommands} />);
+    const groupIds = Array.from(document.querySelectorAll("[data-ribbon-group]")).map((node) => node.getAttribute("data-ribbon-group"));
+    expect(groupIds).toEqual(["zoom", "fit"]);
+    for (const id of ["zoom-out", "zoom-in", "fit-width", "fit-page"]) {
+      expect(document.querySelector(`[data-ribbon-item='${id}']`)).toBeInTheDocument();
+    }
+    // The empty-band failure mode: the body must not be a blank band.
+    const body = screen.getByTestId("pdf-chrome-command-row");
+    expect(body.querySelectorAll("[data-ribbon-item]").length).toBeGreaterThanOrEqual(4);
   });
 
   it("reports Find changes through the trailing toggle", () => {

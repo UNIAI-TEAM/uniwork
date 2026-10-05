@@ -16,6 +16,10 @@ export const PDF_COMMANDS = {
   stamp: "stamp",
   forms: "forms",
   save: "save",
+  zoomOut: "zoom-out",
+  zoomIn: "zoom-in",
+  fitWidth: "fit-width",
+  fitPage: "fit-page",
 } as const;
 
 export type PdfCommandId = (typeof PDF_COMMANDS)[keyof typeof PDF_COMMANDS];
@@ -39,6 +43,10 @@ export const PDF_COMMAND_CAPABILITIES: Readonly<Record<keyof typeof PDF_COMMANDS
   stamp: "CAP-pdf-annotations-stamps",
   forms: "CAP-pdf-annotations-stamps",
   save: "CAP-pdf-save",
+  zoomOut: "CAP-pdf-view",
+  zoomIn: "CAP-pdf-view",
+  fitWidth: "CAP-pdf-view",
+  fitPage: "CAP-pdf-view",
 };
 
 /** Commands the browser host cannot run: content-stream rewrites (edit text,

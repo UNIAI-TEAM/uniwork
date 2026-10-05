@@ -8375,7 +8375,11 @@
         "highlight": "Highlight",
         "note": "Note",
         "stamp": "Stamp",
-        "forms": "Fill form"
+        "forms": "Fill form",
+        "zoomOut": "Zoom out",
+        "zoomIn": "Zoom in",
+        "fitWidth": "Fit width",
+        "fitPage": "Fit page"
       },
       "selection": { "none": "No page selected", "page": "Page {{page}}", "background": "Page {{page}} background" },
       "capabilityPending": "This PDF capability is not available in this engine build.",
@@ -8403,7 +8407,8 @@
         "zoomOut": "Zoom out", "zoom": "{{percent}}%", "zoomIn": "Zoom in"
       },
       "view": {
-        "fitPage": "Fit page", "fitWidth": "Fit width", "outline": "Document outline", "thumbnails": "Page thumbnails"
+        "fitPage": "Fit page", "fitWidth": "Fit width", "outline": "Document outline", "thumbnails": "Page thumbnails",
+        "zoomGroup": "Zoom", "fitGroup": "Fit"
       },
       "edit": {
         "textLabel": "Replacement text", "textPlaceholder": "Enter replacement text", "applyText": "Apply text",
