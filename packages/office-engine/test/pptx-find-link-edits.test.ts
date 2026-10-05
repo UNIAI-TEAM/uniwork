@@ -220,3 +220,52 @@ describe("pure find/replace helpers", () => {
     expect(planFindReplace(texts, "")).toStrictEqual({ total: 0, replaceCount: 0, hits: [] });
   });
 });
+
+describe("find_replace occurrence (UNI-927 X4fix F3)", () => {
+  /** A text element whose second run holds two matches, so the 2nd and 3rd
+   * matches of the element share a run and the 1st sits in another run. */
+  const multi: OpenedPptxLike = {
+    deck: {
+      slides: [
+        {
+          elements: [
+            { id: "t1", type: "text", text: { paragraphs: [{ runs: [{ text: "Go west" }, { text: "go GO" }] }] } },
+          ],
+        },
+      ],
+    },
+  };
+  const buildMulti = (occurrence: number) =>
+    buildFindLinkOps(multi, 960, { op: "find_replace", find: "go", replace: "X", slideIndex: 0, elementId: "t1", occurrence });
+
+  /** Same budget-of-one semantics as the vendored replaceAllInDeck (index.ts:3039-3062). */
+  const applyFirstOnly = (runs: string[], op: Record<string, unknown>): string[] => {
+    let budget = 1;
+    // The terms here ("go" and the private-use markers) carry no regex metacharacters.
+    const re = new RegExp(String(op.find), op.matchCase ? "g" : "gi");
+    return runs.map((text) => text.replace(re, (match) => (budget-- > 0 ? String(op.replace) : match)));
+  };
+
+  it("replaces exactly the chosen match and restores the parked ones with their own case", () => {
+    const run = (occurrence: number) => buildMulti(occurrence).reduce(applyFirstOnly, ["Go west", "go GO"]);
+    expect(run(0)).toEqual(["X west", "go GO"]);
+    expect(run(1)).toEqual(["Go west", "X GO"]);
+    expect(run(2)).toEqual(["Go west", "go X"]);
+  });
+
+  it("emits only scoped firstOnly findReplace ops, the plain op for the first match", () => {
+    expect(buildMulti(0)).toStrictEqual([{ op: "findReplace", find: "go", replace: "X", matchCase: false, firstOnly: true, slideIndex: 0, elementId: "t1" }]);
+    const ops = buildMulti(2);
+    expect(ops).toHaveLength(5);
+    for (const op of ops) expect(op).toMatchObject({ op: "findReplace", firstOnly: true, slideIndex: 0, elementId: "t1" });
+  });
+
+  it("refuses an occurrence the element does not have, or one without its scope", () => {
+    expect(errCode(() => buildMulti(3))).toBe("no_match");
+    expect(errCode(() => buildMulti(-1))).toBe("bad_occurrence");
+    expect(errCode(() => buildMulti(1.5))).toBe("bad_occurrence");
+    expect(errCode(() => buildFindLinkOps(multi, 960, { op: "find_replace", find: "go", replace: "X", occurrence: 1 }))).toBe("bad_occurrence");
+    expect(errCode(() => buildFindLinkOps(multi, 960, { op: "find_replace", find: "go", replace: "X", slideIndex: 0, elementId: "nope", occurrence: 1 }))).toBe("no_element");
+    expect(errCode(() => buildFindLinkOps(multi, 960, { op: "find_replace", find: "\uF8FF", replace: "X", slideIndex: 0, elementId: "t1", occurrence: 0 }))).toBe("bad_find");
+  });
+});

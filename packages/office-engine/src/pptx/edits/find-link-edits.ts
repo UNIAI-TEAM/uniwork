@@ -20,7 +20,14 @@
 // setLink carries a link target, never a rect — so no px→EMU conversion
 // happens here; `fitWidthPx` stays in the signature only because every
 // engine-half builder shares the same mechanical wire call.
-import { PptxEngineError, type OpenedPptxLike, type PptxOp, type PptxSlideLike } from "../engine";
+import {
+  PptxEngineError,
+  type OpenedPptxLike,
+  type PptxElementLike,
+  type PptxOp,
+  type PptxParagraphLike,
+  type PptxSlideLike,
+} from "../engine";
 
 /** Named show actions the engine accepts (named-action.ts:4-11). */
 export const PPTX_NAMED_ACTIONS = [
@@ -60,6 +67,11 @@ export type FindLinkEdit =
       slideIndex?: number;
       /** Restrict to one element id (optional, combined with slideIndex). */
       elementId?: string;
+      /** Replace exactly the match with this 0-based ordinal inside the scoped
+       * element, counted in the vendored scan order (runs, table cells, group
+       * children). Needs slideIndex + elementId and implies firstOnly; the
+       * vendored op alone can only replace the element's FIRST match. */
+      occurrence?: number;
     }
   | { op: "set_link"; slideIndex: number; elementId: string; link: PptxLinkTarget };
 
@@ -164,6 +176,85 @@ const requireLinkTarget = (link: PptxLinkTarget): void => {
   throw new PptxEngineError("bad_link", usage);
 };
 
+type FindReplaceEdit = Extract<FindLinkEdit, { op: "find_replace" }>;
+
+/** The runs of an element the vendored `replaceAllInDeck` visits, in its scan
+ * order (index.ts:3041-3104): text/shape paragraphs, non-merged table cells
+ * row by row, direct text/shape group children; field and empty runs skipped. */
+function elementRunTexts(element: PptxElementLike): string[] {
+  const out: string[] = [];
+  const visit = (body: unknown): void => {
+    const paragraphs = (body as { paragraphs?: PptxParagraphLike[] } | undefined)?.paragraphs;
+    for (const paragraph of paragraphs ?? []) {
+      for (const run of paragraph.runs ?? []) {
+        if (!run.field && typeof run.text === "string" && run.text !== "") out.push(run.text);
+      }
+    }
+  };
+  if (element.type === "text" || element.type === "shape") visit(element.text);
+  else if (element.type === "table") {
+    for (const row of (element.rows as Array<Array<{ merged?: unknown; text?: unknown }>> | undefined) ?? []) {
+      for (const cell of row) if (!cell.merged) visit(cell.text);
+    }
+  } else if (element.type === "group") {
+    for (const child of (element.children as PptxElementLike[] | undefined) ?? []) {
+      if (child.type === "text" || child.type === "shape") visit(child.text);
+    }
+  }
+  return out;
+}
+
+/** Private-use marker for the k-th protected match. The find term may not
+ * contain the marker range, so no find can match inside or across a marker. */
+const OCCURRENCE_MARK_BASE = 0xe000;
+const OCCURRENCE_MARK_LIMIT = 0x100;
+const occurrenceMark = (index: number): string =>
+  "\uF8FF" + String.fromCharCode(OCCURRENCE_MARK_BASE + index) + "\uF8FF";
+const MARK_CHARS_RE = /[\uE000-\uE0FF\uF8FF]/;
+
+/**
+ * Replace exactly the `occurrence`-th match inside one element. The vendored
+ * `findReplace` budget always spends itself on the element's first match, so
+ * the earlier matches are parked behind unique private-use markers first, the
+ * now-first match is replaced, and each marker is put back to the exact text it
+ * hid (case preserved). Every step is a vendored `findReplace`, applied in ONE
+ * transaction, so the edit journals and replays (undo/redo) as one step.
+ */
+function buildOccurrenceReplaceOps(opened: OpenedPptxLike, edit: FindReplaceEdit): PptxOp[] {
+  const occurrence = edit.occurrence as number;
+  if (!Number.isInteger(occurrence) || occurrence < 0 || occurrence >= OCCURRENCE_MARK_LIMIT) {
+    throw new PptxEngineError("bad_occurrence", 'find_replace "occurrence" must be an integer from 0 to ' + String(OCCURRENCE_MARK_LIMIT - 1));
+  }
+  if (edit.slideIndex === undefined || edit.elementId === undefined) {
+    throw new PptxEngineError("bad_occurrence", 'find_replace "occurrence" needs "slideIndex" and "elementId"');
+  }
+  const element = requireSlide(opened, edit.slideIndex, "find_replace").elements.find((candidate) => candidate.id === edit.elementId);
+  if (!element) {
+    throw new PptxEngineError("no_element", 'find_replace: no element "' + edit.elementId + '" on slide ' + String(edit.slideIndex));
+  }
+  if (MARK_CHARS_RE.test(edit.find)) {
+    throw new PptxEngineError("bad_find", 'find_replace "find" may not contain private-use marker characters with "occurrence"');
+  }
+  const runs = elementRunTexts(element);
+  const re = new RegExp(escapeRegExp(edit.find), edit.matchCase ? "g" : "gi");
+  const matches = runs.flatMap((text) => Array.from(text.matchAll(re), (match) => match[0]));
+  if (occurrence >= matches.length) {
+    throw new PptxEngineError("no_match", "find_replace: element " + edit.elementId + " has " + String(matches.length) + " matches, not " + String(occurrence + 1));
+  }
+  const marks = matches.slice(0, occurrence).map((_, index) => occurrenceMark(index));
+  if (marks.some((mark) => runs.some((text) => text.includes(mark)))) {
+    throw new PptxEngineError("bad_find", "find_replace: the element already holds an occurrence marker");
+  }
+  const scoped = { firstOnly: true, slideIndex: edit.slideIndex, elementId: edit.elementId };
+  const step = (find: string, replace: string, matchCase: boolean): PptxOp => ({ op: "findReplace", find, replace, matchCase, ...scoped });
+  const matchCase = edit.matchCase === true;
+  return [
+    ...marks.map((mark) => step(edit.find, mark, matchCase)),
+    step(edit.find, edit.replace, matchCase),
+    ...marks.map((mark, index) => step(mark, matches[index] as string, true)),
+  ];
+}
+
 /** One validated edit -> the vendored op(s) the executor runs. Refusals are
  * typed PptxEngineError codes: bad_find / bad_replace (find_replace fields),
  * no_slide (slide index present but absent from the deck), no_element
@@ -181,6 +272,7 @@ export function buildFindLinkOps(opened: OpenedPptxLike, fitWidthPx: number, edi
         throw new PptxEngineError("bad_replace", 'find_replace "replace" must be a string');
       }
       requireOptionalSlide(opened, edit.slideIndex, "find_replace");
+      if (edit.occurrence !== undefined) return buildOccurrenceReplaceOps(opened, edit);
       return [
         {
           op: "findReplace",
