@@ -58,6 +58,16 @@ describe("main-owned open documents", () => {
     expect(docs.all()).toEqual([]);
   });
 
+  it("moves only the base of an open context to the bytes a confirmed write left, keeping the rest of the identity", () => {
+    const docs = createOpenedDocuments({ sessionFor: () => session });
+    docs.open("file_handle", "local", identity("local:hash"));
+    const before = docs.context("file_handle");
+    expect(docs.rebase("file_handle", { version: "2", revision: "2" })).toBe(true);
+    expect(docs.context("file_handle")).toBe(before);
+    expect(docs.context("file_handle")?.identity).toEqual({ ...identity("local:hash"), base: { version: "2", revision: "2" } });
+    expect(docs.rebase("unknown", { version: "3", revision: "3" })).toBe(false);
+  });
+
   it("pins only the saving document, releases once on failure and never confirms a failed write", () => {
     const closed: string[] = [];
     const docs = createOpenedDocuments({ sessionFor: () => session, onClosed: (id) => closed.push(id) });

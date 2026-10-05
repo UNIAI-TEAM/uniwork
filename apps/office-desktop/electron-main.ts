@@ -24,7 +24,7 @@ import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
 import { createLiveDraftAccess } from "./main/drafts/live-access";
 import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
-import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
+import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftBase, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
@@ -416,9 +416,11 @@ async function startElectronHost(): Promise<void> {
     readAccess: officeTransport?.readDocumentAccess,
   })();
   const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => {
-    // A normal Save keeps the existing draft base until its matching durable
-    // row is consumed by the renderer.
+    // The write moved the file: its new bytes are the base later draft rows are
+    // recorded against. The protective pre-write row is consumed by its own ref,
+    // so rebasing the context does not strand it.
     if (!documents.context(metadata.handle)) setLocalDocument(metadata);
+    else documents.rebase(metadata.handle, localDraftBase(metadata));
     consumeLocalCheckpoint(metadata);
   };
   const noteConfirmedLocalRebind = (previousHandle: string, metadata: OpenFileMetadata) => {

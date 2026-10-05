@@ -4,7 +4,8 @@ export interface OpenedDocument {
   readonly documentId: string;
   readonly kind: "local" | "cloud";
   readonly session: DraftSession;
-  readonly identity: DraftIdentity;
+  /** Only `rebase` replaces it, and only with a base main itself observed. */
+  identity: DraftIdentity;
   lastConfirmedSaveAt: number;
   pendingCheckpoints: number;
   pendingSaves: number;
@@ -87,6 +88,16 @@ export function createOpenedDocuments(options: {
       if ([...documents.values()].some((document) => !ids.has(document.documentId) && document.pendingSaves > 0)) return false;
       for (const id of documents.keys()) if (!ids.has(id)) { documents.delete(id); options.onClosed?.(id); }
       active = request.activeDocumentId ?? undefined;
+      return true;
+    },
+    /** A confirmed local write makes its bytes the base every later draft row is
+     * recorded against, so a relaunch (which reads the same bytes back) finds it
+     * unchanged. The base comes from main's own write receipt, never from the
+     * renderer; the identity otherwise stays exactly as opened. */
+    rebase(documentId: string, base: DraftIdentity["base"]): boolean {
+      const document = context(documentId);
+      if (!document) return false;
+      document.identity = { ...document.identity, base };
       return true;
     },
     noteConfirmedSave(documentId: string): void {
