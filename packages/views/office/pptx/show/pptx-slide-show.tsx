@@ -17,6 +17,9 @@
  * - Keys follow PowerPoint's presentation contract (`resolveShowNavAction`):
  *   Right / Space / Enter / PageDown advance, Left / PageUp go back, Home / End
  *   jump to the ends, Esc exits. A click on the stage advances.
+ * - Keys are taken in the capture phase before any editor listener (document
+ *   or below) sees them, and the editor's undo/redo chords are swallowed, so
+ *   nothing edits the deck behind the audience.
  * - Hidden slides (`hidden[i]`) are skipped; past the last visible slide the
  *   show says it has ended and the next advance exits, as PowerPoint does.
  * - Focus moves to the show surface (never the exit button, so Enter/Space
@@ -29,7 +32,14 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { SvgNodeView, type PptxCanvasContent } from "../canvas/pptx-canvas-surface";
-import { isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction, visibleShowTarget, type PptxShowNavAction } from "./show-nav";
+import { firstVisibleFrom, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction, visibleShowTarget, type PptxShowNavAction } from "./show-nav";
+
+/** Ctrl/Cmd + Z / Y: the editor's history chords, which must never reach the deck behind a show. */
+function isHistoryChord(event: KeyboardEvent): boolean {
+  if (!event.ctrlKey && !event.metaKey) return false;
+  const key = event.key.toLowerCase();
+  return key === "z" || key === "y";
+}
 
 export interface PptxSlideShowProps {
   /** Slide count of the deck being shown. */
@@ -73,6 +83,18 @@ export function PptxSlideShow({
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);
+
+  // The show never opens ON a hidden slide: start from the first visible one at
+  // or after the requested index (PowerPoint's "from current slide" on a hidden
+  // slide). Runs once per mount.
+  const mountedRef = useRef({ index, hidden, slideCount, onIndexChange, done: false });
+  useEffect(() => {
+    const mounted = mountedRef.current;
+    if (mounted.done) return;
+    mounted.done = true;
+    const start = firstVisibleFrom(mounted.index, mounted.slideCount, mounted.hidden);
+    if (start !== mounted.index) mounted.onIndexChange(start);
+  }, []);
 
   // One exit per show, however many paths fire (Esc keydown then the
   // fullscreenchange it causes). Stable, so the mount effect below never re-runs
@@ -135,15 +157,23 @@ export function PptxSlideShow({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isHistoryChord(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (isShowActivationKey(event.key) && isShowInteractiveTarget(event.target)) return;
       const action = resolveShowNavAction(event.key);
       if (!action) return;
       event.preventDefault();
+      event.stopPropagation();
       if (action === "exit") exit();
       else navigate(action);
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Capture on window runs before the editor's document-level listeners, so
+    // a key the show consumes never reaches them.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [exit, navigate]);
 
   const counter = t("show.counter", { current: slideCount ? index + 1 : 0, total: slideCount });
@@ -189,6 +219,8 @@ export function PptxSlideShow({
         className={cn(
           "absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 px-4 py-3",
           "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
+          // No hover on touch: keep the controls on screen (the buttons are 44px targets).
+          "pointer-coarse:opacity-100",
         )}
         data-pptx-show-controls
       >

@@ -6,7 +6,7 @@ import { run, shapeNode, slide, textLayout } from "../canvas/pptx-render-fixture
 import { PptxPresenterView } from "./pptx-presenter-view";
 import { PptxSlideShow } from "./pptx-slide-show";
 import { PPTX_SHOW_I18N } from "./show-i18n";
-import { applyShowNavAction, formatElapsedClock, resolveShowNavAction, visibleShowTarget } from "./show-nav";
+import { applyShowNavAction, firstVisibleFrom, formatElapsedClock, resolveShowNavAction, visibleShowTarget } from "./show-nav";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -32,7 +32,15 @@ describe("show navigation math", () => {
     expect(resolveShowNavAction("Home")).toBe("first");
     expect(resolveShowNavAction("End")).toBe("last");
     expect(resolveShowNavAction("Escape")).toBe("exit");
+    expect(resolveShowNavAction("ArrowDown")).toBe("next");
+    expect(resolveShowNavAction("ArrowUp")).toBe("previous");
     expect(resolveShowNavAction("q")).toBeNull();
+  });
+
+  it("starts from the first visible slide at or after the requested one", () => {
+    expect(firstVisibleFrom(1, 4, [false, true, true, false])).toBe(3);
+    expect(firstVisibleFrom(0, 4, [false, true])).toBe(0);
+    expect(firstVisibleFrom(2, 3, [false, false, true])).toBe(2);
   });
 
   it("walks only the visible slides and reports the end of the show", () => {
@@ -135,6 +143,82 @@ describe("PptxSlideShow", () => {
     // Slide 4 (index 4) is hidden, so slide 4 (index 3) is the last visible one.
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(screen.getByTestId("pptx-show-ended")).toBeInTheDocument();
+  });
+
+  it("navigates with ArrowDown and ArrowUp like PowerPoint", () => {
+    const onIndexChange = vi.fn();
+    render(<PptxSlideShow slideCount={3} index={1} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    expect(onIndexChange).toHaveBeenLastCalledWith(2);
+    fireEvent.keyDown(window, { key: "ArrowUp" });
+    expect(onIndexChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it("keeps undo/redo chords and consumed keys away from the editor's document listeners", () => {
+    const editorListener = vi.fn();
+    document.addEventListener("keydown", editorListener);
+    try {
+      render(<PptxSlideShow slideCount={3} index={1} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+      for (const init of [
+        { key: "z", ctrlKey: true },
+        { key: "y", ctrlKey: true },
+        { key: "Z", ctrlKey: true, shiftKey: true },
+        { key: "z", metaKey: true },
+        { key: "ArrowRight" },
+      ]) {
+        const event = new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true });
+        document.body.dispatchEvent(event);
+        expect(event.defaultPrevented, init.key).toBe(true);
+      }
+      const onDocument = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(onDocument);
+      expect(editorListener).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("keydown", editorListener);
+    }
+  });
+
+  it("still lets keys the show does not consume through", () => {
+    const editorListener = vi.fn();
+    document.addEventListener("keydown", editorListener);
+    try {
+      render(<PptxSlideShow slideCount={3} index={1} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "q", bubbles: true, cancelable: true }));
+      expect(editorListener).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", editorListener);
+    }
+  });
+
+  it("restores the editor's key path after the show unmounts", () => {
+    const editorListener = vi.fn();
+    document.addEventListener("keydown", editorListener);
+    try {
+      const view = render(<PptxSlideShow slideCount={3} index={1} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+      view.unmount();
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }));
+      expect(editorListener).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", editorListener);
+    }
+  });
+
+  it("keeps the controls visible on coarse pointers", () => {
+    render(<PptxSlideShow slideCount={3} index={0} onIndexChange={vi.fn()} onExit={vi.fn()} content={content("Slide")} />);
+    expect(document.querySelector("[data-pptx-show-controls]")).toHaveClass("pointer-coarse:opacity-100");
+  });
+
+  it("opens on the first visible slide when asked to start on a hidden one", () => {
+    const onIndexChange = vi.fn();
+    render(<PptxSlideShow slideCount={4} index={1} hidden={[false, true, true, false]} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    expect(onIndexChange).toHaveBeenCalledTimes(1);
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  it("does not move a show that opens on a visible slide", () => {
+    const onIndexChange = vi.fn();
+    render(<PptxSlideShow slideCount={4} index={0} hidden={[false, true]} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    expect(onIndexChange).not.toHaveBeenCalled();
   });
 
   it("moves focus onto the show so Enter advances, and returns it to the trigger on exit", () => {

@@ -70,6 +70,9 @@ import {
 import { PptxSortableSlideTile } from "./sortable-slide-tile";
 import { PptxSorterSections } from "./sorter-sections";
 
+/** How long a created slide waits for the host to re-read the deck before the selection is dropped. */
+const PENDING_SELECT_TTL_MS = 5000;
+
 export interface PptxSorterPanelProps {
   slides: readonly PptxSorterSlide[];
   sections?: readonly PptxSectionInfo[];
@@ -120,11 +123,15 @@ export function PptxSorterPanel({
   const layoutRequest = useRef<Promise<unknown> | null>(null);
   // The slide an applied insert/duplicate created, selected once the deck the
   // host re-reads actually holds it (F-13): selecting before the slide list
-  // grows would clamp onto the old last slide.
-  const pendingSelect = useRef<number | null>(null);
+  // grows would clamp onto the old last slide. It only applies when the count
+  // grows by exactly the one slide the edit added, and expires after a timeout
+  // so a host that never re-reads cannot select a stale index later.
+  const pendingSelect = useRef<{ target: number; baseCount: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const count = slides.length;
+  const countRef = useRef(count);
+  countRef.current = count;
   const selectedIndex = clampSlideIndex(controlledIndex ?? internalIndex, count);
   const hasSlides = count > 0;
   const bound = typeof onEdit === "function";
@@ -179,12 +186,21 @@ export function PptxSorterPanel({
     [count, onSelectSlide],
   );
 
-  useEffect(() => {
-    const target = pendingSelect.current;
-    if (target === null || target >= count) return;
+  const clearPendingSelect = useCallback(() => {
+    const waiting = pendingSelect.current;
+    if (!waiting) return;
+    clearTimeout(waiting.timer);
     pendingSelect.current = null;
-    selectSlide(target);
-  }, [count, selectSlide]);
+  }, []);
+
+  useEffect(() => clearPendingSelect, [clearPendingSelect]);
+
+  useEffect(() => {
+    const waiting = pendingSelect.current;
+    if (!waiting || count === waiting.baseCount) return;
+    clearPendingSelect();
+    if (count === waiting.baseCount + 1 && waiting.target < count) selectSlide(waiting.target);
+  }, [clearPendingSelect, count, selectSlide]);
 
   const runEdit = useCallback(
     async (edits: readonly PptxEdit[], selectAfter?: number) => {
@@ -197,8 +213,15 @@ export function PptxSorterPanel({
           // The new slide sits right after the source; if the host already
           // re-read the deck it is selectable now, otherwise the count effect
           // selects it when the longer slide list arrives.
-          if (selectAfter < count) selectSlide(selectAfter);
-          else pendingSelect.current = selectAfter;
+          if (selectAfter < countRef.current) selectSlide(selectAfter);
+          else {
+            clearPendingSelect();
+            pendingSelect.current = {
+              target: selectAfter,
+              baseCount: countRef.current,
+              timer: setTimeout(clearPendingSelect, PENDING_SELECT_TTL_MS),
+            };
+          }
         }
       } catch (failure) {
         setEditError(failure instanceof Error ? failure.message : String(failure));
@@ -206,7 +229,7 @@ export function PptxSorterPanel({
         setPending(false);
       }
     },
-    [count, onEdit, selectSlide],
+    [clearPendingSelect, onEdit, selectSlide],
   );
 
   const onReorder = useCallback(
@@ -311,7 +334,7 @@ export function PptxSorterPanel({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-56">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>{t("office.pptx.sorter.new_label")}</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("office.pptx.sorter.new")}</DropdownMenuLabel>
               <DropdownMenuItem disabled={disabled} onClick={addBlankSlide} data-pptx-sorter-blank>
                 {t("office.pptx.sorter.new_blank", { defaultValue: t("office.pptx.sorter.new") })}
               </DropdownMenuItem>

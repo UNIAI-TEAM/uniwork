@@ -11,7 +11,8 @@ import { bindPptxEngine, bindPptxOps, createPptxAdapter, type OpenedPptxLike } f
 import { buildSlideSvg } from "../canvas/build-slide-svg";
 import type { PptxRenderSlide } from "../canvas/render-tree";
 import type { SvgNode } from "../canvas/svg-node";
-import { addElementEdit, defaultInsertBox, insertShapeEdit, insertTextBoxEdit } from "./insert-model";
+import { insertShapeEdit, insertTextBoxEdit } from "./insert-defaults";
+import { addElementEdit, defaultInsertBox } from "./insert-model";
 
 const FIXTURE = fileURLToPath(new URL("../../../../../docs/office/g0/fixtures/files/slides/pptx-standard-business.pptx", import.meta.url));
 const palette = { pageFill: "#ffffff", chipFill: "#f4f4f5", chipStroke: "#e4e4e7", chipText: "#646464" };
@@ -64,6 +65,15 @@ describe("inserted elements render (F-04)", () => {
     const leaves = paintedLeaves(group!);
     expect(leaves.length).toBeGreaterThan(0);
     expect(JSON.stringify(leaves).toLowerCase()).toContain("4472c4");
+  });
+
+  it("an inserted rectangle carries the default outline with a finite width (engine maps pt to EMU)", async () => {
+    const { createdId, root } = await renderAfter(insertShapeEdit(0, "rect"));
+    const outlined = paintedLeaves(findGroup(root, createdId!)!).find((leaf) => typeof leaf.attrs?.stroke === "string" && leaf.attrs.stroke !== "none");
+    expect(String(outlined?.attrs?.stroke).toLowerCase()).toBe("#2f528f");
+    const width = Number(outlined?.attrs?.["stroke-width"]);
+    expect(Number.isFinite(width)).toBe(true);
+    expect(width).toBeGreaterThan(0);
   });
 
   it("an inserted star paints its preset outline, not an empty geometry group", async () => {

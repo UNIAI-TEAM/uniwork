@@ -41,4 +41,11 @@ describe("PptxSlideRail", () => {
     expect(first!.querySelector("span.truncate")!.className).toContain("max-[480px]:hidden");
     expect(first).toHaveAttribute("aria-label", expect.stringContaining("Intro"));
   });
+
+  it("keeps a 44px touch target on a coarse pointer even at phone width", () => {
+    render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    for (const slide of screen.getAllByRole("button")) {
+      expect(slide.className).toContain("pointer-coarse:max-[480px]:min-h-11");
+    }
+  });
 });

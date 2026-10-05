@@ -1,6 +1,7 @@
 import { getI18n } from "react-i18next";
 
 type PptxLocale = "en" | "vi";
+type I18nInstance = NonNullable<ReturnType<typeof getI18n>>;
 
 /**
  * Lazy registrar for a PPTX panel's own i18n keys.
@@ -11,32 +12,37 @@ type PptxLocale = "en" | "vi";
  * initializes i18n, so `getI18n()` was undefined and the whole renderer failed
  * to mount. The returned function is idempotent and safe at any time: it does
  * nothing until the shared instance exists and is initialized, wires the
- * `initialized` / `languageChanged` listeners exactly once, and registers once
- * per call site until a locale event asks again. Call it at the top of the
- * panel render, before any `t()`.
+ * `initialized` / `languageChanged` listeners once per instance, and registers
+ * once per instance until a locale event asks again. State is keyed by the
+ * instance, so a replaced singleton (setI18n, HMR) is wired and registered
+ * afresh. Call it at the top of the panel render, before any `t()`.
  */
 export function createPptxI18nRegistrar(resources: (locale: PptxLocale) => Record<string, unknown>): () => void {
-  let listening = false;
-  let registered = false;
+  // Per instance: listeners are wired once; `registered` flips only when a
+  // locale bundle was merged, never on an attempt that found no bundle.
+  const states = new WeakMap<I18nInstance, { registered: boolean }>();
 
-  const register = (): void => {
-    const i18n = getI18n();
-    if (!i18n?.isInitialized) return;
+  const register = (i18n: I18nInstance, state: { registered: boolean }): void => {
+    if (!i18n.isInitialized) return;
     for (const locale of ["en", "vi"] as const) {
       if (!i18n.hasResourceBundle(locale, "translation")) continue;
       i18n.addResourceBundle(locale, "translation", resources(locale), true, false);
+      state.registered = true;
     }
-    registered = true;
   };
 
   return () => {
     const i18n = getI18n();
     if (!i18n) return;
-    if (!listening) {
-      listening = true;
-      i18n.on("initialized", register);
-      i18n.on("languageChanged", register);
+    let state = states.get(i18n);
+    if (!state) {
+      const fresh = { registered: false };
+      state = fresh;
+      states.set(i18n, fresh);
+      const onEvent = (): void => register(i18n, fresh);
+      if (!i18n.isInitialized) i18n.on("initialized", onEvent);
+      i18n.on("languageChanged", onEvent);
     }
-    if (!registered) register();
+    if (!state.registered) register(i18n, state);
   };
 }

@@ -331,6 +331,10 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
+  // Set the moment the deferred dispose fires. `originalDispose` awaits the
+  // draft before `editor.dispose()` sets `disposed`, and an open() landing in
+  // that gap would report "opened" on a model about to be released.
+  let disposeStarted = false;
   // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
   // cleanup disposes the session and the remount opens it again. Disposal is
   // therefore deferred one task and cancelled by the next open(), so the
@@ -355,15 +359,15 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     format: "pptx",
     async open() {
       cancelPendingDispose();
-      if (disposed) throw new Error("pptx_editor_disposed");
+      if (disposed || disposeStarted) throw new Error("pptx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
       opening = (async () => {
         const bytes = openedBytes ?? (await options.documents.read());
-        if (disposed) throw new Error("pptx_editor_disposed");
+        if (disposed || disposeStarted) throw new Error("pptx_editor_disposed");
         openedBytes = bytes;
         const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
-        if (disposed) {
+        if (disposed || disposeStarted) {
           if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
           throw new Error("pptx_editor_disposed");
         }
@@ -471,6 +475,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     disposal = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         cancelPendingDispose = () => undefined;
+        disposeStarted = true;
         originalDispose().then(resolve, reject);
       }, 0);
       cancelPendingDispose = () => {

@@ -30,8 +30,6 @@ import {
   PPTX_INSERT_TEXT_BOX_KIND,
   PPTX_INSERT_WORDART_BOX,
   addElementEdit,
-  insertShapeEdit,
-  insertTextBoxEdit,
   wordArtParagraphs,
   type PptxInsertConnectorRequest,
   type PptxInsertEdit,
@@ -39,6 +37,7 @@ import {
   type PptxInsertShape,
   type PptxInsertWordArtPreset,
 } from "./insert-model";
+import { insertShapeEdit, insertTextBoxEdit } from "./insert-defaults";
 import { PptxConnectorPicker } from "./pptx-connector-picker";
 import { PptxImageInsert, type PptxImageBytes } from "./pptx-image-insert";
 import { PptxShapeGallery } from "./pptx-shape-gallery";

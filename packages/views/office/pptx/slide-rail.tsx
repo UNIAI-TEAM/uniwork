@@ -45,7 +45,7 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, className }: Pp
             tabIndex={selected || (selectedIndex < 0 && index === 0) ? 0 : -1}
             ref={(element) => { buttonRefs.current[index] = element; }}
             className={cn(
-              "group flex min-h-16 flex-col gap-1 rounded-md max-[480px]:min-h-0 border border-border bg-muted/20 p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "group flex min-h-16 flex-col gap-1 rounded-md max-[480px]:min-h-0 pointer-coarse:max-[480px]:min-h-11 border border-border bg-muted/20 p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               selected && "border-primary ring-1 ring-primary",
               slide.hidden && "opacity-60",
             )}

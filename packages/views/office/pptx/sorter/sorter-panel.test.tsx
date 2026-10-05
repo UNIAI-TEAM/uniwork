@@ -186,6 +186,47 @@ describe("PptxSorterPanel", () => {
     await waitFor(() => expect(onSelectSlide).toHaveBeenCalledWith(3));
   });
 
+  it("drops the pending selection when the host never re-reads the deck (F5)", async () => {
+    vi.useFakeTimers();
+    try {
+      const onSelectSlide = vi.fn();
+      const onEdit = vi.fn(async () => undefined);
+      const view = renderPanel({ onEdit, onSelectSlide, selectedIndex: 2 });
+      await act(async () => { fireEvent.click(button("office.pptx.sorter.duplicate")); });
+      expect(onEdit).toHaveBeenCalledTimes(1);
+      act(() => { vi.advanceTimersByTime(6000); });
+      // A later, unrelated growth of the deck must not select the stale index.
+      view.rerender(
+        <PptxSorterPanel slides={[...slides, { id: "s4", label: "x" }]} sections={sections} onEdit={onEdit} onSelectSlide={onSelectSlide} selectedIndex={2} />,
+      );
+      expect(onSelectSlide).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a deck that grew by more than the one slide the edit added (F5)", async () => {
+    const onSelectSlide = vi.fn();
+    const onEdit = vi.fn(async () => undefined);
+    const view = renderPanel({ onEdit, onSelectSlide, selectedIndex: 2 });
+    fireEvent.click(button("office.pptx.sorter.duplicate"));
+    await waitFor(() => expect(onEdit).toHaveBeenCalledTimes(1));
+    view.rerender(
+      <PptxSorterPanel slides={[...slides, { id: "s4", label: "x" }, { id: "s5", label: "y" }]} sections={sections} onEdit={onEdit} onSelectSlide={onSelectSlide} selectedIndex={2} />,
+    );
+    expect(onSelectSlide).not.toHaveBeenCalled();
+  });
+
+  it("heads the new-slide menu \"New slide\", not \"New slide from a layout\" (F8)", async () => {
+    renderPanel();
+    fireEvent.click(button("office.pptx.sorter.new_label"));
+    const blank = await screen.findByRole("menuitem", { name: copy("office.pptx.sorter.new_blank") });
+    const group = blank.closest("[role='group']");
+    expect(group).not.toBeNull();
+    expect(within(group as HTMLElement).getByText(copy("office.pptx.sorter.new"))).toBeInTheDocument();
+    expect(within(group as HTMLElement).queryByText(copy("office.pptx.sorter.new_label"))).toBeNull();
+  });
+
   it("selects the copy right away when the host already holds the longer deck", async () => {
     const onSelectSlide = vi.fn();
     renderPanel({ onSelectSlide, selectedIndex: 0 });

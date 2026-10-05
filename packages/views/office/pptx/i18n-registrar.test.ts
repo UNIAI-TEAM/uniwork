@@ -84,6 +84,47 @@ describe.each(MODULES)("$name i18n registration", ({ load, pick, section }) => {
     expect(i18n.addResourceBundle).toHaveBeenCalledTimes(4);
   });
 
+  it("wires and registers a replaced instance afresh", async () => {
+    const { ensure, setInstance } = await setup();
+    const first = fakeI18n();
+    first.isInitialized = true;
+    setInstance(first);
+    ensure();
+    expect(first.addResourceBundle).toHaveBeenCalledTimes(2);
+
+    const second = fakeI18n();
+    second.isInitialized = true;
+    setInstance(second);
+    ensure();
+    expect(second.addResourceBundle).toHaveBeenCalledTimes(2);
+    emit(second, "languageChanged");
+    expect(second.addResourceBundle).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps retrying while no locale bundle exists yet", async () => {
+    const { ensure, setInstance } = await setup();
+    const i18n = fakeI18n();
+    i18n.isInitialized = true;
+    let bundles = false;
+    i18n.hasResourceBundle = () => bundles;
+    setInstance(i18n);
+    ensure();
+    expect(i18n.addResourceBundle).not.toHaveBeenCalled();
+    bundles = true;
+    ensure();
+    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not attach the initialized listener to an already initialized instance", async () => {
+    const { ensure, setInstance } = await setup();
+    const i18n = fakeI18n();
+    i18n.isInitialized = true;
+    setInstance(i18n);
+    ensure();
+    expect(i18n.handlers.get("initialized")).toBeUndefined();
+    expect(i18n.handlers.get("languageChanged")).toHaveLength(1);
+  });
+
   it("registers on the first render when the instance is already initialized", async () => {
     const { ensure, setInstance } = await setup();
     const i18n = fakeI18n();

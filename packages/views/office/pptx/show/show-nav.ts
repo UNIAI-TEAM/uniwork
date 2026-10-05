@@ -10,13 +10,14 @@
 export type PptxShowNavAction = "next" | "previous" | "first" | "last" | "exit";
 
 /**
- * PowerPoint's presentation keys: Right / Space / Enter / PageDown / N advance,
- * Left / PageUp / Backspace / P go back, Home / End jump to the ends, Esc exits.
+ * PowerPoint's presentation keys: Right / Down / Space / Enter / PageDown / N advance,
+ * Left / Up / PageUp / Backspace / P go back, Home / End jump to the ends, Esc exits.
  * The event's raw `key` is matched here, so the caller never re-implements it.
  */
 export function resolveShowNavAction(key: string): PptxShowNavAction | null {
   switch (key) {
     case "ArrowRight":
+    case "ArrowDown":
     case " ":
     case "Spacebar":
     case "PageDown":
@@ -25,6 +26,7 @@ export function resolveShowNavAction(key: string): PptxShowNavAction | null {
     case "N":
       return "next";
     case "ArrowLeft":
+    case "ArrowUp":
     case "PageUp":
     case "Backspace":
     case "p":
@@ -131,4 +133,17 @@ export function visibleShowTarget(
     case "last":
       return scan(count - 1, -1) ?? current;
   }
+}
+
+/**
+ * The first visible slide at or after `index` (the show opening on a hidden
+ * slide starts here, as PowerPoint does). Returns `index` itself when it is
+ * visible or when no visible slide follows it.
+ */
+export function firstVisibleFrom(index: number, count: number, hidden: readonly boolean[] = []): number {
+  const current = clampSlideIndex(index, count);
+  for (let candidate = current; candidate < count; candidate += 1) {
+    if (hidden[candidate] !== true) return candidate;
+  }
+  return current;
 }

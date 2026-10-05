@@ -360,6 +360,26 @@ describe("web PPTX format adapter", () => {
     expect(engine.released).toEqual(["model-1"]);
   });
 
+  it("refuses an open that lands while the fired dispose is still awaiting the draft (F2)", async () => {
+    const engine = runtime();
+    const opts = options(engine, documents());
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    opts.keyProvider.clearMemory = vi.fn(() => gate);
+    const adapter = createPptxFormatAdapter(opts);
+    await adapter.open.open();
+    const disposal = adapter.session.dispose();
+    // The deferred timer fires; draft.dispose() is now stuck on the gate while
+    // editor.dispose() (which sets `disposed`) has not run yet.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(engine.released).toEqual([]);
+    await expect(adapter.editor.open()).rejects.toThrow("pptx_editor_disposed");
+    expect(await adapter.open.open()).toMatchObject({ outcome: "failed" });
+    release();
+    await disposal;
+    expect(engine.released).toEqual(["model-1"]);
+  });
+
   it("advances the published revision on undo, redo and restore", async () => {
     const engine = runtime();
     const adapter = createPptxFormatAdapter(options(engine, documents()));

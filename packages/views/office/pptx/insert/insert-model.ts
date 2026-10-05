@@ -525,34 +525,6 @@ export type PptxInsertEdit =
   | Extract<PptxEdit, { op: "add_image" }>
   | Extract<PptxEdit, { op: "replace_picture" }>;
 
-/**
- * The default look of an inserted closed shape: PowerPoint's Office-theme
- * `accent1` fill. Without a fill the vendored `addElement` writes neither
- * `a:solidFill` nor `a:ln`, so the shape renders as an invisible frame (F-04).
- * Lines keep the vendored black connector stroke. No outline is sent: the
- * engine forwards `stroke.widthPt` where the vendored op reads `widthEmu`,
- * which would write `w="NaN"` (reported to the engine owner).
- */
-const PPTX_INSERT_DEFAULT_FILL = "#4472C4";
-
-/** An inserted gallery shape with a visible default style. */
-export function insertShapeEdit(slideIndex: number, prst: string): Extract<PptxEdit, { op: "add_element" }> {
-  const box = defaultInsertBox(prst);
-  return PPTX_INSERT_LINE_PRSTS.includes(prst)
-    ? addElementEdit(slideIndex, prst, box)
-    : addElementEdit(slideIndex, prst, box, { fillColor: PPTX_INSERT_DEFAULT_FILL });
-}
-
-/** An inserted text box carrying its placeholder copy, so the new frame is
- *  visible and the user types over a line instead of an empty, unseen box. */
-export function insertTextBoxEdit(slideIndex: number, placeholder: string): Extract<PptxEdit, { op: "add_element" }> {
-  const text = placeholder.trim();
-  const box = defaultInsertBox(PPTX_INSERT_TEXT_BOX_KIND);
-  return text
-    ? addElementEdit(slideIndex, PPTX_INSERT_TEXT_BOX_KIND, box, { paragraphs: [{ runs: [{ text }] }] })
-    : addElementEdit(slideIndex, PPTX_INSERT_TEXT_BOX_KIND, box);
-}
-
 /** Shapes/text box/WordArt all ride the registered `add_element` kind. */
 export function addElementEdit(slideIndex: number, kind: string, box: PptxInsertBox, extra?: Partial<Extract<PptxEdit, { op: "add_element" }>>): Extract<PptxEdit, { op: "add_element" }> {
   return { op: "add_element", slideIndex, kind, ...box, ...extra };

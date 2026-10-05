@@ -130,6 +130,7 @@ describe("PptxInsertPanel shapes and text box", () => {
       wPx: 220,
       hPx: 150,
       fillColor: "#4472C4",
+      stroke: { color: "#2F528F", widthPt: 1 },
     });
   });
 
