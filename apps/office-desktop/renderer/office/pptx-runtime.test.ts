@@ -2,22 +2,38 @@
 // UNI-927 W7: the desktop runtime drives the REAL PptxAdapter/PptxSessionModel
 // (only the generated pptx artifact is stubbed with the office-engine fakes),
 // so the edit channel's minted ids and the layout read are proven end to end.
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
+import { registerReplayIdScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
 import { createWebPptxSessionRuntime, type PptxSessionRuntime } from "./pptx-runtime";
+
+// W12 real-id mode (packages/office-engine/test/pptx-replay-scenarios.ts).
+const seam = vi.hoisted(() => ({ realIds: false, breakOp: null as string | null, saves: 0, opens: 0 }));
 
 vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
   const fakes = await import("../../../../packages/office-engine/test/fake-pptx-engine");
   const engine = fakes.createFakePptxEngine();
   const ops = fakes.createFakePptxOps();
+  const { remintElementIds: remint } = await import("../../../../packages/office-engine/test/pptx-replay-scenarios");
   return {
-    openPptx: (bytes: Uint8Array) => engine.openPptx(bytes),
-    savePptx: (opened: OpenedPptxLike) => engine.savePptx(opened),
+    openPptx: async (bytes: Uint8Array) => {
+      const opened = await engine.openPptx(bytes);
+      seam.opens += 1;
+      if (seam.realIds) remint(opened.deck as never, "o" + String(seam.opens));
+      return opened;
+    },
+    savePptx: (opened: OpenedPptxLike) => {
+      seam.saves += 1;
+      return engine.savePptx(opened);
+    },
     commitSaved: (opened: OpenedPptxLike) => engine.commitSaved?.(opened),
     reparseDeck: (opened: OpenedPptxLike) => engine.reparseDeck?.(opened) ?? opened,
     listSlideLayouts: (archive: unknown) => engine.listSlideLayouts?.(archive) ?? [],
-    runTxn: (opened: OpenedPptxLike, request: PptxTxnRequest) => ops.runTxn(opened, request),
+    runTxn: (opened: OpenedPptxLike, request: PptxTxnRequest) => {
+      if (request.dryRun !== true && seam.breakOp && request.ops.some((op) => op.op === seam.breakOp)) throw new Error("forced replay failure");
+      return ops.runTxn(opened, request);
+    },
     getSlideNotes: () => "",
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
@@ -34,6 +50,11 @@ async function opened(): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
   if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("open failed");
   return { runtime, ref: result.document_model_ref };
 }
+
+beforeEach(() => {
+  seam.realIds = false;
+  seam.breakOp = null;
+});
 
 describe("desktop PPTX session runtime", () => {
   it("returns the minted element ids from the edit channel, and none for non-creating edits", async () => {
@@ -112,4 +133,8 @@ describe("desktop PPTX session runtime", () => {
     expect(await runtime.undo(ref)).toBe(true);
     expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
   });
+});
+
+describe("desktop PPTX session runtime - replay-stable ids (W12)", () => {
+  registerReplayIdScenarios(seam, opened);
 });

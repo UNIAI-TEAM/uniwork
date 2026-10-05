@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PptxEngineError } from "@uniwork/office-engine/pptx";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
+import { registerReplayIdScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
 import {
   createWebPptxSessionRuntime,
   decodePptxEdit,
@@ -25,16 +26,24 @@ import {
 const seam = vi.hoisted(() => ({
   events: [] as string[],
   gate: null as null | { promise: Promise<void>; resolve: () => void },
+  // W12 real-id mode (packages/office-engine/test/pptx-replay-scenarios.ts).
+  realIds: false,
+  breakOp: null as string | null,
+  saves: 0,
+  opens: 0,
 }));
 
 vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
   const fakes = await import("../../../../packages/office-engine/test/fake-pptx-engine");
   const engine = fakes.createFakePptxEngine();
   const ops = fakes.createFakePptxOps();
+  const { remintElementIds: remint } = await import("../../../../packages/office-engine/test/pptx-replay-scenarios");
   return {
     openPptx: async (bytes: Uint8Array) => {
       seam.events.push("open");
       const opened = await engine.openPptx(bytes);
+      seam.opens += 1;
+      if (seam.realIds) remint(opened.deck as never, "o" + String(seam.opens));
       // The fake engine keeps notes on the opened handle (setNotes writes
       // __notes[index]); the vendored read is archive-keyed, so link the two
       // the way the real PackageArchive + notes.ts pair does.
@@ -43,6 +52,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
     },
     savePptx: async (opened: OpenedPptxLike) => {
       seam.events.push("save:start");
+      seam.saves += 1;
       if (seam.gate) await seam.gate.promise;
       seam.events.push("save:end");
       return engine.savePptx(opened);
@@ -58,6 +68,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
     listSlideLayouts: (archive: unknown) => engine.listSlideLayouts?.(archive) ?? [],
     runTxn: (opened: OpenedPptxLike, request: PptxTxnRequest) => {
       if (request.dryRun !== true) seam.events.push("edit");
+      if (request.dryRun !== true && seam.breakOp && request.ops.some((op) => op.op === seam.breakOp)) throw new Error("forced replay failure");
       return ops.runTxn(opened, request);
     },
     buildRenderSlide: () => ({ nodes: [] }),
@@ -83,6 +94,8 @@ async function opened(): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
 beforeEach(() => {
   seam.events = [];
   seam.gate = null;
+  seam.realIds = false;
+  seam.breakOp = null;
 });
 
 describe("web PPTX session runtime", () => {
@@ -432,4 +445,8 @@ describe("web PPTX session runtime", () => {
     expect(await runtime.undo(ref)).toBe(true);
     expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
   });
+});
+
+describe("web PPTX session runtime - replay-stable ids (W12)", () => {
+  registerReplayIdScenarios(seam, opened);
 });

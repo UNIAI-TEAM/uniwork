@@ -10,7 +10,18 @@
 // The adapter is a promise queue: an edit never lands inside a savePptx run
 // (the engine patches the same archive object the save serializes), and a
 // recovered draft replays its journal through the same typed edit channel.
-import { bindPptxEngine, bindPptxOps, bindPptxRender, createPptxAdapter, type PptxAdapter, type PptxEdit } from "@uniwork/office-engine/pptx";
+import {
+  annotatePptxReplayRefs,
+  bindPptxEngine,
+  bindPptxOps,
+  bindPptxRender,
+  createPptxAdapter,
+  pptxSessionDivergedError,
+  resolvePptxReplayRefs,
+  type PptxAdapter,
+  type PptxEdit,
+  type PptxReplayDeck,
+} from "@uniwork/office-engine/pptx";
 import {
   buildRenderSlide,
   commitSaved,
@@ -203,6 +214,11 @@ interface RuntimeSession {
   steps: number[];
   /** The opened base package; undo/redo replay the journal onto it. */
   baseBytes: Uint8Array;
+  /** Set when a replay failed after the engine session was swapped: the
+   * model no longer matches the journal, so every later edit, history move,
+   * restore and save refuses with this (pptx_session_diverged) instead of
+   * serializing a truncated deck. Snapshot still reads the intended journal. */
+  diverged?: Error;
 }
 
 export function createWebPptxSessionRuntime(options: { documentId: string }): PptxSessionRuntime {
@@ -245,6 +261,13 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return session;
   }
 
+  /** A session that may still be edited, moved through history or saved. */
+  function requireLive(ref: string): RuntimeSession {
+    const session = requireSession(ref);
+    if (session.diverged) throw session.diverged;
+    return session;
+  }
+
   /** The engine session ref currently backing a runtime ref (undo swaps it). */
   function currentEngineRef(ref: string): string {
     const engineRef = engineRefs.get(ref);
@@ -252,15 +275,23 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return engineRef;
   }
 
-  /** Apply one already-decoded journal entry on the live engine session. */
+  function liveDeck(ref: string): PptxReplayDeck {
+    return liveSession(ref).model.opened.deck as PptxReplayDeck;
+  }
+
+  /** Apply one already-decoded journal entry on the live engine session. Its
+   * recorded element positions resolve to this session's ids first: engine ids
+   * are session-scoped, so a replay onto a reopened base needs them (W12). */
   function applyEntry(ref: string, entry: PptxEdit): { revision: number; createdId?: string } {
-    const { revision, createdId } = engineAdapter().edit(currentEngineRef(ref), entry);
+    const edit = resolvePptxReplayRefs(liveDeck(ref), entry);
+    const { revision, createdId } = engineAdapter().edit(currentEngineRef(ref), edit);
     return { revision, ...(createdId ? { createdId } : {}) };
   }
 
   /** Reopen the base package into a fresh engine session and replay
    * journal[0..count-1] onto it; returns the engine revision it ends at. Throws
-   * before the engine ref is swapped when the reopen itself fails. */
+   * before the engine ref is swapped when the reopen itself fails. A replay
+   * failure after the swap poisons the session (the old model is gone). */
   async function rebuildFromBase(ref: string, session: RuntimeSession, count: number): Promise<number> {
     const reopened = await engineAdapter().open({ bytes: session.baseBytes, format: "pptx", document_id: ref });
     if (reopened.outcome !== "opened" || !reopened.document_model_ref) throw new Error("pptx_undo_replay_failed");
@@ -268,7 +299,12 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     engineRefs.set(ref, reopened.document_model_ref);
     engineAdapter().release(previous);
     let revision = 0;
-    for (let i = 0; i < count; i += 1) revision = applyEntry(ref, session.journal[i] as PptxEdit).revision;
+    try {
+      for (let i = 0; i < count; i += 1) revision = applyEntry(ref, session.journal[i] as PptxEdit).revision;
+    } catch (error) {
+      session.diverged = pptxSessionDivergedError(error);
+      throw session.diverged;
+    }
     return revision;
   }
 
@@ -278,35 +314,40 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
    * the failed gesture leaves no trace and journal, cursor, revision and model
    * agree. Should the rollback's reopen fail (the old engine session still
    * holds the applied prefix), `adopt` records that prefix as a step instead,
-   * which is still a self-consistent history. */
+   * which is still a self-consistent history. A rollback whose replay fails
+   * after the swap poisons the session and rejects with that instead.
+   * `record` (fresh caller edits) stamps each entry's element positions on the
+   * deck it is about to apply to; journaled entries (redo) already carry them. */
   async function applyAll(
     ref: string,
     session: RuntimeSession,
     edits: readonly PptxEdit[],
-    adopt: (applied: number, revision: number) => void,
-  ): Promise<{ revision: number; createdIds: string[] }> {
+    record: boolean,
+    adopt: (entries: readonly PptxEdit[], revision: number) => void,
+  ): Promise<{ revision: number; createdIds: string[]; entries: PptxEdit[] }> {
     let revision = session.revision;
-    let applied = 0;
+    const entries: PptxEdit[] = [];
     const createdIds: string[] = [];
     try {
       for (const edit of edits) {
-        const result = applyEntry(ref, edit);
+        const entry = record ? annotatePptxReplayRefs(liveDeck(ref), edit) : edit;
+        const result = applyEntry(ref, entry);
         revision = result.revision;
-        applied += 1;
+        entries.push(entry);
         if (result.createdId) createdIds.push(result.createdId);
       }
     } catch (error) {
-      if (applied > 0) {
+      if (entries.length > 0) {
         const before = currentEngineRef(ref);
         try {
           session.revision = await rebuildFromBase(ref, session, session.cursor);
         } catch {
-          if (currentEngineRef(ref) === before) adopt(applied, revision);
+          if (currentEngineRef(ref) === before) adopt(entries, revision);
         }
       }
-      throw error;
+      throw session.diverged ?? error;
     }
-    return { revision, createdIds };
+    return { revision, createdIds, entries };
   }
 
   /** Drop the redo tail (text-editor behavior) and append one history step. */
@@ -389,13 +430,13 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
     async edit(documentModelRef, edits) {
       return serializeOperation(async () => {
-        const session = requireSession(documentModelRef);
-        const { revision, createdIds } = await applyAll(documentModelRef, session, edits, (applied, at) => {
-          commitStep(session, edits.slice(0, applied), at);
+        const session = requireLive(documentModelRef);
+        const { revision, createdIds, entries } = await applyAll(documentModelRef, session, edits, true, (applied, at) => {
+          commitStep(session, applied, at);
         });
         // One edit() call is one history step; the redo tail drops only once
         // the whole batch landed, so a refused batch keeps the redo path.
-        if (edits.length > 0) commitStep(session, edits, revision);
+        if (entries.length > 0) commitStep(session, entries, revision);
         return { revision, ...(createdIds.length ? { createdIds } : {}) };
       });
     },
@@ -406,7 +447,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
     async restore(documentModelRef, snapshot) {
       return serializeOperation(() => {
-        const session = requireSession(documentModelRef);
+        const session = requireLive(documentModelRef);
         // A recovered draft supersedes any local redo tail: the model only holds
         // journal[0..cursor-1], so the comparison and replay must ignore the
         // undone entries (a tail left over from an undo before recovery).
@@ -425,7 +466,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
     async undo(documentModelRef) {
       return serializeOperation(async () => {
-        const session = requireSession(documentModelRef);
+        const session = requireLive(documentModelRef);
         if (session.cursor === 0) return false;
         // The previous step boundary: one undo reverts one edit() call.
         const nextCursor = session.steps.filter((step) => step < session.cursor).at(-1) ?? 0;
@@ -441,13 +482,13 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
     async redo(documentModelRef) {
       return serializeOperation(async () => {
-        const session = requireSession(documentModelRef);
+        const session = requireLive(documentModelRef);
         const next = session.steps.find((step) => step > session.cursor);
         if (next === undefined) return false;
         // The live model already holds journal[0..cursor-1]; replaying the next
         // step's entries forward is the whole redo (all-or-nothing like edit).
-        const { revision } = await applyAll(documentModelRef, session, session.journal.slice(session.cursor, next), (applied, at) => {
-          session.cursor += applied;
+        const { revision } = await applyAll(documentModelRef, session, session.journal.slice(session.cursor, next), false, (applied, at) => {
+          session.cursor += applied.length;
           session.steps = [...session.steps.filter((step) => step < session.cursor), session.cursor, ...session.steps.filter((step) => step > session.cursor)];
           session.revision = at;
         });
@@ -462,7 +503,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         // The save never starts (and never reports success) once the caller
         // has aborted: a queued save that was cancelled must not mint bytes.
         signal?.throwIfAborted();
-        const session = requireSession(documentModelRef);
+        const session = requireLive(documentModelRef);
         if (!snapshotIsJournalPrefix(session, snapshot.value)) throw new Error("pptx_save_snapshot_invalid");
         // The live engine session (not the runtime ref) is what holds the model;
         // undo swaps it, so the save must serialize the current one.
