@@ -180,3 +180,55 @@ describe("web PPTX runtime on the real engine - hidden slides (W13)", () => {
     await second.release(again.document_model_ref);
   }, 60_000);
 });
+
+describe("web PPTX runtime on the real engine - save-point rebase (W14)", () => {
+  it("recovers a post-save draft onto the saved bytes without replaying the saved edits again", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "real-rebase" });
+    const result = await runtime.open({ bytes: fixture(), documentId: "real-rebase" });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("fixture did not open: " + String(result.message));
+    const ref = result.document_model_ref;
+    const baseCount = elementsOf(runtime.deck(ref)).length;
+    const parsedIndex = elementsOf(runtime.deck(ref)).findIndex((element) => element.type === "text" || element.type === "shape");
+    if (parsedIndex < 0) throw new Error("fixture slide 1 has no text/shape element");
+
+    // Before the save: add_element + a format of it + a format of a parsed element.
+    const insert = (xPx: number): PptxEdit => ({ op: "add_element", slideIndex: 0, kind: "rect", xPx, yPx: 40, wPx: 120, hPx: 60 });
+    const created = (await runtime.edit(ref, [insert(40)])).createdIds?.[0];
+    expect(created).toBeTruthy();
+    await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: created!, anchor: "middle" }]);
+    await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: elementsOf(runtime.deck(ref))[parsedIndex]!.id, anchor: "bottom" }]);
+
+    // Save: serialize for the intent, then the commit hook the transport calls.
+    const value = runtime.snapshot(ref);
+    const saved = await runtime.serialize(ref, { snapshot: { generation: value.revision, fingerprint: "fp", value }, intentId: "intent-1" });
+    await runtime.setBaseRevision!(ref, "2", "intent-1");
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+
+    // After the save: re-format the element the saved prefix created, insert another.
+    await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: elementsOf(runtime.deck(ref))[baseCount]!.id, anchor: "top" }]);
+    await runtime.edit(ref, [insert(200)]);
+    const draft = JSON.parse(JSON.stringify(runtime.snapshot(ref))) as ReturnType<typeof runtime.snapshot>;
+    expect(draft.edits).toHaveLength(2);
+
+    // Crash -> a fresh runtime on the SAVED bytes (the new base) -> recover.
+    const fresh = createWebPptxSessionRuntime({ documentId: "real-rebase" });
+    const second = await fresh.open({ bytes: saved.bytes, documentId: "real-rebase" });
+    if (second.outcome !== "opened" || !second.document_model_ref) throw new Error("saved deck did not reopen");
+    await fresh.restore!(second.document_model_ref, draft);
+
+    // Serialize the recovered deck and reopen it with the engine itself.
+    const recovered = fresh.snapshot(second.document_model_ref);
+    const out = await fresh.serialize(second.document_model_ref, { snapshot: { generation: 1, fingerprint: "fp", value: recovered } });
+    const reopened = elementsOf((await openPptx(out.bytes)).deck);
+    expect(reopened).toHaveLength(baseCount + 2);
+    expect(reopened[parsedIndex]?.text?.anchor).toBe("bottom");
+    expect(reopened[baseCount]?.text?.anchor).toBe("top");
+    expect(reopened[baseCount + 1]?.text?.anchor).not.toBe("top");
+    // The same deck the live session would save.
+    const live = elementsOf(runtime.deck(ref));
+    expect(live).toHaveLength(baseCount + 2);
+    expect(reopened.map((element) => [element.type, element.text?.anchor])).toEqual(live.map((element) => [element.type, element.text?.anchor]));
+    await runtime.release(ref);
+    await fresh.release(second.document_model_ref);
+  }, 60_000);
+});

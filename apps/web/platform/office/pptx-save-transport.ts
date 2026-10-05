@@ -36,13 +36,16 @@ export function createPptxDocumentsTransport(documentId: string): PptxDocumentsT
 export interface PptxSaveTransportOptions {
   documentId: string;
   documents: PptxDocumentsTransport;
-  serialize(snapshot: StableSnapshot<PptxDeckSnapshot>): Promise<{ bytes: Uint8Array; checksum: string }>;
+  serialize(snapshot: StableSnapshot<PptxDeckSnapshot>, intentId: string): Promise<{ bytes: Uint8Array; checksum: string }>;
+  /** The commit landed: the runtime rebases onto the bytes it serialized for
+   *  this intent (the xlsx transport's runtime.setBaseRevision hook). */
+  setBaseRevision?(revision: string, intentId: string): Promise<void>;
 }
 
 export function createPptxSaveTransport(options: PptxSaveTransportOptions): OfficeSaveTransport<PptxDeckSnapshot> {
   return {
-    async serialize({ snapshot }) {
-      const result = await options.serialize(snapshot);
+    async serialize({ intent, snapshot }) {
+      const result = await options.serialize(snapshot, intent.intentId);
       if (!result.bytes.length || !result.checksum) throw new Error("pptx_serialized_output_invalid");
       return { data: result.bytes, checksumSha256: result.checksum, sizeBytes: result.bytes.length, format: "pptx" };
     },
@@ -70,6 +73,10 @@ export function createPptxSaveTransport(options: PptxSaveTransportOptions): Offi
       if (receipt.version.checksum_sha256 !== upload.checksumSha256 || receipt.version.size_bytes !== upload.sizeBytes) {
         throw new Error("pptx_commit_receipt_mismatch");
       }
+      // The version exists on the server now: its bytes are the base every
+      // later draft checkpoint is labelled with, so the runtime journal must
+      // drop what they hold before the coordinator settles the Save (W14).
+      await options.setBaseRevision?.(receipt.document.revision, intent.intentId);
       return {
         intentId: intent.intentId,
         idempotencyKey: intent.idempotencyKey,

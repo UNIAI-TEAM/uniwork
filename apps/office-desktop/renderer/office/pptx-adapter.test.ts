@@ -18,7 +18,8 @@ function runtime(): PptxSessionRuntime {
     snapshot: vi.fn(() => ({ revision: 0, edits: [] })),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true),
-    serialize: vi.fn(),
+    serialize: vi.fn(async () => ({ bytes: new Uint8Array([1]), checksum: "c" })),
+    setBaseRevision: vi.fn(async () => undefined),
     deck: vi.fn(),
     slides: vi.fn(() => []),
     slideLayouts: vi.fn(() => layouts),
@@ -27,6 +28,20 @@ function runtime(): PptxSessionRuntime {
 }
 
 describe("desktop PPTX adapter handle", () => {
+  it("forwards the Save intent to serialize and the commit to the runtime rebase (W14), never after dispose", async () => {
+    const backing = runtime();
+    const adapter = createDesktopPptxAdapter({ identity, runtime: backing, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability });
+    await adapter.open();
+    const snapshot = { generation: 1, fingerprint: "fp", value: { revision: 0, edits: [] } };
+    await adapter.editor.serialize(snapshot, "intent-1");
+    expect(backing.serialize).toHaveBeenCalledWith("m1", { snapshot, intentId: "intent-1" });
+    await adapter.editor.setBaseRevision("7", "intent-1");
+    expect(backing.setBaseRevision).toHaveBeenCalledExactlyOnceWith("m1", "7", "intent-1");
+    await adapter.editor.dispose();
+    await adapter.editor.setBaseRevision("8", "intent-2");
+    expect(backing.setBaseRevision).toHaveBeenCalledTimes(1);
+  });
+
   it("hands back the minted ids, the layout catalog, and reads empty once disposed", async () => {
     const adapter = createDesktopPptxAdapter({ identity, runtime: runtime(), readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability });
     expect(adapter.editor.slideLayouts()).toEqual([]);

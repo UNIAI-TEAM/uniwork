@@ -470,9 +470,12 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
     documents: options.documents,
-    serialize: async (snapshot) => {
+    serialize: async (snapshot, intentId) => {
       if (!modelRef) throw new Error("pptx_editor_not_open");
-      return options.runtime.serialize(modelRef, { snapshot });
+      return options.runtime.serialize(modelRef, { snapshot, intentId });
+    },
+    setBaseRevision: async (revision, intentId) => {
+      if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
     },
   });
   const session = createOfficeEditorSession({ ...options, editor, transport });

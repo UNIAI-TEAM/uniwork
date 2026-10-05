@@ -18,6 +18,7 @@ import {
   createPptxAdapter,
   isSlideHidden,
   pptxSessionDivergedError,
+  rebasePptxJournal,
   resolvePptxReplayRefs,
   type PptxAdapter,
   type PptxEdit,
@@ -102,10 +103,16 @@ export interface PptxSessionRuntime {
   /** Journal-backed redo: replay the entry the last undo removed. Returns false
    *  when the journal is already at its tip. */
   redo(documentModelRef: string): Promise<boolean>;
+  /** `intentId` names the Save these bytes are for, so setBaseRevision can
+   *  rebase onto exactly them once that Save commits. */
   serialize(
     documentModelRef: string,
-    input: { snapshot: StableSnapshot<PptxDeckSnapshot>; signal?: AbortSignal },
+    input: { snapshot: StableSnapshot<PptxDeckSnapshot>; intentId?: string; signal?: AbortSignal },
   ): Promise<PptxRuntimeSerializedOutput>;
+  /** A Save committed the bytes serialize produced for `intentId`: they become
+   *  the base and the journal keeps only the entries after them (W14). The
+   *  xlsx runtime's commit hook, called by the save transport's commit. */
+  setBaseRevision?(documentModelRef: string, revision: string, intentId: string): Promise<void>;
   /** The opened engine deck the shared canvas renders (EMU size included). */
   deck(documentModelRef: string): PptxDeckModel;
   /** Speaker-notes text of one slide of the LIVE engine session ('' when the
@@ -215,8 +222,19 @@ interface RuntimeSession {
    * cursor is always 0 or one of these. Session-only: the snapshot stays a flat
    * entry journal, so draft recovery and validSnapshot are unchanged. */
   steps: number[];
-  /** The opened base package; undo/redo replay the journal onto it. */
+  /** The base package (the opened bytes, then the last committed Save's);
+   *  undo/redo replay the journal onto it. */
   baseBytes: Uint8Array;
+  /** The engine model's revision at the base: a rebase without a reopen keeps
+   *  the engine counting, so runtime revision = engine revision - engineBase. */
+  engineBase: number;
+  /** The bytes the in-flight Save serialized and the journal prefix they hold.
+   *  Undo stops at that prefix until the Save settles: a retry of the intent
+   *  needs it applied, and a commit rebases onto it. One at a time, since an
+   *  overlapping Save is refused upstream. */
+  pending?: { intentId: string; bytes: Uint8Array; edits: PptxJournalEntry[] };
+  /** The last commit applied, so a repeated setBaseRevision is a no-op. */
+  committed?: { intentId: string; revision: string };
   /** Set when a replay failed after the engine session was swapped: the
    * model no longer matches the journal, so every later edit, history move,
    * restore and save refuses with this (pptx_session_diverged) instead of
@@ -288,7 +306,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
   function applyEntry(ref: string, entry: PptxEdit): { revision: number; createdId?: string } {
     const edit = resolvePptxReplayRefs(liveDeck(ref), entry);
     const { revision, createdId } = engineAdapter().edit(currentEngineRef(ref), edit);
-    return { revision, ...(createdId ? { createdId } : {}) };
+    return { revision: revision - requireSession(ref).engineBase, ...(createdId ? { createdId } : {}) };
   }
 
   /** Reopen the base package into a fresh engine session and replay
@@ -301,6 +319,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     const previous = currentEngineRef(ref);
     engineRefs.set(ref, reopened.document_model_ref);
     engineAdapter().release(previous);
+    session.engineBase = 0;
     let revision = 0;
     try {
       for (let i = 0; i < count; i += 1) revision = applyEntry(ref, session.journal[i] as PptxEdit).revision;
@@ -367,6 +386,11 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return engineAdapter().sessionOf(currentEngineRef(ref)) as unknown as LivePptxSession;
   }
 
+  /** The serialized-entry equality both prefix guards and the rebase use. */
+  function sameEntry(live: PptxEdit, entry: unknown): boolean {
+    return stableJson(encodePptxEdit(live)) === stableJson(entry);
+  }
+
   function snapshotOf(session: RuntimeSession): PptxDeckSnapshot {
     return { revision: session.revision, edits: session.journal.slice(0, session.cursor).map(encodePptxEdit) };
   }
@@ -384,7 +408,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
    * entries, canonically (base64 byte fields included). */
   function prefixEqual(session: RuntimeSession, edits: readonly PptxJournalEntry[], count: number): boolean {
     for (let i = 0; i < count; i += 1) {
-      if (stableJson(encodePptxEdit(session.journal[i] as PptxEdit)) !== stableJson(edits[i])) return false;
+      if (!sameEntry(session.journal[i] as PptxEdit, edits[i])) return false;
     }
     return true;
   }
@@ -418,7 +442,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
             ...(outcome.engine_error ? { engine_error: outcome.engine_error } : {}),
           };
         }
-        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0, cursor: 0, steps: [], baseBytes: bytes };
+        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0, cursor: 0, steps: [], baseBytes: bytes, engineBase: 0 };
         sessions.set(session.ref, session);
         engineRefs.set(session.ref, session.ref);
         return {
@@ -470,7 +494,10 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     async undo(documentModelRef) {
       return serializeOperation(async () => {
         const session = requireLive(documentModelRef);
-        if (session.cursor === 0) return false;
+        // Never below the in-flight Save's prefix (see `pending`), nor below
+        // the base: after a commit the base IS the saved deck, so undo cannot
+        // cross a save point - the docx/xlsx rule (their models rebase too).
+        if (session.cursor <= (session.pending?.edits.length ?? 0)) return false;
         // The previous step boundary: one undo reverts one edit() call.
         const nextCursor = session.steps.filter((step) => step < session.cursor).at(-1) ?? 0;
         // Reopen the base package and replay the journal up to (not including)
@@ -501,7 +528,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       });
     },
 
-    async serialize(documentModelRef, { snapshot, signal }) {
+    async serialize(documentModelRef, { snapshot, intentId, signal }) {
       return serializeOperation(async () => {
         // The save never starts (and never reports success) once the caller
         // has aborted: a queued save that was cancelled must not mint bytes.
@@ -512,7 +539,30 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         // undo swaps it, so the save must serialize the current one.
         const out = await engineAdapter().serialize({ document_model_ref: currentEngineRef(documentModelRef), format: "pptx" });
         signal?.throwIfAborted();
+        // The bytes hold the live model, journal[0..cursor-1] - possibly more
+        // than the snapshot (typing queued ahead of this save on the lane).
+        // That cursor, captured here and not at commit time, is what a commit
+        // rebases away; later typing stays as the journal tail.
+        if (intentId) session.pending = { intentId, bytes: out.bytes.slice(), edits: session.journal.slice(0, session.cursor).map(encodePptxEdit) };
         return { bytes: out.bytes, checksum: out.checksum, warnings: out.warnings };
+      });
+    },
+
+    async setBaseRevision(documentModelRef, revision, intentId) {
+      return serializeOperation(() => {
+        const session = requireLive(documentModelRef);
+        if (session.committed?.intentId === intentId && session.committed.revision === revision) return;
+        const pending = session.pending;
+        if (pending?.intentId !== intentId) throw new Error("pptx_commit_candidate_missing");
+        // Undo stops at the pending prefix, so the live history still holds it;
+        // a miss means the history and the saved bytes share no base.
+        if (!rebasePptxJournal(session, pending.edits, sameEntry)) throw new Error("pptx_save_rebase_diverged");
+        // The live engine model stays: it holds base + journal, which is the
+        // saved deck + tail. Only its revision counter keeps running.
+        session.engineBase += pending.edits.length;
+        session.baseBytes = pending.bytes;
+        session.pending = undefined;
+        session.committed = { intentId, revision };
       });
     },
 

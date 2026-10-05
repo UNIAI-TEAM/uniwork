@@ -38,8 +38,10 @@ export interface DesktopPptxEditorHandle extends EditorHandle<PptxDeckSnapshot> 
   slideLayouts(): { name: string; path: string }[];
   /** Replay a recovered draft journal onto the freshly opened base. */
   restore(snapshot: PptxDeckSnapshot): Promise<void>;
-  /** Serialize the current model to pptx bytes (the renderer save path). */
-  serialize(snapshot: StableSnapshot<PptxDeckSnapshot>): Promise<{ bytes: Uint8Array; checksum: string }>;
+  /** Serialize the current model to pptx bytes (the renderer save path) for the Save `intentId`. */
+  serialize(snapshot: StableSnapshot<PptxDeckSnapshot>, intentId?: string): Promise<{ bytes: Uint8Array; checksum: string }>;
+  /** That Save committed: the runtime rebases its journal onto the bytes (W14). */
+  setBaseRevision(revision: string, intentId: string): Promise<void>;
   /** Bumps whenever an edit or history replay lands, so the canvas rebuilds. */
   revision(): number;
   undo(): void;
@@ -156,10 +158,13 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
       viewRevision += 1;
       options.onDirty?.(generation);
     },
-    async serialize(snapshot) {
+    async serialize(snapshot, intentId) {
       if (disposed) throw new Error("pptx_editor_disposed");
       if (!modelRef) throw new Error("pptx_editor_not_open");
-      return options.runtime.serialize(modelRef, { snapshot });
+      return options.runtime.serialize(modelRef, { snapshot, ...(intentId ? { intentId } : {}) });
+    },
+    async setBaseRevision(revision, intentId) {
+      if (modelRef && !disposed) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),

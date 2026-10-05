@@ -18,14 +18,15 @@ function setup() {
     commit: vi.fn(async () => ({ document: { id: "doc", revision: "9007199254740994" }, version: { id: "v2", checksum_sha256: "sha256", size_bytes: 4 } })),
   };
   const serialize = vi.fn(async () => ({ bytes: output.data as Uint8Array, checksum: output.checksumSha256 }));
-  return { documents, serialize, transport: createPptxSaveTransport({ documentId: "doc", documents, serialize }) };
+  const setBaseRevision = vi.fn(async () => undefined);
+  return { documents, serialize, setBaseRevision, transport: createPptxSaveTransport({ documentId: "doc", documents, serialize, setBaseRevision }) };
 }
 
 describe("PPTX web save transport", () => {
   it("serializes the captured snapshot and sends a PPTX blob with the same idempotency key and exact base revision", async () => {
-    const { transport, documents, serialize } = setup();
+    const { transport, documents, serialize, setBaseRevision } = setup();
     expect(await transport.serialize({ intent, snapshot })).toEqual(output);
-    expect(serialize).toHaveBeenCalledWith(snapshot);
+    expect(serialize).toHaveBeenCalledWith(snapshot, intent.intentId);
     expect(await transport.upload({ intent, output })).toEqual(upload);
     const file = vi.mocked(documents.upload).mock.calls[0]![0];
     expect(file.type).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
@@ -33,6 +34,8 @@ describe("PPTX web save transport", () => {
     expect(vi.mocked(documents.upload).mock.calls[0]![1]).toBe(intent.idempotencyKey);
     expect(await transport.commit({ intent, upload })).toMatchObject({ documentId: "doc", revision: "9007199254740994", checksumSha256: "sha256", sizeBytes: 4 });
     expect(documents.commit).toHaveBeenCalledWith("upload-1", "9007199254740993", "save-key");
+    // W14: the committed revision rebases the runtime onto this intent's bytes.
+    expect(setBaseRevision).toHaveBeenCalledExactlyOnceWith("9007199254740994", intent.intentId);
   });
 
   it.each([{ bytes: new Uint8Array(), checksum: "sha256" }, { bytes: new Uint8Array([1]), checksum: "" }])("refuses empty or checksum-less serialized output: %j", async (result) => {
@@ -55,9 +58,10 @@ describe("PPTX web save transport", () => {
   });
 
   it("rejects a commit receipt that does not advance the base", async () => {
-    const { transport, documents } = setup();
+    const { transport, documents, setBaseRevision } = setup();
     vi.mocked(documents.commit).mockResolvedValue({ document: { id: "doc", revision: "9007199254740993" }, version: { id: "v2", checksum_sha256: "sha256", size_bytes: 4 } });
     await expect(transport.commit({ intent, upload })).rejects.toThrow("pptx_commit_receipt_mismatch");
+    expect(setBaseRevision).not.toHaveBeenCalled();
   });
 
   it.each([{ document: { id: "other-doc", revision: "2" } }, { version: { id: "v2", checksum_sha256: "wrong", size_bytes: 4 } }, { version: { id: "", checksum_sha256: "sha256", size_bytes: 4 } }])("rejects a mismatched commit receipt: %j", async (patch) => {

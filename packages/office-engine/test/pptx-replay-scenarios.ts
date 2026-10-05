@@ -32,7 +32,8 @@ interface RuntimeLike {
   redo(ref: string): Promise<boolean>;
   restore?(ref: string, snapshot: { revision: number; edits: Array<{ op: string; [key: string]: unknown }> }): Promise<void>;
   snapshot(ref: string): { revision: number; edits: Array<{ op: string; [key: string]: unknown }> };
-  serialize(ref: string, input: { snapshot: { generation: number; fingerprint: string; value: ReturnType<RuntimeLike["snapshot"]> } }): Promise<{ bytes: Uint8Array }>;
+  serialize(ref: string, input: { snapshot: { generation: number; fingerprint: string; value: ReturnType<RuntimeLike["snapshot"]> }; intentId?: string }): Promise<{ bytes: Uint8Array }>;
+  setBaseRevision?(ref: string, revision: string, intentId: string): Promise<void>;
   slides(ref: string): Array<{ elements: Array<{ id: string; type: string }> }>;
   deck(ref: string): unknown;
 }
@@ -184,5 +185,132 @@ export function registerReplayIdScenarios(
     await expect(runtime.edit(ref, [hidden(0, true), anchor(parsed.id, "top")])).rejects.toMatchObject({ code: "pptx_session_diverged" });
     seam.breakOp = null;
     await expect(runtime.edit(ref, [hidden(1, true)])).rejects.toMatchObject({ code: "pptx_session_diverged" });
+  });
+}
+
+/** The deck a session would save, canonical: keys sorted, element ids
+ * stripped (ids are session-scoped; a reopen re-mints them). */
+async function savedShape(runtime: RuntimeLike, ref: string): Promise<string> {
+  const deck = await save(runtime, ref);
+  return JSON.stringify(deck.slides, (key, value: unknown) => {
+    if (key === "id") return undefined;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)));
+  });
+}
+
+/** UNI-927 W14: the save-point rebase, registered against one runtime's seam.
+ * `openOn(bytes)` opens a fresh runtime on those bytes (the fixture when omitted). */
+export function registerSaveRebaseScenarios(
+  seam: ReplaySeam,
+  openOn: (bytes?: Uint8Array) => Promise<{ runtime: RuntimeLike; ref: string }>,
+): void {
+  const realOpen = async (bytes?: Uint8Array) => {
+    seam.realIds = true;
+    seam.breakOp = null;
+    return openOn(bytes);
+  };
+  const commitSave = async (runtime: RuntimeLike, ref: string, intentId: string) => {
+    const value = runtime.snapshot(ref);
+    const out = await runtime.serialize(ref, { snapshot: { generation: value.revision, fingerprint: "fp", value }, intentId });
+    await runtime.setBaseRevision!(ref, "2", intentId);
+    return out.bytes;
+  };
+
+  it("rebases at a committed save so a post-save draft restored on the saved bytes never double-applies", async () => {
+    const { runtime, ref } = await realOpen();
+    const baseCount = liveElements(runtime, ref).length;
+    const created = (await runtime.edit(ref, [box(5)])).createdIds![0]!;
+    await runtime.edit(ref, [anchor(created)]);
+    const saved = await commitSave(runtime, ref, "intent-1");
+    // The saved prefix is gone from the journal: the snapshot is relative to the saved bytes.
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+
+    // More edits after the save: a format of the element the prefix created
+    // (its position was recorded on the deck that already held it) and an insert.
+    await runtime.edit(ref, [anchor(liveElements(runtime, ref).at(-1)!.id, "top")]);
+    await runtime.edit(ref, [box(7)]);
+    const draft = runtime.snapshot(ref);
+    expect(draft.revision).toBe(2);
+    expect(draft.edits.map((edit) => edit.op)).toEqual(["set_text_anchor", "add_element"]);
+
+    // Crash -> reopen the SAVED bytes (fresh ids) -> recover the draft.
+    const fresh = await realOpen(saved);
+    await fresh.runtime.restore!(fresh.ref, JSON.parse(JSON.stringify(draft)) as typeof draft);
+    const restored = liveElements(fresh.runtime, fresh.ref);
+    expect(restored).toHaveLength(baseCount + 2);
+    expect(restored.at(-2)?.anchor).toBe("top");
+    expect(restored.filter((element) => element.anchor !== undefined)).toHaveLength(1);
+    expect(await savedShape(fresh.runtime, fresh.ref)).toBe(await savedShape(runtime, ref));
+
+    // Undo cannot cross the save point: two tail steps, then the saved deck.
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(await runtime.undo(ref)).toBe(false);
+    const atSave = liveElements(runtime, ref);
+    expect(atSave).toHaveLength(baseCount + 1);
+    expect(atSave.at(-1)?.anchor).toBe("middle");
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(liveElements(runtime, ref).at(-1)?.anchor).toBe("top");
+  });
+
+  it("rebases onto exactly what the save serialized while typing lands around it", async () => {
+    const { runtime, ref } = await realOpen();
+    const baseCount = liveElements(runtime, ref).length;
+    await runtime.edit(ref, [box(5)]);
+    // Save N captured with one entry; typing N+1 queues BEHIND the serialize.
+    const value = runtime.snapshot(ref);
+    const saving = runtime.serialize(ref, { snapshot: { generation: 1, fingerprint: "fp", value }, intentId: "intent-a" });
+    const typing = runtime.edit(ref, [hidden(1, true)]);
+    const [out] = await Promise.all([saving, typing]);
+    await runtime.setBaseRevision!(ref, "2", "intent-a");
+    expect(runtime.snapshot(ref).edits.map((edit) => edit.op)).toEqual(["set_slide_hidden"]);
+    const fresh = await realOpen(out.bytes);
+    await fresh.runtime.restore!(fresh.ref, runtime.snapshot(ref));
+    expect(liveElements(fresh.runtime, fresh.ref)).toHaveLength(baseCount + 1);
+    expect(await savedShape(fresh.runtime, fresh.ref)).toBe(await savedShape(runtime, ref));
+
+    // Typing queued AHEAD of the serialize is inside the bytes, so the rebase
+    // drops it too although the Save snapshot did not carry it.
+    const before = runtime.snapshot(ref);
+    const ahead = runtime.edit(ref, [box(9)]);
+    const second = runtime.serialize(ref, { snapshot: { generation: 3, fingerprint: "fp", value: before }, intentId: "intent-b" });
+    const [, secondOut] = await Promise.all([ahead, second]);
+    await runtime.setBaseRevision!(ref, "3", "intent-b");
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    const again = await realOpen(secondOut.bytes);
+    expect(liveElements(again.runtime, again.ref)).toHaveLength(baseCount + 2);
+    expect(await savedShape(again.runtime, again.ref)).toBe(await savedShape(runtime, ref));
+  });
+
+  it("holds undo at an in-flight save point, keeps a pre-save draft valid on the old base, and refuses an unknown commit", async () => {
+    const { runtime, ref } = await realOpen();
+    const baseCount = liveElements(runtime, ref).length;
+    await expect(runtime.setBaseRevision!(ref, "2", "never-serialized")).rejects.toThrow("pptx_commit_candidate_missing");
+    await runtime.edit(ref, [box(5)]);
+    await runtime.edit(ref, [hidden(1, true)]);
+    const preSave = runtime.snapshot(ref);
+    await runtime.serialize(ref, { snapshot: { generation: 2, fingerprint: "fp", value: preSave }, intentId: "intent-1" });
+    // Serialized but not committed: undo stops at the bytes the Save carries.
+    expect(await runtime.undo(ref)).toBe(false);
+    await runtime.edit(ref, [box(8)]);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(await runtime.undo(ref)).toBe(false);
+    expect(runtime.snapshot(ref)).toEqual(preSave);
+    await expect(runtime.setBaseRevision!(ref, "2", "other-intent")).rejects.toThrow("pptx_commit_candidate_missing");
+
+    await runtime.setBaseRevision!(ref, "2", "intent-1");
+    // A repeated commit report for the same intent is a no-op.
+    await runtime.setBaseRevision!(ref, "2", "intent-1");
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(runtime.snapshot(ref).edits.map((edit) => edit.op)).toEqual(["add_element"]);
+
+    // A draft taken BEFORE the save still restores onto the old base bytes.
+    const old = await realOpen();
+    await old.runtime.restore!(old.ref, JSON.parse(JSON.stringify(preSave)) as typeof preSave);
+    expect(liveElements(old.runtime, old.ref)).toHaveLength(baseCount + 1);
+    expect(isSlideHidden((await save(old.runtime, old.ref)).slides[1] ?? {})).toBe(true);
   });
 }

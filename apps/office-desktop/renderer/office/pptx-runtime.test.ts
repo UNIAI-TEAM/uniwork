@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
-import { registerReplayIdScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
+import { registerReplayIdScenarios, registerSaveRebaseScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
 import { createWebPptxSessionRuntime, type PptxSessionRuntime } from "./pptx-runtime";
 
 // W12 real-id mode (packages/office-engine/test/pptx-replay-scenarios.ts).
@@ -137,4 +137,15 @@ describe("desktop PPTX session runtime", () => {
 
 describe("desktop PPTX session runtime - replay-stable ids (W12)", () => {
   registerReplayIdScenarios(seam, opened);
+});
+
+async function openedOn(onBytes: Uint8Array = makeFakePptxBytes()): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
+  const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+  const result = await runtime.open({ bytes: onBytes, documentId: "doc" });
+  if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("open failed");
+  return { runtime, ref: result.document_model_ref };
+}
+
+describe("desktop PPTX session runtime - save-point rebase (W14)", () => {
+  registerSaveRebaseScenarios(seam, openedOn);
 });

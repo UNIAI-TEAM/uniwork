@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isSlideHidden, PptxEngineError } from "@uniwork/office-engine/pptx";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
-import { registerReplayIdScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
+import { registerReplayIdScenarios, registerSaveRebaseScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
 import {
   createWebPptxSessionRuntime,
   decodePptxEdit,
@@ -449,4 +449,15 @@ describe("web PPTX session runtime", () => {
 
 describe("web PPTX session runtime - replay-stable ids (W12)", () => {
   registerReplayIdScenarios(seam, opened);
+});
+
+async function openedOn(onBytes: Uint8Array = bytes()): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
+  const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+  const result = await runtime.open({ bytes: onBytes, documentId: "doc" });
+  if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("open failed");
+  return { runtime, ref: result.document_model_ref };
+}
+
+describe("web PPTX session runtime - save-point rebase (W14)", () => {
+  registerSaveRebaseScenarios(seam, openedOn);
 });

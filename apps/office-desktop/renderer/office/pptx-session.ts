@@ -147,7 +147,7 @@ export function createPptxDocumentSession(
 
   const transport: OfficeSaveTransport<PptxDeckSnapshot> = {
     serialize: async ({ intent, snapshot }) => {
-      const result = await surface.serialize(snapshot);
+      const result = await surface.serialize(snapshot, intent.intentId);
       const checksum = result.checksum.startsWith("sha256:") ? result.checksum : `sha256:${result.checksum}`;
       outputs.set(intent.intentId, { dataBase64: encode(result.bytes), sizeBytes: result.bytes.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
       return { data: result.bytes, sizeBytes: result.bytes.length, checksumSha256: checksum, format: "pptx" };
@@ -172,6 +172,10 @@ export function createPptxDocumentSession(
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
+      // The write is confirmed: those bytes are the base the next draft row is
+      // keyed by, so the journal drops what they hold (W14). Checkpoints wait on
+      // saveSettled, so none can land between this rebase and the new identity.
+      await surface.setBaseRevision(revision, intent.intentId);
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "pptx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },
     reconcile: async () => null,
