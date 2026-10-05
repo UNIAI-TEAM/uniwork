@@ -22,6 +22,10 @@ const EDITOR_LOADERS: Partial<Record<DesktopDocumentFormat, (config: DesktopEdit
     const editor = session.editor as DesktopDocxSurface;
     return <DocxEditor key={surfaceVersion} documentKey={documentKey} title={title} editor={editor} coordinator={session.coordinator} capability={capability as never} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor() as DesktopDocxSurface).openOutcome()! }} />;
   } }),
+  // The text lane pulls the Markdown/HTML views (TipTap, KaTeX, highlighting):
+  // load it only when a text document mounts, like the surface registry does.
+  md: (config) => async (format) => (await import("./text-editor-loader")).textEditorLoader("md", config)(format),
+  html: (config) => async (format) => (await import("./text-editor-loader")).textEditorLoader("html", config)(format),
   pdf: ({ documentKey, title, session, capability }) => (async (format) => await createPdfEditorLoader({
     documentKey,
     title,

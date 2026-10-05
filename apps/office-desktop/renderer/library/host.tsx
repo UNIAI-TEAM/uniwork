@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { desktopLibraryDownloadResponseSchema, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../../shared/ipc";
+import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./model";
 import { LibraryView } from "./view";
@@ -8,7 +9,7 @@ import { LibraryView } from "./view";
 const SESSION_GENERATION = "desktop-dev-session";
 type Scope = DesktopSessionMetadata & { accountId: string; deploymentId: string; organizationId?: string; workspaceId?: string };
 
-export function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void; onCreate: () => void; onOpenLocal: () => void }) {
+export function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void; onCreate: (format: DesktopDocumentFormat) => void; onOpenLocal: () => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [mode, setMode] = useState<LibraryMode>("list");
   const [searchQuery, setSearchQuery] = useState("");

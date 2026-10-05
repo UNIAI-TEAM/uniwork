@@ -8957,7 +8957,8 @@
       "documentCount_other": "{{count}} tài liệu",
       "limit": "Đã mở đủ 8 tab tài liệu. Đóng một tab để mở tài liệu khác.",
       "checkpointFailed": "Không thể bảo vệ thay đổi trên máy. Giữ tab này mở để tránh mất thay đổi.",
-      "sessionError": "Không thể đồng bộ các tab tài liệu. Thử lại trước khi tiếp tục."
+      "sessionError": "Không thể đồng bộ các tab tài liệu. Thử lại trước khi tiếp tục.",
+      "dismissAlert": "Đóng thông báo"
     },
     "login": {
       "title": "UniWork Office",
@@ -9003,7 +9004,7 @@
       "openLocal": "Mở tệp trên máy",
       "empty": "Chưa có tài liệu",
       "contextError": "Không tải được danh sách workspace.",
-      "emptyDescription": "Tạo tài liệu DOCX mới hoặc mở tệp có sẵn trên máy.",
+      "emptyDescription": "Tạo tài liệu mới hoặc mở tệp DOCX, PDF, Markdown hoặc HTML có sẵn trên máy.",
       "emptySearch": "Không tìm thấy kết quả",
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
@@ -9041,8 +9042,10 @@
       "open": "Mở tệp",
       "create": "Tài liệu mới",
       "untitled": "Tài liệu mới.docx",
+      "untitledMarkdown": "Tài liệu mới.md",
+      "untitledHtml": "Tài liệu mới.html",
       "empty": "Chưa có tệp trên máy",
-      "emptyDescription": "Mở một tệp DOCX trên máy hoặc tạo tài liệu mới. Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
+      "emptyDescription": "Mở một tệp DOCX, PDF, Markdown hoặc HTML trên máy hoặc tạo tài liệu mới. Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
       "error": "Không tải được danh sách tệp gần đây.",
       "retry": "Thử lại",
       "missing": "Không tìm thấy tệp",
@@ -9050,7 +9053,7 @@
       "removeNamed": "Xoá {{name}} khỏi danh sách",
       "openNamed": "Mở {{name}}",
       "updated": "Mở lần cuối {{time}}",
-      "unsupported": "Chỉ hỗ trợ tệp DOCX trên máy.",
+      "unsupported": "Chỉ hỗ trợ tệp DOCX, PDF, Markdown và HTML trên máy.",
       "saveAs": "Lưu thành…",
       "leaveSave": "Lưu trên máy",
       "home": "Về trang chủ trên máy"

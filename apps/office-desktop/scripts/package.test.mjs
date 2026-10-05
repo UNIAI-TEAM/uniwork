@@ -127,10 +127,18 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.deepEqual(config.linux.fileAssociations, [
     { ext: "docx", name: "Word document", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
     { ext: "pdf", name: "PDF document", role: "Editor", mimeType: "application/pdf" },
+    { ext: "md", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "markdown", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "html", name: "HTML document", role: "Editor", mimeType: "text/html" },
+    { ext: "htm", name: "HTML document", role: "Editor", mimeType: "text/html" },
   ]);
   assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/pdf",
+    "text/markdown",
+    "text/markdown",
+    "text/html",
+    "text/html",
   ]);
   assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);

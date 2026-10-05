@@ -5,6 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import type { DesktopTextFacets } from "./text-surface";
 import type { PdfCanvasPage, PdfEditOperation, PdfFormField, PdfNoteThread, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
 export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
@@ -48,6 +49,14 @@ type LaneEditorFacets = {
    * them the forms panel never leaves its loading state (R18-2). */
   readFormFields?(): Promise<readonly PdfFormField[]>;
   readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
+  /** Markdown / HTML text facets: the shared text views read and write the
+   * one source port; the session only forwards the live lane's facets. */
+  source?: DesktopTextFacets["source"];
+  getText?(): string;
+  setText?(text: string): void;
+  getAssetManifest?(): { entries: [] };
+  clipboard?: DesktopTextFacets["clipboard"];
+  cancel?(): Promise<void>;
 };
 
 export type LocalFileRebind = Readonly<{
@@ -173,6 +182,12 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get searchText() { const lane = surface; return lane?.searchText?.bind(lane); },
     get readFormFields() { const lane = surface; return lane?.readFormFields?.bind(lane); },
     get readSavedNotes() { const lane = surface; return lane?.readSavedNotes?.bind(lane); },
+    get source() { return surface?.source; },
+    get getText() { const lane = surface; return lane?.getText?.bind(lane); },
+    get setText() { const lane = surface; return lane?.setText?.bind(lane); },
+    get getAssetManifest() { const lane = surface; return lane?.getAssetManifest?.bind(lane); },
+    get clipboard() { return surface?.clipboard; },
+    get cancel() { const lane = surface; return lane?.cancel?.bind(lane); },
     get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,
