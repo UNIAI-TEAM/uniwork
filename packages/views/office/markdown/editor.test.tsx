@@ -319,6 +319,22 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     expect((screen.getByTestId("md-frontmatter-text") as HTMLTextAreaElement).value).toContain("title: Keep");
   });
 
+  it("prints the SANITIZED copy through the host print path, never the raw source", async () => {
+    renderEditor({ text: "# Bao cao\n\n<script>parent.postMessage(\"x\", \"*\")</script>\n\n[click](javascript:alert(2))\n" });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("md-more"));
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    // The port writes the copy into an off-screen frame and prints only that
+    // frame, so the app chrome is never part of the job.
+    const frame = document.querySelector("iframe")!;
+    expect(frame).not.toBeNull();
+    const html = frame.contentDocument?.documentElement.outerHTML ?? "";
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).toContain("Bao cao");
+  });
+
   it("offers the print/export entries in the host menu, with the exports disabled", async () => {
     renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
