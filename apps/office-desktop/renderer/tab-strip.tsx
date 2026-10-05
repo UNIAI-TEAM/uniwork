@@ -6,6 +6,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
+import type { DesktopDocumentFormat } from "../shared/document-formats";
+import { CreateDocumentItems } from "./create-document-menu";
 
 export type DesktopTabSummary = { id: string; title: string; format: string; dirty: boolean; saving?: boolean };
 
@@ -14,7 +16,7 @@ interface DesktopTabStripProps {
   activeTabId: string | null;
   onSelect: (id: string | null) => void;
   onClose: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (format: DesktopDocumentFormat) => void;
   onOpenLocal: () => void;
   createDisabled?: boolean;
   busy?: boolean;
@@ -119,7 +121,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
         <DropdownMenu open={createOpen} onOpenChange={setCreateOpen}>
           <DropdownMenuTrigger ref={createRef} className="desktop-chrome-button" aria-label={t("newTab")} title={t("newTab")}><ChromeIcon kind="plus" /></DropdownMenuTrigger>
           <DropdownMenuContent className="desktop-chrome-popup">
-            <DropdownMenuItem disabled={busy || createDisabled} onClick={onCreate}><DocumentTypeIcon format="docx" className="size-4" />{t("createDocx")}</DropdownMenuItem>
+            <CreateDocumentItems disabled={busy || createDisabled} onCreate={onCreate} />
             <DropdownMenuItem disabled={busy} onClick={onOpenLocal}>{t("openLocal")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

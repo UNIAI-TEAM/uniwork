@@ -7763,6 +7763,36 @@
     }
   },
   "office": {
+    "common": {
+      "chrome": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "tabs": "Editor tabs",
+        "find": "Find",
+        "view": "View",
+        "commands": "Commands",
+        "more": "More commands",
+        "status": "Status"
+      },
+      "find": {
+        "title": "Find and replace",
+        "findPlaceholder": "Find in document",
+        "replacePlaceholder": "Replace with",
+        "caseSensitive": "Match case",
+        "wholeWord": "Whole word",
+        "regex": "Regular expression",
+        "invalidPattern": "Invalid pattern",
+        "replace": "Replace",
+        "replaceAll": "Replace all",
+        "next": "Next match",
+        "previous": "Previous match",
+        "matchCount_one": "{{count}} match",
+        "matchCount_other": "{{count}} matches",
+        "position": "{{current}}/{{total}}",
+        "noMatches": "No matches",
+        "close": "Close find"
+      }
+    },
     "status": {
       "label": "Status bar",
       "zoomIn": "Zoom in",
@@ -9045,7 +9075,157 @@
     "xlsx": {
       "title": "XLSX workbook",
       "toolbar": {
-        "label": "XLSX editing commands"
+        "label": "XLSX editing commands",
+        "tabs": {
+          "label": "XLSX command tabs",
+          "home": "Home",
+          "insert": "Insert",
+          "formulas": "Formulas",
+          "data": "Data",
+          "review": "Review",
+          "view": "View",
+          "tableDesign": "Table Design",
+          "tableLayout": "Table Layout"
+        },
+        "groups": {
+          "history": "History",
+          "sheets": "Sheets",
+          "clipboard": "Clipboard",
+          "number": "Number",
+          "numberFormat": {
+            "gallery": "Number format gallery",
+            "increaseDecimals": "Increase decimal places",
+            "decreaseDecimals": "Decrease decimal places",
+            "custom": "Custom",
+            "customInput": "Format code",
+            "customPlaceholder": "e.g. #,##0.00",
+            "customApply": "Apply",
+            "customError": {
+              "empty": "Enter a format code.",
+              "tooLong": "Format codes are 255 characters or fewer.",
+              "controlChar": "Format codes cannot contain line breaks or control characters."
+            },
+            "categories": {
+              "general": "General",
+              "number": "Number",
+              "currency": "Currency",
+              "accounting": "Accounting",
+              "date": "Date",
+              "time": "Time",
+              "percent": "Percent",
+              "text": "Text"
+            },
+            "presets": {
+              "general": "General",
+              "number-integer": "1234",
+              "number-decimal1": "1234.6",
+              "number-decimal2": "1234.56",
+              "number-thousands": "1,234",
+              "number-thousands-decimal2": "1,234.56",
+              "currency-vnd": "₫1,235",
+              "currency-usd": "$1,234.56",
+              "currency-eur": "€1,234.56",
+              "accounting-integer": "(1,234)",
+              "accounting-decimal2": "(1,234.56)",
+              "date-iso": "2026-10-03",
+              "date-dmy": "03/10/2026",
+              "date-mdy": "10/03/2026",
+              "time-hm": "13:30",
+              "time-hms": "13:30:45",
+              "time-hm-ampm": "1:30 PM",
+              "percent-integer": "12%",
+              "percent-decimal2": "12.34%",
+              "text": "Text"
+            },
+            "comma": "Comma style"
+          },
+          "font": {
+            "label": "Font",
+            "family": "Font family",
+            "size": "Font size",
+            "sizeDecrease": "Decrease font size",
+            "sizeIncrease": "Increase font size",
+            "bold": "Bold",
+            "italic": "Italic",
+            "underline": "Underline",
+            "strike": "Strikethrough",
+            "textColor": "Text colour",
+            "textColorAutomatic": "Automatic",
+            "fillColor": "Fill colour",
+            "fillColorNone": "No fill",
+            "colorValue": "Colour {{color}}"
+          },
+          "alignment": {
+            "label": "Alignment",
+            "left": "Align left",
+            "center": "Align center",
+            "right": "Align right",
+            "top": "Align top",
+            "middle": "Align middle",
+            "bottom": "Align bottom",
+            "wrap": "Wrap text",
+            "rotation": "Text rotation",
+            "rotationAngle": "{{angle}}°"
+          },
+          "borders": {
+            "label": "Borders",
+            "presets": "Border presets",
+            "edges": "Border edges",
+            "all": "All borders",
+            "outside": "Outside borders",
+            "none": "No borders",
+            "edgeTop": "Top",
+            "edgeRight": "Right",
+            "edgeBottom": "Bottom",
+            "edgeLeft": "Left"
+          },
+          "charts": "Charts",
+          "calculation": "Calculation",
+          "clear": {
+            "label": "Clear",
+            "content": "Clear content",
+            "format": "Clear format",
+            "all": "Clear all"
+          },
+          "painter": {
+            "label": "Format painter",
+            "hint": "Copy the current selection's format, then select where to apply it. Press again or Esc to cancel."
+          },
+          "find": {
+            "label": "Find & replace"
+          },
+          "formula": {
+            "label": "Function library"
+          },
+          "view": {
+            "zoom": {
+              "label": "Zoom"
+            },
+            "display": {
+              "label": "Display"
+            },
+            "goto": {
+              "label": "Go to"
+            },
+            "shortcuts": {
+              "label": "Shortcuts"
+            }
+          },
+          "cells": "Cells",
+          "editing": "Editing",
+          "clipboardItems": {
+            "paste": "Paste",
+            "cut": "Cut",
+            "copy": "Copy"
+          },
+          "cellsItems": {
+            "insert": "Insert",
+            "delete": "Delete",
+            "format": "Format"
+          }
+        },
+        "overflow": "More commands",
+        "emptyTab": "No commands on this tab yet."
       },
       "actions": {
         "undo": "Undo",
@@ -9077,6 +9257,7 @@
         "dirty": "Unsaved changes",
         "saving": "Saving…",
         "saved": "Saved to UniWork",
+        "savedLocal": "Saved on this device",
         "error": "Save needs attention",
         "conflict": "Version conflict",
         "blocked": "Save blocked",
@@ -9088,11 +9269,378 @@
         "table": "{{sheet}} worksheet",
         "grid": "Workbook grid"
       },
+      "view": {
+        "zoom": {
+          "out": "Zoom out",
+          "in": "Zoom in",
+          "value": "{{percent}}%",
+          "preset": "Zoom {{percent}}%",
+          "presetShort": "{{percent}}%",
+          "reset": "Reset to 100%"
+        },
+        "gridlines": "Gridlines",
+        "headers": "Row and column headers",
+        "goto": {
+          "label": "Go to cell",
+          "placeholder": "e.g. B5 or A1:C10",
+          "go": "Go",
+          "invalid": "Enter a cell or range, for example B5 or A1:C10."
+        }
+      },
+      "structure": {
+        "groups": {
+          "insert": "Insert rows and columns",
+          "size": "Row and column size",
+          "outline": "Outline",
+          "merge": "Merge cells"
+        },
+        "rowCount": "Row count",
+        "colCount": "Column count",
+        "insertRowsAbove": "Insert row above",
+        "insertRowsAbove_one": "Insert {{count}} row above",
+        "insertRowsAbove_other": "Insert {{count}} rows above",
+        "insertRowsBelow": "Insert rows below",
+        "deleteRows": "Delete rows",
+        "insertColsLeft": "Insert column to the left",
+        "insertColsLeft_one": "Insert {{count}} column to the left",
+        "insertColsLeft_other": "Insert {{count}} columns to the left",
+        "insertColsRight": "Insert columns to the right",
+        "deleteCols": "Delete columns",
+        "rowHeight": "Row height (points)",
+        "resetRowHeight": "Use automatic row height",
+        "hideRows": "Hide rows",
+        "showRows": "Show rows",
+        "colWidth": "Column width (characters)",
+        "resetColWidth": "Use default column width",
+        "hideCols": "Hide columns",
+        "showCols": "Show columns",
+        "groupRows": "Group rows",
+        "ungroupRows": "Ungroup rows",
+        "groupCols": "Group columns",
+        "ungroupCols": "Ungroup columns",
+        "clearOutline": "Clear outline",
+        "mergeCells": "Merge cells",
+        "mergeAcross": "Merge across",
+        "unmergeCells": "Unmerge cells",
+        "mergeCenter": "Merge & Center"
+      },
+      "filter": {
+        "groups": {
+          "data": "Filter"
+        },
+        "toggle": "Toggle filter",
+        "clear": "Clear filter",
+        "advanced": "Advanced filter…",
+        "dialog": {
+          "title": "Advanced filter",
+          "close": "Close advanced filter",
+          "column": "Column",
+          "operator": "Condition",
+          "value": "Value",
+          "join": "Match",
+          "and": "All conditions (AND)",
+          "or": "Any condition (OR)",
+          "addCondition": "Add condition",
+          "removeCondition": "Remove condition",
+          "reading": "Reading the selection…",
+          "noSelection": "Select the list, including its header row, to build filter criteria.",
+          "valueRequired": "Enter a value for each condition.",
+          "tooManyConditions": "A column takes at most two conditions.",
+          "applyFailed": "The filter could not be applied here. Select the filtered range and try again.",
+          "note": "Applying builds the filter over the selection when the sheet has none.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "operators": {
+          "equal": "Equals",
+          "notEqual": "Does not equal",
+          "greaterThan": "Greater than",
+          "greaterThanOrEqual": "Greater than or equal",
+          "lessThan": "Less than",
+          "lessThanOrEqual": "Less than or equal"
+        }
+      },
+      "sort": {
+        "groups": {
+          "data": "Sort"
+        },
+        "ascending": "Sort ascending",
+        "descending": "Sort descending",
+        "custom": "Custom sort…",
+        "limitExceeded": "This range is too large to sort. Each save sorts at most {{limit}} cells; select a smaller range.",
+        "applyFailed": "The sort could not be applied here. Select the range and try again.",
+        "dialog": {
+          "title": "Custom sort",
+          "close": "Close custom sort",
+          "keyColumn": "Sort by",
+          "direction": "Order",
+          "hasHeaderRow": "My data has a header row",
+          "reading": "Reading the selection…",
+          "noSelection": "Select a list of at least two rows to sort.",
+          "note": "Single-level sort. Multi-level sort is not available yet.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        }
+      },
+      "table": {
+        "groups": {
+          "insert": "Tables"
+        },
+        "create": "Create table",
+        "remove": "Remove table",
+        "namePlaceholder": "Table name to remove",
+      "contextual": {
+        "style": "Table style",
+        "styleMedium": "Medium style",
+        "rows": "Rows",
+        "columns": "Columns",
+        "cells": "Cells",
+        "properties": "Properties",
+        "tools": "Tools",
+        "convertToRange": "Convert to range"
+      },
+      "nameLabel": "Table name",
+      "nameInvalid": "Enter a unique name that starts with a letter or underscore"
+      },
+      "links": {
+        "groups": {
+          "insert": "Links and notes"
+        },
+        "insert": "Insert link",
+        "note": "Insert note",
+        "dialog": {
+          "linkTitle": "Insert link",
+          "noteTitle": "Insert note",
+          "target": "Link target",
+          "targetPlaceholder": "e.g. https://example.com or Sheet1!A1",
+          "hint": "Leave blank to remove the link.",
+          "noteText": "Note text",
+          "notePlaceholder": "e.g. Check this figure",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        }
+      },
+      "protect": {
+        "open": "Protect sheet and names",
+        "groups": {
+          "review": "Protection and names"
+        },
+        "dialog": {
+          "title": "Protect sheet and names",
+          "close": "Close protection and names",
+          "protectSheet": "Sheet protection",
+          "on": "Protect sheet",
+          "off": "Unprotect sheet",
+          "protectNote": "Protection is saved without a password. A password-protected sheet cannot be unprotected here.",
+          "names": "Defined names",
+          "name": "Name",
+          "namePlaceholder": "e.g. Sales",
+          "formula": "Refers to",
+          "formulaPlaceholder": "e.g. Sheet1!$A$1:$B$2",
+          "sheetIndex": "Sheet scope",
+          "workbookScope": "Workbook (all sheets)",
+          "remove": "Remove",
+          "add": "Add name",
+          "apply": "Apply",
+          "cancel": "Cancel",
+          "invalid": {
+            "name": "That name is not valid. Start with a letter, underscore or backslash, and avoid cell references.",
+            "formula": "Enter the range or formula the name refers to.",
+            "sheetIndex": "Sheet scope must be a whole number from 0 to 16383, or blank for workbook scope.",
+            "duplicate": "The same name is defined twice for one scope.",
+            "collision": "That name already exists in a form this dialog cannot change, so it cannot be added here. Choose a different name."
+          }
+        },
+        "openShort": "Protect sheet"
+      },
+      "pageSetup": {
+        "open": "Page setup",
+        "groups": {
+          "view": "Page setup and export"
+        },
+        "dialog": {
+          "title": "Page setup",
+          "close": "Close page setup",
+          "keep": "Keep current",
+          "on": "On",
+          "off": "Off",
+          "orientation": "Orientation",
+          "portrait": "Portrait",
+          "landscape": "Landscape",
+          "paperSize": "Paper size",
+          "margins": "Margins",
+          "marginNormal": "Normal",
+          "marginWide": "Wide",
+          "marginNarrow": "Narrow",
+          "scale": "Scale (%)",
+          "fitToPage": "Fit to page",
+          "fitToWidth": "Fit to width",
+          "fitToHeight": "Fit to height",
+          "printGridlines": "Print gridlines",
+          "printHeadings": "Print headings",
+          "frozenRows": "Frozen rows",
+          "frozenColumns": "Frozen columns",
+          "printArea": "Print area",
+          "printAreaSelection": "Selected range ({{range}})",
+          "printAreaClear": "Clear print area",
+          "printTitles": "Print titles",
+          "printTitlesPlaceholder": "e.g. 1:2",
+          "printTitlesClear": "Clear print titles",
+          "note": "Only the settings you change are written; the rest stay as they are.",
+          "invalidNumber": "Enter a whole number within the allowed range.",
+          "invalidTitles": "Print titles use a row span like 1:2.",
+          "invalidPrintArea": "Select a range to use as the print area.",
+          "invalidFrozenPair": "Set both frozen rows and frozen columns.",
+          "empty": "Change at least one setting.",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "paper": {
+          "letter": "Letter",
+          "tabloid": "Tabloid",
+          "legal": "Legal",
+          "a3": "A3",
+          "a4": "A4",
+          "a5": "A5"
+        }
+      },
+      "export": {
+        "print": "Print",
+        "csv": "Export CSV"
+      },
       "sheets": {
-        "label": "Workbook sheets"
+        "label": "Workbook sheets",
+        "actions": "Sheet actions",
+        "add": "Add sheet",
+        "copySuffix": "copy",
+        "defaultName": "Sheet",
+        "duplicate": "Duplicate sheet",
+        "hiddenGroup": "Hidden sheets",
+        "hide": "Hide sheet",
+        "moveLeft": "Move left",
+        "moveRight": "Move right",
+        "remove": "Delete sheet",
+        "confirmRemove": "Confirm delete sheet?",
+        "rename": "Rename sheet",
+        "renameInput": "Sheet name",
+        "tabColorReadOnly": "Tab colour (read-only — pending gateway)",
+        "unhide": "Show sheet"
+      },
+      "formulas": {
+        "categories": {
+          "all": "All",
+          "math": "Math & Trig",
+          "statistical": "Statistical",
+          "text": "Text",
+          "date": "Date & Time",
+          "lookup": "Lookup & Reference",
+          "logical": "Logical",
+          "financial": "Financial"
+        },
+        "fn": {
+          "sum": "Adds its arguments.",
+          "sumif": "Adds the cells in a range that meet one condition.",
+          "sumifs": "Adds the cells that meet several conditions.",
+          "sumproduct": "Multiplies matching items in the arrays and adds the products.",
+          "abs": "Returns the absolute value of a number.",
+          "round": "Rounds a number to the given number of digits.",
+          "roundup": "Rounds a number up, away from zero.",
+          "rounddown": "Rounds a number down, toward zero.",
+          "int": "Rounds a number down to the nearest integer.",
+          "mod": "Returns the remainder after dividing one number by another.",
+          "power": "Raises a number to a power.",
+          "sqrt": "Returns the square root of a number.",
+          "rand": "Returns a random number between 0 and 1.",
+          "randbetween": "Returns a random integer between the given bounds.",
+          "average": "Returns the average of its arguments.",
+          "averageif": "Averages the cells in a range that meet one condition.",
+          "count": "Counts the cells that contain numbers.",
+          "counta": "Counts the non-empty cells.",
+          "countif": "Counts the cells in a range that meet one condition.",
+          "countifs": "Counts the cells that meet several conditions.",
+          "min": "Returns the smallest number.",
+          "max": "Returns the largest number.",
+          "median": "Returns the middle number of a set.",
+          "large": "Returns the k-th largest value.",
+          "small": "Returns the k-th smallest value.",
+          "concatenate": "Joins several text items into one.",
+          "text": "Formats a number as text with a format code.",
+          "left": "Returns the leftmost characters of a text.",
+          "right": "Returns the rightmost characters of a text.",
+          "mid": "Returns characters from the middle of a text.",
+          "len": "Returns the number of characters in a text.",
+          "trim": "Removes extra spaces from a text.",
+          "upper": "Converts a text to upper case.",
+          "lower": "Converts a text to lower case.",
+          "substitute": "Replaces occurrences of a text within a text.",
+          "today": "Returns today's date.",
+          "now": "Returns the current date and time.",
+          "date": "Builds a date from a year, month and day.",
+          "year": "Returns the year of a date.",
+          "month": "Returns the month of a date.",
+          "day": "Returns the day of a date.",
+          "edate": "Returns a date a number of months before or after a start date.",
+          "vlookup": "Searches the first column of a range and returns a value from the row.",
+          "hlookup": "Searches the first row of a range and returns a value from the column.",
+          "index": "Returns a value from a range at a given row and column.",
+          "match": "Returns the position of a value in a range.",
+          "choose": "Returns one of a list of values by position.",
+          "if": "Returns one value when a condition is true and another when it is false.",
+          "iferror": "Returns a fallback value when a formula evaluates to an error.",
+          "and": "Returns TRUE when every argument is true.",
+          "or": "Returns TRUE when any argument is true.",
+          "not": "Reverses the logical value of its argument.",
+          "pmt": "Returns the constant payment for a loan.",
+          "fv": "Returns the future value of an investment.",
+          "pv": "Returns the present value of an investment.",
+          "rate": "Returns the interest rate per period of a loan.",
+          "nper": "Returns the number of periods for a loan.",
+          "npv": "Returns the net present value of cash flows.",
+          "irr": "Returns the internal rate of return of cash flows."
+        },
+        "library": {
+          "title": "Function library",
+          "open": "Function library",
+          "close": "Close function library",
+          "search": "Search",
+          "searchPlaceholder": "Search functions",
+          "category": "Category",
+          "list": "Functions",
+          "noMatch": "No functions match.",
+          "noTarget": "Select a cell first to insert a function.",
+          "insertFailed": "The function could not be inserted here.",
+          "cancel": "Cancel"
+        },
+        "autosum": {
+          "label": "AutoSum",
+          "hint": "Sum the selection, or the numeric cells above the active cell.",
+          "empty": "No numbers found to sum.",
+          "failed": "AutoSum could not be applied here."
+        },
+        "hints": {
+          "label": "Function suggestions"
+        }
       },
       "formula": {
+        "nameBox": "Cell reference",
+        "fx": "fx",
         "label": "Formula or value"
+      },
+      "statusBar": {
+        "label": "Selection summary",
+        "empty": "Select cells to see a summary.",
+        "noValues": "The selection has no values.",
+        "partialEmpty": "No values in the part of the selection that was read.",
+        "unavailable": "Summary is not available here.",
+        "error": "The selection could not be read.",
+        "calculating": "Calculating…",
+        "partial": "Partial summary",
+        "partialHint": "Part of the selection is outside the read window, so the totals cover only the cells that were read.",
+        "sum": "Sum: {{value}}",
+        "average": "Average: {{value}}",
+        "count": "Count: {{value}}",
+        "min": "Min: {{value}}",
+        "max": "Max: {{value}}"
       },
       "recalc": {
         "progress": "Recalculating ({{progress}}%)",
@@ -9103,6 +9651,10 @@
       "errors": {
         "title": "This XLSX workbook could not be opened",
         "reason": "Reason: {{reason}}",
+        "details": "Details",
+        "detailClass": "Class: {{className}}",
+        "detailCode": "Code: {{code}}",
+        "saveReason": "Reason: {{reason}}",
         "unknown": "This workbook could not be opened. Try opening it again.",
         "corrupted": "The workbook package is corrupt or incomplete.",
         "password_cancelled": "The password prompt was cancelled.",
@@ -9115,11 +9667,110 @@
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
         "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again."
       },
+      "find": {
+        "title": "Find and replace",
+        "close": "Close",
+        "findLabel": "Find",
+        "replaceLabel": "Replace with",
+        "matchCase": "Match case",
+        "options": "Find options",
+        "scopeSelection": "Selection",
+        "scopeSheet": "Whole sheet",
+        "previous": "Find previous",
+        "next": "Find next",
+        "replace": "Replace",
+        "replaceAll": "Replace all",
+        "status": {
+          "typeQuery": "Type something to find.",
+          "reading": "Reading cells…",
+          "unavailable": "No open sheet to search.",
+          "error": "Could not read the sheet. Try again.",
+          "noMatches": "No matches.",
+          "matches_one": "{{count}} match.",
+          "matches_other": "{{count}} matches.",
+          "position": "{{index}} of {{count}}",
+          "partial": "Scanned {{scanned}} of {{total}} rows.",
+          "formulaHint_one": "{{count}} formula cell is matched but never replaced.",
+          "formulaHint_other": "{{count}} formula cells are matched but never replaced.",
+          "limit": "{{count}} cells exceed the {{limit}}-cell save limit. Nothing was replaced.",
+          "replaced": "Replaced the current match.",
+          "replacedAll_one": "Replaced {{count}} cell.",
+          "replacedAll_other": "Replaced {{count}} cells.",
+          "noChange": "No cell needed replacing.",
+          "failed": "Could not replace — the cells may be outside the loaded area, or the document is read-only."
+        }
+      },
+      "contextMenu": {
+        "items": {
+          "cut": "Cut",
+          "copy": "Copy",
+          "paste": "Paste",
+          "clearContent": "Clear contents",
+          "clearFormat": "Clear formats",
+          "insertRowAbove": "Insert row above",
+          "insertRowBelow": "Insert row below",
+          "insertColLeft": "Insert column left",
+          "insertColRight": "Insert column right",
+          "deleteRows": "Delete rows",
+          "deleteColumns": "Delete columns",
+          "mergeCells": "Merge cells",
+          "mergeAcross": "Merge across",
+          "unmergeCells": "Unmerge cells",
+          "numberFormat": "Number format",
+          "filterToggle": "Filter",
+          "filterClear": "Clear filter",
+          "find": "Find and replace"
+        }
+      },
+      "shortcuts": {
+        "open": "Keyboard shortcuts",
+        "openHint": "See all keyboard shortcuts",
+        "title": "Keyboard shortcuts",
+        "close": "Close",
+        "search": "Search",
+        "searchPlaceholder": "Search shortcuts",
+        "empty": "No shortcuts match.",
+        "categories": {
+          "general": "General",
+          "navigation": "Navigation",
+          "editing": "Editing",
+          "formatting": "Formatting",
+          "sheets": "Sheets",
+          "view": "View"
+        },
+        "items": {
+          "save": "Save",
+          "undo": "Undo",
+          "redo": "Redo",
+          "find": "Find and replace",
+          "moveUp": "Move up",
+          "moveDown": "Move down",
+          "moveLeft": "Move left",
+          "moveRight": "Move right",
+          "moveToEdge": "Move to the edge of the data",
+          "selectAll": "Select all",
+          "nextSheet": "Next sheet",
+          "previousSheet": "Previous sheet",
+          "editCell": "Edit the active cell",
+          "cancelEdit": "Cancel the entry",
+          "cut": "Cut",
+          "copy": "Copy",
+          "paste": "Paste",
+          "clearContent": "Clear contents",
+          "bold": "Bold",
+          "italic": "Italic",
+          "underline": "Underline",
+          "insertSheet": "Insert sheet",
+          "zoomIn": "Zoom in",
+          "zoomOut": "Zoom out"
+        }
+      },
       "editor": {
         "appClosureActive": "{{count}} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",
         "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
         "appColumnLabel": "Column {{col}}",
         "appFullyLoaded": "Workbook fully loaded — formulas recalculate live, rows/columns editable.",
+        "appHyperlinkTargetInvalid": "Enter a URL like https://example.com, or a sheet reference like Sheet1!A1.",
         "appIndexing": "Indexing {{name}}: {{rows}} rows ready.",
         "appLinkInternal": "Link points inside the workbook: {{location}}",
         "appLinkJumpFailed": "Unable to jump to {{location}}.",
@@ -9138,15 +9789,180 @@
     },
     "markdown": {
       "title": "Markdown document",
-      "toolbar": { "label": "Markdown editing commands" },
+      "toolbar": {
+        "label": "Markdown editing commands",
+        "tab": "Markdown",
+        "notAvailableYet": "Not available yet",
+        "groups": {
+          "blockStyle": "Block style",
+          "inline": "Inline",
+          "link": "Link",
+          "lists": "Lists",
+          "insert": "Insert",
+          "view": "View"
+        }
+      },
+      "ribbon": {
+        "label": "Markdown ribbon",
+        "tabs": {
+          "home": "Home",
+          "insert": "Insert",
+          "table": "Table",
+          "code": "Code"
+        },
+        "groups": {
+          "clipboard": "Clipboard",
+          "paragraph": "Paragraph",
+          "table": "Table"
+        },
+        "table": {
+          "addRowBefore": "Add row above",
+          "addRowAfter": "Add row below",
+          "addColumnBefore": "Add column left",
+          "addColumnAfter": "Add column right",
+          "deleteRow": "Delete row",
+          "deleteColumn": "Delete column",
+          "toggleHeaderRow": "Header row",
+          "deleteTable": "Delete table"
+        }
+      },
       "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving…", "retry": "Try again" },
       "state": { "opening": "Opening document…", "error": "Could not open document" },
       "source": { "label": "Markdown source" },
       "preview": { "label": "Preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
       "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "saveState": { "ready": "No changes", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
       "capabilityUnavailable": "Markdown editing is not available for this engine build.",
-      "errors": { "title": "This Markdown document could not be opened", "unknown": "The Markdown adapter returned an unknown open failure." }
+      "errors": { "title": "This Markdown document could not be opened", "unknown": "The Markdown adapter returned an unknown open failure." },
+      "wysiwyg": {
+        "label": "Visual editor",
+        "blockStyle": "Block style",
+        "paragraph": "Paragraph",
+        "heading": "Heading {{level}}",
+        "quote": "Quote",
+        "codeBlock": "Code block",
+        "bold": "Bold",
+        "italic": "Italic",
+        "strike": "Strikethrough",
+        "inlineCode": "Inline code",
+        "link": "Link",
+        "linkApply": "Apply link",
+        "linkRemove": "Remove link",
+        "linkPlaceholder": "Paste a URL",
+        "linkTitle": "Link title (optional)",
+        "bulletList": "Bullet list",
+        "orderedList": "Numbered list",
+        "taskList": "Task list",
+        "insertTable": "Insert table",
+        "insertImage": "Insert image",
+        "insertHr": "Insert divider",
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save to UniWork",
+        "viewSource": "Show source",
+        "viewWysiwyg": "Show visual editor",
+        "viewOutline": "Show outline",
+        "viewFrontmatter": "Show front matter",
+        "rawBlock": "Preserved block",
+        "rawBlockHint": "The visual editor cannot display this block, so its source is kept as is."
+      },
+      "slash": {
+        "label": "Insert content",
+        "empty": "No matching item",
+        "paragraph": "Text",
+        "heading1": "Heading 1",
+        "heading2": "Heading 2",
+        "heading3": "Heading 3",
+        "bulletList": "Bullet list",
+        "orderedList": "Numbered list",
+        "taskList": "Task list",
+        "quote": "Quote",
+        "codeBlock": "Code block",
+        "table": "Table",
+        "hr": "Divider",
+        "math": "Formula",
+        "diagram": "Diagram",
+        "image": "Image"
+      },
+      "table": {
+        "label": "Table",
+        "addRowBefore": "Add row above",
+        "addRowAfter": "Add row below",
+        "addColumnBefore": "Add column left",
+        "addColumnAfter": "Add column right",
+        "deleteRow": "Delete row",
+        "deleteColumn": "Delete column",
+        "toggleHeaderRow": "Toggle header row",
+        "deleteTable": "Delete table"
+      },
+      "code": {
+        "language": "Language",
+        "languagePlaceholder": "Choose a language",
+        "plain": "Plain text",
+        "copy": "Copy code",
+        "copied": "Code copied",
+        "copyFailed": "Code could not be copied. Try again."
+      },
+      "diagram": {
+        "label": "Mermaid diagram",
+        "rendering": "Rendering diagram…",
+        "renderError": "The diagram could not be rendered. Check the Mermaid syntax.",
+        "template": "Insert diagram template",
+        "edit": "Edit diagram source",
+        "showSource": "Show diagram source",
+        "showDiagram": "Show diagram"
+      },
+      "math": {
+        "inlineLabel": "Inline formula",
+        "blockLabel": "Block formula",
+        "insertInline": "Insert inline formula",
+        "insertBlock": "Insert block formula",
+        "edit": "Edit formula",
+        "latexPlaceholder": "Enter LaTeX",
+        "renderError": "The formula could not be rendered. Check the LaTeX syntax.",
+        "pasteNormalised": "The pasted formula was converted to LaTeX."
+      },
+      "image": {
+        "viewer": "View image",
+        "unavailable": "This image is unavailable",
+        "uploading": "Uploading image…",
+        "uploadFailed": "The image could not be uploaded. Try again.",
+        "altLabel": "Alt text",
+        "altPlaceholder": "Short description of the image",
+        "altMissing": "This image has no alt text.",
+        "close": "Close image"
+      },
+      "outline": {
+        "title": "Outline",
+        "empty": "No headings yet.",
+        "resize": "Resize outline",
+        "jump": "Go to heading {{title}}"
+      },
+      "frontmatter": {
+        "title": "Front matter",
+        "empty": "This document has no front matter.",
+        "preserved": "Front matter is kept as is while you do not edit it."
+      },
+      "print": {
+        "title": "Print",
+        "browser": "Print in browser",
+        "host": "Print with UniWork Office",
+        "notAvailable": "Printing is not supported here yet.",
+        "exportPdf": "Export PDF",
+        "exportDocx": "Export DOCX",
+        "exportNotAvailable": "This export format is not supported yet."
+      },
+      "view": {
+        "label": "View mode",
+        "source": "Source",
+        "wysiwyg": "Visual",
+        "outline": "Outline",
+        "frontmatter": "Front matter"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Shortcuts available while editing this document."
+      }
     },
     "html": {
       "title": "HTML document",
@@ -9156,9 +9972,137 @@
       "source": { "label": "HTML source" },
       "preview": { "label": "Isolated preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
       "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "saveState": { "ready": "No changes", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
       "capabilityUnavailable": "HTML editing is not available for this engine build.",
-      "errors": { "title": "This HTML document could not be opened", "unknown": "The HTML adapter returned an unknown open failure." }
+      "errors": { "title": "This HTML document could not be opened", "unknown": "The HTML adapter returned an unknown open failure." },
+      "view": {
+        "label": "View mode",
+        "preview": "Preview",
+        "split": "Split",
+        "source": "Source"
+      },
+      "present": {
+        "enter": "Present",
+        "exit": "Exit presentation",
+        "label": "Present mode"
+      },
+      "zoom": {
+        "in": "Zoom in",
+        "out": "Zoom out",
+        "reset": "Reset zoom",
+        "level": "Zoom level {{percent}}%"
+      },
+      "status": {
+        "label": "Status",
+        "figures": "{{length}} chars · {{lines}} lines · {{language}}",
+        "selection": "{{from}}–{{to}} selected",
+        "selectionNone": "No selection"
+      },
+      "selection": {
+        "announce": "Selected element {{sid}}"
+      },
+      "ribbon": {
+        "label": "Insert",
+        "heading": "Heading",
+        "paragraph": "Paragraph",
+        "imageFile": "Image from file",
+        "imageUrl": "Image from URL",
+        "imageUrlPlaceholder": "Paste an image URL",
+        "table": "Table",
+        "tableSize": "{{rows}} x {{cols}} table",
+        "tableSizeLabel": "Choose table size",
+        "list": "List",
+        "button": "Button",
+        "section": "Section",
+        "ribbonLabel": "HTML ribbon",
+        "tabs": {
+          "home": "Home",
+          "insert": "Insert"
+        },
+        "groups": {
+          "clipboard": "Clipboard",
+          "inline": "Inline",
+          "paragraph": "Paragraph"
+        },
+        "orderedList": "Numbered list",
+        "blockquote": "Quote",
+        "imageUrlRefused": "This image URL cannot be inserted",
+        "imageUrlInsert": "Insert",
+        "hr": "Divider"
+      },
+      "float": {
+        "label": "Quick edit",
+        "bold": "Bold",
+        "italic": "Italic",
+        "fontSizeIncrease": "Increase font size",
+        "fontSizeDecrease": "Decrease font size",
+        "colour": "Text colour",
+        "editText": "Edit text",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
+        "openStylePanel": "Open style panel",
+        "fontSize": "Font size",
+        "fontSizeMixed": "Mixed",
+        "colourDefault": "Default",
+        "colourRed": "Red",
+        "colourOrange": "Orange",
+        "colourGreen": "Green",
+        "colourBlue": "Blue",
+        "colourPurple": "Purple"
+      },
+      "style": {
+        "title": "Style",
+        "typography": "Typography",
+        "fontFamily": "Font",
+        "fontSize": "Size",
+        "lockAspect": "Lock aspect ratio",
+        "background": "Background",
+        "opacity": "Opacity",
+        "imageAlt": "Alt text",
+        "imageFit": "Image fit",
+        "customCss": "Custom CSS",
+        "customCssPlaceholder": "Enter CSS for this element",
+        "revert": "Revert",
+        "sizeSection": "Size",
+        "sizeWidth": "Width",
+        "sizeHeight": "Height",
+        "appearance": "Appearance",
+        "fontFamilyInherit": "Inherit",
+        "fontWeight": "Font weight",
+        "fontWeightInherit": "Inherit",
+        "weightRegular": "Regular",
+        "weightMedium": "Medium",
+        "weightSemibold": "Semibold",
+        "weightBold": "Bold",
+        "textAlign": "Text alignment",
+        "alignLeft": "Align left",
+        "alignCenter": "Align center",
+        "alignRight": "Align right",
+        "alignJustify": "Justify",
+        "opacityValue": "{{percent}}%",
+        "colourPlaceholder": "#rrggbb",
+        "colourSwatch": "Colour {{value}}",
+        "backgroundNone": "No background",
+        "imageSection": "Image",
+        "fitContain": "Contain",
+        "fitCover": "Cover",
+        "fitFill": "Fill"
+      },
+      "inline": {
+        "editHint": "Double-click to edit text",
+        "editing": "Editing text…",
+        "move": "Move",
+        "resize": "Resize",
+        "underline": "Underline",
+        "strike": "Strikethrough",
+        "code": "Inline code"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Shortcuts available while editing this document."
+      }
     },
     "pptx": {
       "toolbar_label": "PowerPoint commands",
@@ -9505,6 +10449,10 @@
       "newTab": "Open new tab",
       "allTabs": "All tabs",
       "createDocx": "Create DOCX document",
+      "createMarkdown": "Create Markdown document",
+      "createHtml": "Create HTML document",
+      "openMarkdown": "Open Markdown file",
+      "openHtml": "Open HTML file",
       "openLocal": "Open local file",
       "account": "Account: {{name}}",
       "accountUnknown": "UniWork account",
@@ -9514,7 +10462,8 @@
       "documentCount_other": "{{count}} documents",
       "limit": "All 8 document tabs are open. Close a tab to open another document.",
       "checkpointFailed": "Changes could not be protected locally. Keep this tab open to avoid losing changes.",
-      "sessionError": "Document tabs could not be synchronized. Retry before continuing."
+      "sessionError": "Document tabs could not be synchronized. Retry before continuing.",
+      "dismissAlert": "Dismiss message"
     },
     "login": {
       "title": "UniWork Office",
@@ -9560,20 +10509,37 @@
       "openLocal": "Open file on this device",
       "empty": "No documents",
       "contextError": "Workspaces could not be loaded.",
-      "emptyDescription": "Create a DOCX document or open an existing file on this device.",
+      "emptyDescription": "Create a document or open an existing DOCX, PDF, Markdown or HTML file on this device.",
       "emptySearch": "No results",
       "emptySearchDescription": "No documents match your search.",
       "fileOpenQueued": "The file will open after you close the current document.",
       "actionError": "The action could not be completed. Try again.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
+      "saveLocal": "Save file",
+      "saveLocalFormat": "Save {{format}} file",
       "saveAs": "Save As…",
       "unsupported": "This format is not supported on desktop yet.",
       "local": "Local file",
       "ownerUnknown": "Workspace member",
       "updated": "Updated {{time}}",
       "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
-      "draftRecovered": "The selected draft was restored."
+      "draftRecovered": "The selected draft was restored.",
+      "format": {
+        "label": "Format",
+        "all": "All formats",
+        "markdown": "Markdown",
+        "html": "HTML"
+      },
+      "fileFilters": {
+        "markdown": "Markdown document",
+        "html": "HTML document",
+        "allFiles": "All files"
+      },
+      "notice": {
+        "unsupportedFormat": "This file format cannot be opened on desktop yet.",
+        "readonlyFormat": "This file opens read-only on desktop."
+      }
     },
     "local": {
       "title": "Files on this device",
@@ -9582,8 +10548,10 @@
       "open": "Open file",
       "create": "New document",
       "untitled": "Untitled.docx",
+      "untitledMarkdown": "Untitled.md",
+      "untitledHtml": "Untitled.html",
       "empty": "No files on this device yet",
-      "emptyDescription": "Open a DOCX file from this device or create a new document. You can sign in later to use your UniWork library.",
+      "emptyDescription": "Open a DOCX, PDF, Markdown or HTML file from this device or create a new document. You can sign in later to use your UniWork library.",
       "error": "Recent files could not be loaded.",
       "retry": "Retry",
       "missing": "File not found",
@@ -9591,7 +10559,7 @@
       "removeNamed": "Remove {{name}} from the list",
       "openNamed": "Open {{name}}",
       "updated": "Last opened {{time}}",
-      "unsupported": "Only DOCX files on this device are supported.",
+      "unsupported": "Only DOCX, PDF, Markdown and HTML files on this device are supported.",
       "saveAs": "Save as…",
       "leaveSave": "Save on this device",
       "home": "Back to on-device home"

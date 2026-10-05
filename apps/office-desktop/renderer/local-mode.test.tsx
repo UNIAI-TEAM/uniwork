@@ -38,7 +38,17 @@ const recent = (id: string, name: string, missing = false, directory = "…\\Doc
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
 
-function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean } = {}) {
+/** What main answers for desktop:file-create, per format (main/files/blank-*.ts):
+ * the blank Markdown document is zero bytes, so its dataBase64 is "". */
+const BLANK_HTML_TEXT = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title></title>\n</head>\n<body>\n</body>\n</html>\n";
+function created(format: string) {
+  const handle = `file_${"1".repeat(32)}`;
+  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+  const bytes = format === "md" ? new Uint8Array(0) : new TextEncoder().encode(BLANK_HTML_TEXT);
+  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, dataBase64: Buffer.from(bytes).toString("base64") };
+}
+
+function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   let fileListener: ((event: { handle: string }) => void) | undefined;
@@ -56,9 +66,9 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
       case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-pick-open": return { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), "Opened.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+      case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), dataBase64: fixtureBase64 };
+      case "desktop:file-create": return created(String(payload.format ?? "docx"));
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
       case "desktop:tabs-update": return { updated: true };
@@ -250,7 +260,7 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
   editor.bump();
   await openDocumentMenu();
-  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.local.saveAs") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.local.saveAs")) }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle })));
   await screen.findByRole("tab", { name: /copy\.docx/ });
   expect(screen.queryByRole("tab", { name: /Local\.docx/ })).toBeNull();
@@ -281,10 +291,85 @@ it("clears the protective-checkpoint warning once a local save is confirmed", as
   await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeNull());
 });
 
+const openCreateMenu = async (label: string) => {
+  await screen.findByRole("status"); // the empty state replaces the loading header, so the menu must open after it
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t(label)) }));
+};
+
+it("offers DOCX, Markdown and HTML from the local home and sends the chosen format", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  await screen.findByRole("status");
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
+  expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual([i18n.t("officeDesktop.tabs.createDocx"), i18n.t("officeDesktop.tabs.createMarkdown"), i18n.t("officeDesktop.tabs.createHtml")]);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  await openCreateMenu("officeDesktop.tabs.createMarkdown");
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.objectContaining({ format: "md" })));
+});
+
+it("creates HTML from the tab strip plus menu", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  await screen.findByRole("status");
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.newTab") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.createHtml")) }));
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.objectContaining({ format: "html" })));
+});
+
+it.each([
+  ["md", "officeDesktop.tabs.createMarkdown", "officeDesktop.local.untitledMarkdown"],
+  ["html", "officeDesktop.tabs.createHtml", "officeDesktop.local.untitledHtml"],
+] as const)("opens the blank %s document main creates as a tab, with no action error", async (format, label, title) => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  await openCreateMenu(label);
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.objectContaining({ format })));
+  await screen.findByRole("tab", { name: new RegExp(i18n.t(title).replace(".", String.raw`\.`)) });
+  expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
+});
+
+it("opens an existing empty Markdown file without treating its payload as missing", async () => {
+  const handle = `file_${"e".repeat(32)}`;
+  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, dataBase64: "" } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Empty\.md/ });
+  expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
+});
+
+it("shows a dismissible unsupported alert for a .txt pick and opens no tab", async () => {
+  const h = harness({ localMode: true, pick: { opened: false, unsupported: true } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+  fireEvent.click(within(alert).getByRole("button", { name: i18n.t("officeDesktop.tabs.dismissAlert") }));
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("rejects an opened file whose extension is outside the format table", async () => {
+  const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), dataBase64: "AAAA" } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+});
+
+it.each(["Notes.md", "Page.html"])("opens a %s handed over by the OS as a tab", async (name) => {
+  const h = harness({ localMode: true, openName: name });
+  await enterLocal(h);
+  await waitFor(() => expect(h.hasFileListener()).toBe(true));
+  await h.emitFile(`file_${"7".repeat(32)}`);
+  await screen.findByRole("tab", { name: new RegExp(name.replace(".", String.raw`\.`)) });
+  expect(h.call).toHaveBeenCalledWith("desktop:file-open", expect.objectContaining({ handle: `file_${"7".repeat(32)}` }));
+});
+
 it("creates a new local document and writes it through Save As", async () => {
   const h = harness({ localMode: true });
   await enterLocal(h);
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
+  await openCreateMenu("officeDesktop.tabs.createDocx");
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.anything()));
   await screen.findByRole("tab", { name: /Tài liệu mới\.docx/ });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
@@ -339,7 +424,7 @@ it("keeps local tabs on a workspace switch", async () => {
   await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") });
   await waitFor(() => expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull());
   fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("officeDesktop.tabs.account", { name: "Me" })) }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.switchWorkspace") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.switchWorkspace")) }));
   await waitFor(() => {
     expect(h.container.querySelector('[data-session-status="signed-in"]')).not.toBeNull();
     expect(screen.getByRole("tab", { name: /Opened\.docx/ })).toBeInTheDocument();

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
-import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
-import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec } from "../shared/document-formats";
+import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
+import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
 import type { LoginScreenState } from "./login";
@@ -10,9 +10,11 @@ import { LibraryHost } from "./library/host";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LocalHomeView } from "./local-home";
 import { OpenByteDocument } from "./office/open-document";
+import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
-import { isDocumentDirty, useDocumentTabs } from "./tabs/use-document-tabs";
+import { isDocumentDirty, isXlsxTabSession, useDocumentTabs } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
+import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
@@ -138,9 +140,17 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
     const current = scopeRef.current;
     if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
-    const result = desktopOfficeOpenResponseSchema.parse(raw);
-    if (result.document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
-    if (tabs.open({ kind: "cloud", title: result.document.title, format: result.document.format, bytes: { ...result, format: result.document.format, canSave: allowSave && result.document.canEdit }, identity: { ...selected, documentId: result.document.id, generation: lifetime.current + 1, baseRevision: result.document.revision, baseVersionId: String(result.document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    // F5: a format whose editor opens through the server job (xlsx) answers a
+    // metadata-only context; every other format answers the byte open.
+    const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
+    const context = opened.success ? null : desktopOfficeContextResponseSchema.safeParse(raw);
+    const document = opened.success ? opened.data.document : context?.success ? context.data.document : undefined;
+    if (!document) throw new Error("office_open_invalid");
+    if (document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
+    const bytes = opened.success
+      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit }
+      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit };
+    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
@@ -151,7 +161,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
       return;
     }
-    if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
+    // An empty Markdown file is a valid document; only an omitted payload is malformed.
+    if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
     if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
@@ -175,22 +186,27 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     } catch { if (mounted.current && epoch === lifetime.current) setActionError(t("officeDesktop.library.actionError")); }
     finally { actionBusy.current = false; if (mounted.current) setBusy(false); }
   };
-  const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version">, allowSave = true) => {
+  const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version" | "format">, allowSave = true) => {
     const selected = scopeRef.current;
     if (!selected || !canOpen(document.id)) return;
-    void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
+    // F5: a format whose editor opens through the server job (xlsx) never reads
+    // the raw bytes, so register the context without the byte haul; every other
+    // format keeps the byte open.
+    const channel = document.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
+    void perform(() => bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
   };
   const openLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
-  const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION, format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), acceptLocal); };
+  const createLocal = (format: DesktopDocumentFormat = DEFAULT_DESKTOP_DOCUMENT_FORMAT) => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION, format }), acceptLocal); };
   const openRecent = (id: string) => {
     if (!canOpen()) return;
     void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal).then(() => recents.reload());
   };
-  const create = () => {
-    if (modeRef.current === "local") { createLocal(); return; }
+  const untitledTitle = (format: DesktopDocumentFormat) => { const spec = desktopDocumentFormatSpec(format); return spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName; };
+  const create = (format: DesktopDocumentFormat = DEFAULT_DESKTOP_DOCUMENT_FORMAT) => {
+    if (modeRef.current === "local") { createLocal(format); return; }
     const selected = scopeRef.current;
     if (!selected || !canOpen()) return;
-    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: t("officeDesktop.library.untitled"), format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), (raw) => acceptCloud(raw, selected));
+    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: format === DEFAULT_DESKTOP_DOCUMENT_FORMAT ? t("officeDesktop.library.untitled") : untitledTitle(format), format }), (raw) => acceptCloud(raw, selected));
   };
 
   const sendHostAnswer = async (request: HostLeave, choice: LeaveChoice, proceeded: boolean) => {
@@ -301,6 +317,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       if (canOpen(request.handle)) void perform(() => bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: request.handle }), handlers.current.acceptLocal);
     } else if (scope && canOpen(request.documentId)) {
       const selected = scope;
+      // A deep-link launch names only the document, not its format, so this path
+      // uses the byte open; the xlsx editor still opens correctly from the job
+      // (the metadata-only shortcut only applies where the format is known).
       void perform(() => bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: request.documentId, ...(request.version === undefined ? {} : { version: request.version }) }), (raw) => acceptCloud(raw, selected, request.operation === "edit"));
     }
   // One FIFO preserves the order of file and launch requests.
@@ -311,11 +330,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   // while the sign-in card is shown too (close/update, deep-link prompt).
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const deviceLeaveSet = affected.length > 0 && affected.every((tab) => tab.data.kind === "local");
-  const alerts = <>
-    {actionError ? <p role="alert" className="p-4 text-body text-destructive">{actionError}</p> : null}
-    {syncError ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.sessionError")}</p> : null}
-    {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
-  </>;
+  const alerts = <WorkspaceAlerts items={[
+    ...(actionError ? [{ id: "action", message: actionError, onDismiss: () => setActionError(null) }] : []),
+    ...(syncError ? [{ id: "session", message: t("officeDesktop.tabs.sessionError") }] : []),
+    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: t("officeDesktop.tabs.checkpointFailed") }] : []),
+  ]} />;
   const leaveDialog = <LeaveDialog key={leave?.host?.requestId ?? "tab-leave"} open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
     onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
@@ -327,7 +346,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     accountName={mode === "signed-in" ? account?.name : undefined} accountEmail={mode === "signed-in" ? account?.email : undefined} workspaceName={workspace?.name} onSwitchWorkspace={mode === "signed-in" ? () => requestLeave({ ids: tabs.cloudTabIds(), switchWorkspace: true }) : undefined}
     tabs={tabs.summaries} activeTabId={tabs.activeTabId} onTabSelect={tabs.select} onTabClose={close} onCreate={create} onOpenLocal={openLocal}
     createDisabled={mode === "signed-in" && !scope} busy={busy || leave !== null}>
-    <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+    <div className="relative flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
       event.preventDefault(); const file = event.dataTransfer.files[0];
       if (file && bridge.openDroppedFile && canOpen()) void perform(() => bridge.openDroppedFile!(file), acceptLocal);
     }}>
@@ -338,7 +357,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
-        <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+        {isXlsxTabSession(tab.data.session)
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}
@@ -349,7 +370,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     <div className={mode === "login" ? "hidden" : "h-full min-h-0"} aria-hidden={mode === "login"} inert={mode === "login"}>
       {workspaceView}
     </div>
-    {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
+    {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="relative flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
       <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
       {alerts}
       <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onUseLocal={onUseLocal} />

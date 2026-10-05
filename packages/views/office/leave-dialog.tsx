@@ -116,7 +116,7 @@ export function LeaveDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
-        <DialogFooter className="sm:flex-col sm:items-stretch">
+        <DialogFooter className="flex-col items-stretch sm:flex-col">
           <Button type="button" onClick={() => void run("save", onSave)} disabled={Boolean(pending) || saving}>
             {pending === "save" ? t("working") : (saveLabel ?? t("save"))}
           </Button>
@@ -175,7 +175,7 @@ export function DraftRecoveryPrompt({
           </DialogDescription>
         </DialogHeader>
         {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
-        <DialogFooter className="sm:flex-col sm:items-stretch">
+        <DialogFooter className="flex-col items-stretch sm:flex-col">
           {!conflict && recoverable ? (
             <Button type="button" onClick={() => void run("recover", onRecover)} disabled={Boolean(pending)}>
               {pending === "recover" ? t("working") : t("recover")}

@@ -23,6 +23,10 @@ const result = await build({
     builder.onResolve({ filter: /^\.\/locale$/ }, () => ({ path: 'locale', namespace: 'stub' }));
     builder.onResolve({ filter: /^@univerjs\/|\/upstream\/.*renderer\// }, (args) => {
       if (args.path.endsWith('/edit-journal')) return undefined;
+      // Pure-data module the command policy reads (FILTER_MUTATIONS,
+      // pixelsToCharacterWidth). Its imports are type-only, so resolve it for
+      // real: a stubbed copy has no exports and makes the policy throw.
+      if (args.path.endsWith('/app-constants')) return undefined;
       return { path: args.path, namespace: 'stub' };
     });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => {
@@ -38,7 +42,10 @@ const result = await build({
         if (name === 'Direction') lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3};');
         else if (name === 'KeyCode') lines.push('export const KeyCode={TAB:9,ENTER:13};');
         else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
+        else if (name === 'WrapStrategy') lines.push('export const WrapStrategy={UNSPECIFIED:0,OVERFLOW:1,CLIP:2,WRAP:3};');
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS"};');
+        else if (name === 'CommandType') lines.push('export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};');
+        else if (name === 'ICommandService') lines.push('export const ICommandService="ICommandService";');
         else if (name === 'ThemeService' || name === 'SheetInterceptorService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
         else if (name === 'journalSuppression' || name === 'loadAutoHeightSuppression') lines.push(`export const ${name}={active:false};`);
@@ -66,6 +73,7 @@ export function mountController(options = {}, environment = {}) {
   const handlers = new Map();
   const events = [];
   const cells = new Map();
+  const styles = new Map();
   let file;
   let activeSheet;
   let activeRange;
@@ -73,43 +81,23 @@ export function mountController(options = {}, environment = {}) {
   const h = {
     dark: [], disposed: false, editable: true,
     editing: false,
+    commands: new Map(),
     emit(id, event = {}) { for (const handler of handlers.get(id) ?? []) handler(event); return event; },
     execute(event) {
       const before = h.emit('BeforeCommandExecute', { ...event });
       if (before.cancel) return false;
+      // The real command service runs a registered command's handler; the two
+      // UniWork outline commands live here (insert/size mutations are emitted
+      // by the sheet plugins, which the stubs do not model).
+      const registered = h.commands.get(event.id);
+      if (registered && registered.handler({}, event.params) !== true) return false;
       events.push(event);
       h.emit('CommandExecuted', event);
       return true;
     },
     load(input) {
       file = input;
-      for (const meta of input.sheets) {
-        const sheet = {
-          getSheetId: () => meta.id,
-          getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${meta.id}:${row}:${column}`) }),
-          getRange(row, column) {
-            const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
-            return {
-              getRange: () => range,
-              activate() { workbook.setActiveRange(this); return this; },
-              setValue(text) {
-                const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
-                const event = { id: 'sheet.mutation.set-range-values', params: {
-                  unitId: `file-${file.sha256}`, subUnitId: meta.id, cellValue: { [row]: { [column]: cell } },
-                } };
-                if (h.execute(event)) cells.set(`${meta.id}:${row}:${column}`, cell);
-              },
-              setNumberFormat(pattern) {
-                h.execute({ id: 'sheet.mutation.set.numfmt', params: {
-                  unitId: `file-${file.sha256}`, subUnitId: meta.id,
-                  refMap: { x: { pattern } }, values: { x: { ranges: [range] } },
-                } });
-              },
-            };
-          },
-        };
-        sheets.set(meta.id, sheet);
-      }
+      for (const meta of input.sheets) createFakeSheet(meta.id, meta.name, meta);
       activeSheet = sheets.get(input.sheets[0].id);
       activeRange = activeSheet.getRange(0, 0);
       h.execute({ id: 'sheet.mutation.set-range-values', params: {
@@ -122,9 +110,41 @@ export function mountController(options = {}, environment = {}) {
       ref.current.loadedRanges.set(id, { startRow: 0, endRow: 9, startColumn: 0, endColumn: 9 });
     },
   };
+  function createFakeSheet(id, name, meta = {}) {
+    const sheet = {
+      getSheetId: () => id,
+      getSheetName: () => name,
+      isSheetHidden: () => meta.hidden === true,
+      getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${id}:${row}:${column}`) }),
+      getRange(row, column) {
+        const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
+        return {
+          getRange: () => range,
+          getCellStyleData: () => styles.get(`${id}:${row}:${column}`) ?? null,
+          activate() { workbook.setActiveRange(this); return this; },
+          setValue(text) {
+            const cell = typeof text === 'object' ? text : text.startsWith('=') ? { f: text, v: null } : { f: null, v: text };
+            const event = { id: 'sheet.mutation.set-range-values', params: {
+              unitId: `file-${file.sha256}`, subUnitId: id, cellValue: { [row]: { [column]: cell } },
+            } };
+            if (h.execute(event)) cells.set(`${id}:${row}:${column}`, cell);
+          },
+          setNumberFormat(pattern) {
+            h.execute({ id: 'sheet.mutation.set.numfmt', params: {
+              unitId: `file-${file.sha256}`, subUnitId: id,
+              refMap: { x: { pattern } }, values: { x: { ranges: [range] } },
+            } });
+          },
+        };
+      },
+    };
+    sheets.set(id, sheet);
+    return sheet;
+  }
   const workbook = {
     getId: () => `file-${file.sha256}`, getActiveSheet: () => activeSheet,
     getSheetBySheetId: (id) => sheets.get(id), getActiveRange: () => activeRange,
+    getSheets: () => [...sheets.values()],
     getWorkbook: () => ({ getStyles: () => ({ getStyleByCell: (cell) => cell?.s }) }),
     setEditable(value) { h.editable = value; },
     isCellEditing: () => h.editing,
@@ -138,6 +158,9 @@ export function mountController(options = {}, environment = {}) {
         if (token === 'SheetInterceptorService') {
           if (environment.requireWorkbookServices && !file) throw new Error('sheet services require a workbook unit');
           h.sheetInterceptorLookups = (h.sheetInterceptorLookups ?? 0) + 1;
+        }
+        if (token === 'ICommandService') {
+          return { registerCommand: (command) => { h.commands.set(command.id, command); return { dispose: () => h.commands.delete(command.id) }; } };
         }
         return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
       } }),
@@ -154,6 +177,7 @@ export function mountController(options = {}, environment = {}) {
       async undo() { h.undoCalls = (h.undoCalls ?? 0) + 1; },
       async redo() { h.redoCalls = (h.redoCalls ?? 0) + 1; },
       async executeCommand(id, params) { return h.execute({id,params}); },
+      syncExecuteCommand(id, params) { return h.execute({id,params}); },
     },
   };
   globalThis.__xlsxControllerTest = h;
@@ -170,6 +194,11 @@ export function mountController(options = {}, environment = {}) {
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
     handle, h, workbook, events, container,
+    setCellStyle(sheetId, row, column, style) { styles.set(`${sheetId}:${row}:${column}`, style); },
+    // Live sheet facade mutations a test drives to model what Univer does.
+    addSheet(sheetId, name) { return createFakeSheet(sheetId, name); },
+    setSheetName(sheetId, name) { const sheet = sheets.get(sheetId); if (sheet) sheet.getSheetName = () => name; },
+    setSheetHidden(sheetId, hidden) { const sheet = sheets.get(sheetId); if (sheet) sheet.isSheetHidden = () => hidden === true; },
     key(event) {
       h.target ??= { id:'__editor___INTERNAL_EDITOR__DOCS_NORMAL', isContentEditable:true,
         getAttribute: () => 'editor', focus() {} };

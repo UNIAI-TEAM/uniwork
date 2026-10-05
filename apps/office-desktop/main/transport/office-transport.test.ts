@@ -137,4 +137,53 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [] });
   });
+  it("maps an xlsx list row and download by its spreadsheet MIME/extension", async () => {
+    const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
+    const fetchImpl = vi.fn(async (input: string) => {
+      if (input.includes("/workspaces/ws-1/documents")) return new Response(JSON.stringify({ documents: [summaryRow], next_cursor: null }), { status: 200 });
+      if (input.includes("/documents/doc-x/download")) {
+        return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": "attachment; filename=\"budget.xlsx\"" } });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [{ id: "doc-x", format: "xlsx", canEdit: true }] });
+    await expect(transport.download({ workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename: "budget.xlsx" });
+  });
+
+  it("runs an xlsx edit job through start, poll and output and reports the staged bytes", async () => {
+    const output = new TextEncoder().encode("PK\x03\x04staged");
+    let polls = 0;
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/documents/doc-x/office/jobs") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { operation: string; format: string; base_revision: string; edits: unknown[] };
+        expect(body).toMatchObject({ operation: "edit", format: "xlsx", base_revision: "2" });
+        expect(body.edits).toEqual([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }]);
+        expect(new Headers(init.headers).get("Idempotency-Key")).toMatch(/^desktop-job-/);
+        return new Response(JSON.stringify({ job_id: "job-1", state: "accepted" }), { status: 202 });
+      }
+      if (url.endsWith("/office/jobs/job-1")) { polls += 1; return new Response(JSON.stringify({ job_id: "job-1", state: polls > 1 ? "completed" : "running" }), { status: 200 }); }
+      if (url.endsWith("/office/jobs/job-1/output")) return new Response(output, { status: 200, headers: { "Content-Type": "application/octet-stream" } });
+      throw new Error("unexpected " + url);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
+    expect(result.state).toBe("completed");
+    expect(Buffer.from(result.outputBase64 ?? "", "base64")).toEqual(Buffer.from(output));
+    expect(result.outputChecksum).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(polls).toBe(2);
+  }, 20_000);
+
+  it("registers a document context without downloading bytes for a metadata-only open", async () => {
+    const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
+    const fetchImpl = vi.fn(async (input: string) => {
+      if (input.endsWith("/documents/doc-x")) return new Response(JSON.stringify({ document: summaryRow }), { status: 200 });
+      throw new Error("unexpected " + input);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.openContext({ workspaceId: "ws-1", documentId: "doc-x" })).resolves.toMatchObject({ document: { id: "doc-x", format: "xlsx" } });
+    // No /download call: the metadata-only open never hauls the raw bytes.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes("/download"))).toBe(false);
+  });
 });

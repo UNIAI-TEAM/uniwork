@@ -11,9 +11,13 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"math"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -612,6 +616,18 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	})
 }
 
+// validateOfficeJobEdits is the pre-storage gate for one job's edit list. The
+// loop-level bounds stay where they were (operation scope, the 10k op count
+// and the marshalled-size bound), then every edit's op name must be in the
+// bound vocabulary and pass its per-op-kind validator. A name outside the
+// table is refused outright: the engine parser would answer unsupported, but
+// a job row is never created for a vocabulary this service does not bind.
+//
+// The bound vocabulary is the xlsx bind set. Edits are the shared,
+// format-agnostic envelope field and this gate keys on op name alone, so a
+// future non-xlsx edit lane (pdf/docx) that carries its own op names through
+// the same jobs API must add a format dimension (the resolved format is in
+// scope at both call sites) before those names are accepted.
 func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) error {
 	if operation != office.OperationEdit && len(edits) > 0 {
 		return ErrOfficeJobInvalid
@@ -630,8 +646,1162 @@ func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) e
 		if strings.TrimSpace(edit.Op) == "" {
 			return ErrOfficeJobInvalid
 		}
+		validate, bound := officeEditValidators[edit.Op]
+		if !bound || !validate(edit) {
+			return ErrOfficeJobInvalid
+		}
 	}
 	return nil
+}
+
+// officeEditValidators is the per-op-kind validation table for the edit
+// vocabulary this service binds. Each entry checks its op deeply enough to be
+// real — target shape and OOXML grid, content/attribute/style shapes, text
+// and range bounds — before a job row exists. A later op kind adds one entry
+// here (beside its TS parser); nothing else in the gate changes.
+//
+// Deliberate strictness: these validators are stricter than parseXlsxOps on
+// malformed shapes that would otherwise reach the engine verbatim — a
+// non-object attributes/style value, a non-boolean styleReset, a malformed
+// attributes.style beside a valid top-level style, an A1 range with more than
+// one ":", and out-of-grid integer range bounds are refused here even where
+// the engine's parser would ignore or coerce them. Nothing valid is refused;
+// only malformed input fails earlier.
+var officeEditValidators = map[string]func(office.EditOp) bool{
+	"set_cell":   officeSetCellValid,
+	"clear_cell": officeClearCellValid,
+	"set_cells":  officeSetCellsValid,
+	// Row/column structure (B1). Each validator mirrors its ops.ts parser; the
+	// op's fields ride the existing raw attributes object, so the shared edit
+	// envelope needs no format-specific schema change.
+	"insert_rows":      officeShiftValid(false),
+	"remove_rows":      officeShiftValid(false),
+	"insert_cols":      officeShiftValid(true),
+	"remove_cols":      officeShiftValid(true),
+	"set_row_size":     officeSizeValid(false),
+	"set_col_size":     officeSizeValid(true),
+	"set_rows_hidden":  officeHiddenValid(false),
+	"set_cols_hidden":  officeHiddenValid(true),
+	"set_rows_outline": officeOutlineValid(false),
+	"set_cols_outline": officeOutlineValid(true),
+	// Merge/unmerge (B2). The rectangle rides the shared envelope's own range
+	// field (EditOp.Range preserves it), matching the upstream StructuralOp
+	// merge branch; merges never shift coordinates.
+	"merge_cells":   officeMergeValid,
+	"unmerge_cells": officeMergeValid,
+	// Filters (B4): set_filter is the declarative whole-sheet snapshot,
+	// clear_filter removes the autoFilter and unhides the visibility range.
+	"set_filter":   officeSetFilterValid,
+	"clear_filter": officeClearFilterValid,
+	// Page setup (C2): set_page_setup is the declarative whole-sheet
+	// page-layout snapshot (orientation, paper, scale/fit, margins, print
+	// gridlines/headings, print area/titles, frozen panes, breaks).
+	"set_page_setup": officeSetPageSetupValid,
+	// Hyperlinks + notes (B6): set_hyperlink is a per-cell link (null target
+	// removes it); set_notes is a whole-sheet declarative note snapshot.
+	"set_hyperlink": officeSetHyperlinkValid,
+	"set_notes":     officeSetNotesValid,
+	// Sheet management (B3): add/duplicate/rename/remove/reorder/hide. The
+	// applied set folds into ONE workbook-wide SheetEditPlan per save; names
+	// follow the upstream validateSheetName and the tab index mirrors the TS
+	// parser. The live sheet set (uniqueness, the last-sheet rule) lives with
+	// the engine, so these rows validate shape only.
+	"add_sheet":        officeAddSheetValid,
+	"duplicate_sheet":  officeDuplicateSheetValid,
+	"rename_sheet":     officeRenameSheetValid,
+	"remove_sheet":     officeRemoveSheetValid,
+	"reorder_sheet":    officeReorderSheetValid,
+	"set_sheet_hidden": officeSheetHiddenValid,
+	// Tables (B9): create_table writes a new table part over a header-inclusive
+	// range; remove_table cancels a session add by name (the gateway has no
+	// table-removal write path, so a file-native table stays view-only).
+	"create_table": officeCreateTableValid,
+	"remove_table": officeRemoveTableValid,
+	// Sheet protection (B7): set_sheet_protection toggles the worksheet
+	// <sheetProtection> element. The flag is a raw boolean.
+	"set_sheet_protection": officeSetSheetProtectionValid,
+	// Defined names (B7): set_defined_names rewrites the workbook definedNames
+	// section from the editor model. Names follow Excel's grammar;
+	// preserveNames lists names the editor cannot model and keeps verbatim.
+	"set_defined_names": officeSetDefinedNamesValid,
+}
+
+// OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
+// the engine's own parser.
+const (
+	maxOfficeEditRows    = 1_048_576
+	maxOfficeEditColumns = 16_384
+	// One cell's text/formula bound (ops.ts MAX_TEXT_LEN).
+	maxOfficeEditTextLen = 1 << 20
+)
+
+var officeA1Pattern = regexp.MustCompile(`^\$?([A-Za-z]{1,3})\$?([1-9][0-9]*)$`)
+
+// officeA1Index decodes an A1 address ("B5", "$B$5") into 0-based row/column
+// inside the OOXML grid.
+func officeA1Index(address string) (int, int, bool) {
+	m := officeA1Pattern.FindStringSubmatch(address)
+	if m == nil {
+		return 0, 0, false
+	}
+	row, err := strconv.Atoi(m[2])
+	if err != nil || row < 1 || row > maxOfficeEditRows {
+		return 0, 0, false
+	}
+	column := 0
+	for _, letter := range strings.ToUpper(m[1]) {
+		column = column*26 + int(letter-'A') + 1
+	}
+	column--
+	if column < 0 || column >= maxOfficeEditColumns {
+		return 0, 0, false
+	}
+	return row - 1, column, true
+}
+
+// officeGridIndex decodes a 0-based row/column JSON number inside [0,size).
+func officeGridIndex(raw json.RawMessage, size int) (int, bool) {
+	if len(raw) == 0 || (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || value < 0 || value >= float64(size) || value != math.Trunc(value) {
+		return 0, false
+	}
+	return int(value), true
+}
+
+// officeSheetRefOK accepts a present sheet name / gateway sheet id: a
+// non-empty string. The workbook's real sheet list lives with the engine, so
+// the bound check here is the target shape, not the name's existence.
+func officeSheetRefOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil {
+		return false
+	}
+	return strings.TrimSpace(name) != ""
+}
+
+// officeTargetOf decodes a target object; nil when the shape is not one.
+func officeTargetOf(raw json.RawMessage) map[string]json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var target map[string]json.RawMessage
+	if json.Unmarshal(raw, &target) != nil {
+		return nil
+	}
+	return target
+}
+
+// officeTargetSheetOK checks the sheet ref of a decoded target: sheet wins
+// over sheetId when both spellings are present, as parseXlsxOps reads it.
+func officeTargetSheetOK(target map[string]json.RawMessage) bool {
+	if target == nil {
+		return false
+	}
+	if sheet, ok := target["sheet"]; ok {
+		return officeSheetRefOK(sheet)
+	}
+	return officeSheetRefOK(target["sheetId"])
+}
+
+// officeCellTargetOK checks the bound cell target shape: a sheet ref plus
+// exactly one cell reference — A1 or 0-based row/column — inside the OOXML
+// grid.
+func officeCellTargetOK(raw json.RawMessage) bool {
+	target := officeTargetOf(raw)
+	if !officeTargetSheetOK(target) {
+		return false
+	}
+	if cell, ok := target["cell"]; ok {
+		var address string
+		if json.Unmarshal(cell, &address) != nil {
+			return false
+		}
+		_, _, ok = officeA1Index(address)
+		return ok
+	}
+	if _, ok := officeGridIndex(target["row"], maxOfficeEditRows); !ok {
+		return false
+	}
+	_, ok := officeGridIndex(target["column"], maxOfficeEditColumns)
+	return ok
+}
+
+// officeRangeTargetOK is the set_cells target bound: parseRange reads the
+// target only for its sheet, so a cell/row/column spelling there is ignored
+// by the engine rather than required.
+func officeRangeTargetOK(raw json.RawMessage) bool {
+	return officeTargetSheetOK(officeTargetOf(raw))
+}
+
+// officeEditAttributes is the bound attributes object; RawMessage keeps
+// presence (including an explicit null) visible.
+type officeEditAttributes struct {
+	Value      json.RawMessage `json:"value"`
+	Formula    json.RawMessage `json:"formula"`
+	StyleReset json.RawMessage `json:"styleReset"`
+	Style      json.RawMessage `json:"style"`
+}
+
+// officeAttributesOf decodes an op's attributes; absent or JSON null is the
+// empty object (parseXlsxOps reads attributes only when it is an object), and
+// any other non-object shape is refused as malformed.
+func officeAttributesOf(raw json.RawMessage) (officeEditAttributes, bool) {
+	var attributes officeEditAttributes
+	if len(raw) == 0 || string(raw) == "null" {
+		return attributes, true
+	}
+	if json.Unmarshal(raw, &attributes) != nil {
+		return attributes, false
+	}
+	return attributes, true
+}
+
+// officeScalarOK accepts the value shape attributes.value may carry: a JSON
+// scalar (string, number, boolean, null).
+func officeScalarOK(raw json.RawMessage) bool {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return false
+	}
+	switch value.(type) {
+	case nil, string, float64, bool:
+		return true
+	}
+	return false
+}
+
+// officeEditContent is the parseCellValue half of set_cell/set_cells: content
+// reports text or attributes.value/formula was supplied; valid reports a
+// supplied field was well formed (a formula starts with "=", a value is a
+// scalar, text stays inside the bound).
+func officeEditContent(edit office.EditOp, attributes officeEditAttributes) (content, valid bool) {
+	if attributes.Formula != nil {
+		var formula string
+		if json.Unmarshal(attributes.Formula, &formula) != nil || formula == "" ||
+			!strings.HasPrefix(formula, "=") || len(formula) > maxOfficeEditTextLen {
+			return false, false
+		}
+		return true, true
+	}
+	if attributes.Value != nil {
+		if !officeScalarOK(attributes.Value) {
+			return false, false
+		}
+		return true, true
+	}
+	if len(edit.Text) > maxOfficeEditTextLen {
+		return false, false
+	}
+	return len(edit.Text) > 0, true
+}
+
+// officeStyleOf is the parseStyle half: style reports an object style was
+// supplied through either spelling (item.style, attributes.style) and reset
+// reports the styleReset key was present (its value must be a boolean).
+func officeStyleOf(edit office.EditOp, attributes officeEditAttributes) (style, reset, valid bool) {
+	if attributes.StyleReset != nil {
+		if raw := string(attributes.StyleReset); raw != "true" && raw != "false" {
+			return false, false, false
+		}
+		reset = true
+	}
+	for _, raw := range []json.RawMessage{edit.Style, attributes.Style} {
+		if len(raw) == 0 || string(raw) == "null" {
+			continue
+		}
+		var object map[string]json.RawMessage
+		if json.Unmarshal(raw, &object) != nil {
+			return false, false, false
+		}
+		style = true
+	}
+	return style, reset, true
+}
+
+// officeRangeBounds decodes a range in either wire spelling — "A1:B5" or the
+// four 0-based bounds — into its ordered 0-based corners (start <= end, inside
+// the OOXML grid). The caller applies its own cell/span budget on top.
+func officeRangeBounds(raw json.RawMessage) (startRow, startColumn, endRow, endColumn int, ok bool) {
+	if len(raw) == 0 {
+		return 0, 0, 0, 0, false
+	}
+	var address string
+	if json.Unmarshal(raw, &address) == nil {
+		parts := strings.Split(address, ":")
+		if len(parts) != 2 {
+			return 0, 0, 0, 0, false
+		}
+		if startRow, startColumn, ok = officeA1Index(parts[0]); !ok {
+			return 0, 0, 0, 0, false
+		}
+		if endRow, endColumn, ok = officeA1Index(parts[1]); !ok {
+			return 0, 0, 0, 0, false
+		}
+	} else {
+		var bounds map[string]json.RawMessage
+		if json.Unmarshal(raw, &bounds) != nil {
+			return 0, 0, 0, 0, false
+		}
+		if startRow, ok = officeGridIndex(bounds["startRow"], maxOfficeEditRows); !ok {
+			return 0, 0, 0, 0, false
+		}
+		if startColumn, ok = officeGridIndex(bounds["startColumn"], maxOfficeEditColumns); !ok {
+			return 0, 0, 0, 0, false
+		}
+		if endRow, ok = officeGridIndex(bounds["endRow"], maxOfficeEditRows); !ok {
+			return 0, 0, 0, 0, false
+		}
+		if endColumn, ok = officeGridIndex(bounds["endColumn"], maxOfficeEditColumns); !ok {
+			return 0, 0, 0, 0, false
+		}
+	}
+	if startRow > endRow || startColumn > endColumn {
+		return 0, 0, 0, 0, false
+	}
+	return startRow, startColumn, endRow, endColumn, true
+}
+
+// officeRangeOK is the parseRange half of set_cells: an ordered, in-grid range
+// that expands to at most maxOfficeEditOps cells — the job's op budget.
+func officeRangeOK(raw json.RawMessage) bool {
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(raw)
+	if !ok {
+		return false
+	}
+	return (endRow-startRow+1)*(endColumn-startColumn+1) <= maxOfficeEditOps
+}
+
+// officeSetCellValid: a cell target plus content, a style, or a style reset.
+func officeSetCellValid(edit office.EditOp) bool {
+	if !officeCellTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeAttributesOf(edit.Attributes)
+	if !ok {
+		return false
+	}
+	content, ok := officeEditContent(edit, attributes)
+	if !ok {
+		return false
+	}
+	style, reset, ok := officeStyleOf(edit, attributes)
+	if !ok {
+		return false
+	}
+	return content || style || reset
+}
+
+// officeClearCellValid: a cell target; content fields are ignored, as the
+// engine's own parser ignores them for clear_cell.
+func officeClearCellValid(edit office.EditOp) bool {
+	return officeCellTargetOK(edit.Target)
+}
+
+// officeSetCellsValid: the set_cells grammar as parseRange reads it — a
+// sheet-ref target (a cell address on the target is never read), a bounded
+// range, and content (style is optional for a range fill).
+func officeSetCellsValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) || !officeRangeOK(edit.Range) {
+		return false
+	}
+	attributes, ok := officeAttributesOf(edit.Attributes)
+	if !ok {
+		return false
+	}
+	content, ok := officeEditContent(edit, attributes)
+	if !ok || !content {
+		return false
+	}
+	_, _, ok = officeStyleOf(edit, attributes)
+	return ok
+}
+
+// Structural (rows/columns) validation. Field vocabulary mirrors
+// packages/office-engine/src/xlsx/ops.ts: positions are 0-based, sizes are
+// points for rows / character width for columns, null = the sheet default.
+
+const (
+	// Row height (points) / column width (character units) ceiling, mirroring
+	// the upstream structural wire schema (desktop-api.ts structuralOps).
+	maxOfficeStructuralSize = 500
+	// Span ceiling a size/hidden/outline op may address.
+	maxOfficeStructuralSpan = 100_000
+)
+
+// officeStructuralAttributes decodes a structural op's attributes object;
+// unlike the cell ops, a structural op requires the object (its fields live
+// there), so an absent or null attributes is malformed.
+func officeStructuralAttributes(raw json.RawMessage) (map[string]json.RawMessage, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, false
+	}
+	var attributes map[string]json.RawMessage
+	if json.Unmarshal(raw, &attributes) != nil {
+		return nil, false
+	}
+	return attributes, true
+}
+
+// officeStructuralInt decodes a bounded integer attribute (inclusive bounds),
+// refusing fractional, non-numeric and out-of-range values.
+func officeStructuralInt(attributes map[string]json.RawMessage, name string, min, max int) (int, bool) {
+	raw := attributes[name]
+	if len(raw) == 0 || (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) ||
+		value < float64(min) || value > float64(max) {
+		return 0, false
+	}
+	return int(value), true
+}
+
+// officeStructuralBool requires a present boolean attribute.
+func officeStructuralBool(attributes map[string]json.RawMessage, name string) (bool, bool) {
+	switch string(attributes[name]) {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	}
+	return false, false
+}
+
+// officeAxisLimit is the grid bound of the op's axis.
+func officeAxisLimit(columns bool) int {
+	if columns {
+		return maxOfficeEditColumns
+	}
+	return maxOfficeEditRows
+}
+
+// officeAxisSpan decodes start/end and enforces start <= end, inside the grid
+// and under the span ceiling.
+func officeAxisSpan(attributes map[string]json.RawMessage, columns bool) bool {
+	limit := officeAxisLimit(columns)
+	start, ok := officeStructuralInt(attributes, "start", 0, limit-1)
+	if !ok {
+		return false
+	}
+	end, ok := officeStructuralInt(attributes, "end", 0, limit-1)
+	return ok && end >= start && end-start < maxOfficeStructuralSpan
+}
+
+// officeShiftValid: insert_rows/remove_rows/insert_cols/remove_cols —
+// {index, count}, count >= 1, index+count inside the axis grid.
+func officeShiftValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok {
+			return false
+		}
+		limit := officeAxisLimit(columns)
+		index, ok := officeStructuralInt(attributes, "index", 0, limit-1)
+		if !ok {
+			return false
+		}
+		count, ok := officeStructuralInt(attributes, "count", 1, limit)
+		if !ok || index+count > limit {
+			return false
+		}
+		return true
+	}
+}
+
+// officeSizeValid: set_row_size/set_col_size — {start, end, size}; size is
+// null (sheet default) or a number in (0, maxOfficeStructuralSize].
+func officeSizeValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		raw := attributes["size"]
+		if string(raw) == "null" {
+			return true
+		}
+		value, err := strconv.ParseFloat(string(raw), 64)
+		return err == nil && !math.IsNaN(value) && !math.IsInf(value, 0) &&
+			value > 0 && value <= maxOfficeStructuralSize
+	}
+}
+
+// officeHiddenValid: set_rows_hidden/set_cols_hidden — {start, end, hidden}.
+func officeHiddenValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		_, ok = officeStructuralBool(attributes, "hidden")
+		return ok
+	}
+}
+
+// officeOutlineValid: set_rows_outline/set_cols_outline — {start, end, level,
+// collapsed?}; level is absolute 0-7 (0 removes the attribute).
+func officeOutlineValid(columns bool) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		if !officeRangeTargetOK(edit.Target) {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || !officeAxisSpan(attributes, columns) {
+			return false
+		}
+		if _, ok := officeStructuralInt(attributes, "level", 0, 7); !ok {
+			return false
+		}
+		if _, present := attributes["collapsed"]; present {
+			if _, ok := officeStructuralBool(attributes, "collapsed"); !ok {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// officeMergeValid: merge_cells/unmerge_cells — a sheet-ref target plus a
+// bounded rectangle, mirroring ops.ts parseMergeArea: the shared envelope's
+// range field ("A1:B2" or the four 0-based bounds), ordered, inside the grid,
+// under the structural span ceiling and at least two cells (a single-cell
+// merge is not a merge Excel would write).
+func officeMergeValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(edit.Range)
+	if !ok {
+		return false
+	}
+	if endRow-startRow >= maxOfficeStructuralSpan || endColumn-startColumn >= maxOfficeStructuralSpan {
+		return false
+	}
+	return endRow > startRow || endColumn > startColumn
+}
+
+// Filters (B4). set_filter / clear_filter carry the declarative filter state;
+// the fields ride the existing raw attributes object like the structural ops.
+// Bounds mirror ops.ts's parsers and the vendored wire schema (desktop-api.ts
+// workbookFilterStateSchema): at most 1000 columns, 10000 values per column
+// (32767 characters each), up to two custom conditions per column with the
+// OOXML operators, 100000 hidden rows, and every area ordered, inside the grid
+// and under the structural span ceiling. set_filter's own range needs a header
+// row plus at least one data row, as the pinned filter command requires.
+const (
+	maxOfficeFilterColumns   = 1_000
+	maxOfficeFilterValues    = 10_000
+	maxOfficeFilterValueLen  = 32_767
+	maxOfficeFilterHiddenRow = 100_000
+)
+
+var officeFilterOperators = map[string]bool{
+	"equal":              true,
+	"notEqual":           true,
+	"greaterThan":        true,
+	"greaterThanOrEqual": true,
+	"lessThan":           true,
+	"lessThanOrEqual":    true,
+}
+
+// officeFilterArea decodes one 0-based area object (the object spelling only —
+// the filter wire never uses an A1 range string): ordered, inside the grid,
+// under the span ceiling.
+func officeFilterArea(raw json.RawMessage) (startRow, startColumn, endRow, endColumn int, ok bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, 0, 0, 0, false
+	}
+	var area map[string]json.RawMessage
+	if json.Unmarshal(raw, &area) != nil {
+		return 0, 0, 0, 0, false
+	}
+	if startRow, ok = officeGridIndex(area["startRow"], maxOfficeEditRows); !ok {
+		return 0, 0, 0, 0, false
+	}
+	if startColumn, ok = officeGridIndex(area["startColumn"], maxOfficeEditColumns); !ok {
+		return 0, 0, 0, 0, false
+	}
+	if endRow, ok = officeGridIndex(area["endRow"], maxOfficeEditRows); !ok {
+		return 0, 0, 0, 0, false
+	}
+	if endColumn, ok = officeGridIndex(area["endColumn"], maxOfficeEditColumns); !ok {
+		return 0, 0, 0, 0, false
+	}
+	if startRow > endRow || startColumn > endColumn {
+		return 0, 0, 0, 0, false
+	}
+	if endRow-startRow >= maxOfficeStructuralSpan || endColumn-startColumn >= maxOfficeStructuralSpan {
+		return 0, 0, 0, 0, false
+	}
+	return startRow, startColumn, endRow, endColumn, true
+}
+
+// officeFilterColumnOK validates one filter column: colId inside the filter
+// range, at most one criteria family, values/operators bounded like the wire
+// schema. seen guards the duplicate colId the engine parser also refuses.
+func officeFilterColumnOK(raw json.RawMessage, width int, seen map[int]bool) bool {
+	var column map[string]json.RawMessage
+	if json.Unmarshal(raw, &column) != nil {
+		return false
+	}
+	colID, ok := officeGridIndex(column["colId"], maxOfficeEditColumns)
+	if !ok || colID >= width || seen[colID] {
+		return false
+	}
+	seen[colID] = true
+	criteria := false
+	if values, has := column["values"]; has {
+		if len(values) == 0 || string(values) == "null" {
+			return false
+		}
+		var list []string
+		if json.Unmarshal(values, &list) != nil || len(list) > maxOfficeFilterValues {
+			return false
+		}
+		for _, value := range list {
+			if len(value) > maxOfficeFilterValueLen {
+				return false
+			}
+		}
+		criteria = true
+	}
+	if blank, has := column["blank"]; has {
+		var flag bool
+		if json.Unmarshal(blank, &flag) != nil {
+			return false
+		}
+		criteria = true
+	}
+	if customs, has := column["customs"]; has {
+		if len(customs) == 0 || string(customs) == "null" {
+			return false
+		}
+		var custom map[string]json.RawMessage
+		if json.Unmarshal(customs, &custom) != nil {
+			return false
+		}
+		if and, hasAnd := custom["and"]; hasAnd {
+			var flag bool
+			if json.Unmarshal(and, &flag) != nil {
+				return false
+			}
+		}
+		filters := custom["filters"]
+		if len(filters) == 0 || string(filters) == "null" {
+			return false
+		}
+		var conditions []map[string]json.RawMessage
+		if json.Unmarshal(filters, &conditions) != nil || len(conditions) < 1 || len(conditions) > 2 {
+			return false
+		}
+		for _, condition := range conditions {
+			value := condition["val"]
+			if len(value) == 0 || string(value) == "null" {
+				return false
+			}
+			var text string
+			if json.Unmarshal(value, &text) != nil {
+				var number float64
+				if json.Unmarshal(value, &number) != nil || math.IsNaN(number) || math.IsInf(number, 0) {
+					return false
+				}
+			} else if len(text) > maxOfficeFilterValueLen {
+				return false
+			}
+			if operator, hasOperator := condition["operator"]; hasOperator {
+				var name string
+				if json.Unmarshal(operator, &name) != nil || !officeFilterOperators[name] {
+					return false
+				}
+			}
+		}
+		criteria = true
+	}
+	return criteria
+}
+
+// officeSetFilterValid: set_filter — a sheet-ref target plus
+// attributes.filter {range, columns}, attributes.hiddenRows and
+// attributes.visibilityRange.
+func officeSetFilterValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	filter := attributes["filter"]
+	if len(filter) == 0 || string(filter) == "null" {
+		return false
+	}
+	var decoded map[string]json.RawMessage
+	if json.Unmarshal(filter, &decoded) != nil {
+		return false
+	}
+	startRow, startColumn, endRow, endColumn, ok := officeFilterArea(decoded["range"])
+	if !ok || endRow == startRow {
+		return false
+	}
+	columns := decoded["columns"]
+	if len(columns) == 0 || string(columns) == "null" {
+		return false
+	}
+	var list []json.RawMessage
+	if json.Unmarshal(columns, &list) != nil || len(list) > maxOfficeFilterColumns {
+		return false
+	}
+	seen := make(map[int]bool, len(list))
+	for _, rawColumn := range list {
+		if !officeFilterColumnOK(rawColumn, endColumn-startColumn+1, seen) {
+			return false
+		}
+	}
+	hidden := attributes["hiddenRows"]
+	if len(hidden) == 0 || string(hidden) == "null" {
+		return false
+	}
+	var rows []json.RawMessage
+	if json.Unmarshal(hidden, &rows) != nil || len(rows) > maxOfficeFilterHiddenRow {
+		return false
+	}
+	for _, rawRow := range rows {
+		if _, ok := officeGridIndex(rawRow, maxOfficeEditRows); !ok {
+			return false
+		}
+	}
+	_, _, _, _, ok = officeFilterArea(attributes["visibilityRange"])
+	return ok
+}
+
+// officeClearFilterValid: clear_filter — a sheet-ref target plus
+// attributes.visibilityRange (the rows the removed filter was hiding).
+func officeClearFilterValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	_, _, _, _, ok = officeFilterArea(attributes["visibilityRange"])
+	return ok
+}
+
+// Page setup (C2). set_page_setup carries the whole declarative page-layout
+// snapshot in the raw attributes object. Bounds mirror ops.ts's parser and the
+// vendored wire schema (desktop-api.ts workbookPageSetupStateSchema):
+// orientation/margins enums, paperSize 1-118, scale 10-400, fitTo* 0-1000,
+// frozen panes in grid, break indexes positive and in-grid, printArea through
+// the A1 grammar (<=255 chars) and printTitles through the row-span grammar.
+// An unknown attribute is refused so the typed op never silently drops a field.
+var officePageSetupFields = map[string]bool{
+	"orientation":    true,
+	"paperSize":      true,
+	"scale":          true,
+	"fitToWidth":     true,
+	"fitToHeight":    true,
+	"fitToPage":      true,
+	"margins":        true,
+	"printGridlines": true,
+	"printHeadings":  true,
+	"printArea":      true,
+	"printTitles":    true,
+	"frozenRows":     true,
+	"frozenColumns":  true,
+	"rowBreaks":      true,
+	"colBreaks":      true,
+}
+
+// officePageSetupInt decodes a bounded JSON integer in [min,max].
+func officePageSetupInt(raw json.RawMessage, min, max int) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	value, err := strconv.ParseFloat(string(raw), 64)
+	return err == nil && value == math.Trunc(value) && value >= float64(min) && value <= float64(max)
+}
+
+// officePageSetupBool requires the raw literal true/false, matching the TS
+// parser (pageSetupBool). A JSON null unmarshals into a Go bool as a no-op, so
+// decoding into bool would accept null and diverge from the engine.
+func officePageSetupBool(raw json.RawMessage) bool {
+	switch string(raw) {
+	case "true", "false":
+		return true
+	}
+	return false
+}
+
+// officePrintAreaOK: an A1 range or single cell ("A1:C10", "$A$1"), <=255
+// chars, both endpoints inside the OOXML grid. A JSON null clears the name.
+func officePrintAreaOK(raw json.RawMessage) bool {
+	if string(raw) == "null" {
+		return true
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil || value == "" || len(value) > 255 {
+		return false
+	}
+	parts := strings.Split(value, ":")
+	if len(parts) > 2 {
+		return false
+	}
+	for _, part := range parts {
+		if _, _, ok := officeA1Index(part); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// officePrintTitlesOK: a row span "1:3" (1-based, ascending) or JSON null.
+func officePrintTitlesOK(raw json.RawMessage) bool {
+	if string(raw) == "null" {
+		return true
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return false
+	}
+	m := officePrintTitlesPattern.FindStringSubmatch(value)
+	if m == nil {
+		return false
+	}
+	start, errStart := strconv.Atoi(m[1])
+	end, errEnd := strconv.Atoi(m[2])
+	return errStart == nil && errEnd == nil && start >= 1 && start <= end && end <= maxOfficeEditRows
+}
+
+var officePrintTitlesPattern = regexp.MustCompile(`^(\d{1,7}):(\d{1,7})$`)
+
+// officePageSetupBreaksOK: a JSON array of positive in-grid break indexes.
+func officePageSetupBreaksOK(raw json.RawMessage, max int) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var breaks []json.RawMessage
+	if json.Unmarshal(raw, &breaks) != nil || len(breaks) > 1023 {
+		return false
+	}
+	for _, entry := range breaks {
+		value, err := strconv.ParseFloat(string(entry), 64)
+		if err != nil || value != math.Trunc(value) || value < 1 || value > float64(max) {
+			return false
+		}
+	}
+	return true
+}
+
+// officeSetPageSetupValid: set_page_setup — a sheet-ref target plus a bounded
+// attributes object with at least one recognized setting.
+func officeSetPageSetupValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) == 0 {
+		return false
+	}
+	settings := 0
+	_, hasFrozenRows := attributes["frozenRows"]
+	_, hasFrozenColumns := attributes["frozenColumns"]
+	// The pane is one state: the gateway writes `frozenRows ?? 0` /
+	// `frozenColumns ?? 0`, so a lone axis would reset the other to 0. The TS
+	// parser refuses the half pair too (parseSetPageSetup).
+	if hasFrozenRows != hasFrozenColumns {
+		return false
+	}
+	for name, raw := range attributes {
+		if !officePageSetupFields[name] {
+			return false
+		}
+		switch name {
+		case "orientation":
+			var value string
+			if json.Unmarshal(raw, &value) != nil || (value != "portrait" && value != "landscape") {
+				return false
+			}
+		case "margins":
+			var value string
+			if json.Unmarshal(raw, &value) != nil || (value != "normal" && value != "wide" && value != "narrow") {
+				return false
+			}
+		case "paperSize":
+			if !officePageSetupInt(raw, 1, 118) {
+				return false
+			}
+		case "scale":
+			if !officePageSetupInt(raw, 10, 400) {
+				return false
+			}
+		case "fitToWidth", "fitToHeight":
+			if !officePageSetupInt(raw, 0, 1_000) {
+				return false
+			}
+		case "frozenRows":
+			if !officePageSetupInt(raw, 0, maxOfficeEditRows-1) {
+				return false
+			}
+		case "frozenColumns":
+			if !officePageSetupInt(raw, 0, maxOfficeEditColumns-1) {
+				return false
+			}
+		case "fitToPage", "printGridlines", "printHeadings":
+			if !officePageSetupBool(raw) {
+				return false
+			}
+		case "printArea":
+			if !officePrintAreaOK(raw) {
+				return false
+			}
+		case "printTitles":
+			if !officePrintTitlesOK(raw) {
+				return false
+			}
+		case "rowBreaks":
+			if !officePageSetupBreaksOK(raw, maxOfficeEditRows-1) {
+				return false
+			}
+		case "colBreaks":
+			if !officePageSetupBreaksOK(raw, maxOfficeEditColumns-1) {
+				return false
+			}
+		}
+		settings++
+	}
+	return settings > 0
+}
+
+// Hyperlinks (B6). set_hyperlink carries a per-cell link in the raw
+// attributes object: attributes.cell is an A1 address and attributes.target is
+// a URL/anchor of 1-2083 characters (the vendored wire schema's bound) or JSON
+// null to remove the link. One op kind serves set and clear, mirroring the
+// gateway's per-cell last-write list.
+func officeSetHyperlinkValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	var cell string
+	if json.Unmarshal(attributes["cell"], &cell) != nil {
+		return false
+	}
+	if _, _, ok := officeA1Index(cell); !ok {
+		return false
+	}
+	target, has := attributes["target"]
+	if !has || len(target) == 0 {
+		return false
+	}
+	if string(target) == "null" {
+		return true
+	}
+	var link string
+	if json.Unmarshal(target, &link) != nil {
+		return false
+	}
+	return len(link) >= 1 && len(link) <= maxOfficeHyperlinkTargetLen
+}
+
+// Notes (B6). set_notes carries the whole-sheet note snapshot: at most 1000
+// notes, each a 0-based in-grid cell with an author <=255 chars and text
+// <=32767 chars, one note per cell. Bounds mirror the vendored wire schema
+// (desktop-api.ts workbookNoteStateSchema) and the ops-notes parser.
+const maxOfficeHyperlinkTargetLen = 2_083
+
+const (
+	maxOfficeNoteCount     = 1_000
+	maxOfficeNoteAuthorLen = 255
+	maxOfficeNoteTextLen   = 32_767
+)
+
+func officeSetNotesValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	raw := attributes["notes"]
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var notes []json.RawMessage
+	if json.Unmarshal(raw, &notes) != nil || len(notes) > maxOfficeNoteCount {
+		return false
+	}
+	seen := make(map[string]bool, len(notes))
+	for _, entry := range notes {
+		var note map[string]json.RawMessage
+		if json.Unmarshal(entry, &note) != nil {
+			return false
+		}
+		row, okRow := officeGridIndex(note["row"], maxOfficeEditRows)
+		column, okColumn := officeGridIndex(note["column"], maxOfficeEditColumns)
+		if !okRow || !okColumn {
+			return false
+		}
+		var author string
+		if json.Unmarshal(note["author"], &author) != nil || len(author) > maxOfficeNoteAuthorLen {
+			return false
+		}
+		var text string
+		if json.Unmarshal(note["text"], &text) != nil || len(text) > maxOfficeNoteTextLen {
+			return false
+		}
+		key := strconv.Itoa(row) + ":" + strconv.Itoa(column)
+		if seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
+}
+
+// Sheet management (B3). Names mirror the upstream validateSheetName
+// (1-31 characters, no \ / ? * [ ] :, no leading/trailing apostrophe); the tab
+// index mirrors the TS parser's 0-9999 bound (an envelope carries at most
+// maxOfficeEditOps items, so a larger index is unreachable). Uniqueness, the
+// last-sheet rule and the at-least-one-visible rule need the workbook's live
+// sheet set and stay with the engine (a typed refusal at edit/save time), the
+// same split as officeSheetRefOK.
+const (
+	maxOfficeSheetNameLen = 31
+	maxOfficeSheetIndex   = 9_999
+)
+
+// officeSheetNameOK accepts a present, well-formed worksheet name. The rune
+// count keeps the Go gate at least as permissive as the engine's UTF-16 length
+// check: a name the engine would refuse still reaches it as a typed error.
+func officeSheetNameOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil {
+		return false
+	}
+	if count := utf8.RuneCountInString(name); count < 1 || count > maxOfficeSheetNameLen {
+		return false
+	}
+	if strings.ContainsAny(name, `\/?*[]:`) {
+		return false
+	}
+	return !strings.HasPrefix(name, "'") && !strings.HasSuffix(name, "'")
+}
+
+// officeSheetTargetAbsent accepts an absent/JSON-null target or an empty
+// object: add_sheet addresses no existing sheet.
+func officeSheetTargetAbsent(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var target map[string]json.RawMessage
+	return json.Unmarshal(raw, &target) == nil && len(target) == 0
+}
+
+// officeSheetIndexAttr decodes the optional/required tab index, a 0-based
+// position in the final tab order.
+func officeSheetIndexAttr(attributes map[string]json.RawMessage, required bool) bool {
+	if len(attributes["index"]) == 0 {
+		return !required
+	}
+	_, ok := officeStructuralInt(attributes, "index", 0, maxOfficeSheetIndex)
+	return ok
+}
+
+// officeAddSheetValid: add_sheet — no sheet target, attributes {name} and an
+// optional index (omitted = append to the end).
+func officeAddSheetValid(edit office.EditOp) bool {
+	if !officeSheetTargetAbsent(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || !officeSheetNameOK(attributes["name"]) {
+		return false
+	}
+	return officeSheetIndexAttr(attributes, false)
+}
+
+// officeDuplicateSheetValid: duplicate_sheet — the source sheet target plus
+// attributes {name} and an optional index (the clone's final position).
+func officeDuplicateSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || !officeSheetNameOK(attributes["name"]) {
+		return false
+	}
+	return officeSheetIndexAttr(attributes, false)
+}
+
+// officeRenameSheetValid: rename_sheet — the target sheet plus attributes
+// {newName}.
+func officeRenameSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	return ok && officeSheetNameOK(attributes["newName"])
+}
+
+// officeRemoveSheetValid: remove_sheet — the target sheet only; the engine
+// refuses removing the last remaining sheet.
+func officeRemoveSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	if len(edit.Attributes) == 0 || string(edit.Attributes) == "null" {
+		return true
+	}
+	_, ok := officeStructuralAttributes(edit.Attributes)
+	return ok
+}
+
+// officeReorderSheetValid: reorder_sheet — the target sheet plus a required
+// attributes {index}.
+func officeReorderSheetValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	return ok && officeSheetIndexAttr(attributes, true)
+}
+
+// officeSheetHiddenValid: set_sheet_hidden — the target sheet plus attributes
+// {hidden}.
+func officeSheetHiddenValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok {
+		return false
+	}
+	_, ok = officeStructuralBool(attributes, "hidden")
+	return ok
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another
@@ -674,4 +1844,237 @@ func (s *DocumentOfficeService) CancelOfficeJobForDocument(ctx context.Context, 
 		return db.OfficeJob{}, ErrNotFound
 	}
 	return s.CancelOfficeJob(ctx, actor, doc.OrganizationID, doc.WorkspaceID, jobID)
+}
+
+// Tables (B9). create_table carries the table range on the shared envelope's
+// own range field (like merge_cells) and its metadata in the raw attributes
+// object: name, columnNames, an optional built-in style and bandedRows. Bounds
+// mirror ops.ts's parser and the vendored wire schema (desktop-api.ts
+// workbookTableAddSchema): the name follows Excel's table-name grammar, the
+// range needs a header row plus at least one data row, one non-blank unique
+// column name per column (<=255 chars), and the style is a built-in
+// TableStyle{Light|Medium|Dark}N name. remove_table carries only a name.
+
+const (
+	maxOfficeTableNameLen    = 255
+	maxOfficeTableColumns    = 1_000
+	maxOfficeTableColumnName = 255
+)
+
+var (
+	officeTableNamePattern  = regexp.MustCompile("^[A-Za-z_\\\\][A-Za-z0-9_.]{0,254}$")
+	officeTableCellRefPat   = regexp.MustCompile("^\\$?[A-Za-z]{1,3}\\$?[1-9][0-9]*$")
+	officeTableStylePattern = regexp.MustCompile("^TableStyle(?:Light|Medium|Dark)[1-9][0-9]?$")
+)
+
+// Defined names (B7). set_defined_names has no target: the vendored gateway
+// rewrites the workbook definedNames section wholesale, so the state is
+// workbook-scoped. Names follow the vendored validateName grammar (a letter, _,
+// or backslash; then letters/digits/_/./backslash; at most 255 chars; never an
+// A1/R1C1 cell reference, TRUE/FALSE, or an _xlnm built-in); each name appears
+// once per scope and a name cannot be both modeled and preserved.
+const maxOfficeDefinedNames = 10_000
+
+var (
+	officeDefinedNamePattern    = regexp.MustCompile(`^[\p{L}_\\][\p{L}\p{N}_.\\]*$`)
+	officeDefinedNameCellRefPat = regexp.MustCompile(`^(?:[A-Za-z]{1,3}[0-9]+|[Rr][0-9]*[Cc][0-9]*)$`)
+)
+
+// officeDefinedNameOK mirrors the vendored validateName (xlsx-defined-names.ts).
+func officeDefinedNameOK(name string) bool {
+	if name == "" || len(name) > 255 || !officeDefinedNamePattern.MatchString(name) {
+		return false
+	}
+	if officeDefinedNameCellRefPat.MatchString(name) {
+		return false
+	}
+	lower := strings.ToLower(name)
+	return lower != "true" && lower != "false" && !strings.HasPrefix(name, "_xlnm")
+}
+
+// officeDefinedNamesListOK validates the names array: each entry is an object
+// with a valid name, a non-empty formula and an optional in-grid sheetIndex;
+// a (name, scope) pair may not repeat.
+func officeDefinedNamesListOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var names []map[string]json.RawMessage
+	if json.Unmarshal(raw, &names) != nil || len(names) > maxOfficeDefinedNames {
+		return false
+	}
+	seen := make(map[string]bool, len(names))
+	for _, entry := range names {
+		if entry == nil {
+			return false
+		}
+		var name string
+		if json.Unmarshal(entry["name"], &name) != nil || !officeDefinedNameOK(name) {
+			return false
+		}
+		var formula string
+		if json.Unmarshal(entry["formula"], &formula) != nil || formula == "" {
+			return false
+		}
+		scope := -1
+		if sheetIndex, ok := entry["sheetIndex"]; ok {
+			value, valid := officeGridIndex(sheetIndex, maxOfficeEditColumns)
+			if !valid {
+				return false
+			}
+			scope = value
+		}
+		key := name + "\x00" + strconv.Itoa(scope)
+		if seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
+}
+
+// officeSetDefinedNamesValid: set_defined_names - a workbook-scoped snapshot
+// with a bounded names array and optional bounded preserveNames.
+func officeSetDefinedNamesValid(edit office.EditOp) bool {
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) == 0 {
+		return false
+	}
+	for name := range attributes {
+		if name != "names" && name != "preserveNames" {
+			return false
+		}
+	}
+	if !officeDefinedNamesListOK(attributes["names"]) {
+		return false
+	}
+	preserved := make(map[string]bool)
+	if raw, present := attributes["preserveNames"]; present {
+		var list []string
+		if json.Unmarshal(raw, &list) != nil || len(list) > maxOfficeDefinedNames {
+			return false
+		}
+		for _, name := range list {
+			if name == "" || len(name) > 255 {
+				return false
+			}
+			preserved[name] = true
+		}
+	}
+	// A name cannot be both modeled and preserved (mirrors ops-names.ts:111-115).
+	var modeled []map[string]json.RawMessage
+	if json.Unmarshal(attributes["names"], &modeled) == nil {
+		for _, entry := range modeled {
+			var name string
+			if json.Unmarshal(entry["name"], &name) == nil && preserved[name] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// officeSetSheetProtectionValid: set_sheet_protection - a sheet-ref target
+// plus exactly one raw boolean flag.
+func officeSetSheetProtectionValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) != 1 {
+		return false
+	}
+	protected, present := attributes["protected"]
+	return present && (string(protected) == "true" || string(protected) == "false")
+}
+
+// officeTableNameOK: a present Excel table name (grammar + not a cell ref).
+func officeTableNameOK(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var name string
+	if json.Unmarshal(raw, &name) != nil || len(name) > maxOfficeTableNameLen {
+		return false
+	}
+	return officeTableNamePattern.MatchString(name) && !officeTableCellRefPat.MatchString(name)
+}
+
+// officeTableColumnNamesOK: exactly width non-blank, unique (case-insensitive)
+// names, each at most 255 characters.
+func officeTableColumnNamesOK(raw json.RawMessage, width int) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var names []string
+	if json.Unmarshal(raw, &names) != nil || len(names) != width || width < 1 || width > maxOfficeTableColumns {
+		return false
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		trimmed := strings.ToLower(strings.TrimSpace(name))
+		if trimmed == "" || len(name) > maxOfficeTableColumnName || seen[trimmed] {
+			return false
+		}
+		seen[trimmed] = true
+	}
+	return true
+}
+
+// officeTableAttributesOK validates the shared metadata of create_table.
+func officeTableAttributesOK(attributes map[string]json.RawMessage, width int) bool {
+	for name := range attributes {
+		switch name {
+		case "name", "columnNames", "style", "bandedRows":
+		default:
+			return false
+		}
+	}
+	if !officeTableNameOK(attributes["name"]) || !officeTableColumnNamesOK(attributes["columnNames"], width) {
+		return false
+	}
+	if raw, ok := attributes["style"]; ok {
+		var style string
+		if json.Unmarshal(raw, &style) != nil || !officeTableStylePattern.MatchString(style) {
+			return false
+		}
+	}
+	if raw, ok := attributes["bandedRows"]; ok {
+		if string(raw) != "true" && string(raw) != "false" {
+			return false
+		}
+	}
+	return true
+}
+
+// officeCreateTableValid: create_table - a sheet-ref target, a header-inclusive
+// range with at least one data row, and bounded table metadata.
+func officeCreateTableValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	startRow, startColumn, endRow, endColumn, ok := officeRangeBounds(edit.Range)
+	if !ok || endRow <= startRow {
+		return false
+	}
+	if endRow-startRow >= maxOfficeStructuralSpan || endColumn-startColumn >= maxOfficeStructuralSpan {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) == 0 {
+		return false
+	}
+	return officeTableAttributesOK(attributes, endColumn-startColumn+1)
+}
+
+// officeRemoveTableValid: remove_table - a sheet-ref target plus a name.
+func officeRemoveTableValid(edit office.EditOp) bool {
+	if !officeRangeTargetOK(edit.Target) {
+		return false
+	}
+	attributes, ok := officeStructuralAttributes(edit.Attributes)
+	if !ok || len(attributes) != 1 {
+		return false
+	}
+	return officeTableNameOK(attributes["name"])
 }

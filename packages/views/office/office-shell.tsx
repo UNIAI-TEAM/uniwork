@@ -49,6 +49,15 @@ export interface OfficeShellProps {
   saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   /**
+   * Lane additive prop (UNI-928 md/html END polish; root-merge follow-up).
+   * When true, a clean coordinator (state "ready") renders the header Save as
+   * a quiet outline control with `aria-disabled`, so "no changes" does not
+   * read as a primary action. Absent/false is byte-identical to before; the
+   * control stays in the tab order and the click is blocked in JS, never with
+   * the `disabled` attribute.
+   */
+  saveQuietWhenClean?: boolean;
+  /**
    * The host page already renders a header (web document page). The shell
    * then renders no header of its own and hands its action cluster to the
    * page header through `HeaderActionsSlotProvider`. Without a provider above
@@ -131,6 +140,7 @@ export function OfficeShell({
   saveLabel: providedSaveLabel,
   saveDestination = "cloud",
   editorReady = false,
+  saveQuietWhenClean = false,
   embedded = false,
   className,
 }: OfficeShellProps) {
@@ -153,6 +163,8 @@ export function OfficeShell({
   const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
   const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
   const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
+  // Nothing to save is the same clean predicate the status text uses ("ready").
+  const quietSave = saveQuietWhenClean && saveStatusValue === "ready" && !effectiveSaving;
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;
   const setPanelOpen = (open: boolean) => {
@@ -160,7 +172,7 @@ export function OfficeShell({
     else setInternalPanelOpen(open);
   };
   const performSave = () => {
-    if (!canSave) return;
+    if (!canSave || quietSave) return;
     if (saveCoordinator) {
       void saveCoordinator.save("button");
     } else {
@@ -207,7 +219,15 @@ export function OfficeShell({
         />
       ) : null}
       {canSave ? (
-        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel} title={saveLabel} data-office-save>
+        <Button
+          size="sm"
+          onClick={performSave}
+          disabled={effectiveSaving}
+          aria-label={saveLabel}
+          title={saveLabel}
+          data-office-save
+          {...(quietSave ? { variant: "outline" as const, "aria-disabled": true } : null)}
+        >
           <Save aria-hidden />
           {effectiveSaving ? t("saving") : t("shell.save")}
         </Button>

@@ -87,6 +87,17 @@ describe("DraftRecoveryPrompt", () => {
     expect(screen.getByText("Draft conflict")).toBeInTheDocument();
   });
 
+  it("keeps the destructive action last at every width (F9)", () => {
+    // visual-r2 F9: the footer flipped order between 768 ("Keep draft" first)
+    // and 390 ("Discard draft" first, destructive on top) because the mobile
+    // base was `flex-col-reverse`. The destructive action must never be first.
+    render(<DraftRecoveryPrompt open metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
+    const footer = document.querySelector('[data-slot="dialog-footer"]') as HTMLElement;
+    expect(footer.className).not.toContain("flex-col-reverse");
+    const labels = Array.from(footer.querySelectorAll("button")).map((button) => button.textContent);
+    expect(labels.indexOf("Discard draft")).toBeGreaterThan(labels.indexOf("Keep draft"));
+  });
+
   it("does not offer recovery when the draft is locked", () => {
     render(<DraftRecoveryPrompt open recoverable={false} metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Recover draft" })).toBeNull();

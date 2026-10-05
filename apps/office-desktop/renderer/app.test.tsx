@@ -20,6 +20,20 @@ function makeBridge(call: RendererBridge["call"]): { bridge: RendererBridge; emi
   return { bridge, emit: (metadata) => listener?.(metadata) };
 }
 
+/** Base UI's overflow trigger opens on click, but on a loaded runner the ribbon
+ * can re-render between findByRole and the click (the DOCX surface parses on
+ * setImmediate ticks), so a first click can land on a node that is being
+ * replaced. Wait for the menu popup itself and re-click only while it is still
+ * closed - a state-checked retry, never a blind repeat. The generous timeout
+ * matches the 10_000 used below for the same cold-start reason. */
+async function openRibbonOverflowMenu(): Promise<void> {
+  const name = i18n.t("office.ribbon.more");
+  await waitFor(() => {
+    if (screen.queryByRole("menu") === null) fireEvent.click(screen.getByRole("button", { name }));
+    expect(screen.queryByRole("menu")).not.toBeNull();
+  }, { timeout: 10_000 });
+}
+
 it("mounts the sign-in card for a signed-out session", async () => {
   const { bridge } = makeBridge(vi.fn(async (channel: string) =>
     channel === "desktop:auth-config" ? { clientId: "uniwork-office-dev", deploymentId: "lane" } : { status: "signed-out" },
@@ -157,10 +171,9 @@ it("opens an OS file in a new tab while another document remains mounted", async
   // f40808f2 moved back-to-library out of the document header into the "..."
   // menu, so reach it as a menuitem (open-document.test.tsx does the same).
   // Let the first DOCX finish parsing before opening the menu: on a loaded CI
-  // runner the parse blocks the main thread and the 1s default findBy window
-  // closed before the menu painted (passed locally, failed on Linux CI).
+  // runner the parse blocks the main thread and the menu can miss a short window.
   await screen.findByTestId("docx-document-surface", undefined, { timeout: 10_000 });
-  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  await openRibbonOverflowMenu();
   await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") }, { timeout: 10_000 });
   act(() => fileOpen?.({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF" }));
   await waitFor(() => expect(calls).toContain("desktop:file-open"));
@@ -203,7 +216,7 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
   // f40808f2 moved back-to-library out of the document header into the "..."
   // menu, so reach it as a menuitem (open-document.test.tsx does the same).
-  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  await openRibbonOverflowMenu();
   await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10000 });
   expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(0);

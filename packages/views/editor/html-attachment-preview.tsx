@@ -30,7 +30,7 @@ import { Download, ExternalLink, Maximize2, Trash2 } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useTranslation } from "react-i18next";
-import { useNavigation } from "@uniwork/views/navigation";
+import { useOptionalNavigation } from "@uniwork/views/navigation";
 import { useAttachmentHtmlText } from "./hooks/use-attachment-html-text";
 import { HtmlPreviewBody } from "./html-preview-body";
 
@@ -63,7 +63,7 @@ export function HtmlAttachmentPreview({
   // new-tab button) when the component is somehow mounted outside a
   // workspace route.
   const slug = useEditorWorkspaceSlug();
-  const navigation = useNavigation();
+  const navigation = useOptionalNavigation();
 
   // Only enable the new-tab button when the workspace slug is resolvable —
   // outside a workspace context the path is meaningless. Prefer desktop's

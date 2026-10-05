@@ -3,10 +3,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRecalcReadBatches,
+  formulaCellsOfSnapshot,
   recalcCellValue,
   recalcToFormulaValues,
   XLSX_MAX_RECALC_READ_CELLS,
 } from "../src/xlsx/recalc";
+import { readSharedFollowers, sharedFollowersOfSheetXml } from "../src/xlsx/shared-formulas";
+import type { XlsxWorkbookSnapshot } from "../src/xlsx/engine";
 
 describe("buildRecalcReadBatches", () => {
   it("one bounding box per sheet over formulas ∪ edits", () => {
@@ -90,5 +93,56 @@ describe("recalcToFormulaValues", () => {
     });
     expect(kept).toBe(2);
     expect(values).toEqual([{ sheetName: "Data", cells: [{ row: 0, column: 1, value: 6 }] }]);
+  });
+});
+
+describe("shared-formula followers (R3-1B)", () => {
+  const sheetXml =
+    '<worksheet><sheetData><row r="2">' +
+    '<c r="C2"><f t="shared" ref="C2:C4" si="0">B2*2</f><v>1</v></c>' +
+    '<c r="C3" s="1"><f t="shared" si="0"/><v>1</v></c>' +
+    '<c r="C4"><f si="0" t="shared" /></c>' +
+    '<c r="D2"><f>A1</f><v>1</v></c>' +
+    '<c r="D3"><f t="dataTable" ref="D3:D4" dt2D="0" dtr="0" r1="A1"/><v>5</v></c>' +
+    '<c r="E2"><v>3</v></c><c r="E3"/>' +
+    "</row></sheetData></worksheet>";
+
+  it("finds only text-less t=shared <f/> cells — never a master, a plain or a dataTable formula", () => {
+    expect([...sharedFollowersOfSheetXml(sheetXml)].sort()).toEqual(["C3", "C4"]);
+  });
+
+  it("reads every sheet's followers through workbook.xml + rels, keyed by the decoded sheet name", async () => {
+    const parts: Record<string, string> = {
+      "xl/workbook.xml": '<workbook><sheets><sheet name="D&amp;L" sheetId="1" r:id="rId1"/><sheet name="Plain" sheetId="2" r:id="rId2"/></sheets></workbook>',
+      "xl/_rels/workbook.xml.rels":
+        '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="/xl/worksheets/sheet2.xml"/></Relationships>',
+      "xl/worksheets/sheet1.xml": sheetXml,
+      "xl/worksheets/sheet2.xml": '<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>',
+    };
+    const engine = { readEntriesText: async (_bytes: Uint8Array, paths: readonly string[]) => Object.fromEntries(paths.map((p) => [p, parts[p] ?? null])) };
+    const followers = await readSharedFollowers(engine as never, new Uint8Array());
+    expect([...followers.keys()]).toEqual(["D&L"]);
+    expect([...(followers.get("D&L") ?? [])].sort()).toEqual(["C3", "C4"]);
+  });
+
+  it("formulaCellsOfSnapshot adds followers by coordinate and never doubles a formula cell", () => {
+    const snapshot: XlsxWorkbookSnapshot = {
+      revision: 0,
+      sheets: [
+        { id: "sheet-1", name: "Data", cells: { C2: { value: null, formula: "=B2*2" }, C3: { value: 1 }, E2: { value: 3 } } },
+        { id: "sheet-2", name: "Other", cells: { A1: { value: 1 } } },
+      ],
+    };
+    const cells = formulaCellsOfSnapshot(snapshot, new Map([["Data", new Set(["C3", "C4", "C2"])]]));
+    expect(cells).toHaveLength(3);
+    expect(cells).toEqual(
+      expect.arrayContaining([
+        { sheetName: "Data", row: 1, column: 2 },
+        { sheetName: "Data", row: 2, column: 2 },
+        { sheetName: "Data", row: 3, column: 2 },
+      ]),
+    );
+    expect(formulaCellsOfSnapshot(snapshot)).toEqual([{ sheetName: "Data", row: 1, column: 2 }]);
   });
 });

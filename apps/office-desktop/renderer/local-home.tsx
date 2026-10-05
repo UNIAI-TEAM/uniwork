@@ -4,8 +4,9 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
 import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
-import { desktopDocumentFormatForName } from "../shared/document-formats";
+import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RecentFile } from "../shared/ipc";
+import { CreateDocumentMenu } from "./create-document-menu";
 
 const HomeIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
@@ -17,7 +18,7 @@ export interface LocalHomeViewProps {
   error?: boolean;
   busy?: boolean;
   onOpen: () => void;
-  onCreate: () => void;
+  onCreate: (format: DesktopDocumentFormat) => void;
   onOpenRecent: (id: string) => void;
   onRemoveRecent: (id: string) => void;
   onRetry: () => void;
@@ -29,7 +30,7 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const rows: readonly RecentFile[] = files ?? [];
   const loading = files === null && !error;
-  const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onOpen} disabled={busy}>{t("open")}</Button><Button type="button" variant="outline" onClick={onCreate} disabled={busy}>{t("create")}</Button></div>;
+  const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onOpen} disabled={busy}>{t("open")}</Button><CreateDocumentMenu label={t("create")} disabled={busy} onCreate={onCreate} /></div>;
   const time = (value: number) => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-local-home="true">

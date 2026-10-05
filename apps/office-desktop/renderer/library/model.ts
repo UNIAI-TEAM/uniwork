@@ -21,11 +21,14 @@ export type LibraryBridge = Readonly<{
 
 /** A Work Product is a task-owned artifact and never belongs in Documents.
  * Keep this filter in the desktop host as a second line of defence even when
- * the server already scopes the query. Unknown rows are dropped closed. */
+ * the server already scopes the query. Unknown rows are dropped closed: a
+ * format the host does not carry yet is filtered out, never rendered. */
 export function filterLibraryDocuments(documents: readonly DesktopLibraryDocument[]): DesktopLibraryDocument[] {
   return documents.filter((document) => document.kind === "file" && isDesktopDocumentFormat(document.format) && document.ownerKind !== "work_product");
 }
 
+/** The host carries an editor for these formats, so their bytes can be
+ * downloaded and opened without the server engine; other formats need it. */
 export function canDownloadDocument(document: DesktopLibraryDocument, engineAvailable: boolean): boolean {
   return document.downloadAvailable && (engineAvailable || isDesktopDocumentFormat(document.format));
 }

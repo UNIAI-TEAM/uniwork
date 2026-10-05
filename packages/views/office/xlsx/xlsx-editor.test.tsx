@@ -7,6 +7,12 @@ import type { XlsxCellState, XlsxEditorHandle, XlsxOpenOutcome, XlsxSaveCoordina
 import { XlsxEditor } from "./xlsx-editor";
 import { createXlsxEditorLoader } from "./xlsx-editor-slot";
 
+/** The shared ribbon tab by id (the ribbon owns its own DOM, so no per-lane
+ *  testid survives the migration). */
+function ribbonTab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
+
 function coordinator(overrides: Partial<XlsxSaveCoordinator> = {}): XlsxSaveCoordinator {
   const state = {
     state: "dirty" as const,
@@ -96,6 +102,17 @@ function renderEditor(outcome: XlsxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("XlsxEditor", () => {
+  it("names the destination of a confirmed save: local says on this device, cloud says UniWork", async () => {
+    const saved = () => { const base = coordinator(); return coordinator({ getState: () => ({ ...base.getState(), state: "saved" as const, lastSavedGeneration: 1 }) }); };
+    const local = render(<XlsxEditor documentKey="doc-local" editor={editor()} open={{ open: async () => opened() }} coordinator={saved()} saveDestination="local" />);
+    await screen.findByTestId("xlsx-workbook-surface");
+    expect(screen.getByTestId("xlsx-open-state")).toHaveTextContent("Đã lưu trên máy");
+    expect(screen.getByTestId("xlsx-open-state")).not.toHaveTextContent(/UniWork/);
+    local.unmount();
+    render(<XlsxEditor documentKey="doc-cloud" editor={editor()} open={{ open: async () => opened() }} coordinator={saved()} />);
+    await screen.findByTestId("xlsx-workbook-surface");
+    expect(screen.getByTestId("xlsx-open-state")).toHaveTextContent("Đã lưu lên UniWork");
+  });
   it("opens replacement ports for the same document and releases the previous handle", async () => {
     const previous = editor();
     const previousCoordinator = coordinator({ cancel: vi.fn(async () => undefined) });
@@ -130,7 +147,7 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
     expect(handle.open).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("xlsx-cell-Data-C1")).toHaveTextContent("=SUM(A1:B1)");
-    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1");
+    expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1");
 
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
@@ -160,7 +177,7 @@ describe("XlsxEditor", () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
     await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=A1+B1" } });
     fireEvent.keyDown(formula, { key: "Enter" });
@@ -168,6 +185,38 @@ describe("XlsxEditor", () => {
     fireEvent.keyDown(formula, { key: "s", ctrlKey: true });
     expect(save).toHaveBeenCalledWith("shortcut");
     expect(formula).toHaveValue("=A1+B1");
+  });
+
+  it("shows formula-bar hints and completes a function name with Tab", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "=SU" } });
+    expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-formula-hint-SUM")).toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Tab" });
+    expect(formula).toHaveValue("=SUM(");
+    expect(formula).toHaveFocus();
+    expect(screen.queryByTestId("xlsx-formula-hints")).not.toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Enter" });
+    expect(handle.edit).toHaveBeenLastCalledWith([
+      { op: "set_cell", target: { sheet: "Data", cell: "C1" }, attributes: { formula: "=SUM(" } },
+    ]);
+  });
+
+  it("closes the formula-bar hints with Escape without committing", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-name-box")).toHaveValue("C1"));
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "=AVE" } });
+    expect(await screen.findByTestId("xlsx-formula-hints")).toBeInTheDocument();
+    fireEvent.keyDown(formula, { key: "Escape" });
+    expect(screen.queryByTestId("xlsx-formula-hints")).not.toBeInTheDocument();
+    expect(formula).toHaveValue("=AVE");
+    expect(handle.edit).not.toHaveBeenCalled();
   });
 
   it("sends numeric formula-bar input as a scalar value", async () => {
@@ -187,7 +236,7 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("xlsx-cell-Data-A1")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("xlsx-cell-Data-A1"));
     expect(handle.selection?.setSelection).toHaveBeenCalledWith({ sheet: "Data", address: "A1" });
-    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!A1");
+    expect(screen.getByTestId("xlsx-name-box")).toHaveValue("A1");
     fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect(screen.getByRole("tab", { name: "Summary" })).toHaveAttribute("aria-selected", "true");
     expect(handle.selection?.setSelection).toHaveBeenLastCalledWith({ sheet: "Summary", address: "A1" });
@@ -248,7 +297,8 @@ describe("XlsxEditor", () => {
     });
     const handle = editor({ recalculate: { run } });
     renderEditor(opened(), { editor: handle });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByText("Đã làm mới kết quả công thức.")).toBeInTheDocument());
     expect(run).toHaveBeenCalledTimes(1);
@@ -263,7 +313,8 @@ describe("XlsxEditor", () => {
     const handle = editor({ recalculate: { run, cancel: vi.fn() } });
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByTestId("xlsx-recalc-progress")).toBeInTheDocument());
     expect(screen.getByTestId("xlsx-recalc-progress")).toHaveTextContent("35%");
@@ -279,7 +330,8 @@ describe("XlsxEditor", () => {
     const handle = editor({ recalculate: { run } });
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-toolbar")).toBeInTheDocument());
+    fireEvent.click(ribbonTab("formulas"));
     fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
     await waitFor(() => expect(screen.getByTestId("xlsx-recalc-error")).toHaveTextContent("engine timeout"));
     expect(screen.queryByText("Đã làm mới kết quả công thức.")).not.toBeInTheDocument();
@@ -329,5 +381,16 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(handle.cancel).toHaveBeenCalledWith("document_changed"));
     expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(resolveOpen).toBeDefined();
+  });
+
+  it("mounts the selection status bar under the workbook surface in both modes", async () => {
+    const { view } = renderEditor(opened());
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
+    // F2: the live snapshot feeds the summary, so a missing renderer host is no longer "unavailable".
+    await waitFor(() => expect(screen.queryByTestId("xlsx-status-bar-unavailable")).not.toBeInTheDocument());
+    view.rerender(<XlsxEditor documentKey="doc-v1" editor={editor()} open={{ open: async () => opened() }} coordinator={coordinator()} embedded />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
   });
 });

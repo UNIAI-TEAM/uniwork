@@ -1,9 +1,12 @@
 import type { AssetManifest } from "@uniwork/office-engine/assets";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  acceptInspectorMessage,
   acceptPreviewMessage,
   checkAssetOrigin,
+  createInspectorSession,
   createPreviewBridge,
+  inspectorEvent,
   mountHtmlPreview,
   previewCsp,
   previewSandbox,
@@ -449,5 +452,317 @@ describe("mountHtmlPreview", () => {
     expect(session.iframe.srcdoc).not.toContain("evil.example");
     await session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
     expect(session.iframe.srcdoc).toContain("about:blank#blocked");
+  });
+});
+
+// --- ADR 0027: visual-edit inspector escape tests ---------------------------
+//
+// The whole point of the decision is that exactly one script runs in the frame
+// and the document still cannot. Each case below is a hostile document and the
+// claim it tries to break; the assertions read the REAL srcdoc the frame gets
+// (after the engine copy, the gate and the inspector injection), so they prove
+// the copy, not a mock.
+
+const VISUAL_NONCE = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
+
+describe("visual-edit inspector (ADR 0027)", () => {
+  it("adds allow-scripts but never allow-same-origin, and a nonce CSP", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } });
+    expect(session.iframe.getAttribute("sandbox")).toBe("allow-scripts");
+    expect(session.iframe.getAttribute("sandbox")).not.toContain("allow-same-origin");
+    const csp = session.iframe.getAttribute("csp") ?? "";
+    const directives = Object.fromEntries(csp.split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1).join(" ")]));
+    expect(directives["script-src"]).toBe("https://preview-assets.example 'nonce-" + VISUAL_NONCE + "'");
+    expect(directives["script-src"]).not.toContain("unsafe-inline");
+    expect(directives["script-src"]).not.toContain("unsafe-eval");
+    expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain("form-action 'none'");
+    // iframe[csp] is Chromium-only; Firefox/Safari enforce the in-document
+    // meta, so pin the policy that actually ships in the srcdoc (SEC F10).
+    const metaCsp = previewCsp(PROXY_ORIGIN, { scripts: false, visualEdit: { nonce: VISUAL_NONCE } })
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+    expect(session.iframe.srcdoc).toContain('<meta http-equiv="Content-Security-Policy" content="' + metaCsp + '">');
+    session.dispose();
+  });
+
+  it("keeps a plain preview and a scripts:true preview byte-identical to today", async () => {
+    const plain = await mount("<p>x</p>");
+    expect(plain.session.iframe.getAttribute("sandbox")).toBe("");
+    expect(plain.session.iframe.getAttribute("csp")).toContain("script-src 'none'");
+    expect(plain.session.iframe.srcdoc).not.toContain("<script");
+    plain.session.dispose();
+
+    const trusted = await mount("<p>x</p>", { capability: { scripts: true } });
+    expect(trusted.session.iframe.getAttribute("sandbox")).toBe("allow-scripts");
+    expect(trusted.session.iframe.getAttribute("csp")).toContain("script-src " + PROXY_ORIGIN + " 'unsafe-inline'");
+    // The trusted path keeps the old bridge bootstrap, not the inspector.
+    expect(trusted.session.iframe.srcdoc).toContain("uniwork-preview:init");
+    expect(trusted.session.iframe.srcdoc).not.toContain("data-sid");
+    trusted.session.dispose();
+  });
+
+  it("refuses a mount with a malformed nonce instead of rendering a frame", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const fake = fakeProxy();
+    await expect(mountHtmlPreview({
+      container,
+      title: "X",
+      text: "<p>x</p>",
+      manifest: MANIFEST,
+      scope: { document_id: "D1", job_id: "J1" },
+      proxy: fake.proxy,
+      capability: { scripts: false, visualEdit: { nonce: "not-a-nonce" } },
+      appOrigin: APP,
+    })).rejects.toMatchObject({ name: "PreviewIsolationError" });
+    expect(container.querySelector("iframe")).toBeNull();
+    // The nonce is validated BEFORE the asset scope opens, so a refused mount
+    // leaves no live grant behind (SEC F3).
+    expect(fake.opened).toEqual([]);
+    expect(fake.revoked()).toBe(0);
+  });
+
+  // Each hostile document, and the exact thing it is trying to do.
+  const HOSTILE: ReadonlyArray<readonly [string, string]> = [
+    ["a document script", `<p>hi</p><script>parent.postMessage({type:"select",nonce:"${VISUAL_NONCE}",sid:1},"*")</script>`],
+    ["an uppercase SCRIPT element", `<SCRIPT>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</SCRIPT>`],
+    ["a math-namespace script", `<math><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script></math>`],
+    ["a script inside a template", `<template><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script></template>`],
+    ["a document nonce-bearing script (the ADR-named forgery)", `<script nonce="${VISUAL_NONCE}">parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script>`],
+    ["a document CSP meta", `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`],
+    ["an svg onbegin handler", `<svg><animate onbegin="parent.postMessage({type:'ready',nonce:'${VISUAL_NONCE}'},'*')" attributeName="x" dur="1s"></animate></svg>`],
+    ["a script that posts with a guessed nonce", `<script>parent.postMessage({type:"ready",nonce:"00000000000000000000000000000000"},"*")</script>`],
+    ["a script that reads document.cookie", `<script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}",cookie:document.cookie},"*")</script>`],
+    ["an inline on* handler", `<div onclick="parent.postMessage({type:'select',nonce:'${VISUAL_NONCE}',sid:1},'*')">c</div>`],
+    ["an svg onload handler", `<svg onload="parent.postMessage({type:'ready',nonce:'${VISUAL_NONCE}'},'*')"></svg>`],
+    ["a javascript: URL", `<a href="javascript:parent.postMessage({type:'ready',nonce:'${VISUAL_NONCE}'},'*')">j</a>`],
+    ["a <base>", `<base href="https://evil.example/">`],
+    ["an iframe", `<iframe src="https://evil.example/x"></iframe>`],
+    ["an object", `<object data="https://evil.example/o.svg"></object>`],
+    ["an embed", `<embed src="https://evil.example/e.svg">`],
+  ];
+
+  it.each(HOSTILE)("strips %s before the copy reaches the frame", (_name, text) => {
+    return mount(text, { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } }).then(({ session }) => {
+      const doc = session.iframe.srcdoc;
+      // The document's own script/handler/loader is gone; the ONLY script left
+      // is the host's inspector, which carries the nonce attribute.
+      const scripts = doc.match(/<script\b[^>]*>/gi) ?? [];
+      expect(scripts).toHaveLength(1);
+      expect(scripts[0]).toBe('<script nonce="' + VISUAL_NONCE + '">');
+      expect(doc).not.toMatch(/\son[a-z]+\s*=/i);
+      expect(doc).not.toMatch(/javascript:/i);
+      expect(doc).not.toMatch(/<base\b|<iframe\b|<object\b|<embed\b/i);
+      expect(doc).not.toContain("evil.example");
+      session.dispose();
+    });
+  });
+
+  it("sends the port to the frame on load and refuses a forged inbound message", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    const [message, target, transfer] = post.mock.calls[0] as unknown as [unknown, string, MessagePort[]];
+    expect(message).toEqual({ type: "uniwork-preview:init", nonce: VISUAL_NONCE });
+    expect(target).toBe("*");
+    expect(transfer).toHaveLength(1);
+    // The parent port accepts only schema-valid, nonce-matching messages.
+    const port = transfer[0]!;
+    const remote = session.inspector;
+    expect(remote).not.toBeNull();
+    // A forged ready with a guessed nonce never becomes an event.
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: "f".repeat(32) }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    const accepted = acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE);
+    expect(accepted).not.toBeNull();
+    expect(inspectorEvent(accepted!)).toEqual({ type: "ready" });
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE, url: "https://evil.example" }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    port.close();
+    session.dispose();
+  });
+
+  it("traverses the channel: a command reaches the frame endpoint, not the parent gate (SEC F1)", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    // The endpoint the host transfers to the frame is the one the inspector
+    // receives; the parent keeps the other end and must send on THAT one.
+    const frameSidePort = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    const frameSide: unknown[] = [];
+    frameSidePort.onmessage = (event: MessageEvent) => frameSide.push(event.data);
+    const inspector = session.inspector;
+    expect(inspector).not.toBeNull();
+    expect(inspector!.command({ type: "select", sid: 4 })).toBe(true);
+    // The command must arrive on the frame-side endpoint...
+    await vi.waitFor(() => expect(frameSide).toEqual([{ type: "select", nonce: VISUAL_NONCE, sid: 4 }]));
+    // ...and must NOT loop back into the parent's own inbound gate as if the
+    // frame had sent it (the jsdom fabrication the old wiring produced).
+    expect(events).toEqual([]);
+    frameSidePort.close();
+    session.dispose();
+  });
+
+  it("retires the inspector channel at re-render time and hands out a fresh live one (FE-M5)", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    const first = session.inspector;
+    expect(first).not.toBeNull();
+    // show() runs synchronously inside update(), so the old session is retired
+    // before update() resolves: no caller can hold a session whose channel is
+    // already dead in the window between update() and the next load.
+    const pending = session.update("<p>y</p>");
+    expect(session.inspector).toBeNull();
+    expect(first!.command({ type: "select", sid: 1 })).toBe(false);
+    // The re-render's load builds a new, live session on the same nonce.
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(session.inspector).not.toBeNull();
+    expect(session.inspector!.command({ type: "select", sid: 2 })).toBe(true);
+    session.dispose();
+    await pending;
+  });
+
+  it("re-strips, re-injects and rotates the channel on a visual-edit update()", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } } });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    const firstPort = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    // The update source carries its own script: the re-render must strip it and
+    // inject the inspector again, and the channel must be a new one.
+    await session.update(`<p>y</p><script>parent.postMessage({type:"ready",nonce:"${VISUAL_NONCE}"},"*")</script>`);
+    const doc = session.iframe.srcdoc;
+    expect((doc.match(/<script\b/gi) ?? [])).toHaveLength(1);
+    expect(doc).toContain('<script nonce="' + VISUAL_NONCE + '">');
+    expect(doc).not.toContain("parent.postMessage");
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(2);
+    const secondPort = (post.mock.calls[1] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    expect(secondPort).not.toBe(firstPort);
+    firstPort.close();
+    secondPort.close();
+    session.dispose();
+  });
+
+  it("refuses inspector events that fail the schema and never evaluates frame data", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    session.iframe.dispatchEvent(new Event("load"));
+    const inspector = session.inspector;
+    expect(inspector).not.toBeNull();
+    // A command with an out-of-range sid is dropped before it leaves the app.
+    expect(inspector!.command({ type: "select", sid: -1 })).toBe(false);
+    expect(inspector!.command({ type: "select", sid: 4 })).toBe(true);
+    expect(inspector!.command({ type: "begin-text-edit", sid: 2 ** 40 })).toBe(false);
+    session.dispose();
+    // After dispose the channel is closed: no further command is sent.
+    expect(inspector!.command({ type: "cancel-text-edit" })).toBe(false);
+  });
+});
+
+describe("inspector message gate and event projection (ADR 0027)", () => {
+  it("requires the port origin (empty), refusing an opaque window origin or a missing one", () => {
+    // A MessagePort message carries origin ""; the sandboxed frame's window
+    // messages carry "null". Only the port shape may pass this gate.
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE)).toMatchObject({ type: "ready" });
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: "null" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE }, origin: APP }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE } }, VISUAL_NONCE)).toBeNull();
+  });
+
+  it("refuses a non-object, array, nonce-less or extra-key message", () => {
+    expect(acceptInspectorMessage({ data: "ready", origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: null, origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: [VISUAL_NONCE], origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready" }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    expect(acceptInspectorMessage({ data: { type: "ready", nonce: VISUAL_NONCE, url: "x" }, origin: "" }, VISUAL_NONCE)).toBeNull();
+  });
+
+  it("projects every declared inspector message type, and refuses an unknown one", () => {
+    const project = (message: unknown) => {
+      const accepted = acceptInspectorMessage({ data: message, origin: "" }, VISUAL_NONCE);
+      expect(accepted).not.toBeNull();
+      return inspectorEvent(accepted!);
+    };
+    expect(project({ type: "ready", nonce: VISUAL_NONCE })).toEqual({ type: "ready" });
+    expect(project({ type: "resize", nonce: VISUAL_NONCE, height: 40 })).toEqual({ type: "resize", height: 40 });
+    expect(project({ type: "select", nonce: VISUAL_NONCE, sid: 7 })).toEqual({ type: "select", sid: 7 });
+    expect(project({ type: "hover", nonce: VISUAL_NONCE, sid: null })).toEqual({ type: "hover", sid: null });
+    expect(project({ type: "rect", nonce: VISUAL_NONCE, sid: 7, rect: { x: 1, y: 2, width: 3, height: 4 } }))
+      .toEqual({ type: "rect", sid: 7, rect: { x: 1, y: 2, width: 3, height: 4 } });
+    expect(project({ type: "text-edit-commit", nonce: VISUAL_NONCE, sid: 7, text: "hi" }))
+      .toEqual({ type: "text-edit-commit", sid: 7, text: "hi" });
+    // A type the schema does not declare is refused before projection.
+    expect(acceptInspectorMessage({ data: { type: "navigate", nonce: VISUAL_NONCE }, origin: "" }, VISUAL_NONCE)).toBeNull();
+    // The projection's own default arm refuses rather than forwarding.
+    expect(inspectorEvent({ type: "navigate" } as never)).toEqual({ type: "refused", reason: "unexpected_inspector_message" });
+  });
+
+  it("returns false when the port refuses a sealed command", () => {
+    const remote = { postMessage: () => { throw new Error("port closed"); } } as unknown as MessagePort;
+    const session = createInspectorSession(VISUAL_NONCE, remote);
+    expect(session.command({ type: "select", sid: 1 })).toBe(false);
+    session.close();
+    expect(session.command({ type: "select", sid: 1 })).toBe(false);
+  });
+
+  it("blanks the frame and raises refused when the inspector cannot be injected", async () => {
+    const events: PreviewEvent[] = [];
+    const real = DOMParser.prototype.parseFromString;
+    vi.spyOn(DOMParser.prototype, "parseFromString").mockImplementation(function (this: DOMParser, text: string, type: DOMParserSupportedType) {
+      return real.call(this, "<html><head></head><body></body></html>", type);
+    });
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    expect(events).toEqual([{ type: "refused", reason: "inspector_injection_failed" }]);
+    expect(session.iframe.srcdoc).toBe("");
+    session.dispose();
+  });
+
+  it("delivers only schema-valid inspector events and drops a forged one", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", {
+      capability: { scripts: false, visualEdit: { nonce: VISUAL_NONCE } },
+      onEvent: (e) => events.push(e),
+    });
+    // Use the frame's REAL load (jsdom fires it after srcdoc is set), so the
+    // inspector channel is the one the code created, not a re-created one.
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const transfer = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    // The transferred port is bidirectional: posting on it reaches the parent
+    // gate, which is exactly the path a forged frame message takes.
+    transfer.postMessage({ type: "select", nonce: "f".repeat(32), sid: 1 });
+    transfer.postMessage({ type: "select", nonce: VISUAL_NONCE, sid: 4 });
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "select", sid: 4 }));
+    // The forged sid 1 never becomes an event.
+    expect(events.some((e) => e.type === "select" && e.sid === 1)).toBe(false);
+    transfer.close();
+    session.dispose();
+  });
+
+  it("hands the plain bridge to a trusted scripts-on frame on load", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: true } });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    const transfer = (post.mock.calls[0] as unknown as [unknown, string, MessagePort[]])[2][0]!;
+    transfer.close();
+    session.dispose();
   });
 });

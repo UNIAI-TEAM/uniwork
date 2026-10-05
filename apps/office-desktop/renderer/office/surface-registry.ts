@@ -7,6 +7,8 @@ import type { DesktopSurfaceFactory } from "./surface";
 const SURFACE_FACTORIES: Partial<Record<DesktopDocumentFormat, DesktopSurfaceFactory>> = {
   docx: async (settings) => (await import("./docx-surface")).createDesktopDocxSurface(settings),
   pdf: async (settings) => (await import("./pdf-surface")).createDesktopPdfSurface(settings),
+  md: async (settings) => (await import("./text-surface")).createDesktopTextSurface("md", settings),
+  html: async (settings) => (await import("./text-surface")).createDesktopTextSurface("html", settings),
 };
 
 export function desktopSurfaceFactory(format: DesktopDocumentFormat): DesktopSurfaceFactory | undefined {

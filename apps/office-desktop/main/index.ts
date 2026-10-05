@@ -45,7 +45,7 @@ export type DesktopHostOptions = {
   /** Device-scoped local-mode state and the encrypted recent-file list. */
   local?: LocalIpcOptions;
   /** Main-owned cloud Documents/Office transport. Renderer receives only
-   * validated metadata and bounded DOCX bytes. */
+   * validated metadata and bounded document bytes. */
   office?: OfficeIpcOptions;
   /** One durable store shared by document IPC and native restart checkpoint. */
   draftStore?: DesktopDraftStore;

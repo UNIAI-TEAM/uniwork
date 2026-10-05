@@ -34,12 +34,13 @@ export function BrandRail({
   // Two different hiding mechanisms, for two different problems — they were
   // once merged into one and both broke:
   //
-  // LAYOUT hides in CSS. `useMediaQuery` returns `false` on the first render
-  // (and under SSR) and only corrects itself in an effect, i.e. AFTER the
-  // browser has painted. Gating the whole <aside> on it means every desktop
-  // visit paints a frame with no rail, then 22rem jumps in — the `mx-auto`
-  // content column slides ~11rem sideways once hydration lands. CSS applies
-  // from the first pixel, with no jump at all.
+  // LAYOUT hides in CSS. `useMediaQuery` matches the server snapshot (`false`)
+  // on the first client render and only corrects itself in an effect, i.e. AFTER
+  // the browser has painted, so a JS-gated <aside> would still land a frame
+  // late. Gating the whole <aside> on it means every desktop visit paints a
+  // frame with no rail, then 22rem jumps in — the `mx-auto` content column
+  // slides ~11rem sideways once hydration lands. CSS applies from the first
+  // pixel, with no jump at all.
   //
   // CANVAS hides in JS. `display:none` still mounts the subtree and still runs
   // every effect: the dot-sphere's rAF loop would spin at 60fps on a phone to

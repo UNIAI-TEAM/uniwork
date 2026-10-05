@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
@@ -11,8 +11,13 @@ import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExe
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
 import packageJson from "../package.json" with { type: "json" };
+import formatTable from "../shared/document-formats.json" with { type: "json" };
 
 const appDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// The staging module is loaded directly (it has no TS imports, unlike
+// package.mjs) so the staging contract is asserted on the real implementation.
+const { XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE, stageXlsxAssets, resolveXlsxAssetSources, xlsxSidecarFile } = await import(pathToFileURL(join(appDirectory, "scripts", "xlsx-assets.mjs")).href);
 
 function findBash() {
   for (const candidate of ["bash", "C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"]) {
@@ -29,6 +34,7 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.match(config.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64\.zip$/);
   assert.equal(config.publish, null);
   assert.equal(config.win.signAndEditExecutable, false);
+  assert.deepEqual(config.fileAssociations.map((association) => association.ext), Object.values(formatTable.formats).flatMap((format) => format.extensions));
   assert.deepEqual(config.win.target, [{ target: "zip", arch: ["x64"] }, { target: "nsis", arch: ["x64"] }]);
   assert.equal(config.nsis.oneClick, true);
   assert.equal(config.nsis.perMachine, false);
@@ -124,13 +130,28 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
   // Associations come from the shared format table: one entry per extension,
   // each carrying its own MIME type on Linux.
+  // The table-derived list keeps a format added there asserted without editing
+  // this test; the explicit list below pins today's table order.
+  const tableFormats = Object.values(formatTable.formats);
+  assert.deepEqual(config.linux.fileAssociations, tableFormats.flatMap((format) => format.extensions.map((ext) => ({ ext, name: format.associationName, role: "Editor", mimeType: format.mimeTypes[0] }))));
   assert.deepEqual(config.linux.fileAssociations, [
     { ext: "docx", name: "Word document", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
     { ext: "pdf", name: "PDF document", role: "Editor", mimeType: "application/pdf" },
+    { ext: "md", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "markdown", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "html", name: "HTML document", role: "Editor", mimeType: "text/html" },
+    { ext: "htm", name: "HTML document", role: "Editor", mimeType: "text/html" },
+    { ext: "xlsx", name: "Excel spreadsheet", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
   ]);
+  // One entry per DISTINCT MIME type, in first-seen order: md/markdown and
+  // html/htm each collapse to a single entry (F4).
+  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [...new Set(config.linux.fileAssociations.map((association) => association.mimeType))]);
   assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/pdf",
+    "text/markdown",
+    "text/html",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ]);
   assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);
@@ -288,6 +309,93 @@ test("the Linux docker build uses only a digest-pinned builder image", () => {
   assert.ok(script.includes("--exclude='*node_modules*'"));
 });
 
+test("the packaged config stages the xlsx engine assets as extra resources", () => {
+  for (const platform of ["win32", "darwin", "linux"]) {
+    const config = createPackagerConfig({ platform, arch: platform === "darwin" ? "arm64" : "x64", channel: "dev", version: "0.1.0-dev.42" });
+    const staged = config.extraResources.find((entry) => entry.to === XLSX_ASSETS_DIRECTORY);
+    assert.ok(staged, `${platform}: the xlsx assets dir must be staged`);
+    assert.match(staged.from.replaceAll("\\", "/"), new RegExp(`dist/${XLSX_ASSETS_DIRECTORY}$`), `${platform}: staged from dist/`);
+  }
+});
+
+test("staging copies the gateway (required) and records the sidecar's real state", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  const gatewayBody = "// gateway bundle\n";
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), gatewayBody);
+  try {
+    // No sidecar on the host: staging must still succeed (open/edit of a
+    // formula-free workbook needs only the gateway) and must NOT fake one.
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(result.sidecar, null);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE)));
+    assert.ok(!existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")), "a missing sidecar is never fabricated");
+    const manifest = JSON.parse(readFileSync(join(dist, XLSX_ASSETS_DIRECTORY, "staged-assets.json"), "utf8"));
+    assert.equal(manifest.sidecar, null);
+    assert.equal(manifest.gateway.bytes, statSync(join(buildDir, XLSX_GATEWAY_FILE)).size);
+    assert.match(manifest.gateway.sha256, /^[0-9a-f]{64}$/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("staging copies the platform sidecar when it has been built", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-native-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), "// gateway\n");
+  writeFileSync(join(buildDir, xlsxSidecarFile("win32")), "MZ-sidecar");
+  try {
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(result.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("staging fails loudly with the build command when the gateway is missing", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-missing-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  try {
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: {} }),
+      (error) => /xlsx gateway artifact is not staged/.test(error.message) && /build-upstream\.mjs --with-native/.test(error.message),
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the default staging source is the build-upstream scratch tree", () => {
+  const sources = resolveXlsxAssetSources({ repositoryRoot: "D:/repo", platform: "win32", environment: {} });
+  assert.equal(sources.explicit, false);
+  assert.equal(sources.gateway, undefined, "a checkout with no build scratch has no gateway");
+  assert.match(sources.buildDirectory.replaceAll("\\", "/"), /\.go-tmp\/office-upstream-build$/);
+});
+test("a Windows short CARGO_TARGET_DIR build is found without extra env", async () => {
+  // MSVC's link.exe enforces MAX_PATH, so a Windows build whose scratch path is
+  // too long runs cargo with CARGO_TARGET_DIR on a short dir; the binary then
+  // lands at <CARGO_TARGET_DIR>/release, not under the scratch tree. Staging
+  // must find it there without the operator setting OFFICE_DESKTOP_XLSX_ASSETS.
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-cargo-target-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const scratch = join(root, ".go-tmp", "office-upstream-build");
+  mkdirSync(join(scratch, "dist"), { recursive: true });
+  writeFileSync(join(scratch, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  const target = join(root, "short-target");
+  mkdirSync(join(target, "release"), { recursive: true });
+  writeFileSync(join(target, "release", xlsxSidecarFile("win32")), "MZ-sidecar");
+  try {
+    const sources = resolveXlsxAssetSources({ repositoryRoot: root, platform: "win32", environment: { CARGO_TARGET_DIR: target } });
+    assert.equal(sources.sidecar, join(target, "release", "xlsx-sidecar.exe"));
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { CARGO_TARGET_DIR: target } });
+    assert.equal(result.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("packaged asar location covers flat and macOS bundle layouts", () => {
   const root = mkdtempSync(join(tmpdir(), "uniwork-asar-layout-"));
   try {
@@ -299,5 +407,68 @@ test("packaged asar location covers flat and macOS bundle layouts", () => {
     mkdirSync(join(mac, "UniWork Office.app", "Contents", "Resources"), { recursive: true });
     writeFileSync(join(mac, "UniWork Office.app", "Contents", "Resources", "app.asar"), "stub");
     assert.equal(locatePackagedAsar(mac), join(mac, "UniWork Office.app", "Contents", "Resources", "app.asar"));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("staging verifies the staged sidecar against the build record's binary hash", async () => {
+  // A shared CARGO_TARGET_DIR can hold another build's binary. When a build
+  // record is staged it is the sidecar's provenance: the recorded
+  // native.binary.sha256 must equal the candidate's own bytes.
+  const { createHash } = await import("node:crypto");
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-provenance-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  const sidecarBody = "MZ-sidecar-bytes";
+  const sha = (value) => createHash("sha256").update(value).digest("hex");
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), "// gateway\n");
+  writeFileSync(join(buildDir, xlsxSidecarFile("win32")), sidecarBody);
+  const record = (recorded) => JSON.stringify({ kind: "uniwork-office-upstream-build-record", native: { binary: { sha256: recorded } } });
+  try {
+    // Match: the record attests the exact bytes we are about to stage.
+    writeFileSync(join(buildDir, "build-record.json"), record(sha(sidecarBody).toUpperCase()));
+    const matched = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(matched.sidecar.sha256, sha(sidecarBody));
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "build-record.json")), "the build record ships beside the artifacts");
+    // Mismatch: a stale binary must fail loudly instead of staging silently.
+    writeFileSync(join(buildDir, "build-record.json"), record("0".repeat(64)));
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      (error) => /xlsx sidecar sha256 mismatch/.test(error.message) && /CARGO_TARGET_DIR/.test(error.message) && /build-upstream\.mjs --with-native/.test(error.message),
+    );
+    // A record without a native section (built without --with-native) has
+    // nothing to verify; staging stays legal and the record still ships.
+    writeFileSync(join(buildDir, "build-record.json"), JSON.stringify({ kind: "uniwork-office-upstream-build-record", verdict: "pass" }));
+    const noNative = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(noNative.sidecar.sha256, sha(sidecarBody));
+    // An unreadable record fails loudly rather than skipping the comparison.
+    writeFileSync(join(buildDir, "build-record.json"), "{ not json");
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      /build record .* could not be read/,
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the missing-gateway error names the directory that was actually searched", async () => {
+  // Explicit OFFICE_DESKTOP_XLSX_ASSETS mode probes <dir>/xlsx-gateway.mjs
+  // directly - the error must not send the operator to a <dir>/dist that was
+  // never searched (F3).
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-missing-dir-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "explicit-assets");
+  mkdirSync(buildDir, { recursive: true });
+  try {
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      (error) => {
+        const searched = join(buildDir, XLSX_GATEWAY_FILE).replaceAll("\\", "/");
+        assert.ok(error.message.includes(searched), `error must name ${searched}: ${error.message}`);
+        assert.ok(!error.message.includes(`${buildDir.replaceAll("\\", "/")}/dist`), `error must not name an unsearched dist dir: ${error.message}`);
+        return true;
+      },
+    );
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

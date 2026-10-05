@@ -77,19 +77,24 @@ export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): Offi
   };
 }
 
-export type DesktopDocxSaveTransportOptions<TSnapshot> = Readonly<{
+export type DesktopOfficeSaveTransportOptions<TSnapshot> = Readonly<{
   bridge: LibraryBridge;
   context: DesktopOfficeContext;
-  /** The opened document's format, from the shared format table. */
+  /** The carried format whose bytes this transport commits. */
   format: DesktopDocumentFormat;
+  /** One engine build identity per format; the receipt names it. */
+  engineName?: string;
+  engineVersion?: string;
+  contractVersion?: string;
   serialize(input: { snapshot: TSnapshot; documentId: string }): Promise<{ bytes: Uint8Array; checksum: string }>;
 }>;
 
 /** Adapts the shared coordinator's serialize/upload/commit pipeline to one
  * main-process `desktop:office-save` command. Upload is represented by an
  * in-memory receipt; commit is the only cloud mutation and carries the same
- * intent id, idempotency key, base pair and serialized bytes. */
-export function createDesktopDocxSaveTransport<TSnapshot>(options: DesktopDocxSaveTransportOptions<TSnapshot>) {
+ * intent id, idempotency key, base pair and serialized bytes. The format is
+ * carried on the request so main selects the right upload MIME/filename. */
+export function createDesktopOfficeSaveTransport<TSnapshot>(options: DesktopOfficeSaveTransportOptions<TSnapshot>) {
   const outputs = new Map<string, { bytes: Uint8Array; checksum: string }>();
   return {
     async serialize(input: { intent: { intentId: string; identity: { documentId: string } }; snapshot: { value: TSnapshot } }) {
@@ -105,7 +110,7 @@ export function createDesktopDocxSaveTransport<TSnapshot>(options: DesktopDocxSa
       if (!output) throw new Error("desktop save output missing");
       const result = await options.bridge.call("desktop:office-save", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId: input.intent.identity.documentId, format: options.format, intentId: input.intent.intentId, idempotencyKey: input.intent.idempotencyKey, baseVersionId: input.intent.identity.baseVersionId, baseRevision: input.intent.identity.baseRevision, dataBase64: encodeBase64(output.bytes), checksum: input.upload.checksumSha256 }) as DesktopOfficeSaveResponse;
       outputs.delete(input.intent.intentId);
-      return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.bytes.byteLength, engineName: options.format, engineVersion: "desktop", contractVersion: ["uniwork", "office", "engine-contract"].join("-") + "/1", protocolVersion: "1" };
+      return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.bytes.byteLength, engineName: options.engineName ?? options.format, engineVersion: options.engineVersion ?? "desktop", contractVersion: options.contractVersion ?? ["uniwork", "office", "engine-contract"].join("-") + "/1", protocolVersion: "1" };
     },
     async reconcile() { return null; },
   };

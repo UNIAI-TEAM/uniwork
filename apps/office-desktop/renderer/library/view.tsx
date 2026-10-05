@@ -5,7 +5,9 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
 import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
+import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopLibraryDocument } from "../../shared/ipc";
+import { CreateDocumentMenu } from "../create-document-menu";
 import { canDownloadDocument, type LibraryMode } from "./model";
 
 export interface LibraryViewProps {
@@ -20,7 +22,7 @@ export interface LibraryViewProps {
   onSearch?: (query: string) => void;
   onOpen?: (document: DesktopLibraryDocument) => void;
   onDownload?: (document: DesktopLibraryDocument) => void;
-  onCreate?: () => void;
+  onCreate?: (format: DesktopDocumentFormat) => void;
   onOpenLocal?: () => void;
 }
 
@@ -49,7 +51,7 @@ export function LibraryView({
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [draftQuery, setDraftQuery] = useState(searchQuery);
   const searching = mode === "search" && searchQuery.trim() !== "";
-  const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div>;
+  const actions = <div className="flex flex-wrap justify-center gap-2"><CreateDocumentMenu variant="default" label={t("create")} onCreate={(format) => onCreate?.(format)} /><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div>;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-desktop-library="true">
       <CollectionPageHeader icon={LibraryIcon} title={t("title")} count={loading || error ? undefined : documents.length} countLabel={t("officeDesktop.tabs.documentCount", { keyPrefix: "", count: documents.length })} actions={documents.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
