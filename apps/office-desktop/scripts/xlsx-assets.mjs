@@ -46,12 +46,20 @@ function firstExisting(candidates) {
 export function resolveXlsxAssetSources({ repositoryRoot, platform = process.platform, environment = process.env } = {}) {
   const explicit = environment.OFFICE_DESKTOP_XLSX_ASSETS?.trim();
   const buildDirectory = explicit ? resolve(explicit) : join(repositoryRoot, DEFAULT_XLSX_BUILD_DIRECTORY);
+  // The scratch path can exceed the Windows MAX_PATH limit MSVC's link.exe
+  // enforces (the worktree prefix plus the crate's deep target path is >260
+  // chars), so a Windows build is normally run with CARGO_TARGET_DIR on a
+  // short path. Cargo then writes the binary to <CARGO_TARGET_DIR>/release,
+  // not under the scratch tree - look there too so staging needs no extra env.
+  const cargoTargetSidecar = environment.CARGO_TARGET_DIR?.trim()
+    ? join(resolve(environment.CARGO_TARGET_DIR), "release", xlsxSidecarFile(platform))
+    : null;
   const gateway = firstExisting(explicit
     ? [join(buildDirectory, XLSX_GATEWAY_FILE)]
     : [join(buildDirectory, "dist", XLSX_GATEWAY_FILE), join(repositoryRoot, "packages", "office-upstream", "dist", XLSX_GATEWAY_FILE)]);
   const sidecar = firstExisting(explicit
     ? [join(buildDirectory, xlsxSidecarFile(platform))]
-    : [join(buildDirectory, "upstream", "apps", "sheets", "native", "xlsx-engine", "target", "release", xlsxSidecarFile(platform))]);
+    : [join(buildDirectory, "upstream", "apps", "sheets", "native", "xlsx-engine", "target", "release", xlsxSidecarFile(platform)), cargoTargetSidecar]);
   const buildRecord = firstExisting(explicit
     ? [join(buildDirectory, XLSX_BUILD_RECORD_FILE)]
     : [join(buildDirectory, XLSX_BUILD_RECORD_FILE)]);

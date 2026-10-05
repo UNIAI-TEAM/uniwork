@@ -361,6 +361,29 @@ test("the default staging source is the build-upstream scratch tree", () => {
   assert.equal(sources.gateway, undefined, "a checkout with no build scratch has no gateway");
   assert.match(sources.buildDirectory.replaceAll("\\", "/"), /\.go-tmp\/office-upstream-build$/);
 });
+test("a Windows short CARGO_TARGET_DIR build is found without extra env", async () => {
+  // MSVC's link.exe enforces MAX_PATH, so a Windows build whose scratch path is
+  // too long runs cargo with CARGO_TARGET_DIR on a short dir; the binary then
+  // lands at <CARGO_TARGET_DIR>/release, not under the scratch tree. Staging
+  // must find it there without the operator setting OFFICE_DESKTOP_XLSX_ASSETS.
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-cargo-target-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const scratch = join(root, ".go-tmp", "office-upstream-build");
+  mkdirSync(join(scratch, "dist"), { recursive: true });
+  writeFileSync(join(scratch, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  const target = join(root, "short-target");
+  mkdirSync(join(target, "release"), { recursive: true });
+  writeFileSync(join(target, "release", xlsxSidecarFile("win32")), "MZ-sidecar");
+  try {
+    const sources = resolveXlsxAssetSources({ repositoryRoot: root, platform: "win32", environment: { CARGO_TARGET_DIR: target } });
+    assert.equal(sources.sidecar, join(target, "release", "xlsx-sidecar.exe"));
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { CARGO_TARGET_DIR: target } });
+    assert.equal(result.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("packaged asar location covers flat and macOS bundle layouts", () => {
   const root = mkdtempSync(join(tmpdir(), "uniwork-asar-layout-"));
   try {

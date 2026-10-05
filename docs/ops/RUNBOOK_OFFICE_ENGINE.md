@@ -253,6 +253,30 @@ not a deployment knob.
   capability-matrix row (14 at R3-1) passed on the real engine; the result/extraction/version-manifest JSONs land in the
   mounted dir.
 
+### Building the Windows xlsx sidecar for the packaged desktop app
+
+The packaged desktop app opens a local `.xlsx` with the same two artifacts the engine image ships: the patched
+`xlsx-gateway.mjs` (required) and the Rust `xlsx-sidecar` recalculation binary (optional; a formula-bearing save
+fails closed without it). `apps/office-desktop/scripts/xlsx-assets.mjs` stages both from the
+`node scripts/office/build-upstream.mjs --with-native --out .go-tmp/office-upstream-build` scratch tree into
+`dist/xlsx-assets`, and `scripts/package.mjs` copies that dir to `resources/xlsx-assets`.
+
+On Windows the native step needs the Rust toolchain and MSVC BuildTools:
+
+1. Install rustup for the current user only (no machine-wide install, no PATH edit):
+   `rustup-init.exe -y --default-toolchain 1.88.0 --profile minimal --default-host x86_64-pc-windows-msvc --no-modify-path`
+   (`rustup-init.exe` from `https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe`), then put
+   `%USERPROFILE%\.cargo\bin` first on PATH in the build shell. The crate is `edition = "2024"` and builds on 1.88.0
+   (the engine Dockerfile pins the same version). MSVC 14.44 BuildTools is present on the packaging host.
+2. Build the artifacts: `node scripts/office/build-upstream.mjs --with-native --out .go-tmp/office-upstream-build`.
+   MSVC's `link.exe` enforces the legacy MAX_PATH (260 chars), and the crate's build-script output path under a deep
+   worktree checkout exceeds it, so cargo fails with `LNK1104: cannot open file ...build_script_build-*.exe`. When
+   that happens, run the native build with a short `CARGO_TARGET_DIR` (e.g. under `.uniwork-dev/` on `D:`) - the
+   binary then lands at `<CARGO_TARGET_DIR>/release/xlsx-sidecar.exe`, which `xlsx-assets.mjs` also searches when
+   `CARGO_TARGET_DIR` is set. Do not stub the binary or copy a Linux ELF.
+3. Stage: `pnpm --filter @uniwork/office-desktop package` runs `stageXlsxAssets` and writes `staged-assets.json`
+   (bytes + sha256) as the shipped evidence; the sha256 of the staged `xlsx-sidecar.exe` must equal the built one.
+
 ### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
 
 Settled with G2-04 on the runbook recommendation. The reasoning stands:
