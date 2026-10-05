@@ -389,6 +389,9 @@ export function HtmlEditor<TSnapshot = unknown>({
                 zoom={zoom}
                 onZoomChange={setZoom}
                 zoomDisabled={viewMode === "source"}
+                // F9: with the assets strip above, the two rows share ONE band;
+                // only the strip keeps the top separator.
+                joinedBand={assetRows.length > 0}
               />
             )
           }

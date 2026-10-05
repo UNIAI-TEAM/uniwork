@@ -547,7 +547,11 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
     expect(screen.queryByTestId("html-assets")).toBeNull();
     expect(screen.queryByTestId("asset-manifest-empty")).toBeNull();
-    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    const bars = container.querySelectorAll("[data-office-status-bar]");
+    expect(bars).toHaveLength(1);
+    // F9: with no strip above it the status row keeps its own separator, so
+    // exactly one band is drawn and nothing changes from the default.
+    expect((bars[0] as HTMLElement).className).not.toContain("border-t-0");
   });
 
   it("keeps the asset band when the manifest has rows (M-2/F9)", async () => {
@@ -557,6 +561,9 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     const bars = container.querySelectorAll("[data-office-status-bar]");
     expect(bars).toHaveLength(1);
     expect(assets.compareDocumentPosition(bars[0] as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // D-html/F9: the strip keeps the top separator and the joined status row
+    // drops its own, so the two rows paint ONE band instead of two.
+    expect((bars[0] as HTMLElement).className).toContain("border-t-0");
     expect(screen.queryByTestId("asset-manifest-empty")).toBeNull();
   });
 

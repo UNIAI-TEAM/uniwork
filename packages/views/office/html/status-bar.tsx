@@ -36,12 +36,14 @@ export function HtmlStatusBar({
   zoom,
   onZoomChange,
   zoomDisabled,
+  joinedBand = false,
 }: {
   text: string;
   selection?: { from: number; to: number } | null;
   zoom: number;
   onZoomChange: (percent: number) => void;
   zoomDisabled: boolean;
+  joinedBand?: boolean;
 }) {
   const { t } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -51,6 +53,9 @@ export function HtmlStatusBar({
     <>
       <OfficeStatusBar
         labelKey="office.html.status.label"
+        // F9: when the assets strip sits directly above, the two share ONE band,
+        // so the status row drops its own separator and only the strip keeps it.
+        className={joinedBand ? "border-t-0" : undefined}
         start={
           <span data-testid="html-status-left">
             <span data-testid="html-status-figures" data-html-length={length} data-html-lines={lines} data-html-language="HTML">

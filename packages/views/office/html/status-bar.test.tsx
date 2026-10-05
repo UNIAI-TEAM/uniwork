@@ -104,4 +104,15 @@ describe("HtmlStatusBar", () => {
     expect(screen.getByTestId("html-zoom-live").textContent).toBe("");
     expect(screen.getByTestId("html-zoom")).toHaveTextContent("–");
   });
+
+  it("joins the assets strip band: drops its own separator only when asked (F9)", () => {
+    // D-html: with assets above, the two rows share ONE band, so only the strip
+    // keeps the top separator and the status row renders none.
+    const { container, rerender } = render(
+      <HtmlStatusBar text="x" selection={null} zoom={100} onZoomChange={vi.fn()} zoomDisabled={false} joinedBand />,
+    );
+    expect(container.querySelector("[data-office-status-bar]")!.className).toContain("border-t-0");
+    rerender(<HtmlStatusBar text="x" selection={null} zoom={100} onZoomChange={vi.fn()} zoomDisabled={false} />);
+    expect(container.querySelector("[data-office-status-bar]")!.className).not.toContain("border-t-0");
+  });
 });
