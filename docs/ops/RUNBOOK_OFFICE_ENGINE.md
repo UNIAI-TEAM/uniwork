@@ -234,7 +234,9 @@ not a deployment knob.
   contract codes (`cancelled`, `recalc_busy` → `engine_overloaded`, `unsupported_version` → `protocol_mismatch`).
 - Every formula cell whose precedents were edited in the session gets a freshly recalculated `<v>` on save
   (recalc-on-serialize: the sidecar evaluates the edit set and the writer patches each covered `<f>` cell), so a
-  save + reopen shows the correct total, never the file's stale cache (F7).
+  save + reopen shows the correct total, never the file's stale cache (F7). Shared-formula followers
+  (`<f t="shared" si="N"/>`, which the basic parse reads as literals) are found in the sheet XML and refreshed by
+  coordinate like their master; their `<f/>` is never expanded (R3-1B).
 - Known upstream engine gaps stay honest: cells the engine deliberately skips (`CELL("filename")`, the `RATE`
   `#NUM!` solver case) keep their file-cached `<v>` and the save reports a `formula_cache_kept` warning with a
   count - it does not fabricate a value. A structural (row/column) or sheet-identity (add/rename/remove/reorder)

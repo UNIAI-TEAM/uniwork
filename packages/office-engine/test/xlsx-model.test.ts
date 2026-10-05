@@ -76,6 +76,24 @@ describe("XLSX cell edit folding", () => {
     expect(model.pendingRecalcEdits()).toEqual([{ sheet: "Data", row: 0, column: 1, input: "6" }]);
   });
 
+  it("counts shared-formula followers as formula cells unless a pending edit wrote their content (R3-1B)", () => {
+    const base: XlsxWorkbookSnapshot = {
+      revision: 0,
+      sheets: [{ id: "sheet-1", name: "Data", cells: { A1: { value: 2 }, B1: { value: 4, formula: "=A1*2" }, B2: { value: 4 }, B3: { value: 4 }, B4: { value: 4 } } }],
+    };
+    const followers = new Map([["Data", new Set(["B2", "B3", "B4"])]]);
+    const model = modelWith(
+      [
+        { op: "set_cell", target: { sheet: "Data", cell: "B2" }, attributes: { value: 9 } },
+        { op: "set_cell", target: { sheet: "Data", cell: "B3" }, style: { bold: true } },
+      ],
+      base,
+    );
+    // B2: a literal typed over the follower; B3: style-only keeps the formula.
+    expect(model.formulaCellsAfterEdits(followers).map((cell) => cell.address).sort()).toEqual(["B1", "B3", "B4"]);
+    expect(model.formulaCellsAfterEdits().map((cell) => cell.address)).toEqual(["B1"]);
+  });
+
   it("refuses reading an unknown sheet without losing the current pending plan", () => {
     const model = modelWith([value, style]);
     expect(() => model.cells("missing")).toThrow("unknown sheet");

@@ -22,6 +22,7 @@ import {
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
 import { a1ToRowColumn } from "./ops-shared.ts";
+import type { XlsxSharedFollowers } from "./shared-formulas.ts";
 
 /** Sidecar wire bounds (recalc.rs:24-25). */
 export const XLSX_MAX_RECALC_EDITS = 10_000;
@@ -163,12 +164,18 @@ export function recalcToFormulaValues(
 }
 
 /** Every formula cell a parsed workbook carries, in its own sheet names —
- *  the read set for a recalc over bytes that already hold every edit. */
-export function formulaCellsOfSnapshot(snapshot: XlsxWorkbookSnapshot): FormulaCell[] {
+ *  the read set for a recalc over bytes that already hold every edit. The
+ *  snapshot types only text-bearing <f> cells as formulas, so the shared-
+ *  formula followers of the same bytes (readSharedFollowers) join by
+ *  coordinate: the recalc answers their value, their <f/> stays as written. */
+export function formulaCellsOfSnapshot(snapshot: XlsxWorkbookSnapshot, followers: XlsxSharedFollowers = new Map()): FormulaCell[] {
   const out: FormulaCell[] = [];
   for (const sheet of snapshot.sheets) {
+    const addresses = new Set(followers.get(sheet.name));
     for (const [address, cell] of Object.entries(sheet.cells)) {
-      if (cell.formula === undefined) continue;
+      if (cell.formula !== undefined) addresses.add(address);
+    }
+    for (const address of addresses) {
       const { row, column } = a1ToRowColumn(address, "<snapshot>", "address");
       out.push({ sheetName: sheet.name, row, column });
     }

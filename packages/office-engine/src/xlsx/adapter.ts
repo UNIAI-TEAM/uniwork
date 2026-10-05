@@ -41,6 +41,7 @@ import {
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
+import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
 
 const ZIP_MAGIC = [0x50, 0x4b];
 function isZipPackage(bytes: Uint8Array): boolean {
@@ -399,7 +400,9 @@ export class XlsxAdapter {
         sheetPlan.removals.length > 0 ||
         sheetPlan.orderChanged === true);
     const recalcAfterAssemble = structuralOps.length > 0 || identityChange;
-    const formulaCells = (recalcAfterAssemble ? [] : session.model.formulaCellsAfterEdits()).map((cell) => ({
+    const formulaCells = (
+      recalcAfterAssemble ? [] : session.model.formulaCellsAfterEdits(await this.followers(session.inputBytes))
+    ).map((cell) => ({
       ...cell,
       sheetName: gatewayName(cell.sheetName),
     }));
@@ -452,7 +455,7 @@ export class XlsxAdapter {
       // coordinate under its final sheet name, so a zero-edit recalc over it
       // answers every formula cell - pre-existing dependents, shifted ones and
       // formulas typed this session - and a values-only assemble writes the <v>.
-      const finalCells = formulaCellsOfSnapshot(rebased.snapshot);
+      const finalCells = formulaCellsOfSnapshot(rebased.snapshot, await this.followers(out));
       if (finalCells.length > 0) {
         const mapped = await recalcFormulaCells(this.requireRecalc(finalCells.length), out, finalCells, []);
         keptWarning(mapped.kept);
@@ -503,6 +506,18 @@ export class XlsxAdapter {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
     return out;
+  }
+
+  /** Shared-formula followers of `bytes` - formula cells the snapshot reads
+   *  as literals, so the recalc must name them by coordinate. */
+  private async followers(bytes: Uint8Array): Promise<XlsxSharedFollowers> {
+    try {
+      return await readSharedFollowers(this.deps.engine, bytes);
+    } catch (error) {
+      throw new EngineBoundaryError("engine_result_invalid", {
+        detail: "worksheet parts do not read back: " + String((error as Error)?.message ?? error),
+      });
+    }
   }
 
   private async reparse(bytes: Uint8Array): Promise<Awaited<ReturnType<XlsxGatewayFunctions["readWorkbook"]>>> {

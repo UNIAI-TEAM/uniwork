@@ -6,6 +6,7 @@
 // input bytes with a success claim, and never a formula replaced by its
 // displayed value.
 import { XlsxEngineError, type XlsxCellEdit, type XlsxCellState, type XlsxRecalcEdit, type XlsxWorkbookSnapshot } from "./engine.ts";
+import type { XlsxSharedFollowers } from "./shared-formulas.ts";
 import {
   a1ToRowColumn,
   groupXlsxFilterStates,
@@ -566,14 +567,26 @@ export class XlsxSessionModel {
    *  These are exactly the cells whose cached <v> must be refreshed on save.
    *  Added sheets are skipped: the recalc sidecar reads the ORIGINAL bytes,
    *  where such a part does not exist, and an identity-changing sheet op skips
-   *  the recalc pass entirely (adapter.serialize). */
-  formulaCellsAfterEdits(): { sheetName: string; row: number; column: number; address: string }[] {
+   *  the recalc pass entirely (adapter.serialize). `followers` are the input
+   *  bytes' shared-formula followers (keyed by the file's sheet name): the
+   *  snapshot reads them as literals, so they count as formula cells unless
+   *  a pending edit wrote the cell's content. */
+  formulaCellsAfterEdits(followers: XlsxSharedFollowers = new Map()): { sheetName: string; row: number; column: number; address: string }[] {
     const out: { sheetName: string; row: number; column: number; address: string }[] = [];
     for (const state of this.sheetStates) {
       if (state.added) continue;
       const cells = this.cells(state.name);
+      const addresses = new Set<string>();
+      for (const address of (state.originalName === undefined ? undefined : followers.get(state.originalName)) ?? []) {
+        addresses.add(address);
+      }
+      for (const entry of this.pendingFor(state.name).values()) {
+        if (entry.edit.writeValue) addresses.delete(toA1(entry.row, entry.column));
+      }
       for (const [address, cell] of Object.entries(cells)) {
-        if (cell.formula === undefined) continue;
+        if (cell.formula !== undefined) addresses.add(address);
+      }
+      for (const address of addresses) {
         const { row, column } = a1ToRowColumn(address, "<model>", "address");
         out.push({ sheetName: state.name, row, column, address });
       }
