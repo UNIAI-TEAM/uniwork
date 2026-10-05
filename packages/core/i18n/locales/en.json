@@ -8169,6 +8169,7 @@
       "unavailable": "Draft recovery is temporarily unavailable"
     },
     "tabs": "Office views",
+    "formatName": { "docx": "DOCX", "xlsx": "XLSX", "pptx": "PPTX", "pdf": "PDF", "md": "Markdown", "html": "HTML" },
     "editor": {
       "canvas_label": "{{format}} editor",
       "loading": "Loading editor…",

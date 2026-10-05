@@ -66,10 +66,13 @@ const ROW_DEL: RendererBlock[] = [
   },
 ];
 
-let editor: Editor | null = null;
+// Every editor a test creates, so afterEach destroys them all: a leaked view keeps a
+// DOMObserver flush timer that fires after jsdom teardown ("document is not defined").
+const editors: Editor[] = [];
 
 function createEditor(blocks: RendererBlock[], editable = true): Editor {
-  editor = new Editor({ extensions: docxExtensions(), content: blocksToPmDoc(blocks), editable });
+  const editor = new Editor({ extensions: docxExtensions(), content: blocksToPmDoc(blocks), editable });
+  editors.push(editor);
   return editor;
 }
 
@@ -93,8 +96,7 @@ function textMarks(current: Editor): string[] {
 }
 
 afterEach(() => {
-  editor?.destroy();
-  editor = null;
+  for (const editor of editors.splice(0)) editor.destroy();
 });
 
 describe("applyReviewChanges", () => {

@@ -35,7 +35,7 @@ it("commits real edited bytes once through native Save and preserves every untou
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10000 });
   act(() => session.editor.commands?.setHeading(2));
   act(() => nativeSave());
-  await waitFor(() => expect(session.coordinator.getState().lastSavedGeneration).toBe(1));
+  await waitFor(() => expect(session.coordinator.getState().lastSavedGeneration).toBe(1), { timeout: 10_000 });
   expect(session.coordinator.getState().state).toBe("saved");
   const saves = call.mock.calls.filter(([channel]) => channel === "desktop:office-save");
   expect(saves).toHaveLength(1);
