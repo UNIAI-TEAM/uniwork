@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { useTranslation } from "react-i18next";
-import { CaseSensitive, ChevronDown, ChevronUp, Regex, Replace, ReplaceAll, WholeWord } from "lucide-react";
+import { CaseSensitive, ChevronDown, ChevronUp, Regex, Replace, ReplaceAll, WholeWord, X } from "lucide-react";
 import { isImeComposing } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -147,15 +147,26 @@ export function FindReplacePanel({
     onReplaceAll?.(result.matches.map((match) => ({ start: match.start, end: match.end, replacement: replace })));
   }, [count, onReplaceAll, replace, result.matches]);
 
-  // Escape closes from either field. A Vietnamese IME confirms a syllable with
-  // Enter, so that Enter is never a command.
-  const closeOnEscape = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (isImeComposing(event)) return;
-    if (event.key === "Escape" && onClose) {
+  // Escape closes the panel from EVERY focus position, so the key is bound on
+  // the document while the panel is open rather than per field: after "Replace"
+  // the focus sits on that button, and a field-only handler would leave the
+  // panel open. A Vietnamese IME confirms a syllable with Enter, so Enter is
+  // never a command. The callback is read through a ref so an inline arrow from
+  // the host does not re-bind the listener on every render.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (isImeComposing(event)) return;
+      if (event.key !== "Escape") return;
+      if (!closeRef.current) return;
       event.preventDefault();
-      onClose();
-    }
-  };
+      closeRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
   // In the find field Enter steps (Shift+Enter steps back); in the replace field
   // Enter replaces the current match once, as every editor does.
   const onFindKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -163,18 +174,14 @@ export function FindReplacePanel({
     if (event.key === "Enter") {
       event.preventDefault();
       step(event.shiftKey ? -1 : 1);
-      return;
     }
-    closeOnEscape(event);
   };
   const onReplaceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (isImeComposing(event)) return;
     if (event.key === "Enter") {
       event.preventDefault();
       replaceCurrent();
-      return;
     }
-    closeOnEscape(event);
   };
   const hasQuery = query.length > 0;
   const cannotStep = disabled || invalidPattern || count === 0;
@@ -300,6 +307,19 @@ export function FindReplacePanel({
         <Regex aria-hidden className="size-3.5" />
         <span>{t("regex")}</span>
       </Label>
+      {onClose ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("close")}
+          title={t("close")}
+          onClick={onClose}
+          data-testid="find-replace-close"
+        >
+          <X aria-hidden />
+        </Button>
+      ) : null}
     </div>
   );
 }

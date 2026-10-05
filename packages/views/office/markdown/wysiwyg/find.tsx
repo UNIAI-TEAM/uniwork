@@ -365,7 +365,14 @@ export function MarkdownFind({
   return (
     <>
       {isOpen ? (
-        <div className={className ?? "absolute top-2 right-2 z-20"} data-testid="md-find">
+        /*
+          Docked, NOT an overlay: the panel is a shrink-0 row inside the
+          editor's own canvas column, above the document, so it can never cover
+          the page header (the global search and the header Save stay
+          clickable). An absolute/fixed surface here covered the header once the
+          replace row wrapped (F1/F9 violation).
+        */
+        <div className={className ?? "shrink-0 px-2 pt-2"} data-testid="md-find">
           <FindReplacePanel
             ref={panelRef}
             text={searchText}

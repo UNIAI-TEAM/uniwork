@@ -139,6 +139,31 @@ describe("FindReplacePanel", () => {
     expect(onReplace).toHaveBeenCalledTimes(1);
   });
 
+  it("offers a visible close affordance that calls onClose (M-1)", () => {
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat" onClose={onClose} />);
+    const close = screen.getByTestId("find-replace-close");
+    expect(close).toBeInTheDocument();
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("closes on Escape from a button inside the panel, not only from a field (M-1)", () => {
+    // After "Replace" the focus sits on the Replace button; Escape must still
+    // close the panel, so the key is handled at the container, not per field.
+    const onClose = vi.fn();
+    render(<FindReplacePanel text="cat cat" onClose={onClose} />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "cat" } });
+    const replaceButton = screen.getByTestId("find-replace-one");
+    replaceButton.focus();
+    fireEvent.keyDown(replaceButton, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+    // And from the close button itself.
+    onClose.mockClear();
+    fireEvent.keyDown(screen.getByTestId("find-replace-close"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("keeps Escape working from the replace field (S4-7)", () => {
     const onClose = vi.fn();
     render(<FindReplacePanel text="cat" onClose={onClose} />);

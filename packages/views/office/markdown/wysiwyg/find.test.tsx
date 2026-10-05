@@ -426,6 +426,44 @@ describe("MarkdownFind", () => {
     expect(screen.queryByTestId("find-replace-all")).not.toBeInTheDocument();
   });
 
+  it("docks the panel in the editor column instead of overlaying the header (M-1)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<VisualHarness handle={handle} />);
+    await waitForVisualEditor();
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+
+    // The wrapper must NOT be a fixed/absolute overlay: an overlay at the top
+    // right of the canvas column covers the page header (the global search and,
+    // once the replace row wraps, the header Save) while the panel is open.
+    const wrapper = screen.getByTestId("md-find");
+    expect(wrapper.className).not.toMatch(/\b(absolute|fixed)\b/);
+    // It is an in-flow row that the canvas column lays out above the document.
+    expect(wrapper.className).toContain("shrink-0");
+    // The header Save lives outside this subtree, so nothing here can cover it.
+    expect(wrapper.contains(screen.getByTestId("find-replace-panel"))).toBe(true);
+  });
+
+  it("closes on Escape right after Replace, when the button holds focus (M-1)", async () => {
+    const source = createTextSource(FIXTURE);
+    const handle = createHandle(source);
+    render(<VisualHarness handle={handle} />);
+    await waitForVisualEditor();
+    pressCtrl("h");
+    await waitFor(() => expect(screen.getByTestId("find-replace-value")).toBeInTheDocument());
+    query("one");
+    fireEvent.change(screen.getByTestId("find-replace-value"), { target: { value: "1" } });
+
+    const replaceButton = screen.getByRole("button", { name: "Replace" });
+    fireEvent.click(replaceButton);
+    await waitFor(() => expect(source.getText()).toContain("1 two one"));
+    // After the click the focus is on the button; Escape must still close the
+    // panel (the key is handled at the panel container, not per field).
+    replaceButton.focus();
+    fireEvent.keyDown(replaceButton, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("find-replace-panel")).not.toBeInTheDocument());
+  });
+
   it("closes with Escape and repaints nothing while closed", async () => {
     const handle = createHandle(createTextSource(FIXTURE));
     render(<VisualHarness handle={handle} />);
