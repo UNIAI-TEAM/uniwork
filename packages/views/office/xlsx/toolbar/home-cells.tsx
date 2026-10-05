@@ -11,7 +11,7 @@ import { selectionSpan } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
 import type { XlsxToolbarGroupProps } from "./types";
 
-const MENU_BUTTON_CLASS = "h-6 w-[88px] justify-start gap-1 px-1.5 text-caption font-normal";
+const MENU_BUTTON_CLASS = "h-6 w-auto min-w-[88px] justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
 
 interface CellsMenuEntry {
   readonly id: string;
@@ -56,7 +56,7 @@ function CellsMenu({
         }
       >
         <Icon aria-hidden />
-        <span className="flex-1 truncate text-left">{label}</span>
+        <span className="flex-1 text-left">{label}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
       <PopoverContent
@@ -157,7 +157,7 @@ export function xlsxCellsRibbonItems(context: XlsxToolbarGroupProps): readonly R
     size: "icon",
     collapseAs: "icon",
     rowBreak,
-    width: 92,
+    width: 108,
     disabled,
     render,
   });
