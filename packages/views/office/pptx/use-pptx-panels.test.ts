@@ -47,7 +47,24 @@ describe("usePptxPanels (UNI-927 W9)", () => {
       await act(async () => { bold.onExecute(); await Promise.resolve(); });
     }
     expect(applyEdit).toHaveBeenCalledTimes(4);
-    expect(onCreated.mock.calls).toEqual([[["new-1"]], [["new-2"]]]);
+    const stamp = { slideIndex: 0, selectedIds: ["t1"] };
+    expect(onCreated.mock.calls).toEqual([[["new-1"], stamp], [["new-2"], stamp]]);
+  });
+
+  it("stamps the slide and selection when the edit is SENT, not when it resolves (W10 review F3)", async () => {
+    const onCreated = vi.fn();
+    let finish: (value: unknown) => void = () => undefined;
+    const applyEdit = vi.fn(() => new Promise<unknown>((resolve) => { finish = resolve; }));
+    const { result, rerender } = renderHook((props: PptxPanelsInput) => usePptxPanels(props), {
+      initialProps: { ...base, applyEdit, onCreated, activeTab: "insert" },
+    });
+    const bold = result.current.groupItems.font?.find((entry) => entry.id === "font-bold");
+    if (!bold || !("onExecute" in bold)) throw new Error("no bold");
+    act(() => bold.onExecute());
+    // The user moves to another slide and selection while the edit is in flight.
+    rerender({ ...base, applyEdit, onCreated, activeTab: "insert", slideIndex: 3, selectedIds: [] });
+    await act(async () => { finish({ createdIds: ["new-1"] }); await Promise.resolve(); });
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith(["new-1"], { slideIndex: 0, selectedIds: ["t1"] });
   });
 
   const multi: PptxPanelsInput = {

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PptxNodeBox } from "./canvas/render-tree";
 import { box } from "./canvas/pptx-render-fixtures";
-import { usePptxPendingSelect } from "./use-pptx-pending-select";
+import { usePptxPendingSelect, type PptxCreatedBaseline } from "./use-pptx-pending-select";
 
 const node = (sourceId: string): PptxNodeBox => ({ sourceId, type: "shape", box: box() });
 
@@ -20,7 +20,7 @@ function setup(initial: Partial<Props> = {}) {
   const view = renderHook((p: Props) => usePptxPendingSelect({ ...p, select }), { initialProps: props });
   return {
     select,
-    created: (ids: readonly string[]) => act(() => view.result.current(ids)),
+    created: (ids: readonly string[], requestedAt?: PptxCreatedBaseline) => act(() => view.result.current(ids, requestedAt)),
     update: (next: Partial<Props>) => view.rerender({ ...props, ...next }),
   };
 }
@@ -51,6 +51,28 @@ describe("usePptxPendingSelect (UNI-927 W10a, W9 review F1)", () => {
     created(["new"]);
     update({ selectedIds: [] });
     update({ selectedIds: [], revision: 2, boxes: [node("a"), node("new")] });
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("selects on the normal path with a request-time stamp equal to the current state (W10 review F3)", () => {
+    const { select, created, update } = setup();
+    created(["new"], { slideIndex: 0, selectedIds: ["a"] });
+    update({ revision: 2, boxes: [node("a"), node("new")] });
+    expect(select).toHaveBeenCalledExactlyOnceWith(["new"]);
+  });
+
+  it("drops the wait when the slide changed while the edit was in flight (W10 review F3)", () => {
+    // The user is already on slide 1 when the edit (sent on slide 0) resolves.
+    const { select, created, update } = setup({ slideIndex: 1 });
+    created(["new"], { slideIndex: 0, selectedIds: ["a"] });
+    update({ slideIndex: 1, revision: 2, boxes: [node("a"), node("new")] });
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("drops the wait when the selection changed while the edit was in flight (W10 review F3)", () => {
+    const { select, created, update } = setup({ selectedIds: ["b"] });
+    created(["new"], { slideIndex: 0, selectedIds: ["a"] });
+    update({ selectedIds: ["b"], revision: 2, boxes: [node("a"), node("new")] });
     expect(select).not.toHaveBeenCalled();
   });
 

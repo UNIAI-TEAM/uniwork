@@ -33,6 +33,7 @@ import type { PptxRibbonContextualSelection } from "./pptx-ribbon";
 import { pptxArrangeGroupItems, pptxFontGroupItems, pptxParagraphGroupItems, pptxTextFormatState, type PptxFormatTarget } from "./ribbon-format-items";
 import type { PptxSlideView } from "./slide-rail";
 import { pptxTextFormatAllowed } from "./text/text-format-model";
+import type { PptxCreatedBaseline } from "./use-pptx-pending-select";
 
 /** Ribbon commands that open a panel instead of running an action. */
 const COMMAND_PANELS: Partial<Record<PptxCommandId, PptxPanelKind>> = {
@@ -58,9 +59,9 @@ function createdIdsOf(result: unknown): string[] {
   return typeof createdId === "string" && createdId.length > 0 ? [createdId] : [];
 }
 
-function reportCreated(result: unknown, onCreated: ((ids: readonly string[]) => void) | undefined): unknown {
+function reportCreated(result: unknown, onCreated: PptxPanelsInput["onCreated"], requestedAt: PptxCreatedBaseline): unknown {
   const created = createdIdsOf(result);
-  if (created.length > 0) onCreated?.(created);
+  if (created.length > 0) onCreated?.(created, requestedAt);
   return result;
 }
 
@@ -96,7 +97,7 @@ export interface PptxPanelsInput {
   /** Slide Show tab items, built by the editor that owns the show state. */
   showItems?: readonly RibbonItem[];
   /** Element ids an applied edit minted, so the editor can select the new insert. */
-  onCreated?: (ids: readonly string[]) => void;
+  onCreated?: (ids: readonly string[], requestedAt: PptxCreatedBaseline) => void;
   /** The editor root, to move focus into a panel a command re-opens. */
   rootRef?: RefObject<HTMLElement | null>;
 }
@@ -107,25 +108,34 @@ export function usePptxPanels(input: PptxPanelsInput) {
   // generic handle edit port (WIRE-KINDS owns the engine registration).
   const onCreatedRef = useRef(onCreated);
   useEffect(() => { onCreatedRef.current = onCreated; }, [onCreated]);
-  // Every panel edit reports the ids it minted, so an insert ends selected.
-  const applyEdit = useMemo(() => {
+  // W11b (W10 review F3): the baseline is stamped when an edit is SENT, so a slide or
+  // selection change made while it is in flight reads as a user override.
+  const requestRef = useRef<PptxCreatedBaseline>({ slideIndex, selectedIds });
+  useEffect(() => { requestRef.current = { slideIndex, selectedIds }; }, [selectedIds, slideIndex]);
+  const sendEdit = useMemo(() => {
     const base = hostApply ?? (bulkEdit ? (one: PptxPanelEdit) => bulkEdit([one as PptxEdit]) : undefined);
     if (!base) return undefined;
-    return async (edit: PptxPanelEdit) => reportCreated(await base(edit), onCreatedRef.current);
+    return async (edit: PptxPanelEdit, requestedAt: PptxCreatedBaseline) => reportCreated(await base(edit), onCreatedRef.current, requestedAt);
   }, [bulkEdit, hostApply]);
+  // Every panel edit reports the ids it minted, so an insert ends selected.
+  const applyEdit = useMemo(
+    () => (sendEdit ? (edit: PptxPanelEdit) => sendEdit(edit, requestRef.current) : undefined),
+    [sendEdit],
+  );
   // W9 review F2: one gesture over several elements is ONE call on the handle's
   // array channel (one revision, one history entry on the host). A host that bound
   // only the single-edit port gets the edits in order, one call each.
   const applyEdits = useMemo(() => {
-    if (!applyEdit) return undefined;
+    if (!sendEdit) return undefined;
     return async (edits: readonly PptxPanelEdit[]): Promise<unknown> => {
-      if (edits.length === 1) return applyEdit(edits[0]!);
-      if (bulkEdit) return reportCreated(await bulkEdit(edits as readonly PptxEdit[]), onCreatedRef.current);
+      const requestedAt = requestRef.current;
+      if (edits.length === 1) return sendEdit(edits[0]!, requestedAt);
+      if (bulkEdit) return reportCreated(await bulkEdit(edits as readonly PptxEdit[]), onCreatedRef.current, requestedAt);
       let result: unknown;
-      for (const edit of edits) result = await applyEdit(edit);
+      for (const edit of edits) result = await sendEdit(edit, requestedAt);
       return result;
     };
-  }, [applyEdit, bulkEdit]);
+  }, [bulkEdit, sendEdit]);
   // The pick is remembered per tab: a pick made on another tab never leaks.
   const [pick, setPick] = useState<{ tab: string; kind: PptxPanelKind | null } | null>(null);
   const contextualLive = (tab: string) => {

@@ -61,9 +61,18 @@ describe("PptxPanelHost seam", () => {
     await waitFor(() => expect(edit).toHaveBeenCalledWith([{ op: "set_notes", slideIndex: 0, text: "x" }]));
   });
 
-  it("leaves an unbound panel honestly disabled", () => {
+  it("keeps the notes readable but never writable without an edit channel (W10 review F2)", () => {
     render(buildPptxPanel({ panelKind: "notes", slideIndex: 0, slides: [], data: { notes: "old" } }));
+    expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "ready");
+    expect(screen.getByRole("textbox")).toHaveValue("old");
+    expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
+    expect(screen.queryByRole("button", { name: "Save notes" })).not.toBeInTheDocument();
+  });
+
+  it("leaves an unbound panel without a notes baseline honestly disabled", () => {
+    render(buildPptxPanel({ panelKind: "notes", slideIndex: 0, slides: [], data: {} }));
     expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "unbound");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save notes" })).not.toBeInTheDocument();
   });
 });

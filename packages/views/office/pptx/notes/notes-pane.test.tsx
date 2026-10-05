@@ -116,6 +116,26 @@ describe("PptxNotesPane", () => {
     expect(screen.getByText("This presentation is read-only.")).toBeInTheDocument();
   });
 
+  it("shows the baseline read-only when no commit port is bound but the pane is read-only (W10 review F2)", () => {
+    render(<PptxNotesPane slideIndex={0} notes="Speaker script" readonly />);
+    expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "ready");
+    expect(screen.queryByTestId("pptx-notes-unbound")).not.toBeInTheDocument();
+    const field = screen.getByRole("textbox");
+    expect(field).toHaveValue("Speaker script");
+    expect(field).toHaveAttribute("readonly");
+    expect(screen.queryByRole("button", { name: "Save notes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revert" })).not.toBeInTheDocument();
+    expect(screen.getByText("This presentation is read-only.")).toBeInTheDocument();
+    fireEvent.keyDown(field, { key: "Enter", ctrlKey: true });
+  });
+
+  it("still shows the unbound copy for a read-only pane without a baseline (W10 review F2)", () => {
+    render(<PptxNotesPane slideIndex={0} notes={null} readonly />);
+    expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "unbound");
+    expect(screen.getByTestId("pptx-notes-unbound")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("surfaces a host error as an alert without losing the draft", () => {
     render(<PptxNotesPane slideIndex={0} notes="bound" error="no_slide: slide index 9 does not exist" onCommitNotes={vi.fn()} />);
     const alert = screen.getByRole("alert");

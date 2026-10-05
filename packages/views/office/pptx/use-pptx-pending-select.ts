@@ -40,15 +40,26 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
 
-/** Returns the `onCreated` callback an edit channel reports minted ids to. */
+/** The slide and selection an edit was REQUESTED on (W11b, W10 review F3). */
+export interface PptxCreatedBaseline {
+  slideIndex: number;
+  selectedIds: readonly string[];
+}
+
+/**
+ * Returns the `onCreated` callback an edit channel reports minted ids to. The channel
+ * stamps `requestedAt` when it SENDS the edit, so a slide or selection change made while
+ * the edit is in flight differs from the baseline and drops the wait; without a stamp the
+ * baseline is the state at resolution.
+ */
 export function usePptxPendingSelect({ slideIndex, revision, boxes, ready, selectedIds, select, timeoutMs = PENDING_SELECT_TIMEOUT_MS }: PptxPendingSelectInput) {
   const [pending, setPending] = useState<PendingSelect | null>(null);
   const latest = useRef({ slideIndex, revision, selectedIds });
   useEffect(() => { latest.current = { slideIndex, revision, selectedIds }; }, [revision, selectedIds, slideIndex]);
 
-  const onCreated = useCallback((ids: readonly string[]) => {
+  const onCreated = useCallback((ids: readonly string[], requestedAt?: PptxCreatedBaseline) => {
     const { slideIndex: at, revision: rev, selectedIds: selection } = latest.current;
-    setPending({ ids, slideIndex: at, revision: rev, selection });
+    setPending({ ids, slideIndex: requestedAt?.slideIndex ?? at, revision: rev, selection: requestedAt?.selectedIds ?? selection });
   }, []);
 
   useEffect(() => {

@@ -62,7 +62,9 @@ export function PptxNotesPane({
 }: PptxNotesPaneProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const boundPort = typeof onCommitNotes === "function";
-  const mode = notesPaneMode({ slideIndex, loading, unbound: unbound || !boundPort, unread: notes === null });
+  // A read-only pane has no commit port by design (W9 review F3) yet still reads
+  // the baseline, so a missing port only means "unbound" on a writable pane.
+  const mode = notesPaneMode({ slideIndex, loading, unbound: unbound || (!boundPort && !readonly), unread: notes === null });
   const [draft, setDraft] = useState<string>(notes ?? "");
 
   // The bound notes are the source of truth: a slide change or a completed
