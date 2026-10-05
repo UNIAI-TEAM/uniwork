@@ -8355,7 +8355,7 @@
       "source": { "label": "Markdown source" },
       "preview": { "label": "Preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
       "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "saveState": { "ready": "No changes", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
       "capabilityUnavailable": "Markdown editing is not available for this engine build.",
       "errors": { "title": "This Markdown document could not be opened", "unknown": "The Markdown adapter returned an unknown open failure." },
       "wysiwyg": {
@@ -8496,7 +8496,7 @@
       "source": { "label": "HTML source" },
       "preview": { "label": "Isolated preview", "loading": "Loading preview…", "unavailable": "Preview unavailable" },
       "asset": { "label": "Assets", "empty": "No assets in this document", "ready": "Available", "missing": "Missing", "unauthorised": "Not authorised", "failed": "Failed", "saveBlocked": "This document cannot be saved until every asset is available." },
-      "saveState": { "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
+      "saveState": { "ready": "No changes", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork", "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked", "readonly": "Read-only", "incompatible": "Editing unavailable" },
       "capabilityUnavailable": "HTML editing is not available for this engine build.",
       "errors": { "title": "This HTML document could not be opened", "unknown": "The HTML adapter returned an unknown open failure." },
       "view": {
