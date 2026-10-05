@@ -67,9 +67,23 @@ export function decodeFakePptx(bytes: Uint8Array): FakePptxPackage {
 function toSlide(raw: Record<string, unknown>, i: number): PptxSlideLike {
   return {
     id: (raw.id as string) ?? "s_" + (i + 1),
-    ...(raw.hidden === true ? { hidden: true } : {}),
+    ...(typeof raw.bodyPrefix === "string" ? { bodyPrefix: raw.bodyPrefix } : {}),
+    // The real slide model has no `hidden` field: hiding patches `show="0"` onto the <p:sld> tag.
+    ...(raw.hidden === true ? { bodyPrefix: patchSlideHidden(raw.bodyPrefix as string | undefined, true) } : {}),
     elements: (raw.elements as PptxElementLike[]) ?? [],
   };
+}
+
+const SLD_OPEN = /<p:sld\b[^>]*>/;
+
+/** Mirrors the vendored patchSlideHiddenXml; a slide with no bodyPrefix gets a bare <p:sld>. */
+function patchSlideHidden(bodyPrefix: string | undefined, hidden: boolean): string {
+  const prefix = bodyPrefix ?? "<p:sld>";
+  const open = SLD_OPEN.exec(prefix);
+  if (!open) return prefix;
+  let tag = open[0].replace(/\s+show="[^"]*"/, "");
+  if (hidden) tag = `${tag.slice(0, -1)} show="0">`;
+  return prefix.slice(0, open.index) + tag + prefix.slice(open.index + open[0].length);
 }
 
 export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: number; committedBase?: string } {
@@ -208,8 +222,8 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     }
     case "setHidden": {
       const { slide } = resolveSlide(opened, op);
-      slide.hidden = op.hidden === true;
-      return { op, after: slide.hidden };
+      slide.bodyPrefix = patchSlideHidden(slide.bodyPrefix as string | undefined, op.hidden === true);
+      return { op, after: op.hidden === true };
     }
     case "duplicateSlide": {
       const { index, slide } = resolveSlide(opened, op);

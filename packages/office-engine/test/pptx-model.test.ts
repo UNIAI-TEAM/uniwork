@@ -8,6 +8,7 @@ import {
   elementText,
   EMU_PER_PX_96,
   findTextElement,
+  isSlideHidden,
   makePxToEmu,
 } from "../src/pptx";
 import { createFakePptxEngine, createFakePptxOps, decodeFakePptx } from "./fake-pptx-engine";
@@ -122,7 +123,7 @@ describe("pptx session model ops", () => {
     adapter.edit(ref, { op: "duplicate_slide", slideIndex: 0 });
     expect(model.opened.deck.slides.length).toBe(4);
     adapter.edit(ref, { op: "set_slide_hidden", slideIndex: 3, hidden: true });
-    expect(model.opened.deck.slides[3]?.hidden).toBe(true);
+    expect(isSlideHidden(model.opened.deck.slides[3] ?? {})).toBe(true);
     adapter.edit(ref, { op: "delete_slide", slideIndex: 3 });
     expect(model.opened.deck.slides.length).toBe(3);
   });

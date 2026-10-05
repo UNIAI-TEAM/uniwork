@@ -11,6 +11,7 @@ import {
   bindPptxOps,
   bindPptxRender,
   createPptxAdapter,
+  isSlideHidden,
   pptxSessionDivergedError,
   resolvePptxReplayRefs,
   type PptxAdapter,
@@ -186,6 +187,8 @@ interface LivePptxSession {
         slides: Array<{
           id?: string;
           hidden?: boolean;
+          /** The real engine marks a hidden slide as show="0" on the <p:sld> tag in here; it never sets `hidden`. */
+          bodyPrefix?: string;
           elements?: Array<{ id?: string; type?: string }>;
         }>;
       };
@@ -531,7 +534,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       const slides = liveSession(documentModelRef).model.opened.deck.slides ?? [];
       return slides.map((slide, index) => ({
         id: slide.id ?? String(index),
-        hidden: slide.hidden === true,
+        hidden: isSlideHidden(slide),
         elements: (slide.elements ?? []).map((element) => ({ id: element.id ?? "", type: element.type ?? "unknown" })),
       }));
     },

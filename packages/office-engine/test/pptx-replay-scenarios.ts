@@ -7,7 +7,7 @@
 // insert mints a fresh id per apply (insert.ts spnew_<n>_<time>), so a journal
 // that replayed caller ids verbatim would miss on the first element entry.
 import { expect, it } from "vitest";
-import type { PptxEdit } from "../src/pptx";
+import { isSlideHidden, type PptxEdit } from "../src/pptx";
 import { decodeFakePptx } from "./fake-pptx-engine";
 
 interface ReplayElement {
@@ -103,7 +103,7 @@ export function registerReplayIdScenarios(
     const saved = await save(runtime, ref);
     const elements = (saved.slides[0]?.elements ?? []) as unknown as ReplayElement[];
     expect(elements.at(-1)?.anchor).toBe("middle");
-    expect(saved.slides[1]?.hidden).toBe(true);
+    expect(isSlideHidden(saved.slides[1] ?? {})).toBe(true);
   });
 
   it("replays a format of a PARSED element through undo and redo after the reopen renamed it", async () => {
@@ -120,7 +120,7 @@ export function registerReplayIdScenarios(
     expect(await runtime.redo(ref)).toBe(true);
     expect(liveElements(runtime, ref).find((element) => element.id.startsWith("t1~"))!.anchor).toBe("bottom");
     expect(await runtime.redo(ref)).toBe(true);
-    expect((await save(runtime, ref)).slides[1]?.hidden).toBe(true);
+    expect(isSlideHidden((await save(runtime, ref)).slides[1] ?? {})).toBe(true);
   });
 
   it("rolls a mid-batch refusal back over an element-bearing journal prefix", async () => {

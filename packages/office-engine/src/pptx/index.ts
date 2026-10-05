@@ -19,3 +19,4 @@ export * from "./edits/headerfooter-edits";
 export * from "./edits/media-edits";
 export * from "./edits/format-edits";
 export * from "./replay-refs";
+export * from "./slide-hidden";

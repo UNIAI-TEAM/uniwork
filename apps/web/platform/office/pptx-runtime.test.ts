@@ -6,7 +6,7 @@
 // execute for real - the coverage the P0-1 review found missing (F1 shipped
 // because nothing exercised this file).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PptxEngineError } from "@uniwork/office-engine/pptx";
+import { isSlideHidden, PptxEngineError } from "@uniwork/office-engine/pptx";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
 import { registerReplayIdScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
@@ -316,9 +316,9 @@ describe("web PPTX session runtime", () => {
     // The accessor reads the LIVE model: an edit is visible immediately, and a
     // reopen (undo) swaps the engine session the accessor resolves.
     await runtime.edit(ref, [hidden(0, true)]);
-    expect((runtime.deck(ref).slides[0] as { hidden?: boolean }).hidden).toBe(true);
+    expect(isSlideHidden(runtime.deck(ref).slides[0] as { bodyPrefix?: string })).toBe(true);
     expect(await runtime.undo(ref)).toBe(true);
-    expect((runtime.deck(ref).slides[0] as { hidden?: boolean }).hidden).toBeFalsy();
+    expect(isSlideHidden(runtime.deck(ref).slides[0] as { bodyPrefix?: string })).toBe(false);
 
     // A released session refuses the read instead of returning a stale deck.
     await runtime.release(ref);

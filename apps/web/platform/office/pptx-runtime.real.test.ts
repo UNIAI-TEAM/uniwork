@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { openPptx } from "@uniwork/office-upstream/pptx-renderer";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import { isSlideHidden, type PptxEdit } from "@uniwork/office-engine/pptx";
 import { createWebPptxSessionRuntime } from "./pptx-runtime";
 
 // vitest runs with cwd = apps/web.
@@ -41,7 +41,7 @@ describe("web PPTX runtime on the real engine - replay-stable ids (W12)", () => 
     await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: created!, anchor: "middle" }]);
     await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: parsed.id, anchor: "bottom" }]);
     // A trailing non-element step, so the first undo replays all three above.
-    // (The real slide model exposes no hidden flag, so only the step count is asserted.)
+    // (Hidden-slide state on the real model is covered by the next test.)
     await runtime.edit(ref, [{ op: "set_slide_hidden", slideIndex: 1, hidden: true }]);
 
     // Undo = reopen the base (every parsed id re-minted) + replay three
@@ -83,5 +83,48 @@ describe("web PPTX runtime on the real engine - replay-stable ids (W12)", () => 
     expect(restored.at(-1)?.text?.anchor).toBe("middle");
     await runtime.release(ref);
     await fresh.release(second.document_model_ref);
+  }, 60_000);
+});
+
+describe("web PPTX runtime on the real engine - hidden slides (W13)", () => {
+  const hiddenOf = (runtime: ReturnType<typeof createWebPptxSessionRuntime>, ref: string): boolean[] => runtime.slides(ref).map((slide) => slide.hidden);
+
+  it("reports show=\"0\" in slides() through edit, undo, redo, unhide, save and reopen", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "real-hidden" });
+    const result = await runtime.open({ bytes: fixture(), documentId: "real-hidden" });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("fixture did not open: " + String(result.message));
+    const ref = result.document_model_ref;
+    const visible = hiddenOf(runtime, ref);
+    expect(visible.length).toBeGreaterThan(1);
+    expect(visible.every((hidden) => !hidden)).toBe(true);
+
+    // The real slide model never carries a hidden flag; the engine patches the <p:sld> tag.
+    await runtime.edit(ref, [{ op: "set_slide_hidden", slideIndex: 1, hidden: true }]);
+    const slide = (runtime.deck(ref) as { slides: Array<{ hidden?: boolean; bodyPrefix?: string }> }).slides[1];
+    expect(slide?.hidden).toBeUndefined();
+    expect(isSlideHidden(slide ?? {})).toBe(true);
+    const hiddenOnly = visible.map((_, index) => index === 1);
+    expect(hiddenOf(runtime, ref)).toEqual(hiddenOnly);
+
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(hiddenOf(runtime, ref)).toEqual(visible);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(hiddenOf(runtime, ref)).toEqual(hiddenOnly);
+
+    // Saved and reopened bytes still say hidden (a fresh session, a fresh parse).
+    const value = runtime.snapshot(ref);
+    const out = await runtime.serialize(ref, { snapshot: { generation: value.revision, fingerprint: "fp", value } });
+    const reopened = await openPptx(out.bytes);
+    expect((reopened.deck.slides as Array<{ hidden?: boolean; bodyPrefix?: string }>).map((entry) => isSlideHidden(entry))).toEqual(hiddenOnly);
+    const second = createWebPptxSessionRuntime({ documentId: "real-hidden" });
+    const again = await second.open({ bytes: out.bytes, documentId: "real-hidden" });
+    if (again.outcome !== "opened" || !again.document_model_ref) throw new Error("saved deck did not reopen");
+    expect(hiddenOf(second, again.document_model_ref)).toEqual(hiddenOnly);
+
+    // The sorter toggle sends hidden:false once it reads true; the slide shows again.
+    await second.edit(again.document_model_ref, [{ op: "set_slide_hidden", slideIndex: 1, hidden: false }]);
+    expect(hiddenOf(second, again.document_model_ref)).toEqual(visible);
+    await runtime.release(ref);
+    await second.release(again.document_model_ref);
   }, 60_000);
 });
