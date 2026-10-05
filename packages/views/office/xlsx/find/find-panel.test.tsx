@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { setLocale } from "@uniwork/core/i18n";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { RendererRangeCell, RendererRangeResult } from "../xlsx-render-model-bridge";
@@ -28,7 +29,8 @@ function lookup(dictionary: unknown, key: string): unknown {
 }
 
 function text(key: string): string {
-  const value = lookup(viLocale, key);
+  // vi declares a single plural form as `_other`; a count key may have moved there.
+  const value = lookup(viLocale, key) ?? lookup(viLocale, `${key}_other`);
   if (typeof value !== "string") throw new Error(`missing vi locale key ${key}`);
   return value;
 }
@@ -251,9 +253,65 @@ describe("XlsxFindPanel", () => {
 });
 
 describe("xlsx find i18n", () => {
+  it("carries the _one form with identical text beside every vi find plural", () => {
+    for (const key of [
+      "office.xlsx.find.status.matches",
+      "office.xlsx.find.status.formulaHint",
+      "office.xlsx.find.status.replacedAll",
+    ]) {
+      expect(text(`${key}_one`), `${key}_one`).toBe(text(`${key}_other`));
+    }
+  });
+
   it("carries the same find keys in vi and en", () => {
     const subtree = (dictionary: unknown) => stringPaths(lookup(dictionary, "office.xlsx.find"));
     expect(subtree(viLocale).length).toBeGreaterThan(0);
     expect(subtree(viLocale)).toEqual(subtree(en));
+  });
+});
+
+describe("xlsx find plural status in English", () => {
+  it("reads the singular match wording at count 1", async () => {
+    await setLocale("en");
+    try {
+      renderPanel({}, async () => result([cell("alpha", 0, 0)]));
+      await panelReady();
+      fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
+      await waitFor(() => expect(screen.getByTestId("xlsx-find-status")).toHaveTextContent("1 match."));
+      // The old fixed-plural string would have read "1 matches.".
+      expect(screen.getByTestId("xlsx-find-status")).not.toHaveTextContent("1 matches.");
+    } finally {
+      await setLocale("vi");
+    }
+  });
+
+  it("reads the plural match wording at count 2", async () => {
+    await setLocale("en");
+    try {
+      renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 0, 1)]));
+      await panelReady();
+      fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
+      await waitFor(() => expect(screen.getByTestId("xlsx-find-status")).toHaveTextContent("2 matches."));
+    } finally {
+      await setLocale("vi");
+    }
+  });
+
+  it("pluralises the formula hint and the replaced count", async () => {
+    await setLocale("en");
+    try {
+      renderPanel({}, async () => result([cell("alpha", 0, 0), cell("alpha", 0, 1, "=A1")]));
+      await panelReady();
+      fireEvent.change(screen.getByTestId("xlsx-find-query"), { target: { value: "alpha" } });
+      await waitFor(() => expect(screen.getByTestId("xlsx-find-formula-hint")).toHaveTextContent(
+        "1 formula cell is matched but never replaced.",
+      ));
+      expect(screen.getByTestId("xlsx-find-formula-hint")).not.toHaveTextContent("1 formula cells");
+      fireEvent.click(screen.getByTestId("xlsx-find-replace-all"));
+      expect(await screen.findByTestId("xlsx-find-replaced-all")).toHaveTextContent("Replaced 1 cell.");
+      expect(screen.getByTestId("xlsx-find-replaced-all")).not.toHaveTextContent("Replaced 1 cells.");
+    } finally {
+      await setLocale("vi");
+    }
   });
 });

@@ -262,3 +262,11 @@ describe("XlsxStructureOutlineGroup", () => {
     expect(screen.getAllByRole("button").every((candidate) => candidate.getAttribute("aria-disabled") === "true")).toBe(true);
   });
 });
+
+describe("vi plural forms", () => {
+  it("carries the _one form with identical text beside every vi insert plural", () => {
+    for (const key of ["office.xlsx.structure.insertRowsAbove", "office.xlsx.structure.insertColsLeft"]) {
+      expect(viText(`${key}_one`), `${key}_one`).toBe(viText(`${key}_other`));
+    }
+  });
+});
