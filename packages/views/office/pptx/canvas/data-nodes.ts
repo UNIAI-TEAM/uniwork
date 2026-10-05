@@ -200,6 +200,20 @@ const LEGEND_GAP_PX = 4;
 const LEGEND_SWATCH_DROP = 0.3;
 const PIE_LEGEND_SWATCH_DROP = 0.25;
 
+/** `styleInfo.kind` values the engine's pie builder (buildPieNode) emits: every `kind === "pie"` model. */
+const PIE_CHART_KINDS: ReadonlySet<string> = new Set(["pie", "doughnut", "pie3D"]);
+
+/**
+ * Whether the legend uses the pie/doughnut swatch spacing. Decided from the chart kind the engine
+ * echoes on every chart node; `wedges` is no discriminator because buildSunburstNode (and any
+ * future builder) also seeds an empty `wedges` array. Only a node without `styleInfo` (hand-built,
+ * never engine output) falls back to "has wedges", where an empty array means no pie.
+ */
+function isPieLegend(node: PptxChartRenderNode): boolean {
+  if (node.styleInfo) return PIE_CHART_KINDS.has(node.styleInfo.kind);
+  return (node.wedges?.length ?? 0) > 0;
+}
+
 /**
  * Width the engine reserved for a legend label: legend items are laid out left to right as
  * `swatch + 4 + textWidth + swatch` (the swatch is half an em), so the distance to the next
@@ -207,8 +221,7 @@ const PIE_LEGEND_SWATCH_DROP = 0.25;
  * labels that are not legend entries (ticks, titles).
  */
 function legendTextWidth(label: PptxChartRenderNode["labels"][number], node: PptxChartRenderNode): number | undefined {
-  // buildPieNode is the only builder that seeds `wedges`, so it marks the pie/doughnut spacing.
-  const drop = node.wedges ? PIE_LEGEND_SWATCH_DROP : LEGEND_SWATCH_DROP;
+  const drop = isPieLegend(node) ? PIE_LEGEND_SWATCH_DROP : LEGEND_SWATCH_DROP;
   const swatch = node.swatches.find((s) => Math.abs(s.x + s.w + LEGEND_GAP_PX - label.x) < 0.01 && Math.abs(s.y - (label.y + label.fontSizePx * drop)) < 0.01);
   if (!swatch) return undefined;
   const next = node.swatches.filter((s) => Math.abs(s.y - swatch.y) < 0.01 && s.x > swatch.x).sort((a, b) => a.x - b.x)[0];

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode, useLayoutEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { buildSlideSvg } from "../canvas/build-slide-svg";
@@ -211,6 +212,46 @@ describe("PptxSlideShow", () => {
   it("opens on the first visible slide when asked to start on a hidden one", () => {
     const onIndexChange = vi.fn();
     render(<PptxSlideShow slideCount={4} index={1} hidden={[false, true, true, false]} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />);
+    expect(onIndexChange).toHaveBeenCalledTimes(1);
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  it("normalizes a hidden start slide before the first frame can paint (W8 F3)", () => {
+    // A layout effect flushes the parent's update before paint, so the correction lands ahead of the
+    // host's own first layout effect; a passive effect would run after it (one painted hidden frame).
+    const events: string[] = [];
+    function Host() {
+      const [index, setIndex] = useState(1);
+      useLayoutEffect(() => {
+        events.push(`host-layout:${index}`);
+      });
+      return (
+        <PptxSlideShow
+          slideCount={4}
+          index={index}
+          hidden={[false, true, true, false]}
+          onIndexChange={(next) => {
+            events.push(`index-change:${next}`);
+            setIndex(next);
+          }}
+          onExit={vi.fn()}
+          content={content("Slide")}
+        />
+      );
+    }
+    render(<Host />);
+    expect(events[0]).toBe("index-change:3");
+    expect(events.filter((event) => event.startsWith("index-change"))).toHaveLength(1);
+    expect(screen.getByTestId("pptx-show-counter")).toHaveTextContent("Slide 4 of 4");
+  });
+
+  it("normalizes a hidden start slide once under StrictMode", () => {
+    const onIndexChange = vi.fn();
+    render(
+      <StrictMode>
+        <PptxSlideShow slideCount={4} index={1} hidden={[false, true, true, false]} onIndexChange={onIndexChange} onExit={vi.fn()} content={content("Slide")} />
+      </StrictMode>,
+    );
     expect(onIndexChange).toHaveBeenCalledTimes(1);
     expect(onIndexChange).toHaveBeenCalledWith(3);
   });

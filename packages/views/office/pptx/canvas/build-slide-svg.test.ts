@@ -278,6 +278,42 @@ describe("buildSlideSvg: tables and charts", () => {
     expect(freeform?.attrs?.transform).toBe("translate(0 4)");
     expect(textContent(doc.root)).toEqual(["Q1"]);
   });
+
+  describe("legend swatch spacing (W8 F1)", () => {
+    // Two legend entries on one row: swatch (half an em) + 4 + label, so the gap to the next swatch
+    // recovers the measured width of "Series" (here 110 - 10 - 2 * 10 - 4 = 76). `drop` is the swatch offset
+    // below the label top, in em: pie/doughnut legends use 0.25, every other builder 0.3.
+    const legendNode = (kind: string, drop: number, wedges: [] | undefined) => {
+      const fontSizePx = 20;
+      const swatchY = 100 + fontSizePx * drop;
+      return chartNode({
+        styleInfo: { kind, legendPos: "b", dataLabels: false, gridlines: false },
+        ...(wedges ? { wedges } : {}),
+        labels: [{ text: "Series", x: 24, y: 100, fontSizePx, color: "#444444" }],
+        swatches: [
+          { x: 10, y: swatchY, w: 10, h: 10, color: "#FF0000" },
+          { x: 110, y: swatchY, w: 10, h: 10, color: "#00FF00" },
+        ],
+      });
+    };
+    const legendTextLength = (node: ReturnType<typeof chartNode>) => byTag(build([node]).root, "text").find((text) => text.attrs?.["xml:space"] === "preserve")?.attrs?.textLength;
+
+    it("pins a pie legend label on the pie swatch drop", () => {
+      expect(legendTextLength(legendNode("pie", 0.25, []))).toBe(76);
+      expect(legendTextLength(legendNode("doughnut", 0.25, []))).toBe(76);
+    });
+
+    it("does not give a sunburst-shaped node (empty wedges, no pie kind) the pie drop", () => {
+      // buildSunburstNode also seeds `wedges = []`; only the chart kind marks a pie.
+      expect(legendTextLength(legendNode("unknown", 0.25, []))).toBeUndefined();
+      expect(legendTextLength(legendNode("unknown", 0.3, []))).toBe(76);
+    });
+
+    it("keeps the non-pie drop for a bar legend that carries no wedges", () => {
+      expect(legendTextLength(legendNode("bar", 0.3, undefined))).toBe(76);
+      expect(legendTextLength(legendNode("bar", 0.25, undefined))).toBeUndefined();
+    });
+  });
 });
 
 describe("buildSlideSvg: placeholder chips and element hooks", () => {

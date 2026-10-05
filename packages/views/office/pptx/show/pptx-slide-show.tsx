@@ -26,7 +26,7 @@
  *   advance) and returns to whatever held it before, on exit.
  * - Transitions: the canvas renders none yet, so the show cuts between slides.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -86,9 +86,11 @@ export function PptxSlideShow({
 
   // The show never opens ON a hidden slide: start from the first visible one at
   // or after the requested index (PowerPoint's "from current slide" on a hidden
-  // slide). Runs once per mount.
+  // slide). Runs once per mount, in a layout effect: the parent's state update
+  // then flushes synchronously before the browser paints, so the hidden slide
+  // never gets a frame on screen (a passive effect lands after the first paint).
   const mountedRef = useRef({ index, hidden, slideCount, onIndexChange, done: false });
-  useEffect(() => {
+  useLayoutEffect(() => {
     const mounted = mountedRef.current;
     if (mounted.done) return;
     mounted.done = true;
