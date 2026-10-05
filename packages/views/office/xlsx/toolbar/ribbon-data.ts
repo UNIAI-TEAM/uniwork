@@ -17,7 +17,6 @@ import {
   Paintbrush,
   Printer,
   Rows3,
-  Search,
   ShieldCheck,
   Sigma,
   Square,
@@ -25,7 +24,6 @@ import {
   Table2,
   TableCellsMerge,
   Type,
-  Undo2,
   ZoomIn,
   type LucideIcon,
 } from "lucide-react";
@@ -63,7 +61,6 @@ export const XLSX_EMPTY_TAB_GROUP_ID = "empty-tab";
  * command id, op or the save path.
  */
 export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
-  history: Undo2,
   sheets: Grid3X3,
   clipboard: Clipboard,
   number: Hash,
@@ -74,7 +71,6 @@ export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
   "structure-merge": TableCellsMerge,
   clear: Eraser,
   painter: Paintbrush,
-  find: Search,
   charts: ChartColumn,
   calculation: Sigma,
   formula: SquareFunction,
@@ -114,8 +110,6 @@ export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
   "structure-size": 228,
   clear: 64,
   painter: 36,
-  history: 72,
-  find: 36,
   charts: 36,
   calculation: 104,
   formula: 40,

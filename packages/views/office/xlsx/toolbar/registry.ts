@@ -1,4 +1,4 @@
-﻿import { XlsxClearGroup } from "./clear/clear-group";
+import { XlsxClearGroup } from "./clear/clear-group";
 import { XlsxFormatPainterGroup } from "./clear/format-painter";
 import { XlsxPageSetupGroup } from "./page-setup-group";
 import { XlsxProtectGroup } from "./protect-group";
@@ -42,7 +42,7 @@ import type { XlsxToolbarGroupDefinition } from "./types";
  *              the controls as `aria-disabled`, not here.
  *
  *  This file is shared by every Wave A worker: edit it LAST, re-read it right
- *  before editing, and append only â€” never reorder or edit another task's row. */
+ *  before editing, and append only - never reorder or edit another task's row. */
 export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "sheets", tab: "home", order: 20, labelKey: "office.xlsx.toolbar.groups.sheets", Component: XlsxSheetsGroup },
   { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", Component: XlsxClipboardGroup },
