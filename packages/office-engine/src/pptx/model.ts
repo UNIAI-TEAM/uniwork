@@ -117,6 +117,15 @@ export function makePxToEmu(opened: OpenedPptxLike, fitWidthPx: number): (px: nu
   return (px) => Math.round((px / scale) * EMU_PER_PX_96);
 }
 
+/** pt -> EMU for an inserted stroke; 0, negative, NaN or a missing width would write w="0" / w="NaN". */
+const strokeWidthEmu = (widthPt: number): number => {
+  const emu = Math.round(widthPt * 12700);
+  if (typeof widthPt !== "number" || !Number.isFinite(emu) || emu <= 0) {
+    throw new PptxEngineError("bad_stroke_width", "stroke.widthPt must be a finite number > 0");
+  }
+  return emu;
+};
+
 const requirePositive = (value: number, field: string): number => {
   if (!Number.isFinite(value) || value < 0) {
     throw new PptxEngineError("bad_geometry", field + " must be a finite number >= 0");
@@ -313,7 +322,7 @@ export class PptxSessionModel {
         ...(input.paragraphs?.length ? { paragraphs: input.paragraphs } : {}),
         ...(input.fillColor ? { fill: input.fillColor } : {}),
         // The vendored buildSpXml reads stroke.widthEmu; the typed edit speaks pt.
-        ...(input.stroke ? { stroke: { color: input.stroke.color, widthEmu: Math.round(input.stroke.widthPt * 12700) } } : {}),
+        ...(input.stroke ? { stroke: { color: input.stroke.color, widthEmu: strokeWidthEmu(input.stroke.widthPt) } } : {}),
       },
     ]);
     const created = PptxSessionModel.createdIds(result.records);

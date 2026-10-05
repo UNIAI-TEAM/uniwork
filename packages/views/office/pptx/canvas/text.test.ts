@@ -1,6 +1,7 @@
 /** @vitest-environment node */
-// F-07 / F-20 (UNI-927 visual-END): the engine lays runs out with HeuristicMetrics, so a
-// run's `x` / `widthPx` are authoritative; the browser's face must be constrained to them.
+// F-07 / F-20 (UNI-927 visual-END): the engine lays runs out with measured widths (canvas
+// provider in the browser, HeuristicMetrics here in node), so a run's `x` / `widthPx` are
+// authoritative; the pin constrains a late-loading or substituted face to them.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";

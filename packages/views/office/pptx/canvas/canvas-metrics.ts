@@ -52,6 +52,9 @@ export function createCanvasFontMetrics(
       const hit = widths.get(key);
       if (hit !== undefined) return hit;
       ctx.font = font;
+      // A context without `fontKerning` (older Safari) cannot measure a kern-off run unkerned. The
+      // draw layer still sets font-kerning:none for it, so the two disagree by the kerning delta
+      // (sub-pixel per run); the run's textLength pin in text.ts absorbs that residual.
       if ("fontKerning" in ctx) ctx.fontKerning = kerningOff ? "none" : "auto";
       const width = ctx.measureText(text).width;
       // A non-finite width would poison the layout; defer to the heuristic for that run.

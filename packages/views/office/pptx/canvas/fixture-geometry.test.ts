@@ -2,6 +2,7 @@
 // UNI-927 visual-END F-08 / F-17, driven through the REAL generated renderer artifact and the
 // real G0 fixture decks, so the assertions are on the geometry the canvas actually mounts.
 import { readFileSync } from "node:fs";
+import JSZip from "jszip";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import * as artifact from "@uniwork/office-upstream/pptx-renderer";
@@ -17,10 +18,11 @@ interface Deck {
   size: { cx: number; cy: number };
 }
 
-async function loadDeck(name: string): Promise<Deck> {
+const fixtureBytes = (name: string): Uint8Array => new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../../../docs/office/g0/fixtures/files/slides/${name}`, import.meta.url))));
+
+async function loadDeck(name: string, bytes: Uint8Array = fixtureBytes(name)): Promise<Deck> {
   const adapter = createPptxAdapter({ engine: bindPptxEngine(artifact as never), ops: bindPptxOps(artifact as never) });
-  const file = fileURLToPath(new URL(`../../../../../docs/office/g0/fixtures/files/slides/${name}`, import.meta.url));
-  const opened = await adapter.open({ bytes: new Uint8Array(readFileSync(file)), format: "pptx", document_id: name });
+  const opened = await adapter.open({ bytes, format: "pptx", document_id: name });
   if (opened.outcome !== "opened") throw new Error(`${name} did not open`);
   return (adapter.sessionOf(opened.document_model_ref).model.opened as OpenedPptxLike).deck as Deck;
 }
@@ -84,6 +86,39 @@ describe("pptx-chart.pptx legend (F-17)", () => {
       const width = Number(node.attrs?.textLength);
       expect(width).toBeGreaterThan(0);
       expect(label.x + width).toBeLessThanOrEqual(legend[i + 1]!.x + 0.01);
+    }
+  });
+});
+
+// Pie/doughnut legends (build-chart.ts buildPieNode) drop the swatch 0.25em below the label top,
+// bar/line/area legends 0.3em; the pin must follow whichever the engine used. No fixture deck
+// holds a pie, so the real bar chart is rewritten to a pie/doughnut over the same categories.
+async function pieDeckBytes(chartKind: "pieChart" | "doughnutChart"): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(fixtureBytes("pptx-chart.pptx"));
+  const path = "ppt/charts/chart1.xml";
+  const xml = await zip.file(path)!.async("string");
+  const series = /<c:ser>.*<\/c:ser>/s.exec(xml)![0];
+  const hole = chartKind === "doughnutChart" ? '<c:holeSize val="50"/>' : "";
+  const body = `<c:${chartKind}><c:varyColors val="1"/>${series}${hole}</c:${chartKind}>`;
+  zip.file(path, xml.replace(/<c:barChart>.*<\/c:barChart>/s, () => body).replace(/<c:catAx>.*<\/c:valAx>/s, ""));
+  return zip.generateAsync({ type: "uint8array" });
+}
+
+describe("pie / doughnut legend (W3 review F1)", () => {
+  it.each(["pieChart", "doughnutChart"] as const)("pins %s legend labels to their measured width", async (kind) => {
+    const slide = build(await loadDeck("pptx-chart.pptx", await pieDeckBytes(kind)), 1000);
+    const chart = slide.nodes.find((n): n is PptxChartRenderNode => n.type === "chart")!;
+    expect(chart.wedges?.length).toBeGreaterThan(0);
+    const legend = chart.swatches.filter((s) => chart.labels.some((l) => Math.abs(l.x - (s.x + s.w + 4)) < 0.01)).sort((a, b) => a.x - b.x);
+    expect(legend.length).toBeGreaterThanOrEqual(3);
+    const drawn = texts(buildSlideSvg(slide, { idPrefix: "pie", palette }).root);
+    for (let i = 0; i < legend.length - 1; i += 1) {
+      const swatch = legend[i]!;
+      const label = chart.labels.find((l) => Math.abs(l.x - (swatch.x + swatch.w + 4)) < 0.01)!;
+      expect(swatch.y).toBeCloseTo(label.y + label.fontSizePx * 0.25, 2);
+      const width = Number(drawn.find((t) => t.text === label.text)?.attrs?.textLength);
+      expect(width).toBeGreaterThan(0);
+      expect(width).toBeCloseTo(legend[i + 1]!.x - swatch.x - swatch.w * 2 - 4, 2);
     }
   });
 });

@@ -6,7 +6,7 @@
 import { fillPaint, normalizeColor, strokePaint, type PptxPaintContext } from "./paint";
 import type { PptxChartRenderNode, PptxChipRenderNode, PptxTableRenderNode } from "./render-tree";
 import { px, svgEl, svgText, type SvgAttrValue, type SvgNode } from "./svg-node";
-import { textBlockPaint } from "./text";
+import { displayFontFamily, textBlockPaint } from "./text";
 
 interface DataNodeContext {
   ctx: PptxPaintContext;
@@ -194,8 +194,11 @@ function wedgeStroke(wedge: { stroke?: string; strokeWidthPx?: number; noFill?: 
  * alias) but ships no width, so a label drawn without a family inherits the page UI font and
  * runs wider than the room the engine left for it.
  */
-const CHART_LABEL_FONT = "'Calibri', 'Carlito', sans-serif";
+const CHART_LABEL_FONT = displayFontFamily("Calibri");
 const LEGEND_GAP_PX = 4;
+/** Swatch drop below the label top, in em: pie/doughnut legends (buildPieNode) use 0.25, the rest 0.3. */
+const LEGEND_SWATCH_DROP = 0.3;
+const PIE_LEGEND_SWATCH_DROP = 0.25;
 
 /**
  * Width the engine reserved for a legend label: legend items are laid out left to right as
@@ -204,7 +207,9 @@ const LEGEND_GAP_PX = 4;
  * labels that are not legend entries (ticks, titles).
  */
 function legendTextWidth(label: PptxChartRenderNode["labels"][number], node: PptxChartRenderNode): number | undefined {
-  const swatch = node.swatches.find((s) => Math.abs(s.x + s.w + LEGEND_GAP_PX - label.x) < 0.01 && Math.abs(s.y - (label.y + label.fontSizePx * 0.3)) < 0.01);
+  // buildPieNode is the only builder that seeds `wedges`, so it marks the pie/doughnut spacing.
+  const drop = node.wedges ? PIE_LEGEND_SWATCH_DROP : LEGEND_SWATCH_DROP;
+  const swatch = node.swatches.find((s) => Math.abs(s.x + s.w + LEGEND_GAP_PX - label.x) < 0.01 && Math.abs(s.y - (label.y + label.fontSizePx * drop)) < 0.01);
   if (!swatch) return undefined;
   const next = node.swatches.filter((s) => Math.abs(s.y - swatch.y) < 0.01 && s.x > swatch.x).sort((a, b) => a.x - b.x)[0];
   if (!next) return undefined;

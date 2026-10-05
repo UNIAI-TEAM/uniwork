@@ -64,10 +64,11 @@ function runTextAttrs(run: PptxGlyphRun, ctx: PptxPaintContext): Record<string, 
     "font-size": px(run.fontSizePx),
     fill: normalizeColor(run.color),
   };
-  // The engine measured every run with HeuristicMetrics (no font files in the browser), so
-  // its x / widthPx are the layout contract. Whatever face the browser resolves has other
-  // advances; pinning the run to the measured width (spacing only, glyphs undistorted) keeps
-  // neighbouring runs from overlapping (wider face) or drifting apart (narrower face).
+  // The engine lays every run out at its measured width (the 2D-canvas provider in the browser,
+  // HeuristicMetrics where no context exists), so its x / widthPx are the layout contract. A face
+  // that loads after the measurement, or one the browser substitutes, has other advances;
+  // pinning the run to the measured width (spacing only, glyphs undistorted) is the safety net
+  // that keeps neighbouring runs from overlapping (wider face) or drifting apart (narrower face).
   if (run.widthPx > 0 && [...run.text].length > 1) {
     attrs.textLength = px(run.widthPx);
     attrs.lengthAdjust = "spacing";

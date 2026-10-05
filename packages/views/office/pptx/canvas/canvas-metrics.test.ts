@@ -47,6 +47,17 @@ describe("createCanvasFontMetrics", () => {
     expect(ctx.fontKerning).toBe("auto");
   });
 
+  it("measures a kern-off run without touching a context that cannot disable kerning", () => {
+    const { fonts, fallback } = setup();
+    const ctx: PptxMeasureContext = { font: "", measureText: vi.fn((text: string) => (fonts.push(ctx.font), { width: text.length * 5 })) };
+    const provider = createCanvasFontMetrics(fallback, () => ctx)!;
+    // Residual (documented in canvas-metrics.ts): measured kerned, drawn font-kerning:none; the
+    // textLength pin absorbs it. The provider must neither throw nor invent the property.
+    expect(provider.measure("ab", style({ kerning: false }))).toBe(10);
+    expect("fontKerning" in ctx).toBe(false);
+    expect(provider.measure("ab", style())).toBe(10);
+  });
+
   it("keeps the fallback's line metrics and falls back on a non-finite width", () => {
     const { ctx, fallback, provider } = setup();
     expect(provider.metrics(style())).toEqual({ ascent: 11, descent: 3, lineHeight: 19 });

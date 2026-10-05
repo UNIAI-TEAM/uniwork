@@ -187,6 +187,15 @@ describe("pptx session model ops", () => {
     expect(stroke).not.toHaveProperty("widthPt");
   });
 
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined, 0.00001])("add_element refuses stroke.widthPt %s with bad_stroke_width and applies nothing", async (widthPt) => {
+    const { adapter, ref, model } = await openModel();
+    const before = model.opened.deck.slides[0]?.elements.length;
+    expect(() =>
+      adapter.edit(ref, { op: "add_element", slideIndex: 0, kind: "rect", xPx: 1, yPx: 1, wPx: 10, hPx: 10, stroke: { color: "#000000", widthPt: widthPt as number } }),
+    ).toThrowError(expect.objectContaining({ code: "bad_stroke_width" }));
+    expect(model.opened.deck.slides[0]?.elements.length).toBe(before);
+  });
+
   it("edit returns the minted id for creating kinds and none for the rest", async () => {
     const { adapter, ref } = await openModel();
     const created = adapter.edit(ref, { op: "add_element", slideIndex: 0, kind: "rect", xPx: 1, yPx: 1, wPx: 10, hPx: 10 });
