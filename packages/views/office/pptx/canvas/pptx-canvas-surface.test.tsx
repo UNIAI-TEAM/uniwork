@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -11,6 +13,8 @@ initI18n();
 beforeEach(async () => {
   await setLocale("en");
 });
+
+const TOKENS = readFileSync(join(__dirname, "../../../../ui/styles/tokens.css"), "utf8");
 
 const palette: PptxCanvasPalette = { pageFill: "#ffffff", chipFill: "#f4f4f5", chipStroke: "#e4e4e7", chipText: "#646464" };
 
@@ -62,6 +66,21 @@ describe("PptxCanvasSurface", () => {
     view.rerender(<PptxCanvasSurface content={null} slideIndex={0} slideCount={2} zoom={1} />);
     expect(screen.getByTestId("pptx-render-pending")).toHaveTextContent("Slide rendering is not connected");
     expect(screen.queryByRole("application")?.querySelector("[data-slide-canvas]")).toBeNull();
+  });
+
+  it("lifts the slide off the office canvas with the themed page shadow (frame F8, B3)", () => {
+    render(<PptxCanvasSurface content={content()} slideIndex={0} slideCount={1} zoom={1} />);
+    const slideBox = screen.getByRole("application").querySelector("[data-slide-canvas]");
+    expect(slideBox).toHaveClass("shadow-office-page");
+    // The 0 1px 2px / 5% surface elevation reads as no shadow on the grey canvas.
+    expect(slideBox).not.toHaveClass("shadow-surface");
+    const blocks = [TOKENS.slice(TOKENS.indexOf(":root {"), TOKENS.indexOf(".dark {")), TOKENS.slice(TOKENS.indexOf(".dark {"))];
+    for (const block of blocks) {
+      const value = /--office-page-shadow:\s*([^;]+);/.exec(block)?.[1] ?? "";
+      const blurs = [...value.matchAll(/(-?\d+)(?:px)?\s+(-?\d+)(?:px)?\s+(\d+)px/g)].map((m) => Number(m[3]));
+      expect(Math.max(0, ...blurs)).toBeGreaterThanOrEqual(8);
+    }
+    expect(TOKENS).toContain("--shadow-office-page: var(--office-page-shadow);");
   });
 
   it("distinguishes a still-building deck from an unbound renderer (P0-2 F16)", () => {

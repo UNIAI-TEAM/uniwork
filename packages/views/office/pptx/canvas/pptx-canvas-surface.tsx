@@ -93,7 +93,7 @@ export function PptxCanvasSurface({
         {slideCount === 0 ? <p className="self-center text-body text-muted-foreground">{t("no_slides")}</p> : null}
         {slideCount > 0 && content ? (
           <div
-            className="relative shrink-0 overflow-hidden bg-white shadow-surface"
+            className="relative shrink-0 overflow-hidden bg-white shadow-office-page"
             style={{ width: display.widthPx, height: display.heightPx }}
             data-slide-canvas
             data-slide-index={slideIndex}
