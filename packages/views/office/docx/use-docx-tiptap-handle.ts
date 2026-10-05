@@ -78,9 +78,9 @@ function DocxRendererSurface({ editor, pagination, readOnly }: { editor: Editor;
             className: "editor-scroll min-h-0 min-w-0 flex-1",
             "data-testid": "docx-document-surface",
             // Keep the scrolling contents opaque so Chromium can use LCD text
-            // antialiasing on the paper gutter. `--canvas` is supplied by the
-            // upstream light/dark renderer theme in both modes.
-            style: { backgroundColor: "var(--canvas)", backgroundAttachment: "local" },
+            // antialiasing on the paper gutter. `--office-canvas` (the Office
+            // grey, F8) is declared for light and dark in packages/ui tokens.
+            style: { backgroundColor: "var(--office-canvas)", backgroundAttachment: "local" },
           },
           createElement(
             "div",

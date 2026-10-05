@@ -51,6 +51,13 @@ describe("EditorSlot", () => {
     );
     expect(await screen.findByTestId("mounted-editor")).toBeInTheDocument();
     expect(loadEditor).toHaveBeenCalledWith("md");
+    const section = document.querySelector("[data-office-editor-slot]")!;
+    expect(section.className).not.toMatch(/\b(p-3|p-4|rounded-lg|border)\b/);
+  });
+
+  it("pads only the message states", () => {
+    render(<EditorSlot format="xlsx" host={host} capability="available" />);
+    expect(document.querySelector("[data-office-editor-slot]")!.className).toContain("p-4");
   });
 
   it("mounts the Markdown and HTML loaders through EditorSlot and shows a typed missing-handle state", async () => {

@@ -8,6 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
+import { OfficeFrame } from "../frame/office-frame";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -242,10 +243,13 @@ export function DocxEditor<TSnapshot = unknown>({
         </span>
       </header> : null}
       {viewState === "ready" ? (
-        <>
-          <DocxToolbar {...sharedContext} />
-          <DocxFindPanel {...sharedContext} />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto" data-testid="docx-canvas">
+        <OfficeFrame
+          className="bg-office-canvas"
+          ribbon={<DocxToolbar {...sharedContext} />}
+          subbar={<DocxFindPanel {...sharedContext} />}
+          statusBar={<DocxStatusBar selection={selection} help={<DocxShortcutsHelp {...sharedContext} />} />}
+        >
+          <div className="flex h-full min-h-0 min-w-0 flex-col" data-testid="docx-canvas">
             {/* A6-wire: attaches the zoom controller to the surface below and
                 draws the ruler above the pages; resolves the surface from the
                 DOM because the handle exposes no engine accessors. */}
@@ -266,9 +270,7 @@ export function DocxEditor<TSnapshot = unknown>({
               <p className="p-8 text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
             )}
           </div>
-          <DocxStatusBar {...sharedContext} />
-          <DocxShortcutsHelp {...sharedContext} />
-        </>
+        </OfficeFrame>
       ) : viewState === "error" && failure ? (
         <DocxErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
       ) : (

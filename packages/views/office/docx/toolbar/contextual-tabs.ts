@@ -226,9 +226,9 @@ function tableLayoutTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
       labelKey: "office.docx.toolbar.contextual.tableAlign",
       priority: 13,
       items: [
-        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.toolbar.paragraph.alignLeft", icon: AlignLeft, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("left") },
-        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.toolbar.paragraph.alignCenter", icon: AlignCenter, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("center") },
-        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.toolbar.paragraph.alignRight", icon: AlignRight, size: "small", disabled, onExecute: () => commands?.setParagraphAlign("right") },
+        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.toolbar.paragraph.alignLeft", icon: AlignLeft, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("left") },
+        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.toolbar.paragraph.alignCenter", icon: AlignCenter, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("center") },
+        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.toolbar.paragraph.alignRight", icon: AlignRight, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("right") },
       ],
     },
   ];
@@ -270,9 +270,9 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
       labelKey: "office.docx.image.align.label",
       priority: 12,
       items: [
-        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: AlignLeft, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "left" })) },
-        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: AlignCenter, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "center" })) },
-        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: AlignRight, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "right" })) },
+        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: AlignLeft, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "left" })) },
+        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: AlignCenter, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "center" })) },
+        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: AlignRight, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "right" })) },
       ],
     },
     {
@@ -280,10 +280,10 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
       labelKey: "office.docx.toolbar.contextual.pictureTransform",
       priority: 13,
       items: [
-        { kind: "button", id: "picture-format-rotate-left", labelKey: "office.docx.image.rotate.left", icon: RotateCcw, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: -90 })) },
-        { kind: "button", id: "picture-format-rotate-right", labelKey: "office.docx.image.rotate.right", icon: RotateCw, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: 90 })) },
-        { kind: "button", id: "picture-format-flip-h", labelKey: "office.docx.image.flip.h", icon: FlipHorizontal2, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: true, flipV: false })) },
-        { kind: "button", id: "picture-format-flip-v", labelKey: "office.docx.image.flip.v", icon: FlipVertical2, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: false, flipV: true })) },
+        { kind: "button", id: "picture-format-rotate-left", labelKey: "office.docx.image.rotate.left", icon: RotateCcw, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: -90 })) },
+        { kind: "button", id: "picture-format-rotate-right", labelKey: "office.docx.image.rotate.right", icon: RotateCw, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: 90 })) },
+        { kind: "button", id: "picture-format-flip-h", labelKey: "office.docx.image.flip.h", icon: FlipHorizontal2, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: true, flipV: false })) },
+        { kind: "button", id: "picture-format-flip-v", labelKey: "office.docx.image.flip.v", icon: FlipVertical2, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: false, flipV: true })) },
       ],
     },
     {
