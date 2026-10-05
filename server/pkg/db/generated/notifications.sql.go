@@ -30,6 +30,26 @@ func (q *Queries) ArchiveNotifications(ctx context.Context, arg ArchiveNotificat
 	return result.RowsAffected(), nil
 }
 
+const claimMeetingReminder = `-- name: ClaimMeetingReminder :execrows
+INSERT INTO meeting_reminders (meeting_id, organization_id, workspace_id)
+SELECT m.id, m.organization_id, m.workspace_id FROM meetings m
+WHERE m.id = $1 AND m.status = 'SCHEDULED'
+ON CONFLICT (meeting_id) DO NOTHING
+`
+
+// tenant: by-id
+// The one-shot claim, taken in the transaction that writes the meeting's
+// notifications. A concurrent claim waits on the uncommitted key and then
+// inserts nothing; a meeting cancelled or started since the listing is
+// not claimed at all.
+func (q *Queries) ClaimMeetingReminder(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, claimMeetingReminder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `
@@ -111,6 +131,40 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertNotificationDeliveries = `-- name: InsertNotificationDeliveries :many
+INSERT INTO notification_deliveries (event_id, user_id)
+SELECT $1::text, u.user_id FROM unnest($2::text[]) AS u(user_id)
+ON CONFLICT DO NOTHING
+RETURNING user_id
+`
+
+type InsertNotificationDeliveriesParams struct {
+	EventID string   `json:"event_id"`
+	UserIds []string `json:"user_ids"`
+}
+
+// One delivery row per user for an event fanned out at once; the users
+// returned are the ones the event had not reached yet.
+func (q *Queries) InsertNotificationDeliveries(ctx context.Context, arg InsertNotificationDeliveriesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, insertNotificationDeliveries, arg.EventID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertNotificationDelivery = `-- name: InsertNotificationDelivery :execrows
@@ -302,56 +356,46 @@ func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID s
 	return items, nil
 }
 
-const listMeetingsStartingBetween = `-- name: ListMeetingsStartingBetween :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id FROM meetings
-WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2
+const listMeetingsDueReminder = `-- name: ListMeetingsDueReminder :many
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.starts_at
+FROM meetings m
+WHERE m.status = 'SCHEDULED' AND m.starts_at > $1 AND m.starts_at <= $2
+  AND NOT EXISTS (SELECT 1 FROM meeting_reminders r WHERE r.meeting_id = m.id)
+ORDER BY m.starts_at
 `
 
-type ListMeetingsStartingBetweenParams struct {
+type ListMeetingsDueReminderParams struct {
 	StartsAt   pgtype.Timestamptz `json:"starts_at"`
 	StartsAt_2 pgtype.Timestamptz `json:"starts_at_2"`
 }
 
+type ListMeetingsDueReminderRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Title          string             `json:"title"`
+	StartsAt       pgtype.Timestamptz `json:"starts_at"`
+}
+
 // tenant: system
-func (q *Queries) ListMeetingsStartingBetween(ctx context.Context, arg ListMeetingsStartingBetweenParams) ([]Meeting, error) {
-	rows, err := q.db.Query(ctx, listMeetingsStartingBetween, arg.StartsAt, arg.StartsAt_2)
+// Scheduled meetings starting in ($1, $2] whose reminder has not gone out;
+// idx_meetings_scheduled_starts (migration 9991791200000105) bounds the
+// scan to the window.
+func (q *Queries) ListMeetingsDueReminder(ctx context.Context, arg ListMeetingsDueReminderParams) ([]ListMeetingsDueReminderRow, error) {
+	rows, err := q.db.Query(ctx, listMeetingsDueReminder, arg.StartsAt, arg.StartsAt_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Meeting{}
+	items := []ListMeetingsDueReminderRow{}
 	for rows.Next() {
-		var i Meeting
+		var i ListMeetingsDueReminderRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrganizationID,
 			&i.WorkspaceID,
 			&i.Title,
-			&i.Description,
 			&i.StartsAt,
-			&i.EndsAt,
-			&i.RoomName,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.MeetingType,
-			&i.HostUserID,
-			&i.ActualStartAt,
-			&i.ActualEndAt,
-			&i.Timezone,
-			&i.AllowJoinRequest,
-			&i.PreferredProviderKey,
-			&i.Version,
-			&i.UpdatedBy,
-			&i.CanceledBy,
-			&i.CanceledAt,
-			&i.CancelReason,
-			&i.ProjectID,
-			&i.CreatedByKind,
-			&i.QuorumPercent,
-			&i.AttendanceFinalizedAt,
-			&i.AttendanceFinalizedBy,
-			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -805,6 +849,102 @@ func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNo
 		arg.Email,
 	)
 	return err
+}
+
+const upsertNotificationsForUsers = `-- name: UpsertNotificationsForUsers :many
+INSERT INTO notifications (
+  id, user_id, organization_id, workspace_id, kind, group_key,
+  resource_type, resource_id, actor_kind, actor_id, title_key, params, correlation_id
+)
+SELECT u.id, u.user_id, $1::text, $2::text, $3::text,
+  $4::text, $5::text, $6::text,
+  $7::text, $8::text, $9::text,
+  $10::text, $11::text
+FROM (SELECT unnest($12::text[]) AS id, unnest($13::text[]) AS user_id) u
+ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
+DO UPDATE SET
+  count = notifications.count + 1,
+  params = EXCLUDED.params,
+  actor_kind = EXCLUDED.actor_kind,
+  actor_id = EXCLUDED.actor_id,
+  correlation_id = EXCLUDED.correlation_id,
+  updated_at = now()
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at
+`
+
+type UpsertNotificationsForUsersParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	Kind           string      `json:"kind"`
+	GroupKey       string      `json:"group_key"`
+	ResourceType   string      `json:"resource_type"`
+	ResourceID     string      `json:"resource_id"`
+	ActorKind      string      `json:"actor_kind"`
+	ActorID        string      `json:"actor_id"`
+	TitleKey       string      `json:"title_key"`
+	Params         string      `json:"params"`
+	CorrelationID  pgtype.Text `json:"correlation_id"`
+	Ids            []string    `json:"ids"`
+	UserIds        []string    `json:"user_ids"`
+}
+
+// tenant: system
+// UpsertNotification for one draft fanned out to many users in one
+// statement: ids and user_ids pair up by position, every other column is
+// shared. Same merge target and same merge as UpsertNotification.
+func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNotificationsForUsersParams) ([]Notification, error) {
+	rows, err := q.db.Query(ctx, upsertNotificationsForUsers,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Kind,
+		arg.GroupKey,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ActorKind,
+		arg.ActorID,
+		arg.TitleKey,
+		arg.Params,
+		arg.CorrelationID,
+		arg.Ids,
+		arg.UserIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.GroupKey,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.TitleKey,
+			&i.Params,
+			&i.Count,
+			&i.CorrelationID,
+			&i.ReadAt,
+			&i.ArchivedAt,
+			&i.PushedAt,
+			&i.DigestedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one

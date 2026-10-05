@@ -156,10 +156,59 @@ ORDER BY workspace_id NULLS FIRST, kind, created_at DESC;
 -- tenant: system
 UPDATE notifications SET digested_at = now() WHERE id = ANY(sqlc.arg('ids')::text[]);
 
--- name: ListMeetingsStartingBetween :many
+-- name: ListMeetingsDueReminder :many
 -- tenant: system
-SELECT * FROM meetings
-WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2;
+-- Scheduled meetings starting in ($1, $2] whose reminder has not gone out;
+-- idx_meetings_scheduled_starts (migration 9991791200000105) bounds the
+-- scan to the window.
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.starts_at
+FROM meetings m
+WHERE m.status = 'SCHEDULED' AND m.starts_at > $1 AND m.starts_at <= $2
+  AND NOT EXISTS (SELECT 1 FROM meeting_reminders r WHERE r.meeting_id = m.id)
+ORDER BY m.starts_at;
+
+-- name: ClaimMeetingReminder :execrows
+-- tenant: by-id
+-- The one-shot claim, taken in the transaction that writes the meeting's
+-- notifications. A concurrent claim waits on the uncommitted key and then
+-- inserts nothing; a meeting cancelled or started since the listing is
+-- not claimed at all.
+INSERT INTO meeting_reminders (meeting_id, organization_id, workspace_id)
+SELECT m.id, m.organization_id, m.workspace_id FROM meetings m
+WHERE m.id = $1 AND m.status = 'SCHEDULED'
+ON CONFLICT (meeting_id) DO NOTHING;
+
+-- name: InsertNotificationDeliveries :many
+-- One delivery row per user for an event fanned out at once; the users
+-- returned are the ones the event had not reached yet.
+INSERT INTO notification_deliveries (event_id, user_id)
+SELECT sqlc.arg('event_id')::text, u.user_id FROM unnest(sqlc.arg('user_ids')::text[]) AS u(user_id)
+ON CONFLICT DO NOTHING
+RETURNING user_id;
+
+-- name: UpsertNotificationsForUsers :many
+-- tenant: system
+-- UpsertNotification for one draft fanned out to many users in one
+-- statement: ids and user_ids pair up by position, every other column is
+-- shared. Same merge target and same merge as UpsertNotification.
+INSERT INTO notifications (
+  id, user_id, organization_id, workspace_id, kind, group_key,
+  resource_type, resource_id, actor_kind, actor_id, title_key, params, correlation_id
+)
+SELECT u.id, u.user_id, sqlc.arg('organization_id')::text, sqlc.narg('workspace_id')::text, sqlc.arg('kind')::text,
+  sqlc.arg('group_key')::text, sqlc.arg('resource_type')::text, sqlc.arg('resource_id')::text,
+  sqlc.arg('actor_kind')::text, sqlc.arg('actor_id')::text, sqlc.arg('title_key')::text,
+  sqlc.arg('params')::text, sqlc.narg('correlation_id')::text
+FROM (SELECT unnest(sqlc.arg('ids')::text[]) AS id, unnest(sqlc.arg('user_ids')::text[]) AS user_id) u
+ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
+DO UPDATE SET
+  count = notifications.count + 1,
+  params = EXCLUDED.params,
+  actor_kind = EXCLUDED.actor_kind,
+  actor_id = EXCLUDED.actor_id,
+  correlation_id = EXCLUDED.correlation_id,
+  updated_at = now()
+RETURNING *;
 
 -- name: ListMeetingReminderRecipients :many
 -- tenant: system
