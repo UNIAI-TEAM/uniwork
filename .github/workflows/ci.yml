@@ -281,6 +281,10 @@ jobs:
       TEST_DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable
       REDIS_TEST_URL: redis://localhost:6379/1
       JWT_SECRET: ci
+      # Config refuses to start without a separate Markdown/HTML preview origin
+      # and its capability secret (G3-08b); CI values, not secrets.
+      PREVIEW_ORIGIN: http://localhost:3001
+      PREVIEW_CAPABILITY_SECRET: ci-preview-capability-secret-0000000000
       # Storage config and integration tests. The integration test skips when
       # MINIO_* is absent, so a fork without the service still gets a green Go
       # suite; here the service above is real, which is the point.
@@ -410,6 +414,8 @@ jobs:
       PORT: "8080"
       FRONTEND_ORIGIN: http://localhost:3000
       API_PUBLIC_URL: http://localhost:8080
+      PREVIEW_ORIGIN: http://localhost:3001
+      PREVIEW_CAPABILITY_SECRET: ci-e2e-preview-capability-secret-00000000
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
       # The server writes every new file to MinIO; a missing or broken group
