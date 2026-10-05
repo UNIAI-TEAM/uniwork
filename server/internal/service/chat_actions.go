@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -80,11 +81,40 @@ func (s *ChatService) DeleteChatMessage(
 	if err := s.releaseChatMessageFile(ctx, q, deleted); err != nil {
 		return err
 	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		Actor:          audit.User(userID),
+		Action:         audit.ActionChatMessageDeleted,
+		ResourceType:   "chat_message",
+		ResourceID:     deleted.ID,
+		Metadata:       map[string]any{"room_id": room.ID},
+	}); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.publishChatMessageDeleted(ctx, room, deleted.ID)
 	return nil
+}
+
+func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
+	anchorWS := roomAnchorWorkspaceID(room)
+	ev := Event{
+		Type: "chat.message.deleted",
+		Payload: map[string]string{
+			"room_id":    room.ID,
+			"message_id": messageID,
+		},
+	}
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		s.pub.Publish(ctx, anchorWS, ev)
+	default:
+		s.publishChatRoomEvent(ctx, room.ID, ev)
+		s.publishChatRoomActivity(ctx, room.ID)
+	}
 }
 
 // ToggleChatMessagePin toggles whether a message is pinned in the room.
@@ -134,24 +164,6 @@ func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.Cha
 	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": messageID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
-}
-
-func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
-	anchorWS := roomAnchorWorkspaceID(room)
-	ev := Event{
-		Type: "chat.message.deleted",
 		Payload: map[string]string{
 			"room_id":    room.ID,
 			"message_id": messageID,

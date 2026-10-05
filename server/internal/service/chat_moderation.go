@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -85,6 +86,9 @@ func (s *ChatService) UpdateChatRoomMember(
 			return ErrNotFound
 		}
 	}
+
+	var newRole string
+	roleChange := false
 	if in.Role != nil {
 		role := strings.TrimSpace(*in.Role)
 		if role != "admin" && role != "member" {
@@ -95,30 +99,69 @@ func (s *ChatService) UpdateChatRoomMember(
 				if target.Role != "member" {
 					return Invalid("chỉ có thể thăng member lên admin")
 				}
-				if err := s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-					RoomID: roomID, UserID: targetUserID, Role: "admin",
-				}); err != nil {
-					return err
-				}
 			} else if !canDemoteChatAdmin(actorID, actorMember, room, wsMember, target, targetWS) {
 				return ErrForbidden
-			} else if err := s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-				RoomID: roomID, UserID: targetUserID, Role: "member",
-			}); err != nil {
-				return err
 			}
+			newRole = role
+			roleChange = true
 		}
 	}
+
+	var newRestricted bool
+	restrictChange := false
 	if in.SendRestricted != nil {
 		restricted := *in.SendRestricted
-		if restricted && !canRestrictChatTarget(room, target, targetWS) {
-			return ErrForbidden
+		if restricted != target.SendRestricted {
+			if restricted && !canRestrictChatTarget(room, target, targetWS) {
+				return ErrForbidden
+			}
+			newRestricted = restricted
+			restrictChange = true
 		}
-		if err := s.q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
-			RoomID: roomID, UserID: targetUserID, SendRestricted: restricted,
+	}
+	if !roleChange && !restrictChange {
+		return nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+
+	changes := map[string]audit.Change{}
+	if roleChange {
+		if err := q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+			RoomID: roomID, UserID: targetUserID, Role: newRole,
 		}); err != nil {
 			return err
 		}
+		changes["role"] = audit.Change{From: target.Role, To: newRole}
+	}
+	if restrictChange {
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: roomID, UserID: targetUserID, SendRestricted: newRestricted,
+		}); err != nil {
+			return err
+		}
+		changes["send_restricted"] = audit.Change{From: target.SendRestricted, To: newRestricted}
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		Actor:          audit.User(actorID),
+		Action:         audit.ActionChatRoomMemberUpdated,
+		ResourceType:   "chat_room",
+		ResourceID:     roomID,
+		Changes:        changes,
+		Metadata:       map[string]any{"member_id": targetUserID},
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
 		Type: "chat.room.updated", Payload: map[string]string{"room_id": roomID},
