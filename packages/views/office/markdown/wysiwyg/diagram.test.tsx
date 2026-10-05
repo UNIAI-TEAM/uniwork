@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
@@ -10,6 +10,14 @@ import type { TextEditorHandle } from "../../source-editor-types";
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
+});
+
+// Pay the cold `import("mermaid")` here instead of inside the assertion. The
+// shared `MermaidDiagram` resolves the same module specifier from its effect,
+// so warming the registry first keeps the error surface from racing a
+// multi-hundred-millisecond bundle compile under a loaded CI runner.
+beforeAll(async () => {
+  await import("mermaid");
 });
 
 const FIXTURE = "# Title\n\nBody paragraph.\n";
@@ -80,9 +88,16 @@ describe("diagram error surface", () => {
     let live: Editor | null = null;
     render(<MarkdownWysiwygEditor documentKey="doc" editor={handle} onEditorReady={(editor) => { live = editor; }} />);
     await waitFor(() => expect(live).not.toBeNull());
-    const error = await screen.findByText("Unable to render Mermaid diagram.");
+    const error = await screen.findByText(
+      "Unable to render Mermaid diagram.",
+      {},
+      { timeout: 15_000 },
+    );
     expect(error).toBeTruthy();
     // The parser's own message is shown: it is the only clue about the line.
-    await waitFor(() => expect(document.querySelector(".mermaid-diagram-error-detail")?.textContent?.length ?? 0).toBeGreaterThan(0));
+    await waitFor(
+      () => expect(document.querySelector(".mermaid-diagram-error-detail")?.textContent?.length ?? 0).toBeGreaterThan(0),
+      { timeout: 15_000 },
+    );
   });
 });
