@@ -1,7 +1,8 @@
 # Runbook: Office engine service
 
-> **Trạng thái:** in-progress (G2-02 / UNI-685, 2026-09-27). Service (02a) and the Go transport and job lifecycle
-> (02b) are on the lane; the G1-03 commit hand-off (02c) extends this page.
+> **Trạng thái:** shipped for the engine service (02a), the Go transport and job lifecycle (02b) and the
+> G1-03 commit hand-off (02c); XLSX and PDF lanes extend this page. Deploy and rollback for the whole Office
+> G3-G4 rollout: [`docs/office/g3g4/runbook.md`](../office/g3g4/runbook.md).
 
 The Office engine service (`apps/office-engine`) is the private process that runs the Office engine operations
 which must not run in the browser (ADR 0021). Go is its only caller. It owns no account, ACL, version store or
