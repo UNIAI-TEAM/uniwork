@@ -188,34 +188,6 @@ const CASE_ENTRIES: readonly { mode: CaseCommandMode; labelKey: string }[] = [
 ];
 
 /**
- * The painter is a hook-driven control (it tracks the armed capture and the
- * next selection), so it cannot be a plain typed item - it stays a `custom`
- * item inside the typed group and renders the same toggle as before.
- */
-function FormatPainterItem({
-  editor,
-  commands,
-  disabled,
-}: Pick<DocxToolbarGroupContext, "editor" | "commands"> & { disabled: boolean }) {
-  const { t } = useTranslation();
-  const painter = useFormatPainter({ editor, commands, disabled });
-  return (
-    <Toggle
-      type="button"
-      variant="toolbar"
-      size="sm"
-      pressed={painter.armed}
-      onPressedChange={() => painter.toggle()}
-      disabled={disabled || !editor.selection?.subscribe}
-      aria-label={painter.armed ? t("office.docx.character.formatPainterArmed") : t("office.docx.character.formatPainter")}
-      data-testid="docx-format-painter"
-    >
-      <Paintbrush aria-hidden />
-    </Toggle>
-  );
-}
-
-/**
  * Fonts the open document declares, cached by document identity (W-FIX-A). A
  * selection-only change keeps the same `editor.state.doc`, so the full-document
  * walk `documentFonts()` performs runs once per document edit, not once per
@@ -230,6 +202,9 @@ function documentFontsFor(editor: Editor, commands: DocxToolbarGroupContext["com
   documentFontsCache.set(editor, { doc: editor.state.doc, fonts });
   return fonts;
 }
+
+/** Family box width in px: Word shows ~140 and the default name must not truncate. */
+const FAMILY_WIDTH = 148;
 
 /**
  * The family control as a `custom` item: the legacy FontFamilyPicker keeps the
@@ -247,20 +222,26 @@ function FontFamilyItem({
     if (live && !live.isDestroyed) setDocumentFonts([...documentFontsFor(live, commands)]);
   }, [commands]);
   return (
-    <FontFamilyPicker
-      value={value}
-      documentFonts={documentFonts}
-      disabled={disabled}
-      onPick={(family) => commands?.setFontFamily(family)}
-      onOpen={refreshDocumentFonts}
-    />
+    // The picker's trigger carries a narrow w-28; the wrapper stretches it to
+    // the item width so the default font name is not truncated (F4).
+    <div style={{ width: FAMILY_WIDTH }} className="[&_button]:w-full">
+      <FontFamilyPicker
+        value={value}
+        documentFonts={documentFonts}
+        disabled={disabled}
+        onPick={(family) => commands?.setFontFamily(family)}
+        onOpen={refreshDocumentFonts}
+      />
+    </div>
   );
 }
 
 /**
  * The typed Font-group items (R7/R8). Every command is the one the pre-typed
  * group already called, in Word's order: family picker, size picker, B/I/U/S/x2
- * toggles, colour/highlight custom pickers, case dropdown, clear, painter.
+ * toggles, colour/highlight custom pickers, case dropdown, clear. Row 1 is
+ * family, size, case, clear; row 2 (rowBreak on Bold) is B I U S x2 x2, colour,
+ * highlight - all icon-sized, like Word. The painter lives in Clipboard.
  *
  * The family and size controls are `custom` items that re-mount the legacy
  * FontFamilyPicker/FontSizePicker (W-FIX-A): the closed-list combo could not
@@ -269,7 +250,7 @@ function FontFamilyItem({
  * the panel opening and caches it per document, so no shell render walks the doc.
  */
 export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
-  const { editor, format, commands, readOnly, saving } = context;
+  const { format, commands, readOnly, saving } = context;
   const blocked = readOnly || saving || !commands || !format;
   const verticalAlign = format?.verticalAlign ?? null;
   const sizeDisplay = docxFontSizeDisplay(getDocxLiveEditor(), format?.fontSizePt ?? null);
@@ -279,7 +260,9 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       kind: "custom",
       id: "docx-font-family",
       labelKey: "office.docx.character.fontFamily",
-      width: 128,
+      size: "icon",
+      collapseAs: "icon",
+      width: FAMILY_WIDTH,
       disabled: blocked,
       render: () => (
         <FontFamilyItem value={format?.fontFamily ?? null} commands={commands} disabled={blocked} />
@@ -289,7 +272,9 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       kind: "custom",
       id: "docx-font-size",
       labelKey: "office.docx.character.fontSize",
-      width: 128,
+      size: "icon",
+      collapseAs: "icon",
+      width: 112,
       disabled: blocked,
       // docxFontSizeDisplay drives the picker's displayed value/mixed state;
       // the picker renders the mixed placeholder itself.
@@ -304,12 +289,37 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       ),
     },
     {
+      kind: "dropdown",
+      id: "docx-change-case",
+      labelKey: "office.docx.character.changeCase",
+      icon: ALargeSmall,
+      size: "icon",
+      collapseAs: "icon",
+      disabled: blocked,
+      menu: CASE_ENTRIES.map((entry) => ({
+        id: entry.mode,
+        labelKey: entry.labelKey,
+        onSelect: () => commands?.changeCase(entry.mode),
+      })),
+    },
+    {
+      kind: "button",
+      id: "docx-clear-formatting",
+      labelKey: "office.docx.character.clearFormatting",
+      icon: RemoveFormatting,
+      size: "icon",
+      collapseAs: "icon",
+      disabled: blocked,
+      onExecute: () => commands?.clearCharacterFormatting(),
+    },
+    {
       kind: "toggle",
       id: "docx-bold",
+      rowBreak: true,
       labelKey: "office.docx.commands.bold",
       icon: Bold,
-      size: "large",
-      collapseAs: "small",
+      size: "icon",
+      collapseAs: "icon",
       pressed: format?.bold ?? false,
       disabled: blocked,
       onExecute: () => commands?.toggleBold(),
@@ -319,7 +329,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       id: "docx-italic",
       labelKey: "office.docx.commands.italic",
       icon: Italic,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       pressed: format?.italic ?? false,
       disabled: blocked,
       onExecute: () => commands?.toggleItalic(),
@@ -329,7 +340,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       id: "docx-underline",
       labelKey: "office.docx.commands.underline",
       icon: UnderlineIcon,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       pressed: format?.underline ?? false,
       disabled: blocked,
       onExecute: () => commands?.toggleUnderline(),
@@ -339,35 +351,40 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       id: "docx-strike",
       labelKey: "office.docx.character.strike",
       icon: Strikethrough,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       pressed: format?.strike ?? false,
       disabled: blocked,
       onExecute: () => commands?.toggleStrike(),
     },
     {
       kind: "toggle",
-      id: "docx-superscript",
-      labelKey: "office.docx.character.superscript",
-      icon: Superscript,
-      size: "small",
-      pressed: verticalAlign === "superscript",
-      disabled: blocked,
-      onExecute: () => commands?.setVerticalAlign(verticalAlign === "superscript" ? null : "superscript"),
-    },
-    {
-      kind: "toggle",
       id: "docx-subscript",
       labelKey: "office.docx.character.subscript",
       icon: Subscript,
-      size: "small",
+      size: "icon",
+      collapseAs: "icon",
       pressed: verticalAlign === "subscript",
       disabled: blocked,
       onExecute: () => commands?.setVerticalAlign(verticalAlign === "subscript" ? null : "subscript"),
     },
     {
+      kind: "toggle",
+      id: "docx-superscript",
+      labelKey: "office.docx.character.superscript",
+      icon: Superscript,
+      size: "icon",
+      collapseAs: "icon",
+      pressed: verticalAlign === "superscript",
+      disabled: blocked,
+      onExecute: () => commands?.setVerticalAlign(verticalAlign === "superscript" ? null : "superscript"),
+    },
+    {
       kind: "custom",
       id: "docx-text-color",
       labelKey: "office.docx.character.textColor",
+      size: "icon",
+      collapseAs: "icon",
       width: 34,
       disabled: blocked,
       render: () => (
@@ -382,6 +399,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       kind: "custom",
       id: "docx-highlight",
       labelKey: "office.docx.character.highlight",
+      size: "icon",
+      collapseAs: "icon",
       width: 34,
       disabled: blocked,
       render: () => (
@@ -391,36 +410,6 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
           onPick={(name) => commands?.setHighlight(name)}
         />
       ),
-    },
-    {
-      kind: "dropdown",
-      id: "docx-change-case",
-      labelKey: "office.docx.character.changeCase",
-      icon: ALargeSmall,
-      size: "small",
-      disabled: blocked,
-      menu: CASE_ENTRIES.map((entry) => ({
-        id: entry.mode,
-        labelKey: entry.labelKey,
-        onSelect: () => commands?.changeCase(entry.mode),
-      })),
-    },
-    {
-      kind: "button",
-      id: "docx-clear-formatting",
-      labelKey: "office.docx.character.clearFormatting",
-      icon: RemoveFormatting,
-      size: "small",
-      disabled: blocked,
-      onExecute: () => commands?.clearCharacterFormatting(),
-    },
-    {
-      kind: "custom",
-      id: "docx-format-painter",
-      labelKey: "office.docx.character.formatPainter",
-      width: 34,
-      disabled: blocked,
-      render: () => <FormatPainterItem editor={editor} commands={commands} disabled={blocked} />,
     },
   ];
 }

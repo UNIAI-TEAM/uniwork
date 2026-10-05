@@ -86,6 +86,11 @@ function officeFormat(doc: Document): string | null {
   return null;
 }
 
+/** True when the file opens in the Office editor instead of the file card. */
+export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost: boolean): boolean {
+  return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc) !== null;
+}
+
 export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost }: DocumentFileViewProps) {
   const { t, i18n } = useTranslation();
   const file = doc.file;
@@ -102,7 +107,7 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
     );
   }
 
-  if (officeEnabled && OfficeEditorHost && officeFormat(doc)) {
+  if (usesOfficeEditor(doc, officeEnabled, Boolean(OfficeEditorHost)) && OfficeEditorHost) {
     // The editor replaces this view, so its file commands move to the page
     // overflow menu (version history is already one of its entries).
     return (

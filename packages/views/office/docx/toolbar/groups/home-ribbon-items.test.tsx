@@ -85,6 +85,15 @@ describe("Home clipboard typed items", () => {
     expect(item(items, "docx-clipboard-copy").kind).toBe("button");
   });
 
+  it("stacks Cut, Copy and Format painter as three icon rows beside Paste", () => {
+    const editor = editorWith("hello");
+    const runtime = createDocxCommandRuntime(() => editor);
+    const items = homeClipboardRibbonItems(context(editor, runtime));
+    const column = ["docx-clipboard-cut", "docx-clipboard-copy", "docx-format-painter"].map((id) => item(items, id));
+    for (const entry of column) expect(entry.size).toBe("icon");
+    expect(column.map((entry) => entry.rowBreak === true)).toEqual([false, true, true]);
+  });
+
   it("disables every clipboard item while read-only", () => {
     const editor = editorWith("hello");
     const runtime = createDocxCommandRuntime(() => editor);
@@ -115,6 +124,20 @@ describe("Home clipboard typed items", () => {
 });
 
 describe("Home font typed items", () => {
+  it("lays Word's two icon rows out: family, size, case, clear / B I U S x2 x2, colour, highlight", () => {
+    const editor = editorWith("hello world");
+    const runtime = createDocxCommandRuntime(() => editor);
+    const items = homeFontRibbonItems(context(editor, runtime));
+    for (const entry of items) expect(entry.size).toBe("icon");
+    expect(items.filter((entry) => entry.rowBreak).map((entry) => entry.id)).toEqual(["docx-bold"]);
+    expect(items.map((entry) => entry.id)).not.toContain("docx-format-painter");
+    const family = item(items, "docx-font-family");
+    const size = item(items, "docx-font-size");
+    if (family.kind !== "custom" || size.kind !== "custom") throw new Error("family/size not custom");
+    expect(family.width ?? 0).toBeGreaterThanOrEqual(140);
+    expect(size.width ?? 0).toBeGreaterThanOrEqual(56);
+  });
+
   it("keeps every non-typed command call identical to the pre-typed group", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });

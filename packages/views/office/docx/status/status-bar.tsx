@@ -1,11 +1,10 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { Editor } from "@tiptap/core";
-import { Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 import { docxEditorCounts } from "./status-counts";
 
 /**
@@ -46,6 +45,8 @@ export interface DocxStatusBarProps {
    *  own step functions; absent keeps the readout text-only. */
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  /** The shortcuts-help trigger; always the last item of the row (F9). */
+  help?: ReactNode;
   className?: string;
 }
 
@@ -75,19 +76,10 @@ function zoomValue(value: number | null | undefined): string | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? String(value) : null;
 }
 
-function Readout({ testId, text }: { testId: string; text: string }) {
+function Readout({ testId, text, className }: { testId: string; text: string; className?: string }) {
   return (
-    <span className="min-w-0 truncate" data-testid={testId}>
+    <span className={cn("min-w-0 truncate", className)} data-testid={testId}>
       {text}
-    </span>
-  );
-}
-
-/** A separator between readouts inside one cluster. */
-function Dot() {
-  return (
-    <span aria-hidden="true" className="shrink-0 text-faint-foreground">
-      {SEPARATOR}
     </span>
   );
 }
@@ -100,7 +92,7 @@ function Dot() {
  * hands over the editor; every missing field renders the unknown mark, so the
  * bar is safe to mount before those surfaces exist.
  */
-export function DocxStatusBar({ editor, counts, page, language, zoom, selection, onZoomIn, onZoomOut, className }: DocxStatusBarProps) {
+export function DocxStatusBar({ editor, counts, page, language, zoom, selection, onZoomIn, onZoomOut, help, className }: DocxStatusBarProps) {
   const { t } = useTranslation();
   const unknown = t("office.docx.status.unknown");
   const resolvedCounts = counts ?? (editor ? docxEditorCounts(editor) : null);
@@ -115,87 +107,71 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
           current: current === null ? unknown : String(current),
           total: total === null ? unknown : String(total),
         });
-  // The zoom template carries a trailing `%`, so an unknown value collapses to
-  // the bare mark instead of rendering a dangling percent sign.
-  const zoomText = zoomPercent === null ? unknown : t("office.docx.status.zoom", { percent: zoomPercent });
   // A collapsed caret is not a selection; Word's bar shows the count and range only.
   const hasSelection = Boolean(selection && selection.to > selection.from);
 
-  const left: ReadonlyArray<{ testId: string; text: string }> = [
+  // `hide` drops the lower-priority readouts first as the row narrows.
+  const left: ReadonlyArray<{ testId: string; text: string; hide?: string }> = [
     { testId: "docx-status-page", text: pageText },
     { testId: "docx-status-words", text: t("office.docx.status.words", { value: countText(resolvedCounts?.words, unknown) }) },
     {
       testId: "docx-status-characters",
       text: t("office.docx.status.characters", { value: countText(resolvedCounts?.characters, unknown) }),
+      hide: "max-sm:hidden",
     },
     {
       testId: "docx-status-characters-no-spaces",
       text: t("office.docx.status.charactersNoSpaces", { value: countText(resolvedCounts?.charactersWithoutSpaces, unknown) }),
+      hide: "max-lg:hidden",
     },
-    { testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel ?? unknown }) },
+    { testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel ?? unknown }), hide: "max-sm:hidden" },
   ];
 
   return (
-    <div
-      role="group"
-      aria-label={t("office.docx.status.label")}
-      // Counts change on every keystroke; a live region would read out each one.
-      aria-live="off"
-      data-testid="docx-status-bar"
-      className={cn(
-        "flex h-7 min-w-0 flex-nowrap items-center justify-between gap-x-3 overflow-hidden whitespace-nowrap px-2 text-caption text-muted-foreground",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-x-2" data-testid="docx-status-left">
-        {left.map((item, index) => (
-          <Fragment key={item.testId}>
-            {index > 0 ? <Dot /> : null}
-            <Readout testId={item.testId} text={item.text} />
-          </Fragment>
-        ))}
-      </div>
-      <div className="flex min-w-0 shrink-0 items-center gap-x-2" data-testid="docx-status-right">
-        {hasSelection && selection ? (
-          <>
-            <Readout
-              testId="docx-status-selection-count"
-              text={t("office.docx.selection.count", { value: selection.to - selection.from })}
-            />
-            <Dot />
-            <Readout
-              testId="docx-status-selection"
-              text={t("office.docx.selection.range", { from: selection.from, to: selection.to })}
-            />
-            <Dot />
-          </>
-        ) : null}
-        <div className="flex shrink-0 items-center gap-x-1" data-testid="docx-status-zoom-control">
-          <Button
-            type="button"
-            variant="toolbar"
-            size="icon-sm"
-            aria-label={t("office.docx.view.zoom.out")}
-            disabled={!onZoomOut}
-            onClick={onZoomOut}
-            data-testid="docx-status-zoom-out"
-          >
-            <Minus aria-hidden />
-          </Button>
-          <Readout testId="docx-status-zoom" text={zoomText} />
-          <Button
-            type="button"
-            variant="toolbar"
-            size="icon-sm"
-            aria-label={t("office.docx.view.zoom.in")}
-            disabled={!onZoomIn}
-            onClick={onZoomIn}
-            data-testid="docx-status-zoom-in"
-          >
-            <Plus aria-hidden />
-          </Button>
-        </div>
-      </div>
+    // The wrapper only carries the live-region opt-out and the test id; the
+    // row itself is the shared OfficeStatusBar.
+    <div className={cn("contents", className)} data-testid="docx-status-bar" aria-live="off">
+      <OfficeStatusBar
+        labelKey="office.docx.status.label"
+        start={
+          <div className="flex min-w-0 items-center gap-x-2" data-testid="docx-status-left">
+            {left.map((item, index) => (
+              <Fragment key={item.testId}>
+                {index > 0 ? <span aria-hidden="true" className={cn("shrink-0 text-faint-foreground", item.hide)}>{SEPARATOR}</span> : null}
+                <Readout testId={item.testId} text={item.text} className={item.hide} />
+              </Fragment>
+            ))}
+          </div>
+        }
+        end={
+          <div className="flex min-w-0 shrink-0 items-center gap-x-2" data-testid="docx-status-right">
+            {hasSelection && selection ? (
+              <>
+                <Readout
+                  testId="docx-status-selection-count"
+                  text={t("office.docx.selection.count", { value: selection.to - selection.from })}
+                  className="max-md:hidden"
+                />
+                <span aria-hidden="true" className="shrink-0 text-faint-foreground max-md:hidden">{SEPARATOR}</span>
+                <Readout
+                  testId="docx-status-selection"
+                  text={t("office.docx.selection.range", { from: selection.from, to: selection.to })}
+                />
+              </>
+            ) : null}
+            <div data-testid="docx-status-zoom-control">
+              <span data-testid="docx-status-zoom" className="contents">
+                <OfficeStatusZoom
+                  value={zoomPercent === null ? null : Number(zoomPercent)}
+                  onZoomIn={onZoomIn}
+                  onZoomOut={onZoomOut}
+                />
+              </span>
+            </div>
+          </div>
+        }
+        help={help}
+      />
     </div>
   );
 }

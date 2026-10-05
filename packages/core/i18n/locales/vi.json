@@ -6904,6 +6904,13 @@
     }
   },
   "office": {
+    "status": {
+      "label": "Thanh trạng thái",
+      "zoomIn": "Phóng to",
+      "zoomOut": "Thu nhỏ",
+      "zoomReset": "Đặt lại thu phóng",
+      "zoomValue": "{{value}}%"
+    },
     "docx": {
       "title": "Tài liệu DOCX",
       "editor": {
@@ -7624,8 +7631,7 @@
         "words": "Từ: {{value}}",
         "characters": "Ký tự: {{value}}",
         "charactersNoSpaces": "Ký tự (không dấu cách): {{value}}",
-        "language": "Ngôn ngữ: {{language}}",
-        "zoom": "Thu phóng: {{percent}}%"
+        "language": "Ngôn ngữ: {{language}}"
       },
       "actions": {
         "undo": "Hoàn tác",
