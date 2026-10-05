@@ -33,6 +33,7 @@ import type { Editor } from "@tiptap/react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
@@ -40,7 +41,7 @@ import type { PreviewSession } from "../source-editor-types";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { MarkdownWysiwygEditor } from "./wysiwyg/editor";
-import { MarkdownRibbon } from "./wysiwyg/ribbon";
+import { MARKDOWN_NARROW_QUERY, MarkdownFindButton, MarkdownRibbon, MarkdownViewModeToggle } from "./wysiwyg/ribbon";
 import { MarkdownSlash } from "./wysiwyg/slash";
 import { MarkdownTableMenu } from "./wysiwyg/table-menu";
 import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
@@ -160,6 +161,9 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // M6/M7 chrome state: the ribbon owns the toggles, the host owns the panes.
   const [outlineVisible, setOutlineVisible] = useState(false);
   const [frontmatterVisible, setFrontmatterVisible] = useState(false);
+  // M-4: at phone width the ribbon's trailing slot is dropped and these two
+  // controls move onto the frame's subbar, so the tab row stays tabs-only.
+  const narrow = useMediaQuery(MARKDOWN_NARROW_QUERY);
   const findRef = useRef<MarkdownFindHandle>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const sourceWrapperRef = useRef<HTMLDivElement>(null);
@@ -482,12 +486,20 @@ export function MarkdownEditor<TSnapshot = unknown>({
               command floating over the canvas, so the print/export entries
               live in the page overflow menu instead (see HeaderActionsFill).
             */
-            mode === "source" ? (
+            mode === "source" || narrow ? (
               <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-subbar" role="toolbar" aria-label={t("toolbar.label")}>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+                {/* M-4: the ribbon drops its trailing slot at this width, so
+                    Find and Source | Visual mount HERE - one live instance each. */}
+                {narrow ? <MarkdownFindButton onFind={openFind} /> : null}
+                {narrow ? <MarkdownViewModeToggle viewMode={mode} onViewModeChange={setMode} /> : null}
+                {mode === "source" ? (
+                  <>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+                  </>
+                ) : null}
               </div>
             ) : undefined
           }

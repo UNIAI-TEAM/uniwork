@@ -14,7 +14,11 @@
  *
  * The ribbon owns the tab row and the group body; undo/redo ride the ribbon's
  * quick-access slot (C6) and Find plus the Source | Visual control its trailing
- * slot (C6/C11). Nothing here draws a floating control over the canvas (C9).
+ * slot (C6/C11). At phone width (M-4) the trailing cluster is dropped: its
+ * fixed width plus the collapse toggle would leave the tablist too narrow and
+ * the tabs render clipped UNDER it, so the host draws the same two controls on
+ * the frame's subbar instead (see `markdown/editor.tsx`). Nothing here draws a
+ * floating control over the canvas (C9).
  *
  * There is deliberately NO Clipboard group: Markdown has no paste/cut/copy
  * command in the ribbon (the source pane's clipboard controls live on the
@@ -22,7 +26,7 @@
  * quick access already draws those, and a second pair read as a duplicate
  * (M-3/F4). A group is dropped rather than left holding a repeated command.
  */
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
@@ -40,6 +44,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { OfficeRibbon, type OfficeRibbonProps } from "../../ribbon";
@@ -67,6 +72,12 @@ export const MARKDOWN_RIBBON_KEYS = {
   tableToggleHeaderRow: "office.markdown.ribbon.table.toggleHeaderRow",
   tableDelete: "office.markdown.ribbon.table.deleteTable",
 } as const;
+
+/**
+ * Phones and touch-first devices (the shared ribbon's own breakpoint): at this
+ * width the trailing cluster moves to the frame's subbar (M-4).
+ */
+export const MARKDOWN_NARROW_QUERY = "(max-width: 640px), (pointer: coarse)";
 
 export interface MarkdownRibbonOptions {
   /** Read-only when false: every control is disabled, never hidden. */
@@ -265,35 +276,19 @@ export function MarkdownRibbon({
     [editor, readOnly, t],
   );
 
-  const setViewMode = useCallback((mode: string) => onViewModeChange?.(mode as "visual" | "source"), [onViewModeChange]);
+  // M-4: at phone width the tab row carries TABS ONLY (plus the collapse
+  // toggle). The host renders the same two controls on the frame's subbar, so
+  // the tablist is never covered; at >=640 the trailing slot is unchanged.
+  const narrow = useMediaQuery(MARKDOWN_NARROW_QUERY);
 
   const trailing = useMemo(
     () => (
       <>
-        {onFind ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={<Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.common.chrome.find")} onClick={onFind} />}
-            >
-              <Search aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("office.common.chrome.find")}</TooltipContent>
-          </Tooltip>
-        ) : null}
-        {onViewModeChange ? (
-          <ToggleGroup value={[viewMode]} onValueChange={(value) => value[0] && setViewMode(value[0])} aria-label={t("office.markdown.view.label")} variant="toolbar">
-            {/* The toolbar variant paints the selected segment with
-                bg-surface-selected, which is visible in both themes; the
-                default variant's bg-muted is near-invisible on the light band.
-                The coarse-pointer sizes keep the 44px touch target without
-                changing the desktop row. */}
-            <ToggleGroupItem value="source" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.source")}</ToggleGroupItem>
-            <ToggleGroupItem value="visual" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.wysiwyg")}</ToggleGroupItem>
-          </ToggleGroup>
-        ) : null}
+        <MarkdownFindButton onFind={onFind} />
+        <MarkdownViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
       </>
     ),
-    [onFind, onViewModeChange, setViewMode, t, viewMode],
+    [onFind, onViewModeChange, viewMode],
   );
 
   return (
@@ -301,10 +296,58 @@ export function MarkdownRibbon({
       tabs={tabs}
       scope={scope}
       quickAccess={quickAccess}
-      trailing={trailing}
+      trailing={narrow ? undefined : trailing}
       layout={layout}
       labelKey={MARKDOWN_RIBBON_KEYS.label}
       className={className}
     />
+  );
+}
+
+/**
+ * The Find affordance. One definition, mounted either in the ribbon's trailing
+ * slot (desktop) or on the frame's subbar (phone, M-4) — never both at once.
+ */
+export function MarkdownFindButton({ onFind }: { onFind?: () => void }) {
+  const { t } = useTranslation();
+  if (!onFind) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.common.chrome.find")} onClick={onFind} />}
+      >
+        <Search aria-hidden />
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{t("office.common.chrome.find")}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The Source | Visual segmented control (C11). The toolbar variant paints the
+ * selected segment with bg-surface-selected, which is visible in both themes;
+ * the default variant's bg-muted is near-invisible on the light band. The
+ * coarse-pointer sizes keep the 44px touch target without changing the desktop
+ * row.
+ */
+export function MarkdownViewModeToggle({
+  viewMode,
+  onViewModeChange,
+}: {
+  viewMode: "visual" | "source";
+  onViewModeChange?: (mode: "visual" | "source") => void;
+}) {
+  const { t } = useTranslation();
+  if (!onViewModeChange) return null;
+  return (
+    <ToggleGroup
+      value={[viewMode]}
+      onValueChange={(value) => value[0] && onViewModeChange(value[0] as "visual" | "source")}
+      aria-label={t("office.markdown.view.label")}
+      variant="toolbar"
+    >
+      <ToggleGroupItem value="source" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.source")}</ToggleGroupItem>
+      <ToggleGroupItem value="visual" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.wysiwyg")}</ToggleGroupItem>
+    </ToggleGroup>
   );
 }

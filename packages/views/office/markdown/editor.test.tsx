@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/react";
@@ -11,6 +11,7 @@ import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from ".
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
+afterEach(() => { window.innerWidth = 1024; });
 
 function coordinator() {
   const state = { state: "dirty" as const, dirtyGeneration: 1, lastSavedGeneration: 0, identity: { deploymentId: "dep", accountId: "acct", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseVersionId: "v", baseRevision: "1" }, activeIntentId: null, error: null };
@@ -102,6 +103,28 @@ describe("MarkdownEditor (production surface)", () => {
     unmount();
     expect(handle.cancel).toHaveBeenCalledWith("document_changed");
     expect(handle.dispose).toHaveBeenCalled();
+  });
+
+  it("moves Find and the Source | Visual switch onto the subbar at 390 and keeps the tabs uncovered (M-4)", async () => {
+    window.innerWidth = 390;
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const ribbon = document.querySelector<HTMLElement>('[data-office-ribbon="markdown"]')!;
+    expect(ribbon).toHaveAttribute("data-ribbon-layout", "simplified");
+    // The ribbon's trailing slot is empty: no Find button, no mode switch.
+    expect(ribbon.querySelector("[data-ribbon-trailing]")).toBeNull();
+    expect(ribbon.querySelector('[data-slot="toggle-group"]')).toBeNull();
+    // The host draws them on the frame's subbar instead, in the VISUAL mode.
+    const subbar = screen.getByTestId("md-subbar");
+    expect(within(subbar).getByRole("button", { name: "Find" })).toBeInTheDocument();
+    fireEvent.click(within(subbar).getByRole("button", { name: "Find" }));
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    // Exactly ONE live mode switch in the whole surface (no second toggle),
+    // and it still switches the canvas.
+    expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(1);
+    fireEvent.click(within(subbar).getByText("Source"));
+    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    expect(ribbon.querySelector('[data-slot="toggle-group"]')).toBeNull();
   });
 
   it("keeps the open handshake: a failed open renders the error state", async () => {

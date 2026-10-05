@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useEffect, useState } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { Editor } from "@tiptap/react";
 import { MarkdownWysiwygEditor } from "./editor";
@@ -11,6 +11,9 @@ import type { TextEditorHandle } from "../../source-editor-types";
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
+});
+afterEach(() => {
+  window.innerWidth = 1024;
 });
 
 const FIXTURE = "# Title\n\nBody paragraph.\n";
@@ -284,6 +287,41 @@ describe("MarkdownRibbon", () => {
     }
     fireEvent.click(source!);
     expect(onViewModeChange).toHaveBeenCalledWith("source");
+  });
+
+  /**
+   * M-4: the tab row cannot carry the fixed-width trailing cluster (Find + the
+   * Source | Visual switch) plus the collapse toggle at phone width without
+   * covering the tabs, so at 390 the ribbon must leave the trailing slot EMPTY
+   * and let the host draw the same two controls on the frame's subbar. jsdom has
+   * no layout, so the assertion is structural.
+   */
+  it("drops the trailing controls at 390 so the tab row is tabs-only", async () => {
+    window.innerWidth = 390;
+    render(<Harness onFind={vi.fn()} viewMode="visual" onViewModeChange={vi.fn()} />);
+    await waitForRibbon();
+    const root = ribbonRegion();
+    expect(root).toHaveAttribute("data-ribbon-layout", "simplified");
+    // No trailing slot at all, and no mode switch anywhere inside the ribbon.
+    expect(root.querySelector("[data-ribbon-trailing]")).toBeNull();
+    expect(root.querySelector('[data-slot="toggle-group"]')).toBeNull();
+    // The tabs stay reachable: the row still draws the tablist and the toggle.
+    expect(root.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(root.querySelector('[data-ribbon-collapse-toggle]')).not.toBeNull();
+  });
+
+  it("keeps Find and the mode switch in the trailing slot at 1440", async () => {
+    window.innerWidth = 1440;
+    const onFind = vi.fn();
+    render(<Harness onFind={onFind} viewMode="visual" onViewModeChange={vi.fn()} />);
+    await waitForRibbon();
+    const root = ribbonRegion();
+    expect(root).toHaveAttribute("data-ribbon-layout", "full");
+    const trailing = root.querySelector<HTMLElement>("[data-ribbon-trailing]");
+    expect(trailing).not.toBeNull();
+    fireEvent.click(within(trailing!).getByRole("button", { name: "Find" }));
+    expect(onFind).toHaveBeenCalledTimes(1);
+    expect(trailing!.querySelector('[data-slot="toggle-group"]')).not.toBeNull();
   });
 
   it("disables every control when the editor is read-only", async () => {
