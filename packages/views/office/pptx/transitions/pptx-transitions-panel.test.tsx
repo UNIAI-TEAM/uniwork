@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PPTX_TRANSITION_KINDS, type PptxTransitionKind } from "@uniwork/office-engine/pptx";
 import { PptxTransitionsPanel } from "./pptx-transitions-panel";
-import { isPptxTransitionKind, resolveSelectedKind, transitionKindGlyph } from "./transition-gallery";
+import { Ban, Blend, Sparkles, ZoomIn } from "lucide-react";
+import { isPptxTransitionKind, resolveSelectedKind, transitionKindIcon } from "./transition-gallery";
 import { PPTX_TRANSITIONS_I18N } from "./transitions-i18n";
 
 initI18n();
@@ -60,10 +61,19 @@ describe("transition gallery helpers", () => {
     expect(resolveSelectedKind(null)).toBe("none");
   });
 
-  it("renders an ASCII glyph per kind", () => {
-    expect(transitionKindGlyph("fade")).toBe("F");
-    expect(transitionKindGlyph("zoom")).toBe("Z");
-    expect(transitionKindGlyph("none")).toBe("N");
+  it("maps every kind to a decorative icon, Sparkles as the fallback (R2-13)", () => {
+    expect(transitionKindIcon("fade")).toBe(Blend);
+    expect(transitionKindIcon("zoom")).toBe(ZoomIn);
+    expect(transitionKindIcon("none")).toBe(Ban);
+    expect(transitionKindIcon("dissolve")).toBe(Sparkles);
+  });
+
+  it("draws an aria-hidden icon in every tile while the label stays the accessible name (R2-13)", () => {
+    renderPanel({ currentKind: "fade" });
+    const tile = screen.getByRole("button", { name: "Fade" });
+    expect(tile.querySelector('svg[data-transition-icon="fade"]')).toHaveAttribute("aria-hidden", "true");
+    expect(document.querySelectorAll("[data-pptx-transition-gallery] svg[data-transition-icon]")).toHaveLength(12);
+    expect(tile.textContent).toBe("Fade");
   });
 });
 

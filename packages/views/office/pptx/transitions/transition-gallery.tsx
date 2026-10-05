@@ -18,6 +18,7 @@
  * the arrow keys move between kinds (the roving behaviour the group owns).
  */
 import { useTranslation } from "react-i18next";
+import { Ban, Blend, Circle, Layers, MoveRight, Shapes, Shuffle, Sparkles, SquareSplitHorizontal, ZoomIn, type LucideIcon } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { PPTX_TRANSITION_KINDS, type PptxTransitionKind } from "@uniwork/office-engine/pptx";
@@ -81,8 +82,8 @@ export function PptxTransitionGallery({ currentKind, onPick, disabled = false, c
             data-selected={kind === selected}
             className="h-auto min-w-16 flex-col gap-1 px-2 py-1.5"
           >
-            <span className="flex size-8 items-center justify-center rounded-md border border-border bg-muted/40 text-caption text-muted-foreground" aria-hidden="true">
-              {transitionKindGlyph(kind)}
+            <span className="flex size-8 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground" aria-hidden="true">
+              <TransitionKindIcon kind={kind} />
             </span>
             <span className="text-caption">{t(transitionKindLabelKey(kind))}</span>
           </ToggleGroupItem>
@@ -92,9 +93,29 @@ export function PptxTransitionGallery({ currentKind, onPick, disabled = false, c
   );
 }
 
-/** A short decorative mark for a tile: the kind's first letter is enough to
- * distinguish the tiles without pretending to be a preview (the real preview
- * is the slideshow's job). Kept ASCII and uppercase. */
-export function transitionKindGlyph(kind: PptxTransitionKind): string {
-  return kind.slice(0, 1).toUpperCase();
+/** A decorative icon per tile (R2-13: letters read as placeholders). It does
+ * not pretend to be a preview - the slideshow plays the real one - and the
+ * tile label stays the accessible name, so the icon is aria-hidden. */
+const KIND_ICONS: Partial<Record<PptxTransitionKind, LucideIcon>> = {
+  none: Ban,
+  morph: Shapes,
+  fade: Blend,
+  push: MoveRight,
+  wipe: MoveRight,
+  split: SquareSplitHorizontal,
+  circle: Circle,
+  cover: Layers,
+  pull: Layers,
+  zoom: ZoomIn,
+  random: Shuffle,
+};
+
+/** The tile icon for a kind; a kind without its own icon gets Sparkles. */
+export function transitionKindIcon(kind: PptxTransitionKind): LucideIcon {
+  return KIND_ICONS[kind] ?? Sparkles;
+}
+
+function TransitionKindIcon({ kind }: { kind: PptxTransitionKind }) {
+  const Icon = transitionKindIcon(kind);
+  return <Icon className="size-4" aria-hidden="true" data-transition-icon={kind} />;
 }
