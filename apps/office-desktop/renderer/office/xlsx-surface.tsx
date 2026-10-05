@@ -83,6 +83,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
           permissions={{ canEdit: session.canSave }}
           title={title}
           embedded
+          saveDestination={kind === "local" ? "local" : "cloud"}
           registerSavePreparation={(prepare) => { prepareRef.current = prepare; return () => { if (prepareRef.current === prepare) prepareRef.current = null; }; }}
         />
       </>} />

@@ -8367,6 +8367,7 @@
         "dirty": "Có thay đổi chưa lưu",
         "saving": "Đang lưu…",
         "saved": "Đã lưu lên UniWork",
+        "savedLocal": "Đã lưu trên máy",
         "error": "Lưu cần xử lý",
         "conflict": "Xung đột phiên bản",
         "blocked": "Đã chặn lưu",

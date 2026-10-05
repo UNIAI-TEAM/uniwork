@@ -102,6 +102,17 @@ function renderEditor(outcome: XlsxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("XlsxEditor", () => {
+  it("names the destination of a confirmed save: local says on this device, cloud says UniWork", async () => {
+    const saved = () => { const base = coordinator(); return coordinator({ getState: () => ({ ...base.getState(), state: "saved" as const, lastSavedGeneration: 1 }) }); };
+    const local = render(<XlsxEditor documentKey="doc-local" editor={editor()} open={{ open: async () => opened() }} coordinator={saved()} saveDestination="local" />);
+    await screen.findByTestId("xlsx-workbook-surface");
+    expect(screen.getByTestId("xlsx-open-state")).toHaveTextContent("Đã lưu trên máy");
+    expect(screen.getByTestId("xlsx-open-state")).not.toHaveTextContent(/UniWork/);
+    local.unmount();
+    render(<XlsxEditor documentKey="doc-cloud" editor={editor()} open={{ open: async () => opened() }} coordinator={saved()} />);
+    await screen.findByTestId("xlsx-workbook-surface");
+    expect(screen.getByTestId("xlsx-open-state")).toHaveTextContent("Đã lưu lên UniWork");
+  });
   it("opens replacement ports for the same document and releases the previous handle", async () => {
     const previous = editor();
     const previousCoordinator = coordinator({ cancel: vi.fn(async () => undefined) });

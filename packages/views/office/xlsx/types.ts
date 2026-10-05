@@ -122,6 +122,9 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   onSelectionChange?: (selection: XlsxSelection | null) => void;
   /** Bind all host Save entry points to the active grid's edit preparation. */
   registerSavePreparation?: (prepare: () => Promise<void>) => () => void;
+  /** Where a confirmed save lands. Defaults to cloud; the desktop passes local
+   *  for a file on disk so the label does not claim a UniWork receipt. */
+  saveDestination?: "cloud" | "local";
 }
 
 export type XlsxViewState = "opening" | "ready" | "error";

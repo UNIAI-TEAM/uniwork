@@ -8374,6 +8374,7 @@
         "dirty": "Unsaved changes",
         "saving": "Saving…",
         "saved": "Saved to UniWork",
+        "savedLocal": "Saved on this device",
         "error": "Save needs attention",
         "conflict": "Version conflict",
         "blocked": "Save blocked",

@@ -17,6 +17,8 @@ export interface XlsxToolbarProps extends XlsxToolbarGroupProps {
   onSave: () => void;
   onCancelSave?: () => void;
   showSave?: boolean;
+  /** Where a confirmed save lands; local reads "saved on this device". */
+  saveDestination?: "cloud" | "local";
 }
 
 /** Commands are callbacks only. The toolbar has no byte, upload, or commit
@@ -73,6 +75,7 @@ export function XlsxToolbar({
   onSave,
   onCancelSave,
   showSave = true,
+  saveDestination = "cloud",
   viewEcho: externalViewEcho,
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
@@ -186,7 +189,7 @@ export function XlsxToolbar({
               </Button>
             ) : null}
             <span className="sr-only" role="status" aria-live="polite">
-              {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(`office.xlsx.saveState.${state.state}`)}
+              {recalculating ? t("office.xlsx.recalc.progress", { progress: 0 }) : t(state.state === "saved" && saveDestination === "local" ? "office.xlsx.saveState.savedLocal" : `office.xlsx.saveState.${state.state}`)}
             </span>
             {saving ? (
               <>

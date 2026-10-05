@@ -57,7 +57,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   onOpen,
   onViewStateChange,
   onSelectionChange,
-  registerSavePreparation,
+  registerSavePreparation, saveDestination = "cloud",
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<XlsxViewState>("opening");
@@ -94,6 +94,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   sessionPropsRef.current = { editor, open, coordinator, capability, onOpen };
 
   const readOnly = permissions.canEdit === false || rendererHost?.file.readOnly === true || (capability !== undefined && capability.status !== "available");
+  // A confirmed save names where it landed; a local file is not a cloud receipt.
+  const saveStateLabel = t(coordinatorState.state === "saved" && saveDestination === "local" ? "office.xlsx.saveState.savedLocal" : `office.xlsx.saveState.${coordinatorState.state}`);
   const effectiveTitle = title ?? t("office.xlsx.title");
   const activeSheetModel = snapshot?.sheets.find((sheet) => sheet.name === activeSheet) ?? snapshot?.sheets[0];
   const activeCell = selection && activeSheetModel?.name === selection.sheet ? activeSheetModel.cells[selection.address] : undefined;
@@ -405,9 +407,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       {!embedded ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="xlsx-open-state">
-          {visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}
+          {visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? saveStateLabel : t("office.xlsx.state.error")}
         </span>
-      </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}</span>}
+      </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? saveStateLabel : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
           <OfficeFrame
@@ -415,8 +417,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             canvasClassName="overflow-hidden"
             ribbon={
               <XlsxToolbar
-                coordinator={coordinator}
-                showSave={!embedded}
+                coordinator={coordinator} saveDestination={saveDestination} showSave={!embedded}
                 dirty={dirty}
                 saving={saving}
                 readOnly={readOnly || rendererLoading}
@@ -482,7 +483,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             }
             statusBar={
               <XlsxFrameStatusBar
-                stateLabel={t(`office.xlsx.saveState.${coordinatorState.state}`)}
+                stateLabel={saveStateLabel}
                 documentKey={documentKey}
                 host={rendererHost}
                 selection={selection}
