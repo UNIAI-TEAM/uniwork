@@ -133,6 +133,10 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	return started, nil
 }
 
+// ensureProviderSession is the inline copy of the provider.ensure_session row
+// the caller just queued: it saves the first joiner a worker tick. The queued
+// row skips a session this call already made joinable, and whichever of the
+// two fails cannot undo the other's success (recordConferenceEnsure).
 func (s *MeetingService) ensureProviderSession(ctx context.Context, sess db.MeetingConferenceSession) {
 	if s.provider == nil {
 		return
