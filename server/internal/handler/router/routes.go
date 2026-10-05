@@ -293,6 +293,8 @@ type Routes struct {
 	FinalizeAttendance             http.HandlerFunc
 	ReopenAttendance               http.HandlerFunc
 	ListMotions                    http.HandlerFunc
+	ListMyBallots                  http.HandlerFunc
+	ListMotionVoters               http.HandlerFunc
 	CreateMotion                   http.HandlerFunc
 	UpdateMotion                   http.HandlerFunc
 	DeleteMotion                   http.HandlerFunc

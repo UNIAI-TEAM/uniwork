@@ -212,7 +212,9 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	// Nobody is in the room once the meeting has ended: close every open room
 	// session at the end time, in this transaction, so the attendance panel
 	// never shows someone "in the room" of an ended meeting while the
-	// provider's leave webhooks (or the stale sweep) catch up.
+	// provider's leave webhooks (or the stale sweep) catch up. One statement
+	// however many people were in the room; the metering sweep records their
+	// minutes off this request, so a client that hangs up cannot lose them.
 	closedSessions, err := q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
 		MeetingID: m.ID, LeaveReason: strText(leaveReasonMeetingEnded), LeftAt: ended.ActualEndAt,
 	})
@@ -238,8 +240,7 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		return db.Meeting{}, err
 	}
 	s.count("ended")
-	if len(closedSessions) > 0 {
-		s.meterAttendanceSessions(ctx, m.ID, closedSessions)
+	if closedSessions > 0 {
 		s.publishAttendanceChanged(ctx, m.ID)
 	}
 	return ended, nil

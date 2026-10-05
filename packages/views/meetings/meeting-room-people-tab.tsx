@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
-import type { Participant } from "livekit-client";
+import { RoomEvent, type Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
@@ -20,34 +20,59 @@ import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-g
 import { cn } from "@uniwork/ui/lib/utils";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingAttendancePanel } from "./meeting-attendance-panel";
+import { meetingLocale } from "./meeting-datetime";
 import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
+import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
+import { useWindowedList } from "./use-windowed-list";
 
 /** The pressed view lifts out of the track: the meeting list's filter chip, stretched to half the track. */
 const SEGMENT = `${MEETING_TOGGLE_CHIP} w-full rounded-lg hover:bg-transparent`;
+
+/**
+ * Joins and leaves are always followed; a rename is the one other change the
+ * list shows. Each row follows its own mic, speaking and lock state.
+ */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
 }
 
+/** One collator per locale for the room's life: building one per comparison is what made sorting slow. */
+const collators = new Map<string, Intl.Collator>();
+function collatorFor(locale: string): Intl.Collator {
+  let collator = collators.get(locale);
+  if (!collator) {
+    collator = new Intl.Collator(locale, { sensitivity: "base" });
+    collators.set(locale, collator);
+  }
+  return collator;
+}
+
 function orderParticipants(
-  participants: Participant[],
-  hands: string[],
+  participants: readonly Participant[],
+  hands: readonly string[],
   pinnedIdentity: string | null,
+  collator: Intl.Collator,
 ): Participant[] {
+  const handIndex = new Map(hands.map((identity, i) => [identity, i]));
   const rank = (p: Participant): number => {
     if (pinnedIdentity && p.identity === pinnedIdentity) return -1;
-    const handIndex = hands.indexOf(p.identity);
-    if (handIndex !== -1) return handIndex;
-    if (p.isLocal) return 1_000;
-    return 500;
+    const hand = handIndex.get(p.identity);
+    if (hand !== undefined) return hand;
+    if (p.isLocal) return 1_000_000;
+    return 500_000;
   };
-  return [...participants].sort((a, b) => rank(a) - rank(b) || displayName(a).localeCompare(displayName(b)));
+  return participants
+    .map((p) => ({ p, rank: rank(p), name: displayName(p) }))
+    .sort((a, b) => a.rank - b.rank || collator.compare(a.name, b.name))
+    .map((x) => x.p);
 }
 
 export function MeetingRoomPeopleTab({
@@ -63,8 +88,8 @@ export function MeetingRoomPeopleTab({
   canHost?: boolean;
   guestMode?: boolean;
 }) {
-  const { t } = useTranslation();
-  const liveParticipants = useLiveKitParticipants();
+  const { t, i18n } = useTranslation();
+  const liveParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
@@ -107,11 +132,18 @@ export function MeetingRoomPeopleTab({
   }, [apiParticipants, hostUserId]);
 
   const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
-  const ordered = orderParticipants(liveParticipants, hands, pinnedIdentity);
+  const locale = meetingLocale(i18n.language);
+  // Sorted once per roster, hand or pin change, not on every keystroke or render.
+  const ordered = useMemo(
+    () => orderParticipants(liveParticipants, hands, pinnedIdentity, collatorFor(locale)),
+    [liveParticipants, hands, pinnedIdentity, locale],
+  );
   const needle = search.trim().toLowerCase();
-  const filtered = needle
-    ? ordered.filter((p) => displayName(p).toLowerCase().includes(needle))
-    : ordered;
+  const filtered = useMemo(
+    () => (needle ? ordered.filter((p) => displayName(p).toLowerCase().includes(needle)) : ordered),
+    [ordered, needle],
+  );
+  const list = useWindowedList(filtered.length);
 
   function rowSubtitle(participant: Participant): string | undefined {
     const meta = participantMeta.get(participant.identity);
@@ -181,6 +213,8 @@ export function MeetingRoomPeopleTab({
               {t("meetings.addPeople")}
             </Button>
           ) : null}
+          {/* Host only (the moderation context says so); a guest host link never gets it. */}
+          {!guestMode && liveParticipants.length > 1 ? <MeetingMuteAllButton className="mb-3 shrink-0" /> : null}
 
           {hands.length > 0 ? (
             <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
@@ -203,17 +237,30 @@ export function MeetingRoomPeopleTab({
               <span className="text-caption tabular-nums text-muted-foreground">{filtered.length}</span>
             </CollapsibleTrigger>
 
-            <CollapsibleContent className="min-h-0 flex-1 overflow-y-auto">
+            <CollapsibleContent ref={list.scrollRef} className="min-h-0 flex-1 overflow-y-auto">
               {filtered.length === 0 ? (
                 <p className="px-2 py-4 text-center text-caption text-muted-foreground">
                   {needle ? t("meetings.noPeopleMatch") : t("meetings.noParticipantsYet")}
                 </p>
               ) : (
-                <ul className="space-y-0.5 pb-2">
-                  {filtered.map((participant) => {
+                // A long room mounts only the rows near the viewport; each row
+                // keeps its place in the whole list for assistive tech.
+                <ul
+                  className="pb-2"
+                  style={list.windowed ? { paddingTop: list.window.padTop, paddingBottom: list.window.padBottom } : undefined}
+                >
+                  {filtered.slice(list.window.start, list.window.end).map((participant, i) => {
                     const meta = participantMeta.get(participant.identity);
+                    const index = list.window.start + i;
                     return (
-                      <li key={participant.identity}>
+                      <li
+                        key={participant.identity}
+                        // Spacing inside the row, so the row measured is the row repeated.
+                        className="pb-0.5"
+                        ref={i === 0 ? list.measureRow : undefined}
+                        aria-setsize={list.windowed ? filtered.length : undefined}
+                        aria-posinset={list.windowed ? index + 1 : undefined}
+                      >
                         <MeetingParticipantRow
                           participant={participant}
                           subtitle={rowSubtitle(participant)}

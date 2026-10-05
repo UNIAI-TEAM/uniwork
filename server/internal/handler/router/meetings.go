@@ -156,7 +156,8 @@ func registerMeetings(r api, h Routes) {
 		sdo: sdo.MeetingCapabilitiesSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/transcript", h.ListTranscript, apiOp{
-		summary: "List transcript segments", tags: []string{"meetings"}, sdo: sdo.TranscriptListSDO{}, auth: true,
+		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
+		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
@@ -210,7 +211,8 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "List participants (member or active guest)", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{},
 	})
 	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
-		summary: "List persisted in-room chat messages (member or active guest)", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{},
+		summary: "List persisted in-room chat messages (member or active guest; newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
+		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.MeetingChatListSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
@@ -218,9 +220,21 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	})
 	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",
-		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED, voters chỉ khi CLOSED và công khai.",
+		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED. Phiếu của người gọi ở /my-ballots, ai chọn gì ở /motions/{motionID}/voters.",
 		tags:        []string{"meetings"},
 		sdo:         sdo.MotionListSDO{},
+	})
+	r.Get("/meetings/{meetingID}/my-ballots", h.ListMyBallots, apiOp{
+		summary:     "List my own ballots (member or active guest)",
+		description: "Một dòng cho mỗi nội dung người gọi có tên trong danh sách cử tri chốt lúc mở; choice chỉ có với phiếu công khai đã bỏ.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MyBallotListSDO{},
+	})
+	r.Get("/meetings/{meetingID}/motions/{motionID}/voters", h.ListMotionVoters, apiOp{
+		summary:     "List who chose what on a closed public vote (member or active guest)",
+		description: "voters là null khi nội dung đang mở hoặc bỏ phiếu kín; nội dung nháp trả 404 với người không phải clerk.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionVotersSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/motions/{motionID}/ballot", h.CastBallot, apiOp{
 		summary: "Cast a ballot (member or active guest on the roll)", tags: []string{"meetings"},

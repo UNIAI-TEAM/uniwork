@@ -4,14 +4,18 @@ import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import type { Meeting, User } from "@uniwork/core/types";
+import { RoomEvent } from "livekit-client";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 
-const live = vi.hoisted(() => ({ participants: [] as unknown[] }));
+const live = vi.hoisted(() => ({ participants: [] as unknown[], options: [] as unknown[] }));
 
 vi.mock("@livekit/components-react", () => ({
-  useParticipants: () => live.participants,
+  useParticipants: (options?: unknown) => {
+    live.options.push(options);
+    return live.participants;
+  },
   useIsSpeaking: () => false,
   useIsMuted: () => false,
 }));
@@ -44,6 +48,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   live.participants = [];
+  live.options = [];
   useMeetingViewSessionStore.getState().reset();
   setSessionUser(me);
   requestMock.mockReset();
@@ -158,5 +163,58 @@ describe("MeetingRoomPeopleTab", () => {
     expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants"));
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/attendance");
+  });
+
+  describe("a large room", () => {
+    const person = (name: string, identity = `id-${name}`) => ({
+      identity, name, isLocal: false, permissions: null, on: vi.fn(), off: vi.fn(),
+    });
+
+    it("follows the roster on joins, leaves and renames only", async () => {
+      render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" />));
+      expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
+      expect(live.options[0]).toEqual({ updateOnlyOn: [RoomEvent.ParticipantNameChanged] });
+    });
+
+    it("sorts names the way the language reads them", async () => {
+      live.participants = [person("Đức"), person("Dũng"), person("an"), person("Bình")];
+      render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" />));
+      await screen.findByText("Trong cuộc họp");
+      const names = screen.getAllByRole("listitem").map((li) => li.textContent);
+      expect(names).toEqual([
+        expect.stringContaining("an"),
+        expect.stringContaining("Bình"),
+        expect.stringContaining("Dũng"),
+        expect.stringContaining("Đức"),
+      ]);
+    });
+
+    it("mounts only the rows near the viewport, keeping each one's place in the list", async () => {
+      live.participants = Array.from({ length: 300 }, (_, i) => person(`Người ${String(i).padStart(3, "0")}`));
+      render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" />));
+      await screen.findByText("Trong cuộc họp");
+      const rows = screen.getAllByRole("listitem");
+      expect(rows.length).toBeLessThan(40);
+      expect(rows[0]).toHaveAttribute("aria-setsize", "300");
+      expect(rows[0]).toHaveAttribute("aria-posinset", "1");
+      expect(rows[0]).toHaveTextContent("Người 000");
+      // The count still says everyone, and search still reaches the last row.
+      expect(screen.getByText("300")).toBeInTheDocument();
+      fireEvent.change(screen.getByRole("textbox", { name: "Tìm người tham dự" }), { target: { value: "299" } });
+      expect(screen.getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.getByRole("listitem")).toHaveTextContent("Người 299");
+    });
+
+    it("offers the host mute everyone once someone else is in the room", async () => {
+      live.participants = [person("Lan", "uw_participant_p2"), { ...person("Me", "uw_participant_p-host"), isLocal: true }];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+      expect(await screen.findByRole("button", { name: "Tắt mic mọi người" })).toBeInTheDocument();
+    });
   });
 });

@@ -87,3 +87,43 @@ func TestRealtimeTopicsAreOutboxDeliveredOnly(t *testing.T) {
 		}
 	}
 }
+
+// In-room events go to the sockets holding that meeting open, not to the
+// whole workspace (G8); a row without the meeting id has nowhere to go.
+func TestRealtimeConsumerRoutesMeetingTopicsToTheMeetingScope(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub)
+	ctx := context.Background()
+
+	if err := c.Handle(ctx, row("motion.ballot_cast", `{"meeting_id":"m1","version":"3","motion_id":"mo1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Handle(ctx, row("participant.updated", `{"version":"3"}`, "ws1")); err != nil {
+		t.Fatalf("unroutable row must not fail the batch: %v", err)
+	}
+
+	if len(pub.workspace) != 0 {
+		t.Fatalf("meeting topic reached the workspace: %v", pub.workspace)
+	}
+	if len(pub.scope) != 1 || pub.scope[0] != "meeting:m1/motion.ballot_cast" {
+		t.Fatalf("scope publishes = %v", pub.scope)
+	}
+}
+
+// The meeting list, the calendar and the home summary listen outside any
+// meeting, so the lifecycle and roster rows they follow stay on the workspace.
+func TestMeetingLifecycleTopicsStayOnTheWorkspace(t *testing.T) {
+	for _, topic := range []string{
+		"meeting.created", "meeting.updated", "meeting.deleted", "meeting.started",
+		"meeting.ended", "meeting.canceled", "host.transferred",
+		"participant.invited", "participant.removed", "invitation.responded",
+	} {
+		def, ok := Lookup(topic)
+		if !ok {
+			t.Fatalf("%s is not in the catalogue", topic)
+		}
+		if def.Scope != ScopeWorkspace {
+			t.Errorf("%s scope = %q, want workspace", topic, def.Scope)
+		}
+	}
+}

@@ -429,10 +429,9 @@ func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db
 	if !ok {
 		return
 	}
-	orgID := ""
-	if w, err := q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
-		orgID = w.OrganizationID
-	}
+	// The meeting carries its tenant (ADR 0008), so no workspace read runs
+	// inside the caller's transaction - for a ballot, under the motion lock.
+	orgID := m.OrganizationID
 	if payload == nil {
 		payload = meetingEventPayload(m)
 	}

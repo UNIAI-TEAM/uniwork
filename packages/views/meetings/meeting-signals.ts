@@ -1,5 +1,5 @@
 /**
- * In-room signals (raise hand, reactions, host mute request) ride the
+ * In-room signals (raise hand, reactions, host mute requests) ride the
  * LiveKit data channel on one topic. Nothing here touches the server: the
  * signals are ephemeral and every client rebuilds state from the messages
  * it sees. This file is the pure part (encode / decode / reduce) so it can be
@@ -27,7 +27,9 @@ export function reactionLabelKey(value: string): string | null {
 export type MeetingSignal =
   | { kind: "hand"; value: boolean }
   | { kind: "reaction"; value: string }
-  | { kind: "mute_request"; target: string };
+  | { kind: "mute_request"; target: string }
+  /** The host mutes the room at once; every other host keeps their mic. */
+  | { kind: "mute_all" };
 
 type ReactionBubble = { id: string; identity: string; value: string; at: number };
 
@@ -58,6 +60,7 @@ export function decodeSignal(payload: Uint8Array): MeetingSignal | null {
       return { kind: "reaction", value: r.value };
     }
     if (r.kind === "mute_request" && typeof r.target === "string") return { kind: "mute_request", target: r.target };
+    if (r.kind === "mute_all") return { kind: "mute_all" };
     return null;
   } catch {
     return null;

@@ -1,8 +1,17 @@
 "use client";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
+import * as feed from "../api/endpoints/meetings-feed";
 import { taskKeys } from "../tasks/hooks";
 import type { Meeting, MeetingChatMessage, MeetingTranscriptSegment } from "../types/meeting";
+import {
+  addMeetingFeedRow,
+  feedHasOlder,
+  feedRows,
+  readMeetingFeed,
+  readOlderMeetingFeed,
+  type MeetingFeedSpec,
+} from "./room-feed";
 
 export type {
   CreateMeetingBody,
@@ -363,25 +372,60 @@ export function useMeetingCapabilities(workspaceId: string) {
   });
 }
 
-export function useTranscript(meetingId: string, enabled = true) {
-  return useQuery({
+const byTimeThenId =
+  <T extends { id: string }>(at: (row: T) => string) =>
+  (a: T, b: T): number =>
+    Date.parse(at(a)) - Date.parse(at(b)) || a.id.localeCompare(b.id);
+
+const transcriptRows = {
+  id: (s: MeetingTranscriptSegment) => s.id,
+  compare: byTimeThenId<MeetingTranscriptSegment>((s) => s.spoken_at),
+};
+
+const chatRows = {
+  id: (m: MeetingChatMessage) => m.id,
+  compare: byTimeThenId<MeetingChatMessage>((m) => m.sent_at),
+};
+
+function transcriptFeed(meetingId: string): MeetingFeedSpec<MeetingTranscriptSegment> {
+  return { ...transcriptRows, fetch: (q) => feed.listTranscriptPage(meetingId, q) };
+}
+
+function chatFeed(meetingId: string): MeetingFeedSpec<MeetingChatMessage> {
+  return { ...chatRows, fetch: (q) => feed.listMeetingChatPage(meetingId, q) };
+}
+
+/**
+ * The newest transcript page, then only what arrives after it: each
+ * `transcript.appended` frame costs a delta read, not the whole transcript.
+ */
+function transcriptQuery(qc: QueryClient, meetingId: string, enabled: boolean) {
+  return {
     queryKey: meetingKeys.transcript(meetingId),
-    queryFn: () => meetings.listTranscript(meetingId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      readMeetingFeed(qc, meetingKeys.transcript(meetingId), transcriptFeed(meetingId), signal),
     enabled: !!meetingId && enabled,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
-  });
+  };
 }
 
-export function upsertMeetingTranscriptSegment(
-  prev: MeetingTranscriptSegment[] | undefined,
-  saved: MeetingTranscriptSegment,
-): MeetingTranscriptSegment[] {
-  const list = prev ?? [];
-  if (list.some((s) => s.id === saved.id)) return list;
-  return [...list, saved].sort(
-    (a, b) => Date.parse(a.spoken_at) - Date.parse(b.spoken_at) || a.id.localeCompare(b.id),
-  );
+export function useTranscript(meetingId: string, enabled = true) {
+  const qc = useQueryClient();
+  return useQuery({ ...transcriptQuery(qc, meetingId, enabled), select: feedRows<MeetingTranscriptSegment> });
+}
+
+/** Whether an older transcript page exists, and the action that loads it. */
+export function useOlderTranscript(meetingId: string, enabled = true) {
+  const qc = useQueryClient();
+  const { data: hasOlder = false } = useQuery({
+    ...transcriptQuery(qc, meetingId, enabled),
+    select: feedHasOlder<MeetingTranscriptSegment>,
+  });
+  const load = useMutation({
+    mutationFn: () => readOlderMeetingFeed(qc, meetingKeys.transcript(meetingId), transcriptFeed(meetingId)),
+  });
+  return { hasOlder, loadOlder: load.mutateAsync, isLoadingOlder: load.isPending };
 }
 
 export function useAppendTranscript(meetingId: string) {
@@ -390,47 +434,53 @@ export function useAppendTranscript(meetingId: string) {
     mutationFn: (args: { text: string; spokenAt?: string }) =>
       meetings.appendTranscript(meetingId, args.text, args.spokenAt),
     onSuccess: (saved) => {
-      if (!saved) return;
-      qc.setQueryData<MeetingTranscriptSegment[]>(meetingKeys.transcript(meetingId), (prev) =>
-        upsertMeetingTranscriptSegment(prev, saved),
-      );
+      if (saved) addMeetingFeedRow(qc, meetingKeys.transcript(meetingId), transcriptRows, saved);
     },
   });
 }
 
-export function upsertMeetingChatMessage(
-  prev: MeetingChatMessage[] | undefined,
-  saved: MeetingChatMessage,
-): MeetingChatMessage[] {
-  const list = prev ?? [];
-  if (list.some((m) => m.id === saved.id)) return list;
-  return [...list, saved].sort(
-    (a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at) || a.id.localeCompare(b.id),
-  );
-}
-
-export function useMeetingChat(meetingId: string, enabled = true) {
-  return useQuery({
+/**
+ * The newest chat page, then only what arrives after it. Every room member
+ * mounts this (the unread badge), so a `chat.message` frame must stay a
+ * delta read for each of them.
+ */
+function chatQuery(qc: QueryClient, meetingId: string, enabled: boolean) {
+  return {
     queryKey: meetingKeys.chat(meetingId),
-    queryFn: () => meetings.listMeetingChat(meetingId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      readMeetingFeed(qc, meetingKeys.chat(meetingId), chatFeed(meetingId), signal),
     enabled: !!meetingId && enabled,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     staleTime: 0,
-  });
+  };
 }
 
+export function useMeetingChat(meetingId: string, enabled = true) {
+  const qc = useQueryClient();
+  return useQuery({ ...chatQuery(qc, meetingId, enabled), select: feedRows<MeetingChatMessage> });
+}
+
+/** Whether older chat exists, and the action that loads the page before it. */
+export function useOlderMeetingChat(meetingId: string, enabled = true) {
+  const qc = useQueryClient();
+  const { data: hasOlder = false } = useQuery({
+    ...chatQuery(qc, meetingId, enabled),
+    select: feedHasOlder<MeetingChatMessage>,
+  });
+  const load = useMutation({
+    mutationFn: () => readOlderMeetingFeed(qc, meetingKeys.chat(meetingId), chatFeed(meetingId)),
+  });
+  return { hasOlder, loadOlder: load.mutateAsync, isLoadingOlder: load.isPending };
+}
+
+/** The sender's row goes into the cache; its own realtime frame then reads an empty delta. */
 export function useAppendMeetingChat(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (message: string) => meetings.appendMeetingChat(meetingId, message),
     onSuccess: (saved) => {
-      if (saved) {
-        qc.setQueryData<MeetingChatMessage[]>(meetingKeys.chat(meetingId), (prev) =>
-          upsertMeetingChatMessage(prev, saved),
-        );
-      }
-      void qc.invalidateQueries({ queryKey: meetingKeys.chat(meetingId) });
+      if (saved) addMeetingFeedRow(qc, meetingKeys.chat(meetingId), chatRows, saved);
     },
   });
 }

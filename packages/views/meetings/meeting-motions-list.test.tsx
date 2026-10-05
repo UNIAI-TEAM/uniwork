@@ -36,8 +36,6 @@ const motion = (over: Partial<MeetingMotion>): MeetingMotion => ({
   total_members: null,
   cast_count: 0,
   result: null,
-  voters: null,
-  my_ballot: { on_roll: false, cast: false, choice: null },
   ...over,
 });
 
@@ -59,6 +57,7 @@ beforeEach(() => {
     if (p.endsWith("/members")) return Promise.resolve({ members: [] });
     if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
     if (p.endsWith("/motions") && (opts?.method ?? "GET") === "GET") return Promise.resolve({ motions });
+    if (p.endsWith("/my-ballots")) return Promise.resolve({ ballots: [] });
     return Promise.resolve({ status: "ok" });
   });
 });

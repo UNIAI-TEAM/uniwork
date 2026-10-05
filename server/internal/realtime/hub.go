@@ -47,6 +47,37 @@ type ScopeAuthorizer interface {
 	AuthorizeScope(ctx context.Context, userID, workspaceID, scopeType, scopeID string) (bool, error)
 }
 
+// ScopeReleaser is implemented by a ScopeAuthorizer that caches decisions.
+// The hub calls it when a socket leaves a scope it was authorized for, by
+// unsubscribing or disconnecting, so the next subscription is asked afresh.
+type ScopeReleaser interface {
+	ReleaseScope(userID, workspaceID, scopeType, scopeID string)
+}
+
+// ScopeAuthorizers routes each scope type to its own authorizer. A scope type
+// without one is refused.
+type ScopeAuthorizers map[string]ScopeAuthorizer
+
+// AuthorizeScope asks the authorizer registered for scopeType.
+func (m ScopeAuthorizers) AuthorizeScope(ctx context.Context, userID, workspaceID, scopeType, scopeID string) (bool, error) {
+	a, ok := m[scopeType]
+	if !ok || a == nil {
+		return false, nil
+	}
+	return a.AuthorizeScope(ctx, userID, workspaceID, scopeType, scopeID)
+}
+
+// ReleaseScope forwards to the scope type's authorizer when it caches.
+func (m ScopeAuthorizers) ReleaseScope(userID, workspaceID, scopeType, scopeID string) {
+	if r, ok := m[scopeType].(ScopeReleaser); ok {
+		r.ReleaseScope(userID, workspaceID, scopeType, scopeID)
+	}
+}
+
+// scopeAuthorizeTimeout bounds one subscription check, which runs on the
+// socket's read loop: a slow database must not stall the socket's pings.
+const scopeAuthorizeTimeout = 5 * time.Second
+
 var allowedWSOrigins atomic.Value // holds []string
 var trustedProxies atomic.Value   // holds []netip.Prefix
 
@@ -323,6 +354,27 @@ func (h *Hub) SetOrganizationResolver(f OrganizationResolver) {
 	h.orgOf = f
 }
 
+func (h *Hub) scopeAuthorizer() ScopeAuthorizer {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.authorizer
+}
+
+// releaseScopes tells a caching authorizer that client no longer holds keys.
+// Only scopes the authorizer decided are released; the identity scopes a
+// socket joins at connect time never went through it.
+func (h *Hub) releaseScopes(client *Client, keys []scopeKey) {
+	r, ok := h.scopeAuthorizer().(ScopeReleaser)
+	if !ok {
+		return
+	}
+	for _, key := range keys {
+		if key.Type == ScopeMeeting {
+			r.ReleaseScope(client.userID, client.workspaceID, key.Type, key.ID)
+		}
+	}
+}
+
 func (h *Hub) organizationResolver() OrganizationResolver {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -361,7 +413,7 @@ func (h *Hub) Run() {
 				h.subscribe(client, ScopeOrganization, client.organizationID)
 			}
 			if client.lobbyMeetingID != "" {
-				h.subscribe(client, ScopeMeeting, client.lobbyMeetingID)
+				h.subscribe(client, ScopeMeetingLobby, client.lobbyMeetingID)
 			}
 			slog.Info("ws client connected", "workspace_id", client.workspaceID, "user_id", client.userID, "total_clients", total)
 
@@ -385,7 +437,9 @@ func (h *Hub) removeClient(client *Client) {
 	subs := client.subscriptions
 	client.subscriptions = nil
 	emptied := make([]scopeKey, 0, len(subs))
+	held := make([]scopeKey, 0, len(subs))
 	for key := range subs {
+		held = append(held, key)
 		if room, ok := h.rooms[key]; ok {
 			delete(room, client)
 			if len(room) == 0 {
@@ -401,6 +455,7 @@ func (h *Hub) removeClient(client *Client) {
 
 	M.DisconnectsTotal.Add(1)
 	M.ActiveConnections.Add(-1)
+	h.releaseScopes(client, held)
 	if cb != nil {
 		for _, key := range emptied {
 			cb(key.Type, key.ID)
@@ -656,12 +711,19 @@ func (h *Hub) evictSlow(slow []*Client) {
 		Type, ID string
 	}
 	var drainedRooms []emptied
+	type heldScopes struct {
+		client *Client
+		keys   []scopeKey
+	}
+	var released []heldScopes
 	for _, c := range slow {
 		if !h.clients[c] {
 			continue
 		}
 		delete(h.clients, c)
+		held := heldScopes{client: c, keys: make([]scopeKey, 0, len(c.subscriptions))}
 		for key := range c.subscriptions {
+			held.keys = append(held.keys, key)
 			if room, ok := h.rooms[key]; ok {
 				delete(room, c)
 				if len(room) == 0 {
@@ -670,6 +732,7 @@ func (h *Hub) evictSlow(slow []*Client) {
 				}
 			}
 		}
+		released = append(released, held)
 		c.subscriptions = nil
 		close(c.send)
 		evicted++
@@ -680,6 +743,9 @@ func (h *Hub) evictSlow(slow []*Client) {
 	if evicted > 0 {
 		M.ActiveConnections.Add(int64(-evicted))
 		M.DisconnectsTotal.Add(int64(evicted))
+	}
+	for _, r := range released {
+		h.releaseScopes(r.client, r.keys)
 	}
 	for _, r := range drainedRooms {
 		M.DecRoom(r.Type)
@@ -970,62 +1036,35 @@ func (c *Client) handleSubscribe(scope, id string) {
 		if (scope == ScopeWorkspace && id != c.workspaceID) ||
 			(scope == ScopeUser && id != c.userID) ||
 			(scope == ScopeOrganization && (c.organizationID == "" || id != c.organizationID)) {
-			M.SubscribeDeniedTotal(scope).Add(1)
-			c.sendJSON(map[string]any{
-				"type": "subscribe_error",
-				"payload": map[string]string{
-					"scope": scope,
-					"id":    id,
-					"error": "forbidden",
-				},
-			})
+			c.refuseSubscribe(scope, id, "forbidden")
 			return
 		}
 		// Already auto-subscribed at connect time; reply ack idempotently.
 		c.hub.subscribe(c, scope, id)
 	case ScopeTask, ScopeChat:
-		auth := c.hub.authorizer
-		if auth != nil {
-			ok, err := auth.AuthorizeScope(context.Background(), c.userID, c.workspaceID, scope, id)
-			if err != nil || !ok {
-				M.SubscribeDeniedTotal(scope).Add(1)
-				reason := "forbidden"
-				if err != nil {
-					reason = "lookup_failed"
-				}
-				c.sendJSON(map[string]any{
-					"type": "subscribe_error",
-					"payload": map[string]string{
-						"scope": scope,
-						"id":    id,
-						"error": reason,
-					},
-				})
+		if auth := c.hub.scopeAuthorizer(); auth != nil {
+			if reason := c.authorizeScope(auth, scope, id); reason != "" {
+				c.refuseSubscribe(scope, id, reason)
 				return
 			}
 		}
 		c.hub.subscribe(c, scope, id)
 	case ScopeMeeting:
-		M.SubscribeDeniedTotal(scope).Add(1)
-		c.sendJSON(map[string]any{
-			"type": "subscribe_error",
-			"payload": map[string]string{
-				"scope": scope,
-				"id":    id,
-				"error": "forbidden",
-			},
-		})
-		return
+		// Unlike task and chat, a meeting with no gate wired is refused: the
+		// scope carries in-room traffic, so it fails closed. A lobby socket
+		// has no workspace and already hears its meeting on the lobby scope.
+		auth := c.hub.scopeAuthorizer()
+		if auth == nil || c.workspaceID == "" {
+			c.refuseSubscribe(scope, id, "forbidden")
+			return
+		}
+		if reason := c.authorizeScope(auth, scope, id); reason != "" {
+			c.refuseSubscribe(scope, id, reason)
+			return
+		}
+		c.hub.subscribe(c, scope, id)
 	default:
-		M.SubscribeDeniedTotal(scope).Add(1)
-		c.sendJSON(map[string]any{
-			"type": "subscribe_error",
-			"payload": map[string]string{
-				"scope": scope,
-				"id":    id,
-				"error": "unknown_scope",
-			},
-		})
+		c.refuseSubscribe(scope, id, "unknown_scope")
 		return
 	}
 	c.sendJSON(map[string]any{
@@ -1034,8 +1073,37 @@ func (c *Client) handleSubscribe(scope, id string) {
 	})
 }
 
+// authorizeScope returns "" when auth admits this socket to (scope, id), or
+// the reason it does not.
+func (c *Client) authorizeScope(auth ScopeAuthorizer, scope, id string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), scopeAuthorizeTimeout)
+	defer cancel()
+	ok, err := auth.AuthorizeScope(ctx, c.userID, c.workspaceID, scope, id)
+	if err != nil {
+		return "lookup_failed"
+	}
+	if !ok {
+		return "forbidden"
+	}
+	return ""
+}
+
+func (c *Client) refuseSubscribe(scope, id, reason string) {
+	M.SubscribeDeniedTotal(scope).Add(1)
+	c.sendJSON(map[string]any{
+		"type": "subscribe_error",
+		"payload": map[string]string{
+			"scope": scope,
+			"id":    id,
+			"error": reason,
+		},
+	})
+}
+
 func (c *Client) handleUnsubscribe(scope, id string) {
-	c.hub.unsubscribe(c, scope, id)
+	if c.hub.unsubscribe(c, scope, id) {
+		c.hub.releaseScopes(c, []scopeKey{sk(scope, id)})
+	}
 	c.sendJSON(map[string]any{
 		"type":    "unsubscribe_ack",
 		"payload": map[string]string{"scope": scope, "id": id},

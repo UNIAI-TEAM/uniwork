@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingChat } from "@uniwork/core/meetings";
+import { useMeetingChat, useOlderMeetingChat } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -12,6 +12,7 @@ import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "../chat/cha
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
 import { senderNameClass } from "../chat/sender-colors";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
+import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
@@ -43,6 +44,8 @@ function MeetingRoomChatSkeleton() {
 
 type ChatLoadState = { loading: boolean; failed: boolean; retry: () => void };
 
+type ChatOlderState = { hasOlder: boolean; loading: boolean; load: () => Promise<void> };
+
 type ChatDay = { day: number; groups: MeetingChatGroup[] };
 
 /** Messages by calendar day, then by consecutive sender within the day. */
@@ -62,11 +65,13 @@ function MeetingRoomChatView({
   send,
   isSending,
   load,
+  older,
 }: {
   items: MeetingChatItem[];
   send: (message: string) => Promise<void>;
   isSending: boolean;
   load?: ChatLoadState;
+  older?: ChatOlderState;
 }) {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
@@ -86,6 +91,16 @@ function MeetingRoomChatView({
     if (!list || !stickToBottom.current) return;
     list.scrollTop = list.scrollHeight;
   }, [items.length, groupCount]);
+
+  // Older messages go above what the reader is looking at; keep it in place.
+  async function loadOlder() {
+    const list = listRef.current;
+    const fromBottom = list ? list.scrollHeight - list.scrollTop : 0;
+    await older?.load();
+    requestAnimationFrame(() => {
+      if (list) list.scrollTop = list.scrollHeight - fromBottom;
+    });
+  }
 
   async function onSend(e?: FormEvent) {
     e?.preventDefault();
@@ -125,6 +140,11 @@ function MeetingRoomChatView({
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
         }}
       >
+        {older?.hasOlder ? (
+          <li>
+            <MeetingFeedLoadOlder label={t("meetings.chatLoadOlder")} loading={older.loading} onLoad={loadOlder} />
+          </li>
+        ) : null}
         {load?.loading ? (
           <li>
             <MeetingRoomChatSkeleton />
@@ -231,12 +251,14 @@ function PersistedMeetingRoomChatTab({ meetingId }: { meetingId: string }) {
   const chat = usePersistedMeetingRoomChat(meetingId);
   // Same query key as the hook above, so this only reads its status.
   const { data, isPending, isError, refetch } = useMeetingChat(meetingId);
+  const { hasOlder, loadOlder, isLoadingOlder } = useOlderMeetingChat(meetingId);
   const load: ChatLoadState = {
     loading: isPending,
     failed: isError && !data,
     retry: () => void refetch(),
   };
-  return <MeetingRoomChatView {...chat} load={load} />;
+  const older: ChatOlderState = { hasOlder, loading: isLoadingOlder, load: loadOlder };
+  return <MeetingRoomChatView {...chat} load={load} older={older} />;
 }
 
 function EphemeralMeetingRoomChatTab() {

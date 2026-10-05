@@ -1,8 +1,10 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import * as api from "../api/endpoints/meeting-motions";
-import type { BallotChoice, MotionDraftInput } from "../types/meeting";
+import type { BallotChoice, MeetingMotion, MotionDraftInput } from "../types/meeting";
 import { meetingKeys } from "./hooks";
+import { withMyBallots } from "./motion-utils";
 
 export {
   canSubmitMotion,
@@ -15,12 +17,58 @@ export {
   tallyPercent,
 } from "./motion-utils";
 
-/** The meeting's voting list; guests read it too (X-Guest-Session via rawFetch). */
+/**
+ * Motion query keys. `list` and `myBallots` sit under meetingKeys.motions, so
+ * every event and command that invalidates the meeting's motions refreshes
+ * both; `motion.ballot_cast` changes only the tallies and targets `list`
+ * alone. Voters of a closed motion never change, so they live outside that
+ * prefix and are fetched once, when someone opens the result.
+ */
+export const motionKeys = {
+  list: (meetingId: string) => [...meetingKeys.motions(meetingId), "list"] as const,
+  myBallots: (meetingId: string) => [...meetingKeys.motions(meetingId), "mine"] as const,
+  voters: (meetingId: string, motionId: string) => ["meeting-motion-voters", meetingId, motionId] as const,
+};
+
+/**
+ * How often a burst of `motion.ballot_cast` may refetch the tallies: a room
+ * voting at once sends one event per ballot, and the list only needs to keep
+ * up with people, not with every row.
+ */
+export const MOTION_TALLY_INVALIDATE_MS = 1000;
+
+/**
+ * The meeting's voting list with the caller's own roll joined in as
+ * `my_ballot`; guests read both too (X-Guest-Session via rawFetch). The list
+ * is the same for everyone, the roll is per caller and changes only when a
+ * motion opens or the caller votes.
+ */
 export function useMeetingMotions(meetingId: string, enabled = true) {
+  const on = enabled && Boolean(meetingId);
+  const { data: ballots } = useQuery({
+    queryKey: motionKeys.myBallots(meetingId),
+    queryFn: () => api.listMyMotionBallots(meetingId),
+    enabled: on,
+  });
+  const select = useCallback((motions: MeetingMotion[]) => withMyBallots(motions, ballots), [ballots]);
   return useQuery({
-    queryKey: meetingKeys.motions(meetingId),
+    queryKey: motionKeys.list(meetingId),
     queryFn: () => api.listMeetingMotions(meetingId),
-    enabled: enabled && Boolean(meetingId),
+    enabled: on,
+    select,
+  });
+}
+
+/**
+ * Who chose what on one closed public motion, loaded only while its result is
+ * unfolded. A closed motion's ballots are final, so one fetch serves for good.
+ */
+export function useMotionVoters(meetingId: string, motionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: motionKeys.voters(meetingId, motionId),
+    queryFn: () => api.getMotionVoters(meetingId, motionId),
+    enabled: enabled && Boolean(meetingId) && Boolean(motionId),
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

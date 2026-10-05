@@ -22,6 +22,7 @@ describe("meeting signals", () => {
       kind: "mute_request",
       target: "p1",
     });
+    expect(decodeSignal(encodeSignal({ kind: "mute_all" }))).toEqual({ kind: "mute_all" });
     expect(decodeSignal(new TextEncoder().encode("not json"))).toBeNull();
     expect(decodeSignal(new TextEncoder().encode('{"kind":"hand","value":"yes"}'))).toBeNull();
     expect(decodeSignal(new TextEncoder().encode('{"kind":"reaction","value":"' + "x".repeat(20) + '"}'))).toBeNull();

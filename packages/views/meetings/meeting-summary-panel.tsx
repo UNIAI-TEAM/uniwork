@@ -16,6 +16,7 @@ import {
   useMeetingSummary,
   useNotes,
   useRecordings,
+  useOlderTranscript,
   useTranscript,
 } from "@uniwork/core/meetings";
 import { useMeetingMotions } from "@uniwork/core/meetings/motions";
@@ -28,6 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingDecisionsBlock } from "./meeting-decisions-block";
+import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -80,6 +82,7 @@ export function MeetingSummaryPanel({
   const { data: caps } = useMeetingCapabilities(workspaceId);
   const summaryQuery = useMeetingSummary(meetingId);
   const transcriptQuery = useTranscript(meetingId);
+  const olderTranscript = useOlderTranscript(meetingId);
   const summary = summaryQuery.data;
   const transcript = transcriptQuery.data;
   // The empty copy depends on both (no summary → "no transcript yet" or
@@ -287,7 +290,9 @@ export function MeetingSummaryPanel({
               <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
                 {showTranscript
                   ? t("meetings.hideTranscript")
-                  : t("meetings.showTranscript", { count: transcriptLines })}
+                  : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
+                      count: transcriptLines,
+                    })}
                 <ChevronDown
                   aria-hidden
                   className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
@@ -297,6 +302,15 @@ export function MeetingSummaryPanel({
           />
           <CollapsibleContent>
             <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
+              {olderTranscript.hasOlder ? (
+                <li>
+                  <MeetingFeedLoadOlder
+                    label={t("meetings.transcriptLoadOlder")}
+                    loading={olderTranscript.isLoadingOlder}
+                    onLoad={olderTranscript.loadOlder}
+                  />
+                </li>
+              ) : null}
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="text-body text-foreground">
                   <span className="mr-1 text-caption font-medium text-muted-foreground">{s.speaker_name || "—"}</span>

@@ -67,6 +67,31 @@ describe("MeetingRoomChatTab (persisted)", () => {
     expect(await screen.findByText(EMPTY)).toBeInTheDocument();
   });
 
+  it("opens on the newest page and loads earlier messages on demand", async () => {
+    const row = (id: string, sec: number) => ({
+      id,
+      meeting_id: "m1",
+      sender_identity: "u-other",
+      sender_name: "An",
+      message: `tin ${id}`,
+      sent_at: `2026-08-29T02:00:0${sec}Z`,
+    });
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/chat")) return Promise.resolve({ messages: [row("c", 3)], older_cursor: "o3", after_cursor: "t3" });
+      if (p.endsWith("/chat?before=o3")) return Promise.resolve({ messages: [row("a", 1), row("b", 2)] });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingRoomChatTab meetingId="m1" />));
+
+    expect(await screen.findByText("tin c")).toBeInTheDocument();
+    expect(screen.queryByText("tin a")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải tin nhắn cũ hơn" }));
+    expect(await screen.findByText("tin a")).toBeInTheDocument();
+    expect(screen.getByText("tin b")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tải tin nhắn cũ hơn" })).not.toBeInTheDocument();
+  });
+
   it("tells the sender when a message did not go out and keeps the draft", async () => {
     chatRespond(
       () => Promise.resolve({ messages: [] }),

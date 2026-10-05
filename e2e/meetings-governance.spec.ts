@@ -41,9 +41,15 @@ interface MotionRow {
   roll_size: number | null;
   cast_count: number;
   result: { yes: number; no: number; abstain: number; required: number; outcome: string } | null;
-  voters: { yes: string[]; no: string[]; abstain: string[] } | null;
-  my_ballot: { on_roll: boolean; cast: boolean; choice: string | null };
 }
+
+interface MyBallot {
+  motion_id: string;
+  cast: boolean;
+  choice: string | null;
+}
+
+type MotionVoters = { yes: string[]; no: string[]; abstain: string[] } | null;
 
 function bearer(token: string): AuthHeaders {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -119,6 +125,23 @@ async function castBallot(page: Page, meetingId: string, motionId: string, auth:
   });
 }
 
+// The list is the same for everyone; the caller's own roll and the names
+// behind a closed public vote are separate reads.
+async function myBallot(page: Page, meetingId: string, auth: AuthHeaders, motionId: string) {
+  const res = await page.request.get(`${API}/api/v1/meetings/${meetingId}/my-ballots`, { headers: auth });
+  expect(res.ok(), `my ballots: HTTP ${res.status()} ${await res.text()}`).toBeTruthy();
+  const { ballots } = (await res.json()) as { ballots: MyBallot[] };
+  return ballots.find((b) => b.motion_id === motionId);
+}
+
+async function motionVoters(page: Page, meetingId: string, auth: AuthHeaders, motionId: string) {
+  const res = await page.request.get(`${API}/api/v1/meetings/${meetingId}/motions/${motionId}/voters`, {
+    headers: auth,
+  });
+  expect(res.ok(), `motion voters: HTTP ${res.status()} ${await res.text()}`).toBeTruthy();
+  return ((await res.json()) as { voters: MotionVoters }).voters;
+}
+
 async function findMotion(page: Page, meetingId: string, auth: AuthHeaders, title: string): Promise<MotionRow> {
   const res = await page.request.get(`${API}/api/v1/meetings/${meetingId}/motions`, { headers: auth });
   expect(res.ok(), `list motions: HTTP ${res.status()} ${await res.text()}`).toBeTruthy();
@@ -182,7 +205,7 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   const counting = await findMotion(page, meeting.id, hostAuth, title);
   expect(counting.cast_count).toBe(2);
   expect(counting.result).toBeNull();
-  expect(counting.my_ballot).toEqual({ on_roll: true, cast: true, choice: "YES" });
+  expect(await myBallot(page, meeting.id, hostAuth, open.id)).toEqual({ motion_id: open.id, cast: true, choice: "YES" });
   // motion.ballot_cast reaches the open page through realtime, not a reload.
   await expect(card.getByText("Đã bỏ phiếu 2/2")).toBeVisible({ timeout: 15_000 });
 
@@ -204,8 +227,9 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   expect(await errorCode(late)).toBe("motion_not_open");
   const closed = await findMotion(page, meeting.id, memberAuth, title);
   expect(closed.result).toEqual({ yes: 2, no: 0, abstain: 0, required: 2, outcome: "PASSED" });
-  expect(closed.voters?.yes).toEqual(expect.arrayContaining(["gov-host", "gov-member"]));
-  expect(closed.voters?.no).toEqual([]);
+  const named = await motionVoters(page, meeting.id, memberAuth, open.id);
+  expect(named?.yes).toEqual(expect.arrayContaining(["gov-host", "gov-member"]));
+  expect(named?.no).toEqual([]);
 
   // "Đã biểu quyết" renders from the closed item even with no AI summary.
   const summary = page.getByRole("region", { name: "Tóm tắt AI" });
@@ -295,8 +319,12 @@ test.describe("votes in the meeting room", () => {
 
     // A secret ballot keeps no link between a person and a choice.
     const motion = await findMotion(page, meeting.id, memberAuth, title);
-    expect(motion.voters).toBeNull();
+    expect(await motionVoters(page, meeting.id, memberAuth, motion.id)).toBeNull();
     expect(motion.result).toEqual({ yes: 2, no: 0, abstain: 0, required: 2, outcome: "PASSED" });
-    expect(motion.my_ballot).toEqual({ on_roll: true, cast: true, choice: null });
+    expect(await myBallot(page, meeting.id, memberAuth, motion.id)).toEqual({
+      motion_id: motion.id,
+      cast: true,
+      choice: null,
+    });
   });
 });

@@ -36,11 +36,13 @@ func (q *Queries) AttendanceConnectionSeen(ctx context.Context, arg AttendanceCo
 }
 
 const backdateConnectionJoin = `-- name: BackdateConnectionJoin :many
-UPDATE meeting_attendance_sessions SET joined_at = $1::timestamptz
+UPDATE meeting_attendance_sessions SET
+  joined_at = $1::timestamptz,
+  metered_at = NULL
 WHERE meeting_id = $2 AND participant_id = $3
   AND provider_participant_sid = $4
   AND joined_at > $1::timestamptz
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
+RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id, metered_at
 `
 
 type BackdateConnectionJoinParams struct {
@@ -55,6 +57,8 @@ type BackdateConnectionJoinParams struct {
 // (its leave came first and wrote a zero-length session at the leave time)
 // moves that session's start back to the join's time, so first-join and
 // minutes present are right. A duplicate join (same time) changes nothing.
+// A moved session that is already closed is metered again (metered_at goes
+// back to NULL): its zero-length first pass recorded no minutes.
 func (q *Queries) BackdateConnectionJoin(ctx context.Context, arg BackdateConnectionJoinParams) ([]MeetingAttendanceSession, error) {
 	rows, err := q.db.Query(ctx, backdateConnectionJoin,
 		arg.JoinedAt,
@@ -81,6 +85,7 @@ func (q *Queries) BackdateConnectionJoin(ctx context.Context, arg BackdateConnec
 			&i.ProviderEventID,
 			&i.ProviderParticipantSid,
 			&i.OrganizationID,
+			&i.MeteredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -239,12 +244,51 @@ func (q *Queries) ClaimPendingWebhookInbox(ctx context.Context, arg ClaimPending
 	return items, nil
 }
 
+const claimUnmeteredAttendance = `-- name: ClaimUnmeteredAttendance :many
+SELECT id, organization_id FROM meeting_attendance_sessions
+WHERE metered_at IS NULL AND left_at IS NOT NULL
+ORDER BY left_at
+LIMIT $1
+FOR UPDATE SKIP LOCKED
+`
+
+type ClaimUnmeteredAttendanceRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// tenant: system
+// The metering sweep's batch: closed room sessions whose minutes have not
+// reached meeting.participant_minutes yet, oldest close first, across
+// organizations. SKIP LOCKED lets several replicas sweep side by side; the
+// rows stay locked until the sweep marks them metered in the same
+// transaction.
+func (q *Queries) ClaimUnmeteredAttendance(ctx context.Context, limitN int32) ([]ClaimUnmeteredAttendanceRow, error) {
+	rows, err := q.db.Query(ctx, claimUnmeteredAttendance, limitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimUnmeteredAttendanceRow{}
+	for rows.Next() {
+		var i ClaimUnmeteredAttendanceRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const closeAttendanceSession = `-- name: CloseAttendanceSession :one
 UPDATE meeting_attendance_sessions SET
   left_at = GREATEST(joined_at, LEAST(now(), COALESCE($1::timestamptz, now()))),
   leave_reason = $2
 WHERE id = $3 AND left_at IS NULL
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
+RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id, metered_at
 `
 
 type CloseAttendanceSessionParams struct {
@@ -271,62 +315,40 @@ func (q *Queries) CloseAttendanceSession(ctx context.Context, arg CloseAttendanc
 		&i.ProviderEventID,
 		&i.ProviderParticipantSid,
 		&i.OrganizationID,
+		&i.MeteredAt,
 	)
 	return i, err
 }
 
-const closeOpenAttendanceForConference = `-- name: CloseOpenAttendanceForConference :many
+const closeOpenAttendanceForConference = `-- name: CloseOpenAttendanceForConference :execrows
 UPDATE meeting_attendance_sessions SET
-  left_at = GREATEST(joined_at, now()),
+  left_at = GREATEST(joined_at, LEAST(now(), COALESCE($1::timestamptz, now()))),
   leave_reason = $2
-WHERE conference_session_id = $1 AND left_at IS NULL
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
+WHERE conference_session_id = $3 AND left_at IS NULL
 `
 
 type CloseOpenAttendanceForConferenceParams struct {
-	ConferenceSessionID string      `json:"conference_session_id"`
-	LeaveReason         pgtype.Text `json:"leave_reason"`
+	LeftAt              pgtype.Timestamptz `json:"left_at"`
+	LeaveReason         pgtype.Text        `json:"leave_reason"`
+	ConferenceSessionID string             `json:"conference_session_id"`
 }
 
 // tenant: system
-func (q *Queries) CloseOpenAttendanceForConference(ctx context.Context, arg CloseOpenAttendanceForConferenceParams) ([]MeetingAttendanceSession, error) {
-	rows, err := q.db.Query(ctx, closeOpenAttendanceForConference, arg.ConferenceSessionID, arg.LeaveReason)
+// room_finished: every session still open in the room closes at the
+// provider's event time, clamped to [joined_at, now()]; NULL means now().
+func (q *Queries) CloseOpenAttendanceForConference(ctx context.Context, arg CloseOpenAttendanceForConferenceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeOpenAttendanceForConference, arg.LeftAt, arg.LeaveReason, arg.ConferenceSessionID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	items := []MeetingAttendanceSession{}
-	for rows.Next() {
-		var i MeetingAttendanceSession
-		if err := rows.Scan(
-			&i.ID,
-			&i.MeetingID,
-			&i.ConferenceSessionID,
-			&i.ParticipantID,
-			&i.ProviderParticipantIdentity,
-			&i.JoinedAt,
-			&i.LeftAt,
-			&i.LeaveReason,
-			&i.ProviderEventID,
-			&i.ProviderParticipantSid,
-			&i.OrganizationID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected(), nil
 }
 
-const closeOpenAttendanceForMeeting = `-- name: CloseOpenAttendanceForMeeting :many
+const closeOpenAttendanceForMeeting = `-- name: CloseOpenAttendanceForMeeting :execrows
 UPDATE meeting_attendance_sessions SET
   left_at = GREATEST(joined_at, LEAST(now(), COALESCE($1::timestamptz, now()))),
   leave_reason = $2
 WHERE meeting_id = $3 AND left_at IS NULL
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
 `
 
 type CloseOpenAttendanceForMeetingParams struct {
@@ -339,37 +361,13 @@ type CloseOpenAttendanceForMeetingParams struct {
 // Closes every open room session of a meeting. left_at caps the close time —
 // the meeting's actual_end_at once it has ended — so a late sweep never
 // stretches a session past the end; NULL closes at now(). A session never
-// closes before it opened.
-func (q *Queries) CloseOpenAttendanceForMeeting(ctx context.Context, arg CloseOpenAttendanceForMeetingParams) ([]MeetingAttendanceSession, error) {
-	rows, err := q.db.Query(ctx, closeOpenAttendanceForMeeting, arg.LeftAt, arg.LeaveReason, arg.MeetingID)
+// closes before it opened. The metering sweep picks the closed rows up.
+func (q *Queries) CloseOpenAttendanceForMeeting(ctx context.Context, arg CloseOpenAttendanceForMeetingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeOpenAttendanceForMeeting, arg.LeftAt, arg.LeaveReason, arg.MeetingID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	items := []MeetingAttendanceSession{}
-	for rows.Next() {
-		var i MeetingAttendanceSession
-		if err := rows.Scan(
-			&i.ID,
-			&i.MeetingID,
-			&i.ConferenceSessionID,
-			&i.ParticipantID,
-			&i.ProviderParticipantIdentity,
-			&i.JoinedAt,
-			&i.LeftAt,
-			&i.LeaveReason,
-			&i.ProviderEventID,
-			&i.ProviderParticipantSid,
-			&i.OrganizationID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected(), nil
 }
 
 const consumeInviteLinkUse = `-- name: ConsumeInviteLinkUse :one
@@ -1356,7 +1354,7 @@ INSERT INTO meeting_attendance_sessions (
   $8, $9, $10,
   $11
 )
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
+RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id, metered_at
 `
 
 type InsertClosedAttendanceSessionParams struct {
@@ -1404,6 +1402,7 @@ func (q *Queries) InsertClosedAttendanceSession(ctx context.Context, arg InsertC
 		&i.ProviderEventID,
 		&i.ProviderParticipantSid,
 		&i.OrganizationID,
+		&i.MeteredAt,
 	)
 	return i, err
 }
@@ -1948,7 +1947,7 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 }
 
 const lockOpenAttendance = `-- name: LockOpenAttendance :one
-SELECT id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id FROM meeting_attendance_sessions
+SELECT id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id, metered_at FROM meeting_attendance_sessions
 WHERE participant_id = $1 AND left_at IS NULL
 ORDER BY joined_at DESC
 LIMIT 1
@@ -1973,6 +1972,7 @@ func (q *Queries) LockOpenAttendance(ctx context.Context, participantID string) 
 		&i.ProviderEventID,
 		&i.ProviderParticipantSid,
 		&i.OrganizationID,
+		&i.MeteredAt,
 	)
 	return i, err
 }
@@ -1987,6 +1987,75 @@ SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || 
 func (q *Queries) LockRoomSessionsOfParticipant(ctx context.Context, participantID string) error {
 	_, err := q.db.Exec(ctx, lockRoomSessionsOfParticipant, participantID)
 	return err
+}
+
+const markAttendanceMetered = `-- name: MarkAttendanceMetered :exec
+UPDATE meeting_attendance_sessions SET metered_at = now()
+WHERE id = ANY($1::text[]) AND left_at IS NOT NULL
+`
+
+// tenant: system
+// Closes the sweep's batch: these sessions' minutes are recorded (or there
+// was nothing to record against).
+func (q *Queries) MarkAttendanceMetered(ctx context.Context, ids []string) error {
+	_, err := q.db.Exec(ctx, markAttendanceMetered, ids)
+	return err
+}
+
+const markConferenceRoomFinished = `-- name: MarkConferenceRoomFinished :execrows
+UPDATE meeting_conference_sessions SET
+  status = 'IDLE',
+  ended_at = LEAST(now(), COALESCE($1::timestamptz, now())),
+  updated_at = now()
+WHERE id = $2 AND status NOT IN ('ENDED', 'FAILED')
+  AND (started_at IS NULL OR started_at <= LEAST(now(), COALESCE($1::timestamptz, now())))
+`
+
+type MarkConferenceRoomFinishedParams struct {
+	EndedAt pgtype.Timestamptz `json:"ended_at"`
+	ID      string             `json:"id"`
+}
+
+// tenant: by-id
+// room_finished at the provider's event time, never in the future; NULL means
+// now(). A finish older than the room's recorded start belongs to a previous
+// incarnation of the room (a retry that arrived after the room came back) and
+// changes nothing.
+func (q *Queries) MarkConferenceRoomFinished(ctx context.Context, arg MarkConferenceRoomFinishedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markConferenceRoomFinished, arg.EndedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markConferenceRoomStarted = `-- name: MarkConferenceRoomStarted :execrows
+UPDATE meeting_conference_sessions SET
+  status = 'ACTIVE',
+  provider_room_sid = COALESCE($1, provider_room_sid),
+  started_at = LEAST(now(), COALESCE($2::timestamptz, now())),
+  updated_at = now()
+WHERE id = $3 AND status NOT IN ('ENDED', 'FAILED')
+  AND (ended_at IS NULL OR ended_at <= LEAST(now(), COALESCE($2::timestamptz, now())))
+`
+
+type MarkConferenceRoomStartedParams struct {
+	ProviderRoomSid pgtype.Text        `json:"provider_room_sid"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	ID              string             `json:"id"`
+}
+
+// tenant: by-id
+// room_started at the provider's event time, never in the future; NULL means
+// now(). A start older than the room's recorded finish is a late retry of a
+// previous incarnation of the room and changes nothing, and an ended or
+// failed session is never revived.
+func (q *Queries) MarkConferenceRoomStarted(ctx context.Context, arg MarkConferenceRoomStartedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markConferenceRoomStarted, arg.ProviderRoomSid, arg.StartedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markConferenceSessionEnsureFailed = `-- name: MarkConferenceSessionEnsureFailed :execrows
@@ -2170,38 +2239,80 @@ func (q *Queries) MarkWebhookInboxFailed(ctx context.Context, arg MarkWebhookInb
 	return err
 }
 
-const meetingListStats = `-- name: MeetingListStats :one
-SELECT
-  (SELECT count(*) FROM meeting_participants p WHERE p.meeting_id = $1)::bigint AS invited_count,
-  (SELECT count(*) FROM meeting_invitations i WHERE i.meeting_id = $1 AND i.response_status = 'ACCEPTED')::bigint AS accepted_count,
-  (SELECT count(DISTINCT a.participant_id) FROM meeting_attendance_sessions a WHERE a.meeting_id = $1)::bigint AS attended_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1)::bigint AS join_request_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1 AND j.status = 'APPROVED')::bigint AS join_approved_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1 AND j.status = 'REJECTED')::bigint AS join_rejected_count
+const meterAttendanceMinutes = `-- name: MeterAttendanceMinutes :many
+WITH spent AS (
+  SELECT ($4::text[])[u.ord] AS event_id, a.id AS session_id, a.meeting_id, m.workspace_id,
+         ceil(extract(epoch FROM (a.left_at - a.joined_at)) / 60)::bigint AS minutes
+  FROM unnest($5::text[]) WITH ORDINALITY AS u(session_id, ord)
+  JOIN meeting_attendance_sessions a ON a.id = u.session_id
+  JOIN meetings m ON m.id = a.meeting_id
+  WHERE a.organization_id = $1 AND a.left_at IS NOT NULL
+), recorded AS (
+  INSERT INTO usage_events (id, organization_id, workspace_id, meter_key, delta, actor_id, actor_kind, ref_type, ref_id, idempotency_key)
+  SELECT event_id, $1, workspace_id, $2, minutes,
+         $6, 'system', 'meeting', meeting_id, 'attendance:' || session_id
+  FROM spent
+  WHERE minutes > 0
+  ON CONFLICT (organization_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+  RETURNING delta
+)
+INSERT INTO usage_counters (organization_id, meter_key, period_start, total)
+SELECT $1, $2, $3, sum(delta)::bigint
+FROM recorded
+HAVING count(*) > 0
+ON CONFLICT (organization_id, meter_key, period_start) DO UPDATE SET
+  total = usage_counters.total + EXCLUDED.total,
+  updated_at = now()
+RETURNING organization_id, meter_key, period_start, total, notified_80_at, notified_100_at, updated_at
 `
 
-type MeetingListStatsRow struct {
-	InvitedCount      int64 `json:"invited_count"`
-	AcceptedCount     int64 `json:"accepted_count"`
-	AttendedCount     int64 `json:"attended_count"`
-	JoinRequestCount  int64 `json:"join_request_count"`
-	JoinApprovedCount int64 `json:"join_approved_count"`
-	JoinRejectedCount int64 `json:"join_rejected_count"`
+type MeterAttendanceMinutesParams struct {
+	OrganizationID string             `json:"organization_id"`
+	MeterKey       string             `json:"meter_key"`
+	PeriodStart    pgtype.Timestamptz `json:"period_start"`
+	EventIds       []string           `json:"event_ids"`
+	SessionIds     []string           `json:"session_ids"`
+	ActorID        pgtype.Text        `json:"actor_id"`
 }
 
-// tenant: parent meeting_id
-func (q *Queries) MeetingListStats(ctx context.Context, meetingID string) (MeetingListStatsRow, error) {
-	row := q.db.QueryRow(ctx, meetingListStats, meetingID)
-	var i MeetingListStatsRow
-	err := row.Scan(
-		&i.InvitedCount,
-		&i.AcceptedCount,
-		&i.AttendedCount,
-		&i.JoinRequestCount,
-		&i.JoinApprovedCount,
-		&i.JoinRejectedCount,
+// Records the minutes of one organization's closed room sessions in one
+// statement: a usage event per session (ceil of its minutes, none for a
+// zero-length session), idempotent on attendance:<session id>, and
+// one bump of the period's counter by the minutes that were new. No row back
+// means nothing was new.
+func (q *Queries) MeterAttendanceMinutes(ctx context.Context, arg MeterAttendanceMinutesParams) ([]UsageCounter, error) {
+	rows, err := q.db.Query(ctx, meterAttendanceMinutes,
+		arg.OrganizationID,
+		arg.MeterKey,
+		arg.PeriodStart,
+		arg.EventIds,
+		arg.SessionIds,
+		arg.ActorID,
 	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UsageCounter{}
+	for rows.Next() {
+		var i UsageCounter
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.MeterKey,
+			&i.PeriodStart,
+			&i.Total,
+			&i.Notified80At,
+			&i.Notified100At,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const openAttendanceSession = `-- name: OpenAttendanceSession :one
@@ -2216,7 +2327,7 @@ INSERT INTO meeting_attendance_sessions (
 )
 ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
   provider_event_id = COALESCE(meeting_attendance_sessions.provider_event_id, EXCLUDED.provider_event_id)
-RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id
+RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid, organization_id, metered_at
 `
 
 type OpenAttendanceSessionParams struct {
@@ -2259,6 +2370,7 @@ func (q *Queries) OpenAttendanceSession(ctx context.Context, arg OpenAttendanceS
 		&i.ProviderEventID,
 		&i.ProviderParticipantSid,
 		&i.OrganizationID,
+		&i.MeteredAt,
 	)
 	return i, err
 }
@@ -2544,17 +2656,4 @@ func (q *Queries) UpdateInvitationResponse(ctx context.Context, arg UpdateInvita
 		&i.OrganizationID,
 	)
 	return i, err
-}
-
-const webhookInboxOldestPendingAgeSeconds = `-- name: WebhookInboxOldestPendingAgeSeconds :one
-SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(received_at))), 0)::float8 AS age_seconds
-FROM webhook_inbox
-WHERE status IN ('PENDING', 'PROCESSING')
-`
-
-func (q *Queries) WebhookInboxOldestPendingAgeSeconds(ctx context.Context) (float64, error) {
-	row := q.db.QueryRow(ctx, webhookInboxOldestPendingAgeSeconds)
-	var age_seconds float64
-	err := row.Scan(&age_seconds)
-	return age_seconds, err
 }

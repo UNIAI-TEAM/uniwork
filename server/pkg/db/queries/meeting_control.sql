@@ -247,6 +247,33 @@ UPDATE meeting_conference_sessions SET
 WHERE id = sqlc.arg('id')
 RETURNING *;
 
+-- name: MarkConferenceRoomStarted :execrows
+-- tenant: by-id
+-- room_started at the provider's event time, never in the future; NULL means
+-- now(). A start older than the room's recorded finish is a late retry of a
+-- previous incarnation of the room and changes nothing, and an ended or
+-- failed session is never revived.
+UPDATE meeting_conference_sessions SET
+  status = 'ACTIVE',
+  provider_room_sid = COALESCE(sqlc.narg('provider_room_sid'), provider_room_sid),
+  started_at = LEAST(now(), COALESCE(sqlc.narg('started_at')::timestamptz, now())),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status NOT IN ('ENDED', 'FAILED')
+  AND (ended_at IS NULL OR ended_at <= LEAST(now(), COALESCE(sqlc.narg('started_at')::timestamptz, now())));
+
+-- name: MarkConferenceRoomFinished :execrows
+-- tenant: by-id
+-- room_finished at the provider's event time, never in the future; NULL means
+-- now(). A finish older than the room's recorded start belongs to a previous
+-- incarnation of the room (a retry that arrived after the room came back) and
+-- changes nothing.
+UPDATE meeting_conference_sessions SET
+  status = 'IDLE',
+  ended_at = LEAST(now(), COALESCE(sqlc.narg('ended_at')::timestamptz, now())),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status NOT IN ('ENDED', 'FAILED')
+  AND (started_at IS NULL OR started_at <= LEAST(now(), COALESCE(sqlc.narg('ended_at')::timestamptz, now())));
+
 -- name: MarkConferenceSessionEnsured :one
 -- tenant: by-id
 -- Records a successful provider ensure. A room the webhook already reported
@@ -363,25 +390,25 @@ UPDATE outbox_events SET
   updated_at = now()
 WHERE id = $1;
 
--- name: CloseOpenAttendanceForConference :many
+-- name: CloseOpenAttendanceForConference :execrows
 -- tenant: system
+-- room_finished: every session still open in the room closes at the
+-- provider's event time, clamped to [joined_at, now()]; NULL means now().
 UPDATE meeting_attendance_sessions SET
-  left_at = GREATEST(joined_at, now()),
-  leave_reason = $2
-WHERE conference_session_id = $1 AND left_at IS NULL
-RETURNING *;
+  left_at = GREATEST(joined_at, LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))),
+  leave_reason = sqlc.arg('leave_reason')
+WHERE conference_session_id = sqlc.arg('conference_session_id') AND left_at IS NULL;
 
--- name: CloseOpenAttendanceForMeeting :many
+-- name: CloseOpenAttendanceForMeeting :execrows
 -- tenant: parent meeting_id
 -- Closes every open room session of a meeting. left_at caps the close time —
 -- the meeting's actual_end_at once it has ended — so a late sweep never
 -- stretches a session past the end; NULL closes at now(). A session never
--- closes before it opened.
+-- closes before it opened. The metering sweep picks the closed rows up.
 UPDATE meeting_attendance_sessions SET
   left_at = GREATEST(joined_at, LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))),
   leave_reason = sqlc.arg('leave_reason')
-WHERE meeting_id = sqlc.arg('meeting_id') AND left_at IS NULL
-RETURNING *;
+WHERE meeting_id = sqlc.arg('meeting_id') AND left_at IS NULL;
 
 -- name: ListEndedMeetingsWithOpenAttendance :many
 -- tenant: system
@@ -463,11 +490,6 @@ SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))), 0)::float8 AS age
 FROM outbox_events
 WHERE status IN ('PENDING', 'PROCESSING');
 
--- name: WebhookInboxOldestPendingAgeSeconds :one
-SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(received_at))), 0)::float8 AS age_seconds
-FROM webhook_inbox
-WHERE status IN ('PENDING', 'PROCESSING');
-
 -- name: ListInProgressMeetingsWithIdleSession :many
 -- tenant: system
 SELECT m.id FROM meetings m
@@ -521,7 +543,11 @@ SELECT EXISTS (
 -- (its leave came first and wrote a zero-length session at the leave time)
 -- moves that session's start back to the join's time, so first-join and
 -- minutes present are right. A duplicate join (same time) changes nothing.
-UPDATE meeting_attendance_sessions SET joined_at = sqlc.arg('joined_at')::timestamptz
+-- A moved session that is already closed is metered again (metered_at goes
+-- back to NULL): its zero-length first pass recorded no minutes.
+UPDATE meeting_attendance_sessions SET
+  joined_at = sqlc.arg('joined_at')::timestamptz,
+  metered_at = NULL
 WHERE meeting_id = sqlc.arg('meeting_id') AND participant_id = sqlc.arg('participant_id')
   AND provider_participant_sid = sqlc.arg('provider_participant_sid')
   AND joined_at > sqlc.arg('joined_at')::timestamptz
@@ -558,6 +584,57 @@ UPDATE meeting_attendance_sessions SET
 WHERE id = sqlc.arg('id') AND left_at IS NULL
 RETURNING *;
 
+-- name: ClaimUnmeteredAttendance :many
+-- tenant: system
+-- The metering sweep's batch: closed room sessions whose minutes have not
+-- reached meeting.participant_minutes yet, oldest close first, across
+-- organizations. SKIP LOCKED lets several replicas sweep side by side; the
+-- rows stay locked until the sweep marks them metered in the same
+-- transaction.
+SELECT id, organization_id FROM meeting_attendance_sessions
+WHERE metered_at IS NULL AND left_at IS NOT NULL
+ORDER BY left_at
+LIMIT sqlc.arg('limit_n')
+FOR UPDATE SKIP LOCKED;
+
+-- name: MeterAttendanceMinutes :many
+-- Records the minutes of one organization's closed room sessions in one
+-- statement: a usage event per session (ceil of its minutes, none for a
+-- zero-length session), idempotent on attendance:<session id>, and
+-- one bump of the period's counter by the minutes that were new. No row back
+-- means nothing was new.
+WITH spent AS (
+  SELECT (sqlc.arg('event_ids')::text[])[u.ord] AS event_id, a.id AS session_id, a.meeting_id, m.workspace_id,
+         ceil(extract(epoch FROM (a.left_at - a.joined_at)) / 60)::bigint AS minutes
+  FROM unnest(sqlc.arg('session_ids')::text[]) WITH ORDINALITY AS u(session_id, ord)
+  JOIN meeting_attendance_sessions a ON a.id = u.session_id
+  JOIN meetings m ON m.id = a.meeting_id
+  WHERE a.organization_id = sqlc.arg('organization_id') AND a.left_at IS NOT NULL
+), recorded AS (
+  INSERT INTO usage_events (id, organization_id, workspace_id, meter_key, delta, actor_id, actor_kind, ref_type, ref_id, idempotency_key)
+  SELECT event_id, sqlc.arg('organization_id'), workspace_id, sqlc.arg('meter_key'), minutes,
+         sqlc.arg('actor_id'), 'system', 'meeting', meeting_id, 'attendance:' || session_id
+  FROM spent
+  WHERE minutes > 0
+  ON CONFLICT (organization_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+  RETURNING delta
+)
+INSERT INTO usage_counters (organization_id, meter_key, period_start, total)
+SELECT sqlc.arg('organization_id'), sqlc.arg('meter_key'), sqlc.arg('period_start'), sum(delta)::bigint
+FROM recorded
+HAVING count(*) > 0
+ON CONFLICT (organization_id, meter_key, period_start) DO UPDATE SET
+  total = usage_counters.total + EXCLUDED.total,
+  updated_at = now()
+RETURNING *;
+
+-- name: MarkAttendanceMetered :exec
+-- tenant: system
+-- Closes the sweep's batch: these sessions' minutes are recorded (or there
+-- was nothing to record against).
+UPDATE meeting_attendance_sessions SET metered_at = now()
+WHERE id = ANY(sqlc.arg('ids')::text[]) AND left_at IS NOT NULL;
+
 -- name: CountUniqueAttendees :one
 -- tenant: parent meeting_id
 SELECT count(DISTINCT participant_id)::bigint FROM meeting_attendance_sessions WHERE meeting_id = $1;
@@ -591,13 +668,3 @@ SELECT
 FROM meeting_invite_links l
 JOIN meetings m ON m.id = l.meeting_id
 WHERE m.workspace_id = $1;
-
--- name: MeetingListStats :one
--- tenant: parent meeting_id
-SELECT
-  (SELECT count(*) FROM meeting_participants p WHERE p.meeting_id = $1)::bigint AS invited_count,
-  (SELECT count(*) FROM meeting_invitations i WHERE i.meeting_id = $1 AND i.response_status = 'ACCEPTED')::bigint AS accepted_count,
-  (SELECT count(DISTINCT a.participant_id) FROM meeting_attendance_sessions a WHERE a.meeting_id = $1)::bigint AS attended_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1)::bigint AS join_request_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1 AND j.status = 'APPROVED')::bigint AS join_approved_count,
-  (SELECT count(*) FROM meeting_join_requests j WHERE j.meeting_id = $1 AND j.status = 'REJECTED')::bigint AS join_rejected_count;

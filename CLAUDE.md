@@ -75,6 +75,13 @@ Keep server state and client state separate.
 - Only the auth store and `api/endpoints/*` talk to the transport. Every
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
+  In-room meeting events (chat, transcript, the roll, motions, recordings,
+  the lobby queue) are catalogued `Scope: meeting` and reach only sockets that
+  hold the meeting open: a screen that shows a meeting's in-room data calls
+  `useMeetingScope(meetingId)`, the hub admits it through
+  `MeetingService.AuthorizeMeetingScope` (fail closed), and guests hear their
+  share on the lobby socket. `server/internal/realtime/hub_meeting_scope_test.go`
+  and `TestIsolationRealtime` hold it.
   The frame payload is never written into a store, and into a query only
   through one exception (ADR 0015): the fields the `task.updated` catalogue row
   lists in `Patch` patch a cached record of the task, and only when ALL hold —
@@ -285,6 +292,14 @@ Every command that changes business state writes an `audit_events` row and its
   Direct publish is only for ephemeral signals, and the bar is one sentence:
   losing it costs nobody anything (typing, voice signalling, a transcript line
   the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
+- The dispatcher runs one claim loop per lane (`server/internal/outbox/lane.go`:
+  realtime, notify, provider, push, slow). `Dispatcher.Register` puts a
+  consumer on the realtime lane, which is only for consumers that touch
+  memory, Redis or one indexed read; a consumer that waits on a third party or
+  fans out across tables uses `RegisterLane`. A topic runs on the slowest lane
+  among its consumers, and one row's consumers run concurrently.
+  `TestSlowLaneDoesNotDelayARealtimeRow` and
+  `TestLanesDeliverEachRowOnceAcrossNodes` hold it.
 - Event names are `<entity>.<verb>`; the version is the `event_version` column,
   never part of the name. Client-visible payloads carry ids only, except on a
   catalogue row that lists fields in `Patch` — today only `task.updated`
@@ -409,8 +424,9 @@ database and never reveal whether an id exists to a non-member.
 - Rate limits exist only with Redis and are keyed by path plus the client IP
   or a verified identity (`mw.RateLimitByIdentity`): the global limiter
   checks the bearer token itself, the in-room meeting limiters use the
-  `OptionalAuth` user or an HMAC-signed guest session, and anything
-  unverified falls back to the IP. Each limiter Redis call gives up after
+  `OptionalAuth` user or an HMAC-signed guest session, the chat
+  presence/typing limiter uses the bearer user, and anything unverified falls
+  back to the IP. Each limiter Redis call gives up after
   100ms and fails open. The LiveKit webhook skips the global limiter; the
   credential routes carry their own small budget in
   `server/internal/handler/router/router.go`, whose tests pin all of it.

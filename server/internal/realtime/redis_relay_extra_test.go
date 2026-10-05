@@ -208,13 +208,20 @@ func TestRedisRelayPublishWrappersSuccess(t *testing.T) {
 	anyMock := allowAnyRedisCommand(mock)
 	relay := NewRedisRelay(hub, rdb)
 
-	// One XADD per publish wrapper plus PublishWithID.
+	// One XADD (pipelined with the stream's EXPIRE) per publish wrapper
+	// plus PublishWithID.
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey(ScopeWorkspace, "ws1"))).SetVal("1-0")
+	anyMock.ExpectExpire(StreamKey(ScopeWorkspace, "ws1"), streamIdleTTL).SetVal(true)
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey(ScopeWorkspace, "ws1"))).SetVal("2-0")
+	anyMock.ExpectExpire(StreamKey(ScopeWorkspace, "ws1"), streamIdleTTL).SetVal(true)
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey(ScopeUser, "u1"))).SetVal("3-0")
+	anyMock.ExpectExpire(StreamKey(ScopeUser, "u1"), streamIdleTTL).SetVal(true)
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey(ScopeUser, "u1"))).SetVal("4-0")
+	anyMock.ExpectExpire(StreamKey(ScopeUser, "u1"), streamIdleTTL).SetVal(true)
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey("global", "all"))).SetVal("5-0")
+	anyMock.ExpectExpire(StreamKey("global", "all"), streamIdleTTL).SetVal(true)
 	anyMock.ExpectXAdd(dummyXAddArgs(StreamKey(ScopeTask, "t1"))).SetVal("6-0")
+	anyMock.ExpectExpire(StreamKey(ScopeTask, "t1"), streamIdleTTL).SetVal(true)
 
 	relay.BroadcastToScope(ScopeWorkspace, "ws1", []byte(`{"type":"a"}`))
 	relay.BroadcastToWorkspace("ws1", []byte(`{"type":"b"}`))
@@ -309,6 +316,8 @@ func TestRedisRelayStartConsumerBranches(t *testing.T) {
 	liveGroup := "node:live-node-1"
 	wAny.ExpectXGroupCreateMkStream(liveStream, liveGroup, "$").SetVal("OK")
 	wAny.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-live"), redis.Z{}).SetVal(1)
+	wAny.ExpectExpire(NodesKey(ScopeWorkspace, "ws-live"), streamIdleTTL).SetVal(true)
+	wAny.ExpectExpire(StreamKey(ScopeWorkspace, "ws-live"), streamIdleTTL).SetVal(true)
 	rAny.ExpectXReadGroup(&redis.XReadGroupArgs{
 		Group: liveGroup, Consumer: "live-node-1",
 		Streams: []string{liveStream, ">"}, Count: 32, Block: 5 * time.Second,
@@ -421,6 +430,8 @@ func TestRedisRelayHeartbeatOnce(t *testing.T) {
 	relay := NewRedisRelay(hub2, rdb)
 	anyMock.ExpectSet(HeartbeatKey(relay.NodeID()), "v", heartbeatTTL).SetVal("OK")
 	anyMock.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-hb"), redis.Z{}).SetVal(1)
+	anyMock.ExpectExpire(NodesKey(ScopeWorkspace, "ws-hb"), streamIdleTTL).SetVal(true)
+	anyMock.ExpectExpire(StreamKey(ScopeWorkspace, "ws-hb"), streamIdleTTL).SetVal(true)
 	relay.heartbeatOnce(context.Background())
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -576,6 +587,8 @@ func TestRedisRelayStartPingBranches(t *testing.T) {
 	// startConsumer for the pre-existing scope: group create + node registry.
 	wAny4.ExpectXGroupCreateMkStream(stream4, "node:start-node-1", "$").SetVal("OK")
 	wAny4.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-start"), redis.Z{}).SetVal(1)
+	wAny4.ExpectExpire(NodesKey(ScopeWorkspace, "ws-start"), streamIdleTTL).SetVal(true)
+	wAny4.ExpectExpire(StreamKey(ScopeWorkspace, "ws-start"), streamIdleTTL).SetVal(true)
 	// Blocking read returns nothing; further reads error out and back off
 	// until the test cancels below.
 	rAny4.ExpectXReadGroup(&redis.XReadGroupArgs{
@@ -585,6 +598,8 @@ func TestRedisRelayStartPingBranches(t *testing.T) {
 	// Heartbeat (runs concurrently with the consumer read above).
 	wAny4.ExpectSet(HeartbeatKey("start-node-1"), "v", heartbeatTTL).SetVal("OK")
 	wAny4.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-start"), redis.Z{}).SetVal(1)
+	wAny4.ExpectExpire(NodesKey(ScopeWorkspace, "ws-start"), streamIdleTTL).SetVal(true)
+	wAny4.ExpectExpire(StreamKey(ScopeWorkspace, "ws-start"), streamIdleTTL).SetVal(true)
 	ctx4, cancel4 := context.WithCancel(context.Background())
 	relay4.Start(ctx4)
 	waitForExpectations(t, wmock4, rmock4)
@@ -608,6 +623,8 @@ func TestRedisRelayRunConsumerDeliversAndAcks(t *testing.T) {
 
 	wAny.ExpectXGroupCreateMkStream(stream, group, "$").SetVal("OK")
 	wAny.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-consumer"), redis.Z{}).SetVal(1)
+	wAny.ExpectExpire(NodesKey(ScopeWorkspace, "ws-consumer"), streamIdleTTL).SetVal(true)
+	wAny.ExpectExpire(StreamKey(ScopeWorkspace, "ws-consumer"), streamIdleTTL).SetVal(true)
 	rAny.ExpectXReadGroup(&redis.XReadGroupArgs{
 		Group: group, Consumer: "consumer-node-1",
 		Streams: []string{stream, ">"}, Count: 32, Block: 5 * time.Second,
@@ -623,8 +640,9 @@ func TestRedisRelayRunConsumerDeliversAndAcks(t *testing.T) {
 	}})
 	wAny.ExpectXAck(stream, group, "1-0").SetVal(1)
 	// No cleanup expectation: after the ack the loop issues another read
-	// with no expectation queued, hits the error backoff, and the cancel
-	// below lands in that backoff (which returns without cleanup).
+	// with no expectation queued and hits the error backoff; the cancel
+	// below lands there, and the group cleanup that follows fails against
+	// the exhausted mock, which the relay only logs.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &scopeConsumer{done: make(chan struct{})}
@@ -665,9 +683,11 @@ func TestRedisRelayRunConsumerCleanupOnCancelledContext(t *testing.T) {
 
 	wAny.ExpectXGroupCreateMkStream(stream, group, "$").SetVal("OK")
 	wAny.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-cleanup"), redis.Z{}).SetVal(1)
-	// The loop observes the already-cancelled context at the top and runs
-	// the best-effort consumer cleanup before returning.
-	wAny.ExpectXGroupDelConsumer(stream, group, "cleanup-node-1").SetVal(1)
+	wAny.ExpectExpire(NodesKey(ScopeWorkspace, "ws-cleanup"), streamIdleTTL).SetVal(true)
+	wAny.ExpectExpire(StreamKey(ScopeWorkspace, "ws-cleanup"), streamIdleTTL).SetVal(true)
+	// The loop observes the already-cancelled context at the top and drops
+	// this node's group before returning.
+	wAny.ExpectXGroupDestroy(stream, group).SetVal(1)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -696,9 +716,13 @@ func TestRedisRelayRunConsumerAckErrorAndBusyGroup(t *testing.T) {
 	stream := StreamKey(ScopeWorkspace, "ws-busy")
 	group := "node:busy-node-1"
 
-	// BUSYGROUP from a pre-existing group is ignored.
+	// A pre-existing group (BUSYGROUP) is moved to the tail, not read from
+	// where it stopped.
 	wAny.ExpectXGroupCreateMkStream(stream, group, "$").SetErr(errors.New("BUSYGROUP Consumer Group name already exists"))
+	wAny.ExpectXGroupSetID(stream, group, "$").SetVal("OK")
 	wAny.ExpectZAdd(NodesKey(ScopeWorkspace, "ws-busy"), redis.Z{}).SetVal(1)
+	wAny.ExpectExpire(NodesKey(ScopeWorkspace, "ws-busy"), streamIdleTTL).SetVal(true)
+	wAny.ExpectExpire(StreamKey(ScopeWorkspace, "ws-busy"), streamIdleTTL).SetVal(true)
 	rAny.ExpectXReadGroup(&redis.XReadGroupArgs{
 		Group: group, Consumer: "busy-node-1",
 		Streams: []string{stream, ">"}, Count: 32, Block: 5 * time.Second,
@@ -715,7 +739,8 @@ func TestRedisRelayRunConsumerAckErrorAndBusyGroup(t *testing.T) {
 	// Failed ack is logged and skipped.
 	wAny.ExpectXAck(stream, group, "2-0").SetErr(errors.New("ack down"))
 	// No cleanup expectation: the cancel below lands in the error backoff
-	// after the loop exhausts the queued read (see the test above).
+	// after the loop exhausts the queued read (see the test above), and the
+	// failing group cleanup is only logged.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &scopeConsumer{done: make(chan struct{})}

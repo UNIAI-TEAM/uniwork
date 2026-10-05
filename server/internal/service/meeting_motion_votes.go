@@ -21,13 +21,6 @@ func motionTimelinePayload(fields map[string]string) (string, error) {
 	return string(b), nil
 }
 
-// isMeetingClerk is requireMeetingClerk as a yes/no, for read paths that only
-// widen what they show.
-func (s *MeetingService) isMeetingClerk(ctx context.Context, userID, meetingID string) bool {
-	_, err := s.requireMeetingClerk(ctx, userID, meetingID)
-	return err == nil
-}
-
 // activeParticipantID is the caller's active participant row in the meeting,
 // "" when they have none (a workspace member who never joined, someone
 // removed). Pool reads: call it before a transaction, never inside one.
@@ -60,10 +53,6 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 	}
 	if m.Status != MeetingInProgress {
 		return db.MeetingMotion{}, errInvalidState()
-	}
-	orgID, err := s.organizationOf(ctx, m)
-	if err != nil {
-		return db.MeetingMotion{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -102,7 +91,8 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 	// Total members and the roll are over the people still in the meeting:
 	// a finalized roll's snapshot keeps removed members in its own count, and
 	// lists those who joined after it uncounted — neither may vote here.
-	roll, totalMembers := 0, 0
+	var ids, voters []string
+	totalMembers := 0
 	for _, r := range rep.Rows {
 		if !r.onRoll() {
 			continue
@@ -111,12 +101,18 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 		if r.Status != AttendancePresent && r.Status != AttendanceLate {
 			continue
 		}
-		if err := q.InsertMeetingMotionBallot(ctx, db.InsertMeetingMotionBallotParams{
-			ID: util.NewID(), OrganizationID: orgID, MeetingID: m.ID, MotionID: mo.ID, ParticipantID: r.Participant.ID,
+		ids = append(ids, util.NewID())
+		voters = append(voters, r.Participant.ID)
+	}
+	roll := len(voters)
+	// One statement for the whole roll: the meeting row is locked meanwhile,
+	// so a 500-member roll must not cost 500 round trips under it.
+	if roll > 0 {
+		if err := q.InsertMeetingMotionBallots(ctx, db.InsertMeetingMotionBallotsParams{
+			Ids: ids, OrganizationID: m.OrganizationID, MeetingID: m.ID, MotionID: mo.ID, ParticipantIds: voters,
 		}); err != nil {
 			return db.MeetingMotion{}, err
 		}
-		roll++
 	}
 	opened, err := q.OpenMeetingMotion(ctx, db.OpenMeetingMotionParams{
 		OpenedBy: strText(actorID), TotalMembers: int32(totalMembers), RollSize: int32(roll), ID: mo.ID,
@@ -214,11 +210,18 @@ func (s *MeetingService) closeMotionTx(ctx context.Context, q *db.Queries, m db.
 // cast_at: the choice goes into the motion's counters and nowhere else, so
 // no row, audit entry, event or log line ties a person to it. Never log
 // choice here.
+//
+// Every read that does not need the motion lock happens before it: the gate,
+// the meeting row and the caller's participant row. Under the lock there is
+// only the cast-and-count (one statement for a public ballot, two for a
+// secret one) and the audit row with its event, so a burst of ballots on one
+// motion queues on as little as possible.
 func (s *MeetingService) CastBallot(ctx context.Context, userID, guestID, meetingID, motionID, choice string) error {
 	if !validChoice(choice) {
 		return Invalid("lựa chọn phải là YES, NO hoặc ABSTAIN")
 	}
-	if _, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID); err != nil {
+	m, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID)
+	if err != nil {
 		return err
 	}
 	pid := s.activeParticipantID(ctx, userID, guestID, meetingID)
@@ -235,30 +238,37 @@ func (s *MeetingService) CastBallot(ctx context.Context, userID, guestID, meetin
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	// Only the motion row is locked; the meeting is read plainly after it, so
-	// End (meeting row, then motions) cannot deadlock against a ballot.
-	mo, err := q.LockMeetingMotion(ctx, db.LockMeetingMotionParams{ID: motionID, MeetingID: meetingID})
+	// Only the motion row is locked, never the meeting, so End (meeting row,
+	// then motions) cannot deadlock against a ballot.
+	mo, err := q.LockMeetingMotion(ctx, db.LockMeetingMotionParams{ID: motionID, MeetingID: m.ID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
+	// The meeting was read before the lock; that is still sound under it: End
+	// closes every open motion in the transaction that ends the meeting
+	// (meeting row, then motions), so a motion OPEN under our lock belongs to
+	// a meeting still in progress. It is judged after the motion, in the order
+	// the answers always had, so another tenant's motion id is a 404, never a
+	// state answer about this meeting.
 	if mo.Status != MotionOpen {
 		return errMotionNotOpen()
-	}
-	m, err := q.GetMeeting(ctx, meetingID)
-	if err != nil {
-		return err
 	}
 	if m.Status != MeetingInProgress {
 		return errInvalidState()
 	}
 	var n int64
 	if mo.BallotMode == BallotSecret {
+		// Two statements on purpose: the one naming the voter never carries
+		// the choice, the one carrying the choice names only the motion.
 		n, err = q.CastSecretMeetingBallot(ctx, db.CastSecretMeetingBallotParams{MotionID: mo.ID, ParticipantID: pid})
+		if err == nil && n == 1 {
+			err = q.CountSecretMeetingMotionVote(ctx, db.CountSecretMeetingMotionVoteParams{Choice: choice, ID: mo.ID})
+		}
 	} else {
-		n, err = q.CastPublicMeetingBallot(ctx, db.CastPublicMeetingBallotParams{Choice: strText(choice), MotionID: mo.ID, ParticipantID: pid})
+		n, err = q.CastPublicMeetingBallot(ctx, db.CastPublicMeetingBallotParams{Choice: choice, MotionID: mo.ID, ParticipantID: pid})
 	}
 	if err != nil {
 		return err
@@ -271,9 +281,6 @@ func (s *MeetingService) CastBallot(ctx context.Context, userID, guestID, meetin
 			return err
 		}
 		return errAlreadyVoted()
-	}
-	if err := q.CountMeetingMotionVote(ctx, db.CountMeetingMotionVoteParams{Choice: choice, ID: mo.ID}); err != nil {
-		return err
 	}
 	var changes map[string]audit.Change
 	if mo.BallotMode == BallotPublic {

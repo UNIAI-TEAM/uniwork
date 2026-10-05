@@ -75,36 +75,62 @@ UPDATE meeting_motions SET
 WHERE id = sqlc.arg('id') AND status = 'DRAFT'
 RETURNING *;
 
--- name: InsertMeetingMotionBallot :exec
--- One roll row per eligible member; choice and cast_at stay NULL until the vote.
+-- name: InsertMeetingMotionBallots :exec
+-- The whole roll in one statement: one row per eligible member. Two unnests
+-- in one select list advance together, so ids[i] goes with participant_ids[i]
+-- (the arrays are always the same length). choice and cast_at stay NULL until
+-- the vote.
 INSERT INTO meeting_motion_ballots (id, organization_id, meeting_id, motion_id, participant_id)
-VALUES ($1, $2, $3, $4, $5);
+SELECT
+  unnest(sqlc.arg('ids')::text[]),
+  sqlc.arg('organization_id')::text,
+  sqlc.arg('meeting_id')::text,
+  sqlc.arg('motion_id')::text,
+  unnest(sqlc.arg('participant_ids')::text[]);
 
 -- name: CastPublicMeetingBallot :execrows
 -- tenant: parent motion_id
--- Zero rows: not on the roll, or already voted (the caller tells them apart).
-UPDATE meeting_motion_ballots SET cast_at = now(), choice = sqlc.arg('choice')
-WHERE motion_id = sqlc.arg('motion_id') AND participant_id = sqlc.arg('participant_id') AND cast_at IS NULL;
+-- Fills the blank ballot and counts it in one statement. Zero rows: not on
+-- the roll, or already voted (the caller tells them apart). The caller holds
+-- the motion row (LockMeetingMotion), so the count cannot race a close.
+WITH cast_ballot AS (
+  UPDATE meeting_motion_ballots SET cast_at = now(), choice = sqlc.arg('choice')::text
+  WHERE motion_id = sqlc.arg('motion_id') AND participant_id = sqlc.arg('participant_id') AND cast_at IS NULL
+  RETURNING motion_id
+)
+UPDATE meeting_motions SET
+  yes_count = yes_count + CASE WHEN sqlc.arg('choice')::text = 'YES' THEN 1 ELSE 0 END,
+  no_count = no_count + CASE WHEN sqlc.arg('choice')::text = 'NO' THEN 1 ELSE 0 END,
+  abstain_count = abstain_count + CASE WHEN sqlc.arg('choice')::text = 'ABSTAIN' THEN 1 ELSE 0 END,
+  updated_at = now()
+FROM cast_ballot
+WHERE meeting_motions.id = cast_ballot.motion_id;
 
 -- name: CastSecretMeetingBallot :execrows
 -- tenant: parent motion_id
--- A secret ballot records only that the member voted: choice is never written,
--- the vote lands in the motion's counters (CountMeetingMotionVote) instead.
+-- A secret ballot records only that the member voted: choice is never written
+-- to the ballot, and never sent in the same statement as the participant, so
+-- no statement log that keeps parameters can tie the two together. The vote
+-- lands in the counters through CountSecretMeetingMotionVote. Zero rows: not
+-- on the roll, or already voted (the caller tells them apart).
 UPDATE meeting_motion_ballots SET cast_at = now()
 WHERE motion_id = sqlc.arg('motion_id') AND participant_id = sqlc.arg('participant_id') AND cast_at IS NULL;
 
--- name: GetMeetingMotionBallot :one
--- tenant: parent motion_id
-SELECT * FROM meeting_motion_ballots WHERE motion_id = $1 AND participant_id = $2;
-
--- name: CountMeetingMotionVote :exec
+-- name: CountSecretMeetingMotionVote :exec
 -- tenant: by-id
+-- The secret choice, by motion only. The caller holds the motion row
+-- (LockMeetingMotion) and calls this only after CastSecretMeetingBallot
+-- stamped a ballot in the same transaction.
 UPDATE meeting_motions SET
   yes_count = yes_count + CASE WHEN sqlc.arg('choice')::text = 'YES' THEN 1 ELSE 0 END,
   no_count = no_count + CASE WHEN sqlc.arg('choice')::text = 'NO' THEN 1 ELSE 0 END,
   abstain_count = abstain_count + CASE WHEN sqlc.arg('choice')::text = 'ABSTAIN' THEN 1 ELSE 0 END,
   updated_at = now()
 WHERE id = sqlc.arg('id');
+
+-- name: GetMeetingMotionBallot :one
+-- tenant: parent motion_id
+SELECT * FROM meeting_motion_ballots WHERE motion_id = $1 AND participant_id = $2;
 
 -- name: CloseMeetingMotion :one
 -- tenant: by-id
@@ -127,13 +153,19 @@ SELECT * FROM meeting_motions WHERE meeting_id = $1 AND status = 'OPEN' ORDER BY
 -- tenant: parent meeting_id
 SELECT * FROM meeting_motion_ballots WHERE meeting_id = $1 AND participant_id = $2;
 
--- name: ListPublicMeetingVoters :many
--- tenant: parent meeting_id
+-- name: GetMeetingMotion :one
+-- tenant: by-id
+-- A plain read for the voters panel; scoped by meeting like LockMeetingMotion.
+SELECT * FROM meeting_motions WHERE id = sqlc.arg('id') AND meeting_id = sqlc.arg('meeting_id');
+
+-- name: ListPublicMotionVoters :many
+-- tenant: parent motion_id
+-- One motion's named ballots, loaded only when someone opens its result.
 -- Secret ballots never carry a choice, so they fall out of choice IS NOT NULL.
-SELECT b.motion_id, b.choice, p.display_name_snapshot
+SELECT b.choice, p.display_name_snapshot
 FROM meeting_motion_ballots b
 JOIN meeting_participants p ON p.id = b.participant_id
-WHERE b.meeting_id = $1 AND b.cast_at IS NOT NULL AND b.choice IS NOT NULL
+WHERE b.motion_id = $1 AND b.cast_at IS NOT NULL AND b.choice IS NOT NULL
 ORDER BY b.cast_at;
 
 -- name: ListClosedMeetingMotions :many
