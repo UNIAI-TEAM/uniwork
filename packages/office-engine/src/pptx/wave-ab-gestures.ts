@@ -28,6 +28,7 @@ import { buildFormatOps, type FormatEdit } from "./edits/format-edits";
 import { buildHeaderFooterOps, type HeaderFooterEdit } from "./edits/headerfooter-edits";
 import { buildMediaOps, type MediaEdit } from "./edits/media-edits";
 import { buildNotesCommentOps, type NotesCommentEdit } from "./edits/notes-comment-edits";
+import { planStaleNotesShapeRemoval } from "./notes-read";
 import { buildSectionOps, type SectionEdit } from "./edits/section-edits";
 import { buildTableOps, type TableEdit } from "./edits/table-edits";
 import { buildTextOps, type TextEdit } from "./edits/text-edits";
@@ -374,7 +375,14 @@ export function distributeElementsGesture(
 
 /** set_notes -> buildNotesCommentOps.setNotes (slide-ops.ts:664). */
 export function setNotesGesture(model: WaveGestureModel, edit: Extract<NotesCommentEdit, { op: "set_notes" }>): void {
-  model.runBuiltTxn(buildNotesCommentOps(model.opened, model.fitWidthPx, edit));
+  const ops = buildNotesCommentOps(model.opened, model.fitWidthPx, edit);
+  // A placeholder-less notes part keeps its old text shape under the vendored
+  // write: drop it once the edit applied so the notes replace it (X6, F1).
+  const slide = model.opened.deck.slides[edit.slideIndex];
+  const slidePath = slide?.path;
+  const dropStale = typeof slidePath === "string" ? planStaleNotesShapeRemoval(model.opened.archive, slidePath) : null;
+  model.runBuiltTxn(ops);
+  dropStale?.();
 }
 
 /** add_comment -> buildNotesCommentOps.addComment (slide-ops.ts:679). */

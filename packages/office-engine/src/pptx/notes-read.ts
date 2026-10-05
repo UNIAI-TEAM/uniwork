@@ -47,13 +47,21 @@ function notesPartOf(archive: PptxArchiveLike, slidePath: string): string | null
   return null;
 }
 
-/** @public - notes text of a notes part that has no body placeholder ('' otherwise). */
-export function readPptxNotesWithoutBodyPlaceholder(archive: PptxArchiveLike | undefined, slidePath: string): string {
+interface NotesShapeHit {
+  notesPath: string;
+  /** The shape's XML exactly as it sits in the part. */
+  shape: string;
+  text: string;
+}
+
+/** The shape the fallback read answers from: the first non-placeholder shape
+ * carrying text, in a notes part that has no body placeholder. */
+function findFallbackNotesShape(archive: PptxArchiveLike | undefined, slidePath: string): NotesShapeHit | null {
   const notesPath = archive ? notesPartOf(archive, slidePath) : null;
   const xml = notesPath ? archive?.readText?.(notesPath) : undefined;
-  if (!xml) return "";
+  if (!notesPath || !xml) return null;
   const shapes = [...xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)].map((m) => m[0]);
-  if (shapes.some((shape) => /<p:ph\b[^>]*type="body"/.test(shape))) return "";
+  if (shapes.some((shape) => /<p:ph\b[^>]*type="body"/.test(shape))) return null;
   for (const shape of shapes) {
     if (/<p:ph\b/.test(shape)) continue;
     const body = /<p:txBody>([\s\S]*?)<\/p:txBody>/.exec(shape)?.[1];
@@ -62,7 +70,33 @@ export function readPptxNotesWithoutBodyPlaceholder(archive: PptxArchiveLike | u
       [...p[1]!.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((t) => unescapeXml(t[1]!)).join(""),
     );
     while (paragraphs.length > 0 && paragraphs[paragraphs.length - 1] === "") paragraphs.pop();
-    if (paragraphs.length > 0) return paragraphs.join("\n");
+    if (paragraphs.length > 0) return { notesPath, shape, text: paragraphs.join("\n") };
   }
-  return "";
+  return null;
+}
+
+/** @public - notes text of a notes part that has no body placeholder ('' otherwise). */
+export function readPptxNotesWithoutBodyPlaceholder(archive: PptxArchiveLike | undefined, slidePath: string): string {
+  return findFallbackNotesShape(archive, slidePath)?.text ?? "";
+}
+
+/** The write half of the fallback (X6, X1-review F1). The vendored setSlideNotes
+ * appends a body-placeholder shape to a notes part that has none and leaves the
+ * free-standing text shape in place, so the saved page would show the old note
+ * next to the new one. Call this BEFORE the vendored write: it returns null
+ * when the part is fine, otherwise a function that, run after the write
+ * succeeded, removes the stale shape - the edited notes then live in one body
+ * shape only. Deterministic, so undo (reopen + journal replay) and redo
+ * reproduce it. */
+export function planStaleNotesShapeRemoval(archive: PptxArchiveLike | undefined, slidePath: string): (() => void) | null {
+  const hit = findFallbackNotesShape(archive, slidePath);
+  if (!hit || !archive) return null;
+  return () => {
+    const xml = archive.readText?.(hit.notesPath);
+    if (!xml || !xml.includes(hit.shape)) return;
+    const bytes = new TextEncoder().encode(xml.replace(hit.shape, () => ""));
+    const entries = archive.entries;
+    if (entries instanceof Map) entries.set(hit.notesPath, bytes);
+    else if (entries) entries[hit.notesPath] = bytes;
+  };
 }

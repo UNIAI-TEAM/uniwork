@@ -3,7 +3,7 @@
 // real-engine round trips live in apps/web/platform/office/pptx-runtime.real.test.ts.
 import { describe, expect, it } from "vitest";
 import { createPptxAdapter, readPptxSlideAnimations, readPptxSlideTransition, type OpenedPptxLike } from "../src/pptx";
-import { readPptxNotesWithoutBodyPlaceholder } from "../src/pptx/notes-read";
+import { planStaleNotesShapeRemoval, readPptxNotesWithoutBodyPlaceholder } from "../src/pptx/notes-read";
 import { createFakePptxOps } from "./fake-pptx-engine";
 import { makeFakePptxBytes } from "./fake-pptx-fixtures";
 
@@ -47,7 +47,7 @@ describe("readPptxSlideAnimations", () => {
       effect('presetID="77" presetClass="entr" presetSubtype="0"', target(2, 500)),
       effect('presetID="10" presetClass="entr"', "<p:set/>"),
     ].join("");
-    const read = readPptxSlideAnimations({ bodySuffix: suffix(timing(effects)), elements: [element("a", 2), element("b", 3), { id: "c", type: "pic" }] });
+    const read = readPptxSlideAnimations({ bodySuffix: suffix(timing(effects)), elements: [element("a", 2), element("b", 3), { id: "c" }] });
     expect(read.map(({ spid, elementId, effect: kind, trigger, durationMs, delayMs }) => [spid, elementId, kind, trigger, durationMs, delayMs])).toEqual([
       [2, "a", "fade", "onClick", 500, 0],
       [3, "b", "zoom", "afterPrev", 400, 200],
@@ -131,5 +131,36 @@ describe("PptxAdapter live-slide reads (X1)", () => {
     expect(vendored.adapter.slideNotes(vendored.ref, 0)).toBe("Body note");
     const unbound = await open();
     expect(() => unbound.adapter.slideNotes(unbound.ref, 0)).toThrow(/notes_unbound|no speaker-notes read/);
+  });
+});
+
+describe("planStaleNotesShapeRemoval (X6)", () => {
+  const slide = "ppt/slides/slide1.xml";
+  const part = "ppt/notesSlides/notesSlide1.xml";
+  const archiveWith = (xml: string) => {
+    const entries = new Map<string, Uint8Array>([[part, new TextEncoder().encode(xml)]]);
+    const files = { "ppt/slides/_rels/slide1.xml.rels": rels("../notesSlides/notesSlide1.xml") };
+    return {
+      entries,
+      readText: (path: string) => (path === part ? new TextDecoder().decode(entries.get(part)) : (files as Record<string, string>)[path]),
+    };
+  };
+  const stale = sp("", "<a:p><a:r><a:t>old</a:t></a:r></a:p>");
+
+  it("drops only the shape the fallback read answers from, after the write", () => {
+    const keep = sp('<p:ph type="sldImg"/>', "<a:p><a:r><a:t>image</a:t></a:r></a:p>");
+    const archive = archiveWith(notesXml(keep + stale));
+    const drop = planStaleNotesShapeRemoval(archive, slide);
+    expect(drop).not.toBeNull();
+    expect(archive.readText(part)).toContain("old");
+    drop!();
+    expect(archive.readText(part)).toBe(notesXml(keep));
+  });
+
+  it("plans nothing for a part with a body placeholder, no text shape, no notes part", () => {
+    expect(planStaleNotesShapeRemoval(archiveWith(notesXml(sp('<p:ph type="body" idx="1"/>', "<a:p/>") + stale)), slide)).toBeNull();
+    expect(planStaleNotesShapeRemoval(archiveWith(notesXml(sp("", "<a:p></a:p>"))), slide)).toBeNull();
+    expect(planStaleNotesShapeRemoval(archiveOf({}), slide)).toBeNull();
+    expect(planStaleNotesShapeRemoval(undefined, slide)).toBeNull();
   });
 });
