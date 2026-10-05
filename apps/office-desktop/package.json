@@ -20,6 +20,9 @@
     "test": "vitest run --passWithNoTests=false --coverage && node --test scripts/package.test.mjs scripts/release-inventory.test.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
+    "@fontsource-variable/plus-jakarta-sans": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/office-contracts": "workspace:*",
     "@uniwork/office-engine": "workspace:*",
