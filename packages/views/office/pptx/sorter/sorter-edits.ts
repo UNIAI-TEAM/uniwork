@@ -5,6 +5,7 @@
  * already registered in `PPTX_EDIT_REGISTRY` (`packages/office-engine/src/pptx/model.ts`):
  *
  *   new slide      -> add_slide_with_layout   (vendored addSlideWithLayout)
+ *   blank slide    -> add_blank_slide         (addBlankSlide)
  *   duplicate      -> duplicate_slide         (duplicateSlide)
  *   delete         -> delete_slide            (deleteSlide)
  *   hide / show    -> set_slide_hidden        (setHidden)
@@ -26,6 +27,13 @@ export function addSlideEdit(layoutIndex: number, afterIndex: number): PptxEdit 
   if (!Number.isInteger(layoutIndex) || layoutIndex < 0) return null;
   if (!Number.isInteger(afterIndex) || afterIndex < 0) return null;
   return { op: "add_slide_with_layout", layout: layoutIndex, slideIndex: afterIndex };
+}
+
+/** A blank slide after `afterIndex` (vendored addBlankSlide). Needs no layout
+ *  catalog, so a deck can always gain a slide (F-03). */
+export function addBlankSlideEdit(afterIndex: number): PptxEdit | null {
+  if (!Number.isInteger(afterIndex) || afterIndex < 0) return null;
+  return { op: "add_blank_slide", slideIndex: afterIndex };
 }
 
 /** Duplicate one slide (text kept - the sorter duplicates the whole slide). */

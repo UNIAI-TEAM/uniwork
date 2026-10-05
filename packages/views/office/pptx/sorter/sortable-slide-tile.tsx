@@ -75,7 +75,7 @@ export function PptxSortableSlideTile({
         )}
       </button>
       <div className="flex min-w-0 items-center justify-between gap-1 px-0.5">
-        <span className="min-w-0 truncate text-caption font-medium">
+        <span className="line-clamp-2 min-w-0 break-words text-caption font-medium" data-pptx-sorter-tile-label>
           {t("office.pptx.sorter.slide_label", {
             index: index + 1,
             label: slide.label ? `: ${slide.label}` : "",

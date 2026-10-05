@@ -49,6 +49,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
+  addBlankSlideEdit,
   addSectionEdit,
   addSlideEdit,
   deleteSlideEdit,
@@ -117,6 +118,10 @@ export function PptxSorterPanel({
     layouts ? { status: "ready", layouts } : { status: "idle" },
   );
   const layoutRequest = useRef<Promise<unknown> | null>(null);
+  // The slide an applied insert/duplicate created, selected once the deck the
+  // host re-reads actually holds it (F-13): selecting before the slide list
+  // grows would clamp onto the old last slide.
+  const pendingSelect = useRef<number | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const count = slides.length;
@@ -174,20 +179,34 @@ export function PptxSorterPanel({
     [count, onSelectSlide],
   );
 
+  useEffect(() => {
+    const target = pendingSelect.current;
+    if (target === null || target >= count) return;
+    pendingSelect.current = null;
+    selectSlide(target);
+  }, [count, selectSlide]);
+
   const runEdit = useCallback(
-    async (edits: readonly PptxEdit[]) => {
+    async (edits: readonly PptxEdit[], selectAfter?: number) => {
       if (!onEdit || edits.length === 0) return;
       setPending(true);
       setEditError(null);
       try {
         await onEdit(edits);
+        if (selectAfter !== undefined) {
+          // The new slide sits right after the source; if the host already
+          // re-read the deck it is selectable now, otherwise the count effect
+          // selects it when the longer slide list arrives.
+          if (selectAfter < count) selectSlide(selectAfter);
+          else pendingSelect.current = selectAfter;
+        }
       } catch (failure) {
         setEditError(failure instanceof Error ? failure.message : String(failure));
       } finally {
         setPending(false);
       }
     },
-    [onEdit],
+    [count, onEdit, selectSlide],
   );
 
   const onReorder = useCallback(
@@ -213,10 +232,15 @@ export function PptxSorterPanel({
       const value = layoutPickerValue(layoutsState.status === "ready" ? layoutsState.layouts : [], layoutIndex);
       if (value === null) return;
       const edit = addSlideEdit(value, selectedIndex);
-      if (edit) void runEdit([edit]);
+      if (edit) void runEdit([edit], selectedIndex + 1);
     },
     [layoutsState, runEdit, selectedIndex],
   );
+
+  const addBlankSlide = useCallback(() => {
+    const edit = addBlankSlideEdit(selectedIndex);
+    if (edit) void runEdit([edit], selectedIndex + 1);
+  }, [runEdit, selectedIndex]);
 
   const addSection = useCallback(
     (atSlideIndex: number) => {
@@ -232,7 +256,7 @@ export function PptxSorterPanel({
   const grid = useMemo(
     () => (
       <ul
-        className="grid min-h-0 grid-cols-2 content-start gap-3 overflow-y-auto p-1 sm:grid-cols-3 lg:grid-cols-4"
+        className="grid min-h-0 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] content-start gap-3 overflow-y-auto p-1"
         aria-label={t("office.pptx.sorter.grid_label")}
         data-pptx-sorter-grid
       >
@@ -288,6 +312,9 @@ export function PptxSorterPanel({
           <DropdownMenuContent align="start" className="min-w-56">
             <DropdownMenuGroup>
               <DropdownMenuLabel>{t("office.pptx.sorter.new_label")}</DropdownMenuLabel>
+              <DropdownMenuItem disabled={disabled} onClick={addBlankSlide} data-pptx-sorter-blank>
+                {t("office.pptx.sorter.new_blank", { defaultValue: t("office.pptx.sorter.new") })}
+              </DropdownMenuItem>
               {layoutsState.status === "ready"
                 ? layoutCatalog.map((layout, index) => (
                     <DropdownMenuItem
@@ -331,7 +358,7 @@ export function PptxSorterPanel({
           data-pptx-sorter-duplicate
           onClick={() => {
             const edit = duplicateSlideEdit(selectedIndex);
-            if (edit) void runEdit([edit]);
+            if (edit) void runEdit([edit], selectedIndex + 1);
           }}
         >
           <Copy aria-hidden className="size-3.5" />
@@ -388,7 +415,7 @@ export function PptxSorterPanel({
       ) : null}
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-3 p-1 sm:grid-cols-3 lg:grid-cols-4" aria-busy="true" aria-label={t("office.pptx.sorter.loading")} data-pptx-sorter-loading data-testid="pptx-sorter-loading">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3 p-1" aria-busy="true" aria-label={t("office.pptx.sorter.loading")} data-pptx-sorter-loading data-testid="pptx-sorter-loading">
           {Array.from({ length: 6 }, (_, index) => (
             <Skeleton key={index} className="aspect-video w-full rounded-md" />
           ))}

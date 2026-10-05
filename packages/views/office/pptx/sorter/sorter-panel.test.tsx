@@ -164,6 +164,45 @@ describe("PptxSorterPanel", () => {
     expect(await screen.findByText(copy("office.pptx.sorter.layouts_unavailable"))).toBeInTheDocument();
   });
 
+  it("adds a blank slide even when no layout catalog is bound (F-03)", async () => {
+    const onEdit = vi.fn(async () => undefined);
+    renderPanel({ onEdit, selectedIndex: 1 });
+    fireEvent.click(button("office.pptx.sorter.new_label"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: copy("office.pptx.sorter.new_blank") }));
+    await waitFor(() => expect(onEdit).toHaveBeenCalledWith([{ op: "add_blank_slide", slideIndex: 1 }]));
+  });
+
+  it("selects the copy once the duplicated deck arrives, even past the old last slide (F-13)", async () => {
+    const onSelectSlide = vi.fn();
+    const onEdit = vi.fn(async () => undefined);
+    const view = renderPanel({ onEdit, onSelectSlide, selectedIndex: 2 });
+    fireEvent.click(button("office.pptx.sorter.duplicate"));
+    await waitFor(() => expect(onEdit).toHaveBeenCalledWith([{ op: "duplicate_slide", slideIndex: 2 }]));
+    // The host has not re-read the deck yet: index 3 does not exist, nothing is selected.
+    expect(onSelectSlide).not.toHaveBeenCalled();
+    view.rerender(
+      <PptxSorterPanel slides={[...slides, { id: "s4", label: "Close" }]} sections={sections} onEdit={onEdit} onSelectSlide={onSelectSlide} selectedIndex={2} />,
+    );
+    await waitFor(() => expect(onSelectSlide).toHaveBeenCalledWith(3));
+  });
+
+  it("selects the copy right away when the host already holds the longer deck", async () => {
+    const onSelectSlide = vi.fn();
+    renderPanel({ onSelectSlide, selectedIndex: 0 });
+    fireEvent.click(button("office.pptx.sorter.duplicate"));
+    await waitFor(() => expect(onSelectSlide).toHaveBeenCalledWith(1));
+  });
+
+  it("sizes the grid by the panel width and never truncates a tile caption to an ellipsis (F-13)", () => {
+    renderPanel();
+    const grid = document.querySelector("[data-pptx-sorter-grid]")!;
+    expect(grid.className).toContain("grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]");
+    expect(grid.className).not.toMatch(/\b(sm|lg):grid-cols-/);
+    const label = document.querySelector("[data-pptx-sorter-tile-label]")!;
+    expect(label.className).not.toContain("truncate");
+    expect(label).toHaveTextContent(copy("office.pptx.sorter.slide_label", { index: 1, label: ": Intro" }));
+  });
+
   it("opens the picker on an empty catalog and explains it", async () => {
     renderPanel({ layouts: [] });
     const trigger = button("office.pptx.sorter.new_label");

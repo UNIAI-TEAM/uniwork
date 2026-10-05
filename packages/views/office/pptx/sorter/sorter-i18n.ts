@@ -39,6 +39,7 @@ export const PPTX_SORTER_MESSAGES: Readonly<Record<string, PptxSorterMessage>> =
   "office.pptx.sorter.selected": { en: "Selected: slide {{index}}", vi: "Đang chọn: trang chiếu {{index}}" },
   "office.pptx.sorter.new": { en: "New slide", vi: "Trang chiếu mới" },
   "office.pptx.sorter.new_label": { en: "New slide from a layout", vi: "Trang chiếu mới theo bố cục" },
+  "office.pptx.sorter.new_blank": { en: "Blank slide", vi: "Trang chiếu trống" },
   "office.pptx.sorter.layouts_unavailable": { en: "Layouts are not available for this presentation.", vi: "Bản trình bày này không có bố cục khả dụng." },
   "office.pptx.sorter.layouts_empty": { en: "This presentation has no layouts.", vi: "Bản trình bày này không có bố cục nào." },
   "office.pptx.sorter.duplicate": { en: "Duplicate slide", vi: "Nhân bản trang chiếu" },
