@@ -13,6 +13,8 @@ const MAX_FIT_CHARS = 50;
  *  baseline); a column is `chars + 5px padding` wide. */
 const MDW = 7;
 const PADDING_CHARS = 1;
+/** Room for a table header's filter button, in characters. */
+const FILTER_BUTTON_CHARS = 2;
 const ADDRESS = /^([A-Z]+)(\d+)$/;
 
 function parseAddress(address: string): { row: number; column: number } | null {
@@ -25,7 +27,7 @@ function parseAddress(address: string): { row: number; column: number } | null {
 
 const isDateFormat = (format: string): boolean => /[ymdhs]/i.test(format.replace(/"[^"]*"|\[[^\]]*\]|\./g, "")) && !/general/i.test(format);
 
-function formatNumber(value: number, format: string | undefined): string {
+export function formatNumberForFit(value: number, format: string | undefined): string {
   const section = (format ?? "General").split(";")[0] ?? "General";
   if (section === "" || /^general$/i.test(section) || section === "@") {
     // General shows full digits as long as the column is wide enough.
@@ -69,22 +71,28 @@ export function seedFittedColumnWidths(sheet: XlsxRenderSheet, styles: readonly 
   });
   const merged = (row: number, column: number): boolean =>
     sheet.merges.some((m) => row >= m.startRow && row <= m.endRow && column >= m.startColumn && column <= m.endColumn && m.endColumn > m.startColumn);
+  // A table header row carries a filter button over the cell's right edge.
+  const inHeader = (row: number, column: number): boolean =>
+    (sheet.tables ?? []).some(
+      (table) => table.headerRow && row === table.area.startRow && column >= table.area.startColumn && column <= table.area.endColumn,
+    );
   const fitted = new Map<number, number>();
   for (const { row, column, cell, value } of parsed) {
     if (value === null || value === undefined || value === "" || sized(column) || merged(row, column)) continue;
     const style = cell.s === undefined ? styles[0] : styles[cell.s];
     if (style?.wrapText) continue;
+    const header = inHeader(row, column);
     let text: string;
-    if (typeof value === "number") text = formatNumber(value, style?.numberFormat);
+    if (typeof value === "number") text = formatNumberForFit(value, style?.numberFormat);
     else if (typeof value === "boolean") text = value ? "TRUE" : "FALSE";
     else {
       // Text spills into an empty right neighbour in Excel, so it only
       // demands width when something sits next to it.
-      if (!occupied.has(`${row}:${column + 1}`)) continue;
+      if (!header && !occupied.has(`${row}:${column + 1}`)) continue;
       text = value.split("\n").reduce((longest, line) => (line.length > longest.length ? line : longest), "");
     }
     const scale = ((style?.fontSize ?? 11) / 11) * (style?.bold ? 1.1 : 1);
-    const chars = Math.ceil((text.length * scale + PADDING_CHARS) * 100) / 100;
+    const chars = Math.ceil((text.length * scale + PADDING_CHARS + (header ? FILTER_BUTTON_CHARS : 0)) * 100) / 100;
     fitted.set(column, Math.max(fitted.get(column) ?? 0, chars));
   }
   const floor = defaultChars(sheet);

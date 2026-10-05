@@ -80,3 +80,21 @@ describe("bridge column widths", () => {
     expect(model.sheets[0]!.columnWidths).toEqual([]);
   });
 });
+
+describe("table header filter room", () => {
+  const table = { name: "T", area: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 1 }, columnNames: ["Hạng mục", "B"], bandedRows: true, headerRow: true, totalsRow: false };
+  const base = { cells: { A1: { v: "Hạng mục chi tiết" }, B1: { v: "B" }, A2: { v: "Hạng mục chi tiết" }, B2: { v: "x" } } };
+
+  it("adds filter-button room to a table header cell only", () => {
+    const plain = sheetOf(base);
+    const withTable = sheetOf({ ...base, tables: [table] });
+    const a = seedFittedColumnWidths(plain, modelOf(plain).styles).find((s) => s.startColumn === 0)?.width ?? 0;
+    const b = seedFittedColumnWidths(withTable, modelOf(withTable).styles).find((s) => s.startColumn === 0)?.width ?? 0;
+    expect(b).toBeCloseTo(a + 2, 1);
+  });
+
+  it("fits a header cell even when its right neighbour is empty", () => {
+    const sheet = sheetOf({ cells: { A1: { v: "Hạng mục chi tiết" } }, tables: [{ ...table, area: { ...table.area, endColumn: 0 } }] });
+    expect(seedFittedColumnWidths(sheet, modelOf(sheet).styles).some((s) => s.startColumn === 0 && (s.width ?? 0) > 17)).toBe(true);
+  });
+});

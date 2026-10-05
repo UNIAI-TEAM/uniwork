@@ -18,7 +18,8 @@ import {
   XLSX_NUMBER_FORMAT_COMMANDS,
   type XlsxCustomFormatError,
 } from "./catalog";
-import { appliedFormatKey, recordAppliedFormat, useAppliedPattern } from "./applied-format";
+import { appliedFormatKey, readAppliedPattern, recordAppliedFormat, useAppliedPattern } from "./applied-format";
+import { autoFitColumnsAfterFormat, moreDecimals } from "./auto-fit-width";
 import { fireCommand } from "../fire-command";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
@@ -46,6 +47,7 @@ function applyPatternTo(context: XlsxToolbarGroupProps, pattern: string): void {
   if (isBlocked(context) || !cells) return;
   fireCommand(context.commands, XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern));
   recordAppliedFormat(appliedFormatKey(context.unitId, context.selection), pattern);
+  void autoFitColumnsAfterFormat(context, pattern);
 }
 
 /** Home > Number as typed ribbon items. Row 1 is the format box (a custom icon
@@ -66,8 +68,13 @@ export function xlsxNumberRibbonItems(context: XlsxToolbarGroupProps): readonly 
     disabled: blocked,
     onExecute: () => applyPatternTo(context, presetPattern(id)),
   });
-  const step = (command: string) => () => {
-    if (!blocked) fireCommand(context.commands, command);
+  const step = (command: string, widen = false) => () => {
+    if (blocked) return;
+    fireCommand(context.commands, command);
+    if (!widen) return;
+    // The port cannot read the format back: widen from the last applied one.
+    const base = readAppliedPattern(appliedFormatKey(context.unitId, context.selection)) ?? "0";
+    void autoFitColumnsAfterFormat(context, moreDecimals(base));
   };
   return [
     {
@@ -91,7 +98,7 @@ export function xlsxNumberRibbonItems(context: XlsxToolbarGroupProps): readonly 
       size: "icon",
       collapseAs: "icon",
       disabled: blocked,
-      onExecute: step(XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals),
+      onExecute: step(XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals, true),
     },
     {
       kind: "button",

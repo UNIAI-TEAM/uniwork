@@ -38,3 +38,8 @@ export function useAppliedPattern(key: string | null): string | null {
     () => null,
   );
 }
+
+/** Non-hook read of the same trusted entry (for command handlers). */
+export function readAppliedPattern(key: string | null): string | null {
+  return key !== null && latest?.key === key ? latest.pattern : null;
+}

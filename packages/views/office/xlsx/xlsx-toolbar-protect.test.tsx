@@ -88,3 +88,13 @@ describe("XlsxToolbar protect wiring", () => {
     expect(onOpenProtect).not.toHaveBeenCalled();
   });
 });
+
+describe("XlsxToolbar protect label", () => {
+  it("shows the short key as the visible label and keeps the long text as the tooltip", () => {
+    const button = renderReview({ onOpenProtect: vi.fn() });
+
+    expect(button).toHaveTextContent(/openShort|Bảo vệ trang tính$/);
+    expect(button.textContent).not.toContain("tên");
+    expect(button).toHaveAttribute("title", "Bảo vệ trang tính và tên");
+  });
+});

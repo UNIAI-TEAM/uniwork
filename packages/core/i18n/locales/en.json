@@ -8504,8 +8504,13 @@
         "styleMedium": "Medium style",
         "rows": "Rows",
         "columns": "Columns",
-        "cells": "Cells"
-      }
+        "cells": "Cells",
+        "properties": "Properties",
+        "tools": "Tools",
+        "convertToRange": "Convert to range"
+      },
+      "nameLabel": "Table name",
+      "nameInvalid": "Enter a unique name that starts with a letter or underscore"
       },
       "links": {
         "groups": {
@@ -8555,7 +8560,8 @@
             "duplicate": "The same name is defined twice for one scope.",
             "collision": "That name already exists in a form this dialog cannot change, so it cannot be added here. Choose a different name."
           }
-        }
+        },
+        "openShort": "Protect sheet"
       },
       "pageSetup": {
         "open": "Page setup",
