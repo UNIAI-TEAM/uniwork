@@ -233,6 +233,31 @@ describe("MarkdownRibbon", () => {
     expect(onFind).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the active Source | Visual segment and keeps the 44px coarse-pointer target", async () => {
+    const onViewModeChange = vi.fn();
+    render(<Harness viewMode="visual" onViewModeChange={onViewModeChange} />);
+    await waitForRibbon();
+    const trailing = ribbonRegion().querySelector<HTMLElement>("[data-ribbon-trailing]")!;
+    const group = trailing.querySelector<HTMLElement>('[data-slot="toggle-group"]')!;
+    // The toolbar variant is what paints the selected segment; the default
+    // variant's bg-muted is near-invisible on the light band (M-5).
+    expect(group).toHaveAttribute("data-variant", "toolbar");
+    const [source, visual] = Array.from(group.querySelectorAll<HTMLElement>('[data-slot="toggle-group-item"]'));
+    // The active segment exposes a selected state, which the toolbar variant
+    // renders as bg-surface-selected in both themes.
+    expect(visual).toHaveAttribute("aria-pressed", "true");
+    expect(source).toHaveAttribute("aria-pressed", "false");
+    for (const segment of [source, visual]) {
+      expect(segment!.className).toContain("aria-pressed:bg-surface-selected");
+      // 44px on coarse pointers without enlarging the desktop row.
+      expect(segment!.className).toContain("pointer-coarse:min-h-11");
+      expect(segment!.className).toContain("pointer-coarse:min-w-11");
+      expect(segment!.className).toContain("h-7");
+    }
+    fireEvent.click(source!);
+    expect(onViewModeChange).toHaveBeenCalledWith("source");
+  });
+
   it("disables every control when the editor is read-only", async () => {
     render(<Harness editable={false} />);
     await waitForRibbon();

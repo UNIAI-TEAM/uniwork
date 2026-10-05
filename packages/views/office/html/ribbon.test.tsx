@@ -121,6 +121,32 @@ describe("HtmlRibbon", () => {
     expect(c.onUndo).toHaveBeenCalledOnce();
   });
 
+  it("marks the active view-mode segment and keeps the 44px coarse-pointer target", () => {
+    const c = commands();
+    const onViewModeChange = vi.fn();
+    const { container } = render(<HtmlRibbon commands={c} viewMode="split" onViewModeChange={onViewModeChange} />);
+    const group = region(container).querySelector<HTMLElement>('[data-testid="html-view-toggle"]')!;
+    // The toolbar variant is what paints the selected segment; the default
+    // variant's bg-muted is near-invisible on the light band (M-5).
+    expect(group).toHaveAttribute("data-variant", "toolbar");
+    // Segments render in declared order: source, split, preview.
+    const [source, split, preview] = Array.from(group.querySelectorAll<HTMLElement>('[data-slot="toggle-group-item"]'));
+    // The active segment exposes a selected state, which the toolbar variant
+    // renders as bg-surface-selected in both themes.
+    expect(split).toHaveAttribute("aria-pressed", "true");
+    expect(source).toHaveAttribute("aria-pressed", "false");
+    expect(preview).toHaveAttribute("aria-pressed", "false");
+    for (const segment of [source, split, preview]) {
+      expect(segment!.className).toContain("aria-pressed:bg-surface-selected");
+      // 44px on coarse pointers without enlarging the desktop row.
+      expect(segment!.className).toContain("pointer-coarse:min-h-11");
+      expect(segment!.className).toContain("pointer-coarse:min-w-11");
+      expect(segment!.className).toContain("h-7");
+    }
+    fireEvent.click(source!);
+    expect(onViewModeChange).toHaveBeenCalledWith("source");
+  });
+
   it("switches to the Insert tab and runs an image-from-file and a table size", () => {
     const c = commands();
     const { container } = render(<HtmlRibbon commands={c} />);

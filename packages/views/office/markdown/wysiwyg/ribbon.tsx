@@ -306,9 +306,14 @@ export function MarkdownRibbon({
           </Tooltip>
         ) : null}
         {onViewModeChange ? (
-          <ToggleGroup value={[viewMode]} onValueChange={(value) => value[0] && setViewMode(value[0])} aria-label={t("office.markdown.view.label")}>
-            <ToggleGroupItem value="source" className="h-7 px-2 text-label">{t("office.markdown.view.source")}</ToggleGroupItem>
-            <ToggleGroupItem value="visual" className="h-7 px-2 text-label">{t("office.markdown.view.wysiwyg")}</ToggleGroupItem>
+          <ToggleGroup value={[viewMode]} onValueChange={(value) => value[0] && setViewMode(value[0])} aria-label={t("office.markdown.view.label")} variant="toolbar">
+            {/* The toolbar variant paints the selected segment with
+                bg-surface-selected, which is visible in both themes; the
+                default variant's bg-muted is near-invisible on the light band.
+                The coarse-pointer sizes keep the 44px touch target without
+                changing the desktop row. */}
+            <ToggleGroupItem value="source" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.source")}</ToggleGroupItem>
+            <ToggleGroupItem value="visual" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.markdown.view.wysiwyg")}</ToggleGroupItem>
           </ToggleGroup>
         ) : null}
       </>
