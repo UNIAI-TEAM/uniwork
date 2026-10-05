@@ -276,7 +276,7 @@ describe("PptxEditor", () => {
   it("renders the C10 status bar with slide x/y, counts, language, selection and zoom", () => {
     renderEditor({ slides: [{ id: "s1" }, { id: "s2" }] });
     const bar = screen.getByRole("group", { name: "Presentation status" });
-    expect(bar).toHaveAttribute("data-pptx-status-bar");
+    expect(bar.closest("[data-pptx-status-bar]")).not.toBeNull();
     expect(screen.getByTestId("pptx-status-slide")).toHaveTextContent("Slide 1 / 2");
     expect(screen.getByTestId("pptx-status-selection")).toHaveTextContent("No selection");
     expect(bar.querySelector("[data-pptx-zoom]")).not.toBeNull();
@@ -425,6 +425,19 @@ describe("PptxEditor", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
     expect(document.querySelector("[data-pptx-panel-host] [data-pptx-notes-pane]")).not.toBeNull();
     expect(document.querySelector("[data-pptx-panel-host] [data-pptx-insert-panel]")).toBeNull();
+  });
+
+  it("mounts into one OfficeFrame with the rail inside, notes at the bottom and help in the status bar (F1/F9/F10)", () => {
+    renderEditor({ slides: [{ id: "s1" }, { id: "s2" }] });
+    const frames = document.querySelectorAll("[data-office-frame]");
+    expect(frames).toHaveLength(1);
+    expect(frames[0]?.querySelector("[data-pptx-slide-rail]")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Review" }));
+    expect(document.querySelector('[data-pptx-panel-placement="bottom"] [data-pptx-notes-pane]')).not.toBeNull();
+    const help = frames[0]?.querySelector("[data-pptx-status-help]");
+    expect(help).not.toBeNull();
+    fireEvent.click(help as Element);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("opens a contextual tab only while the matching object is selected (R4)", async () => {

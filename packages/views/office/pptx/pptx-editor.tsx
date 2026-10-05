@@ -8,6 +8,7 @@ import type { FormatEdit, PptxEdit } from "@uniwork/office-engine/pptx";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { OfficeFrame } from "../frame/office-frame";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
 import { buildSlideSvg, collectRenderNodeBoxes, type SlideSvgDocument } from "./canvas/build-slide-svg";
 import { PptxCanvasSurface, type PptxCanvasContent } from "./canvas/pptx-canvas-surface";
@@ -17,7 +18,7 @@ import { usePptxThumbnails } from "./canvas/use-pptx-thumbnails";
 import { PPTX_FALLBACK_FIT_WIDTH, slideDisplaySize } from "./canvas/zoom";
 import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } from "./command-map";
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
-import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import { buildPptxPanel, pptxContextualSelection, pptxPanelForTab, pptxPanelPlacement, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
 import type { PptxTabId } from "./pptx-ribbon";
 import { collectPptxPrintSlides, pptxPrintCapability, type PptxPrintPort } from "./print";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
@@ -30,7 +31,7 @@ import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from ".
 import { collectTextTargets, type PptxTextTarget } from "./text/text-model";
 import { usePptxSelection } from "./selection/use-pptx-selection";
 import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
-import { PptxStatusBar } from "./status-bar";
+import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
 import { PptxFindBar } from "./toolbar/find-bar";
 
@@ -503,7 +504,9 @@ export function PptxEditor({
   // An explicit panel/panelKind is a host override; otherwise the active tab
   // decides the panel (pptxPanelForTab maps every panel-bearing tab, null for the rest).
   const derivedPanelKind = panelKind ?? pptxPanelForTab(activeTab);
+  const placement = !panel && derivedPanelKind ? pptxPanelPlacement(derivedPanelKind) : "aside";
   const activePanel = panel ?? buildPptxPanel({
+    placement,
     ...(derivedPanelKind ? { panelKind: derivedPanelKind } : {}),
     ...(onApplyEdit ? { onApplyEdit } : {}),
     ...(editableHandle?.edit ? { edit: (edits) => editableHandle.edit!(edits) } : {}),
@@ -514,89 +517,68 @@ export function PptxEditor({
   });
 
   const selectedCount = selection.selection.ids.length;
+  const alerts = [
+    commandError ? <Alert key="cmd" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null,
+    rendererState.status === "error" ? <Alert key="render" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert" data-testid="pptx-render-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription></Alert> : null,
+    svgBuild.error ? <Alert key="svg" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert" data-testid="pptx-svg-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription></Alert> : null,
+    editorHandle == null && slides.length > 0 ? <Alert key="handle" className="rounded-none border-x-0 border-t-0" data-testid="pptx-editor-handle-warning"><AlertTitle>{t("session_missing")}</AlertTitle><AlertDescription>{t("session_missing_hint")}</AlertDescription></Alert> : null,
+  ];
 
   return (
-    <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
-      <PptxToolbar
-        commands={commands}
-        onCommand={onCommand}
-        activeTab={activeTab}
-        onActiveTabChange={setActiveTab}
-        presenterOpen={presenterOpen}
-        findButtonRef={setFindTrigger}
-        {...(contextual ? { contextual } : {})}
-        {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
-      />
-      {findOpen ? <PptxFindBar query={findQuery} onQueryChange={setFindQuery} onClose={closeFind} {...(onFind ? { onSearch: onFind } : {})} /> : null}
-      {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
-      {rendererState.status === "error" ? <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-render-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription></Alert> : null}
-      {svgBuild.error ? <Alert className="m-2" variant="destructive" role="alert" data-testid="pptx-svg-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription></Alert> : null}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* C11: the slide rail stays on the LEFT. */}
-        <PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />
-        <div className="flex min-h-48 min-w-0 flex-1 flex-col p-3">
-          {/* C9: no floating command buttons over the slide. The only floating
-              surface is the contextual selection overlay inside the slide box. */}
-          <PptxContextMenu
-            slideBound={slides.length > 0}
-            selectionCount={selection.selection.ids.length}
-            canDelete={Boolean(deleteElements)}
-            canEditText={Boolean(onTextEdit)}
-            canReorder={Boolean(reorderElements)}
-            canInsert={false}
-            gesturePending={gesturePending}
-            onAction={onContextMenuAction}
-          >
-          <PptxCanvasSurface
-            content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
-            slideIndex={selectedIndex}
-            slideCount={slides.length}
-            building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} zoom={zoom} onFitWidthChange={setFitWidthPx} onKeyDown={onCanvasKeyDown}
-            overlay={rendition ? (
-              <>
-                <PptxSelectionOverlay
-                  page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
-                  displayWidthPx={displaySize.widthPx}
-                  displayHeightPx={displaySize.heightPx}
-                  controller={selection}
-                />
-                {/* A1ui: contextual in-place text editing inside the slide box (C9). */}
-                {onCommitText ? (
-                  <PptxTextEditLayer
-                    slideIndex={selectedIndex}
-                    targets={textTargets}
-                    page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
-                    displayWidthPx={displaySize.widthPx}
-                    displayHeightPx={displaySize.heightPx}
-                    controller={selection}
-                    activeId={textTarget?.sourceId ?? null}
-                    onOpen={openTextEditor}
-                  />
-                ) : null}
-                {onCommitText && textTarget ? (
-                  <PptxTextEditorOverlay
-                    slideIndex={selectedIndex}
-                    target={textTarget}
-                    page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }}
-                    displayWidthPx={displaySize.widthPx}
-                    displayHeightPx={displaySize.heightPx}
-                    onCommitText={commitText}
-                    onCancel={cancelTextEdit}
-                  />
-                ) : null}
-              </>
+    <section ref={editorRootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-pptx-editor data-gesture-pending={gesturePending}>
+      <OfficeFrame
+        ribbon={
+          <PptxToolbar commands={commands} onCommand={onCommand} activeTab={activeTab} onActiveTabChange={setActiveTab} presenterOpen={presenterOpen} findButtonRef={setFindTrigger} {...(contextual ? { contextual } : {})} {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })} />
+        }
+        subbar={<>
+          {findOpen ? <PptxFindBar query={findQuery} onQueryChange={setFindQuery} onClose={closeFind} {...(onFind ? { onSearch: onFind } : {})} /> : null}
+          {alerts}
+        </>}
+        rail={<PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />}
+        bottom={placement === "bottom" ? activePanel : undefined}
+        aside={placement === "aside" ? activePanel : undefined}
+        statusBar={
+          /* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */
+          <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedCount} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} help={<PptxStatusHelpButton onOpen={() => setShortcutsOpen(true)} />} />
+        }
+      >
+        <div className="flex h-full min-h-48 min-w-0 flex-col">
+    {/* C9: no floating command buttons over the slide. The only floating
+          surface is the contextual selection overlay inside the slide box. */}
+      <PptxContextMenu
+        slideBound={slides.length > 0}
+        selectionCount={selection.selection.ids.length}
+        canDelete={Boolean(deleteElements)}
+        canEditText={Boolean(onTextEdit)}
+        canReorder={Boolean(reorderElements)}
+        canInsert={false}
+        gesturePending={gesturePending}
+        onAction={onContextMenuAction}
+      >
+      <PptxCanvasSurface
+        content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
+        slideIndex={selectedIndex}
+        slideCount={slides.length}
+        building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} zoom={zoom} onFitWidthChange={setFitWidthPx} onKeyDown={onCanvasKeyDown}
+        overlay={rendition ? (
+          <>
+            <PptxSelectionOverlay page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} controller={selection} />
+            {/* A1ui: contextual in-place text editing inside the slide box (C9). */}
+            {onCommitText ? (
+              <PptxTextEditLayer slideIndex={selectedIndex} targets={textTargets} page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} controller={selection} activeId={textTarget?.sourceId ?? null} onOpen={openTextEditor} />
             ) : null}
-          />
+            {onCommitText && textTarget ? (
+              <PptxTextEditorOverlay slideIndex={selectedIndex} target={textTarget} page={{ widthPx: rendition.widthPx, heightPx: rendition.heightPx }} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} onCommitText={commitText} onCancel={cancelTextEdit} />
+            ) : null}
+          </>
+        ) : null}
+      />
           </PptxContextMenu>
         </div>
-        {activePanel}
-      </div>
-      {/* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */}
-      <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedCount} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} />
+      </OfficeFrame>
       <PptxShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <PptxPresenter slideCount={slides.length} selectedIndex={selectedIndex} content={presenterContent} nextContent={presenterNext} notes={deckBound ? (slideNotes ?? (editorHandle as { slideNotes?(index: number): string | null } | null)?.slideNotes?.bind(editorHandle))?.(selectedIndex) ?? null : null} building={deckBound && (rendererState.status === "loading" || (rendererState.status === "ready" && !rendition))} open={presenterOpen} onIndexChange={selectSlide} onClose={() => { setPresenterOpen(false); presenterTriggerRef.current?.focus(); }} />
       {onSnapshot ? <Button type="button" className="sr-only" onClick={() => void waitForGesture().then(onSnapshot)} data-testid="pptx-snapshot">{t("snapshot")}</Button> : null}
-      {editorHandle == null && slides.length > 0 ? <Alert className="m-2" data-testid="pptx-editor-handle-warning"><AlertTitle>{t("session_missing")}</AlertTitle><AlertDescription>{t("session_missing_hint")}</AlertDescription></Alert> : null}
     </section>
   );
 }
