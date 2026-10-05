@@ -61,6 +61,14 @@ describe("XlsxFormulaBar commit lifecycle (F1)", () => {
     expect(onWrite).toHaveBeenLastCalledWith("B2", "hello");
   });
 
+  it("uses the normal UI face, not the code face (F12)", () => {
+    // visual-r2 F12: the bar rendered in a monospace/code face. It is an
+    // input field and must use the format's normal UI face instead.
+    render(<Harness onWrite={vi.fn()} />);
+    expect(bar().className).toContain("font-sans");
+    expect(bar().className).not.toContain("font-mono");
+  });
+
   it("commits a fresh draft after the selection moves", () => {
     const onWrite = vi.fn();
     render(<Harness onWrite={onWrite} />);

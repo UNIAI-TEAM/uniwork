@@ -199,6 +199,29 @@ describe("adaptive collapse", () => {
     expect(label.className).not.toContain("line-clamp");
   });
 
+  it("does not cap the folded group caption at a width that clips long labels (F11)", () => {
+    // visual-r2 F11: at 1440 the folded group captions vanished after the
+    // first three groups and clipped in vi because the folded button's label
+    // was hard-capped at max-w-28 (112px) - too narrow for "Row and column
+    // size" / "Kich thuoc dong, cot". The cap must leave room for those.
+    stubRibbonWidth(120);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    const button = within(group("Clipboard")).getByRole("button", { name: /Clipboard/ });
+    const label = button.querySelector("span") as HTMLElement;
+    expect(label.className).not.toContain("max-w-28");
+  });
+
+  it("lets an in-ribbon group caption keep its full line instead of truncating (F11)", () => {
+    // visual-r2 F11: the in-ribbon caption row truncated at the group's item
+    // width. The caption must render untruncated and the group may widen.
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    const groupEl = group("Clipboard");
+    const caption = Array.from(groupEl.querySelectorAll("span")).find((el) => el.textContent === "Clipboard") as HTMLElement;
+    expect(caption.className).toContain("whitespace-nowrap");
+    expect(caption.className).not.toContain("truncate");
+    expect(groupEl.className).toContain("min-w-fit");
+  });
+
   it("lets an in-panel gallery wrap instead of keeping its max-content width", async () => {
     // jsdom has no layout, so this pins the classes that let the in-panel
     // gallery row shrink and wrap inside the GroupPanel cap (visual r6 M-4:

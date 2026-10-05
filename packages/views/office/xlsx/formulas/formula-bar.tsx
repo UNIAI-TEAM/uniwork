@@ -121,7 +121,7 @@ export function XlsxFormulaBar({ value, disabled = false, onChange, onCommit }: 
             hints.dismiss();
             commit();
           }}
-          className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-caption pointer-coarse:min-h-11"
+          className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-sans text-caption pointer-coarse:min-h-11"
           data-testid="xlsx-formula-bar"
           aria-label={t("office.xlsx.formula.label")}
         />
