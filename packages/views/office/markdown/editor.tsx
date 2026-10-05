@@ -76,10 +76,9 @@ function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): 
 }
 
 /**
- * The web host's print path for this surface (M8 contract: the view calls the
- * INJECTED port and never `window.print()`). The sanitized copy the menu built
- * is written into an off-screen frame and only that frame prints, so the app
- * chrome is never part of the job.
+ * The web host's print path for this surface (M8: the view calls the INJECTED
+ * port, never `window.print()`). The sanitized copy goes into an off-screen
+ * frame and only that frame prints, so app chrome never reaches the job.
  */
 const browserPrintPort: MarkdownPrintPort = {
   print({ html, title }) {
@@ -87,16 +86,13 @@ const browserPrintPort: MarkdownPrintPort = {
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    document.body.appendChild(frame);
+    document.body.append(frame);
     const view = frame.contentWindow;
     if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
-    view.document.open();
-    view.document.write(html);
-    view.document.close();
+    view.document.open(); view.document.write(html); view.document.close();
     view.document.title = title;
     try { view.focus(); view.print(); } catch { frame.remove(); return { outcome: "failed", reason: "print_blocked" }; }
-    window.setTimeout(() => frame.remove(), 0);
-    return { outcome: "printed" };
+    window.setTimeout(() => frame.remove(), 0); return { outcome: "printed" };
   },
 };
 
@@ -523,12 +519,9 @@ export function MarkdownEditor<TSnapshot = unknown>({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {mode === "visual" ? (
                 <>
-                  {/*
-                    M3 slash menu + table context toolbar: both mount against the
-                    live TipTap instance (the same `onEditorReady` hook the rest
-                    of the surface uses) and render nothing until their trigger
-                    fires - a typed `/`, or a selection inside a table.
-                  */}
+                  {/* M3 slash menu + table context toolbar: both mount against
+                      the live TipTap instance and render nothing until their
+                      trigger fires - a typed `/`, or a selection in a table. */}
                   <MarkdownSlash editor={instance} />
                   <MarkdownTableMenu editor={instance} />
                   <MarkdownWysiwygEditor
