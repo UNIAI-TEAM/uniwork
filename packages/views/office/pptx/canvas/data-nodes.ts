@@ -189,18 +189,44 @@ function wedgeStroke(wedge: { stroke?: string; strokeWidthPx?: number; noFill?: 
   return { stroke: normalizeColor(color), "stroke-width": px(wedge.strokeWidthPx ?? CHART_HAIRLINE) };
 }
 
+/**
+ * pptx-render measures every chart label with the theme minor face (Calibri, via its Carlito
+ * alias) but ships no width, so a label drawn without a family inherits the page UI font and
+ * runs wider than the room the engine left for it.
+ */
+const CHART_LABEL_FONT = "'Calibri', 'Carlito', sans-serif";
+const LEGEND_GAP_PX = 4;
+
+/**
+ * Width the engine reserved for a legend label: legend items are laid out left to right as
+ * `swatch + 4 + textWidth + swatch` (the swatch is half an em), so the distance to the next
+ * swatch on the same row recovers the measured text width. Undefined for the last item and for
+ * labels that are not legend entries (ticks, titles).
+ */
+function legendTextWidth(label: PptxChartRenderNode["labels"][number], node: PptxChartRenderNode): number | undefined {
+  const swatch = node.swatches.find((s) => Math.abs(s.x + s.w + LEGEND_GAP_PX - label.x) < 0.01 && Math.abs(s.y - (label.y + label.fontSizePx * 0.3)) < 0.01);
+  if (!swatch) return undefined;
+  const next = node.swatches.filter((s) => Math.abs(s.y - swatch.y) < 0.01 && s.x > swatch.x).sort((a, b) => a.x - b.x)[0];
+  if (!next) return undefined;
+  const width = next.x - swatch.x - swatch.w * 2 - LEGEND_GAP_PX;
+  return width > 0 ? width : undefined;
+}
+
 /** Chart tick/category/legend/axis-title labels (`y` is the text top; SVG wants the baseline,
  *  and a rotated label must pivot on its declared top-left like the oracle's Konva Text). */
 function chartLabels(node: PptxChartRenderNode): SvgNode[] {
   return node.labels.map((label) => {
+    const legendWidth = [...label.text].length > 1 && !label.rotationDeg ? legendTextWidth(label, node) : undefined;
     const text = svgText(
       "text",
       {
         x: px(label.x),
         y: px(label.y + label.fontSizePx * 0.8),
+        "font-family": CHART_LABEL_FONT,
         "font-size": px(label.fontSizePx),
         fill: normalizeColor(label.color),
         "xml:space": "preserve",
+        ...(legendWidth ? { textLength: px(legendWidth), lengthAdjust: "spacing" } : {}),
         ...(label.bold ? { "font-weight": "bold" } : {}),
         ...(label.italic ? { "font-style": "italic" } : {}),
       },
