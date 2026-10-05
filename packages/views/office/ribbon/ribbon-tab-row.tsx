@@ -97,9 +97,11 @@ export function RibbonTabRow({
         aria-label={t("office.ribbon.tabs")}
         // Tabs scroll rather than clip when they outgrow the row (phones, many
         // contextual tabs); the simplified layout relies on it. `flex-1
-        // min-w-0` keeps the trailing controls a sibling, so they can never be
-        // overlapped by a tab at any width.
-        className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
+        // min-w-0` reserves the trailing cluster its width, so the scroll
+        // region can never reach under Find, and the right inset keeps a
+        // part-scrolled tab's clipped edge off the cluster (visual r4 F-10: at
+        // 390px the third tab sat flush against the Find button).
+        className="flex min-w-0 flex-1 items-stretch overflow-x-auto pr-1 [scrollbar-width:none]"
       >
         {tabs.map((tab, index) => {
           const selected = tab.id === activeId;
@@ -135,11 +137,14 @@ export function RibbonTabRow({
         })}
       </div>
       {trailing ? (
-        <div className="flex shrink-0 items-center gap-0.5" data-ribbon-trailing="">
+        // Reserved cluster: `shrink-0` so it never yields width to the scroll
+        // region, opaque and stacked above it so nothing that does reach the
+        // edge can render behind the controls at narrow widths.
+        <div className="relative z-10 flex shrink-0 items-center gap-0.5 bg-background" data-ribbon-trailing="">
           {trailing}
         </div>
       ) : null}
-      <div className="flex shrink-0 items-center">
+      <div className="relative z-10 flex shrink-0 items-center bg-background">
         <Button
           type="button"
           variant="ghost"

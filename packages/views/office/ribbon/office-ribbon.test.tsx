@@ -277,6 +277,54 @@ describe("collapse affordance", () => {
   });
 });
 
+describe("narrow-width tab row", () => {
+  it("reserves the trailing controls: at 390px no tab can render behind Find", () => {
+    // Visual r4 F-10: at 390px the Find button and the collapse toggle sat on
+    // top of the third tab. jsdom has no layout, so this pins the structure
+    // that keeps the scroll region and the trailing cluster disjoint: the
+    // tablist is the only flexible child and carries a right inset, and the
+    // trailing cluster and collapse toggle are shrink-0, opaque siblings after
+    // it, stacked above it.
+    window.innerWidth = 390;
+    // Five fixed tabs, like the PDF tab row; the fixture's third tab is
+    // contextual (hidden until selected) so it is not reused here.
+    const base = ribbonFixture().tabs.filter((tab) => !tab.contextual);
+    const tabs = [0, 1, 2, 3, 4].map((index) => {
+      const source = base[index % base.length]!;
+      return { ...source, id: `${source.id}-${index}`, labelKey: `${source.labelKey} ${index}` };
+    });
+    render(<OfficeRibbon tabs={tabs} scope="pdf" trailing={<button type="button">Find</button>} />);
+    const tabRow = document.querySelector("[data-ribbon-tab-row]") as HTMLElement;
+    const tablist = within(tabRow).getByRole("tablist");
+
+    // The scroll region is the one flexible child and reserves a right inset.
+    expect(tablist.className).toContain("flex-1");
+    expect(tablist.className).toContain("min-w-0");
+    expect(tablist.className).toContain("overflow-x-auto");
+    expect(tablist.className).toContain("pr-1");
+    const flexible = (Array.from(tabRow.children) as HTMLElement[]).filter((node) => node.className.includes("flex-1"));
+    expect(flexible).toEqual([tablist]);
+
+    // Every tab stays in the scroll region and reachable, never inside the
+    // trailing cluster.
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(5);
+
+    // The trailing cluster and the collapse toggle are non-shrinking, opaque
+    // siblings that follow the scroll region, so a tab cannot sit under Find.
+    const trailing = tabRow.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(trailing.className).toContain("shrink-0");
+    expect(trailing.className).toContain("bg-background");
+    expect(trailing.contains(tablist)).toBe(false);
+    expect(tablist.contains(trailing)).toBe(false);
+    expect(tablist.compareDocumentPosition(trailing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(trailing).getByRole("button", { name: "Find" })).toBeInTheDocument();
+
+    const toggle = tabRow.querySelector("[data-ribbon-collapse-toggle]") as HTMLElement;
+    expect(toggle.parentElement?.className).toContain("shrink-0");
+    expect(toggle.parentElement?.className).toContain("bg-background");
+    expect(trailing.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 describe("collapse to tabs only", () => {
   it("toggles with the button, persists, and peeks the body as an overlay on a tab click", () => {
     render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
