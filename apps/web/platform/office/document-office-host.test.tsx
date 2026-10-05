@@ -21,6 +21,7 @@ vi.mock("next/dynamic", () => ({
 }));
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
+vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
 vi.mock("./md-html-adapter", () => ({
   MarkdownOfficeEditorHost: Object.assign(() => null, { __name: "md" }),
   HtmlOfficeEditorHost: Object.assign(() => null, { __name: "html" }),
@@ -50,6 +51,7 @@ describe("document office host routing", () => {
   it.each([
     ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"],
     ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
+    ["paper.pdf", "application/pdf", "pdf"],
     ["notes.md", "text/markdown", "md"],
     ["notes.markdown", "text/markdown", "md"],
     ["page.html", "text/html", "html"],
@@ -71,7 +73,6 @@ describe("document office host routing", () => {
 
   it.each([
     ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
-    ["paper.pdf", "application/pdf"],
     // The Q7 conversion sources the server detects but never edits in place.
     ["legacy.xls", "application/vnd.ms-excel"],
     ["letter.odt", "application/vnd.oasis.opendocument.text"],
