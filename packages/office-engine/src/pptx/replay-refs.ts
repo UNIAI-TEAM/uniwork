@@ -95,6 +95,16 @@ function refusal(code: string, message: string): PptxEngineError {
   return new PptxEngineError(code, message);
 }
 
+/** True when `segments` ends on a key `visitElementIds` can have written: an
+ * element-id key, or a numeric entry of an `elementIds` array. A forged path
+ * onto any other string field (`text`, `name`, `op`, ...) is not one. */
+function addressesElementIdKey(segments: readonly string[]): boolean {
+  const last = segments[segments.length - 1];
+  if (last === undefined) return false;
+  if (/^\d+$/.test(last)) return segments[segments.length - 2] === "elementIds";
+  return ELEMENT_ID_KEYS.has(last) && last !== "elementIds";
+}
+
 /** Copy `target` with the string at `segments` replaced by `id`, cloning only
  * along the path. A path that does not end on an existing string is a
  * malformed (e.g. hand-edited draft) entry and refuses. */
@@ -165,11 +175,15 @@ export function resolvePptxReplayRefs(deck: PptxReplayDeck, entry: PptxEdit): Pp
   let out: unknown = edit;
   for (const [path, token] of Object.entries(refs as Record<string, unknown>)) {
     if (typeof token !== "string") throw refusal("pptx_replay_refs_invalid", "replay ref " + path + " is not a position");
+    const segments = path.split(".");
+    if (!addressesElementIdKey(segments)) {
+      throw refusal("pptx_replay_refs_invalid", "replay ref path " + path + " does not address an element id");
+    }
     const id = resolveToken(deck, token);
     if (id === undefined) {
       throw refusal("pptx_replay_ref_unresolved", "replay ref " + path + " -> " + token + " has no element in the replayed deck");
     }
-    out = withId(out, path.split("."), id, path);
+    out = withId(out, segments, id, path);
   }
   return out as PptxEdit;
 }

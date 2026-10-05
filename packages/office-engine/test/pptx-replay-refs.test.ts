@@ -88,6 +88,28 @@ describe("pptx replay refs", () => {
       .toThrow(expect.objectContaining({ code: "pptx_replay_ref_unresolved" }));
   });
 
+  it("refuses a forged ref onto a field that is not an element id", () => {
+    const forge = (entry: Record<string, unknown>, path: string): PptxEdit =>
+      ({ ...entry, __refs: { [path]: "0:0" } }) as unknown as PptxEdit;
+    const cases: PptxEdit[] = [
+      forge({ op: "edit_text", slideIndex: 0, elementId: "a", text: "x" }, "text"),
+      forge({ op: "edit_text", slideIndex: 0, elementId: "a" }, "op"),
+      forge({ op: "rename_element", slideIndex: 0, elementId: "a", name: "n" }, "name"),
+      forge({ op: "group_elements", slideIndex: 0, elementIds: ["a", "b"], name: "n" }, "name"),
+      forge({ op: "set_animations", slideIndex: 0, items: [{ effect: "fade", label: "l" }] }, "items.0.label"),
+      // An id-looking key only counts as the terminal segment, and an array
+      // index only counts under `elementIds`.
+      forge({ op: "group_elements", slideIndex: 0, elementIds: ["a"], tags: ["t"] }, "tags.0"),
+      forge({ op: "group_elements", slideIndex: 0, elementIds: ["a"] }, "elementIds"),
+    ];
+    for (const entry of cases) {
+      expect(() => resolvePptxReplayRefs(second, entry)).toThrow(expect.objectContaining({ code: "pptx_replay_refs_invalid" }));
+    }
+    // Legitimate refs of every kind still resolve through the same entry point.
+    const legit = annotatePptxReplayRefs(first, { op: "group_elements", slideIndex: 0, elementIds: ["a_1", "g_1"], name: "a_1" } as unknown as PptxEdit);
+    expect(resolvePptxReplayRefs(second, legit)).toEqual({ op: "group_elements", slideIndex: 0, elementIds: ["a_2", "g_2"], name: "a_1" });
+  });
+
   it("builds and recognizes the diverged-session refusal", () => {
     const cause = new PptxEngineError("fmt_no_element", "gone");
     const error = pptxSessionDivergedError(cause);

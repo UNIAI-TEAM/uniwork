@@ -86,6 +86,58 @@ describe("web PPTX runtime on the real engine - replay-stable ids (W12)", () => 
   }, 60_000);
 });
 
+describe("web PPTX runtime on the real engine - whole-slide reparse (W12c)", () => {
+  it("replays an element edit that follows group_elements (every id on the slide re-minted)", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "real-reparse" });
+    const result = await runtime.open({ bytes: fixture(), documentId: "real-reparse" });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("fixture did not open: " + String(result.message));
+    const ref = result.document_model_ref;
+    const baseElements = [...elementsOf(runtime.deck(ref))]; // the engine mutates the live array in place
+    const parsedIndex = baseElements.findIndex((element) => element.type === "text" || element.type === "shape");
+    if (parsedIndex < 0) throw new Error("fixture slide 1 has no text/shape element");
+
+    const rect = (xPx: number): PptxEdit => ({ op: "add_element", slideIndex: 0, kind: "rect", xPx, yPx: 40, wPx: 60, hPx: 40 });
+    const first = (await runtime.edit(ref, [rect(40)])).createdIds?.[0];
+    const second = (await runtime.edit(ref, [rect(120)])).createdIds?.[0];
+    expect(first && second).toBeTruthy();
+    const beforeGroup = elementsOf(runtime.deck(ref)).map((element) => element.id);
+    await runtime.edit(ref, [{ op: "group_elements", slideIndex: 0, elementIds: [first!, second!] }]);
+    // The engine re-parsed the slide: even untouched elements carry new ids.
+    const grouped = elementsOf(runtime.deck(ref));
+    expect(grouped[parsedIndex]?.id).not.toBe(beforeGroup[parsedIndex]);
+    expect(grouped).toHaveLength(baseElements.length + 1);
+    // The next edit targets an element by its post-reparse id.
+    await runtime.edit(ref, [{ op: "set_text_anchor", slideIndex: 0, elementId: grouped[parsedIndex]!.id, anchor: "bottom" }]);
+
+    const tip = elementsOf(runtime.deck(ref));
+    expect(tip[parsedIndex]?.text?.anchor).toBe("bottom");
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(elementsOf(runtime.deck(ref))).toHaveLength(baseElements.length + 2);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(await runtime.redo(ref)).toBe(true);
+    const redone = elementsOf(runtime.deck(ref));
+    expect(redone).toHaveLength(baseElements.length + 1);
+    expect(redone[parsedIndex]?.text?.anchor).toBe("bottom");
+
+    const value = runtime.snapshot(ref);
+    expect(value.revision).toBe(4);
+    const out = await runtime.serialize(ref, { snapshot: { generation: 4, fingerprint: "fp", value } });
+    const saved = elementsOf((await openPptx(out.bytes)).deck);
+    expect(saved).toHaveLength(baseElements.length + 1);
+    expect(saved[parsedIndex]?.text?.anchor).toBe("bottom");
+
+    // The recovered-draft path replays the same journal onto a fresh open.
+    const fresh = createWebPptxSessionRuntime({ documentId: "real-reparse" });
+    const reopened = await fresh.open({ bytes: fixture(), documentId: "real-reparse" });
+    if (reopened.outcome !== "opened" || !reopened.document_model_ref) throw new Error("second open failed");
+    await fresh.restore!(reopened.document_model_ref, JSON.parse(JSON.stringify(value)) as typeof value);
+    expect(elementsOf(fresh.deck(reopened.document_model_ref))[parsedIndex]?.text?.anchor).toBe("bottom");
+    await runtime.release(ref);
+    await fresh.release(reopened.document_model_ref);
+  }, 60_000);
+});
+
 describe("web PPTX runtime on the real engine - hidden slides (W13)", () => {
   const hiddenOf = (runtime: ReturnType<typeof createWebPptxSessionRuntime>, ref: string): boolean[] => runtime.slides(ref).map((slide) => slide.hidden);
 
