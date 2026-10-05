@@ -1878,6 +1878,10 @@
         "hint_jump": "nhảy tới",
         "hint_close": "đóng"
       },
+      "thread_toc": {
+        "label": "Chuyển đến chuỗi bình luận",
+        "comment_label": "Chuỗi bình luận {{index}}"
+      },
       "find": {
         "label": "Tìm trong công việc",
         "placeholder": "Tìm trong công việc…",
