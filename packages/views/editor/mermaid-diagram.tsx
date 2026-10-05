@@ -80,22 +80,57 @@ function resolveCssColor(
 
 const FALLBACK_BACKGROUND = "rgb(255, 255, 255)";
 
-function getMermaidThemeVariables(host: HTMLElement | null) {
+/**
+ * Mermaid's `base` theme paints only the five variables below from our tokens;
+ * every other surface (the SVG background, node and cluster fills, edge-label
+ * boxes) falls back to the theme's OWN light defaults — the white box a diagram
+ * showed in dark mode. Each surface is therefore resolved from the same
+ * semantic tokens, which the palette declares in both `:root` and `.dark`, so a
+ * theme switch repaints the whole diagram.
+ *
+ * Exported for the theme regression test; not part of the public surface.
+ */
+export function getMermaidThemeVariables(host: HTMLElement | null) {
   if (!host) {
     return {
       primaryColor: "rgb(245, 245, 245)",
       primaryBorderColor: "rgb(59, 130, 246)",
       primaryTextColor: "rgb(17, 24, 39)",
       lineColor: "rgb(107, 114, 128)",
+      background: FALLBACK_BACKGROUND,
+      mainBkg: FALLBACK_BACKGROUND,
+      clusterBkg: "rgb(245, 245, 245)",
+      clusterBorder: "rgb(228, 228, 231)",
+      edgeLabelBackground: FALLBACK_BACKGROUND,
+      secondaryColor: "rgb(245, 245, 245)",
+      tertiaryColor: "rgb(245, 245, 245)",
+      nodeBorder: "rgb(228, 228, 231)",
+      textColor: "rgb(17, 24, 39)",
       fontFamily: "inherit",
     };
   }
 
+  const background = resolveCssColor(host, "--background", FALLBACK_BACKGROUND);
+  const card = resolveCssColor(host, "--card", FALLBACK_BACKGROUND);
+  const muted = resolveCssColor(host, "--muted", "rgb(245, 245, 245)");
+  const border = resolveCssColor(host, "--border", "rgb(228, 228, 231)");
+  const foreground = resolveCssColor(host, "--foreground", "rgb(17, 24, 39)");
+
   return {
-    primaryColor: resolveCssColor(host, "--muted", "rgb(245, 245, 245)"),
+    primaryColor: muted,
     primaryBorderColor: resolveCssColor(host, "--primary", "rgb(59, 130, 246)"),
-    primaryTextColor: resolveCssColor(host, "--foreground", "rgb(17, 24, 39)"),
+    primaryTextColor: foreground,
     lineColor: resolveCssColor(host, "--muted-foreground", "rgb(107, 114, 128)"),
+    // Surfaces Mermaid otherwise draws from its light defaults.
+    background,
+    mainBkg: card,
+    clusterBkg: muted,
+    clusterBorder: border,
+    edgeLabelBackground: card,
+    secondaryColor: muted,
+    tertiaryColor: muted,
+    nodeBorder: border,
+    textColor: foreground,
     fontFamily: "inherit",
   };
 }
