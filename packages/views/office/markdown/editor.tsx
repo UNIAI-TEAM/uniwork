@@ -164,6 +164,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // M-4: at phone width the ribbon's trailing slot is dropped and these two
   // controls move onto the frame's subbar, so the tab row stays tabs-only.
   const narrow = useMediaQuery(MARKDOWN_NARROW_QUERY);
+  const sectionRef = useRef<HTMLElement>(null);
   const findRef = useRef<MarkdownFindHandle>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const sourceWrapperRef = useRef<HTMLDivElement>(null);
@@ -410,6 +411,22 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // preview renderer, then let the sanitizer + port take over. Never the raw
   // source, never `window.print()`.
   const renderPrintHtml = useCallback(() => buildMarkdownPreviewCopy({ source: sourceText(editorRef.current, latestTextRef.current), document_path: "document.md" }), []);
+  // m3: the section owns Ctrl+S only while focus is inside it; after the find
+  // panel closes with Escape, focus falls to `document.body` and the press is
+  // lost. This window listener covers that gap - a press inside the landmark is
+  // skipped by the containment check AND by the section's `defaultPrevented`.
+  useEffect(() => {
+    const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
+      if (event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof Node && sectionRef.current?.contains(target)) return;
+      save("shortcut");
+    };
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => window.removeEventListener("keydown", onWindowKeyDown);
+  }, [save]);
+
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -452,7 +469,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   }, [copySelection, history, mode, pasteText, permissions.canCopy, permissions.canPaste, save]);
 
   return (
-    <section className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <section ref={sectionRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <OfficeFrame
           ribbon={

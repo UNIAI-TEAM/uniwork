@@ -105,6 +105,30 @@ describe("MarkdownEditor (production surface)", () => {
     expect(handle.dispose).toHaveBeenCalled();
   });
 
+  it("saves on Ctrl+S after the find panel closes with Escape and focus falls to body (m3)", async () => {
+    const { saveCoordinator } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // Ctrl+F opens the find panel; Escape closes it and leaves focus on body.
+    fireEvent.keyDown(document, { key: "f", ctrlKey: true });
+    const panel = await screen.findByTestId("find-replace-panel");
+    fireEvent.keyDown(panel, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("find-replace-panel")).toBeNull());
+    const outside = document.createElement("div");
+    document.body.append(outside);
+    outside.focus();
+    expect(screen.getByTestId("md-editor").contains(document.activeElement)).toBe(false);
+    // The section handler cannot see this press: focus is outside the landmark.
+    fireEvent.keyDown(document.body, { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).toHaveBeenCalledWith("shortcut");
+  });
+
+  it("does not double-save on Ctrl+S inside the section (m3)", async () => {
+    const { saveCoordinator } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).toHaveBeenCalledTimes(1);
+  });
+
   it("moves Find and the Source | Visual switch onto the subbar at 390 and keeps the tabs uncovered (M-4)", async () => {
     window.innerWidth = 390;
     renderEditor();
