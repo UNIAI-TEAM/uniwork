@@ -25,6 +25,7 @@
       "dialogFilterName": "Markdown",
       "associationName": "Markdown document",
       "untitledName": "Untitled.md",
+      "untitledLocaleKey": "officeDesktop.local.untitledMarkdown",
       "engineBuild": "uniwork-text/text-document-1"
     },
     "html": {
@@ -33,6 +34,7 @@
       "dialogFilterName": "HTML",
       "associationName": "HTML document",
       "untitledName": "Untitled.html",
+      "untitledLocaleKey": "officeDesktop.local.untitledHtml",
       "engineBuild": "uniwork-text/text-document-1"
     }
   }
