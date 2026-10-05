@@ -163,19 +163,23 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   }), [identity.documentId, session]);
   // `revision` is a dependency so an edit/undo/redo/restore rebuilds the deck the
   // canvas keys its rendition cache on; the model object identity is stable across
-  // mutations, so a [session]-only memo would never see the change.
+  // mutations, so a [session]-only memo would never see the change. `ready` is one
+  // too: deck()/slides() are empty until openEditor() resolves and opening does not
+  // bump the revision, so without it the first open would keep the pre-open (empty) read.
   const deck = useMemo(() => {
+    void ready;
     const model = session.editor.deck();
     // No deck before the open resolves: an empty object would make the editor
     // treat the canvas as deck-bound and pull the render artifact early.
     return model ? { deck: model, revision } : undefined;
-  }, [revision, session]);
+  }, [ready, revision, session]);
   const slides = useMemo(() => {
     // A slide-structure edit (add/delete/reorder) must refresh the rail, so the
     // published revision participates even though the list itself reads the model.
     void revision;
+    void ready;
     return session.editor.slides().map((slide, index) => ({ id: slide.id, label: String(index + 1), hidden: slide.hidden }));
-  }, [revision, session]);
+  }, [ready, revision, session]);
 
   // Edit ports -> the adapter's typed edit channel (never a second write path).
   const commitText = useCallback((commit: { slideIndex: number; elementId: string; paragraphs: PptxParagraphLike[] }) =>

@@ -35,7 +35,7 @@ import {
   resolveTrigger,
   type PptxAnimationEntry,
 } from "./animations-model";
-import "./animations-i18n";
+import { ensurePptxAnimationsI18n } from "./animations-i18n";
 
 export interface PptxAnimationsPanelProps {
   /** 0-based slide the pane edits; null = no slide selected (empty state). */
@@ -81,6 +81,8 @@ export function PptxAnimationsPanel({
   onPreview,
   className,
 }: PptxAnimationsPanelProps) {
+  // Lazy: the desktop renderer imports this module before i18n is initialized.
+  ensurePptxAnimationsI18n();
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx.animations" });
   const idPrefix = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const [effect, setEffect] = useState<PptxAnimEffect>("fade");

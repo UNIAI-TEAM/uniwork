@@ -11,7 +11,7 @@
 // Keys are the exact office.pptx.* paths the panel passes to t(); values are
 // the vi (source) and en strings.
 
-import { getI18n } from "react-i18next";
+import { createPptxI18nRegistrar } from "../i18n-registrar";
 
 export interface PptxPanelI18nEntry {
   en: string;
@@ -99,27 +99,7 @@ export function pptxTransitionsResources(locale: "en" | "vi"): Record<string, un
   return out;
 }
 
-/**
- * Register the panel's keys for every locale whose bundle is already loaded.
- * overwrite=false, so a key the UI-wire round copies into en.json/vi.json keeps
- * the locale file's value. Called on import and again whenever i18next
- * initializes or changes language, so a locale loaded later (vi) still gets the
- * panel's keys without a second import.
- */
-export function registerPptxTransitionsI18n(): void {
-  const i18n = getI18n();
-  for (const locale of ["en", "vi"] as const) {
-    if (!i18n.hasResourceBundle(locale, "translation")) continue;
-    i18n.addResourceBundle(locale, "translation", pptxTransitionsResources(locale), true, false);
-  }
-}
-
-// Register now (the shared instance is usually already initialized) and again
-// whenever a locale lands or the language changes, so vi gets the panel's keys
-// without a second import. The listener is added once, on first import.
-registerPptxTransitionsI18n();
-{
-  const i18n = getI18n();
-  i18n.on("initialized", () => { registerPptxTransitionsI18n(); });
-  i18n.on("languageChanged", () => { registerPptxTransitionsI18n(); });
-}
+/** Registers the panel's keys for every loaded locale (overwrite=false, so the
+ * locale files win once the keys land there). Lazy and idempotent: importing
+ * this module never touches i18next, the panel calls it on render. */
+export const ensurePptxTransitionsI18n = createPptxI18nRegistrar(pptxTransitionsResources);

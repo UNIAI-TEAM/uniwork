@@ -11,7 +11,7 @@
  *
  * Keys are the exact office.pptx.charts.* paths the panel passes to t().
  */
-import { getI18n } from "react-i18next";
+import { createPptxI18nRegistrar } from "../i18n-registrar";
 import { CHART_KINDS } from "@uniwork/office-engine/pptx";
 import { chartKindLabelKey } from "./chart-model";
 
@@ -120,26 +120,10 @@ export function pptxChartsResources(locale: PptxChartsLocale): Record<string, un
   return out;
 }
 
-/**
- * Register the panel's keys for every locale whose bundle is already loaded.
- * overwrite=false, so a key the UI-wire round copies into en.json/vi.json keeps
- * the locale file's value. Called on import and again whenever i18next
- * initializes or changes language, so a locale loaded later still gets the keys.
- */
-export function registerPptxChartsI18n(): void {
-  const i18n = getI18n();
-  for (const locale of ["en", "vi"] as const) {
-    if (!i18n.hasResourceBundle(locale, "translation")) continue;
-    i18n.addResourceBundle(locale, "translation", pptxChartsResources(locale), true, false);
-  }
-}
-
-registerPptxChartsI18n();
-{
-  const i18n = getI18n();
-  i18n.on("initialized", () => { registerPptxChartsI18n(); });
-  i18n.on("languageChanged", () => { registerPptxChartsI18n(); });
-}
+/** Registers the panel's keys for every loaded locale (overwrite=false, so the
+ * locale files win once the keys land there). Lazy and idempotent: importing
+ * this module never touches i18next, the panel calls it on render. */
+export const ensurePptxChartsI18n = createPptxI18nRegistrar(pptxChartsResources);
 
 /** Every kind must carry a label key; exported so the parity test can pin it. */
 export const PPTX_CHARTS_KIND_KEYS: readonly string[] = CHART_KINDS.map((kind) => chartKindLabelKey(kind));

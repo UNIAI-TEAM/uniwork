@@ -8,14 +8,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { ChartEdit } from "@uniwork/office-engine/pptx";
 import { PPTX_CHART_DEFAULT_RECT } from "./chart-model";
-import { registerPptxChartsI18n } from "./charts-i18n";
+import { ensurePptxChartsI18n } from "./charts-i18n";
 import { PptxChartsPanel, type PptxChartsPanelProps } from "./pptx-charts-panel";
 
 initI18n();
-registerPptxChartsI18n();
+ensurePptxChartsI18n();
 beforeEach(async () => {
   await setLocale("en");
-  registerPptxChartsI18n();
+  ensurePptxChartsI18n();
 });
 
 function renderPanel(overrides: Partial<PptxChartsPanelProps> = {}) {

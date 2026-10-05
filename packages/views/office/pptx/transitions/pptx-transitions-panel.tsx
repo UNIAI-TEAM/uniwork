@@ -24,7 +24,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { PptxTransitionKind } from "@uniwork/office-engine/pptx";
 import { PptxAdvanceTiming } from "./advance-timing";
 import { PptxTransitionGallery, resolveSelectedKind, transitionKindLabelKey } from "./transition-gallery";
-import "./transitions-i18n";
+import { ensurePptxTransitionsI18n } from "./transitions-i18n";
 
 export interface PptxTransitionsPanelProps {
   /** 0-based slide the panel edits; null = no slide selected (empty state). */
@@ -65,6 +65,8 @@ export function PptxTransitionsPanel({
   onApplyAdvance,
   className,
 }: PptxTransitionsPanelProps) {
+  // Lazy: the desktop renderer imports this module before i18n is initialized.
+  ensurePptxTransitionsI18n();
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx.transitions" });
   const applyAllId = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const [applyAll, setApplyAll] = useState(false);

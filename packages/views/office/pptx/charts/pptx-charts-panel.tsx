@@ -52,7 +52,7 @@ import {
   type PptxChartLegendPos,
   type PptxChartResult,
 } from "./chart-model";
-import "./charts-i18n";
+import { ensurePptxChartsI18n } from "./charts-i18n";
 
 export interface PptxChartsPanelProps {
   /** The engine edit channel (one committed `ChartEdit` per call). Absent ->
@@ -98,6 +98,8 @@ export function PptxChartsPanel({
   disabled = false,
   className,
 }: PptxChartsPanelProps) {
+  // Lazy: the desktop renderer imports this module before i18n is initialized.
+  ensurePptxChartsI18n();
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   // The model stores each kind/palette label's FULL i18n key, so those lookups
   // must run against the root: a prefixed call would double the namespace and
