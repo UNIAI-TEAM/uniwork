@@ -229,6 +229,234 @@ describe.skipIf(!SIDECAR_STAGED)("xlsx jobs with the real Rust sidecar", () => {
     expect(warnings.some((w) => w.code === "formula_cache_kept")).toBe(false);
   });
 
+  it("edit:xlsx with sheet-identity changes (add + rename sheet, sort, new formula) still refreshes every <v> (R3-1)", async () => {
+    // The exact browser save envelope: value edit, new formula Data!B8, rows
+    // rewritten by a sort, add_sheet + rename_sheet. The saved package must
+    // carry recomputed cached values, not the file's stale ones.
+    const job = xlsxJob(hn.target, {
+      bytes: await xlsxFixture("xlsx-kitchen-sink.xlsx"),
+      operation: "edit",
+      payload: {
+        edits: [
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B2"
+            },
+            "attributes": {
+              "value": 2000000000
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B8"
+            },
+            "attributes": {
+              "formula": "=SUM(B2:B4)"
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B2"
+            },
+            "attributes": {
+              "value": 2000000000
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B3"
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B4"
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B8"
+            },
+            "attributes": {
+              "formula": "=SUM(B2:B4)"
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B2"
+            },
+            "attributes": {
+              "value": 1410000000
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B3"
+            },
+            "attributes": {
+              "value": 2000000000
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "B4"
+            },
+            "attributes": {
+              "value": 1570000000
+            },
+            "style": {
+              "numberFormat": "#,##0\" ₫\""
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "A2"
+            },
+            "attributes": {
+              "value": "Chi phí"
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "C2"
+            },
+            "attributes": {
+              "value": 820000000
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "A3"
+            },
+            "attributes": {
+              "value": "Doanh thu"
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "C3"
+            },
+            "attributes": {
+              "value": 780000000
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "A4"
+            },
+            "attributes": {
+              "value": "Lợi nhuận"
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "C4"
+            },
+            "attributes": {
+              "value": 860000000
+            }
+          },
+          {
+            "op": "add_sheet",
+            "attributes": {
+              "name": "Sheet",
+              "index": 2
+            }
+          },
+          {
+            "op": "rename_sheet",
+            "target": {
+              "sheet": "Sheet"
+            },
+            "attributes": {
+              "newName": "Tổng hợp"
+            }
+          },
+          {
+            "op": "set_cell",
+            "target": {
+              "sheet": "Data",
+              "cell": "A10"
+            },
+            "attributes": {
+              "value": "Ghi chú gộp ô"
+            }
+          }
+        ],
+      },
+    });
+    await submit(hn, job);
+    const done = await waitTerminal(hn, job, 60_000);
+    expect(done.body.state).toBe("completed");
+    const out = new Uint8Array(hn.target.uploads.at(-1)!.body);
+    const mod = await gateway();
+    const zip = await mod.createBufferEntrySource(out);
+    const dataXml = await worksheetXml(zip, "Data");
+    const phuLucXml = await worksheetXml(zip, "PhuLuc");
+    const literal = (addr: string): number => {
+      const m = dataXml.match(new RegExp(`<c\\b[^>]*\\br="${addr}"[^>]*>([\\s\\S]*?)</c>`));
+      return Number(m?.[1]?.match(/<v>([^<]+)<\/v>/)?.[1]);
+    };
+    const sumB = literal("B2") + literal("B3") + literal("B4");
+    const sumC = literal("C2") + literal("C3") + literal("C4");
+    expect(sumB).toBe(4_980_000_000);
+    expect(Number(cellV(dataXml, "B6"))).toBe(sumB);
+    expect(Number(cellV(dataXml, "C6"))).toBe(sumC);
+    expect(Number(cellV(dataXml, "B8"))).toBe(sumB);
+    expect(Number(cellV(phuLucXml, "B2"))).toBe(sumB);
+    const warnings = (done.body.warnings ?? []) as { code: string }[];
+    expect(warnings.some((w) => /formula_cache_kept/.test(w.code))).toBe(false);
+    const wb = await mod.readBasicWorkbook(out);
+    expect(wb.snapshot.sheets.map((s) => s.name)).toContain("Tổng hợp");
+  });
+
   it("two consecutive edit saves chain: job2 recalculates on job1's output", async () => {
     const mod = await gateway();
     const one = xlsxJob(hn.target, {
