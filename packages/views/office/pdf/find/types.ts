@@ -3,8 +3,8 @@ import type { PdfTextDoc, ReadPdfTextOptions } from "@uniwork/office-engine/pdf"
 export type PdfTextDocument = PdfTextDoc;
 export type PdfTextReader = (bytes: Uint8Array, options?: ReadPdfTextOptions) => Promise<PdfTextDoc>;
 
-/** One character box in the page's UNROTATED user space: top-left origin,
- * PDF points (page width x unrotated height; /Rotate is not applied). */
+/** One character box in the page's DISPLAY space (the /Rotate transform
+ * already applied): top-left origin, same units as the page width x height. */
 export interface PdfCharBox {
   x: number;
   y: number;
@@ -22,7 +22,8 @@ export interface PdfSearchHit {
   start: number;
   end: number;
   text: string;
-  /** Per-line rectangles in PDF user space (origin bottom-left); absent when the
+  /** Per-line rectangles in the page's DISPLAY space (/Rotate applied, origin
+   * bottom-left, same units as the page width/height); absent when the
    * host cannot read page geometry, so the hit simply paints nothing. */
   quads?: readonly PdfSearchQuad[];
 }

@@ -47,8 +47,10 @@ export function findPdfTextHits(document: PdfTextDocument, query: string): PdfSe
 }
 
 /** Union the character boxes a hit covers into one rectangle per line, in PDF
- * user space (origin bottom-left). Boxes are top-left-origin in the page's
- * unrotated space; a box that shares
+ * the page's DISPLAY space (origin bottom-left, the /Rotate transform already
+ * applied), in the same units as the page width/height. `boxes` and
+ * `pageHeight` are in that same display space but top-left-origin, so the
+ * flip is `pageHeight - y`; this function never rotates. A box that shares
  * a line with the previous one joins it, and a box whose vertical span does not
  * overlap the line starts a new one (the y baseline jumped). Zero-size boxes
  * (a char pdfium had no box for) are skipped. */

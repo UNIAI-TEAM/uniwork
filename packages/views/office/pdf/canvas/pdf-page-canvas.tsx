@@ -17,7 +17,9 @@ export interface PdfPageCanvasProps {
   /** `select` (default) picks objects; `region` drags a rectangle; `point` drops a point. */
   tool?: PdfCanvasTool;
   onPageRegion?: (pageNumber: number, region: PdfCanvasRegion) => void;
-  /** Find-hit rectangles for this page, in PDF user space (origin bottom-left). */
+  /** Find-hit rectangles for this page, in the page's DISPLAY space (the /Rotate
+   * transform already applied), origin bottom-left, in the same units as
+   * `page.width` / `page.height`. */
   highlights?: readonly PdfCanvasHighlight[];
 }
 
@@ -119,7 +121,9 @@ function regionOf(start: { x: number; y: number }, end: { x: number; y: number }
   return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) };
 }
 
-/** Quarter turns clockwise for a page rotation; 0/90/180/270 map to 0/1/2/3. */
+/** Quarter turns clockwise for a page rotation; 0/90/180/270 map to 0/1/2/3.
+ * Only the legacy page-own-size layout path uses this (see `PdfCanvasPage`);
+ * rotation 0, what both hosts report, makes every helper below an identity. */
 function quarterTurns(rotation: number | undefined): number {
   return ((Math.round((rotation ?? 0) / 90) % 4) + 4) % 4;
 }

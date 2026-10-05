@@ -38,10 +38,24 @@ export interface PdfCanvasBox {
   height: number;
 }
 
+/** One page as the canvas draws it. Both shipped hosts (web and desktop) report
+ * `rotation: 0` together with the page's DISPLAY width/height (the /Rotate
+ * transform already applied, the same size as the raster they render). In that
+ * contract `rotation` is informational, and boxes (top-left origin) and find
+ * quads (`PdfCanvasHighlightQuad`, bottom-left origin) all live in the same
+ * display space as `width`/`height`.
+ *
+ * A non-zero `rotation` is NOT part of that contract. The legacy layout path
+ * (page size, `boxes` hit-testing, region drafts) still reads `width`/`height`
+ * as the page-own, pre-rotation size and rotates it by `rotation`, as does
+ * `pdfDisplaySize` in `../fit-zoom`; find highlights ignore `rotation` and
+ * treat `height` as the display height. A host must therefore not report a
+ * non-zero `rotation` with display dimensions. */
 export interface PdfCanvasPage {
   pageNumber: number;
   width: number;
   height: number;
+  /** The page's /Rotate in degrees; informational when `width`/`height` are display size. */
   rotation?: number;
   boxes?: readonly PdfCanvasBox[];
 }
