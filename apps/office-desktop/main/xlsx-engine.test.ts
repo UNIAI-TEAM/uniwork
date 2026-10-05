@@ -154,6 +154,22 @@ describe("createLocalXlsxEngine recalc port lifecycle (R4B-1)", () => {
     expect(ports.every((port) => port.closed)).toBe(true);
   });
 
+  it("closes the job's port when the input fails to open, and the next job still works", async () => {
+    const ports: ReturnType<typeof terminalPort>[] = [];
+    const engine = createLocalXlsxEngine({ engine: fakeGateway(), createRecalc: () => { const port = terminalPort(); ports.push(port); return port; } });
+
+    // Not a zip package: adapter.open fails, so the adapter's release() never
+    // runs and the engine's finally is the only reaper of this job's port.
+    await expect(engine.edit(new TextEncoder().encode("not an xlsx package"), SET_A1)).rejects.toMatchObject({ code: "engine_result_invalid" });
+    expect(ports).toHaveLength(1);
+    expect(ports[0]!.recalcs).toBe(0);
+    expect(ports[0]!.closed).toBe(true);
+
+    await expect(engine.edit(FORMULA_WORKBOOK, SET_A1)).resolves.toMatchObject({ checksum: expect.stringMatching(/^sha256:/) });
+    expect(ports).toHaveLength(2);
+    expect(ports[1]!.closed).toBe(true);
+  });
+
   it("retries a failed port creation on the next job instead of caching the failure", async () => {
     let attempts = 0;
     const ports: ReturnType<typeof terminalPort>[] = [];

@@ -110,8 +110,13 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
       } finally {
         // The adapter's release() already closes the port once a session
         // opened; an open that failed never got there. close() is
-        // idempotent, so always reap the job's sidecar here.
-        await recalc?.close().catch(() => {});
+        // idempotent, so always reap the job's sidecar here. A close that
+        // throws, even synchronously, must not mask the job's real outcome.
+        try {
+          await recalc?.close();
+        } catch {
+          // ignore: the job already succeeded or failed on its own
+        }
       }
     },
   };
