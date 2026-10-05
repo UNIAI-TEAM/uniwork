@@ -2,7 +2,22 @@
 // by the open:xlsx job) to the shapes the vendored genoffice sheets renderer
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
-import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
+
+/** One file-native table in the genoffice `WorkbookFile` sheet shape (the
+ *  subset the vendored loader and the ribbon read). `styleName` is left out on
+ *  purpose: the loader paints banding only for a named style, and the style
+ *  colours are resolved sidecar-side, so omitting it keeps the file's cells
+ *  unpainted rather than inventing colours. */
+export interface RendererWorkbookTable {
+  range: { startRow: number; startColumn: number; endRow: number; endColumn: number };
+  headerRowCount: number;
+  showRowStripes: boolean;
+  showColumnStripes: boolean;
+  name: string;
+  columns: string[];
+  totalsRowCount?: number;
+}
 
 /** One workbook defined name as the vendored loader consumes it (the
  *  genoffice `DefinedNameEntry` shape). `sheetIndex` is the 0-based sheet
@@ -65,7 +80,7 @@ export interface RendererWorkbookSheet {
     styleIndex?: number;
   }[];
   pivotTables: never[];
-  tables: never[];
+  tables: RendererWorkbookTable[];
   comments: never[];
   pivotRanges: never[];
 }
@@ -161,6 +176,18 @@ function toRendererDefinedName(defined: XlsxRenderDefinedName): RendererWorkbook
   };
 }
 
+function toRendererWorkbookTable(table: XlsxRenderTable): RendererWorkbookTable {
+  return {
+    range: { ...table.area },
+    headerRowCount: table.headerRow ? 1 : 0,
+    showRowStripes: table.bandedRows,
+    showColumnStripes: false,
+    name: table.name,
+    columns: [...table.columnNames],
+    ...(table.totalsRow ? { totalsRowCount: 1 } : {}),
+  };
+}
+
 function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet {
   return {
     id: sheet.id,
@@ -181,7 +208,7 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet 
     ...(sheet.zoomScale === undefined ? {} : { zoomScale: sheet.zoomScale }),
     columnWidths: sheet.columnWidths.map((column) => ({ ...column })),
     pivotTables: [],
-    tables: [],
+    tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
     pivotRanges: [],
   };

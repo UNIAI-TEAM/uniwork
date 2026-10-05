@@ -7,12 +7,30 @@
 // into the list the toolbar needs, keyed by the sheet's live name so a session
 // rename keeps the contextual tab aimed at the right sheet.
 //
-// A file-native table (one already in the .xlsx) has no edit and no renderer
-// read-back yet, so it is a known gap reported with the fix - the contextual
-// tab covers tables the session creates, which is the finding R4 describes.
+// A file-native table (one already in the .xlsx) has no edit: the engine's
+// render model reads it from the package and the bridge carries it on
+// `file.sheets[].tables`; `fileTablesToToolbar` seeds the list from there and
+// session edits fold on top (FB-3).
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import { isTableGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxToolbarTable, XlsxToolbarTableRange } from "./toolbar/types";
+import type { RendererWorkbookSheet } from "./xlsx-render-model-bridge";
+
+/** The tables the opened file ships, keyed by sheet name (the toolbar shape). */
+export function fileTablesToToolbar(sheets: readonly RendererWorkbookSheet[] | undefined): readonly XlsxToolbarTable[] {
+  return (sheets ?? []).flatMap((sheet) =>
+    (sheet.tables ?? []).map((table): XlsxToolbarTable => ({
+      sheet: sheet.name,
+      name: table.name,
+      range: {
+        startRow: table.range.startRow,
+        endRow: table.range.endRow,
+        startColumn: table.range.startColumn,
+        endColumn: table.range.endColumn,
+      },
+    })),
+  );
+}
 
 /** Fold one batch of grid edits into the live table list. */
 export function foldTableEdits(

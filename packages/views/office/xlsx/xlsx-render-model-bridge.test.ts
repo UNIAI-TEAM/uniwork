@@ -96,6 +96,42 @@ describe("render model bridge", () => {
     }
   });
 
+  it("maps the tables a file ships into the renderer sheet shape", () => {
+    const withTable: XlsxRenderModel = {
+      ...MODEL,
+      sheets: [
+        {
+          ...MODEL.sheets[0]!,
+          tables: [
+            {
+              name: "Sales",
+              area: { startRow: 1, startColumn: 1, endRow: 5, endColumn: 3 },
+              columnNames: ["Region", "Q1", "Total"],
+              style: "TableStyleMedium2",
+              bandedRows: true,
+              headerRow: true,
+              totalsRow: true,
+            },
+          ],
+        },
+        MODEL.sheets[1]!,
+      ],
+    };
+    const file = toRendererWorkbookFile(withTable, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]?.tables).toEqual([
+      {
+        range: { startRow: 1, startColumn: 1, endRow: 5, endColumn: 3 },
+        headerRowCount: 1,
+        showRowStripes: true,
+        showColumnStripes: false,
+        name: "Sales",
+        columns: ["Region", "Q1", "Total"],
+        totalsRowCount: 1,
+      },
+    ]);
+    expect(file.sheets[1]?.tables).toEqual([]);
+  });
+
   it("serves a viewport window with cached formula results and layout", () => {
     const result = readRangeFromModel(MODEL, "Data", { startRow: 0, endRow: 4, startColumn: 0, endColumn: 1 });
     const a2 = result.cells.find((cell) => cell.row === 1 && cell.column === 0)!;

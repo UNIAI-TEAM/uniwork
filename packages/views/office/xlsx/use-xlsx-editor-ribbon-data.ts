@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort, XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import type { XlsxSheetTab } from "./sheet-tabs";
-import { foldTableEdits } from "./use-xlsx-editor-tables";
+import { fileTablesToToolbar, foldTableEdits } from "./use-xlsx-editor-tables";
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxToolbarTable } from "./toolbar/types";
 
@@ -21,9 +21,14 @@ export function useXlsxEditorRibbonData(
 ): { sheetTabInfos: readonly XlsxSheetTab[]; tables: readonly XlsxToolbarTable[]; onTableEdits: (edits: readonly XlsxGridEdit[]) => void } {
   // R4: the live tables the contextual Table tabs answer to, folded from the
   // renderer's table edits (kept here so the shell stays within its line cap).
-  const [tables, setTables] = useState<readonly XlsxToolbarTable[]>([]);
-  // A different document starts with no tables: the folded list is per document.
-  useEffect(() => { setTables([]); }, [documentKey]);
+  // FB-3: it starts from the tables the opened file ships (render model ->
+  // `file.sheets[].tables`); session edits fold on top.
+  const fileSheets = rendererHost?.file.sheets;
+  const fileTables = useMemo(() => fileTablesToToolbar(fileSheets), [fileSheets]);
+  const [tables, setTables] = useState<readonly XlsxToolbarTable[]>(fileTables);
+  // A different document (or a reloaded file) restarts from its own tables:
+  // the folded list is per document.
+  useEffect(() => { setTables(fileTables); }, [documentKey, fileTables]);
   const onTableEdits =useCallback((edits: readonly XlsxGridEdit[]) => {
     setTables((current) => foldTableEdits(current, edits, (sheetId) => liveSheets.find((sheet) => sheet.id === sheetId)?.name));
   }, [liveSheets]);

@@ -11,6 +11,8 @@
 // Placement (checkpoint option A, Advisor-approved): this lives in the
 // browser-safe xlsx lane and is consumed by the `open:xlsx` job and by the
 // renderer controller; it never touches the Rust sidecar.
+import { readSheetTables, type XlsxRenderTable } from "./render-model-tables.ts";
+export type { XlsxRenderTable };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
@@ -83,6 +85,9 @@ export interface XlsxRenderSheet {
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
   readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
+  /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
+   *  reads as no tables. Read-only; the write path is the table ops. */
+  readonly tables?: readonly XlsxRenderTable[] | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -409,12 +414,18 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
   const sheetPaths = ordered.map((sheet) => sheet.path).filter((value): value is string => value !== undefined);
   const sheetXmls = sheetPaths.length ? await engine.readEntriesText(bytes, sheetPaths) : {};
 
+  const sheetTables = await readSheetTables(
+    ordered.map((sheet) => ({ path: sheet.path, xml: sheet.path ? sheetXmls[sheet.path] : null })),
+    (paths) => engine.readEntriesText(bytes, paths),
+    parseRefRange,
+  );
+
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    return { ...parsed, hidden: sheet.hidden ?? false, index };
+    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];
