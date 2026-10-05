@@ -7,6 +7,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { XLSX_HORIZONTAL_ALIGN, XLSX_TEXT_ROTATIONS, XLSX_VERTICAL_ALIGN, XLSX_WRAP_STRATEGY } from "./home-format";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const HORIZONTAL_ALIGNMENTS = [
   { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: AlignStartHorizontal },
@@ -30,28 +31,17 @@ export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, form
   };
 
   return (
-    <>
-      {HORIZONTAL_ALIGNMENTS.map(({ key, value, Icon }) => (
-        <Button
-          key={key}
-          type="button"
-          variant="toolbar"
-          size="icon-sm"
-          aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
-          aria-pressed={formatState?.horizontalAlign === value}
-          aria-disabled={blocked || undefined}
-          onClick={() => run("sheet.command.set-horizontal-text-align", { value })}
-        >
-          <Icon aria-hidden />
-        </Button>
-      ))}
-      <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
       {VERTICAL_ALIGNMENTS.map(({ key, value, Icon }) => (
         <Button
           key={key}
           type="button"
           variant="toolbar"
           size="icon-sm"
+          className={XLSX_ICON_BUTTON_CLASS}
+          title={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
           aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
           aria-pressed={formatState?.verticalAlign === value}
           aria-disabled={blocked || undefined}
@@ -60,11 +50,12 @@ export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, form
           <Icon aria-hidden />
         </Button>
       ))}
-      <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        title={t("office.xlsx.toolbar.groups.alignment.wrap")}
         aria-label={t("office.xlsx.toolbar.groups.alignment.wrap")}
         aria-pressed={formatState?.wrap === true}
         aria-disabled={blocked || undefined}
@@ -74,6 +65,25 @@ export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, form
       >
         <TextWrap aria-hidden />
       </Button>
+    </XlsxGroupRow>
+    <XlsxGroupRow>
+      {HORIZONTAL_ALIGNMENTS.map(({ key, value, Icon }) => (
+        <Button
+          key={key}
+          type="button"
+          variant="toolbar"
+          size="icon-sm"
+          className={XLSX_ICON_BUTTON_CLASS}
+          title={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
+          aria-label={t(`office.xlsx.toolbar.groups.alignment.${key}`)}
+          aria-pressed={formatState?.horizontalAlign === value}
+          aria-disabled={blocked || undefined}
+          onClick={() => run("sheet.command.set-horizontal-text-align", { value })}
+        >
+          <Icon aria-hidden />
+        </Button>
+      ))}
+      <div className="w-20 shrink-0">
       <Select
         aria-label={t("office.xlsx.toolbar.groups.alignment.rotation")}
         triggerVariant="subtle"
@@ -85,6 +95,9 @@ export function XlsxAlignmentGroup({ readOnly = false, canFormat, commands, form
           label: t("office.xlsx.toolbar.groups.alignment.rotationAngle", { angle }),
         }))}
       />
-    </>
+      </div>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

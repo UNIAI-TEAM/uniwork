@@ -11,6 +11,7 @@ import { Sigma, SquareFunction } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { XlsxToolbarGroupProps } from "./types";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import { useXlsxAutoSum } from "../formulas/use-auto-sum";
 
 export function XlsxFormulaGroup({
@@ -36,12 +37,10 @@ export function XlsxFormulaGroup({
     readOnly,
   });
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.formulas.library.open")}
+        title={t("office.xlsx.formulas.library.open")}
         aria-haspopup="dialog"
         aria-disabled={libraryBlocked || undefined}
         data-testid="xlsx-function-library-open"
@@ -51,19 +50,25 @@ export function XlsxFormulaGroup({
         }}
       >
         <SquareFunction aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.formulas.autosum.label")}
-        title={t("office.xlsx.formulas.autosum.hint")}
-        aria-disabled={!autoSum.canAutoSum || undefined}
-        data-testid="xlsx-autosum"
-        onClick={() => autoSum.autoSum()}
-      >
-        <Sigma aria-hidden />
-      </Button>
+        <XlsxLargeLabel>{t("office.xlsx.formulas.library.open")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.formulas.autosum.label")}
+            title={t("office.xlsx.formulas.autosum.hint")}
+            aria-disabled={!autoSum.canAutoSum || undefined}
+            data-testid="xlsx-autosum"
+            onClick={() => autoSum.autoSum()}
+          >
+            <Sigma aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
       {autoSum.empty ? (
         <span role="status" aria-live="polite" className="sr-only" data-testid="xlsx-autosum-empty">
           {t("office.xlsx.formulas.autosum.empty")}
@@ -74,6 +79,6 @@ export function XlsxFormulaGroup({
           {t("office.xlsx.formulas.autosum.failed")}
         </span>
       ) : null}
-    </>
+    </XlsxGroupBody>
   );
 }

@@ -15,6 +15,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { XLSX_HYPERLINK_COMMAND, XLSX_NOTE_COMMAND, parseA1Address } from "../links/link-commands";
 import type { XlsxToolbarGroupProps } from "./types";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 
 /** The active cell's anchor (the selection's start address). */
 function activeCell(address: string | undefined): string | null {
@@ -62,31 +63,36 @@ export function XlsxLinksGroup({ readOnly = false, commands, selection, unitId, 
   };
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.links.insert")}
+        title={t("office.xlsx.links.insert")}
         aria-haspopup="dialog"
         aria-disabled={!ready || undefined}
         data-testid="xlsx-link-insert"
         onClick={() => { if (ready) setLinkOpen(true); }}
       >
         <Link2 aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.links.note")}
-        aria-haspopup="dialog"
-        aria-disabled={!ready || undefined}
-        data-testid="xlsx-note-insert"
-        onClick={() => { if (ready) setNoteOpen(true); }}
-      >
-        <MessageSquare aria-hidden />
-      </Button>
+        <XlsxLargeLabel>{t("office.xlsx.links.insert")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.links.note")}
+            title={t("office.xlsx.links.note")}
+            aria-haspopup="dialog"
+            aria-disabled={!ready || undefined}
+            data-testid="xlsx-note-insert"
+            onClick={() => { if (ready) setNoteOpen(true); }}
+          >
+            <MessageSquare aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
         <DialogContent>
           <DialogHeader>
@@ -128,6 +134,6 @@ export function XlsxLinksGroup({ readOnly = false, commands, selection, unitId, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </XlsxGroupBody>
   );
 }

@@ -34,7 +34,7 @@ describe("XlsxSheetTabs", () => {
     expect(onSelect).toHaveBeenCalledWith("Budget");
     // The read-only tab colour is shown and announced as pending.
     expect(screen.getByTestId("xlsx-sheet-color-Budget")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Budget" })).toHaveAttribute("title", sheets.tabColorReadOnly);
+    expect(screen.getByRole("tab", { name: "Budget" })).toHaveAttribute("title", `Budget - ${sheets.tabColorReadOnly}`);
     expect(screen.getByTestId("xlsx-sheet-hidden-Archive")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: unhideArchive }));
     expect(onAction).toHaveBeenCalledWith({ kind: "set-hidden", sheet: "Archive", hidden: false });

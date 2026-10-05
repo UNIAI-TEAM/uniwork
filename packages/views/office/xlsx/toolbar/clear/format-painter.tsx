@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useViewEcho } from "../view-echo";
 import type { XlsxToolbarGroupProps } from "../types";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "../group-layout";
 
 /** The pinned Univer format painter (sheets-ui `FormatPainterService`).
  *
@@ -90,10 +91,14 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
   };
 
   return (
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
     <Button
       type="button"
       variant="toolbar"
       size="icon-sm"
+      className={XLSX_ICON_BUTTON_CLASS}
       aria-label={t("office.xlsx.toolbar.groups.painter.label")}
       title={t("office.xlsx.toolbar.groups.painter.hint")}
       aria-pressed={armed}
@@ -103,5 +108,8 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
     >
       <Paintbrush aria-hidden />
     </Button>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

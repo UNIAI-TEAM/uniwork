@@ -22,7 +22,7 @@ export interface XlsxFormulaRowProps {
 export function XlsxFormulaRow({ address, value, disabled, onChange, onCommit }: XlsxFormulaRowProps) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-stretch border-b border-border bg-muted/10" data-testid="xlsx-formula-row">
+    <div className="flex h-7 shrink-0 items-stretch border-b border-border bg-background pointer-coarse:h-11" data-testid="xlsx-formula-row">
       <input
         readOnly
         value={address}

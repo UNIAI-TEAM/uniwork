@@ -102,18 +102,18 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-hidden border-b border-border px-2 py-1" data-testid="xlsx-sheet-tabs">
+    <div className="flex h-8 w-full min-w-0 items-stretch gap-1 overflow-hidden border-t border-border bg-office-band px-2 pointer-coarse:h-11" data-testid="xlsx-sheet-tabs">
       {/* F10: the tablist is the ONLY horizontal scroller in the strip (no
           stacked scrollbars); tabs never wrap and never overlap the actions. */}
-      <div role="tablist" aria-label={t("office.xlsx.sheets.label")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+      <div role="tablist" aria-label={t("office.xlsx.sheets.label")} className="flex min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {visible.map((tab) => (
           <button
             key={tab.name}
             type="button"
             role="tab"
             aria-selected={tab.name === activeSheet}
-            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-label whitespace-nowrap hover:bg-muted aria-selected:bg-muted aria-selected:font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-            title={tab.tabColor ? t("office.xlsx.sheets.tabColorReadOnly") : undefined}
+            className="flex max-w-48 shrink-0 items-center gap-1.5 border-t-2 border-transparent px-3 text-label whitespace-nowrap text-muted-foreground hover:bg-muted hover:text-foreground aria-selected:border-primary aria-selected:bg-background aria-selected:font-medium aria-selected:text-foreground pointer-coarse:min-w-11"
+            title={tab.tabColor ? `${tab.name} - ${t("office.xlsx.sheets.tabColorReadOnly")}` : tab.name}
             onClick={() => onSelect(tab.name)}
             data-testid={`xlsx-sheet-tab-${tab.name}`}
           >
@@ -125,17 +125,17 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
                 data-testid={`xlsx-sheet-color-${tab.name}`}
               />
             ) : null}
-            {tab.name}
+            <span className="min-w-0 truncate">{tab.name}</span>
           </button>
         ))}
         {visible.length === 0 ? <span className="px-2 text-caption text-muted-foreground">{t("office.xlsx.surface.ready")}</span> : null}
       </div>
       {hiddenTabs.length > 0 ? (
-        <div className="flex items-center gap-1" role="group" aria-label={t("office.xlsx.sheets.hiddenGroup")}>
+        <div className="flex max-w-[40%] shrink-0 items-center gap-1 overflow-hidden" role="group" aria-label={t("office.xlsx.sheets.hiddenGroup")}>
           {hiddenTabs.map((tab) => (
             <span
               key={tab.name}
-              className="flex items-center gap-1 rounded px-2 py-1 text-label text-muted-foreground"
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2 text-label text-muted-foreground"
               data-testid={`xlsx-sheet-hidden-${tab.name}`}
             >
               <EyeOff aria-hidden className="size-3" />
@@ -154,7 +154,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           ))}
         </div>
       ) : null}
-      <div className="ms-auto flex shrink-0 items-center gap-0.5" role="group" aria-label={t("office.xlsx.sheets.actions")}>
+      <div className="ms-auto flex shrink-0 items-center gap-0.5 self-center" role="group" aria-label={t("office.xlsx.sheets.actions")}>
         <Button
           type="button"
           variant="toolbar"
@@ -183,7 +183,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
                 setRenaming(false);
               }
             }}
-            className="w-32 rounded border border-input bg-background px-2 py-1 text-label pointer-coarse:min-h-11"
+            className="h-6 w-32 rounded border border-input bg-background px-2 text-label pointer-coarse:min-h-9"
             data-testid="xlsx-sheet-rename-input"
           />
         ) : (

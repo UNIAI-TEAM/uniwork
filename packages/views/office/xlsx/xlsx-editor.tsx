@@ -10,7 +10,6 @@ import { XlsxErrorState } from "./xlsx-error-state";
 import { XlsxFindPanel } from "./find/find-panel";
 import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
-import { XlsxFormulaBar } from "./formulas/formula-bar";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useXlsxProtectNames } from "./protect/use-protect-names";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
@@ -20,7 +19,9 @@ import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { XlsxFormulaRow } from "./toolbar/formula-row";
-import { XlsxStatusArea } from "./toolbar/status-area";
+import { XlsxFrameStatusBar, XlsxSheetTabsRow } from "./toolbar/status-area";
+import { useXlsxViewEcho } from "./toolbar/view-echo";
+import { OfficeFrame } from "../frame";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
 import { addressParts, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
@@ -81,6 +82,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
   // The right-click context menu and the shortcuts help dialog are UI-only.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // FRAME: the ribbon View > Zoom and the status-bar zoom share one echo.
+  const viewEcho = useXlsxViewEcho();
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
   const translationRef = useRef(t);
   const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
@@ -400,7 +403,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const saving = coordinatorState.state === "saving";
 
   return (
-    <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-busy={visibleState === "opening"} tabIndex={-1}>
+    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background", className)} data-testid="xlsx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-busy={visibleState === "opening"} tabIndex={-1}>
       {!embedded ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="xlsx-open-state">
@@ -409,55 +412,162 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? t(`office.xlsx.saveState.${coordinatorState.state}`) : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
-          <XlsxToolbar
-            coordinator={coordinator}
-            showSave={!embedded}
-            dirty={dirty}
-            saving={saving}
-            readOnly={readOnly || rendererLoading}
-            permissions={clipboardPermissions}
-            selection={selection}
-            canUndo={gridReady || typeof editor.undo === "function"}
-            canRedo={gridReady || typeof editor.redo === "function"}
-            canRecalculate={recalcController !== undefined}
-            canFormat={gridReady && selection !== null}
-            commands={gridCommands}
-            formatState={formatState}
-            onNumberFormat={() => gridRef.current?.setNumberFormat("0.00")}
-            recalculating={recalcProgress !== null}
-            onUndo={undo}
-            onRedo={redo}
-            onRecalculate={recalculate}
-            onCopy={() => { void copy().catch(clipboardFailure); }}
-            onPaste={() => { void paste().catch(clipboardFailure); }}
-            onShowSheets={() => sheetTabsRef.current?.focus()}
-            onOpenFind={rendererHost ? () => setFindOpen(true) : undefined}
-            onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
-            onOpenProtect={rendererHost ? protectNames.openProtect : undefined}
-            onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
-            onPrint={rendererHost ? pageSetup.print : undefined}
-            onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
-            host={rendererHost}
-            unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
-            sheetName={selection?.sheet ?? activeSheet}
-            tables={tables} resolveSheetId={gridSheetId}
-            onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
-            onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
-            onSave={() => save("button")}
-            onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
-          />
-          {rendererHost && findOpen ? (
-            <XlsxFindPanel
-              documentKey={documentKey}
-              host={rendererHost}
-              commands={gridCommands}
-              selection={selection}
-              sheetName={selection?.sheet ?? activeSheet}
-              dirtyGeneration={coordinatorState.dirtyGeneration}
-              readOnly={readOnly}
-              onClose={() => setFindOpen(false)}
-            />
-          ) : null}
+          <OfficeFrame
+            data-testid="xlsx-frame"
+            canvasClassName="overflow-hidden"
+            ribbon={
+              <XlsxToolbar
+                coordinator={coordinator}
+                showSave={!embedded}
+                dirty={dirty}
+                saving={saving}
+                readOnly={readOnly || rendererLoading}
+                permissions={clipboardPermissions}
+                selection={selection}
+                canUndo={gridReady || typeof editor.undo === "function"}
+                canRedo={gridReady || typeof editor.redo === "function"}
+                canRecalculate={recalcController !== undefined}
+                canFormat={gridReady && selection !== null}
+                commands={gridCommands}
+                formatState={formatState}
+                viewEcho={viewEcho}
+                onNumberFormat={() => gridRef.current?.setNumberFormat("0.00")}
+                recalculating={recalcProgress !== null}
+                onUndo={undo}
+                onRedo={redo}
+                onRecalculate={recalculate}
+                onCopy={() => { void copy().catch(clipboardFailure); }}
+                onPaste={() => { void paste().catch(clipboardFailure); }}
+                onShowSheets={() => sheetTabsRef.current?.focus()}
+                onOpenFind={rendererHost ? () => setFindOpen(true) : undefined}
+                onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
+                onOpenProtect={rendererHost ? protectNames.openProtect : undefined}
+                onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
+                onPrint={rendererHost ? pageSetup.print : undefined}
+                onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
+                host={rendererHost}
+                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
+                sheetName={selection?.sheet ?? activeSheet}
+                tables={tables} resolveSheetId={gridSheetId}
+                onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
+                onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
+                onSave={() => save("button")}
+                onCancelSave={coordinator.cancel ? () => { void coordinator.cancel?.().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); } : undefined}
+              />
+            }
+            subbar={
+              <>
+                <XlsxFormulaRow
+                  address={selection?.endAddress ? `${selection.address}:${selection.endAddress}` : (selection?.address ?? "")}
+                  value={formulaDraft}
+                  disabled={!canEdit || selection === null}
+                  onChange={setFormulaDraft}
+                  onCommit={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
+                />
+                {rendererHost && findOpen ? (
+                  <XlsxFindPanel
+                    documentKey={documentKey}
+                    host={rendererHost}
+                    commands={gridCommands}
+                    selection={selection}
+                    sheetName={selection?.sheet ?? activeSheet}
+                    dirtyGeneration={coordinatorState.dirtyGeneration}
+                    readOnly={readOnly}
+                    onClose={() => setFindOpen(false)}
+                  />
+                ) : null}
+                {recalcProgress !== null ? (
+                  <div className="flex items-center gap-2 border-b border-border bg-office-band px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
+                    <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>
+                    <progress max={100} value={recalcProgress} aria-label={t("office.xlsx.recalc.progress", { progress: recalcProgress })} />
+                    <button type="button" className="text-primary underline" onClick={cancelRecalculate} data-testid="xlsx-recalc-cancel">{t("office.xlsx.recalc.cancel")}</button>
+                  </div>
+                ) : null}
+                {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
+                {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
+              </>
+            }
+            bottom={
+              <XlsxSheetTabsRow
+                sheetTabsRef={sheetTabsRef}
+                tabs={sheetTabInfos}
+                activeSheet={resolvedActiveSheet}
+                canEdit={canEdit}
+                onSelect={selectSheet}
+                onAction={runSheetAction}
+              />
+            }
+            statusBar={
+              <XlsxFrameStatusBar
+                stateLabel={t(`office.xlsx.saveState.${coordinatorState.state}`)}
+                documentKey={documentKey}
+                host={rendererHost}
+                selection={selection}
+                dirtyGeneration={coordinatorState.dirtyGeneration}
+                viewEcho={viewEcho}
+                commands={gridReady ? gridCommands : undefined}
+                onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
+              />
+            }
+          >
+            <div className="flex h-full min-h-0 min-w-0 flex-col" data-testid="xlsx-canvas">
+              {rendererHost ? (
+                <XlsxGridSurface
+                  ref={gridRef}
+                  documentKey={documentKey}
+                  host={rendererHost}
+                  dark={dark}
+                  readOnly={readOnly || !canEdit}
+                  onContextMenu={contextMenu.open}
+                  onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
+                  onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
+                  onFailure={(message) => {
+                    const failureValue: XlsxOpenFailure = {
+                      outcome: "failed",
+                      document_id: documentKey,
+                      format: "xlsx",
+                      failure_class: "engine_error",
+                      message,
+                    };
+                    setFailure(failureValue);
+                    setViewState("error");
+                  }}
+                  onSelectionChange={(next) => {
+                    if (!next) {
+                      setSelection(null);
+                      onSelectionChange?.(null);
+                    } else {
+                      // The live grid sheet list wins: a session rename changed
+                      // the name while the host file's id map kept the old one.
+                      const sheetName = gridRef.current?.getSheets?.().find((sheet) => sheet.id === next.sheetId)?.name
+                        ?? rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId)?.name;
+                      const nextSelection: XlsxSelection = {
+                        sheet: sheetName ?? next.sheetId,
+                        address: toA1Address(next.range.startRow, next.range.startColumn),
+                        ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) } : {}),
+                      };
+                      setSelection(nextSelection);
+                      setActiveSheet(nextSelection.sheet);
+                      setActiveSheetId(next.sheetId);
+                      editor.selection?.setSelection?.(nextSelection);
+                      onSelectionChange?.(nextSelection);
+                    }
+                    refreshFormatState();
+                    refreshSheets();
+                  }}
+                />
+              ) : (
+              <div className="min-h-64 flex-1 overflow-auto bg-muted/20 p-3" data-testid="xlsx-workbook-surface">
+                {activeSheetModel ? (
+                  <table className="border-collapse text-caption" aria-label={t("office.xlsx.surface.table", { sheet: activeSheetModel.name })}>
+                    <thead><tr><th className="sticky left-0 border border-border bg-muted px-2 py-1" aria-hidden />{Array.from({ length: maxColumn + 1 }, (_, column) => <th key={column} className="border border-border bg-muted px-3 py-1 font-medium">{columnLabel(column)}</th>)}</tr></thead>
+                    <tbody>{Array.from({ length: maxRow + 1 }, (_, row) => <tr key={row}><th className="sticky left-0 border border-border bg-muted px-2 py-1 font-medium">{row + 1}</th>{Array.from({ length: maxColumn + 1 }, (_, column) => { const address = `${columnLabel(column)}${row + 1}`; const value = activeSheetModel.cells[address]; const selected = selection?.sheet === activeSheetModel.name && selection.address === address; return <td key={address} className={cn("min-w-24 border border-border bg-background p-0", selected && "ring-2 ring-primary ring-inset")}><button type="button" className="block min-h-8 w-full px-2 text-left" aria-label={`${activeSheetModel.name} ${address}`} aria-pressed={selected} data-testid={`xlsx-cell-${activeSheetModel.name}-${address}`} onClick={() => selectCell({ sheet: activeSheetModel.name, address })}>{cellText(value)}</button></td>; })}</tr>)}</tbody>
+                  </table>
+                ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
+              </div>
+              )}
+            </div>
+          </OfficeFrame>
           {rendererHost && advancedFilterOpen ? (
             <XlsxAdvancedFilterDialog
               documentKey={documentKey}
@@ -481,92 +591,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           {pageSetup.dialog}
           {shortcutsOpen ? <XlsxShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
           {contextMenu.node}
-          {recalcProgress !== null ? (
-            <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
-              <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>
-              <progress max={100} value={recalcProgress} aria-label={t("office.xlsx.recalc.progress", { progress: recalcProgress })} />
-              <button type="button" className="text-primary underline" onClick={cancelRecalculate} data-testid="xlsx-recalc-cancel">{t("office.xlsx.recalc.cancel")}</button>
-            </div>
-          ) : null}
-          {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
-          {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
           {recalcFresh ? <p className="sr-only" role="status">{t("office.xlsx.recalc.fresh")}</p> : null}
-          <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
-            <XlsxFormulaRow
-              address={selection?.endAddress ? `${selection.address}:${selection.endAddress}` : (selection?.address ?? "")}
-              value={formulaDraft}
-              disabled={!canEdit || selection === null}
-              onChange={setFormulaDraft}
-              onCommit={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
-            />
-            {rendererHost ? (
-              <XlsxGridSurface
-                ref={gridRef}
-                documentKey={documentKey}
-                host={rendererHost}
-                dark={dark}
-                readOnly={readOnly || !canEdit}
-                onContextMenu={contextMenu.open}
-                onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
-                onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
-                onFailure={(message) => {
-                  const failureValue: XlsxOpenFailure = {
-                    outcome: "failed",
-                    document_id: documentKey,
-                    format: "xlsx",
-                    failure_class: "engine_error",
-                    message,
-                  };
-                  setFailure(failureValue);
-                  setViewState("error");
-                }}
-                onSelectionChange={(next) => {
-                  if (!next) {
-                    setSelection(null);
-                    onSelectionChange?.(null);
-                  } else {
-                    // The live grid sheet list wins: a session rename changed
-                    // the name while the host file's id map kept the old one.
-                    const sheetName = gridRef.current?.getSheets?.().find((sheet) => sheet.id === next.sheetId)?.name
-                      ?? rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId)?.name;
-                    const nextSelection: XlsxSelection = {
-                      sheet: sheetName ?? next.sheetId,
-                      address: toA1Address(next.range.startRow, next.range.startColumn),
-                      ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) } : {}),
-                    };
-                    setSelection(nextSelection);
-                    setActiveSheet(nextSelection.sheet);
-                    setActiveSheetId(next.sheetId);
-                    editor.selection?.setSelection?.(nextSelection);
-                    onSelectionChange?.(nextSelection);
-                  }
-                  refreshFormatState();
-                  refreshSheets();
-                }}
-              />
-            ) : (
-            <div className="min-h-64 flex-1 overflow-auto bg-muted/20 p-3" data-testid="xlsx-workbook-surface">
-              {activeSheetModel ? (
-                <table className="border-collapse text-caption" aria-label={t("office.xlsx.surface.table", { sheet: activeSheetModel.name })}>
-                  <thead><tr><th className="sticky left-0 border border-border bg-muted px-2 py-1" aria-hidden />{Array.from({ length: maxColumn + 1 }, (_, column) => <th key={column} className="border border-border bg-muted px-3 py-1 font-medium">{columnLabel(column)}</th>)}</tr></thead>
-                  <tbody>{Array.from({ length: maxRow + 1 }, (_, row) => <tr key={row}><th className="sticky left-0 border border-border bg-muted px-2 py-1 font-medium">{row + 1}</th>{Array.from({ length: maxColumn + 1 }, (_, column) => { const address = `${columnLabel(column)}${row + 1}`; const value = activeSheetModel.cells[address]; const selected = selection?.sheet === activeSheetModel.name && selection.address === address; return <td key={address} className={cn("min-w-24 border border-border bg-background p-0", selected && "ring-2 ring-primary ring-inset")}><button type="button" className="block min-h-8 w-full px-2 text-left" aria-label={`${activeSheetModel.name} ${address}`} aria-pressed={selected} data-testid={`xlsx-cell-${activeSheetModel.name}-${address}`} onClick={() => selectCell({ sheet: activeSheetModel.name, address })}>{cellText(value)}</button></td>; })}</tr>)}</tbody>
-                </table>
-              ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
-            </div>
-            )}
-            <XlsxStatusArea
-              sheetTabsRef={sheetTabsRef}
-              tabs={sheetTabInfos}
-              activeSheet={resolvedActiveSheet}
-              canEdit={canEdit}
-              onSelect={selectSheet}
-              onAction={runSheetAction}
-              documentKey={documentKey}
-              host={rendererHost}
-              selection={selection}
-              dirtyGeneration={coordinatorState.dirtyGeneration}
-            />
-          </div>
         </>
       ) : viewState === "error" && failure ? (
         <XlsxErrorState failure={failure} onRetry={() => openAttemptRef.current?.()} />

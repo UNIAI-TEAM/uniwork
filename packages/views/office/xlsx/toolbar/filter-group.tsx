@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import {
   XLSX_FILTER_CLEAR_COMMAND,
   XLSX_FILTER_TOGGLE_COMMAND,
@@ -31,44 +32,51 @@ export function XlsxFilterGroup({
     fireCommand(commands, id);
   };
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.filter.toggle")}
+        title={t("office.xlsx.filter.toggle")}
         aria-disabled={blocked || undefined}
         data-testid="xlsx-filter-toggle"
         onClick={() => run(XLSX_FILTER_TOGGLE_COMMAND)}
       >
         <Filter aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.filter.clear")}
-        aria-disabled={blocked || undefined}
-        data-testid="xlsx-filter-clear"
-        onClick={() => run(XLSX_FILTER_CLEAR_COMMAND)}
-      >
-        <ListFilter aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.filter.advanced")}
-        aria-haspopup="dialog"
-        aria-disabled={blocked || !onOpenAdvancedFilter || undefined}
-        data-testid="xlsx-filter-advanced"
-        onClick={() => {
-          if (blocked || !onOpenAdvancedFilter) return;
-          onOpenAdvancedFilter();
-        }}
-      >
-        <SlidersHorizontal aria-hidden />
-      </Button>
-    </>
+        <XlsxLargeLabel>{t("office.xlsx.filter.toggle")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.filter.clear")}
+            title={t("office.xlsx.filter.clear")}
+            aria-disabled={blocked || undefined}
+            data-testid="xlsx-filter-clear"
+            onClick={() => run(XLSX_FILTER_CLEAR_COMMAND)}
+          >
+            <ListFilter aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.filter.advanced")}
+            title={t("office.xlsx.filter.advanced")}
+            aria-haspopup="dialog"
+            aria-disabled={blocked || !onOpenAdvancedFilter || undefined}
+            data-testid="xlsx-filter-advanced"
+            onClick={() => {
+              if (blocked || !onOpenAdvancedFilter) return;
+              onOpenAdvancedFilter();
+            }}
+          >
+            <SlidersHorizontal aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

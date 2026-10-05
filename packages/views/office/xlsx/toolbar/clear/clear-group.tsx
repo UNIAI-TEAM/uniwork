@@ -7,6 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { XlsxToolbarGroupProps } from "../types";
 import { fireCommand } from "../../fire-command";
+import { XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "../group-layout";
 
 /** The three pinned Univer clear commands. All three are already allowlisted
  *  and persist through the journal: they dispatch
@@ -33,6 +34,9 @@ export function XlsxClearGroup({ readOnly = false, canFormat, commands }: XlsxTo
   };
 
   return (
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger
         render={
@@ -40,6 +44,8 @@ export function XlsxClearGroup({ readOnly = false, canFormat, commands }: XlsxTo
             type="button"
             variant="toolbar"
             size="sm"
+            className="h-6 gap-0.5 px-1"
+            title={label}
             aria-label={label}
             aria-disabled={blocked || undefined}
             data-testid="xlsx-clear-trigger"
@@ -72,5 +78,8 @@ export function XlsxClearGroup({ readOnly = false, canFormat, commands }: XlsxTo
         ))}
       </PopoverContent>
     </Popover>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

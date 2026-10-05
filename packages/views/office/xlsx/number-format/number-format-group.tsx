@@ -16,6 +16,7 @@ import {
   type XlsxCustomFormatError,
 } from "./catalog";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "../toolbar/group-layout";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
   empty: "office.xlsx.toolbar.groups.numberFormat.customError.empty",
@@ -75,7 +76,9 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
   };
 
   return (
-    <>
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
       <Popover
         open={open}
         onOpenChange={(next) => {
@@ -88,13 +91,15 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
               type="button"
               variant="toolbar"
               size="sm"
+              className="w-36 justify-between"
+              title={t("office.xlsx.commands.numberFormat")}
               aria-label={t("office.xlsx.commands.numberFormat")}
               aria-disabled={blocked || undefined}
               data-testid="xlsx-number-format-trigger"
             />
           }
         >
-          <span className="flex items-center gap-1">
+          <span className="flex w-full items-center justify-between gap-1">
             <span aria-hidden className="text-caption font-semibold">123</span>
             <ChevronDown aria-hidden />
           </span>
@@ -164,11 +169,15 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
           </div>
         </PopoverContent>
       </Popover>
+    </XlsxGroupRow>
+    <XlsxGroupRow>
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.toolbar.groups.numberFormat.decreaseDecimals")}
+        title={t("office.xlsx.toolbar.groups.numberFormat.decreaseDecimals")}
         aria-disabled={blocked || undefined}
         data-testid="xlsx-number-format-decrease-decimals"
         onClick={() => stepDecimals(XLSX_NUMBER_FORMAT_COMMANDS.decreaseDecimals)}
@@ -179,13 +188,17 @@ export function XlsxNumberFormatGroup({ readOnly = false, canFormat, commands, s
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.toolbar.groups.numberFormat.increaseDecimals")}
+        title={t("office.xlsx.toolbar.groups.numberFormat.increaseDecimals")}
         aria-disabled={blocked || undefined}
         data-testid="xlsx-number-format-increase-decimals"
         onClick={() => stepDecimals(XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals)}
       >
         <Plus aria-hidden />
       </Button>
-    </>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

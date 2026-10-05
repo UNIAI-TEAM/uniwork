@@ -9,6 +9,14 @@
 import { FileDown, Printer, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  XLSX_ICON_BUTTON_CLASS,
+  XlsxGroupBody,
+  XlsxGroupRow,
+  XlsxGroupRows,
+  XlsxLargeButton,
+  XlsxLargeLabel,
+} from "./group-layout";
 import type { XlsxToolbarGroupProps } from "./types";
 
 export function XlsxPageSetupGroup({
@@ -19,41 +27,50 @@ export function XlsxPageSetupGroup({
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.pageSetup.open")}
+        title={t("office.xlsx.pageSetup.open")}
         aria-haspopup="dialog"
         aria-disabled={readOnly || !onOpenPageSetup || undefined}
         data-testid="xlsx-page-setup-open"
         onClick={() => { if (!readOnly && onOpenPageSetup) onOpenPageSetup(); }}
       >
         <Settings2 aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.export.print")}
-        aria-disabled={!onPrint || undefined}
-        data-testid="xlsx-print"
-        onClick={() => { if (onPrint) onPrint(); }}
-      >
-        <Printer aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.export.csv")}
-        aria-disabled={!onExportCsv || undefined}
-        data-testid="xlsx-export-csv"
-        onClick={() => { if (onExportCsv) onExportCsv(); }}
-      >
-        <FileDown aria-hidden />
-      </Button>
-    </>
+        <XlsxLargeLabel>{t("office.xlsx.pageSetup.open")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.export.print")}
+            title={t("office.xlsx.export.print")}
+            aria-disabled={!onPrint || undefined}
+            data-testid="xlsx-print"
+            onClick={() => { if (onPrint) onPrint(); }}
+          >
+            <Printer aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.export.csv")}
+            title={t("office.xlsx.export.csv")}
+            aria-disabled={!onExportCsv || undefined}
+            data-testid="xlsx-export-csv"
+            onClick={() => { if (onExportCsv) onExportCsv(); }}
+          >
+            <FileDown aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

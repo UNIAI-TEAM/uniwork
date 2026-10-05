@@ -10,6 +10,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { clampFontSize, stepFontSize, XLSX_DEFAULT_FONT_FAMILY, XLSX_DEFAULT_FONT_SIZE, XLSX_FONT_FAMILIES, XLSX_PALETTE_COLORS } from "./home-format";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const SIZE_DECREASE = -1;
 const SIZE_INCREASE = 1;
@@ -83,7 +84,9 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
       type="button"
       variant="toolbar"
       size="icon-sm"
+      className={XLSX_ICON_BUTTON_CLASS}
       aria-label={label}
+      title={label}
       aria-pressed={active}
       aria-disabled={blocked || undefined}
       onClick={() => run(id)}
@@ -93,7 +96,10 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
   );
 
   return (
-    <>
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
+      <div className="w-36 min-w-35 shrink-0">
       <Select
         aria-label={t("office.xlsx.toolbar.groups.font.family")}
         triggerVariant="subtle"
@@ -102,18 +108,21 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
         onValueChange={(value) => run("sheet.command.set-font-family", { value })}
         items={XLSX_FONT_FAMILIES.map((family) => ({ value: family, label: family }))}
       />
+      </div>
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.toolbar.groups.font.sizeDecrease")}
+        title={t("office.xlsx.toolbar.groups.font.sizeDecrease")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-font-size", { value: stepFontSize(size, SIZE_DECREASE) })}
       >
         <Minus aria-hidden />
       </Button>
       <Input
-        className="h-7 w-12 px-1 text-center text-caption"
+        className="h-6 w-12 min-w-12 px-1 text-center text-caption"
         inputMode="numeric"
         aria-label={t("office.xlsx.toolbar.groups.font.size")}
         disabled={blocked}
@@ -130,12 +139,16 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.toolbar.groups.font.sizeIncrease")}
+        title={t("office.xlsx.toolbar.groups.font.sizeIncrease")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-font-size", { value: stepFontSize(size, SIZE_INCREASE) })}
       >
         <Plus aria-hidden />
       </Button>
+    </XlsxGroupRow>
+    <XlsxGroupRow>
       {toggle("sheet.command.set-bold", formatState?.bold === true, t("office.xlsx.toolbar.groups.font.bold"), Bold)}
       {toggle("sheet.command.set-italic", formatState?.italic === true, t("office.xlsx.toolbar.groups.font.italic"), Italic)}
       {toggle("sheet.command.set-underline", formatState?.underline === true, t("office.xlsx.toolbar.groups.font.underline"), Underline)}
@@ -147,7 +160,9 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
               type="button"
               variant="toolbar"
               size="icon-sm"
+              className={XLSX_ICON_BUTTON_CLASS}
               aria-label={t("office.xlsx.toolbar.groups.font.textColor")}
+              title={t("office.xlsx.toolbar.groups.font.textColor")}
               aria-disabled={blocked || undefined}
             />
           }
@@ -176,7 +191,9 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
               type="button"
               variant="toolbar"
               size="icon-sm"
+              className={XLSX_ICON_BUTTON_CLASS}
               aria-label={t("office.xlsx.toolbar.groups.font.fillColor")}
+              title={t("office.xlsx.toolbar.groups.font.fillColor")}
               aria-disabled={blocked || undefined}
             />
           }
@@ -198,6 +215,8 @@ export function XlsxFontGroup({ readOnly = false, canFormat, commands, formatSta
           />
         </PopoverContent>
       </Popover>
-    </>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

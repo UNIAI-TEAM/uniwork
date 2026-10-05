@@ -7,23 +7,24 @@
 
 import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { XlsxGroupBody, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import type { XlsxToolbarGroupProps } from "./types";
 
 export function XlsxProtectGroup({ readOnly = false, onOpenProtect }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   return (
-    <Button
-      type="button"
-      variant="toolbar"
-      size="icon-sm"
-      aria-label={t("office.xlsx.protect.open")}
-      aria-haspopup="dialog"
-      aria-disabled={readOnly || !onOpenProtect || undefined}
-      data-testid="xlsx-protect-open"
-      onClick={() => { if (!readOnly && onOpenProtect) onOpenProtect(); }}
-    >
-      <Lock aria-hidden />
-    </Button>
+    <XlsxGroupBody>
+      <XlsxLargeButton
+        aria-label={t("office.xlsx.protect.open")}
+        title={t("office.xlsx.protect.open")}
+        aria-haspopup="dialog"
+        aria-disabled={readOnly || !onOpenProtect || undefined}
+        data-testid="xlsx-protect-open"
+        onClick={() => { if (!readOnly && onOpenProtect) onOpenProtect(); }}
+      >
+        <Lock aria-hidden />
+        <XlsxLargeLabel>{t("office.xlsx.protect.open")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+    </XlsxGroupBody>
   );
 }

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // Wave A / A7 (UNI-926): Data-tab sort group. Sort ascending / descending fire
 // the pinned `sheet.command.sort-range` command over the selection (single key
@@ -21,6 +21,7 @@ import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import {
   selectionSortRange,
   sortWithinOpLimit,
@@ -78,34 +79,10 @@ export function XlsxSortGroup({
   };
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.sort.ascending")}
-        aria-disabled={blocked || undefined}
-        data-testid="xlsx-sort-asc"
-        onClick={() => run("asc")}
-      >
-        <ArrowUpAZ aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.sort.descending")}
-        aria-disabled={blocked || undefined}
-        data-testid="xlsx-sort-desc"
-        onClick={() => run("desc")}
-      >
-        <ArrowDownAZ aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.sort.custom")}
+        title={t("office.xlsx.sort.custom")}
         aria-haspopup="dialog"
         aria-disabled={canOpenCustom || undefined}
         data-testid="xlsx-sort-custom"
@@ -116,12 +93,43 @@ export function XlsxSortGroup({
         }}
       >
         <ArrowUpDown aria-hidden />
-      </Button>
-      {limitError ? (
-        <p role="alert" className="px-1 text-caption text-destructive" data-testid="xlsx-sort-limit-error">
-          {t("office.xlsx.sort.limitExceeded", { limit: XLSX_SORT_MAX_OPS })}
-        </p>
-      ) : null}
+        <XlsxLargeLabel>{t("office.xlsx.sort.custom")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.sort.ascending")}
+            title={t("office.xlsx.sort.ascending")}
+            aria-disabled={blocked || undefined}
+            data-testid="xlsx-sort-asc"
+            onClick={() => run("asc")}
+          >
+            <ArrowUpAZ aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.sort.descending")}
+            title={t("office.xlsx.sort.descending")}
+            aria-disabled={blocked || undefined}
+            data-testid="xlsx-sort-desc"
+            onClick={() => run("desc")}
+          >
+            <ArrowDownAZ aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+        {limitError ? (
+          <p role="alert" className="max-w-40 text-caption leading-tight text-destructive" data-testid="xlsx-sort-limit-error">
+            {t("office.xlsx.sort.limitExceeded", { limit: XLSX_SORT_MAX_OPS })}
+          </p>
+        ) : null}
+      </XlsxGroupRows>
       {customOpen && host && commands ? (
         <XlsxCustomSortDialog
           documentKey={`${unitId ?? ""}:${sheetId ?? ""}`}
@@ -132,6 +140,6 @@ export function XlsxSortGroup({
           onClose={() => setCustomOpen(false)}
         />
       ) : null}
-    </>
+    </XlsxGroupBody>
   );
 }

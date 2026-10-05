@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { gridlinesCommandParams, headerSizeCommands, XLSX_GRIDLINES_COMMAND } from "../view/display";
 import { useViewEcho } from "./view-echo";
+import { XLSX_SMALL_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 import type { XlsxToolbarGroupProps } from "./types";
 
 /** View > display: the gridlines and row/column header toggles. Both are
@@ -33,29 +34,41 @@ export function XlsxViewDisplayGroup({ commands, viewEcho }: XlsxToolbarGroupPro
   };
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.view.gridlines")}
-        aria-pressed={echo.gridlines}
-        aria-disabled={blocked}
-        onClick={toggleGridlines}
-      >
-        <Grid3X3 aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.view.headers")}
-        aria-pressed={echo.headers}
-        aria-disabled={blocked}
-        onClick={toggleHeaders}
-      >
-        <Rows3 aria-hidden />
-      </Button>
-    </>
+    <XlsxGroupBody>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="sm"
+            className={XLSX_SMALL_BUTTON_CLASS}
+            aria-label={t("office.xlsx.view.gridlines")}
+            title={t("office.xlsx.view.gridlines")}
+            aria-pressed={echo.gridlines}
+            aria-disabled={blocked}
+            onClick={toggleGridlines}
+          >
+            <Grid3X3 aria-hidden />
+            {t("office.xlsx.view.gridlines")}
+          </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="sm"
+            className={XLSX_SMALL_BUTTON_CLASS}
+            aria-label={t("office.xlsx.view.headers")}
+            title={t("office.xlsx.view.headers")}
+            aria-pressed={echo.headers}
+            aria-disabled={blocked}
+            onClick={toggleHeaders}
+          >
+            <Rows3 aria-hidden />
+            {t("office.xlsx.view.headers")}
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

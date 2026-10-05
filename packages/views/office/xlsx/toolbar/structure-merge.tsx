@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { selectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 /** The pinned Univer merge commands this group wires. Merge-all takes the
  *  whole selection as one merge; merge-horizontal is "merge across" (one
@@ -41,12 +42,16 @@ export function XlsxStructureMergeGroup({ readOnly = false, selection, commands 
   };
 
   return (
-    <>
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.mergeCells")}
+        title={t("office.xlsx.structure.mergeCells")}
         aria-disabled={blocked || undefined}
         onClick={() => run(blocked, XLSX_MERGE_ALL_COMMAND, { selections: range === null ? [] : [range] })}
       >
@@ -56,7 +61,9 @@ export function XlsxStructureMergeGroup({ readOnly = false, selection, commands 
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.mergeAcross")}
+        title={t("office.xlsx.structure.mergeAcross")}
         aria-disabled={acrossBlocked || undefined}
         onClick={() => run(acrossBlocked, XLSX_MERGE_ACROSS_COMMAND, { selections: range === null ? [] : [range] })}
       >
@@ -66,12 +73,16 @@ export function XlsxStructureMergeGroup({ readOnly = false, selection, commands 
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.unmergeCells")}
+        title={t("office.xlsx.structure.unmergeCells")}
         aria-disabled={blocked || undefined}
         onClick={() => run(blocked, XLSX_UNMERGE_COMMAND, { ranges: range === null ? [] : [range] })}
       >
         <TableCellsSplit aria-hidden />
       </Button>
-    </>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

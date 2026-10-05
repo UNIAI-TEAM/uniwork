@@ -41,6 +41,15 @@ const snapshotOf = (cells: Record<string, { value: number | string | null; formu
 const viNumber = (value: number) => value.toLocaleString("vi");
 
 describe("XlsxStatusBar", () => {
+  it("renders a bare inline row without chrome when inline", () => {
+    render(<XlsxStatusBar documentKey="doc" selection={null} host={host(vi.fn())} inline />);
+    const bar = screen.getByTestId("xlsx-status-bar");
+    expect(bar).toHaveAttribute("role", "group");
+    expect(bar.className).toContain("whitespace-nowrap");
+    expect(bar.className).not.toMatch(/border|bg-|px-|flex-wrap/);
+    expect(screen.getByTestId("xlsx-status-bar-empty")).toBeInTheDocument();
+  });
+
   it("shows an honest empty state when nothing is selected", () => {
     render(<XlsxStatusBar documentKey="doc" selection={null} host={host(vi.fn())} />);
     expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();

@@ -6,6 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { selectionSpan, type XlsxSelectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 /** One outline action per axis, resolved by the controller's registered
  *  command (the pinned Univer has no outline model, so these two commands
@@ -40,12 +41,16 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
   };
 
   return (
-    <>
+    <XlsxGroupBody>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.groupRows")}
+        title={t("office.xlsx.structure.groupRows")}
         aria-disabled={blocked || undefined}
         onClick={() => run("rows", "group")}
       >
@@ -55,7 +60,9 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.ungroupRows")}
+        title={t("office.xlsx.structure.ungroupRows")}
         aria-disabled={blocked || undefined}
         onClick={() => run("rows", "ungroup")}
       >
@@ -65,17 +72,23 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.groupCols")}
+        title={t("office.xlsx.structure.groupCols")}
         aria-disabled={blocked || undefined}
         onClick={() => run("cols", "group")}
       >
         <ChevronsUp aria-hidden className="rotate-90" />
       </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>
       <Button
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.ungroupCols")}
+        title={t("office.xlsx.structure.ungroupCols")}
         aria-disabled={blocked || undefined}
         onClick={() => run("cols", "ungroup")}
       >
@@ -85,7 +98,9 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.clearOutline")}
+        title={t("office.xlsx.structure.clearOutline")}
         aria-disabled={blocked || undefined}
         onClick={() => {
           run("rows", "clear");
@@ -94,6 +109,8 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
       >
         <CircleX aria-hidden />
       </Button>
-    </>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

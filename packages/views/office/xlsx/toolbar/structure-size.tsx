@@ -8,6 +8,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { selectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 /** Excel's own ceilings: row height 409.5 points, column width 255 character
  *  units. The top of the row range is clamped to a whole point. */
@@ -72,10 +73,12 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
   };
 
   return (
-    <>
-      <Rows3 aria-hidden className="text-muted-foreground" />
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
+      <Rows3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <Input
-        className="h-7 w-12 px-1 text-center text-caption"
+        className="h-6 w-12 px-1 text-center text-caption"
         inputMode="decimal"
         aria-label={t("office.xlsx.structure.rowHeight")}
         disabled={blocked}
@@ -92,7 +95,9 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.resetRowHeight")}
+        title={t("office.xlsx.structure.resetRowHeight")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-row-is-auto-height")}
       >
@@ -102,7 +107,9 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.hideRows")}
+        title={t("office.xlsx.structure.hideRows")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-rows-hidden", { ranges })}
       >
@@ -112,15 +119,19 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.showRows")}
+        title={t("office.xlsx.structure.showRows")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-specific-rows-visible", { ranges })}
       >
         <Eye aria-hidden />
       </Button>
-      <Columns3 aria-hidden className="text-muted-foreground" />
+    </XlsxGroupRow>
+    <XlsxGroupRow>
+      <Columns3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <Input
-        className="h-7 w-12 px-1 text-center text-caption"
+        className="h-6 w-12 px-1 text-center text-caption"
         inputMode="decimal"
         aria-label={t("office.xlsx.structure.colWidth")}
         disabled={blocked}
@@ -137,7 +148,9 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.resetColWidth")}
+        title={t("office.xlsx.structure.resetColWidth")}
         aria-disabled={blocked || undefined}
         onClick={() => {
           if (span === null) return;
@@ -150,7 +163,9 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.hideCols")}
+        title={t("office.xlsx.structure.hideCols")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-col-hidden", { ranges })}
       >
@@ -160,12 +175,16 @@ export function XlsxStructureSizeGroup({ readOnly = false, selection, commands }
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.showCols")}
+        title={t("office.xlsx.structure.showCols")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.set-col-visible-on-cols", { ranges })}
       >
         <Eye aria-hidden />
       </Button>
-    </>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

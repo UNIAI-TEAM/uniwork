@@ -7,6 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 /** Pinned Univer BorderType / BorderStyleTypes values; a thin black stroke is
  *  the Excel default the presets apply. */
@@ -39,6 +40,9 @@ export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: Xlsx
   };
 
   return (
+    <XlsxGroupBody>
+    <XlsxGroupRows>
+    <XlsxGroupRow>
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger
         render={
@@ -46,6 +50,8 @@ export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: Xlsx
             type="button"
             variant="toolbar"
             size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            title={t("office.xlsx.toolbar.groups.borders.label")}
             aria-label={t("office.xlsx.toolbar.groups.borders.label")}
             aria-disabled={blocked || undefined}
           />
@@ -79,5 +85,8 @@ export function XlsxBordersGroup({ readOnly = false, canFormat, commands }: Xlsx
         </div>
       </PopoverContent>
     </Popover>
+    </XlsxGroupRow>
+    </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

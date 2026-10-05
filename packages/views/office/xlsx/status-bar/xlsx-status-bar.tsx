@@ -17,6 +17,8 @@ interface XlsxStatusBarProps {
   /** F2: the live workbook snapshot; when present the summary reads it instead of the frozen open-time render model. */
   snapshot?: XlsxWorkbookSnapshot | null;
   className?: string;
+  /** Render as a bare inline row (no border, background or padding) to sit inside the shared status bar. */
+  inline?: boolean;
 }
 
 function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, locale: string, t: (key: string, options?: Record<string, unknown>) => string): ReactNode {
@@ -46,7 +48,7 @@ function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, loc
  *  every mode: nothing selected, no renderer host, a read in flight and a
  *  failed read each get their own honest state, and a host that confirms only
  *  part of the range is called out instead of being read as a total. */
-export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, snapshot, className }: XlsxStatusBarProps) {
+export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, snapshot, className, inline = false }: XlsxStatusBarProps) {
   const { t, i18n } = useTranslation();
   const { state, pending } = useXlsxSelectionSummary({ documentKey, host, selection, dirtyGeneration, snapshot });
 
@@ -71,7 +73,12 @@ export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, s
 
   return (
     <div
-      className={cn("flex min-w-0 shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 border-t border-border bg-muted/20 px-3 py-1 text-caption text-muted-foreground", className)}
+      className={cn(
+        inline
+          ? "flex min-w-0 items-center gap-3 overflow-hidden whitespace-nowrap"
+          : "flex min-w-0 shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 border-t border-border bg-muted/20 px-3 py-1 text-caption text-muted-foreground",
+        className,
+      )}
       role="group"
       aria-label={t("office.xlsx.statusBar.label")}
       data-testid="xlsx-status-bar"

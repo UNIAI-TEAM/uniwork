@@ -9,6 +9,7 @@ import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 /** The insert commands' count ceiling (Univer's own menu cap), mirrored by
  *  the renderer policy's param validation. */
@@ -75,10 +76,12 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
   };
 
   return (
-    <>
-      <Rows3 aria-hidden className="text-muted-foreground" />
+    <XlsxGroupBody>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+      <Rows3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <Input
-        className="h-7 w-11 px-1 text-center text-caption"
+        className="h-6 w-11 px-1 text-center text-caption"
         inputMode="numeric"
         aria-label={t("office.xlsx.structure.rowCount")}
         disabled={blocked}
@@ -90,7 +93,9 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
+        title={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.insert-row-before", { value: rowCount })}
       >
@@ -100,7 +105,9 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.insertRowsBelow")}
+        title={t("office.xlsx.structure.insertRowsBelow")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.insert-row-after")}
       >
@@ -110,15 +117,19 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.deleteRows")}
+        title={t("office.xlsx.structure.deleteRows")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.remove-row", removeParams)}
       >
         <Trash2 aria-hidden />
       </Button>
-      <Columns3 aria-hidden className="text-muted-foreground" />
+        </XlsxGroupRow>
+        <XlsxGroupRow>
+      <Columns3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <Input
-        className="h-7 w-11 px-1 text-center text-caption"
+        className="h-6 w-11 px-1 text-center text-caption"
         inputMode="numeric"
         aria-label={t("office.xlsx.structure.colCount")}
         disabled={blocked}
@@ -130,7 +141,9 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
+        title={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.insert-col-before", { value: colCount })}
       >
@@ -140,7 +153,9 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.insertColsRight")}
+        title={t("office.xlsx.structure.insertColsRight")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.insert-col-after")}
       >
@@ -150,12 +165,16 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         type="button"
         variant="toolbar"
         size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
         aria-label={t("office.xlsx.structure.deleteCols")}
+        title={t("office.xlsx.structure.deleteCols")}
         aria-disabled={blocked || undefined}
         onClick={() => run("sheet.command.remove-col", removeParams)}
       >
         <Trash2 aria-hidden />
       </Button>
-    </>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

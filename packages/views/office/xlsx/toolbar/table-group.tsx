@@ -14,6 +14,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { useState } from "react";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import { selectionSpan } from "./structure-insert";
 
 export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
@@ -41,37 +42,42 @@ export function XlsxTableGroup({ readOnly = false, selection, commands }: XlsxTo
   };
   const canRemove = !removeBlocked && removeName.trim().length > 0;
   return (
-    <>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
+    <XlsxGroupBody>
+      <XlsxLargeButton
         aria-label={t("office.xlsx.table.create")}
+        title={t("office.xlsx.table.create")}
         aria-disabled={blocked || undefined}
         data-testid="xlsx-table-create"
         onClick={() => run("sheet.command.add-table", range)}
       >
         <Table2 aria-hidden />
-      </Button>
-      <Input
-        className="h-7 w-24 px-1 text-caption"
-        aria-label={t("office.xlsx.table.namePlaceholder")}
-        disabled={removeBlocked}
-        value={removeName}
-        onChange={(event) => setRemoveName(event.target.value)}
-        data-testid="xlsx-table-remove-name"
-      />
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        aria-label={t("office.xlsx.table.remove")}
-        aria-disabled={!canRemove || undefined}
-        data-testid="xlsx-table-remove"
-        onClick={runRemove}
-      >
-        <TableProperties aria-hidden />
-      </Button>
-    </>
+        <XlsxLargeLabel>{t("office.xlsx.table.create")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Input
+            className="h-6 w-24 px-1 text-caption"
+            aria-label={t("office.xlsx.table.namePlaceholder")}
+            disabled={removeBlocked}
+            value={removeName}
+            onChange={(event) => setRemoveName(event.target.value)}
+            data-testid="xlsx-table-remove-name"
+          />
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.table.remove")}
+            title={t("office.xlsx.table.remove")}
+            aria-disabled={!canRemove || undefined}
+            data-testid="xlsx-table-remove"
+            onClick={runRemove}
+          >
+            <TableProperties aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
   );
 }

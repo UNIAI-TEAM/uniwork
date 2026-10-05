@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeRibbon } from "../ribbon";
 import { xlsxRibbonTabs, XLSX_RIBBON_SCOPE } from "./toolbar/ribbon-data";
-import { useXlsxViewEcho } from "./toolbar/view-echo";
+import { useViewEcho } from "./toolbar/view-echo";
 import type { XlsxToolbarGroupProps, XlsxToolbarTabId } from "./toolbar/types";
 import type { XlsxSaveCoordinator } from "./types";
 
@@ -71,6 +71,7 @@ export function XlsxToolbar({
   onSave,
   onCancelSave,
   showSave = true,
+  viewEcho: externalViewEcho,
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<XlsxToolbarTabId>("home");
@@ -78,7 +79,8 @@ export function XlsxToolbar({
   // armed) live HERE, in the shell that stays mounted for the whole session:
   // the ribbon mounts only the active tab's groups, so a group-local echo
   // would reset on every tab switch while the renderer kept its state.
-  const viewEcho = useXlsxViewEcho();
+  // FRAME: the editor lifts the echo so the status-bar zoom shares it.
+  const viewEcho = useViewEcho(externalViewEcho);
   const blocked = readOnly;
   const state = coordinator.getState();
   const groupProps: XlsxToolbarGroupProps = {
@@ -116,7 +118,7 @@ export function XlsxToolbar({
   const findBlocked = blocked || !commands || !onOpenFind;
 
   return (
-    <div className="flex flex-col border-b border-border bg-muted/30" data-testid="xlsx-toolbar" aria-label={t("office.xlsx.toolbar.label")}>
+    <div className="shrink-0" data-testid="xlsx-toolbar" aria-label={t("office.xlsx.toolbar.label")}>
       <OfficeRibbon
         tabs={xlsxRibbonTabs(groupProps)}
         scope={XLSX_RIBBON_SCOPE}
