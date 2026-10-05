@@ -376,7 +376,8 @@ describe("XlsxEditor", () => {
     const { view } = renderEditor(opened());
     await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
     expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("xlsx-status-bar-unavailable")).toHaveTextContent("Không có tóm tắt ở đây.");
+    // F2: the live snapshot feeds the summary, so a missing renderer host is no longer "unavailable".
+    await waitFor(() => expect(screen.queryByTestId("xlsx-status-bar-unavailable")).not.toBeInTheDocument());
     view.rerender(<XlsxEditor documentKey="doc-v1" editor={editor()} open={{ open: async () => opened() }} coordinator={coordinator()} embedded />);
     await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
     expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();

@@ -2,7 +2,7 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark owns host shortcuts */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
@@ -19,11 +19,13 @@ import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
 import { XlsxToolbar } from "./xlsx-toolbar";
 import { XlsxFormulaRow } from "./toolbar/formula-row";
+import { XlsxFrameNotices } from "./xlsx-frame-notices";
+import { XlsxFallbackSurface } from "./xlsx-fallback-surface";
 import { XlsxFrameStatusBar, XlsxSheetTabsRow } from "./toolbar/status-area";
 import { useXlsxViewEcho } from "./toolbar/view-echo";
 import { OfficeFrame } from "../frame";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
-import { addressParts, cellText, columnLabel, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
+import { cellText, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
 import { isFailure, unexpectedFailure } from "./xlsx-editor-failure";
 import { useXlsxEditorSelection } from "./use-xlsx-editor-selection";
@@ -395,10 +397,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onRedo: redo,
   });
 
-  const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
-  const visibleAddresses = useMemo(() => Object.keys(cells).map((address) => ({ address, parts: addressParts(address) })).filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null), [cells]);
-  const maxRow = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.row), 0);
-  const maxColumn = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.column), 0);
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 
@@ -465,26 +463,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   onCommit={() => { void commitCell().catch((error: unknown) => setRecalcError(error instanceof Error ? error.message : String(error))); }}
                 />
                 {rendererHost && findOpen ? (
-                  <XlsxFindPanel
-                    documentKey={documentKey}
-                    host={rendererHost}
-                    commands={gridCommands}
-                    selection={selection}
-                    sheetName={selection?.sheet ?? activeSheet}
-                    dirtyGeneration={coordinatorState.dirtyGeneration}
-                    readOnly={readOnly}
-                    onClose={() => setFindOpen(false)}
-                  />
+                  <XlsxFindPanel documentKey={documentKey} host={rendererHost} commands={gridCommands} selection={selection}
+                    sheetName={selection?.sheet ?? activeSheet} dirtyGeneration={coordinatorState.dirtyGeneration} readOnly={readOnly} onClose={() => setFindOpen(false)} />
                 ) : null}
-                {recalcProgress !== null ? (
-                  <div className="flex items-center gap-2 border-b border-border bg-office-band px-3 py-1 text-caption" data-testid="xlsx-recalc-progress" role="status">
-                    <span>{t("office.xlsx.recalc.progress", { progress: recalcProgress })}</span>
-                    <progress max={100} value={recalcProgress} aria-label={t("office.xlsx.recalc.progress", { progress: recalcProgress })} />
-                    <button type="button" className="text-primary underline" onClick={cancelRecalculate} data-testid="xlsx-recalc-cancel">{t("office.xlsx.recalc.cancel")}</button>
-                  </div>
-                ) : null}
-                {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
-                {gridEdits.error ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
+                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} />
               </>
             }
             bottom={
@@ -504,7 +486,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 host={rendererHost}
                 selection={selection}
                 dirtyGeneration={coordinatorState.dirtyGeneration}
-                viewEcho={viewEcho}
+                viewEcho={viewEcho} snapshot={snapshot}
                 commands={gridReady ? gridCommands : undefined}
                 onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
               />
@@ -557,14 +539,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   }}
                 />
               ) : (
-              <div className="min-h-64 flex-1 overflow-auto bg-muted/20 p-3" data-testid="xlsx-workbook-surface">
-                {activeSheetModel ? (
-                  <table className="border-collapse text-caption" aria-label={t("office.xlsx.surface.table", { sheet: activeSheetModel.name })}>
-                    <thead><tr><th className="sticky left-0 border border-border bg-muted px-2 py-1" aria-hidden />{Array.from({ length: maxColumn + 1 }, (_, column) => <th key={column} className="border border-border bg-muted px-3 py-1 font-medium">{columnLabel(column)}</th>)}</tr></thead>
-                    <tbody>{Array.from({ length: maxRow + 1 }, (_, row) => <tr key={row}><th className="sticky left-0 border border-border bg-muted px-2 py-1 font-medium">{row + 1}</th>{Array.from({ length: maxColumn + 1 }, (_, column) => { const address = `${columnLabel(column)}${row + 1}`; const value = activeSheetModel.cells[address]; const selected = selection?.sheet === activeSheetModel.name && selection.address === address; return <td key={address} className={cn("min-w-24 border border-border bg-background p-0", selected && "ring-2 ring-primary ring-inset")}><button type="button" className="block min-h-8 w-full px-2 text-left" aria-label={`${activeSheetModel.name} ${address}`} aria-pressed={selected} data-testid={`xlsx-cell-${activeSheetModel.name}-${address}`} onClick={() => selectCell({ sheet: activeSheetModel.name, address })}>{cellText(value)}</button></td>; })}</tr>)}</tbody>
-                  </table>
-                ) : <p className="text-body text-muted-foreground">{t("office.xlsx.surface.ready")}</p>}
-              </div>
+              <XlsxFallbackSurface sheet={activeSheetModel} selection={selection} onSelectCell={selectCell} />
               )}
             </div>
           </OfficeFrame>

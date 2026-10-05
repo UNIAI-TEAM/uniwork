@@ -2,6 +2,7 @@
 
 import type { Ref } from "react";
 import { CircleHelp } from "lucide-react";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeStatusBar, OfficeStatusZoom } from "../../frame";
@@ -45,6 +46,8 @@ export interface XlsxFrameStatusBarProps {
   selection: XlsxSelection | null;
   dirtyGeneration: number;
   viewEcho: XlsxViewEcho;
+  /** F2: the live workbook snapshot the selection summary reads (never the frozen open-time model). */
+  snapshot?: XlsxWorkbookSnapshot | null;
   commands?: XlsxToolbarGroupProps["commands"];
   onOpenShortcuts?: () => void;
 }
@@ -55,7 +58,7 @@ export interface XlsxFrameStatusBarProps {
  * shares the ribbon's hoisted echo and sends the same absolute command as
  * View > Zoom, so both controls always agree.
  */
-export function XlsxFrameStatusBar({ stateLabel, documentKey, host, selection, dirtyGeneration, viewEcho, commands, onOpenShortcuts }: XlsxFrameStatusBarProps) {
+export function XlsxFrameStatusBar({ stateLabel, documentKey, host, selection, dirtyGeneration, viewEcho, snapshot, commands, onOpenShortcuts }: XlsxFrameStatusBarProps) {
   const { t } = useTranslation();
   const zoomTo = (percent: number) => {
     if (!commands) return;
@@ -68,7 +71,7 @@ export function XlsxFrameStatusBar({ stateLabel, documentKey, host, selection, d
       start={<span data-testid="xlsx-status-state">{stateLabel}</span>}
       end={
         <>
-          <XlsxStatusBar inline documentKey={documentKey} host={host} selection={selection} dirtyGeneration={dirtyGeneration} />
+          <XlsxStatusBar inline documentKey={documentKey} host={host} selection={selection} dirtyGeneration={dirtyGeneration} snapshot={snapshot} />
           <OfficeStatusZoom
             value={viewEcho.zoomPercent}
             min={XLSX_ZOOM_MIN}
