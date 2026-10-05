@@ -6,6 +6,7 @@
  * this file never imports the engine types.
  */
 import { buildSlideSvg } from "./build-slide-svg";
+import { createCanvasFontMetrics, type PptxMeasureContext } from "./canvas-metrics";
 import type { PptxCanvasPalette, PptxImageSize } from "./paint";
 import type { PptxRendererModule } from "./renderer-module";
 import type { PptxRenderSlide, PptxSlideSize, PptxViewport } from "./render-tree";
@@ -32,6 +33,8 @@ export interface PptxRenderInput {
 }
 
 interface PptxDeckRendererOptions {
+  /** 2D context source for text measurement (tests inject one); defaults to the DOM canvas. */
+  measureContext?: () => PptxMeasureContext | null;
   idPrefix: string;
   palette: PptxCanvasPalette;
 }
@@ -57,6 +60,8 @@ export function createPptxDeckRenderer(
 ): PptxDeckRenderer {
   const { deck } = input;
   const size = deck.size ?? DEFAULT_SLIDE_SIZE;
+  // One measurer per renderer, shared by the canvas and the thumbnails (both go through buildSlide).
+  const metrics = module.HeuristicMetrics ? createCanvasFontMetrics(new module.HeuristicMetrics(), options.measureContext) : undefined;
   const cache = new Map<string, PptxRenderSlide | null>();
   const baseViewport = module.makeViewport(size, 1000);
   const aspect = baseViewport.widthPx > 0 ? baseViewport.heightPx / baseViewport.widthPx : 9 / 16;
@@ -74,6 +79,7 @@ export function createPptxDeckRenderer(
       built = module.buildRenderSlide(slide, size, {
         fitWidthPx,
         slideNo: slideIndex + 1,
+        ...(metrics ? { metrics } : {}),
         ...(input.resolveMedia ? { media: input.resolveMedia } : {}),
       });
     } catch {

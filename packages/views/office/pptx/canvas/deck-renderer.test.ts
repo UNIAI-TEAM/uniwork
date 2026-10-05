@@ -117,3 +117,30 @@ describe("createPptxDeckRenderer", () => {
     expect(renderer.buildThumbnail(0, 320)).toBeNull();
   });
 });
+
+describe("createPptxDeckRenderer text metrics", () => {
+  const input = { deck: { slides: [{ id: "s1" }], size } };
+  const heuristic = class {
+    metrics = () => ({ ascent: 1, descent: 1, lineHeight: 2 });
+    measure = () => 1;
+  };
+  const withHeuristic = (): PptxRendererModule => ({ ...fakeModule(), HeuristicMetrics: heuristic });
+
+  it("passes a canvas-backed metrics provider to buildRenderSlide when a 2D context exists", () => {
+    const module = withHeuristic();
+    const measureContext = () => ({ font: "", measureText: (text: string) => ({ width: text.length * 7 }) });
+    createPptxDeckRenderer(module, input, { idPrefix: "t", palette, measureContext }).buildSlide(0, 480);
+    const options = vi.mocked(module.buildRenderSlide).mock.calls[0]![2];
+    expect(options.metrics?.measure("abc", { fontFamily: "Calibri", fontSizePx: 12, bold: false, italic: false })).toBe(21);
+  });
+
+  it("passes no metrics without a 2D context or without the artifact heuristic", () => {
+    const noContext = withHeuristic();
+    createPptxDeckRenderer(noContext, input, { idPrefix: "t", palette, measureContext: () => null }).buildSlide(0, 480);
+    expect(vi.mocked(noContext.buildRenderSlide).mock.calls[0]![2]).not.toHaveProperty("metrics");
+    const noHeuristic = fakeModule();
+    const measureContext = () => ({ font: "", measureText: () => ({ width: 1 }) });
+    createPptxDeckRenderer(noHeuristic, input, { idPrefix: "t", palette, measureContext }).buildSlide(0, 480);
+    expect(vi.mocked(noHeuristic.buildRenderSlide).mock.calls[0]![2]).not.toHaveProperty("metrics");
+  });
+});

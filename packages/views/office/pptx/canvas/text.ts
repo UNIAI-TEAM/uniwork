@@ -12,19 +12,43 @@ import { linearGradientLine, normalizeColor, rampStops, shadowFilter, type PptxP
 import type { PptxGlyphRun, PptxTextLayout } from "./render-tree";
 import { mirrorTransform, px, svgEl, svgText, type SvgNode } from "./svg-node";
 
+const SANS_HINT = /sans/i;
 const SERIF_HINT = /serif|mincho|song|sung|batang|myeongjo|cambria|georgia|garamond|times/i;
 const MONO_HINT = /mono|courier|consolas|menlo/i;
 
 /**
- * Display font stack: the deck's family name may not be installed (Microsoft YaHei on
- * macOS, PingFang on Windows), so append the script-appropriate generic. Exact CJK
- * substitution chains are the host's font manager concern, not the canvas's.
+ * Metric-compatible substitutes (same advance widths as the Office face) for hosts that
+ * lack it: Carlito/Caladea/Liberation/Arimo/Tinos/Cousine ship with LibreOffice and most
+ * Linux distros; Gelasio and DejaVu Sans are the closest Georgia/Verdana widths.
  */
-function displayFontFamily(name: string): string {
+const METRIC_SUBSTITUTES: Readonly<Record<string, readonly string[]>> = {
+  calibri: ["Carlito"],
+  cambria: ["Caladea"],
+  arial: ["Liberation Sans", "Arimo"],
+  helvetica: ["Liberation Sans", "Arimo"],
+  "times new roman": ["Liberation Serif", "Tinos"],
+  "courier new": ["Liberation Mono", "Cousine"],
+  georgia: ["Gelasio"],
+  verdana: ["DejaVu Sans"],
+};
+
+function quoted(name: string): string {
+  return `'${name.replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * Display font stack: the deck's family name may not be installed (Microsoft YaHei on
+ * macOS, PingFang on Windows, Georgia/Verdana on Linux), so follow it with its metric-
+ * compatible substitutes and then the script-appropriate generic. Exact CJK substitution
+ * chains are the host's font manager concern, not the canvas's. "Sans Serif" names are
+ * sans, not serif.
+ */
+export function displayFontFamily(name: string): string {
   const family = name.trim();
   if (!family) return "sans-serif";
-  const generic = MONO_HINT.test(family) ? "monospace" : SERIF_HINT.test(family) ? "serif" : "sans-serif";
-  return `'${family.replace(/'/g, "\\'")}', ${generic}`;
+  const generic = MONO_HINT.test(family) ? "monospace" : SANS_HINT.test(family) ? "sans-serif" : SERIF_HINT.test(family) ? "serif" : "sans-serif";
+  const substitutes = METRIC_SUBSTITUTES[family.toLowerCase()] ?? [];
+  return [quoted(family), ...substitutes.map(quoted), generic].join(", ");
 }
 
 function decoration(run: PptxGlyphRun): string | undefined {
@@ -40,6 +64,14 @@ function runTextAttrs(run: PptxGlyphRun, ctx: PptxPaintContext): Record<string, 
     "font-size": px(run.fontSizePx),
     fill: normalizeColor(run.color),
   };
+  // The engine measured every run with HeuristicMetrics (no font files in the browser), so
+  // its x / widthPx are the layout contract. Whatever face the browser resolves has other
+  // advances; pinning the run to the measured width (spacing only, glyphs undistorted) keeps
+  // neighbouring runs from overlapping (wider face) or drifting apart (narrower face).
+  if (run.widthPx > 0 && [...run.text].length > 1) {
+    attrs.textLength = px(run.widthPx);
+    attrs.lengthAdjust = "spacing";
+  }
   if (run.bold) attrs["font-weight"] = "bold";
   if (run.italic) attrs["font-style"] = "italic";
   const textDecoration = decoration(run);

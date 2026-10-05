@@ -18,7 +18,25 @@ import type { PptxRenderSlide, PptxSlideSize, PptxViewport } from "./render-tree
 
 type PptxMediaResolver = (mediaRef: string) => string | undefined;
 
+/** Mirror of the engine's RunStyle; kept local so views never import engine types. */
+export interface PptxRunStyle {
+  fontFamily: string;
+  fontSizePx: number;
+  bold: boolean;
+  italic: boolean;
+  kerning?: boolean;
+  [key: string]: unknown;
+}
+
+/** Mirror of the engine's FontMetricsProvider (line metrics + run width in px). */
+export interface PptxFontMetricsProvider {
+  metrics(style: PptxRunStyle): { ascent: number; descent: number; lineHeight: number; externalLeading?: number };
+  measure(text: string, style: PptxRunStyle): number;
+}
+
 export interface PptxBuildSlideOptions {
+  /** Text measurer; absent means the engine's HeuristicMetrics. */
+  metrics?: PptxFontMetricsProvider;
   fitWidthPx: number;
   /** Image/fill mediaRef -> dataUrl. */
   media?: PptxMediaResolver;
@@ -28,6 +46,8 @@ export interface PptxBuildSlideOptions {
 
 export interface PptxRendererModule {
   buildRenderSlide: (slide: unknown, size: PptxSlideSize, options: PptxBuildSlideOptions) => PptxRenderSlide;
+  /** The artifact's heuristic provider, the fallback for line metrics. */
+  HeuristicMetrics?: new () => PptxFontMetricsProvider;
   makeViewport: (size: PptxSlideSize, fitWidthPx: number) => PptxViewport;
   patternGrid?: (preset: string) => boolean[][];
   /** OOXML preset geometry -> local px path, for a hand-built tree that carries only
