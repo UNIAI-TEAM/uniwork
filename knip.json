@@ -30,9 +30,6 @@
       "ignore": [
         "public/sw.js",
         "platform/office/**"
-      ],
-      "ignoreDependencies": [
-        "@uniwork/office-contracts"
       ]
     },
     "apps/office-desktop": {
