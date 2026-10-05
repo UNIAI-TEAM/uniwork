@@ -67,8 +67,8 @@ export function PdfRibbonBar({
           size="icon-sm"
           data-testid="pdf-chrome-undo"
           aria-label={t("office.pdf.chrome.undo")}
-          disabled={!undo || undo.disabled}
-          onClick={() => undo && runCommand(undo)}
+          aria-disabled={!undo || undo.disabled || undefined}
+          onClick={() => undo && !undo.disabled && runCommand(undo)}
         >
           <Undo2 aria-hidden />
         </Button>
@@ -78,8 +78,8 @@ export function PdfRibbonBar({
           size="icon-sm"
           data-testid="pdf-chrome-redo"
           aria-label={t("office.pdf.chrome.redo")}
-          disabled={!redo || redo.disabled}
-          onClick={() => redo && runCommand(redo)}
+          aria-disabled={!redo || redo.disabled || undefined}
+          onClick={() => redo && !redo.disabled && runCommand(redo)}
         >
           <Redo2 aria-hidden />
         </Button>
@@ -132,7 +132,7 @@ export function PdfRibbonBar({
   }, [tabIdSignature]);
 
   return (
-    <div className="min-w-0" data-testid="pdf-ribbon-bar" ref={rootRef}>
+    <div className="min-w-0 shrink-0" data-testid="pdf-ribbon-bar" ref={rootRef}>
       <OfficeRibbon
         tabs={tabs}
         scope={PDF_RIBBON_SCOPE}

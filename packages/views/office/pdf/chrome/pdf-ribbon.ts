@@ -7,7 +7,6 @@ import {
   Maximize,
   MessageSquareText,
   MoveHorizontal,
-  Redo2,
   RotateCw,
   Scissors,
   Stamp,
@@ -15,7 +14,6 @@ import {
   TextCursorInput,
   Trash2,
   Type,
-  Undo2,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -58,8 +56,6 @@ const PDF_RIBBON_COMMAND_LABEL_KEYS: Readonly<Record<PdfCommandId, string>> = {
 };
 
 const PDF_RIBBON_ICONS: Readonly<Partial<Record<PdfCommandId, RibbonIcon>>> = {
-  [PDF_COMMANDS.undo]: Undo2,
-  [PDF_COMMANDS.redo]: Redo2,
   [PDF_COMMANDS.annotations]: MessageSquareText,
   [PDF_COMMANDS.highlight]: Highlighter,
   [PDF_COMMANDS.note]: StickyNote,
@@ -86,17 +82,29 @@ interface PdfRibbonGroupSpec {
 }
 
 /**
- * The PDF command map as ribbon data: the same tabs, groups and items the old
- * command row expressed, grouped like the desktop ribbon. Undo/redo stay in the
- * tab row's quick-access pair and Save in the shared header cluster, so Save is
- * not repeated here; `home` still carries an undo/redo group so its body is
- * never an empty band (U3). `view` carries real zoom and fit groups (F-8) so
- * its body is never an empty band either.
+ * The PDF command map as ribbon data, grouped like the desktop Office ribbon.
+ * Undo/redo live in the tab row's quick-access pair and Save in the shared
+ * header cluster, so neither is repeated in a tab body. `home` is a real
+ * Office-like Home (Edit, Annotate, Pages, Zoom) built from the same commands;
+ * `view` carries zoom and fit groups (F-8), so no body is an empty band.
  */
 const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRibbonGroupSpec[] }> = [
   {
     id: "home",
-    groups: [{ id: "history", labelKey: "office.ribbon.quickAccess", ids: [PDF_COMMANDS.undo, PDF_COMMANDS.redo] }],
+    groups: [
+      { id: "edit", labelKey: "office.pdf.chrome.groups.edit", ids: [PDF_COMMANDS.editText, PDF_COMMANDS.replaceImage] },
+      {
+        id: "annotate",
+        labelKey: "office.pdf.chrome.groups.annotate",
+        ids: [PDF_COMMANDS.highlight, PDF_COMMANDS.note, PDF_COMMANDS.stamp],
+      },
+      { id: "pages", labelKey: "office.pdf.pages.title", ids: [PDF_COMMANDS.insertPage, PDF_COMMANDS.rotatePage, PDF_COMMANDS.deletePage] },
+      {
+        id: "zoom",
+        labelKey: "office.pdf.view.zoomGroup",
+        ids: [PDF_COMMANDS.zoomOut, PDF_COMMANDS.zoomIn, PDF_COMMANDS.fitWidth, PDF_COMMANDS.fitPage],
+      },
+    ],
   },
   {
     id: "annotate",
@@ -111,7 +119,9 @@ const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRi
   },
   {
     id: "edit",
-    groups: [{ id: "edit", labelKey: "office.pdf.toolbar.label", ids: [PDF_COMMANDS.editText, PDF_COMMANDS.replaceImage] }],
+    groups: [
+      { id: "edit", labelKey: "office.pdf.chrome.groups.edit", ids: [PDF_COMMANDS.editText, PDF_COMMANDS.replaceImage] },
+    ],
   },
   {
     id: "pages",
@@ -137,9 +147,16 @@ const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRi
   },
 ];
 
+/** Most items a group may show as labelled buttons (F4); beyond it the group packs icons in rows. */
+const MAX_LABELLED_ITEMS = 3;
+/** Icons per row in a packed icon group. */
+const ICONS_PER_ROW = 2;
+
 /**
  * Build the PDF ribbon tabs for the commands a host supplies. A group keeps its
- * declared order; its first present item renders large, the rest small. Groups
+ * declared order. With up to three present items the first renders large and
+ * the rest small (icon + label); with more, every item is an icon packed in rows
+ * of two, `rowBreak` on each later row's first item (F4). Groups
  * with no present command are dropped so no empty labelled box appears. The
  * first group of a tab collapses last, the rightmost first.
  */
@@ -154,15 +171,19 @@ export function createPdfRibbonTabs(
     groups: tab.groups
       .map((spec, index, all) => {
         const items: RibbonItem[] = [];
-        for (const id of spec.ids) {
+        const present = spec.ids.filter((id) => commandById.has(id));
+        const packed = present.length > MAX_LABELLED_ITEMS;
+        for (const id of present) {
           const command = commandById.get(id);
           if (!command) continue;
+          const position = items.length;
           items.push({
             kind: "button",
             id,
             labelKey: PDF_RIBBON_COMMAND_LABEL_KEYS[id],
             icon: PDF_RIBBON_ICONS[id],
-            size: items.length === 0 ? "large" : "small",
+            size: packed ? "icon" : position === 0 ? "large" : "small",
+            ...(packed && position > 0 && position % ICONS_PER_ROW === 0 ? { rowBreak: true } : {}),
             disabled: command.disabled,
             onExecute: () => {
               command.onExecute?.();

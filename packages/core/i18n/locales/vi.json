@@ -8335,6 +8335,10 @@
     "pdf": {
       "title": "Tài liệu PDF",
       "chrome": {
+        "groups": {
+          "edit": "Sửa",
+          "annotate": "Chú thích"
+        },
         "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
         "tabsLabel": "Thẻ công cụ PDF",
         "commandsLabel": "Nhóm lệnh PDF",

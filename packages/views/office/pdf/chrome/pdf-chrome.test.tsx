@@ -37,6 +37,22 @@ const undoRedo: readonly PdfToolbarCommand[] = [
   command(PDF_COMMANDS.save, "Save"),
 ];
 
+const homeCommands: readonly PdfToolbarCommand[] = [
+  command(PDF_COMMANDS.editText, "Edit text"),
+  command(PDF_COMMANDS.replaceImage, "Replace image"),
+  command(PDF_COMMANDS.highlight, "Highlight"),
+  command(PDF_COMMANDS.note, "Note"),
+  command(PDF_COMMANDS.stamp, "Stamp"),
+  command(PDF_COMMANDS.insertPage, "Insert page"),
+  command(PDF_COMMANDS.rotatePage, "Rotate page"),
+  command(PDF_COMMANDS.deletePage, "Delete page"),
+  command(PDF_COMMANDS.zoomOut, "Zoom out"),
+  command(PDF_COMMANDS.zoomIn, "Zoom in"),
+  command(PDF_COMMANDS.fitWidth, "Fit width"),
+  command(PDF_COMMANDS.fitPage, "Fit page"),
+  ...undoRedo,
+];
+
 const viewCommands: readonly PdfToolbarCommand[] = [
   command(PDF_COMMANDS.zoomOut, "Zoom out"),
   command(PDF_COMMANDS.zoomIn, "Zoom in"),
@@ -82,20 +98,37 @@ describe("createPdfRibbonTabs", () => {
     expect(pages?.groups.map((group) => group.labelKey)).toEqual(["office.pdf.pages.title", "office.pdf.pageOps.title"]);
     expect(pages?.groups[0]?.items.map((item) => item.id)).toEqual(["insert-page", "delete-page", "rotate-page"]);
     expect(pages?.groups[1]?.items.map((item) => item.id)).toEqual(["reorder-page", "extract-page", "merge-pages"]);
-    // pageCommands carries no undo/redo, so Home's history group is dropped.
-    expect(tabs.find((tab) => tab.id === "home")?.groups).toEqual([]);
+    // Home borrows only the page commands pageCommands carries.
+    expect(tabs.find((tab) => tab.id === "home")?.groups.map((group) => group.id)).toEqual(["pages"]);
     expect(tabs.find((tab) => tab.id === "view")?.groups).toEqual([]);
   });
 
-  it("carries a labelled undo/redo group on Home so its body is never empty", () => {
-    const tabs = createPdfRibbonTabs(undoRedo);
-    const home = tabs.find((tab) => tab.id === "home");
-    expect(home?.groups.map((group) => group.id)).toEqual(["history"]);
-    const group = home?.groups[0];
-    expect(group?.labelKey).toBe("office.ribbon.quickAccess");
-    expect(group?.items.map((item) => item.id)).toEqual(["undo", "redo"]);
-    expect(group?.items.map((item) => item.labelKey)).toEqual(["office.pdf.actions.undo", "office.pdf.actions.redo"]);
-    expect(group?.items.map((item) => item.size)).toEqual(["large", "small"]);
+  it("builds a real Office-like Home from existing commands, with proper captions", () => {
+    const home = createPdfRibbonTabs(homeCommands).find((tab) => tab.id === "home");
+    expect(home?.groups.map((group) => group.id)).toEqual(["edit", "annotate", "pages", "zoom"]);
+    expect(home?.groups.map((group) => group.labelKey)).toEqual([
+      "office.pdf.chrome.groups.edit",
+      "office.pdf.chrome.groups.annotate",
+      "office.pdf.pages.title",
+      "office.pdf.view.zoomGroup",
+    ]);
+    expect(home?.groups.map((group) => group.items.map((item) => item.size))).toEqual([
+      ["large", "small"],
+      ["large", "small", "small"],
+      ["large", "small", "small"],
+      ["icon", "icon", "icon", "icon"],
+    ]);
+    // Packed icon strip: rows of two, rowBreak on each later row's first item.
+    expect(home?.groups[3]?.items.map((item) => item.rowBreak === true)).toEqual([false, false, true, false]);
+  });
+
+  it("keeps undo and redo out of every tab body (they live in quick access)", () => {
+    const tabs = createPdfRibbonTabs([...homeCommands, ...annotateCommands, ...pageCommands, ...viewCommands]);
+    const ids = tabs.flatMap((tab) => tab.groups.flatMap((group) => group.items.map((item) => item.id)));
+    expect(ids).not.toContain("undo");
+    expect(ids).not.toContain("redo");
+    expect(ids).not.toContain("save");
+    expect(tabs.find((tab) => tab.id === "home")?.groups.length).toBeGreaterThanOrEqual(3);
   });
 
   it("gives View real zoom and fit groups so its body is never empty (F-8)", () => {
@@ -110,6 +143,14 @@ describe("createPdfRibbonTabs", () => {
   it("renders the first item of a group large and the rest small", () => {
     const pages = createPdfRibbonTabs(pageCommands).find((tab) => tab.id === "pages");
     expect(pages?.groups[0]?.items.map((item) => item.size)).toEqual(["large", "small", "small"]);
+  });
+
+  it("packs a group of more than three items as icons in rows of two", () => {
+    const annotate = createPdfRibbonTabs(annotateCommands).find((tab) => tab.id === "annotate");
+    const markups = annotate?.groups[0];
+    expect(markups?.items.map((item) => item.size)).toEqual(["icon", "icon", "icon", "icon"]);
+    expect(markups?.items.map((item) => item.rowBreak === true)).toEqual([false, false, true, false]);
+    expect(annotate?.groups[1]?.items.map((item) => item.size)).toEqual(["large"]);
   });
 
   it("gives the first group of a tab the highest priority so it collapses last", () => {
@@ -199,10 +240,9 @@ describe("PdfRibbonBar", () => {
     expect(groupIds).toEqual(["markups", "forms"]);
     const markups = document.querySelector("[data-ribbon-group='markups']") as HTMLElement;
     expect(markups).toHaveAttribute("aria-label", "Text markup tools");
-    // The first present command of a group renders large, the rest small.
-    expect(markups.querySelector("[data-ribbon-item='annotations']")).toHaveAttribute("data-ribbon-size", "large");
-    expect(markups.querySelector("[data-ribbon-item='highlight']")).toHaveAttribute("data-ribbon-size", "small");
-    // Home and View carry no groups, so their body has none.
+    // More than three commands pack into icon rows (F4).
+    expect(markups.querySelector("[data-ribbon-item='annotations']")).toHaveAttribute("data-ribbon-size", "icon");
+    expect(markups.querySelector("[data-ribbon-item='highlight']")).toHaveAttribute("data-ribbon-size", "icon");
     expect(screen.queryByRole("group", { name: "Page operations" })).not.toBeInTheDocument();
   });
 
@@ -286,7 +326,7 @@ describe("PdfRibbonBar", () => {
       />,
     );
     const undo = screen.getByTestId("pdf-chrome-undo");
-    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(undo);
     expect(onExecute).not.toHaveBeenCalled();
     expect(onCommand).not.toHaveBeenCalled();

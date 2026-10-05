@@ -8342,6 +8342,10 @@
     "pdf": {
       "title": "PDF document",
       "chrome": {
+        "groups": {
+          "edit": "Edit",
+          "annotate": "Annotate"
+        },
         "tabs": { "home": "Home", "annotate": "Annotate", "edit": "Edit", "pages": "Pages", "view": "View" },
         "tabsLabel": "PDF tool tabs",
         "commandsLabel": "PDF command groups",
