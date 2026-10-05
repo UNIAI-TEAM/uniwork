@@ -240,6 +240,8 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     const cleanup = [options.draft.clearIntent(intent.intentId).catch(() => undefined)];
     if (kind === "saved") {
       cleanup.push(options.draft.discard(intent.identity, intent.snapshotGeneration).catch(() => undefined));
+    } else if (options.transport.release) {
+      cleanup.push(options.transport.release({ intent }).catch(() => undefined));
     }
     await Promise.all(cleanup);
   }

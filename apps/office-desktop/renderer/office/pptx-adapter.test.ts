@@ -20,6 +20,7 @@ function runtime(): PptxSessionRuntime {
     redo: vi.fn(async () => true),
     serialize: vi.fn(async () => ({ bytes: new Uint8Array([1]), checksum: "c" })),
     setBaseRevision: vi.fn(async () => undefined),
+    releaseSave: vi.fn(async () => undefined),
     deck: vi.fn(),
     slides: vi.fn(() => []),
     slideLayouts: vi.fn(() => layouts),
@@ -40,6 +41,17 @@ describe("desktop PPTX adapter handle", () => {
     await adapter.editor.dispose();
     await adapter.editor.setBaseRevision("8", "intent-2");
     expect(backing.setBaseRevision).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards a settled-without-commit Save to the runtime's undo release (W15 F2), never after dispose", async () => {
+    const backing = runtime();
+    const adapter = createDesktopPptxAdapter({ identity, runtime: backing, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability });
+    await adapter.open();
+    await adapter.editor.releaseSave("intent-1");
+    expect(backing.releaseSave).toHaveBeenCalledExactlyOnceWith("m1", "intent-1");
+    await adapter.editor.dispose();
+    await adapter.editor.releaseSave("intent-2");
+    expect(backing.releaseSave).toHaveBeenCalledTimes(1);
   });
 
   it("hands back the minted ids, the layout catalog, and reads empty once disposed", async () => {

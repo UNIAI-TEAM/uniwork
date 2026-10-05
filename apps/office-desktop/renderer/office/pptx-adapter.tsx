@@ -42,6 +42,8 @@ export interface DesktopPptxEditorHandle extends EditorHandle<PptxDeckSnapshot> 
   serialize(snapshot: StableSnapshot<PptxDeckSnapshot>, intentId?: string): Promise<{ bytes: Uint8Array; checksum: string }>;
   /** That Save committed: the runtime rebases its journal onto the bytes (W14). */
   setBaseRevision(revision: string, intentId: string): Promise<void>;
+  /** That Save settled without committing: the runtime ends its undo hold. */
+  releaseSave(intentId: string): Promise<void>;
   /** Bumps whenever an edit or history replay lands, so the canvas rebuilds. */
   revision(): number;
   undo(): void;
@@ -165,6 +167,9 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
     },
     async setBaseRevision(revision, intentId) {
       if (modelRef && !disposed) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
+    },
+    async releaseSave(intentId) {
+      if (modelRef && !disposed) await options.runtime.releaseSave?.(modelRef, intentId);
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),

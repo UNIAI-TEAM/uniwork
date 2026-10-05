@@ -40,6 +40,8 @@ export interface PptxSaveTransportOptions {
   /** The commit landed: the runtime rebases onto the bytes it serialized for
    *  this intent (the xlsx transport's runtime.setBaseRevision hook). */
   setBaseRevision?(revision: string, intentId: string): Promise<void>;
+  /** The Save settled without committing: the runtime ends its undo hold. */
+  releaseSave?(intentId: string): Promise<void>;
 }
 
 export function createPptxSaveTransport(options: PptxSaveTransportOptions): OfficeSaveTransport<PptxDeckSnapshot> {
@@ -90,6 +92,9 @@ export function createPptxSaveTransport(options: PptxSaveTransportOptions): Offi
         contractVersion: receipt.version.contract_version ?? "office-editor-host/1",
         protocolVersion: receipt.version.protocol_version ?? "1",
       };
+    },
+    async release({ intent }) {
+      await options.releaseSave?.(intent.intentId);
     },
     // A missing reconciliation endpoint is not evidence that an ambiguous
     // commit failed. The coordinator retains the intent for an explicit retry.

@@ -477,6 +477,9 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     setBaseRevision: async (revision, intentId) => {
       if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
     },
+    releaseSave: async (intentId) => {
+      if (modelRef) await options.runtime.releaseSave?.(modelRef, intentId);
+    },
   });
   const session = createOfficeEditorSession({ ...options, editor, transport });
   session.coordinator.setCapability(options.capability);

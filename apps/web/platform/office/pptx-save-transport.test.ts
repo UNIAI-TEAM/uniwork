@@ -38,6 +38,16 @@ describe("PPTX web save transport", () => {
     expect(setBaseRevision).toHaveBeenCalledExactlyOnceWith("9007199254740994", intent.intentId);
   });
 
+  it("releases the runtime's save hold with the settled intent id (W15 F2)", async () => {
+    const releaseSave = vi.fn(async () => undefined);
+    const { documents, serialize } = setup();
+    const transport = createPptxSaveTransport({ documentId: "doc", documents, serialize, releaseSave });
+    await transport.release!({ intent });
+    expect(releaseSave).toHaveBeenCalledExactlyOnceWith(intent.intentId);
+    // Without the optional hook the release is a no-op.
+    await expect(createPptxSaveTransport({ documentId: "doc", documents, serialize }).release!({ intent })).resolves.toBeUndefined();
+  });
+
   it.each([{ bytes: new Uint8Array(), checksum: "sha256" }, { bytes: new Uint8Array([1]), checksum: "" }])("refuses empty or checksum-less serialized output: %j", async (result) => {
     const { documents } = setup();
     const transport = createPptxSaveTransport({ documentId: "doc", documents, serialize: async () => result });

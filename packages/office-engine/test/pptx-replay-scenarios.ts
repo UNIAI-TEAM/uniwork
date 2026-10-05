@@ -34,6 +34,7 @@ interface RuntimeLike {
   snapshot(ref: string): { revision: number; edits: Array<{ op: string; [key: string]: unknown }> };
   serialize(ref: string, input: { snapshot: { generation: number; fingerprint: string; value: ReturnType<RuntimeLike["snapshot"]> }; intentId?: string }): Promise<{ bytes: Uint8Array }>;
   setBaseRevision?(ref: string, revision: string, intentId: string): Promise<void>;
+  releaseSave?(ref: string, intentId: string): Promise<void>;
   slides(ref: string): Array<{ elements: Array<{ id: string; type: string }> }>;
   deck(ref: string): unknown;
 }
@@ -312,5 +313,47 @@ export function registerSaveRebaseScenarios(
     await old.runtime.restore!(old.ref, JSON.parse(JSON.stringify(preSave)) as typeof preSave);
     expect(liveElements(old.runtime, old.ref)).toHaveLength(baseCount + 1);
     expect(isSlideHidden((await save(old.runtime, old.ref)).slides[1] ?? {})).toBe(true);
+  });
+
+  it("ends the undo hold when the save settles without committing, and keeps it while the save is in flight (W15 F2)", async () => {
+    const { runtime, ref } = await realOpen();
+    await runtime.edit(ref, [box(5)]);
+    await runtime.edit(ref, [hidden(1, true)]);
+    const value = runtime.snapshot(ref);
+    await runtime.serialize(ref, { snapshot: { generation: 2, fingerprint: "fp", value }, intentId: "intent-dead" });
+    // In flight (or kept for retry): undo may not cross the prefix.
+    expect(await runtime.undo(ref)).toBe(false);
+    // Another intent settling does not release this one's hold.
+    await runtime.releaseSave!(ref, "someone-else");
+    expect(await runtime.undo(ref)).toBe(false);
+
+    // The Save settled without a commit: undo crosses the dead prefix again.
+    await runtime.releaseSave!(ref, "intent-dead");
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    expect(await runtime.redo(ref)).toBe(true);
+    // A late commit report for the released intent is loud, never a silent rebase.
+    await expect(runtime.setBaseRevision!(ref, "2", "intent-dead")).rejects.toMatchObject({ code: "pptx_commit_candidate_missing" });
+
+    // A fresh Save after the release holds and commits as before.
+    const next = runtime.snapshot(ref);
+    await runtime.serialize(ref, { snapshot: { generation: 3, fingerprint: "fp", value: next }, intentId: "intent-2" });
+    expect(await runtime.undo(ref)).toBe(false);
+    await runtime.setBaseRevision!(ref, "3", "intent-2");
+    expect(runtime.snapshot(ref)).toEqual({ revision: 0, edits: [] });
+    // Releasing a committed or unknown intent is a harmless no-op.
+    await runtime.releaseSave!(ref, "intent-2");
+    await runtime.releaseSave!("missing-ref", "intent-2");
+  });
+
+  it("names a refused commit with a code the error table can read (W15 F3)", async () => {
+    const { runtime, ref } = await realOpen();
+    await expect(runtime.setBaseRevision!(ref, "2", "never-serialized")).rejects.toMatchObject({ code: "pptx_commit_candidate_missing" });
+    // A commit for an intent that is not the pending one is refused the same way.
+    await runtime.edit(ref, [box(5)]);
+    const value = runtime.snapshot(ref);
+    await runtime.serialize(ref, { snapshot: { generation: 1, fingerprint: "fp", value }, intentId: "intent-x" });
+    await expect(runtime.setBaseRevision!(ref, "2", "intent-y")).rejects.toMatchObject({ code: "pptx_commit_candidate_missing" });
   });
 }

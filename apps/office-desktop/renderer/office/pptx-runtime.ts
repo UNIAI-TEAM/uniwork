@@ -108,6 +108,10 @@ export interface PptxSessionRuntime {
    *  the base and the journal keeps only the entries after them (W14). The
    *  xlsx runtime's commit hook, called by the save transport's commit. */
   setBaseRevision?(documentModelRef: string, revision: string, intentId: string): Promise<void>;
+  /** The Save for `intentId` settled WITHOUT committing (terminal refusal,
+   *  conflict, proven-uncommitted): the undo hold on its prefix ends. A Save the
+   *  coordinator keeps for retry never calls this - the hold must stay. */
+  releaseSave?(documentModelRef: string, intentId: string): Promise<void>;
   slides(documentModelRef: string): PptxSlideSummary[];
   /** The opened engine deck the shared canvas renders (EMU size included). */
   deck(documentModelRef: string): PptxDeckModel;
@@ -235,6 +239,12 @@ interface RuntimeSession {
    * restore and save refuses with this (pptx_session_diverged) instead of
    * serializing a truncated deck. Snapshot still reads the intended journal. */
   diverged?: Error;
+}
+
+/** A bare Error carries no `code`, so the error table would file it under
+ * office_unknown_error; the code is the message, like the engine's refusals. */
+function codedError(code: string): Error {
+  return Object.assign(new Error(code), { code });
 }
 
 export function createWebPptxSessionRuntime(options: { documentId: string }): PptxSessionRuntime {
@@ -548,16 +558,24 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         const session = requireLive(documentModelRef);
         if (session.committed?.intentId === intentId && session.committed.revision === revision) return;
         const pending = session.pending;
-        if (pending?.intentId !== intentId) throw new Error("pptx_commit_candidate_missing");
+        if (pending?.intentId !== intentId) throw codedError("pptx_commit_candidate_missing");
         // Undo stops at the pending prefix, so the live history still holds it;
         // a miss means the history and the saved bytes share no base.
-        if (!rebasePptxJournal(session, pending.edits, sameEntry)) throw new Error("pptx_save_rebase_diverged");
+        if (!rebasePptxJournal(session, pending.edits, sameEntry)) throw codedError("pptx_save_rebase_diverged");
         // The live engine model stays: it holds base + journal, which is the
         // saved deck + tail. Only its revision counter keeps running.
         session.engineBase += pending.edits.length;
         session.baseBytes = pending.bytes;
         session.pending = undefined;
         session.committed = { intentId, revision };
+      });
+    },
+
+    async releaseSave(documentModelRef, intentId) {
+      return serializeOperation(() => {
+        // A released or unknown session has nothing left to hold.
+        const session = sessions.get(documentModelRef);
+        if (session?.pending?.intentId === intentId) session.pending = undefined;
       });
     },
 

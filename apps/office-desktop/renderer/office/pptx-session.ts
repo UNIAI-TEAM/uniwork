@@ -112,8 +112,17 @@ export function createPptxDocumentSession(
   };
 
   const draft: DraftAdapter<PptxDeckSnapshot> = {
-    checkpoint: async (snapshot) => {
-      if (saveSettled) await saveSettled;
+    checkpoint: async (captured) => {
+      let snapshot = captured;
+      // The journal is base-relative: a Save that commits meanwhile rebases the
+      // runtime and advances the identity, so the pre-wait snapshot (the full
+      // journal) would be stored under the NEW base and replay the saved prefix
+      // twice. Re-capture after every settled Save - post-rebase it is tail-only.
+      while (saveSettled) {
+        await saveSettled;
+        if (disposed) throw new Error("pptx_editor_disposed");
+        snapshot = await surface.captureSnapshot();
+      }
       if (disposed) throw new Error("pptx_editor_disposed");
       if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
       const draftId = draftIdFor(currentIdentity());
@@ -177,6 +186,12 @@ export function createPptxDocumentSession(
       // saveSettled, so none can land between this rebase and the new identity.
       await surface.setBaseRevision(revision, intent.intentId);
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "pptx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
+    },
+    // Settled without a commit (terminal refusal, conflict): the retained output
+    // and the runtime's undo hold on this intent's prefix both end here.
+    release: async ({ intent }) => {
+      outputs.delete(intent.intentId);
+      await surface.releaseSave(intent.intentId);
     },
     reconcile: async () => null,
   };
