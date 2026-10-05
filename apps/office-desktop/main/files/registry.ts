@@ -125,7 +125,7 @@ export class FileHandleRegistry {
   /** Alias used by the open-event adapter. */
   openEvent(path: string): Promise<OpenFileMetadata> { return this.openPath(path); }
 
-  /** A new DOCX with no backing path. The renderer cannot choose a path: the
+  /** A new document with no backing path. The renderer cannot choose a path: the
    * document becomes writable only through the Save As picker. */
   createUntitled(bytes: Uint8Array, name: string, now = Date.now()): OpenFileMetadata {
     this.assertActive();

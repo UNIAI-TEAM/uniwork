@@ -169,8 +169,11 @@ The main process sends the current refresh token from the secure store.
 session-family status, revokes the presented token, and atomically returns a
 new pair with the same device/session IDs. One refresh operation may be in
 flight per device session. A row lock serializes concurrent requests; a
-replayed or mismatched token returns 401 `refresh_reused` and revokes that
-device session and its native family according to the approved auth policy.
+replayed token (one this session family issued and already rotated out)
+returns 401 `refresh_reused` and revokes that device session and its native
+family according to the approved auth policy. A token the family never issued
+returns the same 401 `refresh_reused` and changes nothing, so knowing a device
+id is not enough to log its owner out.
 
 **Response:** `sdo.DesktopSessionSDO` with `account_id`, IDs, access token,
 `expires_in`, replacement refresh token and `refresh_rotates: true`. Raw refresh

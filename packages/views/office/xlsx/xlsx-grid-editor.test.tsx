@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { XlsxEditor } from "./xlsx-editor";
@@ -7,7 +7,10 @@ import type { XlsxEditorHandle, XlsxSaveCoordinator, XlsxWorkbookSnapshot } from
 
 const grid = vi.hoisted(() => ({
   props: null as XlsxGridSurfaceProps | null,
-  handle: { undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn(), commitEdit: vi.fn(async () => undefined) },
+  handle: {
+    undo: vi.fn(), redo: vi.fn(), selectSheet: vi.fn(), setNumberFormat: vi.fn(), setCellText: vi.fn(), commitEdit: vi.fn(async () => undefined),
+    executeCommand: vi.fn(() => true), getActiveFormatState: vi.fn((): unknown => null),
+  },
 }));
 vi.mock("./xlsx-grid-surface", async () => {
   const React = await import("react");
@@ -19,6 +22,12 @@ vi.mock("./xlsx-grid-surface", async () => {
     return <button type="button" data-testid="live-grid" onKeyDown={(event) => event.stopPropagation()} />;
   } };
 });
+
+/** The shared ribbon tab by id (the ribbon owns its own DOM, so no per-lane
+ *  testid survives the migration). */
+function ribbonTab(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-tab="${id}"]`)!;
+}
 
 function setup(editDelay?: Promise<void>, readOnly = false, saving = false, embedded = false) {
   let snapshot: XlsxWorkbookSnapshot = { revision: 1, sheets: [
@@ -65,10 +74,11 @@ describe("XlsxEditor live grid commands", () => {
     const { handle } = setup();
     await screen.findByTestId("live-grid");
     act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 } }));
-    fireEvent.click(screen.getByRole("button", { name: /^Sao chép/ }));
+    const toolbar = within(screen.getByTestId("xlsx-toolbar"));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2\t\n\t");
     grid.handle.setCellText.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Dán/ }));
     await waitFor(() => expect(grid.handle.setCellText).toHaveBeenCalledTimes(4));
     expect(grid.handle.setCellText.mock.calls).toEqual([["sheet-1", 0, 0, "3"], ["sheet-1", 0, 1, "4"], ["sheet-1", 1, 0, "5"], ["sheet-1", 1, 1, "6"]]);
   });
@@ -137,11 +147,53 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.keyDown(formula, { key: "Enter" });
     expect(grid.handle.setCellText).toHaveBeenLastCalledWith("sheet-2", 0, 0, "=Data!A1*3");
     fireEvent.click(screen.getByRole("button", { name: "Định dạng số" }));
-    expect(grid.handle.setNumberFormat).toHaveBeenLastCalledWith("0.00");
+    const numberGallery = await screen.findByTestId("xlsx-number-format-gallery");
+    fireEvent.click(within(numberGallery).getByTestId("xlsx-number-format-preset-number-decimal2"));
+    expect(grid.handle.executeCommand).toHaveBeenLastCalledWith("sheet.command.numfmt.set.numfmt", {
+      values: [{ row: 0, col: 0, pattern: "0.00" }],
+    });
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     expect(grid.handle.undo).toHaveBeenCalled();
     expect(grid.handle.redo).toHaveBeenCalled();
+  });
+
+  it("runs Home formatting commands on the live grid and mirrors the active format state", async () => {
+    const formatState = {
+      fontFamily: "Calibri", fontSize: 14, bold: true, italic: false, underline: false, strike: false,
+      textColor: "#C00000", fillColor: null, horizontalAlign: 1, verticalAlign: 1, wrap: false, textRotation: 0,
+    };
+    grid.handle.getActiveFormatState.mockReturnValue(formatState);
+    grid.handle.executeCommand.mockClear();
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    const bold = await screen.findByRole("button", { name: "In đậm" });
+    expect(bold).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "In nghiêng" }));
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-italic", undefined);
+    expect(grid.handle.getActiveFormatState).toHaveBeenCalled();
+    grid.handle.getActiveFormatState.mockReturnValue(null);
+  });
+
+  it("normalises a rejected command dispatch to a resolved false without an unhandled rejection", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // The port boundary folds a rejected dispatch into a resolved false, so the
+    // fire-and-forget toolbar click never escapes as an unhandled rejection.
+    const rejections: unknown[] = [];
+    const onRejection = (event: PromiseRejectionEvent) => rejections.push(event.reason);
+    window.addEventListener("unhandledrejection", onRejection);
+    try {
+      grid.handle.executeCommand.mockRejectedValueOnce(new Error("handler exploded"));
+      expect(() => fireEvent.click(screen.getByRole("button", { name: "In nghi\u00eang" }))).not.toThrow();
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(rejections).toHaveLength(0);
+      expect(screen.getByTestId("xlsx-editor")).toBeInTheDocument();
+    } finally {
+      window.removeEventListener("unhandledrejection", onRejection);
+    }
   });
 
   it("surfaces a rejected host edit and blocks Save", async () => {
@@ -170,9 +222,10 @@ describe("XlsxEditor live grid commands", () => {
     const { handle } = setup(undefined, true);
     await screen.findByTestId("live-grid");
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
-    fireEvent.click(screen.getByRole("button", { name: /^Sao chép/ }));
+    const toolbar = within(screen.getByTestId("xlsx-toolbar"));
+    fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2");
-    const paste = screen.getByRole("button", { name: /^Dán/ });
+    const paste = toolbar.getByRole("button", { name: /^Dán/ });
     expect(paste).toHaveAttribute("aria-disabled", "true");
     expect(paste).not.toBeDisabled();
     fireEvent.click(paste);
@@ -184,7 +237,7 @@ describe("XlsxEditor live grid commands", () => {
     await screen.findByTestId("live-grid");
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     vi.mocked(handle.clipboard!.readText!).mockRejectedValueOnce(new Error("NotAllowedError: internal browser diagnostic"));
-    fireEvent.click(screen.getByRole("button", { name: /^Dán/ }));
+    fireEvent.click(within(screen.getByTestId("xlsx-toolbar")).getByRole("button", { name: /^Dán/ }));
     expect(await screen.findByTestId("xlsx-recalc-error")).toHaveTextContent("Kiểm tra quyền của trình duyệt");
     expect(screen.getByTestId("xlsx-recalc-error")).not.toHaveTextContent("NotAllowedError");
   });
@@ -197,5 +250,87 @@ describe("XlsxEditor live grid commands", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Redo" })).toBeInTheDocument();
     expect(screen.getByTestId("xlsx-save")).toHaveTextContent("Save");
+  });
+});
+
+describe("XlsxEditor context menu and shortcuts", () => {
+  it("opens the context menu from a right-click and runs a command through the grid port", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 1, endColumn: 1 } }));
+    const container = screen.getByTestId("live-grid");
+    act(() => grid.props?.onContextMenu?.({ x: 10, y: 20 }, container));
+    const menu = await screen.findByTestId("xlsx-context-menu");
+    grid.handle.executeCommand.mockClear();
+    fireEvent.click(within(menu).getByTestId("xlsx-context-insert-row-above"));
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 2 });
+  });
+
+  it("cuts by copying the selection then clearing it through the allowlisted command", async () => {
+    const { handle } = setup();
+    await screen.findByTestId("live-grid");
+    act(() => grid.props?.onSelectionChange?.({ sheetId: "sheet-1", range: { startRow: 0, startColumn: 0, endRow: 0, endColumn: 0 } }));
+    const container = screen.getByTestId("live-grid");
+    act(() => grid.props?.onContextMenu?.({ x: 1, y: 1 }, container));
+    const menu = await screen.findByTestId("xlsx-context-menu");
+    grid.handle.executeCommand.mockClear();
+    fireEvent.click(within(menu).getByTestId("xlsx-context-cut"));
+    await waitFor(() => expect(handle.clipboard?.writeText).toHaveBeenCalled());
+    await waitFor(() => expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.clear-selection-content", undefined));
+  });
+
+  it("opens find, inserts a sheet and switches sheets from the catalog keys", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // Ctrl+F: the pinned find dialog is policy-denied, so the editor panel is
+    // the real target (the help must not promise a dead key).
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "f", ctrlKey: true });
+    expect(await screen.findByTestId("xlsx-find-panel")).toBeInTheDocument();
+    // Shift+F11: insert a sheet through the pinned command.
+    grid.handle.executeCommand.mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "F11", shiftKey: true });
+    expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.insert-sheet", expect.objectContaining({ sheet: expect.any(Object) }));
+    // Ctrl+PageDown: activate the next visible sheet tab.
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "PageDown", ctrlKey: true });
+    expect(grid.handle.selectSheet).toHaveBeenLastCalledWith("sheet-2");
+    // Ctrl+Shift+Z: the advertised redo alternate chord (upstream binds only
+    // Ctrl+Y), routed to the live grid's redo stack.
+    grid.handle.redo.mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "Z", ctrlKey: true, shiftKey: true });
+    expect(grid.handle.redo).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces a refused sheet action instead of silently no-opping", async () => {
+    const { handle } = setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // Shift+F11 inserts a sheet through the pinned command; a resolved false is
+    // fail-closed: the direct-op fallback is NOT retried (it would bypass the
+    // policy gate) and the failure is surfaced instead of silent.
+    grid.handle.executeCommand.mockResolvedValueOnce(false);
+    vi.mocked(handle.edit!).mockClear();
+    fireEvent.keyDown(screen.getByTestId("xlsx-editor"), { key: "F11", shiftKey: true });
+    await waitFor(() => expect(screen.getByTestId("xlsx-recalc-error")).toBeInTheDocument());
+    expect(handle.edit).not.toHaveBeenCalled();
+  });
+
+  it("leaves catalog keys to the cell editor while it owns the keyboard", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
+    // The formula bar is a text control inside the editor root; the pinned
+    // sheets-ui binds its shortcuts with `whenSheetEditorFocused`, so Ctrl+F
+    // must not steal the key there.
+    fireEvent.keyDown(screen.getByTestId("xlsx-formula-bar"), { key: "f", ctrlKey: true, bubbles: true });
+    expect(screen.queryByTestId("xlsx-find-panel")).not.toBeInTheDocument();
+  });
+
+  it("opens the shortcuts dialog from the View tab entry", async () => {
+    setup();
+    await screen.findByTestId("live-grid");
+    fireEvent.click(ribbonTab("view"));
+    fireEvent.click(screen.getByTestId("xlsx-shortcuts-open"));
+    expect(await screen.findByTestId("xlsx-shortcuts")).toBeInTheDocument();
   });
 });

@@ -2,7 +2,35 @@
 // by the open:xlsx job) to the shapes the vendored genoffice sheets renderer
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
-import type { XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import { seedFittedColumnWidths } from "./xlsx-column-autofit";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
+
+/** One file-native table in the genoffice `WorkbookFile` sheet shape (the
+ *  subset the vendored loader and the ribbon read). `styleName` is left out on
+ *  purpose: the loader paints banding only for a named style, and the style
+ *  colours are resolved sidecar-side, so omitting it keeps the file's cells
+ *  unpainted rather than inventing colours. */
+export interface RendererWorkbookTable {
+  range: { startRow: number; startColumn: number; endRow: number; endColumn: number };
+  headerRowCount: number;
+  showRowStripes: boolean;
+  showColumnStripes: boolean;
+  name: string;
+  columns: string[];
+  totalsRowCount?: number;
+}
+
+/** One workbook defined name as the vendored loader consumes it (the
+ *  genoffice `DefinedNameEntry` shape). `sheetIndex` is the 0-based sheet
+ *  position; absent means workbook scope. */
+export interface RendererWorkbookDefinedName {
+  name: string;
+  formula: string;
+  sheetIndex?: number;
+  /** Reader-only: the loader ignores it, the name manager needs it to know the
+   *  name cannot be modelled and must ride preserveNames instead. */
+  hidden?: boolean;
+}
 
 /** The subset of the genoffice WorkbookFile the vendored loader reads. */
 export interface RendererWorkbookFile {
@@ -15,7 +43,7 @@ export interface RendererWorkbookFile {
   styles: RendererWorkbookStyle[];
   dxfStyles: RendererWorkbookStyle[];
   visuals: never[];
-  definedNames: never[];
+  definedNames: RendererWorkbookDefinedName[];
   activeTab: number;
   readOnly: boolean;
   themeColors?: string[];
@@ -53,7 +81,7 @@ export interface RendererWorkbookSheet {
     styleIndex?: number;
   }[];
   pivotTables: never[];
-  tables: never[];
+  tables: RendererWorkbookTable[];
   comments: never[];
   pivotRanges: never[];
 }
@@ -113,11 +141,11 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
     sha256: meta.sha256,
     ...(meta.fileBytes === undefined ? {} : { fileBytes: meta.fileBytes }),
     entryCount: meta.entryCount ?? 0,
-    sheets: model.sheets.map((sheet) => toRendererWorkbookSheet(sheet)),
+    sheets: model.sheets.map((sheet) => toRendererWorkbookSheet(sheet, model.styles)),
     styles: model.styles as RendererWorkbookStyle[],
     dxfStyles: model.dxfStyles as RendererWorkbookStyle[],
     visuals: [],
-    definedNames: [],
+    definedNames: (model.definedNames ?? []).map((name) => toRendererDefinedName(name)),
     activeTab: model.activeTab,
     readOnly: false,
     ...(model.theme === undefined ? {} : { themeColors: [...model.theme.colors] }),
@@ -136,7 +164,32 @@ export function toRendererWorkbookFile(model: XlsxRenderModel, meta: RenderModel
   };
 }
 
-function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet {
+/** Map the render model's name entry to the loader's shape. The reader-only
+ *  `hidden` flag is deliberately kept (the loader ignores it) so the name
+ *  manager can tell a hidden name cannot be modelled and must ride
+ *  preserveNames. */
+function toRendererDefinedName(defined: XlsxRenderDefinedName): RendererWorkbookDefinedName {
+  return {
+    name: defined.name,
+    formula: defined.formula,
+    ...(defined.sheetIndex === undefined ? {} : { sheetIndex: defined.sheetIndex }),
+    ...(defined.hidden ? { hidden: true } : {}),
+  };
+}
+
+function toRendererWorkbookTable(table: XlsxRenderTable): RendererWorkbookTable {
+  return {
+    range: { ...table.area },
+    headerRowCount: table.headerRow ? 1 : 0,
+    showRowStripes: table.bandedRows,
+    showColumnStripes: false,
+    name: table.name,
+    columns: [...table.columnNames],
+    ...(table.totalsRow ? { totalsRowCount: 1 } : {}),
+  };
+}
+
+function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRenderStyle[]): RendererWorkbookSheet {
   return {
     id: sheet.id,
     name: sheet.name,
@@ -154,9 +207,11 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet): RendererWorkbookSheet 
     ...(sheet.baseColWidth === undefined ? {} : { baseColumnWidth: sheet.baseColWidth }),
     freeze: sheet.freeze ?? null,
     ...(sheet.zoomScale === undefined ? {} : { zoomScale: sheet.zoomScale }),
-    columnWidths: sheet.columnWidths.map((column) => ({ ...column })),
+    // Renderer-only: unsized columns get a content-fitted width (never a
+    // customWidth); the model the save path reads is not touched.
+    columnWidths: seedFittedColumnWidths(sheet, styles),
     pivotTables: [],
-    tables: [],
+    tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
     pivotRanges: [],
   };

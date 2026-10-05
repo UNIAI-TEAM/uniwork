@@ -329,9 +329,9 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
 
     // ── native rows: the real Rust sidecar ──────────────────────────────
 
-    // xlsx-recalc-oracle (AC-1): kitchen-sink Data!B2 → B5=SUM(B2:B4) and the
-    // cross-sheet PhuLuc!B2 must equal the oracle's own arithmetic read from
-    // the OUTPUT package, and the cells must still carry <f>.
+    // xlsx-recalc-oracle (AC-1): kitchen-sink Data!B2 -> Data!B6=SUM(B2:B4) and
+    // the cross-sheet PhuLuc!B2 must equal the oracle's own arithmetic read
+    // from the OUTPUT package, and the cells must still carry <f>.
     if (needNative(probe, 'xlsx-recalc-oracle', sidecarPath)) {
       const bytes = readFx(KITCHEN);
       const nativeAdapter = native();
@@ -345,11 +345,10 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         probe.save('recalc-oracle', saved.bytes);
         const post = await xlsxExtract(JSZip, saved.bytes);
         // Independent oracle: read the stored literals out of the output XML
-        // and compute the sums ourselves. Kitchen-sink's Data sheet is
-        // pathological — a <row r="6"> element carries cells labelled r="B5"/
-        // "C5", so the engine relocates those formulas and the writer cannot
-        // patch their cache: the file's own <v> is kept and warned. The clean
-        // cross-sheet cell PhuLuc!B2 is the real recalc proof.
+        // and compute the sums ourselves. The fixture's row-6 cells are
+        // labelled B6/C6 (the malformed duplicate-B5 row was repaired), so the
+        // engine recalculates the SUM formulas in place and the writer patches
+        // their <v>; no formula_cache_kept warning may remain.
         const data = post.sheets['Data'] ?? {};
         const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
@@ -357,17 +356,17 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         const warns = saved.warnings ?? [];
         const keptWarned = warns.some((w) => w.code === 'formula_cache_kept');
         const ok =
-          data['B5']?.formula === '=SUM(B2:B4)' &&
+          data['B6']?.formula === '=SUM(B2:B4)' &&
           phu['B2']?.formula === '=SUM(Data!B2:B4)' &&
           phu['B2']?.value === oracleSum &&
           phu['B3']?.value === countA &&
-          data['B5']?.value === 4908000000 &&
-          keptWarned;
-        probe.extract('recalc-oracle', { b5: data['B5'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA, keptWarned });
+          data['B6']?.value === oracleSum &&
+          !keptWarned;
+        probe.extract('recalc-oracle', { b6: data['B6'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA, keptWarned });
         probe.row(
           'xlsx-recalc-oracle',
           ok,
-          `PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA}); B5 kept stale <v>=${data['B5']?.value} warned=${keptWarned}`,
+          `PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA}); B6 <v>=${data['B6']?.value} (oracle ${oracleSum}) warned=${keptWarned}`,
         );
         nativeAdapter.release(ref);
       }
@@ -392,10 +391,98 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         const data = post.sheets['Data'] ?? {};
         const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
-        // Kitchen-sink's pathological Data formulas keep their file cache
-        // (engine relocates them), so the fresh-value proof is PhuLuc!B2.
-        const ok = data['B5']?.formula === '=SUM(B2:B4)' && phu['B2']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
+        // Both the in-sheet Data!B6 and the cross-sheet PhuLuc!B2 refresh
+        // against the edits from the two chained saves.
+        const ok = data['B6']?.formula === '=SUM(B2:B4)' && data['B6']?.value === oracleSum && phu['B2']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
         probe.row('xlsx-two-save', ok, `save2 PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); B2=${data['B2']?.value}, B3=${data['B3']?.value}; checksums differ=${s1.checksum !== s2.checksum}`);
+        nativeAdapter.release(ref);
+      }
+    }
+
+    // xlsx-recalc-sheet-identity (UNI-926 R3-1): the exact save envelope the
+    // browser sent (value edit, new formula B8, sorted rows, add_sheet +
+    // rename_sheet). Every cached <v> must be recomputed from the OUTPUT
+    // literals even though the sheet set changed; then a second chained save.
+    if (needNative(probe, 'xlsx-recalc-sheet-identity', sidecarPath)) {
+      const bytes = readFx(KITCHEN);
+      const nativeAdapter = native();
+      const res = await openXlsx(nativeAdapter, bytes, 'fx-recalc-identity');
+      if (res.outcome !== 'opened') {
+        probe.row('xlsx-recalc-sheet-identity', false, 'open failed: ' + res.failure_class);
+      } else {
+        const ref = res.document_model_ref;
+        nativeAdapter.edit(ref, [{"op":"set_cell","target":{"sheet":"Data","cell":"B2"},"attributes":{"value":2000000000}},{"op":"set_cell","target":{"sheet":"Data","cell":"B8"},"attributes":{"formula":"=SUM(B2:B4)"}},{"op":"set_cell","target":{"sheet":"Data","cell":"B2"},"attributes":{"value":2000000000},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B3"},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B4"},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B8"},"attributes":{"formula":"=SUM(B2:B4)"},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B2"},"attributes":{"value":1410000000},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B3"},"attributes":{"value":2000000000},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"B4"},"attributes":{"value":1570000000},"style":{"numberFormat":"#,##0\" ₫\""}},{"op":"set_cell","target":{"sheet":"Data","cell":"A2"},"attributes":{"value":"Chi phí"}},{"op":"set_cell","target":{"sheet":"Data","cell":"C2"},"attributes":{"value":820000000}},{"op":"set_cell","target":{"sheet":"Data","cell":"A3"},"attributes":{"value":"Doanh thu"}},{"op":"set_cell","target":{"sheet":"Data","cell":"C3"},"attributes":{"value":780000000}},{"op":"set_cell","target":{"sheet":"Data","cell":"A4"},"attributes":{"value":"Lợi nhuận"}},{"op":"set_cell","target":{"sheet":"Data","cell":"C4"},"attributes":{"value":860000000}},{"op":"add_sheet","attributes":{"name":"Sheet","index":2}},{"op":"rename_sheet","target":{"sheet":"Sheet"},"attributes":{"newName":"Tổng hợp"}},{"op":"set_cell","target":{"sheet":"Data","cell":"A10"},"attributes":{"value":"Ghi chú gộp ô"}}]);
+        const sumOf = (cells, col) => [2, 3, 4].reduce((n, r) => n + Number(cells[col + r]?.value ?? 0), 0);
+        const check = (post, warns) => {
+          const data = post.sheets['Data'] ?? {};
+          const phu = post.sheets['PhuLuc'] ?? {};
+          const sumB = sumOf(data, 'B');
+          const sumC = sumOf(data, 'C');
+          return {
+            sumB,
+            sumC,
+            b6: data['B6']?.value,
+            c6: data['C6']?.value,
+            b8: data['B8']?.value,
+            b8f: data['B8']?.formula,
+            phuB2: phu['B2']?.value,
+            sheets: Object.keys(post.sheets),
+            kept: warns.some((w) => /formula_cache_kept/.test(w.code)),
+            ok:
+              sumB > 0 && data['B6']?.value === sumB && data['C6']?.value === sumC &&
+              data['B8']?.formula === '=SUM(B2:B4)' && data['B8']?.value === sumB &&
+              phu['B2']?.value === sumB &&
+              !warns.some((w) => /formula_cache_kept/.test(w.code)) &&
+              Object.keys(post.sheets).length === 3 && Object.keys(post.sheets).includes('Tổng hợp'),
+          };
+        };
+        const s1 = await serialize(nativeAdapter, ref);
+        probe.save('recalc-sheet-identity', s1.bytes);
+        const c1 = check(await xlsxExtract(JSZip, s1.bytes), s1.warnings ?? []);
+        nativeAdapter.edit(ref, [{ op: 'set_cell', target: { sheet: 'Data', cell: 'B3' }, attributes: { value: 5 } }]);
+        const s2 = await serialize(nativeAdapter, ref);
+        probe.save('recalc-sheet-identity-2', s2.bytes);
+        const c2 = check(await xlsxExtract(JSZip, s2.bytes), s2.warnings ?? []);
+        const dataAfter2 = (await xlsxExtract(JSZip, s2.bytes)).sheets['Data'] ?? {};
+        probe.extract('recalc-sheet-identity', { save1: c1, save2: c2, b3AfterSave2: dataAfter2['B3']?.value });
+        probe.row(
+          'xlsx-recalc-sheet-identity',
+          c1.ok && c2.ok && dataAfter2['B3']?.value === 5 && c2.sumB !== c1.sumB,
+          `save1 B6=${c1.b6} C6=${c1.c6} B8=${c1.b8} PhuLuc!B2=${c1.phuB2} (oracle B=${c1.sumB} C=${c1.sumC}) sheets=[${c1.sheets}] kept=${c1.kept}; save2 B6=${c2.b6} B8=${c2.b8} PhuLuc!B2=${c2.phuB2} (oracle ${c2.sumB}) kept=${c2.kept}`,
+        );
+        nativeAdapter.release(ref);
+      }
+    }
+
+    // xlsx-recalc-structural (UNI-926 R3-1): insert_rows inside the SUM range
+    // shifts the totals row; the shifted SUM cell must hold a recomputed <v>.
+    if (needNative(probe, 'xlsx-recalc-structural', sidecarPath)) {
+      const bytes = readFx(KITCHEN);
+      const nativeAdapter = native();
+      const res = await openXlsx(nativeAdapter, bytes, 'fx-recalc-structural');
+      if (res.outcome !== 'opened') {
+        probe.row('xlsx-recalc-structural', false, 'open failed: ' + res.failure_class);
+      } else {
+        const ref = res.document_model_ref;
+        nativeAdapter.edit(ref, [
+          { op: 'insert_rows', target: { sheet: 'Data' }, attributes: { index: 2, count: 1 } },
+          { op: 'set_cell', target: { sheet: 'Data', cell: 'B2' }, attributes: { value: 7 } },
+          { op: 'set_cell', target: { sheet: 'Data', cell: 'B3' }, attributes: { value: 11 } },
+        ]);
+        const saved = await serialize(nativeAdapter, ref);
+        probe.save('recalc-structural', saved.bytes);
+        const post = await xlsxExtract(JSZip, saved.bytes);
+        const data = post.sheets['Data'] ?? {};
+        // Independent oracle: find the SUM cell in column B, derive its range
+        // from the saved formula text, and sum the saved literals ourselves.
+        const sumRef = Object.keys(data).find((k) => /^B\d+$/.test(k) && /^=SUM\(B\d+:B\d+\)$/.test(data[k]?.formula ?? ''));
+        const m = sumRef ? /^=SUM\(B(\d+):B(\d+)\)$/.exec(data[sumRef].formula) : null;
+        let oracle = 0;
+        if (m) for (let r = Number(m[1]); r <= Number(m[2]); r++) oracle += Number(data['B' + r]?.value ?? 0);
+        const warns = saved.warnings ?? [];
+        const ok = !!m && sumRef !== 'B6' && data[sumRef]?.value === oracle && oracle >= 18 && data['B2']?.value === 7 && data['B3']?.value === 11 && !warns.some((w) => /formula_cache_kept/.test(w.code));
+        probe.extract('recalc-structural', { sumRef, formula: data[sumRef]?.formula, value: data[sumRef]?.value, oracle, warnings: warns.map((w) => w.code) });
+        probe.row('xlsx-recalc-structural', ok, `shifted SUM at ${sumRef} ${data[sumRef]?.formula} <v>=${data[sumRef]?.value} (oracle ${oracle}); warnings=[${warns.map((w) => w.code)}]`);
         nativeAdapter.release(ref);
       }
     }

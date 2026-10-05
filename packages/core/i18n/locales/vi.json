@@ -8215,7 +8215,157 @@
     "xlsx": {
       "title": "Sổ tính XLSX",
       "toolbar": {
-        "label": "Lệnh chỉnh sửa XLSX"
+        "label": "Lệnh chỉnh sửa XLSX",
+        "tabs": {
+          "label": "Thẻ lệnh XLSX",
+          "home": "Trang chủ",
+          "insert": "Chèn",
+          "formulas": "Công thức",
+          "data": "Dữ liệu",
+          "review": "Xem lại",
+          "tableDesign": "Thiết kế bảng",
+          "tableLayout": "Bố cục bảng",
+          "view": "Xem"
+        },
+        "groups": {
+          "history": "Lịch sử",
+          "sheets": "Trang tính",
+          "clipboard": "Bảng tạm",
+          "number": "Định dạng số",
+          "numberFormat": {
+            "gallery": "Thư viện định dạng số",
+            "increaseDecimals": "Tăng số chữ số thập phân",
+            "decreaseDecimals": "Giảm số chữ số thập phân",
+            "custom": "Tùy chỉnh",
+            "customInput": "Mã định dạng",
+            "customPlaceholder": "Ví dụ: #,##0.00",
+            "customApply": "Áp dụng",
+            "customError": {
+              "empty": "Nhập mã định dạng.",
+              "tooLong": "Mã định dạng tối đa 255 ký tự.",
+              "controlChar": "Mã định dạng không được chứa ký tự xuống dòng hoặc ký tự điều khiển."
+            },
+            "categories": {
+              "general": "Chung",
+              "number": "Số",
+              "currency": "Tiền tệ",
+              "accounting": "Kế toán",
+              "date": "Ngày",
+              "time": "Thời gian",
+              "percent": "Phần trăm",
+              "text": "Văn bản"
+            },
+            "presets": {
+              "general": "Chung",
+              "number-integer": "1234",
+              "number-decimal1": "1234,6",
+              "number-decimal2": "1234,56",
+              "number-thousands": "1.234",
+              "number-thousands-decimal2": "1.234,56",
+              "currency-vnd": "1.235 ₫",
+              "currency-usd": "$1.234,56",
+              "currency-eur": "€1.234,56",
+              "accounting-integer": "(1.234)",
+              "accounting-decimal2": "(1.234,56)",
+              "date-iso": "2026-10-03",
+              "date-dmy": "03/10/2026",
+              "date-mdy": "10/03/2026",
+              "time-hm": "13:30",
+              "time-hms": "13:30:45",
+              "time-hm-ampm": "1:30 CH",
+              "percent-integer": "12%",
+              "percent-decimal2": "12,34%",
+              "text": "Văn bản"
+            },
+            "comma": "Kiểu dấu phẩy"
+          },
+          "font": {
+            "label": "Phông chữ",
+            "family": "Phông chữ",
+            "size": "Cỡ chữ",
+            "sizeDecrease": "Giảm cỡ chữ",
+            "sizeIncrease": "Tăng cỡ chữ",
+            "bold": "In đậm",
+            "italic": "In nghiêng",
+            "underline": "Gạch chân",
+            "strike": "Gạch ngang",
+            "textColor": "Màu chữ",
+            "textColorAutomatic": "Tự động",
+            "fillColor": "Màu tô",
+            "fillColorNone": "Không tô",
+            "colorValue": "Màu {{color}}"
+          },
+          "alignment": {
+            "label": "Căn chỉnh",
+            "left": "Căn trái",
+            "center": "Căn giữa",
+            "right": "Căn phải",
+            "top": "Căn trên",
+            "middle": "Căn giữa dọc",
+            "bottom": "Căn dưới",
+            "wrap": "Ngắt dòng",
+            "rotation": "Xoay chữ",
+            "rotationAngle": "{{angle}}°"
+          },
+          "borders": {
+            "label": "Đường viền",
+            "presets": "Kiểu viền",
+            "edges": "Cạnh viền",
+            "all": "Tất cả",
+            "outside": "Viền ngoài",
+            "none": "Không viền",
+            "edgeTop": "Trên",
+            "edgeRight": "Phải",
+            "edgeBottom": "Dưới",
+            "edgeLeft": "Trái"
+          },
+          "charts": "Biểu đồ",
+          "calculation": "Tính toán",
+          "clear": {
+            "label": "Xóa",
+            "content": "Xóa nội dung",
+            "format": "Xóa định dạng",
+            "all": "Xóa tất cả"
+          },
+          "painter": {
+            "label": "Sao chép định dạng",
+            "hint": "Sao chép định dạng của vùng chọn hiện tại rồi chọn nơi áp dụng. Nhấn lần nữa hoặc Esc để hủy."
+          },
+          "find": {
+            "label": "Tìm và thay thế"
+          },
+          "formula": {
+            "label": "Thư viện hàm"
+          },
+          "view": {
+            "zoom": {
+              "label": "Thu phóng"
+            },
+            "display": {
+              "label": "Hiển thị"
+            },
+            "goto": {
+              "label": "Đi tới"
+            },
+            "shortcuts": {
+              "label": "Phím tắt"
+            }
+          },
+          "cells": "Ô",
+          "editing": "Chỉnh sửa",
+          "clipboardItems": {
+            "paste": "Dán",
+            "cut": "Cắt",
+            "copy": "Sao chép"
+          },
+          "cellsItems": {
+            "insert": "Chèn",
+            "delete": "Xóa",
+            "format": "Định dạng"
+          }
+        },
+        "overflow": "Thêm lệnh",
+        "emptyTab": "Thẻ này chưa có lệnh nào."
       },
       "actions": {
         "undo": "Hoàn tác",
@@ -8247,6 +8397,7 @@
         "dirty": "Có thay đổi chưa lưu",
         "saving": "Đang lưu…",
         "saved": "Đã lưu lên UniWork",
+        "savedLocal": "Đã lưu trên máy",
         "error": "Lưu cần xử lý",
         "conflict": "Xung đột phiên bản",
         "blocked": "Đã chặn lưu",
@@ -8258,11 +8409,378 @@
         "table": "Trang tính {{sheet}}",
         "grid": "Lưới sổ tính"
       },
+      "view": {
+        "zoom": {
+          "out": "Thu nhỏ",
+          "in": "Phóng to",
+          "value": "{{percent}}%",
+          "preset": "Thu phóng {{percent}}%",
+          "presetShort": "{{percent}}%",
+          "reset": "Đặt lại 100%"
+        },
+        "gridlines": "Đường lưới",
+        "headers": "Tiêu đề hàng và cột",
+        "goto": {
+          "label": "Đi tới ô",
+          "placeholder": "Ví dụ: B5 hoặc A1:C10",
+          "go": "Đi",
+          "invalid": "Nhập một ô hoặc vùng, ví dụ B5 hoặc A1:C10."
+        }
+      },
+      "structure": {
+        "groups": {
+          "insert": "Chèn dòng và cột",
+          "size": "Kích thước dòng, cột",
+          "outline": "Nhóm theo cấp",
+          "merge": "Gộp ô"
+        },
+        "rowCount": "Số dòng",
+        "colCount": "Số cột",
+        "insertRowsAbove": "Chèn dòng phía trên",
+        "insertRowsAbove_one": "Chèn {{count}} dòng phía trên",
+        "insertRowsAbove_other": "Chèn {{count}} dòng phía trên",
+        "insertRowsBelow": "Chèn dòng phía dưới",
+        "deleteRows": "Xóa các dòng đã chọn",
+        "insertColsLeft": "Chèn cột bên trái",
+        "insertColsLeft_one": "Chèn {{count}} cột bên trái",
+        "insertColsLeft_other": "Chèn {{count}} cột bên trái",
+        "insertColsRight": "Chèn cột bên phải",
+        "deleteCols": "Xóa các cột đã chọn",
+        "rowHeight": "Chiều cao dòng (điểm)",
+        "resetRowHeight": "Dùng chiều cao dòng tự động",
+        "hideRows": "Ẩn các dòng đã chọn",
+        "showRows": "Hiện các dòng đã chọn",
+        "colWidth": "Chiều rộng cột (ký tự)",
+        "resetColWidth": "Dùng chiều rộng cột mặc định",
+        "hideCols": "Ẩn các cột đã chọn",
+        "showCols": "Hiện các cột đã chọn",
+        "groupRows": "Nhóm dòng",
+        "ungroupRows": "Bỏ nhóm dòng",
+        "groupCols": "Nhóm cột",
+        "ungroupCols": "Bỏ nhóm cột",
+        "clearOutline": "Xóa phân cấp nhóm",
+        "mergeCells": "Gộp ô",
+        "mergeAcross": "Gộp theo hàng",
+        "unmergeCells": "Bỏ gộp ô",
+        "mergeCenter": "Gộp và căn giữa"
+      },
+      "filter": {
+        "groups": {
+          "data": "Lọc"
+        },
+        "toggle": "Bật/tắt lọc",
+        "clear": "Xóa điều kiện lọc",
+        "advanced": "Lọc nâng cao…",
+        "dialog": {
+          "title": "Lọc nâng cao",
+          "close": "Đóng lọc nâng cao",
+          "column": "Cột",
+          "operator": "Điều kiện",
+          "value": "Giá trị",
+          "join": "Kết hợp",
+          "and": "Tất cả điều kiện (VÀ)",
+          "or": "Một trong các điều kiện (HOẶC)",
+          "addCondition": "Thêm điều kiện",
+          "removeCondition": "Xóa điều kiện",
+          "reading": "Đang đọc vùng chọn…",
+          "noSelection": "Chọn danh sách, gồm cả dòng tiêu đề, để tạo điều kiện lọc.",
+          "valueRequired": "Nhập giá trị cho mỗi điều kiện.",
+          "tooManyConditions": "Mỗi cột chỉ nhận tối đa hai điều kiện.",
+          "applyFailed": "Không áp dụng được bộ lọc tại đây. Hãy chọn đúng vùng đang lọc rồi thử lại.",
+          "note": "Khi áp dụng, bộ lọc sẽ được tạo trên vùng chọn nếu trang tính chưa có bộ lọc.",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        },
+        "operators": {
+          "equal": "Bằng",
+          "notEqual": "Khác",
+          "greaterThan": "Lớn hơn",
+          "greaterThanOrEqual": "Lớn hơn hoặc bằng",
+          "lessThan": "Nhỏ hơn",
+          "lessThanOrEqual": "Nhỏ hơn hoặc bằng"
+        }
+      },
+      "sort": {
+        "groups": {
+          "data": "Sắp xếp"
+        },
+        "ascending": "Sắp xếp tăng dần",
+        "descending": "Sắp xếp giảm dần",
+        "custom": "Sắp xếp tùy chỉnh…",
+        "limitExceeded": "Vùng chọn quá lớn để sắp xếp. Mỗi lần lưu chỉ sắp xếp tối đa {{limit}} ô; hãy chọn vùng nhỏ hơn.",
+        "applyFailed": "Không sắp xếp được tại đây. Hãy chọn đúng vùng rồi thử lại.",
+        "dialog": {
+          "title": "Sắp xếp tùy chỉnh",
+          "close": "Đóng sắp xếp tùy chỉnh",
+          "keyColumn": "Sắp xếp theo",
+          "direction": "Thứ tự",
+          "hasHeaderRow": "Dữ liệu của tôi có dòng tiêu đề",
+          "reading": "Đang đọc vùng chọn…",
+          "noSelection": "Chọn danh sách có ít nhất hai dòng để sắp xếp.",
+          "note": "Sắp xếp một cấp. Sắp xếp nhiều cấp chưa được hỗ trợ.",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        }
+      },
+      "table": {
+        "groups": {
+          "insert": "Bảng"
+        },
+        "create": "Tạo bảng",
+        "remove": "Xóa bảng",
+        "namePlaceholder": "Tên bảng cần xóa",
+      "contextual": {
+        "style": "Kiểu bảng",
+        "styleMedium": "Kiểu trung bình",
+        "rows": "Hàng",
+        "columns": "Cột",
+        "cells": "Ô",
+        "properties": "Thuộc tính",
+        "tools": "Công cụ",
+        "convertToRange": "Chuyển thành vùng dữ liệu"
+      },
+      "nameLabel": "Tên bảng",
+      "nameInvalid": "Nhập tên duy nhất, bắt đầu bằng chữ cái hoặc dấu gạch dưới"
+      },
+      "links": {
+        "groups": {
+          "insert": "Liên kết và ghi chú"
+        },
+        "insert": "Chèn liên kết",
+        "note": "Chèn ghi chú",
+        "dialog": {
+          "linkTitle": "Chèn liên kết",
+          "noteTitle": "Chèn ghi chú",
+          "target": "Đích liên kết",
+          "targetPlaceholder": "ví dụ: https://example.com hoặc Sheet1!A1",
+          "hint": "Để trống để xoá liên kết.",
+          "noteText": "Nội dung ghi chú",
+          "notePlaceholder": "ví dụ: Kiểm tra số liệu này",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        }
+      },
+      "protect": {
+        "open": "Bảo vệ trang tính và tên",
+        "groups": {
+          "review": "Bảo vệ và tên"
+        },
+        "dialog": {
+          "title": "Bảo vệ trang tính và tên",
+          "close": "Đóng bảo vệ và tên",
+          "protectSheet": "Bảo vệ trang tính",
+          "on": "Bảo vệ trang tính",
+          "off": "Bỏ bảo vệ trang tính",
+          "protectNote": "Bảo vệ được lưu không kèm mật khẩu. Trang tính đã đặt mật khẩu không thể bỏ bảo vệ tại đây.",
+          "names": "Tên đã đặt",
+          "name": "Tên",
+          "namePlaceholder": "ví dụ: Sales",
+          "formula": "Tham chiếu đến",
+          "formulaPlaceholder": "ví dụ: Sheet1!$A$1:$B$2",
+          "sheetIndex": "Phạm vi trang",
+          "workbookScope": "Toàn bộ sổ làm việc",
+          "remove": "Xóa",
+          "add": "Thêm tên",
+          "apply": "Áp dụng",
+          "cancel": "Hủy",
+          "invalid": {
+            "name": "Tên không hợp lệ. Bắt đầu bằng chữ cái, dấu gạch dưới hoặc dấu chéo ngược, và tránh tham chiếu ô.",
+            "formula": "Nhập vùng hoặc công thức mà tên tham chiếu đến.",
+            "sheetIndex": "Phạm vi trang phải là số nguyên từ 0 đến 16383, hoặc để trống cho phạm vi toàn bộ sổ tính.",
+            "duplicate": "Cùng một tên được đặt hai lần cho cùng một phạm vi.",
+            "collision": "Tên này đã tồn tại ở dạng hộp thoại này không thể sửa, nên không thể thêm tại đây. Hãy chọn tên khác."
+          }
+        },
+        "openShort": "Bảo vệ trang tính"
+      },
+      "pageSetup": {
+        "open": "Thiết lập trang",
+        "groups": {
+          "view": "Thiết lập trang và xuất"
+        },
+        "dialog": {
+          "title": "Thiết lập trang",
+          "close": "Đóng thiết lập trang",
+          "keep": "Giữ nguyên",
+          "on": "Bật",
+          "off": "Tắt",
+          "orientation": "Hướng giấy",
+          "portrait": "Dọc",
+          "landscape": "Ngang",
+          "paperSize": "Khổ giấy",
+          "margins": "Lề",
+          "marginNormal": "Tiêu chuẩn",
+          "marginWide": "Rộng",
+          "marginNarrow": "Hẹp",
+          "scale": "Tỷ lệ (%)",
+          "fitToPage": "Vừa trang",
+          "fitToWidth": "Vừa chiều rộng",
+          "fitToHeight": "Vừa chiều cao",
+          "printGridlines": "In đường lưới",
+          "printHeadings": "In tiêu đề hàng cột",
+          "frozenRows": "Cố định hàng",
+          "frozenColumns": "Cố định cột",
+          "printArea": "Vùng in",
+          "printAreaSelection": "Vùng chọn ({{range}})",
+          "printAreaClear": "Xóa vùng in",
+          "printTitles": "Tiêu đề lặp lại",
+          "printTitlesPlaceholder": "ví dụ 1:2",
+          "printTitlesClear": "Xóa tiêu đề lặp lại",
+          "note": "Chỉ những thiết lập bạn thay đổi được ghi; phần còn lại giữ nguyên.",
+          "invalidNumber": "Nhập một số nguyên trong khoảng cho phép.",
+          "invalidTitles": "Tiêu đề lặp lại dùng khoảng hàng như 1:2.",
+          "invalidPrintArea": "Chọn một vùng để làm vùng in.",
+          "invalidFrozenPair": "Hãy đặt cả hàng và cột cố định.",
+          "empty": "Hãy thay đổi ít nhất một thiết lập.",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        },
+        "paper": {
+          "letter": "Letter",
+          "tabloid": "Tabloid",
+          "legal": "Legal",
+          "a3": "A3",
+          "a4": "A4",
+          "a5": "A5"
+        }
+      },
+      "export": {
+        "print": "In",
+        "csv": "Xuất CSV"
+      },
       "sheets": {
-        "label": "Các trang tính trong sổ"
+        "label": "Các trang tính trong sổ",
+        "actions": "Thao tác trang tính",
+        "add": "Thêm trang tính",
+        "copySuffix": "bản sao",
+        "defaultName": "Trang tính",
+        "duplicate": "Nhân bản trang tính",
+        "hiddenGroup": "Trang tính đang ẩn",
+        "hide": "Ẩn trang tính",
+        "moveLeft": "Di chuyển sang trái",
+        "moveRight": "Di chuyển sang phải",
+        "remove": "Xóa trang tính",
+        "confirmRemove": "Xác nhận xóa trang tính?",
+        "rename": "Đổi tên trang tính",
+        "renameInput": "Tên trang tính",
+        "tabColorReadOnly": "Màu tab (chỉ đọc — chờ gateway)",
+        "unhide": "Hiện trang tính"
+      },
+      "formulas": {
+        "categories": {
+          "all": "Tất cả",
+          "math": "Toán & Lượng giác",
+          "statistical": "Thống kê",
+          "text": "Văn bản",
+          "date": "Ngày & Giờ",
+          "lookup": "Tìm kiếm & Tham chiếu",
+          "logical": "Logic",
+          "financial": "Tài chính"
+        },
+        "fn": {
+          "sum": "Cộng các đối số.",
+          "sumif": "Cộng các ô trong vùng thỏa một điều kiện.",
+          "sumifs": "Cộng các ô thỏa nhiều điều kiện.",
+          "sumproduct": "Nhân các phần tử tương ứng trong mảng rồi cộng các tích.",
+          "abs": "Trả về giá trị tuyệt đối của một số.",
+          "round": "Làm tròn một số đến số chữ số cho trước.",
+          "roundup": "Làm tròn lên, ra xa số 0.",
+          "rounddown": "Làm tròn xuống, về phía số 0.",
+          "int": "Làm tròn xuống số nguyên gần nhất.",
+          "mod": "Trả về số dư khi chia một số cho số khác.",
+          "power": "Tính một số lũy thừa.",
+          "sqrt": "Trả về căn bậc hai của một số.",
+          "rand": "Trả về số ngẫu nhiên từ 0 đến 1.",
+          "randbetween": "Trả về số nguyên ngẫu nhiên trong khoảng cho trước.",
+          "average": "Trả về trung bình cộng của các đối số.",
+          "averageif": "Tính trung bình các ô trong vùng thỏa một điều kiện.",
+          "count": "Đếm các ô chứa số.",
+          "counta": "Đếm các ô không trống.",
+          "countif": "Đếm các ô trong vùng thỏa một điều kiện.",
+          "countifs": "Đếm các ô thỏa nhiều điều kiện.",
+          "min": "Trả về số nhỏ nhất.",
+          "max": "Trả về số lớn nhất.",
+          "median": "Trả về số giữa của một tập hợp.",
+          "large": "Trả về giá trị lớn thứ k.",
+          "small": "Trả về giá trị nhỏ thứ k.",
+          "concatenate": "Nối nhiều đoạn văn bản thành một.",
+          "text": "Định dạng một số thành văn bản theo mã định dạng.",
+          "left": "Trả về các ký tự bên trái của văn bản.",
+          "right": "Trả về các ký tự bên phải của văn bản.",
+          "mid": "Trả về các ký tự ở giữa văn bản.",
+          "len": "Trả về số ký tự của văn bản.",
+          "trim": "Loại bỏ khoảng trắng thừa trong văn bản.",
+          "upper": "Chuyển văn bản thành chữ hoa.",
+          "lower": "Chuyển văn bản thành chữ thường.",
+          "substitute": "Thay thế các lần xuất hiện của một đoạn văn bản.",
+          "today": "Trả về ngày hôm nay.",
+          "now": "Trả về ngày và giờ hiện tại.",
+          "date": "Tạo ngày từ năm, tháng và ngày.",
+          "year": "Trả về năm của một ngày.",
+          "month": "Trả về tháng của một ngày.",
+          "day": "Trả về ngày trong tháng của một ngày.",
+          "edate": "Trả về ngày trước hoặc sau một số tháng.",
+          "vlookup": "Tìm ở cột đầu của vùng rồi trả về giá trị cùng hàng.",
+          "hlookup": "Tìm ở hàng đầu của vùng rồi trả về giá trị cùng cột.",
+          "index": "Trả về giá trị trong vùng tại hàng và cột cho trước.",
+          "match": "Trả về vị trí của một giá trị trong vùng.",
+          "choose": "Trả về một giá trị trong danh sách theo vị trí.",
+          "if": "Trả về một giá trị khi điều kiện đúng và giá trị khác khi sai.",
+          "iferror": "Trả về giá trị dự phòng khi công thức bị lỗi.",
+          "and": "Trả về TRUE khi mọi đối số đều đúng.",
+          "or": "Trả về TRUE khi có đối số đúng.",
+          "not": "Đảo ngược giá trị logic của đối số.",
+          "pmt": "Trả về khoản thanh toán cố định của một khoản vay.",
+          "fv": "Trả về giá trị tương lai của một khoản đầu tư.",
+          "pv": "Trả về giá trị hiện tại của một khoản đầu tư.",
+          "rate": "Trả về lãi suất mỗi kỳ của một khoản vay.",
+          "nper": "Trả về số kỳ của một khoản vay.",
+          "npv": "Trả về giá trị hiện tại ròng của các dòng tiền.",
+          "irr": "Trả về tỷ suất hoàn vốn nội bộ của các dòng tiền."
+        },
+        "library": {
+          "title": "Thư viện hàm",
+          "open": "Thư viện hàm",
+          "close": "Đóng thư viện hàm",
+          "search": "Tìm kiếm",
+          "searchPlaceholder": "Tìm hàm",
+          "category": "Nhóm",
+          "list": "Danh sách hàm",
+          "noMatch": "Không có hàm nào phù hợp.",
+          "noTarget": "Hãy chọn một ô trước khi chèn hàm.",
+          "insertFailed": "Không thể chèn hàm ở đây.",
+          "cancel": "Hủy"
+        },
+        "autosum": {
+          "label": "Tự động tính tổng",
+          "hint": "Tính tổng vùng chọn, hoặc các ô số phía trên ô hiện tại.",
+          "empty": "Không tìm thấy số để tính tổng.",
+          "failed": "Không thể tự động tính tổng ở đây."
+        },
+        "hints": {
+          "label": "Gợi ý hàm"
+        }
       },
       "formula": {
+        "nameBox": "Tham chiếu ô",
+        "fx": "fx",
         "label": "Công thức hoặc giá trị"
+      },
+      "statusBar": {
+        "label": "Tóm tắt vùng chọn",
+        "empty": "Chọn ô để xem tóm tắt.",
+        "noValues": "Vùng chọn không có giá trị.",
+        "partialEmpty": "Phần vùng chọn đã đọc không có giá trị.",
+        "unavailable": "Không có tóm tắt ở đây.",
+        "error": "Không đọc được vùng chọn.",
+        "calculating": "Đang tính…",
+        "partial": "Tóm tắt một phần",
+        "partialHint": "Một phần vùng chọn nằm ngoài cửa sổ đọc, nên tổng chỉ tính trên các ô đã đọc.",
+        "sum": "Tổng: {{value}}",
+        "average": "Trung bình: {{value}}",
+        "count": "Số lượng: {{value}}",
+        "min": "Nhỏ nhất: {{value}}",
+        "max": "Lớn nhất: {{value}}"
       },
       "recalc": {
         "progress": "Đang tính lại ({{progress}}%)",
@@ -8273,6 +8791,10 @@
       "errors": {
         "title": "Không mở được sổ tính XLSX này",
         "reason": "Lý do: {{reason}}",
+        "details": "Chi tiết",
+        "detailClass": "Lớp: {{className}}",
+        "detailCode": "Mã: {{code}}",
+        "saveReason": "Lý do: {{reason}}",
         "unknown": "Không thể mở sổ tính này. Thử mở lại.",
         "corrupted": "Gói sổ tính bị hỏng hoặc chưa đầy đủ.",
         "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
@@ -8285,11 +8807,110 @@
         "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",
         "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại."
       },
+      "find": {
+        "title": "Tìm và thay thế",
+        "close": "Đóng",
+        "findLabel": "Tìm",
+        "replaceLabel": "Thay bằng",
+        "matchCase": "Phân biệt chữ hoa chữ thường",
+        "options": "Tùy chọn tìm",
+        "scopeSelection": "Vùng chọn",
+        "scopeSheet": "Cả trang tính",
+        "previous": "Kết quả trước",
+        "next": "Kết quả sau",
+        "replace": "Thay thế",
+        "replaceAll": "Thay thế tất cả",
+        "status": {
+          "typeQuery": "Nhập nội dung cần tìm.",
+          "reading": "Đang đọc dữ liệu…",
+          "unavailable": "Không có trang tính nào đang mở.",
+          "error": "Không đọc được trang tính. Hãy thử lại.",
+          "noMatches": "Không tìm thấy kết quả.",
+          "matches_one": "{{count}} kết quả.",
+          "matches_other": "{{count}} kết quả.",
+          "position": "{{index}}/{{count}}",
+          "partial": "Đã quét {{scanned}}/{{total}} dòng.",
+          "formulaHint_one": "{{count}} ô công thức chỉ được tìm thấy, không được thay thế.",
+          "formulaHint_other": "{{count}} ô công thức chỉ được tìm thấy, không được thay thế.",
+          "limit": "{{count}} ô vượt giới hạn {{limit}} ô mỗi lần lưu. Chưa thay thế ô nào.",
+          "replaced": "Đã thay thế ô hiện tại.",
+          "replacedAll_one": "Đã thay thế {{count}} ô.",
+          "replacedAll_other": "Đã thay thế {{count}} ô.",
+          "noChange": "Không có ô nào cần thay thế.",
+          "failed": "Không thay thế được — ô có thể nằm ngoài vùng đã nạp hoặc tài liệu chỉ cho đọc."
+        }
+      },
+      "contextMenu": {
+        "items": {
+          "cut": "Cắt",
+          "copy": "Sao chép",
+          "paste": "Dán",
+          "clearContent": "Xóa nội dung",
+          "clearFormat": "Xóa định dạng",
+          "insertRowAbove": "Chèn hàng bên trên",
+          "insertRowBelow": "Chèn hàng bên dưới",
+          "insertColLeft": "Chèn cột bên trái",
+          "insertColRight": "Chèn cột bên phải",
+          "deleteRows": "Xóa hàng",
+          "deleteColumns": "Xóa cột",
+          "mergeCells": "Gộp ô",
+          "mergeAcross": "Gộp theo hàng",
+          "unmergeCells": "Bỏ gộp ô",
+          "numberFormat": "Định dạng số",
+          "filterToggle": "Lọc",
+          "filterClear": "Xóa bộ lọc",
+          "find": "Tìm và thay thế"
+        }
+      },
+      "shortcuts": {
+        "open": "Phím tắt",
+        "openHint": "Xem tất cả phím tắt",
+        "title": "Phím tắt",
+        "close": "Đóng",
+        "search": "Tìm kiếm",
+        "searchPlaceholder": "Tìm phím tắt",
+        "empty": "Không có phím tắt nào khớp.",
+        "categories": {
+          "general": "Chung",
+          "navigation": "Điều hướng",
+          "editing": "Chỉnh sửa",
+          "formatting": "Định dạng",
+          "sheets": "Trang tính",
+          "view": "Xem"
+        },
+        "items": {
+          "save": "Lưu",
+          "undo": "Hoàn tác",
+          "redo": "Làm lại",
+          "find": "Tìm và thay thế",
+          "moveUp": "Di chuyển lên",
+          "moveDown": "Di chuyển xuống",
+          "moveLeft": "Di chuyển sang trái",
+          "moveRight": "Di chuyển sang phải",
+          "moveToEdge": "Di chuyển tới rìa vùng dữ liệu",
+          "selectAll": "Chọn tất cả",
+          "nextSheet": "Trang tính kế tiếp",
+          "previousSheet": "Trang tính trước",
+          "editCell": "Sửa ô đang chọn",
+          "cancelEdit": "Hủy nhập",
+          "cut": "Cắt",
+          "copy": "Sao chép",
+          "paste": "Dán",
+          "clearContent": "Xóa nội dung",
+          "bold": "Đậm",
+          "italic": "Nghiêng",
+          "underline": "Gạch chân",
+          "insertSheet": "Chèn trang tính",
+          "zoomIn": "Phóng to",
+          "zoomOut": "Thu nhỏ"
+        }
+      },
       "editor": {
         "appClosureActive": "{{count}} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",
         "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
         "appColumnLabel": "Cột {{col}}",
         "appFullyLoaded": "Sổ tính đã tải đầy đủ — công thức tính lại trực tiếp, có thể sửa hàng/cột.",
+        "appHyperlinkTargetInvalid": "Nhập URL như https://example.com, hoặc tham chiếu trang như Sheet1!A1.",
         "appIndexing": "Đang lập chỉ mục {{name}}: {{rows}} hàng sẵn sàng.",
         "appLinkInternal": "Liên kết trỏ trong cùng sổ tính: {{location}}",
         "appLinkJumpFailed": "Không thể nhảy tới {{location}}.",

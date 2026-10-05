@@ -36,6 +36,14 @@
       "untitledName": "Untitled.html",
       "untitledLocaleKey": "officeDesktop.local.untitledHtml",
       "engineBuild": "uniwork-text/text-document-1"
+    },
+    "xlsx": {
+      "extensions": ["xlsx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+      "dialogFilterName": "Excel",
+      "associationName": "Excel spreadsheet",
+      "untitledName": "Untitled.xlsx",
+      "engineBuild": "xlsx-desktop-1"
     }
   }
 }

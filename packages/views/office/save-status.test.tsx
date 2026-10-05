@@ -50,6 +50,34 @@ describe("SaveStatus", () => {
     else expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("surfaces the job failure reason in the save-error alert (F4)", () => {
+    render(
+      <SaveStatus
+        coordinatorState={{
+          state: "error",
+          error: {
+            state: "error",
+            code: "engine_result_invalid",
+            errorClass: "engine",
+            correlationId: null,
+            retryable: true,
+            ambiguous: false,
+            action: "retry",
+            message: "Office save could not be confirmed",
+          },
+        }}
+      />,
+    );
+    const reason = screen.getByTestId("office-save-error-reason");
+    expect(reason).toHaveTextContent("Reason: engine_result_invalid \u00b7 engine");
+  });
+
+  it("keeps the generic headline when a save failure carries no code (F4)", () => {
+    render(<SaveStatus status="error" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Save could not be confirmed");
+    expect(screen.queryByTestId("office-save-error-reason")).not.toBeInTheDocument();
+  });
+
   it("uses coordinator errors and focuses an alert for conflict", () => {
     render(
       <SaveStatus

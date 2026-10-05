@@ -81,10 +81,19 @@ export function SaveStatus({
   compact = false,
 }: SaveStatusProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.save" });
+  const { t: tRoot } = useTranslation();
   const normalized = normalizeStatus(status, coordinatorState, destination);
   const errorCorrelation = coordinatorState?.error?.correlationId ?? null;
   const resolvedCorrelation = correlationId ?? errorCorrelation;
   const action = actionKey(normalized);
+  // F4 (UNI-926): a refused save used to show only the generic headline. The
+  // coordinator keeps the job failure code/class in its error slot; surface it
+  // so the reader (and a tester) can see why the save was not confirmed.
+  const saveFailureReason = normalized === "error" && coordinatorState?.error
+    ? [coordinatorState.error.code, coordinatorState.error.errorClass !== "unknown" ? coordinatorState.error.errorClass : null]
+      .filter((part): part is string => Boolean(part))
+      .join(" · ")
+    : null;
   const alertRef = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   useEffect(() => {
@@ -107,6 +116,7 @@ export function SaveStatus({
       <span className="min-w-0 truncate">{title}</span>
       <span id={descriptionId} className="sr-only">
         {body}
+        {saveFailureReason ? ` ${tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}` : ""}
         {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
       </span>
       {action && onAction ? (
@@ -126,6 +136,11 @@ export function SaveStatus({
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>
         {body}
+        {saveFailureReason ? (
+          <span className="mt-1 block break-words" data-testid="office-save-error-reason">
+            {tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}
+          </span>
+        ) : null}
         {resolvedCorrelation ? <span className="mt-1 block text-caption">{t("correlation", { id: resolvedCorrelation })}</span> : null}
       </AlertDescription>
       {action && onAction ? (

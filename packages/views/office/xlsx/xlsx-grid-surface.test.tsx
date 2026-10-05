@@ -34,6 +34,8 @@ function fakeModule() {
     commitEdit: vi.fn(async () => undefined),
     selectSheet: vi.fn(),
     setNumberFormat: vi.fn(),
+    executeCommand: vi.fn(() => true),
+    getActiveFormatState: vi.fn(() => null),
     setDarkMode: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -95,6 +97,51 @@ describe("XlsxGridSurface", () => {
     expect(handle.setDarkMode).toHaveBeenLastCalledWith(true);
     expect(handle.dispose).not.toHaveBeenCalled();
     expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+  });
+
+  it("forwards commands to the artifact handle and reports its boolean result", async () => {
+    const { module, handle } = fakeModule();
+    const ref = createRef<XlsxGridHandle>();
+    render(<XlsxGridSurface ref={ref} documentKey="cmd-doc" host={host} loadModule={async () => module} />);
+    await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalled());
+    expect(ref.current?.executeCommand("sheet.command.set-bold")).toBe(true);
+    expect(handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-bold", undefined);
+    vi.mocked(handle.executeCommand).mockReturnValue(false);
+    expect(ref.current?.executeCommand("sheet.command.set-font-size", { value: 14 })).toBe(false);
+    expect(handle.executeCommand).toHaveBeenLastCalledWith("sheet.command.set-font-size", { value: 14 });
+  });
+
+  it("forwards the active format state read to the artifact handle", async () => {
+    const { module, handle } = fakeModule();
+    const state = {
+      fontFamily: "Calibri", fontSize: 14, bold: true, italic: false, underline: false, strike: false,
+      textColor: null, fillColor: null, horizontalAlign: 2, verticalAlign: 1, wrap: true, textRotation: 45,
+    };
+    vi.mocked(handle.getActiveFormatState).mockReturnValue(state);
+    const ref = createRef<XlsxGridHandle>();
+    render(<XlsxGridSurface ref={ref} documentKey="state-doc" host={host} loadModule={async () => module} />);
+    await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalled());
+    expect(ref.current?.getActiveFormatState()).toBe(state);
+  });
+
+  it("reports the right-click point to the host and suppresses the browser menu", async () => {
+    const { module } = fakeModule();
+    const onContextMenu = vi.fn();
+    render(<XlsxGridSurface documentKey="menu-doc" host={host} loadModule={async () => module} onContextMenu={onContextMenu} />);
+    const surface = screen.getByTestId("xlsx-grid-surface");
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 33, clientY: 44 });
+    surface.dispatchEvent(event);
+    expect(onContextMenu).toHaveBeenCalledWith({ x: 33, y: 44 }, surface);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("makes the surface container focusable so the context menu can return focus", async () => {
+    const { module } = fakeModule();
+    render(<XlsxGridSurface documentKey="focus-doc" host={host} loadModule={async () => module} />);
+    const surface = screen.getByTestId("xlsx-grid-surface");
+    expect(surface).toHaveAttribute("tabindex", "-1");
+    surface.focus();
+    expect(document.activeElement).toBe(surface);
   });
 
   it("shows a typed failure when the artifact cannot load", async () => {

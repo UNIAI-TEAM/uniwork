@@ -77,3 +77,11 @@ WHERE id = $1 AND revoked_at IS NULL AND expires_at > now();
 -- name: RevokeDeviceSessionByID :execrows
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE id = $1 AND revoked_at IS NULL;
+
+-- name: RefreshTokenIssuedToFamily :one
+-- True when this digest was ever issued to the session family (live or
+-- rotated out). Refresh uses it to tell a replayed token from a guess.
+SELECT EXISTS (
+  SELECT 1 FROM refresh_tokens
+  WHERE token_hash = $1 AND user_id = $2 AND session_id = $3
+);

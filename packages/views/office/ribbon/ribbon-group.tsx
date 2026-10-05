@@ -123,7 +123,7 @@ export function RibbonGroupButton({ group, variant }: { group: RibbonGroup; vari
         }
       >
         <Icon aria-hidden />
-        <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-28 text-center leading-tight" : undefined}>{caption}</span>
+        <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-40 text-center leading-tight" : undefined}>{caption}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
       <GroupPanel group={group} />
@@ -149,7 +149,7 @@ export function RibbonGroupView({ group, stage }: RibbonGroupViewProps) {
       data-ribbon-stage={stage}
       // The separator is an inset hairline (after:), so it never touches the
       // top or bottom edge of the body; the last group has none.
-      className="relative flex h-full shrink-0 flex-col px-1.5 after:absolute after:inset-y-1.5 after:right-0 after:w-px after:bg-border last:after:hidden"
+      className="relative flex h-full min-w-fit shrink-0 flex-col px-1.5 after:absolute after:inset-y-1.5 after:right-0 after:w-px after:bg-border last:after:hidden"
     >
       {stage === 3 ? (
         // The folded button carries the caption itself (Word), so no caption row.
@@ -164,7 +164,7 @@ export function RibbonGroupView({ group, stage }: RibbonGroupViewProps) {
             )}
             data-ribbon-caption={group.id}
           >
-            <span className="truncate">{caption}</span>
+            <span className="whitespace-nowrap">{caption}</span>
             {group.launcher ? (
               <span className="absolute inset-y-0 right-0 flex items-center">
                 <Launcher group={group} />
