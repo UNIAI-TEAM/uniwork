@@ -17,24 +17,4 @@
  *     settings={readHeaderFooter(deck.slides[0])}
  *   />
  */
-export { PptxHeaderFooterPanel, type PptxHeaderFooterPanelProps } from "./pptx-headerfooter-panel";
-export {
-  PPTX_HF_TEXT_MAX,
-  buildHeaderFooterEdit,
-  draftFromSettings,
-  emptyHeaderFooterDraft,
-  isHeaderFooterSettingsEmpty,
-  normalizeHeaderFooterText,
-  settingsFromDraft,
-  validateHeaderFooterDraft,
-  type PptxHeaderFooterDraft,
-  type PptxHeaderFooterRefusal,
-  type PptxHeaderFooterRefusalCode,
-  type PptxHeaderFooterValidation,
-} from "./headerfooter-model";
-export {
-  PPTX_HEADERFOOTER_I18N,
-  headerFooterPanelDictionary,
-  type PptxHeaderFooterI18nEntry,
-  type PptxHeaderFooterLocale,
-} from "./headerfooter-i18n";
+export { PptxHeaderFooterPanel } from "./pptx-headerfooter-panel";

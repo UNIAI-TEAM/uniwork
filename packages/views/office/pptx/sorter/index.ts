@@ -13,31 +13,3 @@
  * reaching into the live model ad hoc.
  */
 export { PptxSorterPanel, type PptxSorterPanelProps } from "./sorter-panel";
-export { PptxSorterSections, type PptxSorterSectionsProps } from "./sorter-sections";
-export { PptxSortableSlideTile, type PptxSortableSlideTileProps } from "./sortable-slide-tile";
-export {
-  addSectionEdit,
-  addSlideEdit,
-  deleteSlideEdit,
-  duplicateSlideEdit,
-  moveSectionEdit,
-  moveSlideEdit,
-  removeSectionEdit,
-  renameSectionEdit,
-  setSlideHiddenEdit,
-} from "./sorter-edits";
-export {
-  canMoveSection,
-  clampSlideIndex,
-  groupRangeLabel,
-  keyboardReorderTarget,
-  layoutPickerValue,
-  nextSectionNumber,
-  normalizeSectionName,
-  reorderSlideTargets,
-  sorterSectionGroups,
-  type PptxSlideMove,
-  type PptxSorterLayout,
-  type PptxSorterSlide,
-} from "./sorter-helpers";
-export { PPTX_SORTER_MESSAGES, pptxSorterI18nResources, type PptxSorterMessage } from "./sorter-i18n";

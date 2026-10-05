@@ -87,11 +87,6 @@ export function applyShowNavAction(action: PptxShowNavAction, index: number, cou
   }
 }
 
-/** True when the action would leave the index unchanged (used for end-of-show hints). */
-export function isShowNavNoop(action: PptxShowNavAction, index: number, count: number): boolean {
-  return applyShowNavAction(action, index, count) === clampSlideIndex(index, count);
-}
-
 /**
  * Elapsed wall-clock as `MM:SS`, growing to `H:MM:SS` past an hour. A negative
  * or non-finite input reads as `00:00` instead of printing a broken clock.

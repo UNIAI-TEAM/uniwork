@@ -48,9 +48,6 @@ import {
 /** EMU per point (12700) - the vendored stroke/inset unit. */
 export const EMU_PER_POINT = 12700;
 
-/** EMU per inch (OOXML `a:xfrm` unit), for the geometry readout. */
-export const EMU_PER_INCH = 914400;
-
 /** Dash presets the vendored `setStroke` accepts as a `prstDash` name. */
 export const PPTX_FORMAT_DASHES = [
   "solid",
@@ -100,9 +97,6 @@ export function formatAlignKey(mode: PptxAlignMode): string {
   return "office.pptx.format.align." + ALIGN_KEY_SEGMENTS[mode];
 }
 
-/** Soft-edge radius presets in points (converted to EMU by the builder). */
-export const PPTX_FORMAT_SOFT_EDGE_PRESETS = [0, 2, 4, 8, 12, 20] as const;
-
 /** A fill choice, in the shape `set_fill` takes. */
 export type PptxFormatFill =
   | { kind: "none" }
@@ -129,9 +123,6 @@ export interface PptxFormatEffects {
   glow?: { color: string; radiusPt: number } | null;
   softEdgePt?: number | null;
 }
-
-/** Arrange container: 'selection' (default) or the whole slide. */
-export const PPTX_FORMAT_ALIGN_TO = ["selection", "slide"] as const;
 
 /** Hex colour guard, mirroring the engine's `requireHexColor` (registry.ts:38). */
 const HEX_COLOR_RE = /^#?[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/;

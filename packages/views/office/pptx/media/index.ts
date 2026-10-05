@@ -19,40 +19,4 @@
  *     mediaElementId={selectedMediaId}
  *   />
  */
-export { PptxMediaPanel, type PptxMediaPanelProps } from "./pptx-media-insert";
-export {
-  PPTX_MEDIA_AUDIO_ACCEPT,
-  PPTX_MEDIA_AUDIO_BOX,
-  PPTX_MEDIA_AUDIO_EXTS,
-  PPTX_MEDIA_KINDS,
-  PPTX_MEDIA_POSTER_ACCEPT,
-  PPTX_MEDIA_POSTER_EXTS,
-  PPTX_MEDIA_VIDEO_ACCEPT,
-  PPTX_MEDIA_VIDEO_BOX,
-  PPTX_MEDIA_VIDEO_EXTS,
-  buildAddMediaEdit,
-  buildRemoveMediaEdit,
-  buildReplaceMediaEdit,
-  defaultMediaBox,
-  isPosterExt,
-  mediaExtFromName,
-  mediaKindFromExt,
-  validateMediaBox,
-  validateMediaBytes,
-  validateMediaExt,
-  validatePoster,
-  type PptxMediaAddEdit,
-  type PptxMediaAddRequest,
-  type PptxMediaBox,
-  type PptxMediaEdit,
-  type PptxMediaKind,
-  type PptxMediaPoster,
-  type PptxMediaRefusal,
-  type PptxMediaRefusalCode,
-  type PptxMediaRemoveEdit,
-  type PptxMediaRemoveRequest,
-  type PptxMediaReplaceEdit,
-  type PptxMediaReplaceRequest,
-  type PptxMediaValidation,
-} from "./media-model";
-export { PPTX_MEDIA_I18N, mediaPanelDictionary, pptxMediaI18nVars, type PptxMediaI18nEntry, type PptxMediaLocale } from "./media-i18n";
+export { PptxMediaPanel } from "./pptx-media-insert";

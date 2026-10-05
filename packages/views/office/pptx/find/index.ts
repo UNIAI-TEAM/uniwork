@@ -12,15 +12,3 @@
  *   />
  */
 export { PptxFindReplacePanel, type PptxFindReplacePanelProps } from "./pptx-find-replace";
-export {
-  PPTX_FIND_UNSET_HIT,
-  activeHitTarget,
-  clampHitIndex,
-  planFind,
-  replaceAllEdit,
-  replaceOneEdit,
-  stepHitIndex,
-  type PptxFindReplaceEdit,
-  type PptxFindTextTarget,
-} from "./pptx-find-model";
-export { PPTX_FIND_I18N, findI18nResources, type PptxFindI18nEntry } from "./find-i18n";

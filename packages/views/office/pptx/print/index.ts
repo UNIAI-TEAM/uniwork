@@ -1,25 +1,2 @@
-export {
-  PPTX_PRINT_HEIGHT_IN,
-  PPTX_PRINT_WIDTH,
-  buildPptxPrintHtml,
-  collectPptxPrintSlides,
-  pptxPrintPageId,
-  pptxPrintPageSize,
-  pptxPrintStyles,
-  type PptxPrintDocument,
-  type PptxPrintPageSize,
-  type PptxPrintSlide,
-  type CollectPptxPrintSlidesOptions,
-} from "./pptx-print";
-export {
-  PPTX_PRINT_HOST_CHANNEL,
-  createHiddenPrintFrame,
-  createPptxPrintPort,
-  pptxPrintCapability,
-  type PptxPrintFrame,
-  type PptxPrintMode,
-  type PptxPrintOutcome,
-  type PptxPrintPort,
-  type PptxPrintPortOptions,
-  type PptxPrintRequest,
-} from "./pptx-export-pdf";
+export { collectPptxPrintSlides } from "./pptx-print";
+export { pptxPrintCapability, type PptxPrintPort } from "./pptx-export-pdf";

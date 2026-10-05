@@ -18,42 +18,4 @@
  *     cell={selectedCell}
  *   />
  */
-export { PptxTablesPanel, type PptxTablesPanelProps } from "./pptx-tables-panel";
-export {
-  PPTX_TABLE_ANCHORS,
-  PPTX_TABLE_DEFAULT_BOX,
-  PPTX_TABLE_MERGE_KINDS,
-  PPTX_TABLE_SIZE_MAX,
-  PPTX_TABLE_SIZE_MIN,
-  PPTX_TABLE_STRUCTURE_KINDS,
-  PPTX_TABLE_STYLE_FLAGS,
-  PPTX_TABLE_STYLE_PRESETS,
-  buildCellAnchorEdit,
-  buildCellTextEdit,
-  buildColWidthEdit,
-  buildInsertTableEdit,
-  buildMergeEdit,
-  buildRowHeightEdit,
-  buildStructureEdit,
-  buildStyleFlagsEdit,
-  buildStylePresetEdit,
-  cellParagraphs,
-  missingTargetRefusal,
-  validateCellRef,
-  validateLengthPx,
-  validateTableSize,
-  validateTableTarget,
-  type PptxTableRefusal,
-  type PptxTableRefusalCode,
-  type PptxTableCellRef,
-  type PptxTableStyleFlag,
-  type PptxTableStylePreset,
-  type PptxTableTarget,
-  type PptxTableValidation,
-} from "./table-model";
-export {
-  PPTX_TABLES_I18N,
-  tablesPanelDictionary,
-  type PptxTablesI18nEntry,
-  type PptxTablesLocale,
-} from "./tables-i18n";
+export { PptxTablesPanel } from "./pptx-tables-panel";

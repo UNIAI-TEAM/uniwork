@@ -14,19 +14,3 @@
  *   />
  */
 export { PptxLinkEditor, type PptxLinkEditorProps } from "./pptx-link-editor";
-export {
-  PPTX_DEFAULT_NAMED_ACTION,
-  PPTX_LINK_MODES,
-  PPTX_LINK_URL_PREFIX,
-  buildSetLinkEdit,
-  draftFromLink,
-  linkSummary,
-  normalizeUrl,
-  validateLinkDraft,
-  type PptxLinkDraft,
-  type PptxLinkMode,
-  type PptxLinkSummary,
-  type PptxLinkValidation,
-  type PptxSetLinkEdit,
-} from "./pptx-link-model";
-export { PPTX_LINK_I18N, linkI18nResources, type PptxLinkI18nEntry } from "./links-i18n";

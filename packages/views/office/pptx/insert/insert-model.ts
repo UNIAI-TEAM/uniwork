@@ -525,18 +525,6 @@ export type PptxInsertEdit =
   | Extract<PptxEdit, { op: "add_image" }>
   | Extract<PptxEdit, { op: "replace_picture" }>;
 
-/** Command ids the wire round maps onto toolbar commands. */
-export const PPTX_INSERT_COMMAND_IDS = [
-  "insert-shape",
-  "insert-text-box",
-  "insert-image",
-  "replace-picture",
-  "insert-wordart",
-  "insert-connector",
-  "group-elements",
-] as const;
-export type PptxInsertCommandId = (typeof PPTX_INSERT_COMMAND_IDS)[number];
-
 /** Shapes/text box/WordArt all ride the registered `add_element` kind. */
 export function addElementEdit(slideIndex: number, kind: string, box: PptxInsertBox, extra?: Partial<Extract<PptxEdit, { op: "add_element" }>>): Extract<PptxEdit, { op: "add_element" }> {
   return { op: "add_element", slideIndex, kind, ...box, ...extra };

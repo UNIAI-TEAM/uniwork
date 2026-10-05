@@ -122,10 +122,6 @@ export function matchPptxShortcut(event: PptxKeyEventLike): PptxShortcutBinding 
   return PPTX_SHORTCUTS.find((binding) => pptxShortcutMatches(binding, event)) ?? null;
 }
 
-export function pptxShortcutById(id: string): PptxShortcutBinding | undefined {
-  return PPTX_SHORTCUTS.find((binding) => binding.id === id);
-}
-
 /** The primary binding of an action (the one the help dialog lists). */
 export function pptxShortcutForAction(action: PptxShortcutAction): PptxShortcutBinding | undefined {
   return PPTX_SHORTCUTS.find((binding) => binding.action === action && binding.help !== false);
