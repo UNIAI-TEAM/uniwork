@@ -152,7 +152,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
       return;
     }
-    if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
+    // An empty Markdown file is a valid document; only an omitted payload is malformed.
+    if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
     if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }

@@ -34,6 +34,16 @@ const recent = (id: string, name: string, missing = false, directory = "…\\Doc
 const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
 
+/** What main answers for desktop:file-create, per format (main/files/blank-*.ts):
+ * the blank Markdown document is zero bytes, so its dataBase64 is "". */
+const BLANK_HTML_TEXT = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title></title>\n</head>\n<body>\n</body>\n</html>\n";
+function created(format: string) {
+  const handle = `file_${"1".repeat(32)}`;
+  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+  const bytes = format === "md" ? new Uint8Array(0) : new TextEncoder().encode(BLANK_HTML_TEXT);
+  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, dataBase64: Buffer.from(bytes).toString("base64") };
+}
+
 function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
@@ -54,7 +64,7 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
       case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
       case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-create": return { opened: true, metadata: fileMeta(`file_${"1".repeat(32)}`, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+      case "desktop:file-create": return created(String(payload.format ?? "docx"));
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
       case "desktop:tabs-update": return { updated: true };
@@ -294,6 +304,27 @@ it("creates HTML from the tab strip plus menu", async () => {
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.newTab") }));
   fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.createHtml")) }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.objectContaining({ format: "html" })));
+});
+
+it.each([
+  ["md", "officeDesktop.tabs.createMarkdown", "officeDesktop.local.untitledMarkdown"],
+  ["html", "officeDesktop.tabs.createHtml", "officeDesktop.local.untitledHtml"],
+] as const)("opens the blank %s document main creates as a tab, with no action error", async (format, label, title) => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  await openCreateMenu(label);
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-create", expect.objectContaining({ format })));
+  await screen.findByRole("tab", { name: new RegExp(i18n.t(title).replace(".", String.raw`\.`)) });
+  expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
+});
+
+it("opens an existing empty Markdown file without treating its payload as missing", async () => {
+  const handle = `file_${"e".repeat(32)}`;
+  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, dataBase64: "" } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Empty\.md/ });
+  expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
 });
 
 it("shows a dismissible unsupported alert for a .txt pick and opens no tab", async () => {
