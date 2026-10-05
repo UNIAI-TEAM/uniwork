@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { mkdir, copyFile, writeFile, rm, readFile } from "node:fs/promises";
+import { dirname as pathDirname, join as pathJoin } from "node:path";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv, writeDeploymentProfile } from "./deployment-profile.mjs";
 import { compileRendererStyles } from "./compile-styles.mjs";
 
@@ -19,7 +20,16 @@ await mkdir(dist, { recursive: true });
 
 const common = { bundle: true, target: "es2022", sourcemap: true, legalComments: "none", logLevel: "warning", metafile: true, external: ["electron"] };
 const buildMetafiles = [];
-buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
+// The main process is an ES module (dist/main/index.mjs) but its graph pulls
+// CommonJS dependencies (pngjs/jpeg-js/pdf-lib/pako through the PDF engine).
+// esbuild inlines them and shims their `require` calls with a helper that
+// throws "Dynamic require of \"...\" is not supported" under ESM, aborting
+// Electron at load. The dependencies must stay bundled (the packaged asar
+// rejects raw node_modules), so inject a real require for the Node builtins
+// they reach for. The banner is emitted verbatim ahead of the helpers, so the
+// shim sees a defined `require`.
+const mainRequireBanner = 'import { createRequire as __uniworkCreateRequire } from "node:module";\nconst require = __uniworkCreateRequire(import.meta.url);';
+buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
 // Electron sandboxed preloads run as plain CommonJS. Keep this artifact
 // loadable under the pinned sandbox contract; native wiring may still inject
 // Electron through the adapter seam without exposing it to the renderer.
@@ -33,6 +43,15 @@ await writeFile(join(dist, "build-identity.json"), JSON.stringify({ ...buildMeta
 const inputs = {};
 for (const metafile of buildMetafiles) for (const [input, details] of Object.entries(metafile.inputs ?? {})) inputs[input] = details;
 await writeFile(join(dist, ".build-metafile.json"), JSON.stringify({ inputs }, null, 2) + "\n");
+
+const officeEngine = createRequire(join(app, "..", "..", "packages", "office-engine", "package.json"));
+const pdfAssets = join(dist, "main", "pdf-assets");
+await mkdir(join(pdfAssets, "fonts"), { recursive: true });
+await copyFile(officeEngine.resolve("@embedpdf/pdfium/pdfium.wasm"), join(pdfAssets, "pdfium.wasm"));
+await copyFile(pathJoin(pathDirname(officeEngine.resolve("harfbuzzjs")), "harfbuzz-subset.wasm"), join(pdfAssets, "harfbuzz-subset.wasm"));
+for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
+  await copyFile(join(app, "..", "..", "packages", "office-engine", "assets", "fonts", font), join(pdfAssets, "fonts", font));
+}
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
   product: buildMetadata.identity.product,
   appId: buildMetadata.identity.appId,

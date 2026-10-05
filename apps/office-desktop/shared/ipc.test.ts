@@ -38,22 +38,22 @@ it("validates tabs-update responses", async () => {
   await expect(dispatch("desktop:tabs-update", tabs)).rejects.toMatchObject({ code: "schema" });
 });
 
-it("carries docx and xlsx through the widened library and open schemas", () => {
+it("carries docx, pdf and xlsx through the widened library and open schemas", () => {
   const document = (format: string) => ({ id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: `Plan.${format}`, kind: "file", format, version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true });
-  for (const format of ["docx", "xlsx"]) {
+  for (const format of ["docx", "pdf", "xlsx"]) {
     expect(desktopLibraryResponseSchema.safeParse({ documents: [document(format)], nextCursor: null, engineAvailable: false }).success).toBe(true);
   }
   // A format the host does not carry yet is rejected at the wire boundary.
-  for (const format of ["pptx", "pdf", "md", "html"]) {
+  for (const format of ["pptx", "md", "html"]) {
     expect(desktopLibraryResponseSchema.safeParse({ documents: [document(format)], nextCursor: null, engineAvailable: false }).success).toBe(false);
   }
 });
 
-it("accepts one of the two carried MIME types on an office-open response and refuses others", () => {
+it("accepts a carried MIME type on an office-open response and refuses others", () => {
   const document = { id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
   const response = { document, dataBase64: "aGVsbG8=", filename: "Plan.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", checksum: `sha256:${"a".repeat(64)}` };
   expect(desktopOfficeOpenResponseSchema.safeParse(response).success).toBe(true);
-  expect(desktopOfficeOpenResponseSchema.safeParse({ ...response, mimeType: "application/pdf" }).success).toBe(false);
+  expect(desktopOfficeOpenResponseSchema.safeParse({ ...response, mimeType: "text/html" }).success).toBe(false);
 });
 
 it("validates the metadata-only office-context open surface", () => {

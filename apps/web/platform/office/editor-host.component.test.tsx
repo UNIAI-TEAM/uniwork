@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 
 import React from "react";
 import { act } from "react";
@@ -304,6 +304,66 @@ describe("OfficeEditorHost composition", () => {
     expect(document.querySelector('[role="alert"]')).toBeTruthy();
     await act(async () => { button("Stay").click(); });
     await expect(leave).resolves.toBe(false);
+    rendered.root.unmount();
+  });
+});
+
+describe("OfficeEditorHost viewport bound", () => {
+  it("bounds the editor content area so the surface scrolls inside the viewport", async () => {
+    const { session } = makeSession();
+    const rendered = renderHost(session);
+    await settle();
+    const wrapper = rendered.container.querySelector("[data-office-editor-host]")!;
+    const shell = rendered.container.querySelector("[data-office-shell]")!;
+    // The host wrapper must hand the shell a bounded height, or the shell grows
+    // to content height and its scroll container scrolls the page instead.
+    expect(wrapper.className).toContain("h-full");
+    expect(wrapper.className).toContain("min-h-0");
+    expect(wrapper.className).toContain("overflow-hidden");
+    expect(shell.className).toContain("h-full");
+    // An unbounded min-height is exactly what let the PDF status bar fall below
+    // the fold; the shell must not force one on the content area.
+    expect(rendered.container.innerHTML).not.toContain("min-h-[20rem]");
+    rendered.root.unmount();
+  });
+});
+
+describe("OfficeEditorHost draft recovery", () => {
+  it("drops a recovery read that lands after Save even when a later checkpoint marks the doc dirty", async () => {
+    const { session, coordinator, setDirtyAfterSave } = makeSession();
+    let resolveRecovery!: (value: unknown) => void;
+    vi.mocked(session.recoverDraft).mockReturnValue(new Promise((resolve) => { resolveRecovery = resolve; }) as never);
+    const rendered = renderHost(session, { onRecoverSnapshot: async () => undefined });
+    await settle();
+    // The Save settles while the recovery read is still in flight; the 2s
+    // checkpoint timer then marks the doc dirty again (note/page-ops flows).
+    await act(async () => { await coordinator.save(); });
+    act(() => { setDirtyAfterSave(); });
+    await act(async () => {
+      resolveRecovery({
+        status: "recovered",
+        snapshot: { generation: 1, fingerprint: "fp", value: { text: "draft" } },
+        metadata: { draftId: "document", generation: 1, checksum: "sha256:1", byteLength: 3, updatedAt: 1, identity: identity as never },
+      });
+    });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    rendered.root.unmount();
+  });
+
+  it("closes a live Draft-found offer after a successful Save", async () => {
+    const { session, coordinator } = makeSession();
+    vi.mocked(session.recoverDraft).mockResolvedValue({
+      status: "recovered",
+      snapshot: { generation: 1, fingerprint: "fp", value: { text: "draft" } },
+      metadata: { draftId: "document", generation: 1, checksum: "sha256:1", byteLength: 3, updatedAt: 1, identity: identity as never },
+    } as never);
+    const rendered = renderHost(session, { onRecoverSnapshot: async () => undefined });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Draft found");
+    await act(async () => { await coordinator.save(); });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     rendered.root.unmount();
   });
 });

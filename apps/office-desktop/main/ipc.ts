@@ -12,11 +12,11 @@ import { getDesktopDiagnostics } from "../shared/identity";
 import type { DeploymentProfile } from "../shared/deployment";
 import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import { sameDocumentSession } from "./opened-documents";
-import { blankDocxBytes } from "./files/blank-docx";
+import { blankDocumentBytes, blankDocumentName } from "./files/blank-documents";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
-import { formatFromFilename, isLocalDocumentFormat, type DesktopDocumentFormat } from "../shared/document-format";
+import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { LocalXlsxEngine } from "./xlsx-engine";
 
 /** Main-process transport for cloud Documents and Office operations. The
@@ -26,7 +26,7 @@ export type DesktopOfficeTransport = Readonly<{
   context(): Promise<DesktopLibraryContextResponse>;
   list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse>;
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
-  create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse>;
+  create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
   /** Metadata-only open for a carried format whose editor opens through the
    *  server job and never reads raw bytes (xlsx today): it registers the
@@ -84,10 +84,10 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       return desktopLibraryResponseSchema.parse(await options.transport.list({ workspaceId: request.workspaceId, cursor: (request as { cursor?: string }).cursor, mode: "search", query: request.query }));
     },
-    "desktop:library-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; title: string }>) => {
+    "desktop:library-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; title: string; format: DesktopDocumentFormat }>) => {
       requireSession();
       const session = options.session?.();
-      const response = desktopOfficeOpenResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title }));
+      const response = desktopOfficeOpenResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title, format: request.format }));
       assertSession(session);
       options.onDocumentOpened?.(response.document);
       return response;
@@ -208,11 +208,9 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       const path = await options.pickOpen();
       if (!path) return { opened: false };
-      // A locally editable format is required here, before any handle, document
-      // context or recent row exists. C1a carries docx locally; the cloud xlsx
-      // lane opens through the library, not a pick.
-      const pickedFormat = formatFromFilename(path);
-      if (!pickedFormat || !isLocalDocumentFormat(pickedFormat)) return { opened: false, unsupported: true };
+      // A pick outside the shared format table is refused here, before any
+      // handle, document context or recent row exists.
+      if (!desktopDocumentFormatForName(path)) return { opened: false, unsupported: true };
       assertSession(session);
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
@@ -220,10 +218,10 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       options.onOpened?.(metadata);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
-    "desktop:file-create": async () => {
+    "desktop:file-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { format: DesktopDocumentFormat }>) => {
       const session = options.session?.();
-      const bytes = blankDocxBytes();
-      const metadata = await safeFile(async () => options.registry.createUntitled(bytes, "Untitled.docx"));
+      const bytes = blankDocumentBytes(request.format);
+      const metadata = await safeFile(async () => options.registry.createUntitled(bytes, blankDocumentName(request.format)));
       assertSession(session);
       options.onOpened?.(metadata);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
@@ -232,8 +230,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!options.recents) throw new FileIpcError("invalid_path");
       const entry = await options.recents.resolve(request.id);
       if (!entry) return { opened: false, missing: true };
-      const recentFormat = formatFromFilename(entry.path);
-      if (!recentFormat || !isLocalDocumentFormat(recentFormat)) return { opened: false, unsupported: true };
+      if (!desktopDocumentFormatForName(entry.path)) return { opened: false, unsupported: true };
       const session = options.session?.();
       let metadata: import("./files/registry").OpenFileMetadata;
       try {

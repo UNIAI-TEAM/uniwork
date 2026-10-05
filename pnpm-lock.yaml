@@ -536,6 +536,9 @@ importers:
         specifier: ^6.2.1
         version: 6.2.1
     devDependencies:
+      '@embedpdf/pdfium':
+        specifier: 'catalog:'
+        version: 2.15.0
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.3

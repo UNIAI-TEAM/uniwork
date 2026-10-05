@@ -471,6 +471,7 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
+		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
 		Preview:             previewSvc,

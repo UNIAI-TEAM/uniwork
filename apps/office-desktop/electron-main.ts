@@ -8,7 +8,8 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
-import { desktopLocalDocumentFormats, desktopFormatProfile, formatFromFilename, isLocalDocumentFormat } from "./shared/document-format";
+import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
+import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
@@ -43,15 +44,6 @@ const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 const nativeFiles: string[] = [];
 app.on("open-file", (event, path) => { event.preventDefault(); nativeFiles.push(path); });
-
-/** Open/Save dialog filters for the locally editable formats. Derived from the
- *  ONE local-format seam so C1b (local xlsx) widens the dialogs for free. */
-function localFormatDialogFilters(): { name: string; extensions: string[] }[] {
-  return desktopLocalDocumentFormats.map((format) => {
-    const profile = desktopFormatProfile(format);
-    return { name: profile.associationName, extensions: [profile.extension] };
-  });
-}
 
 // macOS delivers a cold-start deep link through open-url, which can fire before
 // the app is ready and the host has attached its handler. Queue those URLs at
@@ -334,11 +326,9 @@ async function startElectronHost(): Promise<void> {
    * immediately before a write, so a plain open never offers a draft of the
    * file's own unchanged bytes. Opening also refreshes the encrypted recent list. */
   const localOpenContext = (metadata: OpenFileMetadata) => {
-    // Only a locally editable format may register a context or enter the
-    // recent list; C1a carries docx locally (the cloud xlsx lane opens through
-    // the library, not a pick/drop).
-    const format = formatFromFilename(metadata.name);
-    if (!format || !isLocalDocumentFormat(format)) { fileRegistry.revoke(metadata.handle); return; }
+    // A local open outside the shared format table is refused before it can
+    // register a context or enter the recent list.
+    if (!desktopDocumentFormatForName(metadata.name)) { fileRegistry.revoke(metadata.handle); return; }
     setLocalDocument(metadata);
     const path = fileRegistry.pathOf(metadata.handle);
     if (path && recentFiles) void recentFiles.record({ path, name: metadata.name, modifiedAtMs: metadata.modifiedAtMs }).catch(() => undefined);
@@ -467,7 +457,7 @@ async function startElectronHost(): Promise<void> {
     });
   });
   const host = createDesktopHost({
-    handlers: { "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }) },
@@ -493,13 +483,11 @@ async function startElectronHost(): Promise<void> {
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
     localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
-        // Derive the filter from the local-format seam so C1b flips xlsx local
-        // without another dialog sweep; "Files" still lets the user see anything.
-        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...localFormatDialogFilters(), { name: "Files", extensions: ["*"] }] });
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickSaveAs: async () => {
-        const result = await dialog.showSaveDialog(window, { filters: localFormatDialogFilters() });
+        const result = await dialog.showSaveDialog(window, { filters: desktopDialogFilters() });
         return result.canceled ? undefined : result.filePath;
       },
     },
@@ -563,6 +551,9 @@ async function startElectronHost(): Promise<void> {
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
+    // A dropped file outside the shared format table never reaches the handle
+    // registry: the renderer receives the same typed unsupported answer as a pick.
+    if (!desktopDocumentFormatForName(payload.path)) return desktopFileResponseSchema.parse({ opened: false, unsupported: true });
     const session = deviceScope();
     const metadata = await fileRegistry.openEvent(payload.path);
     const bytes = await fileRegistry.read(metadata.handle);
@@ -571,17 +562,15 @@ async function startElectronHost(): Promise<void> {
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });
   const announceFile = async (path: string) => {
-    const format = formatFromFilename(path);
-    if (!isAbsolute(path) || !format || !isLocalDocumentFormat(format)) return;
+    if (!isAbsolute(path) || !desktopDocumentFormatForName(path)) return;
     try {
       const metadata = await fileRegistry.openEvent(path);
       window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
     } catch { /* Refused local files never cross the preload seam. */ }
   };
-  const isOpenablePath = (value: string): boolean => { const format = formatFromFilename(value); return format !== undefined && isLocalDocumentFormat(format); };
-  app.on("second-instance", (_event, argv) => { for (const path of argv.filter(isOpenablePath)) void announceFile(path); });
+  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => desktopDocumentFormatForName(arg))) void announceFile(path); });
   app.on("open-file", (_event, path) => { if (!window.webContents.isLoading()) void announceFile(path); });
-  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter(isOpenablePath)]) void announceFile(path); });
+  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => desktopDocumentFormatForName(arg))]) void announceFile(path); });
 
   window.once("ready-to-show", () => {
     if (!SMOKE_MODE) {

@@ -27,9 +27,19 @@ describe("desktop IPC allowlist", () => {
   }, 20_000);
   it("allows DOCX save bytes above the control-message budget", () => {
     const dataBase64 = Buffer.alloc(96 * 1024).toString("base64");
-    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
+    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx" as const, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
     expect(() => validateIpcRequest("desktop:office-save", request, context)).not.toThrow();
     expect(() => validateIpcRequest("desktop:office-save", { ...request, dataBase64: "x".repeat(IPC_FILE_MAX_BYTES) }, context)).toThrowError(IpcValidationError);
+  });
+  it("allows PDF engine payloads above the control-message budget but refuses a genuinely oversized one", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "x".repeat(100_000), edits: [] } };
+    expect(() => validateIpcRequest("desktop:engine-call", payload, context)).not.toThrow();
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { value: "x".repeat(IPC_FILE_MAX_BYTES) } }, context)).toThrowError(IpcValidationError);
+  });
+  it("accepts user content that starts with a path-like character", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "b2s=", edits: [{ op: "insert", value: "/leading slash" }], password: "/secret-password" } };
+    expect(validateIpcRequest("desktop:engine-call", payload, context)).toEqual(payload);
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { nested: { file_path: "/etc/passwd" } } }, context)).toThrowError(IpcValidationError);
   });
 
   it("opens and edits a local .xlsx through the bundled engine and rejects an un-carried pick", async () => {
@@ -110,7 +120,7 @@ describe("desktop IPC allowlist", () => {
   });
   it("rejects payloads over the byte limit", () => {
     const large = { ...valid, args: { value: "x".repeat(IPC_MAX_BYTES) } };
-    expect(() => validateIpcRequest("desktop:engine-call", large, context)).toThrow(/byte limit/);
+    expect(() => validateIpcRequest("desktop:window-theme", large, context)).toThrow(/byte limit/);
   });
   it("rejects structured-clone values instead of measuring only JSON", () => {
     const payload = { ...valid, args: { buffer: new ArrayBuffer(8 * 1024 * 1024) } };

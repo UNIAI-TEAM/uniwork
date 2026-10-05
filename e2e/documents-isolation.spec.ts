@@ -169,7 +169,7 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   await expect(surface).toBeVisible({ timeout: 60_000 });
   await surface.click();
   await page.keyboard.type(`Biên bản G1-09 ${stamp}`);
-  await expect(page.getByText(/^Đã lưu/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
 
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toContainText(

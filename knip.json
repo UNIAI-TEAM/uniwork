@@ -20,6 +20,7 @@
         "k6",
         "sharp",
         "jszip",
+        "esbuild",
         "@univerjs/core",
         "@univerjs/sheets",
         "@univerjs/preset-sheets-core"
@@ -29,9 +30,6 @@
       "ignore": [
         "public/sw.js",
         "platform/office/**"
-      ],
-      "ignoreDependencies": [
-        "@uniwork/office-contracts"
       ]
     },
     "apps/office-desktop": {

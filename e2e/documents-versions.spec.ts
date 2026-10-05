@@ -53,7 +53,7 @@ test("version checkpoint restores the working copy and a second session sees it"
   await surface.click();
   await page.keyboard.press("End");
   await page.keyboard.type(" sửa sau mốc");
-  await expect(page.getByText(/^Đã lưu/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
   await expect(surface).toContainText("sửa sau mốc");
 
   // Second session of the same user: sees the edit before the restore.

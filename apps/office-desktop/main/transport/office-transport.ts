@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
+import { desktopDocumentFormatForMime, desktopDocumentFormatForName, desktopDocumentMimeTypes, desktopMimeTypeForFormat, desktopUntitledName, desktopExtensionsForFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeContextResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
-import { blankDocxBytes } from "../files/blank-docx";
-import { DESKTOP_FORMAT_PROFILES, extensionForFormat, formatFromMimeType, mimeTypeForFormat, type DesktopDocumentFormat } from "../../shared/document-format";
+import { blankDocumentBytes } from "../files/blank-documents";
 
-const DOCX_MIME = mimeTypeForFormat("docx");
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 const JOB_POLL_MS = 1_000;
 const JOB_TIMEOUT_MS = 120_000;
@@ -51,12 +50,19 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     throw new Error("office_request_failed");
   }
   async function json(path: string, init?: RequestInit): Promise<unknown> { return (await authRequest(path, init)).json(); }
-  async function bytes(path: string, accept = DOCX_MIME): Promise<{ data: Uint8Array; filename: string; mimeType: string }> {
-    const response = await authRequest(path, { headers: { Accept: accept } });
+  /** The download response carries the authoritative format: its Content-Type
+   * maps through the shared format table, and a generic octet-stream answer
+   * falls back to the Content-Disposition file name's extension. */
+  async function bytes(path: string): Promise<{ data: Uint8Array; filename: string; mimeType: string }> {
+    const response = await authRequest(path, { headers: { Accept: desktopDocumentMimeTypes().join(", ") } });
     const data = new Uint8Array(await response.arrayBuffer());
     const disposition = response.headers.get("Content-Disposition") ?? "";
-    const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? "document.docx";
-    return { data, filename: filename.replace(/[\\/\r\n]/g, "_"), mimeType: response.headers.get("Content-Type")?.split(";", 1)[0] ?? DOCX_MIME };
+    const dispositionName = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
+    const mimeType = response.headers.get("Content-Type")?.split(";", 1)[0] ?? "";
+    const format = desktopDocumentFormatForMime(mimeType) ?? (dispositionName ? desktopDocumentFormatForName(dispositionName) : undefined);
+    if (!format) throw new Error("document_format_unsupported");
+    const filename = (dispositionName ?? desktopUntitledName(format)).replace(/[\\/\r\n]/g, "_");
+    return { data, filename, mimeType: desktopMimeTypeForFormat(format) };
   }
   async function readDocumentDetail(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDocument | undefined> {
     const raw = await json(`/documents/${encodeURIComponent(input.documentId)}`);
@@ -68,17 +74,8 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
   async function download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse> {
     void input.workspaceId;
     const path = `/documents/${encodeURIComponent(input.documentId)}/download${input.version === undefined ? "" : `?version=${input.version}`}`;
-    // One Accept header per carried format; the response MIME decides which one
-    // the downloaded bytes belong to. An unknown/absent MIME falls back to the
-    // filename extension so a correct document is never refused for a header.
-    // Accept every carried MIME and let the response choose: a known MIME wins,
-    // otherwise the filename extension. Slightly looser than a strict MIME match
-    // (a wrong-but-known MIME plus a good extension is accepted) so a correct
-    // document is never refused for a header.
-    const result = await bytes(path, DESKTOP_FORMAT_PROFILES.map((profile) => profile.mimeType).join(", "));
-    const format = formatFromMimeType(result.mimeType, result.filename);
-    if (!format) throw new Error("document_format_unsupported");
-    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: mimeTypeForFormat(format), dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
+    const result = await bytes(path);
+    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
   }
   return Object.freeze({
     async readDocumentAccess(input: { workspaceId: string; documentId: string }): Promise<"edit" | "none"> {
@@ -134,9 +131,9 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const engineAvailable = operations.some((row: unknown) => !!row && typeof row === "object" && "operation" in row && row.operation === "open" && "supported" in row && row.supported === true);
       return { documents, nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null, engineAvailable };
     },
-    async create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse> {
+    async create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse> {
       const form = new FormData();
-      form.set("file", new Blob([blankDocxBytes() as BlobPart], { type: DOCX_MIME }), input.title);
+      form.set("file", new Blob([blankDocumentBytes(input.format) as BlobPart], { type: desktopMimeTypeForFormat(input.format) }), input.title);
       form.set("title", input.title);
       const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents/files`, {
         method: "POST",
@@ -195,8 +192,9 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       void input.workspaceId;
       void input.baseVersionId;
       const bytes = Buffer.from(input.dataBase64, "base64");
+      const extension = desktopExtensionsForFormat(input.format)[0];
       const form = new FormData();
-      form.set("file", new Blob([bytes], { type: mimeTypeForFormat(input.format) }), `document.${extensionForFormat(input.format)}`);
+      form.set("file", new Blob([bytes], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
       const uploadRaw = await (await authRequest(`/documents/${encodeURIComponent(input.documentId)}/uploads`, { method: "POST", body: form, headers: { "Idempotency-Key": input.idempotencyKey } })).json();
       const upload = uploadRaw && typeof uploadRaw === "object" && "upload" in uploadRaw ? (uploadRaw as { upload: Record<string, unknown> }).upload : uploadRaw as Record<string, unknown>;
       if (!upload || typeof upload.upload_id !== "string") throw new Error("upload_invalid");
@@ -224,7 +222,7 @@ function toLibraryDocument(value: unknown, workspaceId: string): DesktopLibraryD
   // created from; a full `file` block (document open) still wins when present.
   const filename = typeof file.filename === "string" ? file.filename : (title ?? "");
   const mimeType = typeof file.mime_type === "string" ? file.mime_type : "";
-  const format = formatFromMimeType(mimeType, filename);
+  const format = desktopDocumentFormatForMime(mimeType) ?? desktopDocumentFormatForName(filename);
   if (!id || !title || !kind || !format) return undefined;
   const updatedAt = typeof row.updated_at === "string" && !Number.isNaN(Date.parse(row.updated_at)) ? new Date(row.updated_at).toISOString() : new Date(0).toISOString();
   return { id, workspaceId, title, kind, format, version: typeof row.current_version === "number" && Number.isSafeInteger(row.current_version) && row.current_version >= 0 ? row.current_version : 0, revision: typeof row.revision === "string" && /^\d+$/.test(row.revision) ? row.revision : "0", updatedAt, ownerKind: typeof row.owner_kind === "string" ? row.owner_kind : null, canEdit: row.my_level === "edit" || row.my_level === "manage", downloadAvailable: true };

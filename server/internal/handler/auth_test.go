@@ -164,6 +164,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Storage:       store,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
+		Signatures:    service.NewSignatureService(pool, q, orgs),
 	}
 	return d, pool
 }

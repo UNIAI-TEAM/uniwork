@@ -1,10 +1,11 @@
 import { expect, it, vi } from "vitest";
 import { createByteDocumentSession } from "./session";
 import { createByteTestEditor } from "../../test/byte-editor";
+import { createDesktopPdfSurface } from "./pdf-surface";
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-const opened = { dataBase64: "aGVsbG8=", checksum };
+const opened = { format: "docx" as const, dataBase64: "aGVsbG8=", checksum };
 
 async function openSession(...args: Parameters<typeof createByteDocumentSession>) {
   const session = createByteDocumentSession(args[0], args[1], args[2], { createEditor: createByteTestEditor });
@@ -35,7 +36,7 @@ it("sends the opened snapshot once through coordinator save and blocks a concurr
   expect(request[1].dataBase64).toBe(opened.dataBase64);
   complete({ documentId: "doc", intentId: request[1].intentId, idempotencyKey: request[1].idempotencyKey, revision: "3", versionId: "v3", checksum });
   await expect(first).resolves.toMatchObject({ accepted: true, receipt: { revision: "3", versionId: "v3" } });
-  expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "3" });
+  expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "v3" });
   expect(call).toHaveBeenCalledWith("desktop:office-open", { sessionGeneration: "desktop-dev-session", workspaceId: "ws", documentId: "doc" });
   expect(call.mock.calls.filter(([channel]) => channel === "desktop:office-save")).toHaveLength(1);
 });
@@ -180,4 +181,81 @@ it("FE-R1-03 accepts Keep once the editor-owned local checkpoint seam supplies a
   session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(true);
   expect(calls.filter((call) => call.channel === "desktop:draft-checkpoint")).toHaveLength(1);
+});
+
+it("forwards the pdf lane edit and snapshot facets through the session facade", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 3 } };
+    return { ok: true, operation: "edit", dataBase64: opened.dataBase64 };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.edit).toBeTypeOf("function");
+  expect(session.editor.getPdfSnapshot).toBeTypeOf("function");
+  expect(session.editor.subscribeDirty).toBeTypeOf("function");
+  expect(session.editor.openOutcome?.()).toMatchObject({ outcome: "opened" });
+  expect(session.editor.getPdfSnapshot?.()).toMatchObject({ pageCount: 3, pages: [{ pageNumber: 1 }, { pageNumber: 2 }, { pageNumber: 3 }] });
+  await session.editor.edit?.([{ op: "delete_page", target: { page: 1 } }]);
+  expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "edit")).toBe(true);
+  expect(session.editor.getDirtyGeneration()).toBe(1);
+  expect(session.coordinator.getState().dirtyGeneration).toBe(1);
+});
+
+it("forwards the pdf engine-operation facet so the note panel gets a provider (F-14)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+    return { ok: true, operation: "edit", dataBase64: opened.dataBase64, warnings: [] };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.submitEngineOperations).toBeTypeOf("function");
+  const result = await session.editor.submitEngineOperations?.([{ op: "addNote", attributes: { note: { pageIndex: 0, rect: [10, 20, 34, 44], contents: "Ghi chu" } } }]);
+  expect(result).toEqual({ skipped: [] });
+  const edit = call.mock.calls.find(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "edit");
+  expect(edit?.[1]).toMatchObject({ operation: "edit", args: { edits: [{ op: "addNote", attributes: { note: { pageIndex: 0, contents: "Ghi chu" } } }] } });
+  expect(session.coordinator.getState().dirtyGeneration).toBe(1);
+});
+it("forwards the pdf find facet so desktop search reaches the engine text layer (F-13)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string; args: { geometry?: boolean } };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+    const charBoxes = request.args.geometry ? [{ x: 0, y: 10, width: 8, height: 8 }, { x: 8, y: 10, width: 8, height: 8 }] : [];
+    return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "Bao cao", charBoxes }] };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.searchText).toBeTypeOf("function");
+  const hits = await session.editor.searchText!("bao");
+  expect(hits).toHaveLength(1);
+  expect(hits[0]).toMatchObject({ page: 1, start: 0, end: 3, text: "Bao" });
+  expect(hits[0]!.quads).toEqual([[0, 82, 16, 90]]);
+  expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true);
+});
+it("forwards the pdf form and saved-note readers so the panels leave their loading state (R18-2)", async () => {
+  const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }));
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  expect(session.editor.readFormFields).toBeUndefined();
+  await session.openEditor();
+  expect(session.editor.readFormFields).toBeTypeOf("function");
+  expect(session.editor.readSavedNotes).toBeTypeOf("function");
+  // The fixture bytes are not a parseable PDF: the readers answer empty lists.
+  await expect(session.editor.readFormFields!()).resolves.toEqual([]);
+  await expect(session.editor.readSavedNotes!()).resolves.toEqual([]);
+});
+
+
+it("forwards the pdf renderer and real page sizes so the shared canvas draws pages (U1/U2)", async () => {
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+    return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 595, height: 842 };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  await session.openEditor();
+  expect(session.editor.renderer).toBeTypeOf("object");
+  expect(session.editor.getCanvasPages?.()).toEqual([{ pageNumber: 1, width: 595.28, height: 841.89, rotation: 0, boxes: [] }]);
+  const rendered = await session.editor.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 1 });
+  expect(rendered.src).toBe("data:image/png;base64,iVBORw0KGgo=");
 });

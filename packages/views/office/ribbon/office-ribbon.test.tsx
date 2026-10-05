@@ -175,6 +175,32 @@ describe("adaptive collapse", () => {
     }
   });
 
+  it("renders the full body with groups, captions and items when the width is zero", () => {
+    // Electron can report a 0 body width before the first layout pass. The
+    // ribbon must lay out at declared sizes then, not collapse to an empty body
+    // (U3): a zero (and an unmeasured) width is treated as "no measurement yet".
+    stubRibbonWidth(0);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Clipboard")).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
+    expect(group("Font")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Font")).getByRole("combobox", { name: "Font family" })).toBeInTheDocument();
+  });
+
+  it("renders the full body when no ResizeObserver ever reports a width", () => {
+    // jsdom's default stub never calls back; that is the "unmeasured" case.
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+    expect(within(group("Clipboard")).getByRole("button", { name: "Paste" })).toHaveAttribute("data-ribbon-size", "large");
+  });
+
+  it("still collapses when a real width is measured", () => {
+    stubRibbonWidth(560);
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);
+    expect(group("Editing")).toHaveAttribute("data-ribbon-stage", "3");
+    expect(group("Clipboard")).toHaveAttribute("data-ribbon-stage", "0");
+  });
+
   it("folds every group into one button at a tiny width and opens it as a panel", async () => {
     stubRibbonWidth(120);
     const { actions } = ((fixture) => {
@@ -270,6 +296,70 @@ describe("adaptive collapse", () => {
   });
 });
 
+describe("collapse affordance", () => {
+  it("renders a labelled ribbon-panel toggle, never a bare up/down chevron pair", () => {
+    // U5: the collapse control must read as a proper UniWork control. A bare
+    // ChevronUp/ChevronDown next to Find looked like a stray spinner.
+    render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" trailing={<button type="button">Find</button>} />);
+    const toggle = screen.getByRole("button", { name: "Thu gọn dải lệnh" });
+    expect(toggle).toHaveAttribute("data-ribbon-collapse-toggle", "");
+    expect(toggle).toHaveAttribute("aria-controls", screen.getByRole("tabpanel").id);
+    // The trailing slot carries only the caller's controls (Find); the collapse
+    // toggle lives in its own sibling, so no stray icon sits inside the
+    // trailing cluster next to Find.
+    const trailing = document.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(within(trailing).getAllByRole("button").map((node) => node.textContent)).toEqual(["Find"]);
+    expect(trailing.contains(toggle)).toBe(false);
+    expect(trailing.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("narrow-width tab row", () => {
+  it("reserves the trailing controls: at 390px no tab can render behind Find", () => {
+    // Visual r4 F-10: at 390px the Find button and the collapse toggle sat on
+    // top of the third tab. jsdom has no layout, so this pins the structure
+    // that keeps the scroll region and the trailing cluster disjoint: the
+    // tablist is the only flexible child and carries a right inset, and the
+    // trailing cluster and collapse toggle are shrink-0, opaque siblings after
+    // it, stacked above it.
+    window.innerWidth = 390;
+    // Five fixed tabs, like the PDF tab row; the fixture's third tab is
+    // contextual (hidden until selected) so it is not reused here.
+    const base = ribbonFixture().tabs.filter((tab) => !tab.contextual);
+    const tabs = [0, 1, 2, 3, 4].map((index) => {
+      const source = base[index % base.length]!;
+      return { ...source, id: `${source.id}-${index}`, labelKey: `${source.labelKey} ${index}` };
+    });
+    render(<OfficeRibbon tabs={tabs} scope="pdf" trailing={<button type="button">Find</button>} />);
+    const tabRow = document.querySelector("[data-ribbon-tab-row]") as HTMLElement;
+    const tablist = within(tabRow).getByRole("tablist");
+
+    // The scroll region is the one flexible child and reserves a right inset.
+    expect(tablist.className).toContain("flex-1");
+    expect(tablist.className).toContain("min-w-0");
+    expect(tablist.className).toContain("overflow-x-auto");
+    expect(tablist.className).toContain("pr-1");
+    const flexible = (Array.from(tabRow.children) as HTMLElement[]).filter((node) => node.className.includes("flex-1"));
+    expect(flexible).toEqual([tablist]);
+
+    // Every tab stays in the scroll region and reachable, never inside the
+    // trailing cluster.
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(5);
+
+    // The trailing cluster and the collapse toggle are non-shrinking
+    // siblings that follow the scroll region, so a tab cannot sit under Find.
+    const trailing = tabRow.querySelector("[data-ribbon-trailing]") as HTMLElement;
+    expect(trailing.className).toContain("shrink-0");
+    expect(trailing.contains(tablist)).toBe(false);
+    expect(tablist.contains(trailing)).toBe(false);
+    expect(tablist.compareDocumentPosition(trailing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(trailing).getByRole("button", { name: "Find" })).toBeInTheDocument();
+
+    const toggle = tabRow.querySelector("[data-ribbon-collapse-toggle]") as HTMLElement;
+    expect(toggle.parentElement?.className).toContain("shrink-0");
+    expect(trailing.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 describe("collapse to tabs only", () => {
   it("toggles with the button, persists, and peeks the body as an overlay on a tab click", () => {
     render(<OfficeRibbon tabs={ribbonFixture().tabs} scope="docx" />);

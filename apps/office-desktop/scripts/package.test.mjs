@@ -6,23 +6,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { build } from "esbuild";
+import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
 import packageJson from "../package.json" with { type: "json" };
+import formatTable from "../shared/document-formats.json" with { type: "json" };
 
 const appDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-// package.mjs consumes the shared TS format table (../shared/document-format.ts);
-// Node cannot load a .ts module, so the suite loads the packaging script through
-// esbuild - the same loader the desktop build uses - into a sibling file whose
-// location preserves package.mjs's appDirectory/repositoryRoot resolution. The
-// bundle is removed on exit; the assertions still exercise the real script.
-const packageBundle = join(appDirectory, "scripts", `.package.test.bundle.${process.pid}.mjs`);
-await build({ entryPoints: [join(appDirectory, "scripts", "package.mjs")], bundle: true, platform: "node", format: "esm", packages: "external", outfile: packageBundle, logLevel: "silent" });
-process.on("exit", () => { try { rmSync(packageBundle, { force: true }); } catch { /* best effort */ } });
-const { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } = await import(pathToFileURL(packageBundle).href);
 
 // The staging module is loaded directly (it has no TS imports, unlike
 // package.mjs) so the staging contract is asserted on the real implementation.
@@ -43,7 +34,7 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.match(config.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64\.zip$/);
   assert.equal(config.publish, null);
   assert.equal(config.win.signAndEditExecutable, false);
-  assert.deepEqual(config.fileAssociations.map((association) => association.ext), ["docx", "xlsx"]);
+  assert.deepEqual(config.fileAssociations.map((association) => association.ext), Object.values(formatTable.formats).flatMap((format) => format.extensions));
   assert.deepEqual(config.win.target, [{ target: "zip", arch: ["x64"] }, { target: "nsis", arch: ["x64"] }]);
   assert.equal(config.nsis.oneClick, true);
   assert.equal(config.nsis.perMachine, false);
@@ -137,11 +128,16 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.equal(config.protocols, undefined);
   assert.equal(config.fileAssociations, undefined);
   assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
-  assert.equal(config.linux.fileAssociations[0].mimeType, LINUX_DOCX_MIME);
-  // The widened format table registers every carried format, not only docx.
-  assert.deepEqual(config.linux.fileAssociations.map((association) => association.ext), ["docx", "xlsx"]);
-  assert.equal(config.linux.fileAssociations[1].mimeType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  assert.equal("mimeTypes" in config.linux, false, "the file association already supplies the MimeType entries");
+  // Associations come from the shared format table: one entry per extension,
+  // each carrying its own MIME type on Linux.
+  // The expected list is read from the same table, so a format added there
+  // (xlsx once the table carries it) is asserted without editing this test.
+  const tableFormats = Object.values(formatTable.formats);
+  assert.deepEqual(config.linux.fileAssociations, tableFormats.flatMap((format) => format.extensions.map((ext) => ({ ext, name: format.associationName, role: "Editor", mimeType: format.mimeTypes[0] }))));
+  assert.deepEqual(config.linux.fileAssociations.slice(0, 2).map((association) => association.ext), ["docx", "pdf"]);
+  assert.equal(config.linux.fileAssociations[0].mimeType, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, config.linux.fileAssociations.map((association) => association.mimeType));
+  assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);
   assert.equal(config.extraMetadata.name, "uniwork-office-dev");
   assert.equal(validateLinuxTargets(config), true);

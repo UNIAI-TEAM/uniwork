@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type {
   DraftAdapter,
@@ -123,6 +123,11 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
   // of the coordinator); without ordering, the late checkpoint can recreate
   // the draft that Save just deleted and show recovery again after reload.
   let draftOperationTail: Promise<void> = Promise.resolve();
+  // The highest generation the coordinator has confirmed committed. A
+  // checkpoint at or below this watermark is content the Save already owns:
+  // writing it back would resurrect the durable record the Save deleted and
+  // resurface as a stale "Draft found" offer on the next open (F-6).
+  let savedGeneration = 0;
   const enqueueDraftOperation = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = draftOperationTail.then(operation);
     draftOperationTail = result.then(() => undefined, () => undefined);
@@ -137,6 +142,10 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     if (!Number.isSafeInteger(snapshot.generation) || snapshot.generation < 1) {
       throw new DraftRecoveryErrorClass("invalid_snapshot", "draft generation must be positive");
     }
+    // A Save that settled while this checkpoint was queued already committed
+    // this generation; the durable draft no longer exists and must not be
+    // recreated (the host timer is independent of the coordinator).
+    if (snapshot.generation <= savedGeneration) return;
     const encrypted = await keyProvider.encrypt({ identity, draftId, generation: snapshot.generation, plaintext: encodeSnapshot(snapshot) });
     await draftStore.checkpointEncrypted({
       session,
@@ -175,13 +184,21 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     // Keep the base out of the lookup so a changed-base draft can still be
     // explicitly discarded from the recovery conflict prompt.
     const records = await draftStore.list({ session, lookup: { ...lookupScope, draftId } });
-    const target = [...records].sort((left, right) => right.generation - left.generation)[0];
-    if (!target) return true;
-    // A confirmed Save only consumes the snapshot it serialized. If typing
-    // produced a newer checkpoint while that Save was in flight, retain it
-    // for recovery instead of deleting N+1 with N's cleanup.
-    if (generation !== undefined && target.generation !== generation) return false;
-    await draftStore.deleteDurable({ session, draftId: target.draftId, generation: target.generation });
+    if (generation === undefined) {
+      const newest = [...records].sort((left, right) => right.generation - left.generation)[0];
+      if (!newest) return true;
+      await draftStore.deleteDurable({ session, draftId: newest.draftId, generation: newest.generation });
+      return true;
+    }
+    // A confirmed Save consumes every checkpoint at or below the snapshot it
+    // committed, whatever base each one carries. Deleting only an exact
+    // generation match left older checkpoints behind, and those outlived the
+    // Save as a stale draft (F-6). A checkpoint newer than the commit is
+    // genuinely unsaved and stays for recovery.
+    savedGeneration = Math.max(savedGeneration, generation);
+    const consumed = records.filter((record) => record.generation <= generation);
+    if (consumed.length === 0) return true;
+    await Promise.all(consumed.map((record) => draftStore.deleteDurable({ session, draftId: record.draftId, generation: record.generation })));
     return true;
   });
 

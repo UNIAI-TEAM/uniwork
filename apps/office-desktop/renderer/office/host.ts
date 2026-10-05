@@ -1,6 +1,6 @@
 import type { OfficeFormat, OfficeHostAdapter, OpenOutcome } from "@uniwork/office-contracts";
-import { isDesktopDocumentFormat, type DesktopDocumentFormat } from "../../shared/document-format";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
+import { isDesktopDocumentFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { LibraryBridge } from "../library/model";
 
 function decodeBase64(value: string): Uint8Array {
@@ -43,7 +43,7 @@ export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): Offi
     return decodeBase64(result.dataBase64);
   };
   const openDocument = async (documentId: string, format: OfficeFormat): Promise<OpenOutcome> => {
-    if (!isDesktopDocumentFormat(format)) return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "Format is not carried by this desktop host" };
+    if (!isDesktopDocumentFormat(format)) return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "format is outside the desktop host table" };
     try {
       const result = await call("desktop:office-open", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId, ...(options.context.version === undefined ? {} : { version: options.context.version }) }) as DesktopOfficeOpenResponse;
       return { outcome: "opened", document_id: documentId, document_model_ref: `desktop:${result.document.id}:${result.document.revision}`, warnings: [] };

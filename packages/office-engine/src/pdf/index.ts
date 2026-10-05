@@ -5,8 +5,27 @@ export * from "./adapter.ts";
 export * from "./ops.ts";
 export * from "./types.ts";
 export { applyPdfEdits, PdfVerifyError, type AppliedPdfEdit, type PdfEditSkips } from "./serialize.ts";
+export {
+  extractPagesBytes,
+  insertBlankPageBytes,
+  insertPdfBytes,
+  mergePdfBytes,
+  PdfPageOpSourceError,
+  splitPdfBytes,
+  type ExtractPagesResult,
+  type InsertBlankPageResult,
+  type InsertPdfResult,
+  type MergePdfResult,
+  type SplitPdfResult,
+} from "./page-ops.ts";
+export { setNUp, setPageBox } from "./page-box.ts";
 export { readPdfText, type PdfTextDoc, type PdfPageText, type ReadPdfTextOptions } from "./extract.ts";
 export { renderImagePng, renderPageRegionPng, verifyImageEdits } from "./render.ts";
 export { validateTextEdits } from "./text.ts";
+export { addMarkup } from "./markups.ts";
+export { addDrawing } from "./drawings.ts";
+export { applyStamp } from "./stamps.ts";
+export { addNote } from "./notes.ts";
+export { applyFormValue, flattenForms } from "./forms.ts";
 export { listPageImages } from "./image.ts";
 export { decodeImageToBgra, encodeBgraToPng, type DecodedImage } from "./codec.ts";

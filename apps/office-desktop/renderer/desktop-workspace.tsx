@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
 import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
-import { formatFromFilename, isLocalDocumentFormat } from "../shared/document-format";
+import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec } from "../shared/document-formats";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
 import type { LoginScreenState } from "./login";
@@ -154,18 +154,19 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
     if (!result.opened) {
-      // Typed non-throwing answers: a recent whose file vanished and a
-      // non-docx pick each get their own copy instead of a guessed error code.
+      // Typed non-throwing answers: a recent whose file vanished and a pick
+      // outside the shared format table each get their own copy.
       if (result.missing) setActionError(t("officeDesktop.local.missing"));
       else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
       return;
     }
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     const file = result.metadata;
-    const format = formatFromFilename(file.name);
-    if (!format || !isLocalDocumentFormat(format)) { setActionError(t("officeDesktop.local.unsupported")); return; }
-    const title = file.untitled ? t("officeDesktop.local.untitled") : file.name;
-    if (tabs.open({ kind: "local", title, format, bytes: { dataBase64: result.dataBase64, checksum: file.checksum, format, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    const format = desktopDocumentFormatForName(file.name);
+    if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
+    const spec = desktopDocumentFormatSpec(format);
+    const title = file.untitled ? (spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName) : file.name;
+    if (tabs.open({ kind: "local", title, format, bytes: { format, dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
   const perform = async (operation: () => Promise<unknown>, accept: (raw: unknown) => void) => {
@@ -193,7 +194,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     void perform(() => bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
   };
   const openLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
-  const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
+  const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION, format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), acceptLocal); };
   const openRecent = (id: string) => {
     if (!canOpen()) return;
     void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal).then(() => recents.reload());
@@ -202,7 +203,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     if (modeRef.current === "local") { createLocal(); return; }
     const selected = scopeRef.current;
     if (!selected || !canOpen()) return;
-    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: t("officeDesktop.library.untitled") }), (raw) => acceptCloud(raw, selected));
+    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: t("officeDesktop.library.untitled"), format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), (raw) => acceptCloud(raw, selected));
   };
 
   const sendHostAnswer = async (request: HostLeave, choice: LeaveChoice, proceeded: boolean) => {

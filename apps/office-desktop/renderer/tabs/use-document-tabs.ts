@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { OfficeIdentity } from "@uniwork/core/office";
+import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
 import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "../office/session";
 import { createDesktopXlsxSession, type DesktopXlsxSession } from "../office/xlsx-session";
@@ -11,7 +12,7 @@ export interface OpenTabInput {
   readonly identity: OfficeIdentity;
   readonly bytes: OpenedBytes;
   readonly title: string;
-  readonly format: string;
+  readonly format: DesktopDocumentFormat;
 }
 
 export type TabSession = ByteDocumentSession | DesktopXlsxSession | DesktopLocalXlsxSession;

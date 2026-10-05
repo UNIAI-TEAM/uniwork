@@ -1389,6 +1389,18 @@ type RefreshToken struct {
 	Ip        string             `json:"ip"`
 }
 
+type SavedSignature struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Label          string             `json:"label"`
+	ContentType    string             `json:"content_type"`
+	Image          []byte             `json:"image"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Subscription struct {
 	ID                     string             `json:"id"`
 	OrganizationID         string             `json:"organization_id"`

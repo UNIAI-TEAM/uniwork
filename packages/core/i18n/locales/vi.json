@@ -8948,36 +8948,276 @@
       },
     "pdf": {
       "title": "Tài liệu PDF",
-      "toolbar": { "label": "Lệnh chỉnh sửa PDF" },
+      "chrome": {
+        "groups": {
+          "edit": "Sửa",
+          "annotate": "Chú thích"
+        },
+        "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
+        "tabsLabel": "Thẻ công cụ PDF",
+        "commandsLabel": "Nhóm lệnh PDF",
+        "find": "Tìm",
+        "overflow": "Lệnh khác",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "thumbnailsLabel": "Ảnh thu nhỏ trang",
+        "thumbnailPage": "Trang {{page}}",
+        "statusBarLabel": "Thanh trạng thái PDF",
+        "statusBarPage": "Trang {{page}} / {{total}}",
+        "statusBarCount": "{{value}} {{label}}",
+        "count": { "words": "từ", "characters": "ký tự", "annotations": "chú thích" },
+        "zoomOut": "Thu nhỏ",
+        "zoom": "{{percent}}%",
+        "zoomIn": "Phóng to"
+      },
+      "toolbar": { "label": "Lệnh chỉnh sửa PDF", "tabsLabel": "Các tab công cụ PDF", "more": "Lệnh khác" },
       "actions": {
         "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa chiều rộng", "fitPage": "Vừa trang"
       },
-      "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}" },
+      "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
       "state": { "opening": "Đang mở PDF…", "error": "Không mở được PDF" },
       "saveState": {
         "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork",
         "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa"
       },
-      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang" },
+      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang", "areaSelected": "Đã chọn vùng trên trang {{page}}. Chọn kiểu đánh dấu.", "hintRegion": "Kéo trên trang để chọn vùng cần tô sáng.", "hintNote": "Bấm vào trang để đặt ghi chú, rồi viết nội dung.", "hintStamp": "Bấm vào trang để chọn vị trí đóng dấu." },
+      "search": {
+        "label": "Tìm trong PDF", "placeholder": "Tìm trong PDF này", "inputLabel": "Tìm chữ trong PDF", "loading": "Đang tìm…",
+        "matches": "{{current}} trên {{count}} kết quả", "previous": "Kết quả trước", "next": "Kết quả tiếp theo", "close": "Đóng tìm kiếm"
+      },
       "pages": {
         "label": "Các trang PDF", "title": "Trang", "page": "Trang {{page}}", "moveUp": "Đưa lên", "extract": "Tách", "empty": "Adapter chưa báo trang nào."
       },
+      "properties": {
+        "close": "Đóng", "title": "Thuộc tính tài liệu", "description": "Chỉnh sửa thông tin được nhúng trong PDF này.",
+        "fields": { "title": "Tiêu đề", "author": "Tác giả", "subject": "Chủ đề", "keywords": "Từ khóa" },
+        "saveError": "Không thể lưu thuộc tính. Thử lại.", "cancel": "Hủy", "save": "Lưu"
+      },
+      "statusBar": {
+        "label": "Thanh trạng thái PDF", "page": "Trang {{page}} / {{total}}", "pageInput": "Trang hiện tại",
+        "zoomOut": "Thu nhỏ", "zoom": "{{percent}}%", "zoomIn": "Phóng to"
+      },
+      "view": {
+        "fitPage": "Vừa trang", "fitWidth": "Vừa chiều rộng", "outline": "Mục lục tài liệu", "thumbnails": "Hình thu nhỏ trang",
+        "zoomGroup": "Thu phóng", "fitGroup": "Vừa khung"
+      },
       "edit": {
         "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
+        "fontLabel": "Font", "fontPlaceholder": "Giữ font hiện tại", "fontSizeLabel": "Cỡ chữ",
+        "skipped": "Engine đã bỏ qua thay đổi này; tệp lưu không bao gồm nó.",
         "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
       },
-      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
+      "image": {
+        "apply": "Áp dụng thay đổi ảnh", "delete": "Xóa ảnh", "insert": "Chèn ảnh", "chooseFile": "Chọn ảnh", "layer": "Lớp",
+        "layerAbove": "Trên chữ", "layerBelow": "Dưới chữ", "replaceFile": "Thay tệp ảnh", "rotation": "Góc xoay",
+        "left": "Trái", "top": "Trên", "right": "Phải", "bottom": "Dưới",
+        "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
+      },
+      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này.", "missingUnknown": "Thiếu font nhúng; engine không âm thầm thay thế font." },
+      "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
+      "drawings": { "label": "Công cụ vẽ", "rect": "Hình chữ nhật", "ellipse": "Hình elip", "line": "Đường thẳng", "arrow": "Mũi tên" },
+      "ink": { "draw": "Vẽ tay" },
+      "annotations": {
+        "contentNotice": "Chú thích được giữ riêng khỏi nội dung PDF.", "delete": "Xóa chú thích: {{kind}}, trang {{page}}",
+        "deleteError": "Không thể xóa chú thích. Thử lại.", "empty": "Chưa có chú thích nào được lưu.",
+        "kind": { "note": "Ghi chú", "ink": "Nét vẽ tay", "image": "Ảnh", "unknown": "Chú thích" }, "readOnly": "Chỉ đọc"
+      },
+      "notes": {
+        "title": "Ghi chú", "empty": "Chưa có ghi chú nào trong tài liệu.",
+        "add": "Thêm ghi chú", "addPlaceholder": "Viết ghi chú",
+        "reply": "Trả lời", "replyPlaceholder": "Viết trả lời", "replySubmit": "Gửi trả lời", "replies": "Phản hồi",
+        "edit": "Sửa", "editSave": "Lưu ghi chú", "cancel": "Hủy",
+        "resolve": "Đánh dấu đã xử lý", "unresolve": "Mở lại", "resolved": "Đã xử lý",
+        "readOnly": "Chỉ đọc",
+        "error": "Không thể áp dụng thao tác ghi chú. Thử lại.",
+        "contentNotice": "Ghi chú là chú thích PDF; nội dung trang không bị viết lại."
+      },
+      "pageOps": {
+        "title": "Thao tác trang",
+        "anchor": "Chèn sau trang",
+        "anchorPlaceholder": "Đầu tài liệu",
+        "assetsEmpty": "Chưa có PDF nào để chọn.",
+        "insertBlank": { "title": "Chèn trang trắng", "width": "Chiều rộng", "height": "Chiều cao", "submit": "Chèn trang trắng" },
+        "insertPdf": { "title": "Chèn trang từ PDF", "asset": "PDF nguồn", "submit": "Chèn các trang" },
+        "extract": {
+          "title": "Trích xuất trang", "ranges": "Khoảng trang", "rangesPlaceholder": "Ví dụ: 1-3, 5",
+          "submit": "Trích xuất", "submitSelection": "Trích xuất {{count}} trang đã chọn"
+        },
+        "merge": { "title": "Gộp PDF", "submit": "Gộp tài liệu" },
+        "split": { "title": "Tách tài liệu", "chunk": "Số trang mỗi phần", "submit": "Tách" },
+        "results": { "title": "Tài liệu đã tạo", "document": "{{name}} · {{count}} trang" },
+        "errors": {
+          "input": "Trang hoặc khoảng trang không hợp lệ.",
+          "asset": "Không thể đọc tệp PDF.",
+          "commit": "Không thể lưu tài liệu đã tạo.",
+          "failed": "Không thể áp dụng thao tác trang. Thử lại."
+        }
+      },
+      "pageBox": {
+        "close": "Đóng",
+        "cancel": "Hủy",
+        "applying": "Đang áp dụng…",
+        "pages": {
+          "all": "Tất cả {{count}} trang",
+          "ranges": "Khoảng trang",
+          "rangesPlaceholder": "Ví dụ: 1-3, 5"
+        },
+        "box": {
+          "label": "Hộp trang",
+          "media": "Khổ giấy (media)",
+          "crop": "Vùng hiển thị (crop)"
+        },
+        "rect": {
+          "legend": "Hình chữ nhật (điểm tính từ gốc trang)",
+          "unit": "Khổ {{width}} × {{height}} pt",
+          "points": "pt",
+          "left": "Trái",
+          "bottom": "Dưới",
+          "right": "Phải",
+          "top": "Trên",
+          "preset": {
+            "label": "Hình chữ nhật nhanh",
+            "full": "Toàn trang",
+            "inset": "Thụt lề 10%",
+            "left": "Nửa trái",
+            "top": "Nửa trên"
+          }
+        },
+        "pageSize": {
+          "title": "Kích thước trang",
+          "description": "Đặt khổ giấy hoặc vùng hiển thị cho các trang đã chọn. Phần nằm ngoài hình chữ nhật không bị xóa, chỉ bị ẩn.",
+          "submit": "Áp dụng kích thước"
+        },
+        "nUp": {
+          "title": "Số trang mỗi tờ",
+          "description": "Xếp nhiều trang đã chọn lên một tờ theo dạng lưới.",
+          "rows": "Số hàng",
+          "cols": "Số cột",
+          "perSheet": "{{count}} trang mỗi tờ",
+          "perSheetInvalid": "Nhập số hàng và số cột",
+          "paper": "Khổ giấy",
+          "paperKeep": "Giữ khổ giấy hiện tại",
+          "submit": "Xếp nhiều trang"
+        },
+        "paper": {
+          "a4": "A4",
+          "letter": "Letter"
+        },
+        "errors": {
+          "pages": "Chọn ít nhất một trang trong tài liệu.",
+          "rect": "Hình chữ nhật không hợp lệ.",
+          "layout": "Cách xếp trang không được hỗ trợ.",
+          "input": "Yêu cầu không hợp lệ. Thử lại.",
+          "failed": "Không thể áp dụng thay đổi hộp trang. Thử lại."
+        }
+      },
+      "signatures": {
+        "title": "Chữ ký đã lưu",
+        "loading": "Đang tải chữ ký…",
+        "empty": "Chưa có chữ ký nào được lưu.",
+        "retry": "Thử lại",
+        "loadError": "Không thể tải danh sách chữ ký. Thử lại.",
+        "nameLabel": "Tên chữ ký",
+        "namePlaceholder": "Ví dụ: Chữ ký của tôi",
+        "fileLabel": "Tệp ảnh chữ ký",
+        "fileHint": "PNG hoặc JPEG, tối đa {{limit}}.",
+        "add": "Lưu chữ ký",
+        "saving": "Đang lưu…",
+        "select": "Dùng",
+        "selected": "Đã chọn",
+        "selectNamed": "Chọn chữ ký: {{label}}",
+        "untitled": "Chữ ký chưa đặt tên",
+        "byteSize": "{{size}} byte",
+        "delete": "Xóa chữ ký",
+        "deleteTitle": "Xóa chữ ký này?",
+        "deleteConfirm": "\"{{label}}\" sẽ bị xóa khỏi danh sách chữ ký đã lưu. Tài liệu đã dùng chữ ký này không thay đổi.",
+        "deleteNamed": "Xóa chữ ký: {{label}}",
+        "contentNotice": "Chữ ký là của riêng bạn và lưu theo tổ chức; chỉ được gắn vào tài liệu khi bạn đóng dấu.",
+        "errors": {
+          "fileType": "Chọn ảnh PNG hoặc JPEG.",
+          "fileTooLarge": "Ảnh chữ ký lớn hơn {{limit}} sau khi giải mã.",
+          "imageMismatch": "Ảnh không khớp với định dạng đã khai báo.",
+          "fileUnreadable": "Không thể đọc ảnh chữ ký.",
+          "rejected": "Máy chủ từ chối ảnh chữ ký này.",
+          "forbidden": "Bạn không có quyền lưu chữ ký trong tổ chức này.",
+          "gone": "Chữ ký này không còn nữa.",
+          "save": "Không thể lưu chữ ký. Thử lại.",
+          "delete": "Không thể xóa chữ ký. Thử lại."
+        }
+      },
+      "stamps": {
+        "title": "Con dấu",
+        "imageLabel": "Ảnh con dấu",
+        "placeImage": "Đóng dấu ảnh",
+        "placing": "Đang đóng dấu…",
+        "rotation": "Góc xoay",
+        "rotationLabel": "Góc xoay con dấu",
+        "degrees": "{{degrees}}°",
+        "signaturesLabel": "Chữ ký để đóng dấu",
+        "placeSignature": "Đóng dấu",
+        "placeSignatureNamed": "Đóng dấu chữ ký: {{label}}",
+        "noSignatures": "Chưa có chữ ký nào để đóng dấu.",
+        "needPlacement": "Chọn một vị trí trên trang để đóng dấu.",
+        "contentNotice": "Con dấu là chú thích; nội dung trang không bị viết lại.",
+        "errors": {
+          "fileType": "Chọn ảnh PNG hoặc JPEG.",
+          "fileTooLarge": "Ảnh con dấu quá lớn để đóng.",
+          "fileUnreadable": "Không thể đọc ảnh con dấu.",
+          "invalidPlacement": "Vị trí đóng dấu không hợp lệ.",
+          "unsupported": "Engine PDF hiện tại chưa đóng được con dấu.",
+          "place": "Không thể đóng dấu. Thử lại."
+        }
+      },
+      "forms": {
+        "title": "Trường biểu mẫu", "loading": "Đang tải các trường biểu mẫu…",
+        "empty": "Tài liệu này không có trường biểu mẫu.", "error": "Không tải được các trường biểu mẫu.",
+        "applyError": "Không thể ghi giá trị trường. Thử lại.",
+        "flatten": "Làm phẳng biểu mẫu",
+        "flattenHint": "Làm phẳng sẽ gộp các trường đã điền vào nội dung trang. Không thể hoàn tác.",
+        "flattenPending": "Đang làm phẳng…", "flattenApplied": "Đã làm phẳng biểu mẫu.",
+        "flattenError": "Không thể làm phẳng biểu mẫu. Thử lại.",
+        "readOnly": "Chỉ đọc", "fieldReadOnly": "Trường này không chỉnh sửa được.",
+        "checked": "Đã chọn", "unchecked": "Chưa chọn",
+        "selected": "Đã bật", "notSelected": "Chưa bật",
+        "noOptions": "Trường này không có lựa chọn nào.",
+        "kind": { "text": "Văn bản", "checkbox": "Hộp kiểm", "radio": "Nút chọn", "choice": "Danh sách chọn" }
+      },
+      "print": {
+        "action": "In", "preparing": "Đang in…",
+        "failed": "Không thể in tài liệu."
+      },
+      "export": {
+        "pages": "Xuất các trang thành PNG", "progress": "Đang xuất trang {{page}} / {{total}}…",
+        "failed": "Không thể xuất các trang.",
+        "saveCopy": "Lưu bản sao", "savingCopy": "Đang lưu…",
+        "saveCopyUnavailable": "Chưa thể lưu bản sao.", "copyFailed": "Không thể lưu bản sao."
+      },
+      "tabs": { "home": "Trang chủ", "annotate": "Chú thích", "edit": "Sửa", "pages": "Trang", "view": "Xem" },
       "errors": {
         "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
         "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.", "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
         "password_required": "Cần mật khẩu để mở PDF này.", "wrong_password": "Mật khẩu không mở khóa được PDF này.",
         "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.", "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
         "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
-        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
+        "too_large": "PDF này quá lớn để mở tại đây.", "invalid_structure": "PDF có cấu trúc không hợp lệ.",
+        "truncated": "PDF bị cắt ngắn hoặc chưa đầy đủ.", "unsupported_encryption": "PDF dùng cơ chế mã hóa chưa được hỗ trợ.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
+        "editRejected": "PDF không nhận giá trị này. Kiểm tra lại rồi thử lại.",
+        "unsupportedInBrowser": "Thay đổi này chưa dùng được trên trình duyệt.",
+        "editSkipped": "Một phần thay đổi bị bỏ qua vì trình duyệt chưa áp dụng được.",
+        "formValueRejected": "Trường này không lưu được ký tự vừa nhập (ví dụ chữ có dấu) vì phông của biểu mẫu không hỗ trợ. Giá trị chưa được lưu.",
+        "formsFailed": "Không đọc được các trường biểu mẫu của PDF này.",
+        "objectUnavailable": "Nội dung đã chọn không còn khả dụng. Chọn lại."
+      },
+      "password": {
+        "title": "Cần mật khẩu", "description": "Tài liệu này được bảo vệ bằng mật khẩu. Nhập mật khẩu để mở.",
+        "label": "Mật khẩu", "placeholder": "Nhập mật khẩu tài liệu",
+        "submit": "Mở tài liệu", "checking": "Đang kiểm tra…", "cancel": "Hủy", "close": "Đóng",
+        "wrong": "Mật khẩu không mở được tài liệu này. Thử lại."
       }
     }
   },

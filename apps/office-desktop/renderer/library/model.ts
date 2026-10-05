@@ -4,7 +4,7 @@ import type {
   DesktopLibraryDocument,
   DesktopLibraryResponse,
 } from "../../shared/ipc";
-import { isDesktopDocumentFormat } from "../../shared/document-format";
+import { isDesktopDocumentFormat } from "../../shared/document-formats";
 
 export type LibraryMode = "list" | "recent" | "search";
 export type LibraryScope = Readonly<{
