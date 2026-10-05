@@ -87,17 +87,38 @@ it("rebuilds the copy on update and removes the frame on dispose", async () => {
   expect(container.querySelector("iframe")).toBeNull();
 });
 
-it.each(["md", "html"] as const)("re-applies srcdoc when a hidden %s pane becomes measurable", async (format) => {
+it.each(["md", "html"] as const)("re-applies only on hidden-to-visible transition for %s", async (format) => {
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   const { container, frame, session } = await mountCopy(format, "<p>visible</p>");
   const initial = frame.getAttribute("srcdoc");
-  frame.removeAttribute("srcdoc");
+  const setAttribute = vi.spyOn(frame, "setAttribute");
   TestResizeObserver.instances.at(-1)?.trigger(0, 0);
-  expect(frame.getAttribute("srcdoc")).toBeNull();
   TestResizeObserver.instances.at(-1)?.trigger(700, 300);
+  expect(setAttribute).toHaveBeenCalledTimes(1);
   expect(frame.getAttribute("srcdoc")).toBe(initial);
+  TestResizeObserver.instances.at(-1)?.trigger(800, 400);
+  expect(setAttribute).toHaveBeenCalledTimes(1);
+  await session.update?.("<p>updated</p>");
+  expect(setAttribute).toHaveBeenCalledTimes(2);
+  expect(frame.getAttribute("srcdoc")).toContain("updated");
   session.dispose();
   expect(container.querySelector("iframe")).toBeNull();
+  vi.unstubAllGlobals();
+});
+
+it.each(["md", "html"] as const)("re-applies once on the first measurable observation for initially visible %s", async (format) => {
+  vi.stubGlobal("ResizeObserver", TestResizeObserver);
+  const container = document.createElement("div");
+  document.body.append(container);
+  vi.spyOn(container, "getBoundingClientRect").mockReturnValue({ width: 700, height: 300 } as DOMRect);
+  const session = await createDesktopTextPreviewPort(format).mount({ container, format, title: "Doc", text: "<p>visible</p>" });
+  const frame = container.querySelector("iframe")!;
+  const setAttribute = vi.spyOn(frame, "setAttribute");
+  TestResizeObserver.instances.at(-1)?.trigger(700, 300);
+  expect(setAttribute).toHaveBeenCalledTimes(1);
+  TestResizeObserver.instances.at(-1)?.trigger(800, 400);
+  expect(setAttribute).toHaveBeenCalledTimes(1);
+  session.dispose();
   vi.unstubAllGlobals();
 });
 
