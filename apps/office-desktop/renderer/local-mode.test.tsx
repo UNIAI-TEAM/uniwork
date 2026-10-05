@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+import { settleDocxSessions } from "../test/settle-sessions";
 
 installDocxGeometry();
 const fixtureBase64 = Buffer.from(docxSource).toString("base64");
@@ -19,6 +20,9 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
+// Several tests end with a DOCX tab still parsing (a background recent-file tab,
+// an OS open asserted only on its tab); settle every load before teardown.
+afterEach(() => settleDocxSessions(sessions));
 
 /** Every channel a signed-out device may legitimately use; anything else in a
  * local-mode test is a network path and fails the test. */

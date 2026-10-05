@@ -162,6 +162,9 @@ it("opens an OS file in a new tab while another document remains mounted", async
   await waitFor(() => expect(calls).toContain("desktop:file-open"));
   expect(await screen.findByRole("tab", { name: /Local plan\.docx/ })).toBeInTheDocument();
   expect(screen.getByRole("tab", { name: /Plan\.docx/ })).toBeInTheDocument();
+  // Both DOCX tabs parse on setImmediate ticks; finish them before the test ends
+  // so no tick lands after jsdom teardown (unhandled "uint8array" error).
+  await waitFor(() => expect(screen.getAllByTestId("docx-document-surface")).toHaveLength(2), { timeout: 10_000 });
 });
 
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
