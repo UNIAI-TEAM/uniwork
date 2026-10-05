@@ -55,3 +55,6 @@ server/internal/handler/data/
 .uniwork-dev/
 .uniwork-dev-run/
 apps/office-desktop/.test-artifacts/
+
+# pdfium wasm copied from node_modules by apps/web/scripts/copy-pdfium-wasm.mjs
+apps/web/public/office/pdfium.wasm

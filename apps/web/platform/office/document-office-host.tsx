@@ -16,6 +16,7 @@ function LoadingEditor() {
 }
 
 const DocxHost = dynamic(() => import("./docx-office-host").then((module) => module.DocxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
+const PdfHost = dynamic(() => import("./pdf-office-host").then((module) => module.PdfOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const XlsxHost = dynamic(() => import("./xlsx-office-host").then((module) => module.XlsxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const MarkdownHost = dynamic(() => import("./md-html-adapter").then((module) => module.MarkdownOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const HtmlHost = dynamic(() => import("./md-html-adapter").then((module) => module.HtmlOfficeEditorHost), { ssr: false, loading: LoadingEditor });
@@ -35,11 +36,12 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   const format = detectDocumentFormat(props.document);
+  if (format === "pdf") return <PdfHost {...props} />;
   if (format === "docx") return <DocxHost {...props} />;
   if (format === "xlsx") return <XlsxHost {...props} />;
   if (format === "md") return <MarkdownHost {...props} />;
   if (format === "html") return <HtmlHost {...props} />;
-  // pptx, pdf and the conversion-only sources (xls, odt) have no web editor
-  // yet. Say so; do not route them to a host for a different format.
+  // pptx and the conversion-only sources (xls, odt) have no web editor yet.
+  // Say so; do not route them to a host for a different format.
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
 }

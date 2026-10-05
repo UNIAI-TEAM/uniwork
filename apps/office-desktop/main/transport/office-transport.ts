@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
+import { desktopDocumentFormatForMime, desktopDocumentFormatForName, desktopDocumentMimeTypes, desktopMimeTypeForFormat, desktopUntitledName, desktopExtensionsForFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
-import { blankDocxBytes } from "../files/blank-docx";
+import { blankDocumentBytes } from "../files/blank-documents";
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 type MainOfficeTransport = DesktopOfficeTransport & Readonly<{
   readDocumentAccess(scope: { workspaceId: string; documentId: string }): Promise<"edit" | "none">;
@@ -47,19 +47,25 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     throw new Error("office_request_failed");
   }
   async function json(path: string, init?: RequestInit): Promise<unknown> { return (await authRequest(path, init)).json(); }
+  /** The download response carries the authoritative format: its Content-Type
+   * maps through the shared format table, and a generic octet-stream answer
+   * falls back to the Content-Disposition file name's extension. */
   async function bytes(path: string): Promise<{ data: Uint8Array; filename: string; mimeType: string }> {
-    const response = await authRequest(path, { headers: { Accept: DOCX_MIME } });
+    const response = await authRequest(path, { headers: { Accept: desktopDocumentMimeTypes().join(", ") } });
     const data = new Uint8Array(await response.arrayBuffer());
     const disposition = response.headers.get("Content-Disposition") ?? "";
-    const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? "document.docx";
-    return { data, filename: filename.replace(/[\\/\r\n]/g, "_"), mimeType: response.headers.get("Content-Type")?.split(";", 1)[0] ?? DOCX_MIME };
+    const dispositionName = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
+    const mimeType = response.headers.get("Content-Type")?.split(";", 1)[0] ?? "";
+    const format = desktopDocumentFormatForMime(mimeType) ?? (dispositionName ? desktopDocumentFormatForName(dispositionName) : undefined);
+    if (!format) throw new Error("document_format_unsupported");
+    const filename = (dispositionName ?? desktopUntitledName(format)).replace(/[\\/\r\n]/g, "_");
+    return { data, filename, mimeType: desktopMimeTypeForFormat(format) };
   }
   async function download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse> {
     void input.workspaceId;
     const path = `/documents/${encodeURIComponent(input.documentId)}/download${input.version === undefined ? "" : `?version=${input.version}`}`;
     const result = await bytes(path);
-    if (result.mimeType !== DOCX_MIME && result.mimeType !== "application/octet-stream") throw new Error("document_format_unsupported");
-    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: DOCX_MIME, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
+    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
   }
   return Object.freeze({
     async readDocumentAccess(input: { workspaceId: string; documentId: string }): Promise<"edit" | "none"> {
@@ -115,9 +121,9 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const engineAvailable = operations.some((row: unknown) => !!row && typeof row === "object" && "operation" in row && row.operation === "open" && "supported" in row && row.supported === true);
       return { documents, nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null, engineAvailable };
     },
-    async create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse> {
+    async create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse> {
       const form = new FormData();
-      form.set("file", new Blob([blankDocxBytes() as BlobPart], { type: DOCX_MIME }), input.title);
+      form.set("file", new Blob([blankDocumentBytes(input.format) as BlobPart], { type: desktopMimeTypeForFormat(input.format) }), input.title);
       form.set("title", input.title);
       const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents/files`, {
         method: "POST",
@@ -128,7 +134,7 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const document = toLibraryDocument(body, input.workspaceId);
       if (!document) throw new Error("document_invalid");
       const downloaded = await download({ workspaceId: input.workspaceId, documentId: document.id, version: document.version });
-      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: DOCX_MIME, checksum: downloaded.checksum };
+      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     download,
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {
@@ -136,14 +142,15 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;
       const document = toLibraryDocument(body, input.workspaceId);
       if (!document) throw new Error("document_invalid");
-      return { document: { ...document, version: input.version ?? document.version }, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: DOCX_MIME, checksum: downloaded.checksum };
+      return { document: { ...document, version: input.version ?? document.version }, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
-    async save(input: { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse> {
+    async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse> {
       void input.workspaceId;
       void input.baseVersionId;
       const bytes = Buffer.from(input.dataBase64, "base64");
+      const extension = desktopExtensionsForFormat(input.format)[0];
       const form = new FormData();
-      form.set("file", new Blob([bytes], { type: DOCX_MIME }), "document.docx");
+      form.set("file", new Blob([bytes], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
       const uploadRaw = await (await authRequest(`/documents/${encodeURIComponent(input.documentId)}/uploads`, { method: "POST", body: form, headers: { "Idempotency-Key": input.idempotencyKey } })).json();
       const upload = uploadRaw && typeof uploadRaw === "object" && "upload" in uploadRaw ? (uploadRaw as { upload: Record<string, unknown> }).upload : uploadRaw as Record<string, unknown>;
       if (!upload || typeof upload.upload_id !== "string") throw new Error("upload_invalid");
@@ -171,7 +178,7 @@ function toLibraryDocument(value: unknown, workspaceId: string): DesktopLibraryD
   // created from; a full `file` block (document open) still wins when present.
   const filename = typeof file.filename === "string" ? file.filename : (title ?? "");
   const mimeType = typeof file.mime_type === "string" ? file.mime_type : "";
-  const format = mimeType === DOCX_MIME || /\.docx$/i.test(filename) ? "docx" : undefined;
+  const format = desktopDocumentFormatForMime(mimeType) ?? desktopDocumentFormatForName(filename);
   if (!id || !title || !kind || !format) return undefined;
   const updatedAt = typeof row.updated_at === "string" && !Number.isNaN(Date.parse(row.updated_at)) ? new Date(row.updated_at).toISOString() : new Date(0).toISOString();
   return { id, workspaceId, title, kind, format, version: typeof row.current_version === "number" && Number.isSafeInteger(row.current_version) && row.current_version >= 0 ? row.current_version : 0, revision: typeof row.revision === "string" && /^\d+$/.test(row.revision) ? row.revision : "0", updatedAt, ownerKind: typeof row.owner_kind === "string" ? row.owner_kind : null, canEdit: row.my_level === "edit" || row.my_level === "manage", downloadAvailable: true };

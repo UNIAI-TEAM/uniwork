@@ -14,7 +14,7 @@ describe("desktop office host injection", () => {
 
   it("uses one office-save command with the same intent and idempotency key", async () => {
     const bridge = { call: vi.fn(async () => openResponse.document ? { intentId: "intent-1", idempotencyKey: "key-1", documentId: "doc-1", versionId: "version-2", revision: "10", checksum: `sha256:${"b".repeat(64)}` } : undefined) };
-    const transport = createDesktopDocxSaveTransport({ bridge: bridge as never, context, serialize: async () => ({ bytes: new Uint8Array([1, 2, 3]), checksum: `sha256:${"b".repeat(64)}` }) });
+    const transport = createDesktopDocxSaveTransport({ bridge: bridge as never, context, format: "docx", serialize: async () => ({ bytes: new Uint8Array([1, 2, 3]), checksum: `sha256:${"b".repeat(64)}` }) });
     const intent = { intentId: "intent-1", idempotencyKey: "key-1", identity: { documentId: "doc-1", baseVersionId: "version-1", baseRevision: "9" } };
     const output = await transport.serialize({ intent, snapshot: { value: { text: "changed" } } });
     const upload = await transport.upload({ intent, output });

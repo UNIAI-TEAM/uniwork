@@ -61,7 +61,6 @@ export function PdfToolbar({
   const { t } = useTranslation();
   const blocked = readOnly || saving;
   const hasPage = selection?.page !== undefined;
-  const pending = t("office.pdf.capabilityPending");
 
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="pdf-toolbar" aria-label={t("office.pdf.toolbar.label")} role="toolbar">
@@ -76,7 +75,7 @@ export function PdfToolbar({
       <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.reorderPage")} disabled={blocked || !canPageOps || !hasPage} onClick={onReorderPage}>{t("office.pdf.commands.reorderPage")}</Button>
       <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.extractPage")} disabled={blocked || !canPageOps || !hasPage} onClick={onExtractPage}>{t("office.pdf.commands.extractPage")}</Button>
       <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.mergePages")} disabled={blocked || !canPageOps} onClick={onMergePages}>{t("office.pdf.commands.mergePages")}</Button>
-      <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.annotations")} disabled={blocked || !canAnnotate} title={canAnnotate ? undefined : pending} onClick={onAnnotate}>{t("office.pdf.commands.annotations")}</Button>
+      <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.annotations")} disabled={blocked || !canAnnotate} onClick={onAnnotate}>{t("office.pdf.commands.annotations")}</Button>
       <span className="min-w-0 flex-1 truncate px-2 text-caption text-muted-foreground" data-testid="pdf-selection">{selection ? t("office.pdf.selection.page", { page: selection.page }) : t("office.pdf.selection.none")}</span>
       <Button type="button" variant="brand" size="sm" aria-disabled={blocked || !dirty || undefined} disabled={blocked || !dirty} data-testid="pdf-save" onClick={onSave}><Save aria-hidden />{saving ? t("office.pdf.actions.saving") : t("office.pdf.actions.save")}</Button>
       <span className="sr-only" role="status" aria-live="polite">{t(`office.pdf.saveState.${coordinator.getState().state}`)}</span>

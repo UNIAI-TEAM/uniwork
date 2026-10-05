@@ -154,11 +154,17 @@ it("opens an OS file in a new tab while another document remains mounted", async
   render(<App bridge={liveBridge} />);
   await screen.findByText("Plan.docx");
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
-  await screen.findByRole("button", { name: "Về thư viện" });
+  // f40808f2 moved back-to-library out of the document header into the "..."
+  // menu, so reach it as a menuitem (open-document.test.tsx does the same).
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") });
   act(() => fileOpen?.({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF" }));
   await waitFor(() => expect(calls).toContain("desktop:file-open"));
   expect(await screen.findByRole("tab", { name: /Local plan\.docx/ })).toBeInTheDocument();
   expect(screen.getByRole("tab", { name: /Plan\.docx/ })).toBeInTheDocument();
+  // Both DOCX tabs parse on setImmediate ticks; finish them before the test ends
+  // so no tick lands after jsdom teardown (unhandled "uint8array" error).
+  await waitFor(() => expect(screen.getAllByTestId("docx-document-surface")).toHaveLength(2), { timeout: 10_000 });
 });
 
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
@@ -191,7 +197,10 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   await waitFor(() => expect(calls.some((call) => call.channel === "desktop:office-open")).toBe(true));
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
-  await screen.findByRole("button", { name: "Về thư viện" });
+  // f40808f2 moved back-to-library out of the document header into the "..."
+  // menu, so reach it as a menuitem (open-document.test.tsx does the same).
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") });
   await screen.findByTestId("docx-document-surface", {}, { timeout: 10000 });
   expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(0);
   const paragraph = container.querySelector('.ProseMirror p, .ProseMirror h1')!;

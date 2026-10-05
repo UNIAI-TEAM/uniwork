@@ -177,6 +177,12 @@ const (
 	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
 	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
 
+	// Saved signatures (UNI-925 B6): a person's reusable signature images,
+	// stored server-side. Rows are personal and only the owner's own editor
+	// consumes them, so they audit without an outbox event.
+	ActionSignatureCreated = "signature.created"
+	ActionSignatureDeleted = "signature.deleted"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

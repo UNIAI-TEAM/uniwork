@@ -22,3 +22,4 @@ export * from "./admin";
 export * from "./attachment";
 export * from "./attachment-url";
 export * from "./document";
+export * from "./signature";
