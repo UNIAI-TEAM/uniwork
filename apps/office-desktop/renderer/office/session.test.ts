@@ -219,9 +219,10 @@ it("forwards the pdf engine-operation facet so the note panel gets a provider (F
 });
 it("forwards the pdf find facet so desktop search reaches the engine text layer (F-13)", async () => {
   const call = vi.fn(async (_channel: string, payload: unknown) => {
-    const request = payload as { operation: string };
+    const request = payload as { operation: string; args: { geometry?: boolean } };
     if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
-    return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "Bao cao", charBoxes: [{ x: 0, y: 10, width: 8, height: 8 }, { x: 8, y: 10, width: 8, height: 8 }] }] };
+    const charBoxes = request.args.geometry ? [{ x: 0, y: 10, width: 8, height: 8 }, { x: 8, y: 10, width: 8, height: 8 }] : [];
+    return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "Bao cao", charBoxes }] };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
   await session.openEditor();
@@ -231,6 +232,17 @@ it("forwards the pdf find facet so desktop search reaches the engine text layer 
   expect(hits[0]).toMatchObject({ page: 1, start: 0, end: 3, text: "Bao" });
   expect(hits[0]!.quads).toEqual([[0, 82, 16, 90]]);
   expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true);
+});
+it("forwards the pdf form and saved-note readers so the panels leave their loading state (R18-2)", async () => {
+  const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }));
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  expect(session.editor.readFormFields).toBeUndefined();
+  await session.openEditor();
+  expect(session.editor.readFormFields).toBeTypeOf("function");
+  expect(session.editor.readSavedNotes).toBeTypeOf("function");
+  // The fixture bytes are not a parseable PDF: the readers answer empty lists.
+  await expect(session.editor.readFormFields!()).resolves.toEqual([]);
+  await expect(session.editor.readSavedNotes!()).resolves.toEqual([]);
 });
 
 

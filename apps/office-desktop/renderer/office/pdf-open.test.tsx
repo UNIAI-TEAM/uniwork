@@ -45,11 +45,12 @@ it("finds text on the desktop host through the engine text layer and paints the 
   const call = vi.fn(async (channel: string, payload: unknown) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
-      const request = payload as { operation: string };
+      const request = payload as { operation: string; args: { geometry?: boolean } };
       if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
       if (request.operation === "text") {
         const text = "Bao cao tong hop";
-        return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text, charBoxes: text.split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })) }] };
+        const charBoxes = request.args.geometry ? text.split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })) : [];
+        return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text, charBoxes }] };
       }
       return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
     }
@@ -67,4 +68,26 @@ it("finds text on the desktop host through the engine text layer and paints the 
   // The desktop host must reach the engine text layer and report a match.
   await waitFor(() => expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true), { timeout: 10000 });
   await waitFor(() => expect(screen.getByText("1 trên 1 kết quả")).toBeInTheDocument(), { timeout: 10000 });
+});
+
+it("lets the Forms panel leave its loading state on the desktop host (R18-2)", async () => {
+  const call = vi.fn(async (channel: string, payload: unknown) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
+    }
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
+
+  fireEvent.click(await screen.findByTestId("pdf-chrome-tab-annotate"));
+  fireEvent.click(await screen.findByRole("button", { name: "Điền biểu mẫu" }));
+  expect(await screen.findByTestId("pdf-forms-panel")).toBeInTheDocument();
+  // The desktop surface reads the form fields itself, so the panel never spins forever.
+  await waitFor(() => expect(screen.queryByTestId("pdf-forms-loading")).toBeNull(), { timeout: 10000 });
 });

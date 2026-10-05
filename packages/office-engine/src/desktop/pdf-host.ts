@@ -4,10 +4,10 @@
 // entries below are the whole lane: `open` probes the bytes into a view-safe
 // page summary plus per-page sizes, `edit` applies one batch and returns the
 // verified output bytes, `render` rasterises one page to a PNG, and `text` reads
-// the text layer plus per-character display-space boxes so the renderer can run
+// a page range's text layer (plus per-character display-space boxes on request) so the renderer can run
 // find. Paths and file handles stay on the host side.
 import { applyPdfEditBytes, PdfPasswordError, probePdf, type PdfEditOutcome, type PdfPasswordStatus, type PdfProbe } from "../pdf/index";
-import { readPdfPageSizes, readPdfTextPages, renderPdfPagePng, type DesktopPdfTextResult } from "./pdf-render.ts";
+import { readPdfPageSizes, readPdfTextRange, renderPdfPagePng, type DesktopPdfTextPage } from "./pdf-render.ts";
 
 /** Operations the IPC schema lets a caller name. `open`, `edit`, `render` and
  * `text` are bound; the rest answer `engine_operation_unsupported` before any
@@ -23,6 +23,8 @@ export interface DesktopEngineCall {
     readonly edits?: unknown;
     readonly password?: unknown;
     readonly pageIndex?: unknown;
+    readonly pageLimit?: unknown;
+    readonly geometry?: unknown;
     readonly scale?: unknown;
   };
 }
@@ -66,9 +68,14 @@ export interface DesktopEnginePasswordRefusal {
   readonly error: { readonly kind: "password"; readonly status: PdfPasswordStatus };
 }
 
-export interface DesktopEngineTextResult extends DesktopPdfTextResult {
+/** A bounded page range of the text layer (`pageLimit` pages from `pageIndex`);
+ * `charBoxes` is empty unless the call asked for `geometry`. The renderer walks
+ * the document lazily, one range per call. */
+export interface DesktopEngineTextResult {
   readonly ok: true;
   readonly operation: "text";
+  readonly pageCount: number;
+  readonly pages: readonly DesktopPdfTextPage[];
 }
 
 export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEngineTextResult | DesktopEnginePasswordRefusal;
@@ -84,6 +91,9 @@ export class DesktopEngineCallError extends Error {
     this.code = code;
   }
 }
+
+/** Most pages one `text` call may read: bounds the single chainPdfium turn. */
+const MAX_TEXT_PAGE_LIMIT = 32;
 
 function decode(input: unknown): Uint8Array {
   if (typeof input !== "string") throw new DesktopEngineCallError("engine_input_missing");
@@ -109,7 +119,12 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
   if (call.operation === "text") {
     const bytes = decode(call.args.dataBase64);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
-    const result = await readPdfTextPages(bytes, password);
+    const pageIndex = call.args.pageIndex;
+    if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");
+    const pageLimit = call.args.pageLimit ?? 1;
+    if (typeof pageLimit !== "number" || !Number.isInteger(pageLimit) || pageLimit < 1 || pageLimit > MAX_TEXT_PAGE_LIMIT) throw new DesktopEngineCallError("engine_input_missing");
+    const result = await readPdfTextRange(bytes, pageIndex, { pageLimit, geometry: call.args.geometry === true, ...(password === undefined ? {} : { password }) });
+    if (!result) throw new DesktopEngineCallError("engine_text_unavailable");
     return { ok: true, operation: "text", pageCount: result.pageCount, pages: result.pages };
   }
   if (call.operation === "render") {

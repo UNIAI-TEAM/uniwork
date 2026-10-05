@@ -137,7 +137,7 @@ export function readPdfPageSizes(
 /** One character's box in the page's DISPLAY space: top-left origin, PDF points,
  * the /Rotate transform applied - the same space as the rendered raster and the
  * reported page size. */
-export interface DesktopPdfCharBox {
+interface DesktopPdfCharBox {
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -158,20 +158,23 @@ export interface DesktopPdfTextPage {
   readonly charBoxes: readonly DesktopPdfCharBox[];
 }
 
-export interface DesktopPdfTextResult {
-  readonly pageCount: number;
-  readonly pages: readonly DesktopPdfTextPage[];
-}
-
 /** The Node seam's Pdfium slice plus the rotation probe the char-box mapping
  * needs; the wasm build exports it (the browser seam declares it too). */
 interface RotationAwarePdfium extends Pdfium {
-  _FPDFPage_GetRotation?(page: number): number;
+  _FPDFPage_GetRotation(page: number): number;
+}
+
+/** Fail loudly when the loaded module lacks the rotation export: silently
+ * answering 0 would paint every find hit on a rotated page in the wrong place. */
+export function assertRotationAware(m: Pdfium): asserts m is RotationAwarePdfium {
+  if (typeof (m as Partial<RotationAwarePdfium>)._FPDFPage_GetRotation !== "function") {
+    throw new Error("pdfium_export_missing: FPDFPage_GetRotation");
+  }
 }
 
 /** Quarter turns clockwise for a page rotation; 0/90/180/270 map to 0/1/2/3. */
 function pageRotation(m: RotationAwarePdfium, page: number): number {
-  return ((Math.round(m._FPDFPage_GetRotation?.(page) ?? 0) % 4) + 4) % 4;
+  return ((Math.round(m._FPDFPage_GetRotation(page)) % 4) + 4) % 4;
 }
 
 /** Map one top-left-origin box from the page's unrotated space into its DISPLAY
@@ -212,13 +215,15 @@ function normalizePageText(raw: string): { text: string; rawIndex: number[] } {
   return { text: text.slice(0, end), rawIndex: rawIndex.slice(0, end) };
 }
 
-/** Read a page's text layer plus one display-space box per character, so the
- * renderer can union a find hit's characters into per-line quads. A page with no
- * text layer answers empty text and no boxes (scanned pages). */
+/** Read a page's text layer and, when `geometry` is set, one display-space box
+ * per character so the renderer can union a find hit's characters into per-line
+ * quads. A page with no text layer answers empty text and no boxes (scanned
+ * pages). */
 function readPageText(
-  m: Pdfium & RotationAwarePdfium,
+  m: RotationAwarePdfium,
   doc: number,
   index: number,
+  geometry: boolean,
 ): { width: number; height: number; text: string; charBoxes: DesktopPdfCharBox[] } {
   const page = m._FPDF_LoadPage(doc, index);
   if (!page) return { width: 0, height: 0, text: "", charBoxes: [] };
@@ -242,7 +247,7 @@ function readPageText(
         m._free(buf);
       }
       const { text, rawIndex } = normalizePageText(raw);
-      if (rawIndex.length === 0) return { width, height, text, charBoxes: [] };
+      if (!geometry || rawIndex.length === 0) return { width, height, text, charBoxes: [] };
       const rotation = pageRotation(m, page);
       // _FPDF_GetPageHeightF already swaps width/height for /Rotate 90 or 270,
       // so the UNROTATED box is display height x display width there.
@@ -286,19 +291,28 @@ function readPageText(
   }
 }
 
-/** Per-page text and display-space char boxes, in page order. This is the
- * desktop lane's find producer: without it the renderer has no page text to
- * search, so every query answers "0 of 0". A page pdfium cannot load reports
- * empty text rather than dropping out of order. */
-export function readPdfTextPages(bytes: Uint8Array, password?: string): Promise<DesktopPdfTextResult> {
+/** A bounded range of pages' text, optionally with display-space char boxes. This
+ * is the desktop lane's find producer. The whole range is read in ONE
+ * chainPdfium turn over ONE document load (the caller caps the range), so queued
+ * renders and edits interleave between ranges instead of stalling behind a
+ * whole-document read. `null` means `pageIndex` is past the last page; the range
+ * clamps at the last page, and a page pdfium cannot load answers empty text. */
+export function readPdfTextRange(
+  bytes: Uint8Array,
+  pageIndex: number,
+  options: { pageLimit?: number; geometry?: boolean; password?: string } = {},
+): Promise<{ pageCount: number; pages: DesktopPdfTextPage[] } | null> {
   return chainPdfium(async () => {
     const m = await loadPdfium();
-    return withRenderedDocument(m, bytes, password, async (doc) => {
+    assertRotationAware(m);
+    return withRenderedDocument(m, bytes, options.password, async (doc) => {
       const pageCount = m._FPDF_GetPageCount(doc);
+      if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) return null;
+      const end = Math.min(pageIndex + (options.pageLimit ?? 1), pageCount);
       const pages: DesktopPdfTextPage[] = [];
-      for (let index = 0; index < pageCount; index += 1) {
-        const page = readPageText(m, doc, index);
-        pages.push({ page: index + 1, width: page.width, height: page.height, text: page.text, charBoxes: page.charBoxes });
+      for (let index = pageIndex; index < end; index += 1) {
+        const read = readPageText(m, doc, index, options.geometry === true);
+        pages.push({ page: index + 1, width: read.width, height: read.height, text: read.text, charBoxes: read.charBoxes });
       }
       return { pageCount, pages };
     });

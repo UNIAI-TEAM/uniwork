@@ -5,7 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
-import type { PdfCanvasPage, PdfEditOperation, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
+import type { PdfCanvasPage, PdfEditOperation, PdfFormField, PdfNoteThread, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
 export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
 
@@ -44,6 +44,10 @@ type LaneEditorFacets = {
   /** Find: the shared surface searches through this facet. The desktop renderer
    * has no pdfium, so the surface reads the engine's text layer (F-13). */
   searchText?(query: string): Promise<readonly PdfSearchHit[]>;
+  /** Forms and saved-notes panels read the current bytes through these; without
+   * them the forms panel never leaves its loading state (R18-2). */
+  readFormFields?(): Promise<readonly PdfFormField[]>;
+  readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
 };
 
 export type LocalFileRebind = Readonly<{
@@ -167,6 +171,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get getCanvasPages() { const lane = surface; return lane?.getCanvasPages?.bind(lane); },
     get submitEngineOperations() { const lane = surface; return lane?.submitEngineOperations?.bind(lane); },
     get searchText() { const lane = surface; return lane?.searchText?.bind(lane); },
+    get readFormFields() { const lane = surface; return lane?.readFormFields?.bind(lane); },
+    get readSavedNotes() { const lane = surface; return lane?.readSavedNotes?.bind(lane); },
     get subscribeDirty() { const lane = surface; return lane?.subscribeDirty?.bind(lane); },
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,

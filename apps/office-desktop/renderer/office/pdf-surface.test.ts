@@ -161,62 +161,218 @@ describe("desktop PDF surface", () => {
     await surface.open(undefined, "    ");
     expect(surface.openOutcome()).toMatchObject({ outcome: "opened" });
   });
-  it("searches the engine text layer and returns per-line quads so find paints on desktop (F-13)", async () => {
-    const call = vi.fn(async (_channel: string, payload: unknown) => {
-      const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
-      return {
-        ok: true,
-        operation: "text",
-        pageCount: 1,
-        pages: [{
-          page: 1,
-          width: 100,
-          height: 100,
-          text: "Bao cao tong hop",
-          // Two boxes on one line, display space (top-left origin).
-          charBoxes: "Bao cao tong hop".split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })),
-        }],
-      };
+  /** An engine fake whose `text` answers follow the page-range contract. */
+  function textEngine(pages: readonly { text: string; width?: number; height?: number }[], failures: { remaining: number } = { remaining: 0 }) {
+    return vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string; args: { pageIndex?: number; pageLimit?: number; geometry?: boolean } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: pages.length }, pageSizes: pages.map((page) => ({ width: page.width ?? 100, height: page.height ?? 100 })) };
+      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64") };
+      if (failures.remaining > 0) { failures.remaining -= 1; throw new Error("ipc down"); }
+      const start = request.args.pageIndex ?? -1;
+      if (start < 0 || start >= pages.length) throw new Error("page_range");
+      const end = Math.min(start + (request.args.pageLimit ?? 1), pages.length);
+      const slice = pages.slice(start, end).map((page, offset) => ({
+        page: start + offset + 1,
+        width: page.width ?? 100,
+        height: page.height ?? 100,
+        text: page.text,
+        // Display-space boxes, 5 wide, only when geometry was asked for.
+        charBoxes: request.args.geometry ? page.text.split("").map((_c, at) => ({ x: at * 5, y: 20, width: 5, height: 8 })) : [],
+      }));
+      return { ok: true, operation: "text", pageCount: pages.length, pages: slice };
     });
+  }
+  const textCalls = (call: ReturnType<typeof textEngine>) => call.mock.calls
+    .map(([, payload]) => payload as { operation: string; args: { pageIndex: number; pageLimit: number; geometry: boolean } })
+    .filter((payload) => payload.operation === "text")
+    .map((payload) => ({ pageIndex: payload.args.pageIndex, pageLimit: payload.args.pageLimit, geometry: payload.args.geometry }));
+
+  it("searches the engine text layer and returns per-line quads so find paints on desktop (F-13)", async () => {
+    const call = textEngine([{ text: "Bao cao tong hop" }]);
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     expect(surface.searchText).toBeTypeOf("function");
     const hits = await surface.searchText!("Bao cao");
     expect(hits).toEqual([{ id: "1:0", page: 1, start: 0, end: 7, text: "Bao cao", quads: [[0, 72, 35, 80]] }]);
-    // The engine read the text layer for this document, not the render lane.
     const textCall = call.mock.calls.find(([, payload]) => (payload as { operation: string }).operation === "text")!;
     expect(textCall[1]).toMatchObject({ operation: "text", handle: "doc-1" });
     expect(await surface.searchText!("   ")).toEqual([]);
     expect(await surface.searchText!("absent")).toEqual([]);
   });
 
-  it("reads the engine text layer once per generation and drops the cache after an edit", async () => {
-    const call = vi.fn(async (_channel: string, payload: unknown) => {
-      const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
-      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64") };
-      return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "alpha", charBoxes: [{ x: 0, y: 0, width: 1, height: 1 }] }] };
-    });
+  it("walks the text layer in 16-page chunks and requests geometry only for pages with a hit", async () => {
+    const pages = Array.from({ length: 20 }, (_, index) => ({ text: index === 0 ? "alpha beta" : index === 17 ? "beta again beta" : "gamma" }));
+    const call = textEngine(pages);
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const hits = await surface.searchText!("beta");
+    expect(hits.map((hit) => hit.id)).toEqual(["1:6", "18:0", "18:11"]);
+    expect(hits.every((hit) => hit.quads !== undefined)).toBe(true);
+    expect(textCalls(call)).toEqual([
+      { pageIndex: 0, pageLimit: 16, geometry: false },
+      { pageIndex: 0, pageLimit: 1, geometry: true },
+      { pageIndex: 16, pageLimit: 16, geometry: false },
+      { pageIndex: 17, pageLimit: 1, geometry: true },
+    ]);
+  });
+
+  it("reuses both caches within a generation and drops them after an edit", async () => {
+    const call = textEngine([{ text: "alpha" }, { text: "alpha two" }]);
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     await surface.searchText!("alpha");
     await surface.searchText!("alpha");
-    const textReads = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "text").length;
-    expect(textReads()).toBe(1);
+    // One text chunk plus one geometry read per hit page, read once.
+    expect(textCalls(call)).toHaveLength(3);
     await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
     await surface.searchText!("alpha");
-    expect(textReads()).toBe(2);
+    expect(textCalls(call)).toHaveLength(6);
   });
 
-  it("reports no hits when the engine answers a password wall on the text channel", async () => {
+  it("encodes the document once per generation, not once per engine call", async () => {
+    const call = textEngine([{ text: "alpha" }, { text: "alpha two" }]);
+    const encode = vi.spyOn(globalThis, "btoa");
+    try {
+      const surface = createDesktopPdfSurface(settings(call));
+      await surface.open();
+      await surface.searchText!("alpha");
+      await surface.searchText!("alpha two");
+      // open encodes once; the three text calls reuse that string.
+      expect(encode).toHaveBeenCalledTimes(1);
+      await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+      const afterEdit = encode.mock.calls.length;
+      await surface.searchText!("alpha");
+      // The edit swapped the bytes, so the next generation encodes at most once more.
+      expect(encode.mock.calls.length - afterEdit).toBeLessThanOrEqual(1);
+    } finally {
+      encode.mockRestore();
+    }
+  });
+
+  it("does not poison the cache with a failed chunk read and retries it on the next query", async () => {
+    const failures = { remaining: 0 };
+    const call = textEngine([{ text: "alpha" }, { text: "alpha" }], failures);
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    failures.remaining = 1;
+    // The only chunk fails and is skipped; nothing is found.
+    expect(await surface.searchText!("alpha")).toEqual([]);
+    expect((await surface.searchText!("alpha")).map((hit) => hit.id)).toEqual(["1:0", "2:0"]);
+  });
+
+  it("still reports a hit, without quads, when the geometry read fails or is empty", async () => {
+    let geometryAnswers = 0;
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string; args: { geometry?: boolean } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.args.geometry) {
+        geometryAnswers += 1;
+        if (geometryAnswers === 1) throw new Error("geometry down");
+      }
+      return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "alpha", charBoxes: [] }] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    expect(await surface.searchText!("alpha")).toEqual([{ id: "1:0", page: 1, start: 0, end: 5, text: "alpha" }]);
+    expect(await surface.searchText!("alpha")).toEqual([{ id: "1:0", page: 1, start: 0, end: 5, text: "alpha" }]);
+  });
+
+  it("discards a search that an edit overtook instead of writing stale pages into the new caches", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string; args: { pageIndex?: number } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 20 }, pageSizes: [] };
+      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: Buffer.from(PDF_BYTES).toString("base64") };
+      if (request.args.pageIndex === 0) await gate;
+      return { ok: true, operation: "text", pageCount: 20, pages: [{ page: (request.args.pageIndex ?? 0) + 1, width: 100, height: 100, text: "alpha", charBoxes: [] }] };
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const stale = surface.searchText!("alpha");
+    await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+    release?.();
+    expect(await stale).toEqual([]);
+    const textReads = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "text").length;
+    const before = textReads();
+    // The fresh generation reads the first chunk again instead of reusing the stale entry.
+    await surface.searchText!("alpha");
+    expect(textReads()).toBeGreaterThan(before);
+  });
+
+  it("stops the walk at the first password wall and retries on the next query", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 40 } };
       return { ok: false, error: { kind: "password", status: "required" } };
     });
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     await expect(surface.searchText!("anything")).resolves.toEqual([]);
+    const textReads = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "text").length;
+    // 40 pages is three chunks; the wall on the first one ends the query.
+    expect(textReads()).toBe(1);
+    await surface.searchText!("anything");
+    expect(textReads()).toBe(2);
+  });
+
+  describe("form and saved-note facets (R18-2)", () => {
+    /** A one-page PDF with a text form field and a /Text note annotation, with real xref offsets. */
+    function formAndNotePdf(fieldValue = "hello"): Uint8Array {
+      const objects = [
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R 5 0 R] >>",
+        "<< /Type /Annot /Subtype /Text /Rect [10 20 34 44] /Contents (Ghi chu) /T (Lan) >>",
+        `<< /Type /Annot /Subtype /Widget /FT /Tx /T (fullName) /V (${fieldValue}) /Rect [50 50 150 70] /P 3 0 R >>`,
+      ];
+      let body = "%PDF-1.7\n";
+      const offsets: number[] = [];
+      objects.forEach((object, index) => { offsets.push(body.length); body += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+      const xref = body.length;
+      body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`;
+      body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+      return Uint8Array.from(Buffer.from(body, "latin1"));
+    }
+    const openWith = async (bytes: Uint8Array, editedBytes?: Uint8Array) => {
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as { operation: string };
+        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 200, height: 200 }] };
+        return { ok: true, operation: "edit", dataBase64: Buffer.from(editedBytes ?? bytes).toString("base64") };
+      });
+      const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => bytes }));
+      await surface.open();
+      return { surface, call };
+    };
+
+    it("reads the real form fields of the current bytes without an IPC call", async () => {
+      const { surface, call } = await openWith(formAndNotePdf());
+      expect(surface.readFormFields).toBeTypeOf("function");
+      const before = call.mock.calls.length;
+      expect(await surface.readFormFields!()).toMatchObject([{ name: "fullName", kind: "text", value: "hello" }]);
+      expect(call.mock.calls.length).toBe(before);
+    });
+
+    it("reads saved note threads as bound rows", async () => {
+      const { surface } = await openWith(formAndNotePdf());
+      const threads = await surface.readSavedNotes!();
+      expect(threads).toHaveLength(1);
+      expect(threads[0]!.root).toMatchObject({ page: 1, pageIndex: 0, rect: [10, 20, 34, 44], contents: "Ghi chu", author: "Lan", binding: "bound" });
+      expect(threads[0]!.replies).toEqual([]);
+    });
+
+    it("reflects the bytes after an edit", async () => {
+      const { surface } = await openWith(formAndNotePdf("hello"), formAndNotePdf("changed"));
+      await surface.submitEngineOperations!([{ op: "setFormValue", field: { name: "fullName", kind: "text", value: "changed" } }]);
+      expect(await surface.readFormFields!()).toMatchObject([{ name: "fullName", value: "changed" }]);
+    });
+
+    it("degrades to empty lists for bytes the reader cannot parse instead of throwing", async () => {
+      const { surface } = await openWith(PDF_BYTES);
+      await expect(surface.readFormFields!()).resolves.toEqual([]);
+      await expect(surface.readSavedNotes!()).resolves.toEqual([]);
+      await surface.dispose();
+      await expect(surface.readFormFields!()).resolves.toEqual([]);
+    });
   });
 });
