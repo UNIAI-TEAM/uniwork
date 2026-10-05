@@ -43,13 +43,13 @@ it("shows the decoded text of a read-only .md instead of a bare capability notic
 const printLabel = () => i18n.t("office.markdown.print.title");
 const openMenu = () => { const trigger = document.querySelector("[data-office-document-menu]") as HTMLElement; fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" }); fireEvent.click(trigger); };
 
-it.each([["md", "# Một\n"], ["html", "<p>Hai</p>"]] as const)("prints the current %s text through the sandboxed print path", async (format, source) => {
+it.each([["md", "# Một\n"], ["html", "<p>Hai</p>"]] as const)("prints the current %s text through the main-process print channel", async (format, source) => {
   printTextDocument.mockResolvedValue({ outcome: "printed" });
   const { session } = mount(format, source);
   await screen.findByTestId(format === "md" ? "md-editor" : "html-editor", {}, { timeout: 15000 });
   openMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
-  await waitFor(() => expect(printTextDocument).toHaveBeenCalledWith(format, session.editor.getText?.(), `Doc.${format}`));
+  await waitFor(() => expect(printTextDocument).toHaveBeenCalledWith(expect.objectContaining({ call: expect.any(Function) }), format, session.editor.getText?.(), `Doc.${format}`));
   expect(screen.queryByRole("alert")).toBeNull();
 });
 

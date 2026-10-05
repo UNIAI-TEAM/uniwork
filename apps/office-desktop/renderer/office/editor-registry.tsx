@@ -5,6 +5,7 @@ import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { ByteDocumentSession } from "./session";
 import type { DesktopDocxSurface } from "./docx-surface";
+import type { DesktopPrintBridge } from "./text-print";
 
 export interface DesktopEditorLoaderConfig {
   documentKey: string;
@@ -13,6 +14,8 @@ export interface DesktopEditorLoaderConfig {
   capability: OfficeCapabilityEntry;
   /** Bumped by a recovered draft so the lane remounts its editor surface. */
   surfaceVersion: number;
+  /** The typed print call the Markdown/HTML lane hands its print port. */
+  printBridge?: DesktopPrintBridge;
 }
 
 /** Format lane loaders, one entry per format. The slot asks for the opened

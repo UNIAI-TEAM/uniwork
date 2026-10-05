@@ -66,56 +66,53 @@ it("builds the copy through the shared sanitizer, not a local mirror", () => {
   expect(sanitize).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ csp: viewsMarkdown.PRINT_COPY_CSP }));
 });
 
-function stubFrame(print: () => void) {
-  const view = { focus: vi.fn(), print: vi.fn(print), document: { title: "" } };
-  const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockReturnValue(view as unknown as Window);
-  const seen: { sandbox?: string | null; srcdoc?: string | null; frame?: HTMLIFrameElement } = {};
-  const append = document.body.append.bind(document.body);
-  vi.spyOn(document.body, "append").mockImplementation((...nodes: (Node | string)[]) => {
-    const frame = nodes[0] as HTMLIFrameElement;
-    seen.frame = frame; seen.sandbox = frame.getAttribute("sandbox"); seen.srcdoc = frame.getAttribute("srcdoc");
-    append(...nodes);
-    queueMicrotask(() => frame.dispatchEvent(new Event("load")));
-  });
-  return { view, seen, contentWindow };
+function stubBridge(answer: () => Promise<unknown>) {
+  const call = vi.fn((_channel: "desktop:print-document", _payload: { sessionGeneration: string; title: string; html: string }) => answer());
+  return { call };
 }
 
-it("prints the sanitized copy from a sandboxed frame and removes it", async () => {
-  const { view, seen } = stubFrame(() => undefined);
-  const result = await printTextDocument("md", hostileMd, "Doc.md");
+it("hands the sanitized copy to main over the typed print channel, never the source or an in-window frame", async () => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  const append = vi.spyOn(document.body, "append");
+  const result = await printTextDocument(bridge, "md", hostileMd, "Doc.md");
   expect(result).toEqual({ outcome: "printed" });
-  expect(seen.sandbox).toBe("allow-same-origin allow-modals");
-  expect(seen.srcdoc).toBe(buildDesktopPrintCopy("md", hostileMd));
-  expect(seen.srcdoc).not.toContain("# Title");
-  expect(view.print).toHaveBeenCalledTimes(1);
-  expect(view.document.title).toBe("Doc.md");
+  expect(bridge.call).toHaveBeenCalledTimes(1);
+  const [channel, payload] = bridge.call.mock.calls[0]!;
+  expect(channel).toBe("desktop:print-document");
+  expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Doc.md", html: buildDesktopPrintCopy("md", hostileMd) });
+  expect(payload.html).not.toContain("# Title");
+  expect(append).not.toHaveBeenCalled();
   expect(document.querySelector("iframe")).toBeNull();
 });
 
 it("routes the desktop path through the shared printMarkdownDocument flow", async () => {
-  stubFrame(() => undefined);
   const shared = vi.mocked(viewsMarkdown.printMarkdownDocument);
-  const result = await printTextDocument("html", hostileHtml, "Doc.html");
+  const result = await printTextDocument(stubBridge(async () => ({ outcome: "printed" })), "html", hostileHtml, "Doc.html");
   expect(result).toEqual({ outcome: "printed" });
   expect(shared).toHaveBeenCalledTimes(1);
   expect(shared).toHaveBeenCalledWith(expect.objectContaining({ title: "Doc.html", csp: viewsMarkdown.PRINT_COPY_CSP }));
 });
 
-it("returns a typed failure when the port throws, and still removes the frame", async () => {
-  stubFrame(() => { throw new Error("boom"); });
-  expect(await printTextDocument("html", hostileHtml, "Doc.html")).toEqual({ outcome: "failed", reason: "boom" });
-  expect(document.querySelector("iframe")).toBeNull();
+it.each([
+  [{ outcome: "cancelled" }, { outcome: "cancelled" }],
+  [{ outcome: "failed", reason: "print_no_printer" }, { outcome: "failed", reason: "print_no_printer" }],
+  [{ outcome: "printed", extra: 1 }, { outcome: "failed", reason: "print_response_invalid" }],
+  [undefined, { outcome: "failed", reason: "print_response_invalid" }],
+] as const)("maps main's answer %j to %j", async (answer, expected) => {
+  expect(await printTextDocument(stubBridge(async () => answer), "html", "<p>x</p>", "t")).toEqual(expected);
 });
 
-it("fails typed when the frame has no contentWindow", async () => {
-  const { contentWindow } = stubFrame(() => undefined);
-  contentWindow.mockReturnValue(null);
-  expect(await printTextDocument("html", "<p>x</p>", "t")).toEqual({ outcome: "failed", reason: "print_frame_unavailable" });
-  expect(document.querySelector("iframe")).toBeNull();
+it("returns a typed failure when the channel is refused", async () => {
+  expect(await printTextDocument(stubBridge(async () => { throw new Error("IPC payload exceeds the byte limit"); }), "html", hostileHtml, "Doc.html")).toEqual({ outcome: "failed", reason: "IPC payload exceeds the byte limit" });
 });
 
-it("exposes a MarkdownPrintPort whose failure is a typed failed outcome", async () => {
-  const port = createDesktopPrintPort();
-  vi.spyOn(document.body, "append").mockImplementation(() => { throw new Error("append_denied"); });
-  expect(await port.print({ html: "<p>x</p>", title: "t" })).toEqual({ outcome: "failed", reason: "append_denied" });
+it("fails typed, not silently, without a bridge", async () => {
+  expect(await printTextDocument(undefined, "html", "<p>x</p>", "t")).toEqual({ outcome: "failed", reason: "print_unavailable" });
+  expect(await createDesktopPrintPort(undefined).print({ html: "<p>x</p>", title: "t" })).toEqual({ outcome: "failed", reason: "print_unavailable" });
+});
+
+it("caps the title at the channel limit", async () => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  await createDesktopPrintPort(bridge).print({ html: "<p>x</p>", title: "a".repeat(400) });
+  expect(bridge.call.mock.calls[0]![1].title).toHaveLength(255);
 });

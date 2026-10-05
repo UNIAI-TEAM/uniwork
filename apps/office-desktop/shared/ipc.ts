@@ -39,6 +39,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:office-open",
   "desktop:office-save",
   "desktop:leave-resolved",
+  "desktop:print-document",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
@@ -212,6 +213,16 @@ export const desktopDiagnosticsResponseSchema = z.object({
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
 export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
+/** Desktop print of an already-sanitized Markdown/HTML copy. The renderer
+ * sends only the shared sanitizer's output; main prints it from a separate
+ * hidden window with JavaScript off, so the cap only bounds memory. */
+export const PRINT_HTML_MAX_BYTES = 16 * 1024 * 1024;
+export const desktopPrintResponseSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("printed") }).strict(),
+  z.object({ outcome: z.literal("cancelled") }).strict(),
+  z.object({ outcome: z.literal("failed"), reason: z.string().regex(/^[a-z0-9_]{1,64}$/) }).strict(),
+]);
+export type DesktopPrintResponse = z.infer<typeof desktopPrintResponseSchema>;
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
@@ -240,6 +251,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:office-open": desktopOfficeOpenResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
   "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
+  "desktop:print-document": desktopPrintResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
@@ -295,6 +307,7 @@ const requestSchemas = {
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
+  "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES) }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };
@@ -350,7 +363,7 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   // Office saves and engine calls carry the serialized document in the same
   // bounded byte class as local-file and draft payloads. Keep the remaining
   // control calls at the smaller limit.
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : channel === "desktop:print-document" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {

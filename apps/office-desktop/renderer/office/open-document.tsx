@@ -67,16 +67,16 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack, act
     ipc: { call: async () => { throw new Error("host_operation_unbound"); }, send: () => undefined, subscribe: () => () => undefined },
   }), [identity.documentId, session]);
   const loadEditor = useMemo<OfficeEditorLoader<Uint8Array>>(() => async (requestedFormat) => {
-    const loader = desktopEditorLoader(requestedFormat as DesktopDocumentFormat, { documentKey, title: effectiveTitle, session, capability, surfaceVersion });
+    const loader = desktopEditorLoader(requestedFormat as DesktopDocumentFormat, { documentKey, title: effectiveTitle, session, capability, surfaceVersion, printBridge: bridge });
     if (!loader) throw new Error("desktop_surface_unbound");
     return loader(requestedFormat);
-  }, [capability, documentKey, session, effectiveTitle, surfaceVersion]);
+  }, [bridge, capability, documentKey, session, effectiveTitle, surfaceVersion]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [active, bridge, documentKey, ready, session]);
   const printText = async () => {
     setActionFailed(false);
     const text = session.editor.getText?.();
     if ((format !== "md" && format !== "html") || text === undefined) { setActionFailed(true); return; }
-    const result = await printTextDocument(format, text, effectiveTitle);
+    const result = await printTextDocument(bridge, format, text, effectiveTitle);
     if (result.outcome === "failed") setActionFailed(true);
   };
   const saveAs = async () => {
