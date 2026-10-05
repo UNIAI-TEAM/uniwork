@@ -459,6 +459,8 @@ async function startElectronHost(): Promise<void> {
   });
   const printRoot = join(app.getPath("temp"), "uniwork-print");
   installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
+  // A process that quit with a print dialog open never ran its cleanup.
+  await rm(printRoot, { recursive: true, force: true }).catch(() => undefined);
   // Each print gets its own private directory; the hidden window loads only that file.
   const writePrintFile = async (html: string, fileName: string): Promise<PrintFile> => {
     await mkdir(printRoot, { recursive: true });
