@@ -168,7 +168,9 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
             type="button"
             variant="toolbar"
             size="sm"
-            className="h-6 w-[116px] justify-between rounded-sm border border-input bg-background px-1.5 font-normal pointer-coarse:h-11"
+            // w-29 is the spacing-scale spelling of the 116px picker width
+            // (29 * 0.25rem = 7.25rem), so the rendered width is unchanged.
+            className="h-6 w-29 justify-between rounded-sm border border-input bg-background px-1.5 font-normal pointer-coarse:h-11"
             title={t("office.xlsx.commands.numberFormat")}
             aria-label={t("office.xlsx.commands.numberFormat")}
             aria-disabled={blocked || undefined}

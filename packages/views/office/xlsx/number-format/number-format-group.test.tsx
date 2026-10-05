@@ -230,6 +230,16 @@ describe("number quick formats", () => {
   });
 });
 
+describe("number format picker width", () => {
+  it("spells the picker width on the spacing scale, not an arbitrary pixel value", () => {
+    render(<XlsxNumberFormatGroup {...groupProps()} />);
+    // w-29 = 29 * 0.25rem = 116px, the width the picker opened with.
+    const trigger = screen.getByTestId("xlsx-number-format-trigger");
+    expect(trigger.className).toContain("w-29");
+    expect(trigger.className).not.toContain("w-[116px]");
+  });
+});
+
 describe("number group registry seam", () => {
   it("keeps the Home number entry on typed ribbon items", () => {
     const entry = XLSX_TOOLBAR_GROUPS.find((group) => group.id === "number");

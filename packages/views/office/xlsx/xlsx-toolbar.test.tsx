@@ -253,6 +253,14 @@ describe("XlsxToolbar on the shared ribbon", () => {
     expect(props.coordinator).not.toHaveProperty("writeBytes");
   });
 
+  it("spells the Cells menu width on the spacing scale, not an arbitrary pixel value", () => {
+    renderToolbar({ commands: { execute: vi.fn(() => true) } });
+    // min-w-22 = 22 * 0.25rem = 88px, the floor the menus opened with.
+    const trigger = screen.getByTestId("xlsx-cells-insert-trigger");
+    expect(trigger.className).toContain("min-w-22");
+    expect(trigger.className).not.toContain("min-w-[88px]");
+  });
+
   it("routes the View tab display toggles through the port with their command ids", () => {
     const execute = vi.fn(() => true);
     renderToolbar({ commands: { execute } });

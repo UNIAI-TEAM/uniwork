@@ -11,7 +11,9 @@ import { selectionSpan } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
 import type { XlsxToolbarGroupProps } from "./types";
 
-const MENU_BUTTON_CLASS = "h-6 w-auto min-w-[88px] justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
+// min-w-22 is the spacing-scale spelling of the 88px floor the Cells menus
+// opened with (22 * 0.25rem = 5.5rem), so the rendered width is unchanged.
+const MENU_BUTTON_CLASS = "h-6 w-auto min-w-22 justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
 
 interface CellsMenuEntry {
   readonly id: string;
