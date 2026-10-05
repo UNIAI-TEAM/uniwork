@@ -10,7 +10,7 @@ import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from 
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { desktopLocalDocumentFormats, desktopFormatProfile, formatFromFilename, isLocalDocumentFormat } from "./shared/document-format";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
-import { createLocalXlsxEngine } from "./main/xlsx-engine";
+import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
 import { registerAppImageScheme } from "./main/linux-desktop-integration";
@@ -491,7 +491,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: process.env.UNIWORK_XLSX_ASSETS }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         // Derive the filter from the local-format seam so C1b flips xlsx local
         // without another dialog sweep; "Files" still lets the user see anything.

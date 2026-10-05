@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,6 +23,10 @@ const packageBundle = join(appDirectory, "scripts", `.package.test.bundle.${proc
 await build({ entryPoints: [join(appDirectory, "scripts", "package.mjs")], bundle: true, platform: "node", format: "esm", packages: "external", outfile: packageBundle, logLevel: "silent" });
 process.on("exit", () => { try { rmSync(packageBundle, { force: true }); } catch { /* best effort */ } });
 const { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } = await import(pathToFileURL(packageBundle).href);
+
+// The staging module is loaded directly (it has no TS imports, unlike
+// package.mjs) so the staging contract is asserted on the real implementation.
+const { XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE, stageXlsxAssets, resolveXlsxAssetSources, xlsxSidecarFile } = await import(pathToFileURL(join(appDirectory, "scripts", "xlsx-assets.mjs")).href);
 
 function findBash() {
   for (const candidate of ["bash", "C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"]) {
@@ -293,6 +297,70 @@ test("the Linux docker build uses only a digest-pinned builder image", () => {
   assert.ok(script.includes("--exclude='*node_modules*'"));
 });
 
+test("the packaged config stages the xlsx engine assets as extra resources", () => {
+  for (const platform of ["win32", "darwin", "linux"]) {
+    const config = createPackagerConfig({ platform, arch: platform === "darwin" ? "arm64" : "x64", channel: "dev", version: "0.1.0-dev.42" });
+    const staged = config.extraResources.find((entry) => entry.to === XLSX_ASSETS_DIRECTORY);
+    assert.ok(staged, `${platform}: the xlsx assets dir must be staged`);
+    assert.match(staged.from.replaceAll("\\", "/"), new RegExp(`dist/${XLSX_ASSETS_DIRECTORY}$`), `${platform}: staged from dist/`);
+  }
+});
+
+test("staging copies the gateway (required) and records the sidecar's real state", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  const gatewayBody = "// gateway bundle\n";
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), gatewayBody);
+  try {
+    // No sidecar on the host: staging must still succeed (open/edit of a
+    // formula-free workbook needs only the gateway) and must NOT fake one.
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(result.sidecar, null);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE)));
+    assert.ok(!existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")), "a missing sidecar is never fabricated");
+    const manifest = JSON.parse(readFileSync(join(dist, XLSX_ASSETS_DIRECTORY, "staged-assets.json"), "utf8"));
+    assert.equal(manifest.sidecar, null);
+    assert.equal(manifest.gateway.bytes, statSync(join(buildDir, XLSX_GATEWAY_FILE)).size);
+    assert.match(manifest.gateway.sha256, /^[0-9a-f]{64}$/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("staging copies the platform sidecar when it has been built", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-native-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), "// gateway\n");
+  writeFileSync(join(buildDir, xlsxSidecarFile("win32")), "MZ-sidecar");
+  try {
+    const result = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(result.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("staging fails loudly with the build command when the gateway is missing", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-stage-missing-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  try {
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: {} }),
+      (error) => /xlsx gateway artifact is not staged/.test(error.message) && /build-upstream\.mjs --with-native/.test(error.message),
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the default staging source is the build-upstream scratch tree", () => {
+  const sources = resolveXlsxAssetSources({ repositoryRoot: "D:/repo", platform: "win32", environment: {} });
+  assert.equal(sources.explicit, false);
+  assert.equal(sources.gateway, undefined, "a checkout with no build scratch has no gateway");
+  assert.match(sources.buildDirectory.replaceAll("\\", "/"), /\.go-tmp\/office-upstream-build$/);
+});
 test("packaged asar location covers flat and macOS bundle layouts", () => {
   const root = mkdtempSync(join(tmpdir(), "uniwork-asar-layout-"));
   try {
