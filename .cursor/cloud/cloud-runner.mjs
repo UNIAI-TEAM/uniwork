@@ -6,10 +6,17 @@
 // writes a Markdown report and pulls the logs back.
 //
 //   node cloud-runner.mjs ensure  [--branch b] [--model m]
-//   node cloud-runner.mjs test    --spec file [--lane slug] [--shard name] [--out report.md] [--timeout s]
-//   node cloud-runner.mjs suite   --specs a.txt,b.txt,... [--lane slug] [--out-dir dir] [--timeout s]
+//   node cloud-runner.mjs test    --spec file [--lane slug] [--shard name] [--out report.md] [--timeout s] [--detach yes]
+//   node cloud-runner.mjs suite   --specs a.txt,b.txt,... [--lane slug] [--out-dir dir] [--timeout s] [--detach yes]
+//   node cloud-runner.mjs collect [--shard name | --all yes] [--timeout s]
 //   node cloud-runner.mjs status
 //   node cloud-runner.mjs close   [--lane slug] [--shard name | --all yes]
+//
+// A started round is recorded as `pending` in the state file before anything
+// waits on it, so the cloud run survives this machine going down: `collect`
+// (from the same worktree) waits for or reads that run, pulls its logs and
+// writes the report the interrupted `test` would have written. `--detach yes`
+// starts the round(s) and exits at once; collect them later.
 //
 // Run it from inside the worktree. State lives in that worktree's git dir
 // (cloud-runner.json, or cloud-runner.<shard>.json for a shard), so it
@@ -43,7 +50,7 @@ function modelSpec(text) {
   });
   return list.length ? { id, params: list } : { id };
 }
-const POLL_MS = 20_000;
+const POLL_MS = Number(process.env.CLOUD_RUNNER_POLL_MS || 20_000);
 
 // Refreshes the runner scripts from the environment branch, then hands the
 // whole round to run-tests.sh, so the agent makes one tool call per round.
@@ -55,7 +62,7 @@ const REFRESH = [
 
 function usage(msg) {
   if (msg) console.error(`cloud-runner: ${msg}`);
-  console.error("usage: cloud-runner.mjs ensure|test|suite|status|close [--branch b] [--spec f] [--specs a,b] [--lane s] [--shard n] [--out f] [--out-dir d] [--model m] [--timeout s] [--all yes]");
+  console.error("usage: cloud-runner.mjs ensure|test|suite|collect|status|close [--branch b] [--spec f] [--specs a,b] [--lane s] [--shard n] [--out f] [--out-dir d] [--model m] [--timeout s] [--all yes] [--detach yes]");
   process.exit(2);
 }
 
@@ -142,8 +149,8 @@ function laneSlug(opts, branch) {
   return opts.shard ? `${base}-${opts.shard}` : base;
 }
 
-async function waitRun(agentId, runId, timeoutS) {
-  const deadline = Date.now() + timeoutS * 1000;
+async function waitRun(agentId, runId, timeoutS, startedAt = Date.now()) {
+  const deadline = startedAt + timeoutS * 1000;
   for (;;) {
     const run = await api("GET", `/agents/${agentId}/runs/${runId}`);
     if (["FINISHED", "ERROR", "CANCELLED", "EXPIRED"].includes(run.status)) return run;
@@ -343,37 +350,83 @@ async function cmdTest(opts) {
     usage(`origin/${branch} is not at HEAD ${sha}; push the branch first`);
   }
   let state = loadState(opts.shard);
+  if (state?.pending) {
+    usage(`${shardName(opts.shard) || "default runner"} has an uncollected run ${state.pending.runId} (${state.pending.sha}); run collect first`);
+  }
   const lane = laneSlug(opts, branch);
   const spec = publishSpec(lane, sha, commands);
   const prompt = testPrompt({ branch, sha, lane, spec });
-  const before = (await agentAlive(state)) ? await costCents(state.agentId) : 0;
+  const alive = await agentAlive(state);
+  const before = alive ? await costCents(state.agentId) : 0;
   let agentId;
   let runId;
-  if (await agentAlive(state)) {
+  if (alive) {
     agentId = state.agentId;
     runId = await sendRun(agentId, prompt);
   } else {
     ({ agentId, runId } = await createAgent(branch, opts.model || DEFAULT_MODEL, prompt));
     state = { agentId, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
-    saveState(state, opts.shard);
   }
+  // Saved before any wait: this is what collect resumes after a crash or shutdown.
+  state.pending = {
+    runId, sha, branch, lane, specRef: spec.ref, costBefore: before,
+    out: resolve(opts.out || join("reports", lane, `cloud-test-${sha}.md`)),
+    timeoutS: Number(opts.timeout || 3600), startedAt: Date.now(),
+  };
+  saveState(state, opts.shard);
   console.log(`run ${runId} on ${agentId} for ${sha}`);
-  const run = await waitRun(agentId, runId, Number(opts.timeout || 3600));
+  if (opts.detach) {
+    console.log(`detached; collect later with: node ${process.argv[1]} collect${opts.shard ? ` --shard ${opts.shard}` : ""}`);
+    return 0;
+  }
+  return finishPending(state, opts.shard);
+}
+
+// Waits for the state's pending run (its own deadline counts from the start),
+// pulls the logs, writes the report and clears `pending`. Exit code as test.
+async function finishPending(state, shard, timeoutOverride) {
+  const p = state.pending;
+  const run = await waitRun(state.agentId, p.runId, Number(timeoutOverride || p.timeoutS), timeoutOverride ? Date.now() : p.startedAt);
   const rep = extractReport(run.result);
-  const after = await costCents(agentId);
-  const out = resolve(opts.out || join("reports", lane, `cloud-test-${sha}.md`));
+  const after = await costCents(state.agentId);
   let logsDir = null;
-  if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, out.replace(/\.md$/, ".logs"));
-  try { git("push", "-q", "origin", `:${spec.ref}`); } catch { /* best effort */ }
-  const valid = rep && String(rep.sha ?? "").slice(0, 7) === sha.slice(0, 7);
-  writeReport(out, {
-    lane, sha, branch, agentId, runId, runStatus: run.status, durationMs: run.durationMs,
-    costCents: after == null || before == null ? null : after - before, logsDir,
+  if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, p.out.replace(/\.md$/, ".logs"));
+  try { git("push", "-q", "origin", `:${p.specRef}`); } catch { /* best effort */ }
+  const valid = rep && String(rep.sha ?? "").slice(0, 7) === p.sha.slice(0, 7);
+  writeReport(p.out, {
+    lane: p.lane, sha: p.sha, branch: p.branch, agentId: state.agentId, runId: p.runId, runStatus: run.status,
+    durationMs: run.durationMs, costCents: after == null || p.costBefore == null ? null : after - p.costBefore, logsDir,
   }, valid ? rep : { ...(rep ?? {}), stage_outcome: "failed", test_verdict: "blocked",
     notes: `${rep ? `sha mismatch (${rep.sha})` : "no JSON report"}; run ${run.status}. ${rep?.notes ?? ""}` }, run.result);
-  console.log(`report: ${out}`);
+  console.log(`report: ${p.out}`);
+  state.last = { runId: p.runId, sha: p.sha, out: p.out, runStatus: run.status, verdict: valid ? rep.test_verdict : "blocked" };
+  delete state.pending;
+  saveState(state, shard);
   if (!valid || run.status !== "FINISHED" || rep.stage_outcome !== "succeeded") return 2;
   return rep.test_verdict === "pass" ? 0 : rep.test_verdict === "fail" ? 1 : 2;
+}
+
+// Resumes every pending run of this worktree (or one shard): waits if it is
+// still running, then reports. Exit code is the worst one (2 over 1 over 0).
+async function cmdCollect(opts) {
+  const targets = opts.all ? allStates() : [[shardName(opts.shard), statePath(opts.shard)]];
+  const names = ["pass", "fail", "blocked"];
+  const pending = targets.filter(([, p]) => existsSync(p) && JSON.parse(readFileSync(p, "utf8")).pending);
+  if (pending.length === 0) {
+    console.log("nothing to collect");
+    return 0;
+  }
+  const codes = await Promise.all(pending.map(async ([shard, p]) => {
+    const state = JSON.parse(readFileSync(p, "utf8"));
+    console.log(`[${shard || "default"}] collecting ${state.pending.runId} (${state.pending.sha})`);
+    const code = await finishPending(state, shard, opts.timeout).catch((e) => {
+      console.error(`[${shard || "default"}] ${e.message}`);
+      return 2;
+    });
+    console.log(`[${shard || "default"}] ${names[code] ?? "blocked"} -> ${state.pending?.out ?? state.last?.out}`);
+    return code;
+  }));
+  return codes.includes(2) ? 2 : codes.includes(1) ? 1 : 0;
 }
 
 async function cmdStatus() {
@@ -431,13 +484,18 @@ async function cmdSuite(opts) {
   const results = await Promise.all(shards.map(({ spec, shard }) => new Promise((done) => {
     const out = join(outDir, `cloud-suite-${sha}-${shard}.md`);
     const args = [process.argv[1], "test", "--spec", spec, "--shard", shard, "--out", out];
-    for (const k of ["lane", "timeout", "model"]) if (opts[k]) args.push(`--${k}`, opts[k]);
+    for (const k of ["lane", "timeout", "model", "detach"]) if (opts[k]) args.push(`--${k}`, opts[k]);
     const started = Date.now();
     const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.on("data", (d) => process.stdout.write(`[${shard}] ${d}`));
     child.stderr.on("data", (d) => process.stderr.write(`[${shard}] ${d}`));
     child.on("close", (code) => done({ shard, spec, out, code: code ?? 2, seconds: Math.round((Date.now() - started) / 1000) }));
   })));
+  if (opts.detach) {
+    const failed = results.filter((r) => r.code !== 0);
+    console.log(`suite: ${results.length - failed.length} shard(s) started detached; collect later with: node ${process.argv[1]} collect --all yes`);
+    return failed.length ? 2 : 0;
+  }
   const worst = results.some((r) => r.code !== 0 && r.code !== 1) ? 2 : results.some((r) => r.code === 1) ? 1 : 0;
   const rows = results.map((r) =>
     `| ${r.shard} | \`${r.spec}\` | ${names[r.code] ?? "blocked"} (exit ${r.code}) | ${r.seconds} | [report](${basename(r.out)}) |`).join("\n");
@@ -457,7 +515,7 @@ ${rows}
 }
 
 const { cmd, opts } = parseArgs(process.argv.slice(2));
-const handlers = { ensure: cmdEnsure, test: cmdTest, suite: cmdSuite, status: cmdStatus, close: cmdClose };
+const handlers = { ensure: cmdEnsure, test: cmdTest, suite: cmdSuite, collect: cmdCollect, status: cmdStatus, close: cmdClose };
 if (!handlers[cmd]) usage(cmd ? `unknown command ${cmd}` : undefined);
 handlers[cmd](opts).then((code) => process.exit(code), (e) => {
   console.error(`cloud-runner: ${e.message}`);

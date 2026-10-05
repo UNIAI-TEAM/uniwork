@@ -78,3 +78,23 @@ repository root. The report separates `stage_outcome` from `test_verdict`,
 records the run's cost, and the logs come back from
 `refs/test-results/<lane>/<sha>` beside the report. Exit codes: 0 pass,
 1 tests failed, 2 blocked or runner error.
+
+### Surviving a local shutdown
+
+The cloud run does not depend on this machine. `test` records the round as
+`pending` in the state file before it waits, so if the local process dies
+(shutdown, crash, closed terminal) the round keeps running on the VM and
+`collect` finishes the job later from the same worktree: it waits if the run is
+still going, pulls the logs and writes the same report to the same `--out`.
+`--detach yes` on `test` or `suite` starts the round(s) and exits at once.
+`test` refuses to start while that shard still has an uncollected run.
+
+```bash
+node <this dir>/cloud-runner.mjs suite --specs ts.txt,go.txt --lane g3g4-root --out-dir reports/root --detach yes
+# ... machine off and on again ...
+node <this dir>/cloud-runner.mjs collect --all yes   # or --shard <name>; exit code = worst shard
+```
+
+`collect` writes each shard's report but not the suite summary. The run's
+`--timeout` still counts from its start; `collect --timeout s` gives a fresh
+wait instead.
