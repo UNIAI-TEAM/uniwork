@@ -64,8 +64,8 @@ function statusLabel(status: AssetStatus, t: (key: string) => string): string {
   return t("asset.failed");
 }
 
-function AssetManifestPanel({ manifest, failures }: { manifest: AssetManifestLike; failures?: Readonly<Record<string, AssetStatus | boolean>> }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
+/** Every row the asset panel would show: manifest entries plus host failures. */
+function assetPanelRows(manifest: AssetManifestLike, failures?: Readonly<Record<string, AssetStatus | boolean>>) {
   const rows = assetManifestRows(manifest);
   const extra = Object.entries(failures ?? {}).map(([path, status]) => ({
     path,
@@ -73,12 +73,14 @@ function AssetManifestPanel({ manifest, failures }: { manifest: AssetManifestLik
     status: status === true || status === false ? "failed" as const : status,
     reason: null,
   }));
-  if (rows.length === 0 && extra.length === 0) {
-    return <p className="p-3 text-caption text-muted-foreground" data-testid="asset-manifest-empty">{t("asset.empty")}</p>;
-  }
+  return [...rows, ...extra];
+}
+
+function AssetManifestPanel({ rows }: { rows: ReturnType<typeof assetPanelRows> }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
   return (
     <ul className="divide-y divide-border" data-testid="asset-manifest">
-      {[...rows, ...extra].map((row, index) => (
+      {rows.map((row, index) => (
         <li className="flex min-w-0 items-center justify-between gap-2 px-3 py-2 text-caption" key={`${row.path}-${index}`}>
           <span className="min-w-0 truncate font-mono" title={row.path}>{row.path}</span>
           <span className={cn("shrink-0", row.status === "ready" ? "text-muted-foreground" : "text-destructive")}>
@@ -122,6 +124,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   // the press came from inside the landmark and take focus back when it did.
   const rootRef = useRef<HTMLElement | null>(null);
   const restoreFocusRef = useRef(false);
+  const savedGenerationRef = useRef(0);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
   const coordinatorRef = useRef(coordinator);
@@ -141,6 +144,14 @@ export function HtmlEditor<TSnapshot = unknown>({
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
   const saving = coordinatorState.state === "saving";
   const blockedAsset = hasFailedAsset(manifest, assetFailures);
+  // M-2/F9: the rows the asset band would draw. An empty manifest draws no
+  // band at all, so the surface never stacks a second full-width row above the
+  // status bar.
+  const assetRows = assetPanelRows(manifest, assetFailures);
+  // M-8: the generation the coordinator last committed. A checkpoint request
+  // must never write a draft for content a successful save already cleared, or
+  // reopening the document right after a save offers a stale draft.
+  savedGenerationRef.current = coordinatorState.lastSavedGeneration;
 
   useEffect(() => {
     setCoordinatorState(coordinator.getState());
@@ -211,6 +222,10 @@ export function HtmlEditor<TSnapshot = unknown>({
   // H1 suppresses the IME window itself, so no composition gate is needed here
   // (the earlier composingRef was never assigned).
   const checkpoint = useCallback(() => {
+    // A save already committed this generation: checkpointing here would
+    // recreate the draft the successful save just cleared, and the next open
+    // would offer it back (M-8).
+    if (editorRef.current.getDirtyGeneration() <= savedGenerationRef.current) return;
     void coordinatorRef.current.checkpoint?.();
   }, []);
   // H1 reports a committed edit through onChange AND onCheckpoint; checkpointing
@@ -232,7 +247,11 @@ export function HtmlEditor<TSnapshot = unknown>({
     checkpoint();
   }, [checkpoint, markDirty]);
   const cycleView = useCallback(() => {
-    restoreFocusRef.current = rootRef.current?.contains(document.activeElement) ?? false;
+    // A mode change can unmount the pane that held focus, and the preview
+    // iframe or a click on the canvas can leave focus outside the landmark
+    // entirely. Ask for the landmark back unconditionally; the effect below
+    // only moves focus when it actually fell out.
+    restoreFocusRef.current = true;
     setViewMode((mode) => nextViewMode(mode));
   }, []);
   // After the mode settles, return focus to the landmark when the pane that
@@ -244,6 +263,22 @@ export function HtmlEditor<TSnapshot = unknown>({
     if (!root || root.contains(document.activeElement)) return;
     root.focus();
   }, [viewMode]);
+  // The section owns Ctrl+\ only while focus is inside it. When focus sits
+  // outside the landmark (the preview iframe, the present overlay, a canvas
+  // click) the keydown never reaches the section and the press is lost, so the
+  // cycle appears to need two presses. This window listener covers exactly that
+  // gap; a press inside the landmark still runs the section handler alone.
+  useEffect(() => {
+    const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.code !== "Backslash") return;
+      const target = event.target;
+      if (target instanceof Node && rootRef.current?.contains(target)) return;
+      event.preventDefault();
+      cycleView();
+    };
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => window.removeEventListener("keydown", onWindowKeyDown);
+  }, [cycleView]);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -324,10 +359,15 @@ export function HtmlEditor<TSnapshot = unknown>({
             />
           }
           bottom={
-            <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="html-assets">
-              <AssetManifestPanel manifest={manifest} failures={assetFailures} />
-              {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
-            </aside>
+            // F9: ONE band. With no asset rows and no failures the aside is
+            // absent entirely, so the status bar is the only full-width row
+            // under the canvas instead of a second empty one.
+            assetRows.length === 0 ? undefined : (
+              <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="html-assets">
+                <AssetManifestPanel rows={assetRows} />
+                {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
+              </aside>
+            )
           }
           /*
             F1/F8: the status bar lives in the frame's own `statusBar` slot, so

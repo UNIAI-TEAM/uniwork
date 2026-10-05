@@ -522,11 +522,94 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(bars).toHaveLength(1);
     expect(bars[0]!.parentElement).toBe(frame);
     expect(frame.querySelector("[data-office-canvas]")).not.toContainElement(bars[0] as HTMLElement);
-    // Ordering (B2): the assets `bottom` slot paints ABOVE the status bar, so
-    // the bar is the bottom-most row of the frame - never the other way round.
+    // Ordering (B2): when an asset band exists it paints ABOVE the status bar,
+    // so the bar is the bottom-most row of the frame - never the other way
+    // round.
     const assets = screen.getByTestId("html-assets");
     expect(assets.compareDocumentPosition(bars[0] as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(frame.lastElementChild).toBe(bars[0]);
+  });
+
+  it("draws ONE status band: no empty asset row above it (M-2/F9)", async () => {
+    // The visual END report saw an "asset-manifest-empty" row stacked above the
+    // status row. With no manifest entries and no failures the aside must not
+    // render at all, so the status bar is the only band under the canvas.
+    let source = SOURCE;
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    const { container } = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    expect(screen.queryByTestId("html-assets")).toBeNull();
+    expect(screen.queryByTestId("asset-manifest-empty")).toBeNull();
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+  });
+
+  it("keeps the asset band when the manifest has rows (M-2/F9)", async () => {
+    const { container } = await renderReady();
+    // The default handle reports one manifest entry, so the band stays.
+    const assets = screen.getByTestId("html-assets");
+    const bars = container.querySelectorAll("[data-office-status-bar]");
+    expect(bars).toHaveLength(1);
+    expect(assets.compareDocumentPosition(bars[0] as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("asset-manifest-empty")).toBeNull();
+  });
+
+  it("advances one mode per Ctrl+\\ from EVERY mode, including a double preview (M-7)", async () => {
+    // The visual report: source -> split -> preview -> preview -> source, i.e.
+    // a press was lost. A press must always step one mode, whatever holds
+    // focus - inside the landmark, on <body>, or on the preview pane.
+    const { container } = await renderReady();
+    const view = () => screen.getByTestId("html-shell").getAttribute("data-html-view");
+    const section = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    const press = (target: Element | Window | Document) => fireEvent.keyDown(target, { key: "\\", code: "Backslash", ctrlKey: true });
+    expect(view()).toBe("split");
+    // Press with focus parked OUTSIDE the landmark (the preview iframe case).
+    (document.activeElement as HTMLElement | null)?.blur();
+    press(document.body);
+    expect(view()).toBe("preview");
+    // A second press with focus still outside must not be swallowed.
+    press(document.body);
+    expect(view()).toBe("present");
+    press(document.body);
+    expect(view()).toBe("source");
+    press(section);
+    expect(view()).toBe("split");
+  });
+
+  it("clears the draft offer after a successful save (M-8)", async () => {
+    // Reloading within ~4 s of a successful save offered a stale draft. The
+    // surface must not request a checkpoint for a generation the coordinator
+    // already committed, so nothing recreates the cleared draft.
+    let source = SOURCE;
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [{ path: "a.png", assetId: "asset-a" }] }),
+    };
+    // A coordinator whose last save already covers generation 1.
+    let listener: ((state: ReturnType<typeof makeCoordinator>["getState"] extends () => infer S ? S : never) => void) | null = null;
+    const base = makeCoordinator();
+    const state = { ...base.getState(), state: "saved" as const, dirtyGeneration: 1, lastSavedGeneration: 1 };
+    const coordinator = {
+      ...base,
+      getState: () => state,
+      subscribe: (next: (value: typeof state) => void) => { listener = next as never; return () => { listener = null; }; },
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    const section = document.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    // An undo at the saved generation must not mint a fresh draft checkpoint.
+    fireEvent.keyDown(section, { key: "z", ctrlKey: true });
+    expect(coordinator.checkpoint).not.toHaveBeenCalled();
   });
 
   it("offers a `?` help affordance that opens the shortcuts sheet (F8)", async () => {
