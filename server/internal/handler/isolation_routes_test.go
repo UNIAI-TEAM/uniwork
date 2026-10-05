@@ -233,6 +233,22 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs":                         {class: isoSelf, reason: "creates a new organization owned by the caller"},
 	"GET /api/v1/workspaces":                    {class: isoSelf, reason: reasonSelf},
 
+	// Office desktop bridge. The credential in each public route (the PKCE
+	// verifier with its one-time code, the refresh token, the preview
+	// capability) is what grants it; the rows they name are attacked by the
+	// references pass (device_session_id, launch tickets) and the mixed pass.
+	"GET /api/v1/auth/desktop/start":      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/desktop/exchange":  {class: isoPublic, reason: "authentication: the one-time code with its PKCE verifier is the credential"},
+	"POST /api/v1/auth/desktop/refresh":   {class: isoPublic, reason: "authentication: the rotating refresh token is the credential"},
+	"GET /api/v1/auth/desktop/authorize":  {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/auth/desktop/authorize": {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/auth/desktop/logout":    {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/auth/desktop/devices":    {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/auth/desktop/devices/{deviceSessionID}": {class: isoSelf, reason: reasonSelf,
+		refusedAlso: []int{http.StatusOK}}, // an unknown, revoked or foreign device all answer an idempotent 200 that changes nothing; the untouched subtest checks A's device is still live
+	"POST /api/v1/office/sessions/exchange":             {class: isoSelf, reason: "desktop main: the device bearer's session must be the body's device and the ticket's account; attacked in isoReferences"},
+	"GET /api/v1/preview/assets/{capability}/{assetID}": {class: isoPublic, reason: "the signed preview capability in the path is the credential; it lists the only assets it opens"},
+
 	// Platform console.
 	"GET /api/v1/admin/flags":                            {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/flags/overrides":                  {class: isoPlatform, reason: reasonPlatform},
@@ -280,20 +296,23 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search":        {query: "?q=message"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active": {query: "?call_id={callID}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/users/lookup":                          {query: "?email={peerEmail}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":                           {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends":                  {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":                   {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":                          {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/projects/search":                            {query: "?q=Project"},
-	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                      {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/task-views":                                 {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start":      {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
-	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                       {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
-	"GET /api/v1/files/{fileID}/content":                                              {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
-	"HEAD /api/v1/files/{fileID}/content":                                             {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	// The organization rides in the query; the installer profile is configured in the world, so the owner is served.
+	"GET /api/v1/office/desktop/download":                                        {query: "?organization_id={orgID}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":                      {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends":             {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":              {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":                     {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/projects/search":                       {query: "?q=Project"},
+	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
+	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
+	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/content":                                    {control: []int{http.StatusConflict}},
+	"GET /api/v1/documents/{documentID}/office/jobs/{jobID}/output":                                        {control: []int{http.StatusConflict}}, // the fixture job is a serialize job: its output is not committable, and only the owner is asked
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/playback-url":                               {control: []int{http.StatusConflict}},
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recordings/{recordingID}/content":      {control: []int{http.StatusConflict}},
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recordings/{recordingID}/playback-url": {control: []int{http.StatusConflict}},
@@ -316,6 +335,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/copies":                                                           {body: isoIdem(nil, map[string]any{"consent": "copy"})},
 	"POST /api/v1/documents/{documentID}/move":                                                             {body: isoJSON(map[string]any{"revision": "1", "parent_id": nil})},
 	"POST /api/v1/documents/{documentID}/office/jobs":                                                      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
+	"POST /api/v1/documents/{documentID}/office/sessions":                                                  {body: isoLaunchPost},
+	"POST /api/v1/documents/{documentID}/preview/scopes":                                                   {body: isoPreviewPost},
+	"POST /api/v1/orgs/{orgID}/signatures":                                                                 {body: isoSignaturePost},
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},

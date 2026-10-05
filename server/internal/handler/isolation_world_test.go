@@ -96,6 +96,12 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	t.Setenv("AI_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
+	// The Office desktop bridge: the download profile and the desktop client
+	// the launch and device routes check against.
+	d.Cfg.APIPublicURL = "https://api.example.test"
+	d.Cfg.OfficeInstallerStableURL = "https://downloads.example.test/office.exe"
+	d.Cfg.DesktopAuthClientID = isoOfficeClient
+	d.Cfg.DesktopAuthDeploymentIDs = []string{isoOfficeDeployment}
 	q := db.New(pool)
 	ctx := context.Background()
 
@@ -146,6 +152,15 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetFiles(docFiles)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	d.Documents = docs
+	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
+	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
+		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
+		TTL: 5 * time.Minute, MaxBytes: 1 << 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Preview = preview
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: docFiles, Engine: newHandlerStubEngine(t), Documents: docs,
 		// The stub engine never finishes a blank document; a short deadline
@@ -401,6 +416,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildChat(t, tn)
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
+	w.buildOffice(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
 

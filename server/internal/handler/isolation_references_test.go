@@ -191,6 +191,20 @@ var isoReferences = []isoReference{
 		noControl:      "resolve answers files the caller staged; the fixture's files are already claimed, so B's own answers file_not_found too",
 		mustNotContain: []string{`"url":"`, "ticket="}},
 
+	// Office desktop bridge.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/preview/scopes", what: "asset", body: map[string]any{
+		"job_id": "ref", "assets": []any{map[string]any{"key": "images/a.png", "asset_id": isoRef("asset")}}},
+		covers: []string{"PreviewAssetSDI.asset_id"}},
+	{method: "POST", pattern: "/api/v1/auth/desktop/logout", what: "device session", body: map[string]any{
+		"device_session_id": isoRef("deviceSession"), "deployment_id": "default", "scope": "family"},
+		noControl: "logging out B's own device would end the session the later cases hold", covers: []string{"DesktopLogoutSDI.device_session_id"}},
+	{method: "POST", pattern: "/api/v1/auth/desktop/authorize", what: "pending attempt", body: map[string]any{
+		"attempt_id": isoRef("desktopAttempt"), "csrf_token": "ref", "decision": "approve"},
+		noControl: "approving B's own attempt would need the CSRF token only its consent page was shown", covers: []string{"DesktopConsentSDI.attempt_id"}},
+	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
+		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
+		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},
+
 	// Organization and people.
 	{method: "PATCH", pattern: "/api/v1/orgs/{org}/people/{userID}/profile", what: "department", body: map[string]any{"department_id": isoRef("department")}, covers: []string{"ProfileSDI.department_id"}},
 	{method: "PATCH", pattern: "/api/v1/orgs/{org}/people/{userID}/profile", what: "manager", body: map[string]any{"manager_id": isoRef("peer")},
@@ -293,6 +307,23 @@ var isoRefFieldExempt = map[string]string{
 	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",
 	"PatchEmailHubThreadSDI.account_id":     "the mixed pass sends B's workspace with A's thread and A's account in the body",
 	"EmailHubSummaryTasksSDI.account_id":    "the mixed pass sends B's workspace with A's thread and A's account in the body",
+
+	// Office desktop bridge. client_id and deployment_id are the public
+	// desktop client and the deployment profile: values from the server's
+	// DESKTOP_AUTH_CLIENT_ID / DESKTOP_AUTH_DEPLOYMENT_IDS allowlists, compared
+	// for equality, never looked up as rows.
+	"CreateOfficeLaunchSessionSDI.client_id":         "the configured desktop client id (allowlist), not a row",
+	"CreateOfficeLaunchSessionSDI.deployment_id":     "a configured deployment profile (allowlist), not a row",
+	"ExchangeOfficeLaunchSessionSDI.client_id":       "the configured desktop client id (allowlist), not a row",
+	"ExchangeOfficeLaunchSessionSDI.deployment_id":   "a configured deployment profile (allowlist), not a row",
+	"DesktopExchangeSDI.client_id":                   "the configured desktop client id (allowlist), not a row; the one-time code with its PKCE verifier is the credential",
+	"DesktopExchangeSDI.deployment_id":               "a configured deployment profile (allowlist), not a row",
+	"DesktopLogoutSDI.deployment_id":                 "a configured deployment profile (allowlist); the device row must also carry it, and the device id is attacked by its own case",
+	"DesktopRefreshSDI.deployment_id":                "a configured deployment profile (allowlist); the device row must also carry it",
+	"DesktopRefreshSDI.device_session_id":            "public route: the rotating refresh token is the credential; a wrong token for a device id reaches replay detection, which revokes that device by design",
+	"CreatePreviewScopeSDI.job_id":                   "an opaque label of the render the frame shows, signed into the capability; the capability still lists only assets the document owns (PreviewAssetSDI.asset_id has the case)",
+	"RevokeDesktopDeviceSDI.device_session_id":       "documentary body: DELETE /auth/desktop/devices/{deviceSessionID} keeps the id in the path, and the self pass attacks it with A's device",
+	"RevokeOfficeLaunchSessionSDI.launch_session_id": "documentary body: DELETE /office/sessions/{launchSessionID} keeps the id in the path, a tenant parameter the matrix attacks with A's receipt",
 }
 
 // A body field that names another row is an attack surface the path passes
