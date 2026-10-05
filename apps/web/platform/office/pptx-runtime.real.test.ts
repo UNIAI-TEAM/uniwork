@@ -332,6 +332,15 @@ describe("web PPTX runtime on the real engine - panel read-back (X1)", () => {
     expect(glued).toMatch(/<a:stCxn id="\d+" idx="\d+"\/>/);
     expect(glued).toMatch(/<a:endCxn id="\d+" idx="\d+"\/>/);
     expect(glued).toContain('prst="bentConnector3"');
+    // Moving a glued shape re-routes the connector (vendored setTransform -> updateConnectorsForMoved).
+    const offsetOf = (element: RealElement | undefined) => (element as unknown as { transform: { offset: { x: number; y: number; cx: number; cy: number } } }).transform.offset;
+    const before = { ...offsetOf(tip.at(-1)) };
+    await runtime.edit(ref, [{ op: "edit_transform", slideIndex: 0, elementId: b!, xPx: 400, yPx: 120, wPx: 80, hPx: 50 }]);
+    const moved = elementsOf(runtime.deck(ref)).at(-1);
+    expect(offsetOf(moved)).not.toEqual(before);
+    expect(xmlOf(moved)).toContain("<a:endCxn");
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(offsetOf(elementsOf(runtime.deck(ref)).at(-1))).toEqual(before);
 
     // Undo removes it (reopen + replay of the two inserts); redo re-glues it.
     expect(await runtime.undo(ref)).toBe(true);
