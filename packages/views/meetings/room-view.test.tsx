@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { DisconnectReason, MediaDeviceFailure } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingRoomView } from "./room-view";
@@ -255,5 +256,58 @@ describe("MeetingRoomView lobby for a member", () => {
       vi.useRealTimers();
     }
   });
-});
 
+  it("stays in the waiting lobby through a 429 and asks again after Retry-After", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let joins = 0;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+        if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+          joins += 1;
+          if (joins === 1) {
+            return Promise.resolve({ decision: "WAITING_APPROVAL", join_request_id: "jr1", meeting_status: "IN_PROGRESS" });
+          }
+          if (joins === 2) {
+            // The office NAT ran out of /join budget: the backoff re-ask is refused.
+            return Promise.reject(
+              Object.assign(new ApiError("too many requests", "rate_limited", 429), { retryAfterSeconds: 20 }),
+            );
+          }
+          return new Promise(() => {});
+        }
+        return Promise.resolve({});
+      });
+
+      render(
+        wrapWithNav(
+          <MeetingRoomView
+            meetingId="m1"
+            workspaceId="w1"
+            meetingTitle="Standup"
+            initialChoice={{ audio: false, video: false }}
+            onLeave={() => {}}
+          />,
+        ),
+      );
+
+      const heading = await screen.findByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13_000);
+      });
+      expect(joins).toBe(2);
+      // A rate limit is not a refusal: the same lobby, no error screen.
+      expect(screen.getByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" })).toBe(heading);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(14_000);
+      });
+      expect(joins).toBe(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(joins).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
