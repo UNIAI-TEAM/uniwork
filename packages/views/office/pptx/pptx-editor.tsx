@@ -20,7 +20,7 @@ import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } 
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { pptxEditorCapabilities } from "./pptx-editor-capabilities";
-import { pptxContextualSelection, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import { pptxContextualSelection, readPptxPanelMotion, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
 import type { PptxTabId } from "./pptx-ribbon";
 import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
 import { collectPptxPrintSlides, createPptxPrintPort, type PptxPrintPort } from "./print";
@@ -401,10 +401,14 @@ export function PptxEditor({
   try { currentNotes = deckBound && notesReader ? notesReader(selectedIndex) ?? null : null; } catch { currentNotes = null; }
   const layoutsReader = slideLayouts ?? (editorHandle as EditableHandle | null)?.slideLayouts?.bind(editorHandle);
   const loadLayouts = useMemo(() => (layoutsReader ? async () => layoutsReader() : undefined), [layoutsReader]);
-  const effectivePanelData = useMemo<PptxPanelData | undefined>(
-    () => (notesBound && panelData?.notes === undefined ? { ...panelData, notes: currentNotes } : panelData),
-    [currentNotes, notesBound, panelData],
-  );
+  // X1: the transitions/animations panels read the live slide off the handle on
+  // every render, so an edit, undo, redo or slide switch is reflected at once.
+  const motion = deckBound ? readPptxPanelMotion(editorHandle, selectedIndex) : {};
+  const motionKey = JSON.stringify(motion);
+  const effectivePanelData = useMemo<PptxPanelData | undefined>(() => {
+    const withNotes = notesBound && panelData?.notes === undefined ? { ...panelData, notes: currentNotes } : panelData;
+    return motionKey === "{}" ? withNotes : { ...(JSON.parse(motionKey) as PptxPanelData), ...withNotes };
+  }, [currentNotes, motionKey, notesBound, panelData]);
   const reorderSelection = useCallback((dir: "front" | "back") => {
     if (reorderElements) runCommand(reorderElements(selectedIndex, selectionRef.current.ids, dir));
   }, [reorderElements, runCommand, selectedIndex]);
@@ -420,7 +424,8 @@ export function PptxEditor({
     ...(handleEdit ? { bulkEdit: handleEdit } : {}),
     onError: reportCommandError,
     slideIndex: selectedIndex,
-    slides,
+    // R2-12: the sorter tiles show the same thumbnails as the rail.
+    slides: railSlides,
     boxes: nodeBoxes,
     selectedIds,
     rendition,

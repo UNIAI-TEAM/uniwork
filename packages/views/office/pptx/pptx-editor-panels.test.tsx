@@ -158,6 +158,35 @@ describe("PptxEditor panel mounting (UNI-927 W5)", () => {
     expect(document.querySelector("[data-pptx-notes-pane]")).not.toBeNull();
   });
 
+  it("feeds the handle's live transition and animation reads into their panels and re-reads after a history move (X1)", async () => {
+    let state: { transition: { kind: string; advanceMs: number | null }; animations: object[] } = { transition: { kind: "fade", advanceMs: 3000 }, animations: [{ spid: 2, elementId: "shape-1", effect: "fade", trigger: "onClick", durationMs: 500, delayMs: 0 }] };
+    const base = makeHandle().handle;
+    const handle = Object.assign(base, { slideTransition: vi.fn(() => state.transition), slideAnimations: vi.fn(() => state.animations) });
+    const props = { host: makeHost(), editorHandle: handle, loadRendererModule: async () => deckModule(), slides: [{ id: "s1" }], onApplyEdit: vi.fn(async () => undefined) };
+    const view = render(<PptxEditor {...props} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    expect(screen.getByTestId("pptx-transitions-current")).toHaveTextContent("Current transition: Fade");
+    expect(handle.slideTransition).toHaveBeenCalledWith(0);
+    fireEvent.click(screen.getByRole("tab", { name: "Animations" }));
+    expect(screen.getByRole("button", { name: "Fade, starts On click" })).toBeInTheDocument();
+    // An undo moves the live deck: the next render reads the new state.
+    state = { transition: { kind: "none", advanceMs: null }, animations: [] };
+    view.rerender(<PptxEditor {...props} deck={{ ...deck, revision: 2 }} />);
+    expect(screen.getByTestId("pptx-animation-empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Transitions" }));
+    expect(screen.getByTestId("pptx-transitions-current")).toHaveTextContent("Current transition: None");
+  });
+
+  it("shows the rail's generated thumbnails on the sorter tiles (R2-12)", async () => {
+    await renderEditor();
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    await waitFor(() => {
+      const image = document.querySelector('[data-pptx-sorter-panel] [data-slide-index="0"] img');
+      expect(image?.getAttribute("src")).toContain("data:image/svg+xml");
+    });
+  });
+
   it("selects a slide in the editor from a sorter tile (W4 F-13)", async () => {
     const onSlideSelect = vi.fn();
     render(<PptxEditor host={makeHost()} editorHandle={makeHandle().handle} slides={[{ id: "s1" }, { id: "s2" }]} onSlideSelect={onSlideSelect} />);
