@@ -100,6 +100,7 @@ export const PPTX_INSERT_I18N: Readonly<Record<string, PptxInsertI18nEntry>> = {
     en: "Adds an empty text box you can type into.",
     vi: "Thêm một hộp văn bản trống để bạn nhập nội dung.",
   },
+  "office.pptx.insert.text_box.placeholder": { en: "Type your text", vi: "Nhập văn bản" },
 
   // Picture
   "office.pptx.insert.image.title": { en: "Picture", vi: "Hình ảnh" },

@@ -129,6 +129,7 @@ describe("PptxInsertPanel shapes and text box", () => {
       yPx: 80,
       wPx: 220,
       hPx: 150,
+      fillColor: "#4472C4",
     });
   });
 
@@ -137,6 +138,7 @@ describe("PptxInsertPanel shapes and text box", () => {
     fireEvent.click(screen.getByRole("button", { name: "Shapes" }));
     fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
     expect(onEdit.mock.calls[0]![0]).toMatchObject({ kind: "lineArrow", hPx: 0 });
+    expect(onEdit.mock.calls[0]![0]).not.toHaveProperty("fillColor");
   });
 
   it("emits add_element for the text box action", () => {
@@ -150,6 +152,7 @@ describe("PptxInsertPanel shapes and text box", () => {
       yPx: 100,
       wPx: 360,
       hPx: 90,
+      paragraphs: [{ runs: [{ text: "Type your text" }] }],
     });
   });
 });

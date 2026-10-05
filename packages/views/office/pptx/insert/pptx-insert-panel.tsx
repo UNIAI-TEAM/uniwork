@@ -30,7 +30,8 @@ import {
   PPTX_INSERT_TEXT_BOX_KIND,
   PPTX_INSERT_WORDART_BOX,
   addElementEdit,
-  defaultInsertBox,
+  insertShapeEdit,
+  insertTextBoxEdit,
   wordArtParagraphs,
   type PptxInsertConnectorRequest,
   type PptxInsertEdit,
@@ -116,15 +117,15 @@ export function PptxInsertPanel({
   const onInsertShape = useCallback(
     (shape: PptxInsertShape) => {
       if (slideIndex === null) return;
-      emit(addElementEdit(slideIndex, shape.prst, defaultInsertBox(shape.prst)));
+      emit(insertShapeEdit(slideIndex, shape.prst));
     },
     [emit, slideIndex],
   );
 
   const onInsertTextBox = useCallback(() => {
     if (slideIndex === null) return;
-    emit(addElementEdit(slideIndex, PPTX_INSERT_TEXT_BOX_KIND, defaultInsertBox(PPTX_INSERT_TEXT_BOX_KIND)));
-  }, [emit, slideIndex]);
+    emit(insertTextBoxEdit(slideIndex, t("office.pptx.insert.text_box.placeholder", { defaultValue: t("office.pptx.insert.text_box.title") })));
+  }, [emit, slideIndex, t]);
 
   const onInsertWordArt = useCallback(
     (preset: PptxInsertWordArtPreset, text: string) => {
