@@ -24,7 +24,9 @@ import { StartDmDialog } from "./start-dm-dialog";
 import type { ChatSidebarProps, ChatSidebarTarget } from "./chat-sidebar-types";
 import {
   buildUnifiedSidebarEntries,
+  chatSidebarActivityFilterOptions,
   chatSidebarFilterOptions,
+  type ChatSidebarActivityFilter,
   type ChatSidebarKindFilter,
 } from "./chat-sidebar-unified";
 import { ChatSidebarList } from "./chat-sidebar-list";
@@ -89,6 +91,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ChatSidebarKindFilter>("all");
+  const [activityFilter, setActivityFilter] = useState<ChatSidebarActivityFilter>("all");
   const [startDmOpen, setStartDmOpen] = useState(false);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [channelDirectoryOpen, setChannelDirectoryOpen] = useState(false);
@@ -101,11 +104,13 @@ export const ChatSidebar = memo(function ChatSidebar({
   const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
 
   const filterOptions = useMemo(() => chatSidebarFilterOptions(), []);
+  const activityFilterOptions = useMemo(() => chatSidebarActivityFilterOptions(), []);
 
   const entries = useMemo(
     () =>
       buildUnifiedSidebarEntries({
         kindFilter,
+        activityFilter,
         filterText,
         workspaceTitle,
         workspaceRoomId,
@@ -115,9 +120,12 @@ export const ChatSidebar = memo(function ChatSidebar({
         nicknamesByUserId,
         roomPreviewsByRoomId,
         pinnedByRoomId,
+        unreadByRoomId,
+        mentionUnreadByRoomId,
       }),
     [
       kindFilter,
+      activityFilter,
       filterText,
       workspaceTitle,
       workspaceRoomId,
@@ -127,6 +135,8 @@ export const ChatSidebar = memo(function ChatSidebar({
       nicknamesByUserId,
       roomPreviewsByRoomId,
       pinnedByRoomId,
+      unreadByRoomId,
+      mentionUnreadByRoomId,
     ],
   );
 
@@ -148,7 +158,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   };
   const openStartDm = useCallback(() => setStartDmOpen(true), []);
   const openCreateGroup = onCreateGroup ? () => setCreateGroupOpen(true) : undefined;
-  const filtering = filterText.length > 0 || kindFilter !== "all";
+  const filtering = filterText.length > 0 || kindFilter !== "all" || activityFilter !== "all";
 
   const filterLabel = (kind: ChatSidebarKindFilter) => {
     switch (kind) {
@@ -162,6 +172,19 @@ export const ChatSidebar = memo(function ChatSidebar({
         return t("chat.filter_channel");
       case "workspace":
         return t("chat.filter_workspace");
+      default:
+        return kind;
+    }
+  };
+
+  const activityFilterLabel = (kind: ChatSidebarActivityFilter) => {
+    switch (kind) {
+      case "all":
+        return t("chat.filter_activity_all");
+      case "unread":
+        return t("chat.filter_unread");
+      case "mentions":
+        return t("chat.filter_mentions");
       default:
         return kind;
     }
@@ -272,6 +295,22 @@ export const ChatSidebar = memo(function ChatSidebar({
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          <ToggleGroup
+            value={[activityFilter]}
+            onValueChange={(value) => {
+              const next = value[0] as ChatSidebarActivityFilter | undefined;
+              if (next) setActivityFilter(next);
+            }}
+            aria-label={t("chat.filter_activity_aria")}
+            spacing={1}
+            className="flex w-full rounded-lg bg-muted p-0.5 dark:bg-background"
+          >
+            {activityFilterOptions.map((kind) => (
+              <ToggleGroupItem key={kind} value={kind} className={FILTER_SEGMENT}>
+                {activityFilterLabel(kind)}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
 
         <SidebarInvitations onJoined={onJoinedWorkspace} />
@@ -292,6 +331,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             <SidebarEmpty
               searching={filterText.length > 0}
               kindFilter={kindFilter}
+              activityFilter={activityFilter}
               actions={{
                 onStartDm: openStartDm,
                 onCreateGroup: openCreateGroup,
@@ -299,6 +339,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                 onBrowseChannels: () => setChannelDirectoryOpen(true),
                 onShowAll: () => {
                   setKindFilter("all");
+                  setActivityFilter("all");
                   setFilterQuery("");
                 },
               }}

@@ -12,6 +12,9 @@ import { foldedIncludes } from "./chat-search-fold";
 
 export type ChatSidebarKindFilter = "all" | "workspace" | "channel" | "group" | "dm";
 
+/** UNI-515: narrow the list to rooms with unread or mention badges. */
+export type ChatSidebarActivityFilter = "all" | "unread" | "mentions";
+
 export type UnifiedSidebarEntry =
   | { key: string; kind: "workspace"; roomId: string | null; sortRoomId: string }
   | { key: string; kind: "channel"; channel: ChatRoomRecord; sortRoomId: string }
@@ -27,14 +30,34 @@ export function chatSidebarFilterOptions(): ChatSidebarKindFilter[] {
   return ["all", "dm", "group", "channel"];
 }
 
+export function chatSidebarActivityFilterOptions(): ChatSidebarActivityFilter[] {
+  return ["all", "unread", "mentions"];
+}
+
 /** Accent-insensitive: "tuan" finds "Tuấn", "thiet ke" finds "Thiết kế". */
 function matchesText(text: string, filter: string): boolean {
   return foldedIncludes(text, filter);
 }
 
 /** Flat conversation list sorted like Zalo/Messages (pin → recent). */
+function passesActivityFilter(
+  sortRoomId: string,
+  activityFilter: ChatSidebarActivityFilter,
+  unreadByRoomId: Record<string, number>,
+  mentionUnreadByRoomId: Record<string, number>,
+): boolean {
+  if (activityFilter === "all" || !sortRoomId) {
+    return activityFilter === "all";
+  }
+  if (activityFilter === "unread") {
+    return (unreadByRoomId[sortRoomId] ?? 0) > 0;
+  }
+  return (mentionUnreadByRoomId[sortRoomId] ?? 0) > 0;
+}
+
 export function buildUnifiedSidebarEntries(input: {
   kindFilter: ChatSidebarKindFilter;
+  activityFilter?: ChatSidebarActivityFilter;
   filterText: string;
   workspaceTitle: string;
   workspaceRoomId: string | null;
@@ -44,9 +67,12 @@ export function buildUnifiedSidebarEntries(input: {
   nicknamesByUserId: Record<string, string>;
   roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
   pinnedByRoomId: Record<string, ChatRoomPreference>;
+  unreadByRoomId?: Record<string, number>;
+  mentionUnreadByRoomId?: Record<string, number>;
 }): UnifiedSidebarEntry[] {
   const {
     kindFilter,
+    activityFilter = "all",
     filterText,
     workspaceTitle,
     workspaceRoomId,
@@ -56,6 +82,8 @@ export function buildUnifiedSidebarEntries(input: {
     nicknamesByUserId,
     roomPreviewsByRoomId,
     pinnedByRoomId,
+    unreadByRoomId = {},
+    mentionUnreadByRoomId = {},
   } = input;
 
   const entries: UnifiedSidebarEntry[] = [];
@@ -116,7 +144,14 @@ export function buildUnifiedSidebarEntries(input: {
     }
   }
 
-  return entries.sort((a, b) => {
+  const filtered =
+    activityFilter === "all"
+      ? entries
+      : entries.filter((e) =>
+          passesActivityFilter(e.sortRoomId, activityFilter, unreadByRoomId, mentionUnreadByRoomId),
+        );
+
+  return filtered.sort((a, b) => {
     const pinOrder = comparePinnedRoomOrder(a.sortRoomId, b.sortRoomId, pinnedByRoomId);
     if (pinOrder !== 0) return pinOrder;
     return compareRoomPreviewRecency(
