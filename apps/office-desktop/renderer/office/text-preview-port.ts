@@ -37,7 +37,10 @@ function isDark(): boolean {
 function markdownDocument(text: string, title: string, dark: boolean): string {
   const ink = dark ? "#e5e7eb" : "#1f2937";
   const paper = dark ? "#111827" : "#ffffff";
-  const style = `body{font:16px/1.6 system-ui,sans-serif;max-width:48rem;margin:0 auto;padding:1.5rem;color:${ink};background:${paper}}pre,code{font-family:ui-monospace,monospace}pre{overflow:auto}table{border-collapse:collapse}td,th{border:1px solid currentColor;padding:.25rem .5rem}img{max-width:100%}`;
+  // Keep the document root measurable inside the desktop split pane. Chromium
+  // can otherwise resolve an auto-height sandboxed srcdoc body to zero when
+  // the iframe itself is sized by flex/grid percentage heights.
+  const style = `html{min-height:100%;}body{min-height:100%;box-sizing:border-box;font:16px/1.6 system-ui,sans-serif;max-width:48rem;margin:0 auto;padding:1.5rem;color:${ink};background:${paper}}pre,code{font-family:ui-monospace,monospace}pre{overflow:auto}table{border-collapse:collapse}td,th{border:1px solid currentColor;padding:.25rem .5rem}img{max-width:100%}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeText(title)}</title><style>${style}</style></head><body>${buildMarkdownPreviewCopy({ source: text, document_path: DOCUMENT_PATH.md })}</body></html>`;
 }
 

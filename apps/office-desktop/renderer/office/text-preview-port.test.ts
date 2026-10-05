@@ -64,6 +64,8 @@ it("renders Markdown to a safe copy with its headings", async () => {
   expect(doc.querySelector("h1")?.textContent).toBe("Tiêu đề");
   expect(doc.querySelectorAll("li")).toHaveLength(2);
   expect(doc.title).toBe("Ghi chú");
+  expect(doc.querySelector("style")?.textContent).toContain("html{min-height:100%;}");
+  expect(doc.querySelector("style")?.textContent).toContain("body{min-height:100%;");
 });
 
 it("rebuilds the copy on update and removes the frame on dispose", async () => {
