@@ -13,6 +13,12 @@
  *     its contents; `isolating`/`defining` keep edits from merging across it.
  *   - The node is content-less: the text lives only in the attribute, so no
  *     Markdown round-trip can rewrite it.
+ *   - `selectable: false` keeps it out of the selection. A selectable atom at
+ *     the top of the document became the initial `NodeSelection` (TipTap's
+ *     `Selection.atStart` picks the first selectable atom), so the next
+ *     keystroke replaced the whole block - the front matter was destroyed. A
+ *     selection guard repairs any `NodeSelection` over the node that a command
+ *     still creates, and the caret lands in the adjacent text block instead.
  *
  * The bounded tokenizer below claims raw HTML blocks, HTML comments and the
  * frontmatter fence before any other extension sees them. It is bounded twice
@@ -21,6 +27,7 @@
  */
 import { Node, mergeAttributes } from "@tiptap/core";
 import type { JSONContent, MarkdownToken } from "@tiptap/core";
+import { NodeSelection, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 
 export const MARKDOWN_RAW_NODE_NAME = "markdownRaw";
 
@@ -74,7 +81,10 @@ export const MarkdownRawExtension = Node.create({
   group: "block",
   atom: true,
   code: true,
-  selectable: true,
+  // Never selectable: a NodeSelection over this node swallows the next
+  // keystroke and replaces the preserved bytes. The guard plugin below repairs
+  // a NodeSelection a command still creates.
+  selectable: false,
   defining: true,
   isolating: true,
 
@@ -124,6 +134,27 @@ export const MarkdownRawExtension = Node.create({
       if (!raw) return undefined;
       return { type: MARKDOWN_RAW_NODE_NAME, raw, tokens: [] };
     },
+  },
+
+  addProseMirrorPlugins() {
+    // Belt-and-braces for `selectable: false`: a command that bypasses the
+    // schema check (`setNodeSelection`) or a stale selection restored from the
+    // DOM can still put a NodeSelection on the raw node, and the next
+    // keystroke would replace it. Repair the selection into the nearest text
+    // block instead, so typing can never destroy the preserved bytes.
+    return [
+      new Plugin({
+        key: new PluginKey("markdownRawSelectionGuard"),
+        appendTransaction: (_transactions, _oldState, newState) => {
+          const { selection } = newState;
+          if (!(selection instanceof NodeSelection)) return null;
+          if (selection.node.type.name !== MARKDOWN_RAW_NODE_NAME) return null;
+          const repaired = Selection.near(newState.doc.resolve(selection.from), 1);
+          if (repaired instanceof NodeSelection) return null;
+          return newState.tr.setSelection(repaired).setMeta("addToHistory", false);
+        },
+      }),
+    ];
   },
 
   parseMarkdown: (token: { raw?: string }, helpers) =>
