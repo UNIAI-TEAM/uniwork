@@ -244,6 +244,15 @@ describe("PptxSorterPanel", () => {
     expect(label).toHaveTextContent(copy("office.pptx.sorter.slide_label", { index: 1, label: ": Intro" }));
   });
 
+  it("does not repeat the slide number when the host label is just that number (R3 F-4)", () => {
+    renderPanel({ slides: [{ id: "s1", label: "1" }, { id: "s2", label: "Body" }] });
+    const labels = [...document.querySelectorAll("[data-pptx-sorter-tile-label]")];
+    expect(labels[0]).toHaveTextContent(copy("office.pptx.sorter.slide_label", { index: 1, label: "" }));
+    expect(labels[0]?.textContent).not.toContain(":");
+    expect(labels[1]).toHaveTextContent(copy("office.pptx.sorter.slide_label", { index: 2, label: ": Body" }));
+    expect(button("office.pptx.sorter.slide_label", { index: 1, label: "" })).toBeInTheDocument();
+  });
+
   it("localises standard layout names and keeps a custom one verbatim (R2-11)", async () => {
     renderPanel({
       layouts: [

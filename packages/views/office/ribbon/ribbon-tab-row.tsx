@@ -170,7 +170,10 @@ export function RibbonTabRow({
             size="icon-sm"
             tabIndex={-1}
             aria-label={t("office.ribbon.tabsPrev")}
-            className="absolute top-1/2 left-0 -translate-y-1/2"
+            // Centred with auto margins, not a translate: the Button base shifts by
+            // translate-y-px on press, which would override a centring translate and
+            // move the button out from under the pointer before mouseup.
+            className="absolute inset-y-0 left-0 my-auto"
             data-ribbon-tabs-prev=""
             onClick={() => scrollTabs(-1)}
           >
@@ -184,7 +187,7 @@ export function RibbonTabRow({
             size="icon-sm"
             tabIndex={-1}
             aria-label={t("office.ribbon.tabsNext")}
-            className="absolute top-1/2 right-0 -translate-y-1/2"
+            className="absolute inset-y-0 right-0 my-auto"
             data-ribbon-tabs-next=""
             onClick={() => scrollTabs(1)}
           >

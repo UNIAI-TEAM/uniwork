@@ -8614,6 +8614,7 @@
               "number": "Đánh số"
             },
             "line_spacing": "Giãn dòng",
+            "line_spacing_unset": "—",
             "line_spacing_custom": "Giãn dòng theo phần trăm",
             "apply": "Áp dụng"
         }

@@ -17,6 +17,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@uniwork/ui/lib/utils";
 import { clampSlideIndex, keyboardReorderTarget, type PptxSorterSlide } from "./sorter-helpers";
 
+/** The ": <title>" tail of a tile caption; a host label that is only the slide number adds nothing. */
+function labelSuffix(label: string | undefined, index: number): string {
+  if (!label || label.trim() === String(index + 1)) return "";
+  return `: ${label}`;
+}
+
 export interface PptxSortableSlideTileProps {
   slide: PptxSorterSlide;
   index: number;
@@ -58,7 +64,7 @@ export function PptxSortableSlideTile({
         type="button"
         aria-label={t("office.pptx.sorter.slide_label", {
           index: index + 1,
-          label: slide.label ? `: ${slide.label}` : "",
+          label: labelSuffix(slide.label, index),
         })}
         aria-current={selected ? "true" : undefined}
         className={cn(
@@ -78,7 +84,7 @@ export function PptxSortableSlideTile({
         <span className="line-clamp-2 min-w-0 break-words text-caption font-medium" data-pptx-sorter-tile-label>
           {t("office.pptx.sorter.slide_label", {
             index: index + 1,
-            label: slide.label ? `: ${slide.label}` : "",
+            label: labelSuffix(slide.label, index),
           })}
         </span>
         <span className="flex shrink-0 items-center gap-0.5">

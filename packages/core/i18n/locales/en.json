@@ -8621,6 +8621,7 @@
               "number": "Numbering"
             },
             "line_spacing": "Line spacing",
+            "line_spacing_unset": "—",
             "line_spacing_custom": "Line spacing percent",
             "apply": "Apply"
         }

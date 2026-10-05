@@ -185,6 +185,9 @@ describe("paragraph group", () => {
     expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ format: { bullet: "number" } }));
     const spacing = get<RibbonComboItem>(items, "para-line-spacing");
     expect(spacing.width).toBe(64);
+    // No spacing is read from the selection, so the trigger shows a localised placeholder, never blank.
+    expect(spacing.value).toBeNull();
+    expect(spacing.placeholderKey).toBe("office.pptx.text.format.line_spacing_unset");
     expect(spacing.options.map((p) => p.label)).toContain("1.15");
     spacing.onChange("150");
     expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ format: { lineSpacingPct: 150 } }));

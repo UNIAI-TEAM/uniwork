@@ -331,6 +331,7 @@ export function pptxParagraphGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
     size: "small",
     width: 64,
     value: null,
+    placeholderKey: K + "line_spacing_unset",
     options: PPTX_TEXT_LINE_SPACING_PCT_PRESETS.map((p) => ({ value: String(p), label: spacingLabel(p) })),
     onChange: (v) =>
       send(o, (s, id) => {
