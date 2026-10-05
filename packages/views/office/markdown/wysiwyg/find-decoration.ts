@@ -62,6 +62,36 @@ export const EMPTY_FLATTENED_DOC: FlattenedDoc = { text: "", positions: [] };
 const LEAF_PLACEHOLDER = "\uFFFC";
 /** One block separator in the flat text, mirroring `textBetween`'s default. */
 const BLOCK_SEPARATOR = "\n";
+/** The opaque raw node (raw-node.ts), whose text lives in its `source` attr. */
+const RAW_NODE_NAME = "markdownRaw";
+
+/**
+ * True when a raw block's source is a GFM table, i.e. the shape the WYSIWYG
+ * surface DRAWS as a real table (see `parseGfmTable` in editor.tsx). This is a
+ * local, read-only shape check, not a second parser: it only decides whether
+ * the block's text should be searchable.
+ */
+function looksLikeGfmTable(source: string): boolean {
+  const lines = source.split("\n").filter((line) => line.trim().length > 0);
+  const header = lines[0];
+  const delimiter = lines[1];
+  if (header === undefined || delimiter === undefined) return false;
+  if (!header.trim().startsWith("|") || !delimiter.trim().startsWith("|")) return false;
+  const cells = delimiter.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+  return cells.length > 0 && cells.every((cell) => /^:?-+:?$/.test(cell.trim()));
+}
+
+/**
+ * The source of a raw GFM-table block, or null when the node is not one. An
+ * authored table is kept as an opaque `markdownRaw` node for byte-identity, so
+ * its cells are only in the `source` attribute - the flattened document would
+ * otherwise carry a single placeholder and a search for a cell would miss it.
+ */
+function rawTableSource(node: PMNode): string | null {
+  if (node.type.name !== RAW_NODE_NAME) return null;
+  const source = node.attrs.source;
+  return typeof source === "string" && looksLikeGfmTable(source) ? source : null;
+}
 
 function appendLeaf(out: { text: string; positions: (number | null)[] }, leaf: string, pos: number): void {
   for (let i = 0; i < leaf.length; i += 1) {
@@ -87,6 +117,19 @@ export function flattenDocText(doc: PMNode): FlattenedDoc {
       return;
     }
     if (node.isLeaf) {
+      const table = rawTableSource(node);
+      if (table !== null) {
+        // Searchable but not mappable: every code unit gets a `null` position,
+        // so a match inside the table is counted and stepped through, while
+        // `matchToPmRange` still refuses it. The node is content-less, so there
+        // is no per-character document range to paint or to replace - replacing
+        // would rewrite the whole opaque block.
+        for (let i = 0; i < table.length; i += 1) {
+          out.text += table[i];
+          out.positions.push(null);
+        }
+        return;
+      }
       appendLeaf(out, node.type.spec.leafText?.(node) ?? LEAF_PLACEHOLDER, pos);
       return;
     }

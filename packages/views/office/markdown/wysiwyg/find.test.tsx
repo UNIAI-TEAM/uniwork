@@ -266,7 +266,7 @@ describe("MarkdownFind", () => {
     // into the paragraph's first letter.
     query("e\\no");
     fireEvent.click(screen.getByRole("checkbox", { name: "Regular expression" }));
-    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match"));
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1"));
 
     fireEvent.change(screen.getByTestId("find-replace-value"), { target: { value: "X" } });
     const writesBefore = source.writes.length;
@@ -278,7 +278,7 @@ describe("MarkdownFind", () => {
     const editorDom = document.querySelector(".ProseMirror")!;
     expect(editorDom.querySelector("h1")?.textContent).toBe("Title");
     expect(editorDom.querySelector("p")?.textContent).toContain("one two one");
-    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match"));
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1"));
   });
 
   it("keeps the query focused while typing in source mode (F-01)", async () => {
@@ -464,6 +464,43 @@ describe("MarkdownFind", () => {
     await waitFor(() => expect(screen.queryByTestId("find-replace-panel")).not.toBeInTheDocument());
   });
 
+  it("shows the active match position over the total in the counter (M-1 minor)", async () => {
+    const handle = createHandle(createTextSource(FIXTURE));
+    render(<VisualHarness handle={handle} />);
+    await waitForVisualEditor();
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+    query("one");
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2"));
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2"));
+  });
+
+  it("finds text inside an authored (raw-preserved) GFM table (M-1 minor)", async () => {
+    // The kitchen-sink table stays an opaque markdownRaw block for
+    // byte-identity; its cells are only in the node's `source` attribute, so
+    // the flattened document used to carry a single placeholder and "Doanh"
+    // missed "Doanh thu" even though the cell is visible.
+    const table = [
+      "## Bang so lieu",
+      "",
+      "| Hang muc | Quy I | Quy II |",
+      "| --- | --- | --- |",
+      "| Doanh thu | 1.250.000.000 | 1.410.000.000 |",
+      "",
+    ].join("\n");
+    const handle = createHandle(createTextSource(table));
+    render(<VisualHarness handle={handle} />);
+    await waitForVisualEditor();
+    pressCtrl("f");
+    await waitFor(() => expect(screen.getByTestId("find-replace-panel")).toBeInTheDocument());
+
+    query("Doanh");
+    await waitFor(() => expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1"));
+    // The table block is still drawn as a table and stays byte-identical.
+    expect(document.querySelector("[data-markdown-raw]")).toBeTruthy();
+  });
+
   it("closes with Escape and repaints nothing while closed", async () => {
     const handle = createHandle(createTextSource(FIXTURE));
     render(<VisualHarness handle={handle} />);
@@ -478,3 +515,4 @@ describe("MarkdownFind", () => {
     expect(document.querySelectorAll("[data-find-match]")).toHaveLength(0);
   });
 });
+

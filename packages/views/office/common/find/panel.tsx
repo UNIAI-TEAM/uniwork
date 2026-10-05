@@ -185,13 +185,15 @@ export function FindReplacePanel({
   };
   const hasQuery = query.length > 0;
   const cannotStep = disabled || invalidPattern || count === 0;
+  // The counter shows the active position AND the total ("1/2"), not just the
+  // total, so Next/Previous has visible feedback.
   const counter = invalidPattern
     ? t("invalidPattern", { defaultValue: "Invalid pattern" })
     : !hasQuery
       ? ""
       : count === 0
         ? t("noMatches")
-        : t("matchCount", { count });
+        : t("position", { current: safeIndex + 1, total: count, defaultValue: "{{current}}/{{total}}" });
 
   if (!open) return null;
 

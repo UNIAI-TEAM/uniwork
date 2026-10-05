@@ -40,7 +40,7 @@ describe("FindReplacePanel", () => {
     const { type } = renderPanel("one two one");
     expect(screen.getByTestId("find-replace-count")).toBeEmptyDOMElement();
     type("one", "find-replace-query");
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2 matches");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
     type("zzz", "find-replace-query");
     expect(screen.getByTestId("find-replace-count")).toHaveTextContent("No matches");
   });
@@ -86,7 +86,7 @@ describe("FindReplacePanel", () => {
   it("recounts on the text the host passes back", () => {
     const { view, type } = renderPanel("cat cat");
     type("cat", "find-replace-query");
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2 matches");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
     view.rerender(<FindReplacePanel text="dog dog" />);
     expect(screen.getByTestId("find-replace-count")).toHaveTextContent("No matches");
   });
@@ -94,13 +94,13 @@ describe("FindReplacePanel", () => {
   it("drives case sensitive, whole word and regex from the toggles", () => {
     const { type } = renderPanel("Cat cat concatenate");
     type("cat", "find-replace-query");
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("3 matches");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/3");
     fireEvent.click(screen.getByRole("checkbox", { name: "Match case" }));
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2 matches");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
     fireEvent.click(screen.getByRole("checkbox", { name: "Whole word" }));
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1");
     fireEvent.click(screen.getByRole("checkbox", { name: "Regular expression" }));
-    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1 match");
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/1");
   });
 
   it("shows the invalid-pattern state and blocks replace on a bad pattern", () => {
@@ -137,6 +137,19 @@ describe("FindReplacePanel", () => {
     expect(onReplaceAll).not.toHaveBeenCalled();
     // Enter in the replace field never steps to the next match.
     expect(onReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the active position and the total in the counter (M-1 minor)", () => {
+    render(<FindReplacePanel text="one two one" />);
+    fireEvent.change(screen.getByTestId("find-replace-query"), { target: { value: "one" } });
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    // Stepping updates the active position, not just the total.
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2");
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("1/2");
+    fireEvent.click(screen.getByRole("button", { name: "Previous match" }));
+    expect(screen.getByTestId("find-replace-count")).toHaveTextContent("2/2");
   });
 
   it("offers a visible close affordance that calls onClose (M-1)", () => {
