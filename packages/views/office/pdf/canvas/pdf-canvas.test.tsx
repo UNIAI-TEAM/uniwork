@@ -111,11 +111,13 @@ describe("PdfCanvas", () => {
     expect(screen.getByTestId("pdf-find-highlight-a")).toHaveStyle({ left: "10px", top: "20px", width: "30px", height: "20px" });
   });
 
-  it("rotates a find-hit overlay with the page", () => {
-    const rotated: PdfCanvasPage = { pageNumber: 1, width: 100, height: 120, rotation: 90 };
-    render(<PdfCanvas pages={[rotated]} renderer={service()} highlights={[{ id: "a", page: 1, quad: [10, 80, 40, 100] }]} />);
-    // Page-own (10,20,30x20) becomes display (80,10,20x30) after a 90-degree turn.
-    expect(screen.getByTestId("pdf-find-highlight-a")).toHaveStyle({ left: "80px", top: "10px", width: "20px", height: "30px" });
+  it("paints a display-space quad on a rotated page without rotating it twice", () => {
+    // Quads already carry the /Rotate transform (the host maps char boxes into
+    // display space), so a 90-degree page paints the quad as given: the overlay
+    // must NOT turn it a second time.
+    const rotated: PdfCanvasPage = { pageNumber: 1, width: 200, height: 100, rotation: 90 };
+    render(<PdfCanvas pages={[rotated]} renderer={service()} highlights={[{ id: "a", page: 1, quad: [80, 80, 100, 100] }]} />);
+    expect(screen.getByTestId("pdf-find-highlight-a")).toHaveStyle({ left: "80px", top: "0px", width: "20px", height: "20px" });
   });
 
   it("paints no overlay when a page has no find hits", () => {

@@ -98,16 +98,18 @@ function SelectionOverlay({ page, selection, onSelectionChange }: Pick<PdfPageCa
 }
 
 
-/** Find-hit highlights for one page: bottom-left user-space quads become the
- * canvas's top-left display points, then follow the page rotation. Visual only. */
-function HighlightOverlay({ page, highlights, turns }: { page: PdfCanvasPage; highlights: readonly PdfCanvasHighlight[]; turns: number }) {
+/** Find-hit highlights for one page: quads are already in the page's DISPLAY
+ * space (bottom-left origin), the same space as the raster and the reported page
+ * size, so they map straight to the canvas's top-left display points without a
+ * second rotation. Visual only. */
+function HighlightOverlay({ page, highlights }: { page: PdfCanvasPage; highlights: readonly PdfCanvasHighlight[] }) {
   return <>{highlights.map((highlight) => {
     const [x1, y1, x2, y2] = highlight.quad;
     const left = Math.min(x1, x2);
     const width = Math.abs(x2 - x1);
     const height = Math.abs(y2 - y1);
-    // PDF user space is bottom-left; the canvas is top-left: top = height - y2.
-    const region = toDisplayRegion({ x: left, y: page.height - Math.max(y1, y2), width, height }, page.width, page.height, turns);
+    // PDF display space is bottom-left; the canvas is top-left: top = height - y2.
+    const region = { x: left, y: page.height - Math.max(y1, y2), width, height };
     const active = highlight.active === true;
     return <div key={highlight.id} aria-hidden data-testid={`pdf-find-highlight-${highlight.id}`} data-active={active} className={cn("pointer-events-none absolute rounded-sm", active ? "bg-warning/30 ring-2 ring-warning" : "bg-warning/20")} style={{ left: `${region.x}px`, top: `${region.y}px`, width: `${region.width}px`, height: `${region.height}px` }} />;
   })}</>;
@@ -208,7 +210,7 @@ export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSel
         }}
       />
       {displayDraft ? <div aria-hidden className="pointer-events-none absolute border border-primary bg-primary/20" data-testid="pdf-region-draft" style={{ left: displayDraft.x * zoom, top: displayDraft.y * zoom, width: displayDraft.width * zoom, height: displayDraft.height * zoom }} /> : null}
-      <div className="pointer-events-none absolute inset-0" style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }} data-testid={`pdf-find-highlights-${page.pageNumber}`}><HighlightOverlay page={page} highlights={highlights ?? []} turns={turns} /></div>
+      <div className="pointer-events-none absolute inset-0" style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }} data-testid={`pdf-find-highlights-${page.pageNumber}`}><HighlightOverlay page={page} highlights={highlights ?? []} /></div>
       <div className="pointer-events-none absolute inset-0 z-10"><SelectionOverlay page={scaledPage} selection={selection} onSelectionChange={onSelectionChange} /></div>
     </div>
   </article>;

@@ -48,8 +48,8 @@ export interface PdfCanvasPage {
 
 export type PdfCanvasSelection = PdfSelection;
 
-/** A find-hit highlight: one rectangle in PDF user space (origin bottom-left) as
- * `[x1, y1, x2, y2]` points, the same space markups use. */
+/** A find-hit highlight: one rectangle in the page's DISPLAY space (origin
+ * bottom-left, the /Rotate transform applied) as `[x1, y1, x2, y2]` points. */
 export type PdfCanvasHighlightQuad = readonly [number, number, number, number];
 
 /** One find hit painted on a page; `active` marks the hit the find bar is on. */

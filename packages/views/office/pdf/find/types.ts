@@ -12,7 +12,8 @@ export interface PdfCharBox {
   height: number;
 }
 
-/** One rectangle in PDF user space (origin bottom-left) as [x1, y1, x2, y2]. */
+/** One rectangle in the page's DISPLAY space (origin bottom-left, the /Rotate
+ * transform applied) as [x1, y1, x2, y2]. */
 export type PdfSearchQuad = readonly [number, number, number, number];
 
 export interface PdfSearchHit {

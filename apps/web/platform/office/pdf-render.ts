@@ -27,7 +27,9 @@ export interface PdfRenderSession extends PdfPageRenderService {
   pages(): PdfCanvasPage[];
   pageText(pageNumber: number): string;
   /** One top-left-origin box in PDF points per character of pageText(pageNumber),
-   * in that same index space; a char with no box is a zero-size box. */
+   * in that same index space; a char with no box is a zero-size box. The box is
+   * in the page's DISPLAY space (the /Rotate transform is applied), the same
+   * space as the rendered raster and the reported page size. */
   pageCharBoxes(pageNumber: number): readonly { x: number; y: number; width: number; height: number }[];
   /** Swap the document after an edit; drops cached images and revokes their object URLs. */
   replaceBytes(bytes: Uint8Array): Promise<void>;

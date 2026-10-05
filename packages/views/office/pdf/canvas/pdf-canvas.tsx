@@ -20,7 +20,7 @@ export interface PdfCanvasProps {
   onPageRegion?: (pageNumber: number, region: PdfCanvasRegion) => void;
   /** Scrolls the page into view whenever `token` changes (thumbnail click, find hit). */
   focusPage?: { page: number; token: number } | null;
-  /** Find-hit rectangles, in PDF user space (origin bottom-left); each names its page. */
+  /** Find-hit rectangles, in the page's display space (origin bottom-left); each names its page. */
   highlights?: readonly PdfCanvasHighlight[];
 }
 

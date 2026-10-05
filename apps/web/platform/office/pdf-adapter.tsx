@@ -260,11 +260,10 @@ function createPdfEditorSurface(options: {
             }
           }
           const hit: SearchHits[number] = { id: `${page.pageNumber}:${at}`, page: page.pageNumber, start: at, end, text: text.slice(at, end) };
-          // pageCharBoxes are in the page's unrotated space, so flip with the
-          // unrotated height: a /Rotate 90 or 270 page reports the swapped
-          // display height, whose matching unrotated height is the display width.
-          const unrotatedHeight = (page.rotation ?? 0) % 180 !== 0 ? page.width : page.height;
-          const quads = quadsForRange(charBoxes, at, end, unrotatedHeight);
+          // pageCharBoxes are already in the page's DISPLAY space (the /Rotate
+          // transform is applied), so flip with the display height the renderer
+          // reports - the same height the canvas paints the raster at.
+          const quads = quadsForRange(charBoxes, at, end, page.height);
           if (quads.length > 0) hit.quads = quads;
           hits.push(hit);
         }
