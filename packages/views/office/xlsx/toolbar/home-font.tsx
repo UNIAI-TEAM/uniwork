@@ -18,7 +18,8 @@ import { XLSX_FIELD_BOX_CLASS, XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupR
 const SIZE_DECREASE = -1;
 const SIZE_INCREASE = 1;
 const FAMILY_WIDTH = 140;
-const SIZE_FIELD_WIDTH = 48;
+// F5 (UNI-926 FRAME): the size box never renders below 56 px (w-14 = 3.5rem).
+const SIZE_FIELD_WIDTH = 56;
 const COLOR_BUTTON_WIDTH = 26;
 
 function isBlocked({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps): boolean {
@@ -111,7 +112,7 @@ function FontSizeField({ context }: { context: XlsxToolbarGroupProps }) {
 
   return (
     <Input
-      className="h-6 w-12 min-w-12 rounded-sm border-input px-1 text-center text-caption"
+      className="h-6 w-14 min-w-14 rounded-sm border-input px-1 text-center text-caption"
       inputMode="numeric"
       aria-label={t("office.xlsx.toolbar.groups.font.size")}
       disabled={isBlocked(context)}

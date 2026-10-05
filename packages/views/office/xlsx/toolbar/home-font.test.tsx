@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { XlsxGridFormatState } from "../xlsx-grid-surface";
 import type { XlsxToolbarGroupProps } from "./types";
-import { XlsxFontGroup } from "./home-font";
+import { xlsxFontRibbonItems, XlsxFontGroup } from "./home-font";
 
 function formatState(overrides: Partial<XlsxGridFormatState> = {}): XlsxGridFormatState {
   return {
@@ -22,7 +22,7 @@ function formatState(overrides: Partial<XlsxGridFormatState> = {}): XlsxGridForm
   };
 }
 
-function renderGroup(overrides: Partial<XlsxToolbarGroupProps> = {}) {
+function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}) {
   const execute = vi.fn(() => true);
   const props: XlsxToolbarGroupProps = {
     readOnly: false,
@@ -43,8 +43,13 @@ function renderGroup(overrides: Partial<XlsxToolbarGroupProps> = {}) {
     onShowSheets: vi.fn(),
     ...overrides,
   };
-  render(<XlsxFontGroup {...props} />);
-  return { execute };
+  return { props, execute };
+}
+
+function renderGroup(overrides: Partial<XlsxToolbarGroupProps> = {}) {
+  const built = groupProps(overrides);
+  render(<XlsxFontGroup {...built.props} />);
+  return built;
 }
 
 const lastCall = (execute: ReturnType<typeof vi.fn>) => execute.mock.calls.at(-1);
@@ -84,6 +89,25 @@ describe("XlsxFontGroup", () => {
     fireEvent.blur(input);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(input).toHaveValue("14");
+  });
+
+  // F5 (UNI-926 FRAME, finding R4-1): the size box renders at >= 56 px and the
+  // family box at >= 140 px, never truncated. w-14 = 3.5rem = 56px, w-36 = 9rem
+  // = 144px; both are spacing-scale classes, never an arbitrary pixel value.
+  it("pins the F5 box widths: size >= 56px, family >= 140px", () => {
+    renderGroup();
+    const size = screen.getByRole("textbox", { name: "Cỡ chữ" });
+    expect(size.className).toMatch(/\bw-14\b/);
+    expect(size.className).toMatch(/\bmin-w-14\b/);
+    expect(size.className).not.toMatch(/\bw-12\b/);
+    const familyBox = screen.getByRole("combobox", { name: "Phông chữ" }).closest("div")!;
+    expect(familyBox.className).toMatch(/\bw-36\b/);
+  });
+
+  it("declares the matching ribbon widths so the layout estimate cannot shrink the box", () => {
+    const items = xlsxFontRibbonItems(groupProps().props);
+    expect(items.find((item) => item.id === "font-size")).toMatchObject({ kind: "custom", width: 56 });
+    expect(items.find((item) => item.id === "font-family")).toMatchObject({ kind: "custom", width: 140 });
   });
 
   it("sets the font family from the picker", async () => {
