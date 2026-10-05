@@ -27,6 +27,11 @@ export function XlsxGroupRow({ children, className }: { children: ReactNode; cla
   return <div className={cn("flex items-center gap-0.5", className)}>{children}</div>;
 }
 
+/** Excel's boxed inline fields (font family, font size, number format,
+ *  rotation): one 24px bordered box, whatever primitive sits inside. */
+export const XLSX_FIELD_BOX_CLASS =
+  "h-6 shrink-0 overflow-hidden rounded-sm border border-input bg-background pointer-coarse:h-11 [&_[data-slot=select-trigger]]:h-full [&_[data-slot=select-trigger]]:w-full [&_[data-slot=select-trigger]]:rounded-none [&_[data-slot=select-trigger]]:border-0 [&_[data-slot=select-trigger]]:py-0 [&_[data-slot=select-trigger]]:pr-1 [&_[data-slot=select-trigger]]:pl-1.5 [&_[data-slot=select-trigger]]:text-caption";
+
 /** Class for a compact 24px icon button inside a row (matches ribbon `icon`). */
 export const XLSX_ICON_BUTTON_CLASS = "size-6 p-0 [&_svg:not([class*='size-'])]:size-4";
 

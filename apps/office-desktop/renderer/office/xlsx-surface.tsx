@@ -85,6 +85,6 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
           embedded
           registerSavePreparation={(prepare) => { prepareRef.current = prepare; return () => { if (prepareRef.current === prepare) prepareRef.current = null; }; }}
         />
-      </>} />;
+      </>} />
   </>;
 }

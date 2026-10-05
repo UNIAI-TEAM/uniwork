@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useViewEcho } from "../view-echo";
 import type { XlsxToolbarGroupProps } from "../types";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "../group-layout";
+import { XLSX_ICON_BUTTON_CLASS } from "../group-layout";
 
 /** The pinned Univer format painter (sheets-ui `FormatPainterService`).
  *
@@ -36,9 +36,9 @@ export const XLSX_FORMAT_PAINTER_OPERATION = "sheet.operation.set-format-painter
 export const XLSX_FORMAT_PAINTER_ONCE = 1;
 export const XLSX_FORMAT_PAINTER_OFF = 0;
 
-/** Home > format painter: capture the current selection, apply to the next
+/** Home > Clipboard > format painter (an icon item of that group): capture the current selection, apply to the next
  *  one; a second press or Escape cancels. Read-only disables it. */
-export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, selection, viewEcho }: XlsxToolbarGroupProps) {
+export function XlsxFormatPainterButton({ readOnly = false, canFormat, commands, selection, viewEcho }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const blocked = readOnly || !canFormat || !commands;
   const echo = useViewEcho(viewEcho);
@@ -91,9 +91,6 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
   };
 
   return (
-    <XlsxGroupBody>
-    <XlsxGroupRows>
-    <XlsxGroupRow>
     <Button
       type="button"
       variant="toolbar"
@@ -108,8 +105,5 @@ export function XlsxFormatPainterGroup({ readOnly = false, canFormat, commands, 
     >
       <Paintbrush aria-hidden />
     </Button>
-    </XlsxGroupRow>
-    </XlsxGroupRows>
-    </XlsxGroupBody>
   );
 }

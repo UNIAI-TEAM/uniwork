@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { RibbonItem } from "../../ribbon";
 import type { XlsxViewEcho } from "./view-echo";
 import type { XlsxGridFormatState, XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxEditorPermissions, XlsxSelection } from "../types";
@@ -36,6 +37,8 @@ export interface XlsxToolbarTable {
   readonly name: string;
   /** Header-inclusive 0-based area. */
   readonly range: XlsxToolbarTableRange;
+  /** True for a table the opened file ships: it has no removal write path. */
+  readonly native?: boolean;
 }
 
 /** The slice of the toolbar props a command group may read. It is declared
@@ -65,6 +68,8 @@ export interface XlsxToolbarGroupProps {
   onRedo: () => void;
   onNumberFormat: () => void;
   onRecalculate: () => void;
+  /** Cuts the selection (copy + clear). Absent in hosts without a clipboard. */
+  onCut?: () => void;
   onCopy: () => void;
   onPaste: () => void;
   onShowSheets: () => void;
@@ -104,7 +109,7 @@ export interface XlsxToolbarGroupProps {
 /** One entry of the extension seam. A Wave A task adds one group to one tab
  *  by appending one object (and one import of its own component) to
  *  `XLSX_TOOLBAR_GROUPS` in `registry.ts`. */
-export interface XlsxToolbarGroupDefinition {
+interface XlsxToolbarGroupBase {
   readonly id: string;
   readonly tab: XlsxToolbarTabId;
   /** Ascending within the tab. Groups with the highest order collapse into
@@ -113,10 +118,25 @@ export interface XlsxToolbarGroupDefinition {
   /** i18n key under `office.xlsx.toolbar.groups.*`; the visible, accessible
    *  name of the group. */
   readonly labelKey: string;
-  readonly Component: ComponentType<XlsxToolbarGroupProps>;
-  /** When it returns false the group is not rendered at all â€” no label and no
+  /** When it returns false the group is not rendered at all - no label and no
    *  controls. Use it when the host cannot offer the commands at all (the
    *  grid has no recalculate controller); read-only and selection states stay
    *  on the controls as `aria-disabled`. */
   readonly isAvailable?: (context: XlsxToolbarGroupProps) => boolean;
 }
+
+/** A group is either a component (mounted as ONE custom ribbon item that cannot
+ *  shrink) or typed ribbon items (large/small/icon buttons, splits, dropdowns,
+ *  combos) that the ribbon shrinks item by item before it folds the group. When
+ *  both are present the typed items win. */
+export type XlsxToolbarGroupDefinition = XlsxToolbarGroupBase &
+  (
+    | {
+        readonly Component: ComponentType<XlsxToolbarGroupProps>;
+        readonly ribbonItems?: (context: XlsxToolbarGroupProps) => readonly RibbonItem[];
+      }
+    | {
+        readonly Component?: undefined;
+        readonly ribbonItems: (context: XlsxToolbarGroupProps) => readonly RibbonItem[];
+      }
+  );

@@ -1,10 +1,25 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { XlsxNumberGroup } from "../toolbar/groups/number-group";
+import { OfficeRibbon } from "../../ribbon";
 import { XLSX_TOOLBAR_GROUPS } from "../toolbar/registry";
 import type { XlsxToolbarGroupProps } from "../toolbar/types";
 import { XLSX_NUMBER_FORMAT_CATEGORIES, XLSX_NUMBER_FORMAT_COMMANDS } from "./catalog";
-import { XlsxNumberFormatGroup } from "./number-format-group";
+import { xlsxNumberRibbonItems } from "./number-format-group";
+
+/** Mounts the Home number items in the shared ribbon, as the XLSX toolbar does. */
+function XlsxNumberFormatGroup(props: XlsxToolbarGroupProps) {
+  return (
+    <OfficeRibbon
+      scope="xlsx-number-test"
+      activeTabId="home"
+      tabs={[{ id: "home", labelKey: "Home", groups: [{ id: "number", labelKey: "Number", priority: 0, items: xlsxNumberRibbonItems(props) }] }]}
+    />
+  );
+}
+
+function ribbonItem(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-ribbon-item='${id}']`)!;
+}
 
 const ASYNC_HANDLER_ERROR = "[CommandService]: Command handler should not return a promise.";
 
@@ -91,8 +106,8 @@ describe("XlsxNumberFormatGroup", () => {
   it("fires the pinned increase/decrease-decimal commands", () => {
     const execute = vi.fn(() => true);
     render(<XlsxNumberFormatGroup {...groupProps({ commands: { execute } })} />);
-    fireEvent.click(screen.getByTestId("xlsx-number-format-decrease-decimals"));
-    fireEvent.click(screen.getByTestId("xlsx-number-format-increase-decimals"));
+    fireEvent.click(ribbonItem("number-decrease-decimals"));
+    fireEvent.click(ribbonItem("number-increase-decimals"));
     expect(execute).toHaveBeenNthCalledWith(1, XLSX_NUMBER_FORMAT_COMMANDS.decreaseDecimals);
     expect(execute).toHaveBeenNthCalledWith(2, XLSX_NUMBER_FORMAT_COMMANDS.increaseDecimals);
   });
@@ -102,8 +117,8 @@ describe("XlsxNumberFormatGroup", () => {
       throw new TypeError(ASYNC_HANDLER_ERROR);
     });
     render(<XlsxNumberFormatGroup {...groupProps({ commands: { execute } })} />);
-    fireEvent.click(screen.getByTestId("xlsx-number-format-increase-decimals"));
-    fireEvent.click(screen.getByTestId("xlsx-number-format-decrease-decimals"));
+    fireEvent.click(ribbonItem("number-increase-decimals"));
+    fireEvent.click(ribbonItem("number-decrease-decimals"));
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
@@ -167,10 +182,10 @@ describe("XlsxNumberFormatGroup", () => {
       const trigger = screen.getByTestId("xlsx-number-format-trigger");
       expect(trigger).toHaveAttribute("aria-disabled", "true");
       expect(trigger).not.toBeDisabled();
-      for (const testId of ["xlsx-number-format-decrease-decimals", "xlsx-number-format-increase-decimals"]) {
-        expect(screen.getByTestId(testId)).toHaveAttribute("aria-disabled", "true");
-        expect(screen.getByTestId(testId)).not.toBeDisabled();
-        fireEvent.click(screen.getByTestId(testId));
+      for (const id of ["number-decrease-decimals", "number-increase-decimals", "number-currency", "number-percent", "number-comma"]) {
+        expect(ribbonItem(id)).toHaveAttribute("aria-disabled", "true");
+        expect(ribbonItem(id)).not.toBeDisabled();
+        fireEvent.click(ribbonItem(id));
       }
       fireEvent.click(trigger);
       expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument();
@@ -180,13 +195,48 @@ describe("XlsxNumberFormatGroup", () => {
   });
 });
 
+describe("number quick formats", () => {
+  it("applies the Currency, Percent and Comma catalog presets to the whole selection", () => {
+    const execute = vi.fn(() => true);
+    render(<XlsxNumberFormatGroup {...groupProps({ selection: { sheet: "Data", address: "C1", endAddress: "C2" }, commands: { execute } })} />);
+    fireEvent.click(ribbonItem("number-currency"));
+    fireEvent.click(ribbonItem("number-percent"));
+    fireEvent.click(ribbonItem("number-comma"));
+    const valuesFor = (pattern: string) => ({
+      values: [
+        { row: 0, col: 2, pattern },
+        { row: 1, col: 2, pattern },
+      ],
+    });
+    expect(execute).toHaveBeenNthCalledWith(1, XLSX_NUMBER_FORMAT_COMMANDS.set, valuesFor('"$"#,##0.00'));
+    expect(execute).toHaveBeenNthCalledWith(2, XLSX_NUMBER_FORMAT_COMMANDS.set, valuesFor("0%"));
+    expect(execute).toHaveBeenNthCalledWith(3, XLSX_NUMBER_FORMAT_COMMANDS.set, valuesFor("#,##0.00"));
+  });
+
+  it("shows General, then the last applied format name while the same cell stays selected", async () => {
+    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test", selection: { sheet: "Data", address: "F6" } })} />);
+    const trigger = screen.getByTestId("xlsx-number-format-trigger");
+    expect(trigger).toHaveTextContent("Chung");
+    fireEvent.click(ribbonItem("number-percent"));
+    await waitFor(() => expect(trigger).toHaveTextContent("Phần trăm"));
+  });
+
+  it("reads General again for a different selection", () => {
+    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "G7" } })} />);
+    fireEvent.click(ribbonItem("number-currency"));
+    cleanup();
+    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "H8" } })} />);
+    expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveTextContent("Chung");
+  });
+});
+
 describe("number group registry seam", () => {
-  it("keeps the Home number entry pointing at the gallery group", () => {
+  it("keeps the Home number entry on typed ribbon items", () => {
     const entry = XLSX_TOOLBAR_GROUPS.find((group) => group.id === "number");
     expect(entry).toBeDefined();
     expect(entry?.tab).toBe("home");
-    expect(entry?.order).toBe(40);
+    expect(entry?.order).toBe(70);
     expect(entry?.labelKey).toBe("office.xlsx.toolbar.groups.number");
-    expect(entry?.Component).toBe(XlsxNumberGroup);
+    expect(entry?.ribbonItems).toBe(xlsxNumberRibbonItems);
   });
 });

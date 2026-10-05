@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -178,5 +179,56 @@ describe("XlsxSheetTabs", () => {
     expect(uniqueSheetName("Sheet", ["Data"])).toBe("Sheet");
     expect(uniqueSheetName("Sheet", ["sheet"])).toBe("Sheet 2");
     expect(uniqueSheetName("Sheet", ["Sheet", "Sheet 2"])).toBe("Sheet 3");
+  });
+
+  describe("narrow screens", () => {
+    const inlineNames = [sheets.rename, sheets.duplicate, sheets.moveLeft, sheets.moveRight, sheets.hide, sheets.remove];
+
+    it("hides the six inline actions below sm and keeps Add visible", () => {
+      renderTabs();
+      for (const name of inlineNames) expect(screen.getByRole("button", { name })).toHaveClass("max-sm:hidden");
+      expect(screen.getByRole("button", { name: sheets.add })).not.toHaveClass("max-sm:hidden");
+      expect(screen.getByRole("button", { name: sheets.actions })).toHaveClass("sm:hidden");
+    });
+
+    it("folds the six actions into one menu that fires the same callbacks", async () => {
+      const user = userEvent.setup();
+      const { onAction } = renderTabs();
+      const open = async () => user.click(screen.getByRole("button", { name: sheets.actions }));
+      await open();
+      expect(await screen.findAllByRole("menuitem")).toHaveLength(6);
+      await user.click(await screen.findByRole("menuitem", { name: sheets.duplicate }));
+      expect(onAction).toHaveBeenLastCalledWith({ kind: "duplicate", sheet: "Data", name: duplicateName });
+      await open();
+      await user.click(await screen.findByRole("menuitem", { name: sheets.moveRight }));
+      expect(onAction).toHaveBeenLastCalledWith({ kind: "move", sheet: "Data", index: 1 });
+      await open();
+      await user.click(await screen.findByRole("menuitem", { name: sheets.hide }));
+      expect(onAction).toHaveBeenLastCalledWith({ kind: "set-hidden", sheet: "Data", hidden: true });
+      await open();
+      expect(await screen.findByRole("menuitem", { name: sheets.moveLeft })).toHaveAttribute("aria-disabled", "true");
+    });
+
+    it("starts the inline rename from the menu", async () => {
+      const user = userEvent.setup();
+      const { onAction } = renderTabs();
+      await user.click(screen.getByRole("button", { name: sheets.actions }));
+      await user.click(await screen.findByRole("menuitem", { name: sheets.rename }));
+      const input = screen.getByRole("textbox", { name: sheets.renameInput });
+      expect(input).toHaveValue("Data");
+      fireEvent.change(input, { target: { value: "Tổng hợp" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onAction).toHaveBeenCalledWith({ kind: "rename", sheet: "Data", newName: "Tổng hợp" });
+    });
+
+    it("keeps the delete confirm step inside the menu", async () => {
+      const user = userEvent.setup();
+      const { onAction } = renderTabs();
+      await user.click(screen.getByRole("button", { name: sheets.actions }));
+      await user.click(await screen.findByRole("menuitem", { name: sheets.remove }));
+      expect(onAction).not.toHaveBeenCalled();
+      await user.click(await screen.findByRole("menuitem", { name: sheets.confirmRemove }));
+      expect(onAction).toHaveBeenCalledWith({ kind: "remove", sheet: "Data" });
+    });
   });
 });

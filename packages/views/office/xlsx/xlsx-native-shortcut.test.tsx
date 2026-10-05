@@ -85,12 +85,16 @@ function keydown(target: Element, options: KeyboardEventInit = {}) {
   return event;
 }
 
+// The editor mounts the typed Home ribbon (~30 items, each with a tooltip),
+// so its first jsdom render can pass the 1s default async wait.
+const NATIVE_INPUT_WAIT = { timeout: 5000 };
+
 beforeEach(() => { grid.commitEdit.mockReset().mockResolvedValue(undefined); grid.ready = true; });
 
 describe("XLSX native input Save ownership", () => {
   it.each([{ ctrlKey: true }, { ctrlKey: false, metaKey: true }])("prepares and saves a native Ctrl/Cmd+S event once (%j)", async (modifiers) => {
     const { coordinator } = setup();
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     const bubble = vi.fn();
     window.addEventListener("keydown", bubble);
@@ -106,7 +110,7 @@ describe("XLSX native input Save ownership", () => {
 
   it("awaits the real commit promise and the ordered model queue before Save", async () => {
     const { editor, coordinator } = setup();
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     let commit!: () => void;
     let edit!: () => void;
@@ -126,7 +130,7 @@ describe("XLSX native input Save ownership", () => {
 
   it("keeps a rejected inline commit from reaching Save", async () => {
     const { coordinator } = setup();
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     grid.commitEdit.mockRejectedValueOnce(new Error("commit denied"));
     keydown(input);
@@ -139,7 +143,7 @@ describe("XLSX native input Save ownership", () => {
     const save = vi.fn(async () => { await prepare?.(); return { accepted: false as const, reason: "clean" as const }; });
     setup({ coordinator: { getState: () => ({ state: "dirty" } as never), subscribe: () => () => undefined, save },
       registerSavePreparation: (callback) => { prepare = callback; return () => { prepare = undefined; }; } });
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     keydown(input);
     await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith("shortcut"));
@@ -148,7 +152,7 @@ describe("XLSX native input Save ownership", () => {
 
   it("leaves composition, other keys and targets outside this document alone", async () => {
     const { coordinator } = setup();
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     expect(keydown(input, { isComposing: true }).defaultPrevented).toBe(false);
     expect(keydown(input, { key: "z" }).defaultPrevented).toBe(false);
     expect(keydown(document.body).defaultPrevented).toBe(false);
@@ -161,7 +165,7 @@ describe("XLSX native input Save ownership", () => {
     const { coordinator } = setup(guard === "readonly" ? { permissions: { canEdit: false } } : guard === "capability readonly" ? {
       capability: { format: "xlsx", operation: "edit", host: "web", engineBuild: "test", contractRevision: "1", status: "readonly", fidelityWarnings: [] },
     } : {});
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     keydown(input);
     expect(coordinator.save).not.toHaveBeenCalled();
     expect(grid.commitEdit).not.toHaveBeenCalled();
@@ -180,13 +184,13 @@ describe("XLSX native input Save ownership", () => {
 
   it("unbinds detached targets and routes a replacement document to its current coordinator", async () => {
     const { props, coordinator, view } = setup();
-    const oldInput = await screen.findByTestId("native-input");
+    const oldInput = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
     const oldRoot = screen.getByTestId("xlsx-editor");
     const next = { ...coordinator, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })) };
     view.rerender(<XlsxEditor {...props} documentKey="next" editor={{ ...props.editor, dispose: vi.fn() }} coordinator={next} />);
     await waitFor(() => expect(screen.getByTestId("xlsx-editor")).toHaveAttribute("aria-busy", "false"));
-    const input = await screen.findByTestId("native-input");
+    const input = await screen.findByTestId("native-input", {}, NATIVE_INPUT_WAIT);
     keydown(input);
     await waitFor(() => expect(next.save).toHaveBeenCalledExactlyOnceWith("shortcut"));
     expect(coordinator.save).not.toHaveBeenCalled();

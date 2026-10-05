@@ -1,5 +1,9 @@
-import { XlsxClearGroup } from "./clear/clear-group";
-import { XlsxFormatPainterGroup } from "./clear/format-painter";
+import { xlsxEditingRibbonItems } from "./clear/clear-group";
+import { xlsxClipboardRibbonItems } from "./groups/clipboard-group";
+import { xlsxAlignmentRibbonItems } from "./home-alignment";
+import { xlsxCellsRibbonItems } from "./home-cells";
+import { xlsxFontRibbonItems } from "./home-font";
+import { xlsxNumberRibbonItems } from "../number-format/number-format-group";
 import { XlsxPageSetupGroup } from "./page-setup-group";
 import { XlsxProtectGroup } from "./protect-group";
 import { XlsxSortGroup } from "./sort-group";
@@ -8,17 +12,9 @@ import { XlsxLinksGroup } from "./links-group";
 import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
-import { XlsxClipboardGroup } from "./groups/clipboard-group";
-import { XlsxNumberGroup } from "./groups/number-group";
-import { XlsxSheetsGroup } from "./groups/sheets-group";
-import { XlsxAlignmentGroup } from "./home-alignment";
-import { XlsxBordersGroup } from "./home-borders";
-import { XlsxFontGroup } from "./home-font";
 import { XlsxFormulaGroup } from "./formula-group";
 import { XlsxStructureInsertGroup } from "./structure-insert";
-import { XlsxStructureMergeGroup } from "./structure-merge";
 import { XlsxStructureOutlineGroup } from "./structure-outline";
-import { XlsxStructureSizeGroup } from "./structure-size";
 import { XlsxViewDisplayGroup } from "./view-display";
 import { XlsxViewGoToGroup } from "./view-goto";
 import { XlsxViewShortcutsGroup } from "./view-shortcuts";
@@ -36,7 +32,10 @@ import type { XlsxToolbarGroupDefinition } from "./types";
  *  - `labelKey` a key under `office.xlsx.toolbar.groups.*` in BOTH locales;
  *              it is the group's visible and accessible name.
  *  - `Component` takes `XlsxToolbarGroupProps` and renders the group's
- *              controls only; the strip owns the `role="group"` wrapper.
+ *              controls only; the strip owns the `role="group"` wrapper. It is
+ *              mounted as ONE custom ribbon item that cannot shrink.
+ *  - `ribbonItems` (instead of `Component`) returns typed ribbon items; prefer
+ *              it, so the ribbon can shrink the group item by item.
  *  - `isAvailable?` optional predicate; when it returns false the group is not
  *              rendered at all (no label). Read-only/selection states belong on
  *              the controls as `aria-disabled`, not here.
@@ -44,12 +43,14 @@ import type { XlsxToolbarGroupDefinition } from "./types";
  *  This file is shared by every Wave A worker: edit it LAST, re-read it right
  *  before editing, and append only - never reorder or edit another task's row. */
 export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
-  { id: "sheets", tab: "home", order: 20, labelKey: "office.xlsx.toolbar.groups.sheets", Component: XlsxSheetsGroup },
-  { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", Component: XlsxClipboardGroup },
-  { id: "number", tab: "home", order: 40, labelKey: "office.xlsx.toolbar.groups.number", Component: XlsxNumberGroup },
-  { id: "font", tab: "home", order: 50, labelKey: "office.xlsx.toolbar.groups.font.label", Component: XlsxFontGroup },
-  { id: "alignment", tab: "home", order: 60, labelKey: "office.xlsx.toolbar.groups.alignment.label", Component: XlsxAlignmentGroup },
-  { id: "borders", tab: "home", order: 70, labelKey: "office.xlsx.toolbar.groups.borders.label", Component: XlsxBordersGroup },
+  // Home, in Excel order: Clipboard | Font | Alignment | Number | Cells | Editing.
+  // Each is typed ribbon items so the shared ribbon shrinks it item by item.
+  { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", ribbonItems: xlsxClipboardRibbonItems },
+  { id: "font", tab: "home", order: 50, labelKey: "office.xlsx.toolbar.groups.font.label", ribbonItems: xlsxFontRibbonItems },
+  { id: "alignment", tab: "home", order: 60, labelKey: "office.xlsx.toolbar.groups.alignment.label", ribbonItems: xlsxAlignmentRibbonItems },
+  { id: "number", tab: "home", order: 70, labelKey: "office.xlsx.toolbar.groups.number", ribbonItems: xlsxNumberRibbonItems },
+  { id: "cells", tab: "home", order: 80, labelKey: "office.xlsx.toolbar.groups.cells", ribbonItems: xlsxCellsRibbonItems },
+  { id: "editing", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.editing", ribbonItems: xlsxEditingRibbonItems },
   { id: "charts", tab: "insert", order: 10, labelKey: "office.xlsx.toolbar.groups.charts", Component: XlsxChartsGroup },
   {
     id: "calculation",
@@ -60,11 +61,7 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
     isAvailable: ({ canRecalculate }) => canRecalculate,
   },
   { id: "structure-insert", tab: "insert", order: 20, labelKey: "office.xlsx.structure.groups.insert", Component: XlsxStructureInsertGroup },
-  { id: "structure-size", tab: "home", order: 80, labelKey: "office.xlsx.structure.groups.size", Component: XlsxStructureSizeGroup },
-  { id: "structure-merge", tab: "home", order: 75, labelKey: "office.xlsx.structure.groups.merge", Component: XlsxStructureMergeGroup },
   { id: "structure-outline", tab: "data", order: 10, labelKey: "office.xlsx.structure.groups.outline", Component: XlsxStructureOutlineGroup },
-  { id: "clear", tab: "home", order: 85, labelKey: "office.xlsx.toolbar.groups.clear.label", Component: XlsxClearGroup },
-  { id: "painter", tab: "home", order: 90, labelKey: "office.xlsx.toolbar.groups.painter.label", Component: XlsxFormatPainterGroup },
   { id: "view-zoom", tab: "view", order: 10, labelKey: "office.xlsx.toolbar.groups.view.zoom.label", Component: XlsxViewZoomGroup },
   { id: "view-display", tab: "view", order: 20, labelKey: "office.xlsx.toolbar.groups.view.display.label", Component: XlsxViewDisplayGroup },
   { id: "view-goto", tab: "view", order: 30, labelKey: "office.xlsx.toolbar.groups.view.goto.label", Component: XlsxViewGoToGroup },

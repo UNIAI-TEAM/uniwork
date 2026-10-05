@@ -28,10 +28,10 @@ export function XlsxFormulaRow({ address, value, disabled, onChange, onCommit }:
         value={address}
         aria-label={t("office.xlsx.formula.nameBox")}
         data-testid="xlsx-name-box"
-        className="w-24 shrink-0 border-r border-border bg-background px-2 text-caption pointer-coarse:min-h-11"
+        className="h-full w-24 shrink-0 border-r border-border bg-background px-2 text-center text-caption"
       />
-      <span aria-hidden className="flex shrink-0 items-center px-2 text-caption italic text-muted-foreground">{t("office.xlsx.formula.fx")}</span>
-      <div className="min-w-0 flex-1">
+      <span aria-hidden className="flex shrink-0 items-center border-r border-border bg-muted/30 px-2.5 font-serif text-caption italic text-muted-foreground">{t("office.xlsx.formula.fx")}</span>
+      <div className="h-full min-w-0 flex-1">
         <XlsxFormulaBar value={value} disabled={disabled} onChange={onChange} onCommit={onCommit} />
       </div>
     </div>

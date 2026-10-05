@@ -7,7 +7,7 @@ import {
   XLSX_FORMAT_PAINTER_OFF,
   XLSX_FORMAT_PAINTER_ONCE,
   XLSX_FORMAT_PAINTER_OPERATION,
-  XlsxFormatPainterGroup,
+  XlsxFormatPainterButton,
 } from "./format-painter";
 
 function lookup(dictionary: unknown, key: string): unknown {
@@ -47,14 +47,14 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 function renderPainter(overrides: Partial<XlsxToolbarGroupProps> = {}) {
   const execute = vi.fn(() => true);
   const props = groupProps({ commands: { execute }, ...overrides });
-  const view = render(<XlsxFormatPainterGroup {...props} />);
+  const view = render(<XlsxFormatPainterButton {...props} />);
   return { execute, props, view };
 }
 
 const ARM = [XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_ONCE }];
 const CANCEL = [XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF }];
 
-describe("XlsxFormatPainterGroup", () => {
+describe("XlsxFormatPainterButton", () => {
   it("arms once and cancels on the second press", async () => {
     const { execute } = renderPainter();
     const button = screen.getByTestId("xlsx-format-painter");
@@ -77,7 +77,7 @@ describe("XlsxFormatPainterGroup", () => {
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
 
-    view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Data", address: "B2" }} />);
+    view.rerender(<XlsxFormatPainterButton {...props} selection={{ sheet: "Data", address: "B2" }} />);
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
     expect(button).toHaveAttribute("aria-pressed", "false");
 
@@ -93,14 +93,14 @@ describe("XlsxFormatPainterGroup", () => {
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
 
-    view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Archive", address: "A1" }} />);
+    view.rerender(<XlsxFormatPainterButton {...props} selection={{ sheet: "Archive", address: "A1" }} />);
     expect(execute).toHaveBeenLastCalledWith(...CANCEL);
     expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
   it("sends nothing for selection changes while unarmed", () => {
     const { execute, props, view } = renderPainter();
-    view.rerender(<XlsxFormatPainterGroup {...props} selection={{ sheet: "Data", address: "C3" }} />);
+    view.rerender(<XlsxFormatPainterButton {...props} selection={{ sheet: "Data", address: "C3" }} />);
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -174,7 +174,7 @@ describe("XlsxFormatPainterGroup", () => {
     function Harness({ mounted }: { mounted: boolean }) {
       const viewEcho = useXlsxViewEcho();
       if (!mounted) return null;
-      return <XlsxFormatPainterGroup {...groupProps({ commands: { execute }, selection, viewEcho })} />;
+      return <XlsxFormatPainterButton {...groupProps({ commands: { execute }, selection, viewEcho })} />;
     }
 
     const view = render(<Harness mounted />);

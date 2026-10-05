@@ -1,6 +1,6 @@
 "use client";
 
-// B7 (UNI-926): Review-tab group for sheet protection and the name manager.
+// B7 (UNI-926): Review-tab group (the visible label is short; the long text is the tooltip and accessible name) for sheet protection and the name manager.
 // One control opens the Protect + Name manager dialog; freeze panes already
 // live on the existing Page Setup dialog (set_page_setup frozenRows/Columns),
 // so they are not duplicated here.
@@ -23,7 +23,7 @@ export function XlsxProtectGroup({ readOnly = false, onOpenProtect }: XlsxToolba
         onClick={() => { if (!readOnly && onOpenProtect) onOpenProtect(); }}
       >
         <Lock aria-hidden />
-        <XlsxLargeLabel>{t("office.xlsx.protect.open")}</XlsxLargeLabel>
+        <XlsxLargeLabel>{t("office.xlsx.protect.openShort")}</XlsxLargeLabel>
       </XlsxLargeButton>
     </XlsxGroupBody>
   );

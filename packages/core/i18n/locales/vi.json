@@ -8244,7 +8244,8 @@
               "percent-integer": "12%",
               "percent-decimal2": "12,34%",
               "text": "Văn bản"
-            }
+            },
+            "comma": "Kiểu dấu phẩy"
           },
           "font": {
             "label": "Phông chữ",
@@ -8317,6 +8318,18 @@
             "shortcuts": {
               "label": "Phím tắt"
             }
+          },
+          "cells": "Ô",
+          "editing": "Chỉnh sửa",
+          "clipboardItems": {
+            "paste": "Dán",
+            "cut": "Cắt",
+            "copy": "Sao chép"
+          },
+          "cellsItems": {
+            "insert": "Chèn",
+            "delete": "Xóa",
+            "format": "Định dạng"
           }
         },
         "overflow": "Thêm lệnh",
@@ -8411,7 +8424,8 @@
         "clearOutline": "Xóa phân cấp nhóm",
         "mergeCells": "Gộp ô",
         "mergeAcross": "Gộp theo hàng",
-        "unmergeCells": "Bỏ gộp ô"
+        "unmergeCells": "Bỏ gộp ô",
+        "mergeCenter": "Gộp và căn giữa"
       },
       "filter": {
         "groups": {
@@ -8483,8 +8497,13 @@
         "styleMedium": "Kiểu trung bình",
         "rows": "Hàng",
         "columns": "Cột",
-        "cells": "Ô"
-      }
+        "cells": "Ô",
+        "properties": "Thuộc tính",
+        "tools": "Công cụ",
+        "convertToRange": "Chuyển thành vùng dữ liệu"
+      },
+      "nameLabel": "Tên bảng",
+      "nameInvalid": "Nhập tên duy nhất, bắt đầu bằng chữ cái hoặc dấu gạch dưới"
       },
       "links": {
         "groups": {
@@ -8534,7 +8553,8 @@
             "duplicate": "Cùng một tên được đặt hai lần cho cùng một phạm vi.",
             "collision": "Tên này đã tồn tại ở dạng hộp thoại này không thể sửa, nên không thể thêm tại đây. Hãy chọn tên khác."
           }
-        }
+        },
+        "openShort": "Bảo vệ trang tính"
       },
       "pageSetup": {
         "open": "Thiết lập trang",

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Copy, Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Ellipsis, Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxSheetTabAction } from "./sheet-commands";
 
@@ -87,6 +88,30 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
     setRenaming(false);
     setConfirming(false);
   }, [activeSheet]);
+
+  const startRename = () => {
+    if (blocked || !active) return;
+    setDraft(active.name);
+    setRenaming(true);
+  };
+  const duplicateActive = () => {
+    if (blocked || !active) return;
+    onAction({ kind: "duplicate", sheet: active.name, name: uniqueSheetName(`${active.name} ${t("office.xlsx.sheets.copySuffix")}`, tabs.map((tab) => tab.name)) });
+  };
+  const moveActive = (delta: number) => {
+    const index = moveDestination(delta);
+    if (index !== undefined && active) onAction({ kind: "move", sheet: active.name, index });
+  };
+  const hideActive = () => { if (canHide && active) onAction({ kind: "set-hidden", sheet: active.name, hidden: true }); };
+  const removeActive = () => {
+    if (!canRemove || !active) return;
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
+    onAction({ kind: "remove", sheet: active.name });
+  };
 
   const commitRename = () => {
     // An invalid name keeps the input open so the user can fix it (Escape and
@@ -193,8 +218,9 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
             size="icon-sm"
             aria-label={t("office.xlsx.sheets.rename")}
             aria-disabled={blocked || undefined}
-            onClick={() => { if (!blocked && active) { setDraft(active.name); setRenaming(true); } }}
+            onClick={startRename}
             data-testid="xlsx-sheet-rename"
+          className="max-sm:hidden"
           >
             <Pencil aria-hidden />
           </Button>
@@ -205,11 +231,9 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.duplicate")}
           aria-disabled={blocked || undefined}
-          onClick={() => {
-            if (blocked || !active) return;
-            onAction({ kind: "duplicate", sheet: active.name, name: uniqueSheetName(`${active.name} ${t("office.xlsx.sheets.copySuffix")}`, tabs.map((tab) => tab.name)) });
-          }}
+          onClick={duplicateActive}
           data-testid="xlsx-sheet-duplicate"
+          className="max-sm:hidden"
         >
           <Copy aria-hidden />
         </Button>
@@ -219,8 +243,9 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveLeft")}
           aria-disabled={!canMoveLeft || undefined}
-          onClick={() => { const index = moveDestination(-1); if (index !== undefined && active) onAction({ kind: "move", sheet: active.name, index }); }}
+          onClick={() => moveActive(-1)}
           data-testid="xlsx-sheet-move-left"
+          className="max-sm:hidden"
         >
           <ChevronLeft aria-hidden />
         </Button>
@@ -230,8 +255,9 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveRight")}
           aria-disabled={!canMoveRight || undefined}
-          onClick={() => { const index = moveDestination(1); if (index !== undefined && active) onAction({ kind: "move", sheet: active.name, index }); }}
+          onClick={() => moveActive(1)}
           data-testid="xlsx-sheet-move-right"
+          className="max-sm:hidden"
         >
           <ChevronRight aria-hidden />
         </Button>
@@ -241,8 +267,9 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.hide")}
           aria-disabled={!canHide || undefined}
-          onClick={() => { if (canHide && active) onAction({ kind: "set-hidden", sheet: active.name, hidden: true }); }}
+          onClick={hideActive}
           data-testid="xlsx-sheet-hide"
+          className="max-sm:hidden"
         >
           <EyeOff aria-hidden />
         </Button>
@@ -253,21 +280,45 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           aria-label={confirming ? t("office.xlsx.sheets.confirmRemove") : t("office.xlsx.sheets.remove")}
           aria-disabled={!canRemove || undefined}
           data-confirming={confirming || undefined}
-          onClick={() => {
-            if (!canRemove || !active) return;
-            if (!confirming) {
-              setConfirming(true);
-              return;
-            }
-            setConfirming(false);
-            onAction({ kind: "remove", sheet: active.name });
-          }}
+          onClick={removeActive}
           onBlur={() => setConfirming(false)}
           data-testid="xlsx-sheet-remove"
-          className={cn(confirming && "text-destructive")}
+          className={cn("max-sm:hidden", confirming && "text-destructive")}
         >
           <Trash2 aria-hidden />
         </Button>
+        <DropdownMenu onOpenChange={(open) => { if (!open) setConfirming(false); }}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="toolbar"
+                size="icon-sm"
+                aria-label={t("office.xlsx.sheets.actions")}
+                className="sm:hidden"
+                data-testid="xlsx-sheet-actions-menu"
+              >
+                <Ellipsis aria-hidden />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuItem disabled={blocked} onClick={startRename}><Pencil aria-hidden />{t("office.xlsx.sheets.rename")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={blocked} onClick={duplicateActive}><Copy aria-hidden />{t("office.xlsx.sheets.duplicate")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={!canMoveLeft} onClick={() => moveActive(-1)}><ChevronLeft aria-hidden />{t("office.xlsx.sheets.moveLeft")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={!canMoveRight} onClick={() => moveActive(1)}><ChevronRight aria-hidden />{t("office.xlsx.sheets.moveRight")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={!canHide} onClick={hideActive}><EyeOff aria-hidden />{t("office.xlsx.sheets.hide")}</DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={!canRemove}
+              closeOnClick={confirming}
+              data-confirming={confirming || undefined}
+              onClick={removeActive}
+            >
+              <Trash2 aria-hidden />{confirming ? t("office.xlsx.sheets.confirmRemove") : t("office.xlsx.sheets.remove")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

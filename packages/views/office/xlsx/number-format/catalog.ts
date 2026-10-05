@@ -71,6 +71,24 @@ export const XLSX_NUMBER_FORMAT_CATEGORIES: readonly XlsxNumberFormatCategory[] 
   category("text", [preset("text", "@")]),
 ];
 
+/** The pattern of a catalog preset; throws on an unknown id so a typo in a
+ *  ribbon button fails loudly in its test instead of applying nothing. */
+export function presetPattern(id: string): string {
+  for (const entry of XLSX_NUMBER_FORMAT_CATEGORIES) {
+    const found = entry.presets.find((candidate) => candidate.id === id);
+    if (found) return found.pattern;
+  }
+  throw new Error(`unknown number format preset ${id}`);
+}
+
+/** i18n key of the category a pattern belongs to (the "name" the ribbon shows,
+ *  like Excel's "Currency"); a pattern outside the catalog is "Custom". */
+export function patternNameKey(pattern: string | null): string {
+  if (pattern === null) return "office.xlsx.toolbar.groups.numberFormat.categories.general";
+  const owner = XLSX_NUMBER_FORMAT_CATEGORIES.find((entry) => entry.presets.some((candidate) => candidate.pattern === pattern));
+  return owner ? owner.labelKey : "office.xlsx.toolbar.groups.numberFormat.custom";
+}
+
 export type XlsxCustomFormatError = "empty" | "tooLong" | "controlChar";
 
 export type XlsxCustomFormatResult = { readonly pattern: string } | { readonly error: XlsxCustomFormatError };

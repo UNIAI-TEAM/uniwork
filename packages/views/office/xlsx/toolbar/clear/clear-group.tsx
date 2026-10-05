@@ -1,13 +1,9 @@
 "use client";
 
-import { ChevronDown, Eraser } from "lucide-react";
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Eraser } from "lucide-react";
+import type { RibbonItem } from "../../../ribbon";
 import type { XlsxToolbarGroupProps } from "../types";
 import { fireCommand } from "../../fire-command";
-import { XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "../group-layout";
 
 /** The three pinned Univer clear commands. All three are already allowlisted
  *  and persist through the journal: they dispatch
@@ -19,67 +15,30 @@ const CLEAR_ACTIONS = [
   { key: "all", command: "sheet.command.clear-selection-all" },
 ] as const;
 
-/** Home > clear: content / format / all behind one dropdown. No confirm
- *  dialog — Undo covers a clear — and read-only/no-selection states stay on
- *  the controls as `aria-disabled` (never hidden). */
-export function XlsxClearGroup({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps) {
-  const { t } = useTranslation();
+/** Home > Editing as typed ribbon items: one Clear dropdown (content / format /
+ *  all). Find & replace is not repeated here - it lives at the far right of the
+ *  ribbon's tab row. No confirm dialog - Undo covers a clear - and the
+ *  read-only / no-selection / no-port states keep the control rendered and
+ *  `aria-disabled`, with the command guarded again in the handler. */
+export function xlsxEditingRibbonItems({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps): readonly RibbonItem[] {
   const blocked = readOnly || !canFormat || !commands;
-  const [open, setOpen] = useState(false);
-  const label = t("office.xlsx.toolbar.groups.clear.label");
-  const run = (command: string) => {
-    if (blocked) return;
-    fireCommand(commands, command);
-    setOpen(false);
-  };
-
-  return (
-    <XlsxGroupBody>
-    <XlsxGroupRows>
-    <XlsxGroupRow>
-    <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="toolbar"
-            size="sm"
-            className="h-6 gap-0.5 px-1"
-            title={label}
-            aria-label={label}
-            aria-disabled={blocked || undefined}
-            data-testid="xlsx-clear-trigger"
-          />
-        }
-      >
-        <Eraser aria-hidden />
-        <ChevronDown aria-hidden />
-      </PopoverTrigger>
-      <PopoverContent
-        role="dialog"
-        aria-label={label}
-        align="start"
-        data-testid="xlsx-clear-menu"
-        className="w-auto max-w-56 flex-col items-stretch gap-1 p-2"
-      >
-        {CLEAR_ACTIONS.map(({ key, command }) => (
-          <Button
-            key={key}
-            type="button"
-            variant="toolbar"
-            size="sm"
-            className="justify-start"
-            aria-disabled={blocked || undefined}
-            data-testid={`xlsx-clear-${key}`}
-            onClick={() => run(command)}
-          >
-            {t(`office.xlsx.toolbar.groups.clear.${key}`)}
-          </Button>
-        ))}
-      </PopoverContent>
-    </Popover>
-    </XlsxGroupRow>
-    </XlsxGroupRows>
-    </XlsxGroupBody>
-  );
+  return [
+    {
+      kind: "dropdown",
+      id: "editing-clear",
+      labelKey: "office.xlsx.toolbar.groups.clear.label",
+      icon: Eraser,
+      size: "small",
+      collapseAs: "icon",
+      disabled: blocked,
+      menu: CLEAR_ACTIONS.map(({ key, command }) => ({
+        id: `editing-clear-${key}`,
+        labelKey: `office.xlsx.toolbar.groups.clear.${key}`,
+        disabled: blocked,
+        onSelect: () => {
+          if (!blocked) fireCommand(commands, command);
+        },
+      })),
+    },
+  ];
 }

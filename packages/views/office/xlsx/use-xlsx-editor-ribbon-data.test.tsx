@@ -43,7 +43,7 @@ describe("useXlsxEditorRibbonData", () => {
       { initialProps: { documentKey: "doc-a" } },
     );
     expect(result.current.tables).toEqual([
-      { sheet: "Data", name: "Budget", range: { startRow: 1, endRow: 4, startColumn: 0, endColumn: 2 } },
+      { sheet: "Data", name: "Budget", native: true, range: { startRow: 1, endRow: 4, startColumn: 0, endColumn: 2 } },
     ]);
 
     act(() => result.current.onTableEdits([tableEdit]));
