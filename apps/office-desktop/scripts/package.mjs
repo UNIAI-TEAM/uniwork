@@ -22,8 +22,11 @@ const outputDirectory = resolve(process.env.OFFICE_DESKTOP_OUTPUT ?? join(reposi
 const cacheRoot = resolve(process.env.OFFICE_DESKTOP_CACHE ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "cache"));
 
 /** The Linux MIME types the desktop app registers, one per file-extension
- * association, straight from the shared format table. */
-export const LINUX_DOCUMENT_MIME_TYPES = Object.values(documentFormats.formats).flatMap((format) => format.extensions.map(() => format.mimeTypes[0]));
+ * association, straight from the shared format table. Deduplicated with a Set
+ * (order preserved): several extensions share one MIME (md/markdown ->
+ * text/markdown, html/htm -> text/html), and electron-builder writes one
+ * MimeType= entry per association, so the raw list repeats them. */
+export const LINUX_DOCUMENT_MIME_TYPES = [...new Set(Object.values(documentFormats.formats).flatMap((format) => format.extensions.map(() => format.mimeTypes[0])))];
 
 /** electron-builder file associations for every extension in the format
  * table. `mimeType` is Linux-only: the deb/AppImage desktop entry needs it

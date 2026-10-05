@@ -132,12 +132,12 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
     { ext: "html", name: "HTML document", role: "Editor", mimeType: "text/html" },
     { ext: "htm", name: "HTML document", role: "Editor", mimeType: "text/html" },
   ]);
+  // One entry per DISTINCT MIME type, in first-seen order: md/markdown and
+  // html/htm each collapse to a single entry (F4).
   assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/pdf",
     "text/markdown",
-    "text/markdown",
-    "text/html",
     "text/html",
   ]);
   assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
