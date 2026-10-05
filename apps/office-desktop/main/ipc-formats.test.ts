@@ -7,16 +7,23 @@ const session = { sessionGeneration: "session_1234" };
 const meta = (name: string) => ({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name, byteLength: 1, modifiedAtMs: 1, checksum: `sha256:${"a".repeat(64)}` });
 
 describe("desktop format validation at the IPC boundary", () => {
-  it.each(["docx", "pdf", "md", "html"])("accepts desktop:file-create with format %s", (format) => {
+  it.each(["docx", "pdf", "md", "html", "xlsx"])("accepts desktop:file-create with format %s", (format) => {
     expect(validateIpcRequest("desktop:file-create", { ...session, format }, context)).toEqual({ ...session, format });
   });
 
   it("defaults desktop:file-create to DOCX and rejects formats outside the table", () => {
     expect(validateIpcRequest("desktop:file-create", session, context)).toEqual({ ...session, format: "docx" });
-    for (const format of ["xlsx", "markdown", "htm", "txt", "MD", ""]) {
+    for (const format of ["pptx", "markdown", "htm", "txt", "MD", ""]) {
       expect(() => validateIpcRequest("desktop:file-create", { ...session, format }, context)).toThrowError(IpcValidationError);
     }
-    expect(() => validateIpcRequest("desktop:library-create", { ...session, workspaceId: "ws", title: "x", format: "xlsx" }, context)).toThrowError(IpcValidationError);
+    expect(() => validateIpcRequest("desktop:library-create", { ...session, workspaceId: "ws", title: "x", format: "pptx" }, context)).toThrowError(IpcValidationError);
+  });
+
+  it("refuses to create a blank XLSX: the table carries it but no generator exists yet", async () => {
+    const createUntitled = vi.fn(async (_bytes: Uint8Array, untitled: string) => meta(untitled));
+    const handlers = createFileIpcHandlers({ registry: { createUntitled } as unknown as FileHandleRegistry });
+    await expect(handlers["desktop:file-create"]({ ...session, format: "xlsx" })).rejects.toThrow("document_format_unbound");
+    expect(createUntitled).not.toHaveBeenCalled();
   });
 
   it.each([["md", "Untitled.md"], ["html", "Untitled.html"]] as const)("creates a blank %s named %s", async (format, name) => {
