@@ -368,7 +368,7 @@ func (h *fileHarness) contract() filescontract.Harness {
 	}
 }
 
-func putWriteTarget(t *testing.T, target files.WriteTarget, body []byte, contentType string) {
+func putWriteTarget(t *testing.T, target files.WriteTarget, body []byte, _ string) {
 	t.Helper()
 	req, err := http.NewRequest(target.Method, target.URL, bytes.NewReader(body))
 	if err != nil {
@@ -377,9 +377,8 @@ func putWriteTarget(t *testing.T, target files.WriteTarget, body []byte, content
 	for name, value := range target.Headers {
 		req.Header.Set(name, value)
 	}
-	if req.Header.Get("Content-Type") == "" && contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
+	// SignWrite presigns the object key only; Content-Type is not in the
+	// signature and MinIO answers 400 when it is sent anyway.
 	req.ContentLength = int64(len(body))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
