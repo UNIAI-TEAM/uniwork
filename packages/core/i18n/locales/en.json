@@ -8620,6 +8620,10 @@
         "underline": "Underline",
         "strike": "Strikethrough",
         "code": "Inline code"
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "description": "Shortcuts available while editing this document."
       }
     },
     "pptx": {

@@ -8613,6 +8613,10 @@
         "underline": "Gạch chân",
         "strike": "Gạch ngang",
         "code": "Mã trong dòng"
+      },
+      "shortcuts": {
+        "title": "Phím tắt",
+        "description": "Các phím tắt dùng khi soạn thảo tài liệu này."
       }
     },
     "pptx": {
