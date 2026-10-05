@@ -65,10 +65,10 @@ func TestIsolationRealtime(t *testing.T) {
 			t.Fatalf("A's owner on A's channel = %v", reply)
 		}
 		for _, s := range scopes {
-			if s.scope == "meeting" || s.scope == "task" {
-				// Neither is a subscribable scope today (hub.go refuses
-				// meeting outright; task needs an authorizer the server does
-				// not wire), so there is no positive control to compare with.
+			if s.scope == "task" {
+				// Not a subscribable scope today (task needs an authorizer
+				// the server does not wire), so there is no positive control
+				// to compare with.
 				continue
 			}
 			if reply := wsSubscribe(t, own, s.scope, s.id); reply["type"] != "subscribe_ack" {

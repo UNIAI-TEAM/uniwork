@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -8,6 +8,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useParticipants } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { isPastScheduledEnd, useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
@@ -98,7 +99,64 @@ function RecordingAnnouncer({ recording }: { recording: boolean }) {
   );
 }
 
-export function MeetingStageHeader({
+/** Joins and leaves are always followed; a rename is the one other change the avatars show. */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
+
+/**
+ * Who is here, next to the clock; a click opens the full list. Its own leaf:
+ * the roster changes far more often than anything else in the header.
+ */
+function StageHeaderPeople({ peopleOpen, onOpenPeople }: { peopleOpen: boolean; onOpenPeople?: () => void }) {
+  const { t } = useTranslation();
+  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const avatarOf = useRoomAvatarOf();
+  // Others first: your own face is the one you least need to find here.
+  const othersFirst = [...participants.filter((p) => !p.isLocal), ...participants.filter((p) => p.isLocal)];
+  const avatarPeople = othersFirst.slice(0, HEADER_AVATARS);
+  const overflowCount = Math.max(0, participants.length - HEADER_AVATARS);
+  if (avatarPeople.length === 0) return null;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="hidden h-8 gap-1.5 rounded-full px-1 hover:bg-meeting-bar-chip-hover aria-pressed:bg-meeting-bar-chip-bg sm:inline-flex"
+      // The visible "+N" leads the name, so voice control can say what it sees.
+      aria-label={
+        overflowCount > 0
+          ? t("meetings.roomPeopleViewMore", {
+              count: participants.length,
+              more: t("meetings.moreParticipantsShort", { count: overflowCount }),
+            })
+          : t("meetings.roomPeopleView", { count: participants.length })
+      }
+      aria-pressed={peopleOpen}
+      title={othersFirst.map((p) => p.name || p.identity).join(", ")}
+      onClick={onOpenPeople}
+    >
+      <span className="flex -space-x-2">
+        {avatarPeople.map((p) => (
+          <MeetingPersonAvatar
+            key={p.identity}
+            name={p.name || p.identity}
+            avatarUrl={avatarOf(p.identity)}
+            size="sm"
+            tone="stage"
+            className="ring-2 ring-meeting-stage"
+          />
+        ))}
+      </span>
+      {overflowCount > 0 ? (
+        <span aria-hidden className="pr-1 text-caption tabular-nums text-meeting-bar-muted-foreground">
+          {t("meetings.moreParticipantsShort", { count: overflowCount })}
+        </span>
+      ) : null}
+    </Button>
+  );
+}
+
+/** Memoized: the stage passes stable callbacks, so a tile or caption update never repaints it. */
+export const MeetingStageHeader = memo(function MeetingStageHeader({
   meeting,
   meetingTitle,
   workspaceId,
@@ -127,8 +185,6 @@ export function MeetingStageHeader({
   peopleOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const participants = useParticipants();
-  const avatarOf = useRoomAvatarOf();
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const start = useStartMeeting(workspaceId ?? "");
   const end = useEndMeeting(workspaceId ?? "");
@@ -144,11 +200,6 @@ export function MeetingStageHeader({
   const inProgress = meeting?.status === "IN_PROGRESS";
   const showHostActions = Boolean(workspaceId && canHost.allowed && !guestMode);
   const showInvite = Boolean(meeting?.id && showHostActions);
-  // Others first: your own face is the one you least need to find here.
-  const othersFirst = [...participants.filter((p) => !p.isLocal), ...participants.filter((p) => p.isLocal)];
-  const avatarPeople = othersFirst.slice(0, HEADER_AVATARS);
-  const peopleNames = othersFirst.map((p) => p.name || p.identity).join(", ");
-  const overflowCount = Math.max(0, participants.length - HEADER_AVATARS);
 
   return (
     <>
@@ -226,45 +277,7 @@ export function MeetingStageHeader({
 
             {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
 
-            {avatarPeople.length > 0 ? (
-              // Who is here, next to the clock; a click opens the full list.
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="hidden h-8 gap-1.5 rounded-full px-1 hover:bg-meeting-bar-chip-hover aria-pressed:bg-meeting-bar-chip-bg sm:inline-flex"
-                // The visible "+N" leads the name, so voice control can say what it sees.
-                aria-label={
-                  overflowCount > 0
-                    ? t("meetings.roomPeopleViewMore", {
-                        count: participants.length,
-                        more: t("meetings.moreParticipantsShort", { count: overflowCount }),
-                      })
-                    : t("meetings.roomPeopleView", { count: participants.length })
-                }
-                aria-pressed={peopleOpen}
-                title={peopleNames}
-                onClick={onOpenPeople}
-              >
-                <span className="flex -space-x-2">
-                  {avatarPeople.map((p) => (
-                    <MeetingPersonAvatar
-                      key={p.identity}
-                      name={p.name || p.identity}
-                      avatarUrl={avatarOf(p.identity)}
-                      size="sm"
-                      tone="stage"
-                      className="ring-2 ring-meeting-stage"
-                    />
-                  ))}
-                </span>
-                {overflowCount > 0 ? (
-                  <span aria-hidden className="pr-1 text-caption tabular-nums text-meeting-bar-muted-foreground">
-                    {t("meetings.moreParticipantsShort", { count: overflowCount })}
-                  </span>
-                ) : null}
-              </Button>
-            ) : null}
+            <StageHeaderPeople peopleOpen={peopleOpen} onOpenPeople={onOpenPeople} />
 
             {showInvite ? (
               <Button
@@ -367,4 +380,4 @@ export function MeetingStageHeader({
       </AlertDialog>
     </>
   );
-}
+});

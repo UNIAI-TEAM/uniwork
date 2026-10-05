@@ -237,10 +237,18 @@ func main() {
 	chatSvc.SetTasks(taskSvc)
 	chatSvc.SetConference(conference)
 	chatSvc.SetAIGateway(gateway)
+	// Presence lives in Redis when there is one, so every replica sees the same
+	// online set and a transition is announced once; nil keeps it in process.
+	chatSvc.SetPresenceStore(rdb)
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
-	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
+	// Chat rooms and in-room meeting events are scopes a socket must be let into;
+	// both authorizers fail closed.
+	hub.SetAuthorizer(realtime.ScopeAuthorizers{
+		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: chatSvc},
+		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(meetingSvc),
+	})
 	// Directory and department events belong to the organization, so every
 	// connection joins its organization scope at connect time (F-03 §6.4).
 	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
@@ -313,21 +321,23 @@ func main() {
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
 	})
-	// One dispatcher drains outbox_events for the whole process. Registering a
-	// consumer is the only thing a new bounded context has to do to receive
-	// domain events; nothing here knows what produced them.
+	// One dispatcher drains outbox_events for the whole process, one claim
+	// loop per lane. Registering a consumer is the only thing a new bounded
+	// context has to do to receive domain events; the lane says how long it
+	// may keep a row, so slow work (LiveKit, LLM, exports, push gateways)
+	// never sits in front of the realtime frames (G3).
 	dispatcher := outbox.New(pool, q, outbox.Options{
 		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
 	})
-	dispatcher.Register(meetingSvc.ProviderConsumer())
+	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
 	auditExports := service.NewAuditExportConsumer(q, store)
 	auditExports.SetFileService(pool, fileSvc)
-	dispatcher.Register(auditExports)
-	dispatcher.Register(outbox.WebhookConsumer{})
-	dispatcher.Register(service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
-	dispatcher.Register(service.NewChatVoiceSummaryConsumer(chatSvc))
+	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)
+	dispatcher.RegisterLane(outbox.LaneSlow, outbox.WebhookConsumer{})
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside
@@ -348,9 +358,9 @@ func main() {
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
-	dispatcher.Register(notifConsumer)
+	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	dispatcher.Register(featureflags.NewInvalidator(flagOverrides))
-	dispatcher.Register(pushConsumer)
+	dispatcher.RegisterLane(outbox.LanePush, pushConsumer)
 	if reg != nil {
 		dispatcher.SetMetrics(reg.Outbox)
 		realtimeConsumer.SetMetrics(reg.Outbox)
@@ -361,10 +371,16 @@ func main() {
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
-	go meetingSvc.RunWorkers(runCtx)
-	go meetingSvc.RunAutoEnd(runCtx)
+	// The meeting workers (webhook inbox, attendance metering, reconcile) and
+	// auto-end stop with runCancel and are awaited below.
+	meetingWorkersDone := make(chan struct{})
+	go func() { meetingSvc.RunWorkers(runCtx); close(meetingWorkersDone) }()
+	meetingAutoEndDone := make(chan struct{})
+	go func() { meetingSvc.RunAutoEnd(runCtx); close(meetingAutoEndDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// Run returns only once every lane has stopped, so awaiting dispatcherDone
+	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
 	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
 	if reg != nil {
@@ -378,6 +394,15 @@ func main() {
 	// runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
+	// callbacks and the provider-event ledger past their windows. It stops with
+	// runCancel and is awaited below.
+	retention := service.NewEventRetention(q, log, service.EventRetentionPolicy{})
+	if reg != nil {
+		retention.SetMetrics(reg.Outbox)
+	}
+	retentionDone := make(chan struct{})
+	go func() { retention.Run(runCtx); close(retentionDone) }()
 	// The office reconciler settles jobs the engine finished, lost or timed
 	// out; it stops with runCancel and is awaited below.
 	officeDone := make(chan struct{})
@@ -530,6 +555,17 @@ func main() {
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: dispatcher did not stop in time")
 	}
+	// The meeting workers publish through the relay too, so they stop before it.
+	select {
+	case <-meetingWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: workers did not stop in time")
+	}
+	select {
+	case <-meetingAutoEndDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: auto-end did not stop in time")
+	}
 	select {
 	case <-fileGCDone:
 	case <-time.After(30 * time.Second):
@@ -539,6 +575,11 @@ func main() {
 	case <-docWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: maintenance worker did not stop in time")
+	}
+	select {
+	case <-retentionDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("outbox: event retention did not stop in time")
 	}
 	select {
 	case <-officeDone:

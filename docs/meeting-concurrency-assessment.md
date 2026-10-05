@@ -277,3 +277,27 @@ Tài liệu ghi "**P4 + P5 ✅, P6 chưa làm**" (dòng 11, 37-39).
 8. **Media**: `lk load-test` với 1 phòng × 100 publisher, và 20 phòng × 10 người. Kết hợp Playwright trace (long task, FPS, heap) ở client 100 người.
 
 Mọi script phải chạy với `LIVEKIT_TOKEN_TTL=30m`, giống production.
+## 7. Trạng thái xử lý
+
+Cập nhật 2026-10-05. Số dòng ở các mục trên vẫn là của `952010c4`; code đã đổi theo hai đợt dưới đây.
+
+### UNI-935 (P0): đã xử lý
+
+G1 (webhook bị rate limit), G2 (invite-link giữ hai connection, pool chưa đặt kích thước), G3 phần timeout và drain, G4 (rate limit theo user/guest thay cho IP), G6 (lobby herd, ghi audit lặp), G16 (ensure hạ cấp session READY), G21 (limiter Redis không có deadline).
+
+### UNI-936 (P1): đã xử lý
+
+| Gap | Đã làm | Còn lại |
+| --- | --- | --- |
+| G3 | Outbox chia năm lane (realtime, notify, provider, push, slow); các consumer của một dòng chạy song song; đánh dấu xong theo lô | Topic vừa realtime vừa notification đi lane `notify`; chưa có trạng thái giao theo từng consumer |
+| G7, G18 | Chat và transcript phân trang theo cursor, client chỉ đọc phần mới; danh sách motion không còn voter và `my_ballot`; `motion.ballot_cast` refetch tối đa 1 lần/giây; tóm tắt AI ưu tiên phần cuối cuộc họp | Mỗi frame vẫn kéo theo một GET nhỏ (bỏ hẳn cần ADR giống ADR 0015); cuộc họp > 2000 đoạn transcript chưa có map-reduce |
+| G8 | Event trong phòng chuyển sang scope meeting, socket member xin vào qua `AuthorizeMeetingScope`; presence lưu ở Redis, chỉ phát khi đổi trạng thái, limiter theo user | Tab mở từ trước khi deploy không nhận event trong phòng cho tới khi tải lại |
+| G9 | Bật `METRICS_ADDR`; alert mới cho webhook inbox, 429, eviction, lỗi XREAD, lag không đọc được; tracing không ghi span khi không có exporter | Ops cần đặt `networkPolicy.metricsScrapeNamespace` và nạp `deploy/alerts.yml` vào Prometheus của cụm |
+| G10 | Relay đặt lại consumer group khi scope đi từ 0 lên 1, bỏ qua envelope của chính node, key có TTL | Chưa nối `ShardedStreamRelay` (dài hạn) |
+| G12, G13 | Job retention theo lô; index `CONCURRENTLY` cho các query nóng; lag collector có timeout và báo lỗi bằng metric `*_lag_up` | Cửa sổ retention đang cố định trong code (7/30/14 ngày) |
+| G14, G15 | Webhook at-least-once (ghi dedupe cùng transaction, trả lỗi thật), dùng `occurred_at`; metering theo lô ngoài request; reconcile chạy goroutine riêng; worker được chờ khi shutdown | Một tổ chức lỗi metering chặn cả lô; `recording_ended` vẫn nuốt lỗi |
+| G17 | Tách `StageTiles`, `updateOnlyOn`, People tab có memo và windowing, giữ chỗ speaker; mic mặc định tắt khi phòng đông; `mute_request` gửi đúng người; host có "tắt mic mọi người" | Subscribe chọn lọc (`autoSubscribe:false`) chưa làm |
+| G19 | Đọc trước khi khoá motion, bỏ lần đọc workspace dư, insert danh sách cử tri một câu lệnh | Đếm phiếu khi đóng (phiếu kín không lưu lựa chọn nên chưa bỏ được bộ đếm) |
+| G20 | Nhắc lịch one-shot qua bảng `meeting_reminders`, lỗi một cuộc họp không dừng cả lượt | Đổi giờ họp sau khi đã nhắc thì không nhắc lại |
+
+Chưa làm (cần quyết định hạ tầng hoặc sản phẩm): CDN cho `/_next/static`, `MaxParticipants` theo gói, cluster LiveKit riêng, scale ngang BE (ADR 0025), load test k6 ở mục 6.

@@ -31,6 +31,17 @@ spec:
           type: RuntimeDefault
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      # Prefer separate nodes so one drain or node loss leaves a replica up;
+      # soft, so a single app node still schedules both.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: uniwork-fe
       containers:
         - name: uniwork-fe
           image: {{ include "uniwork.image" .Values.fe.image | quote }}

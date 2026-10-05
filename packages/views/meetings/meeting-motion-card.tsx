@@ -230,7 +230,7 @@ export function MeetingMotionCard({
       {status === "OPEN" ? (
         <MotionOpenBody meetingId={meetingId} motion={motion} isClerk={isClerk} canVote={canVote} onClose={onClose} />
       ) : null}
-      {status === "CLOSED" ? <MeetingMotionResult motion={motion} /> : null}
+      {status === "CLOSED" ? <MeetingMotionResult meetingId={meetingId} motion={motion} /> : null}
     </article>
   );
 }

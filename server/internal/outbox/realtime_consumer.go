@@ -100,6 +100,11 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 			return nil
 		}
 		c.pub.PublishScope(ctx, "organization", payload["organization_id"], ev.Topic, payload)
+	case ScopeMeeting:
+		if payload["meeting_id"] == "" {
+			return nil
+		}
+		c.pub.PublishScope(ctx, "meeting", payload["meeting_id"], ev.Topic, payload)
 	case ScopeChat:
 		if payload["room_id"] == "" {
 			return nil

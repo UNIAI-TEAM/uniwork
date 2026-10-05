@@ -977,6 +977,7 @@ var isoUnseeded = map[string]string{
 	"task_source_contexts": "no code path writes it today; only the files backfill reads it",
 	"invoices":             "written by a billing provider's webhook; the manual provider in tests issues none",
 	"file_backfill_items":  "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
+	"meeting_reminders":    "written only by the meeting reminder job (internal/notification); no route fills it",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

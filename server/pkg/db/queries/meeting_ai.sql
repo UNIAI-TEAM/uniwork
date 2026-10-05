@@ -3,9 +3,30 @@ INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
--- name: ListTranscriptSegments :many
+-- name: ListTranscriptSegmentsLatest :many
 -- tenant: parent meeting_id
-SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at ASC, id ASC LIMIT $2;
+-- Newest first; callers reverse the page into reading order (G18).
+SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2;
+
+-- name: ListTranscriptSegmentsBefore :many
+-- tenant: parent meeting_id
+-- The page older than the cursor row; the plain spoken_at bound lets the
+-- (meeting_id, spoken_at) index start the scan at the cursor.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND spoken_at <= sqlc.arg('before_at')::timestamptz
+  AND (spoken_at, id) < (sqlc.arg('before_at')::timestamptz, sqlc.arg('before_id')::text)
+ORDER BY spoken_at DESC, id DESC
+LIMIT sqlc.arg('row_limit');
+
+-- name: ListTranscriptSegmentsCreatedSince :many
+-- tenant: parent meeting_id
+-- Delta read keyed on created_at, not spoken_at: spoken_at comes from the
+-- caption client or the STT agent and can land behind rows already read.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id') AND created_at >= sqlc.arg('since')::timestamptz
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg('row_limit');
 
 -- name: InsertMeetingSummary :one
 INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)

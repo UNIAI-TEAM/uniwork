@@ -9,7 +9,7 @@ import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
-import { useMeetingLobbySync, useWorkspaceEvents } from "@uniwork/core/realtime";
+import { useMeetingLobbySync, useMeetingScope, useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
@@ -99,6 +99,9 @@ export function MeetingRoomView({
   const start = useStartMeeting(resolvedWorkspaceId);
   const { canHost } = useMeetingPermissions(guestMode ? null : (meeting ?? null), resolvedWorkspaceId);
   useWorkspaceEvents(guestMode ? "" : resolvedWorkspaceId);
+  // In-room events reach only the sockets holding the meeting open. Held from
+  // the prejoin on: a member waiting for approval hears its decision there.
+  useMeetingScope(guestMode ? "" : meetingId);
   useMeetingLobbySync(meetingId, guestMode === true);
   const joinOnce = useRef(false);
   const admittedRef = useRef(false);

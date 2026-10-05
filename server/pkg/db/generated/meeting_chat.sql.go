@@ -54,18 +54,118 @@ func (q *Queries) InsertMeetingChatMessage(ctx context.Context, arg InsertMeetin
 	return i, err
 }
 
-const listMeetingChatMessages = `-- name: ListMeetingChatMessages :many
-SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages WHERE meeting_id = $1 ORDER BY sent_at ASC, id ASC LIMIT $2
+const listMeetingChatMessagesBefore = `-- name: ListMeetingChatMessagesBefore :many
+SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages
+WHERE meeting_id = $1
+  AND sent_at <= $2::timestamptz
+  AND (sent_at, id) < ($2::timestamptz, $3::text)
+ORDER BY sent_at DESC, id DESC
+LIMIT $4
 `
 
-type ListMeetingChatMessagesParams struct {
+type ListMeetingChatMessagesBeforeParams struct {
+	MeetingID string             `json:"meeting_id"`
+	BeforeAt  pgtype.Timestamptz `json:"before_at"`
+	BeforeID  string             `json:"before_id"`
+	RowLimit  int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// The page older than the cursor row. The plain sent_at bound lets the
+// (meeting_id, sent_at) index start the scan at the cursor.
+func (q *Queries) ListMeetingChatMessagesBefore(ctx context.Context, arg ListMeetingChatMessagesBeforeParams) ([]MeetingChatMessage, error) {
+	rows, err := q.db.Query(ctx, listMeetingChatMessagesBefore,
+		arg.MeetingID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingChatMessage{}
+	for rows.Next() {
+		var i MeetingChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SenderIdentity,
+			&i.SenderName,
+			&i.Message,
+			&i.SentAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMeetingChatMessagesLatest = `-- name: ListMeetingChatMessagesLatest :many
+SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages WHERE meeting_id = $1 ORDER BY sent_at DESC, id DESC LIMIT $2
+`
+
+type ListMeetingChatMessagesLatestParams struct {
 	MeetingID string `json:"meeting_id"`
 	Limit     int32  `json:"limit"`
 }
 
 // tenant: parent meeting_id
-func (q *Queries) ListMeetingChatMessages(ctx context.Context, arg ListMeetingChatMessagesParams) ([]MeetingChatMessage, error) {
-	rows, err := q.db.Query(ctx, listMeetingChatMessages, arg.MeetingID, arg.Limit)
+// Newest first; callers reverse the page into reading order (G18).
+func (q *Queries) ListMeetingChatMessagesLatest(ctx context.Context, arg ListMeetingChatMessagesLatestParams) ([]MeetingChatMessage, error) {
+	rows, err := q.db.Query(ctx, listMeetingChatMessagesLatest, arg.MeetingID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingChatMessage{}
+	for rows.Next() {
+		var i MeetingChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SenderIdentity,
+			&i.SenderName,
+			&i.Message,
+			&i.SentAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMeetingChatMessagesSince = `-- name: ListMeetingChatMessagesSince :many
+SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages
+WHERE meeting_id = $1 AND sent_at >= $2::timestamptz
+ORDER BY sent_at ASC, id ASC
+LIMIT $3
+`
+
+type ListMeetingChatMessagesSinceParams struct {
+	MeetingID string             `json:"meeting_id"`
+	Since     pgtype.Timestamptz `json:"since"`
+	RowLimit  int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Delta read for the in-room feed: everything sent at or after since, oldest first.
+func (q *Queries) ListMeetingChatMessagesSince(ctx context.Context, arg ListMeetingChatMessagesSinceParams) ([]MeetingChatMessage, error) {
+	rows, err := q.db.Query(ctx, listMeetingChatMessagesSince, arg.MeetingID, arg.Since, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

@@ -959,6 +959,7 @@ type MeetingAttendanceSession struct {
 	ProviderEventID             pgtype.Text        `json:"provider_event_id"`
 	ProviderParticipantSid      pgtype.Text        `json:"provider_participant_sid"`
 	OrganizationID              string             `json:"organization_id"`
+	MeteredAt                   pgtype.Timestamptz `json:"metered_at"`
 }
 
 type MeetingAttendee struct {
@@ -1154,6 +1155,13 @@ type MeetingRecording struct {
 	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
 	FileID         pgtype.Text `json:"file_id"`
 	OrganizationID string      `json:"organization_id"`
+}
+
+type MeetingReminder struct {
+	MeetingID      string             `json:"meeting_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RemindedAt     pgtype.Timestamptz `json:"reminded_at"`
 }
 
 type MeetingSummary struct {

@@ -26,9 +26,9 @@ import (
 // Config is read from the OTEL_* variables listed in .env.example.
 type Config struct {
 	// Endpoint is OTEL_EXPORTER_OTLP_ENDPOINT. Empty means no exporter and no
-	// connection attempt; spans are still created so every request has a
-	// trace id (X-Trace-Id, correlation_id) even on a deployment without a
-	// collector.
+	// connection attempt; spans still carry a trace id so every request has
+	// one (X-Trace-Id, correlation_id) even on a deployment without a
+	// collector, but nothing is recorded because nothing would read it.
 	Endpoint    string
 	ServiceName string
 	Version     string
@@ -56,12 +56,23 @@ func ConfigFromEnv(version string) Config {
 // the function main.go calls during shutdown. It never fails on a missing
 // collector: the exporter connects lazily and drops batches it cannot send.
 func Init(ctx context.Context, cfg Config, log *slog.Logger) (func(context.Context) error, error) {
-	ratio := 1.0
-	if cfg.SamplerArg != "" {
-		if f, err := strconv.ParseFloat(cfg.SamplerArg, 64); err == nil && f >= 0 && f <= 1 {
-			ratio = f
+	var proc sdktrace.SpanProcessor
+	if cfg.Endpoint != "" {
+		exp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(cfg.Endpoint))
+		if err != nil {
+			return nil, err
 		}
+		proc = sdktrace.NewBatchSpanProcessor(exp, sdktrace.WithBatchTimeout(2*time.Second))
+		log.Info("otel tracing enabled", "endpoint", cfg.Endpoint, "sampler_ratio", samplerRatio(cfg.SamplerArg))
 	}
+	return install(cfg, proc)
+}
+
+// install builds the provider around proc, the one place spans go. A nil
+// proc means no exporter: the sampler then drops every span, so a request
+// pays for a trace id and a non-recording span instead of a recorded span
+// (with its SQL and Redis children) that is thrown away at End.
+func install(cfg Config, proc sdktrace.SpanProcessor) (func(context.Context) error, error) {
 	// Schemaless on purpose: resource.Default() carries the SDK's own schema
 	// URL and Merge refuses two different ones.
 	res, err := resource.Merge(resource.Default(), resource.NewSchemaless(
@@ -71,22 +82,30 @@ func Init(ctx context.Context, cfg Config, log *slog.Logger) (func(context.Conte
 	if err != nil {
 		return nil, err
 	}
-	opts := []sdktrace.TracerProviderOption{
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(debugSampler{sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio))}),
+	// NeverSample, not ParentBased(NeverSample): a sampled traceparent from
+	// upstream would otherwise make this process record spans nobody exports.
+	// The SDK still mints (or continues) the trace id before it asks the
+	// sampler, so X-Trace-Id and correlation_id are unchanged.
+	sampler := sdktrace.NeverSample()
+	opts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
+	if proc != nil {
+		sampler = debugSampler{sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplerRatio(cfg.SamplerArg)))}
+		opts = append(opts, sdktrace.WithSpanProcessor(proc))
 	}
-	if cfg.Endpoint != "" {
-		exp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(cfg.Endpoint))
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(2*time.Second)))
-		log.Info("otel tracing enabled", "endpoint", cfg.Endpoint, "sampler_ratio", ratio)
-	}
-	tp := sdktrace.NewTracerProvider(opts...)
+	tp := sdktrace.NewTracerProvider(append(opts, sdktrace.WithSampler(sampler))...)
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	return tp.Shutdown, nil
+}
+
+// samplerRatio parses OTEL_TRACES_SAMPLER_ARG; empty or out of [0,1] is 1.0.
+func samplerRatio(arg string) float64 {
+	if arg != "" {
+		if f, err := strconv.ParseFloat(arg, 64); err == nil && f >= 0 && f <= 1 {
+			return f
+		}
+	}
+	return 1.0
 }
 
 // debugSampler forces a sample when the request carried X-Debug-Trace: 1

@@ -98,7 +98,7 @@ func (h *handlers) signalChatPresence(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Chat.SignalPresence(
+	online, err := h.Chat.SignalPresence(
 		r.Context(),
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
@@ -108,5 +108,5 @@ func (h *handlers) signalChatPresence(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+	respondJSON(w, http.StatusOK, sdo.ChatPresenceSDO{Status: "ok", OnlineUserIDs: online})
 }

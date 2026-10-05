@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { encodeSignal } from "./meeting-signals";
-import { MeetingSignalsProvider, useParticipantSignal, useRequestMute } from "./use-meeting-signals";
+import { MeetingSignalsProvider, useMeetingSignals, useParticipantSignal, useRequestMute } from "./use-meeting-signals";
 
 type DataMessage = { payload: Uint8Array; from?: { identity: string } };
 
@@ -14,6 +14,8 @@ const lk = vi.hoisted(() => ({
   toggle: vi.fn(),
   participants: [{ identity: "me" }, { identity: "lan" }, { identity: "minh" }],
   sent: [] as Uint8Array[],
+  sentOptions: [] as unknown[],
+  participantsOptions: [] as unknown[],
 }));
 
 vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() } }));
@@ -26,9 +28,10 @@ vi.mock("@livekit/components-react", () => ({
       const ch = {
         onMessage: cb,
         subscribed: false,
-        send: async (payload: Uint8Array) => {
+        send: async (payload: Uint8Array, options?: unknown) => {
           if (!ch.subscribed) throw new TypeError("Cannot read properties of undefined (reading 'next')");
           lk.sent.push(payload);
+          lk.sentOptions.push(options);
         },
       };
       return ch;
@@ -39,7 +42,10 @@ vi.mock("@livekit/components-react", () => ({
     return { send: channel.send };
   },
   useLocalParticipant: () => ({ localParticipant: { identity: "me" } }),
-  useParticipants: () => lk.participants,
+  useParticipants: (options?: unknown) => {
+    lk.participantsOptions.push(options);
+    return lk.participants;
+  },
   useTrackToggle: () => ({ enabled: lk.micEnabled, toggle: lk.toggle }),
 }));
 
@@ -52,6 +58,8 @@ beforeEach(() => {
   lk.micEnabled = true;
   lk.toggle.mockClear();
   lk.sent = [];
+  lk.sentOptions = [];
+  lk.participantsOptions = [];
   vi.mocked(toast.info).mockClear();
   vi.mocked(toast.success).mockClear();
 });
@@ -59,6 +67,15 @@ beforeEach(() => {
 function HandProbe({ identity }: { identity: string }) {
   const { handRaised } = useParticipantSignal(identity);
   return <span data-testid={`hand-${identity}`}>{handRaised ? "up" : "down"}</span>;
+}
+
+function MuteAllProbe() {
+  const { requestMuteAll } = useMeetingSignals();
+  return (
+    <button type="button" onClick={requestMuteAll}>
+      mute all
+    </button>
+  );
 }
 
 function MuteProbe({ target }: { target: string }) {
@@ -141,5 +158,73 @@ describe("MeetingSignalsProvider", () => {
     act(() => lk.onData?.({ payload: encodeSignal({ kind: "hand", value: true }), from: { identity: "lan" } }));
     expect(screen.getByTestId("hand-lan")).toHaveTextContent("up");
     expect(screen.getByTestId("hand-minh")).toHaveTextContent("down");
+  });
+
+  it("sends a mute request to its target only, not the whole room", async () => {
+    render(
+      <MeetingSignalsProvider canHost hostIdentities={["me"]}>
+        <MuteProbe target="lan" />
+      </MeetingSignalsProvider>,
+    );
+    await act(async () => screen.getByRole("button", { name: "mute" }).click());
+    expect(lk.sentOptions).toEqual([
+      expect.objectContaining({ reliable: true, destinationIdentities: ["lan"] }),
+    ]);
+  });
+
+  it("follows the roster only for joins and leaves", () => {
+    render(
+      <MeetingSignalsProvider>
+        <span />
+      </MeetingSignalsProvider>,
+    );
+    expect(lk.participantsOptions[0]).toEqual({ updateOnlyOn: [] });
+  });
+
+  it("lets a host mute everyone with one message to the room", async () => {
+    render(
+      <MeetingSignalsProvider canHost hostIdentities={["me"]}>
+        <MuteAllProbe />
+      </MeetingSignalsProvider>,
+    );
+    await act(async () => screen.getByRole("button", { name: "mute all" }).click());
+    expect(lk.sent.map((p) => new TextDecoder().decode(p))).toEqual([
+      new TextDecoder().decode(encodeSignal({ kind: "mute_all" })),
+    ]);
+    expect(lk.sentOptions[0]).not.toHaveProperty("destinationIdentities");
+    expect(toast.success).toHaveBeenCalledWith("Đã tắt mic của mọi người", { position: "top-center" });
+  });
+
+  it("does not let a viewer who cannot host send mute everyone", async () => {
+    render(
+      <MeetingSignalsProvider hostIdentities={["host"]}>
+        <MuteAllProbe />
+      </MeetingSignalsProvider>,
+    );
+    await act(async () => screen.getByRole("button", { name: "mute all" }).click());
+    expect(lk.sent).toEqual([]);
+  });
+
+  it("mutes the viewer on a host's mute everyone, and says so", () => {
+    render(
+      <MeetingSignalsProvider hostIdentities={["host"]}>
+        <span />
+      </MeetingSignalsProvider>,
+    );
+    act(() => lk.onData?.({ payload: encodeSignal({ kind: "mute_all" }), from: { identity: "x" } }));
+    expect(lk.toggle).not.toHaveBeenCalled();
+    act(() => lk.onData?.({ payload: encodeSignal({ kind: "mute_all" }), from: { identity: "host" } }));
+    expect(lk.toggle).toHaveBeenCalledWith(false);
+    expect(toast.info).toHaveBeenCalledWith("Chủ trì đã tắt mic của bạn", expect.anything());
+  });
+
+  it("leaves a fellow host's mic alone on mute everyone", () => {
+    render(
+      <MeetingSignalsProvider canHost hostIdentities={["host", "me"]}>
+        <span />
+      </MeetingSignalsProvider>,
+    );
+    act(() => lk.onData?.({ payload: encodeSignal({ kind: "mute_all" }), from: { identity: "host" } }));
+    expect(lk.toggle).not.toHaveBeenCalled();
   });
 });

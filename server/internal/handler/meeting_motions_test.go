@@ -27,6 +27,22 @@ func findMotion(t *testing.T, out map[string]any, id string) map[string]any {
 	return nil
 }
 
+// myBallotOf returns the caller's ballot on this motion from a GET
+// /my-ballots body; nil when they are not on its roll.
+func myBallotOf(t *testing.T, out map[string]any, motionID string) map[string]any {
+	t.Helper()
+	list, ok := out["ballots"].([]any)
+	if !ok {
+		t.Fatalf("no ballots in %v", out)
+	}
+	for _, raw := range list {
+		if b, _ := raw.(map[string]any); b["motion_id"] == motionID {
+			return b
+		}
+	}
+	return nil
+}
+
 // payloadOf reads a timeline row's payload; nil when the key is absent.
 func payloadOf(row map[string]any) map[string]any {
 	p, _ := row["payload"].(map[string]any)
@@ -105,9 +121,15 @@ func TestMotionsHTTPFlow(t *testing.T) {
 	if first["status"] != "DRAFT" || first["position"].(float64) != 1 || first["cast_count"].(float64) != 0 {
 		t.Fatalf("created motion = %v", first)
 	}
-	for _, key := range []string{"result", "voters", "roll_size", "total_members"} {
+	for _, key := range []string{"result", "roll_size", "total_members"} {
 		if v, ok := first[key]; !ok || v != nil {
 			t.Fatalf("%s must be null on a draft: %v", key, first)
+		}
+	}
+	// Per-caller and per-voter data has its own routes; a motion never carries it.
+	for _, key := range []string{"voters", "my_ballot"} {
+		if _, ok := first[key]; ok {
+			t.Fatalf("%s must not be on a motion: %v", key, first)
 		}
 	}
 	res, out = doJSON(t, srv, "POST", meetingPath+"/motions", token, map[string]string{
@@ -184,9 +206,27 @@ func TestMotionsHTTPFlow(t *testing.T) {
 	if v, ok := seen["result"]; !ok || v != nil || seen["cast_count"].(float64) != 0 {
 		t.Fatalf("guest sees an open motion as %v", seen)
 	}
-	mine := seen["my_ballot"].(map[string]any)
-	if mine["on_roll"] != true || mine["cast"] != false || mine["choice"] != nil {
-		t.Fatalf("guest my_ballot = %v", mine)
+	if _, ok := seen["my_ballot"]; ok {
+		t.Fatalf("the list carries a caller's ballot: %v", seen)
+	}
+	res, out = doJSON(t, srv, "GET", meetingPath+"/my-ballots", "", nil)
+	if res.StatusCode != http.StatusUnauthorized || errorCode(out) != "unauthorized" {
+		t.Fatalf("anonymous my-ballots: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSONHeaders(t, srv, "GET", meetingPath+"/my-ballots", "", guest, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("guest my-ballots: %d %v", res.StatusCode, out)
+	}
+	if mine := myBallotOf(t, out, firstID); mine == nil || mine["cast"] != false || mine["choice"] != nil {
+		t.Fatalf("guest my ballot = %v", out)
+	}
+	res, out = doJSONHeaders(t, srv, "GET", meetingPath+"/motions/"+firstID+"/voters", "", guest, nil)
+	if res.StatusCode != http.StatusOK || out["motion_id"] != firstID || out["voters"] != nil {
+		t.Fatalf("voters while open: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSONHeaders(t, srv, "GET", meetingPath+"/motions/"+secondID+"/voters", "", guest, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("guest reads a draft's voters: %d %v", res.StatusCode, out)
 	}
 
 	// Voting: the guest through X-Guest-Session, the host through the token.
@@ -226,8 +266,9 @@ func TestMotionsHTTPFlow(t *testing.T) {
 	if v, ok := hostView["result"]; !ok || v != nil || hostView["cast_count"].(float64) != 2 {
 		t.Fatalf("host sees an open motion as %v", hostView)
 	}
-	if b := hostView["my_ballot"].(map[string]any); b["cast"] != true || b["choice"] != "YES" {
-		t.Fatalf("host my_ballot = %v", b)
+	_, out = doJSON(t, srv, "GET", meetingPath+"/my-ballots", token, nil)
+	if b := myBallotOf(t, out, firstID); b == nil || b["cast"] != true || b["choice"] != "YES" {
+		t.Fatalf("host my ballot = %v", out)
 	}
 
 	// Closing counts once and for all.
@@ -251,10 +292,10 @@ func TestMotionsHTTPFlow(t *testing.T) {
 	if res.StatusCode != http.StatusConflict || errorCode(out) != "motion_not_open" {
 		t.Fatalf("ballot after close: %d %v", res.StatusCode, out)
 	}
-	_, out = doJSON(t, srv, "GET", meetingPath+"/motions", token, nil)
-	voters, _ := findMotion(t, out, firstID)["voters"].(map[string]any)
-	if voters == nil || len(voters["yes"].([]any)) != 2 {
-		t.Fatalf("voters = %v", voters)
+	res, out = doJSONHeaders(t, srv, "GET", meetingPath+"/motions/"+firstID+"/voters", "", guest, nil)
+	voters, _ := out["voters"].(map[string]any)
+	if res.StatusCode != http.StatusOK || voters == nil || len(voters["yes"].([]any)) != 2 {
+		t.Fatalf("voters: %d %v", res.StatusCode, out)
 	}
 	if no, ok := voters["no"].([]any); !ok || len(no) != 0 {
 		t.Fatalf("an empty choice must be [], got %v", voters["no"])

@@ -149,10 +149,6 @@ func (s *MeetingService) CreateMotion(ctx context.Context, actorID, meetingID st
 	if err := checkMotionBase(in.Base); err != nil {
 		return db.MeetingMotion{}, err
 	}
-	orgID, err := s.organizationOf(ctx, m)
-	if err != nil {
-		return db.MeetingMotion{}, err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingMotion{}, err
@@ -169,7 +165,7 @@ func (s *MeetingService) CreateMotion(ctx context.Context, actorID, meetingID st
 		return db.MeetingMotion{}, errInvalidState()
 	}
 	mo, err := q.CreateMeetingMotion(ctx, db.CreateMeetingMotionParams{
-		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: locked.WorkspaceID, MeetingID: locked.ID,
+		ID: util.NewID(), OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID, MeetingID: locked.ID,
 		Title: title, Description: description,
 		BallotMode: in.BallotMode, Threshold: in.Threshold, Base: in.Base,
 		CreatedBy: actorID,

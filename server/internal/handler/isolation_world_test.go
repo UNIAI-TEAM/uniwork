@@ -162,7 +162,10 @@ func newIsolationServer(t *testing.T) *isoWorld {
 		FrontendOrigin: "http://localhost:3000",
 	})
 
-	d.Hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: d.Chat})
+	d.Hub.SetAuthorizer(realtime.ScopeAuthorizers{
+		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: d.Chat},
+		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(d.Meetings),
+	})
 	d.Hub.SetOrganizationResolver(d.Workspaces.OrganizationOf)
 
 	// Every flag on: a route behind an off flag answers feature_disabled to

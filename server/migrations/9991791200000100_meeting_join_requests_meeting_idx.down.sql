@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_meeting_join_requests_meeting;

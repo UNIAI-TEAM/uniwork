@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -43,9 +44,9 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if _, err := s.AppendTranscript(ctx, ub.ID, m.ID, "x", time.Time{}); err == nil {
 		t.Fatal("non-member appended transcript")
 	}
-	segs, err := s.Transcript(ctx, ua.ID, m.ID)
-	if err != nil || len(segs) != 1 {
-		t.Fatalf("%d %v", len(segs), err)
+	segs, err := s.Transcript(ctx, ua.ID, m.ID, FeedQuery{})
+	if err != nil || len(segs.Items) != 1 {
+		t.Fatalf("%d %v", len(segs.Items), err)
 	}
 
 	s.rt.STTAgentSecret = "agent-secret"
@@ -54,9 +55,9 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if err != nil || agentSeg.Text != "Agent line" {
 		t.Fatalf("agent transcript: %+v %v", agentSeg, err)
 	}
-	segs, err = s.Transcript(ctx, ua.ID, m.ID)
-	if err != nil || len(segs) != 2 {
-		t.Fatalf("want 2 segments, got %d %v", len(segs), err)
+	segs, err = s.Transcript(ctx, ua.ID, m.ID, FeedQuery{})
+	if err != nil || len(segs.Items) != 2 {
+		t.Fatalf("want 2 segments, got %d %v", len(segs.Items), err)
 	}
 
 	// AI off → 503-coded error; on → row stored with JSON columns.
@@ -646,5 +647,125 @@ func TestCalendarICSJoinURL(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "URL:http://localhost:3000/org-alpha/alpha/meetings/"+m.ID) {
 		t.Fatalf("join url missing:\n%s", out)
+	}
+}
+
+func seedTranscript(t *testing.T, s *MeetingService, m db.Meeting, id, text string, spokenAt time.Time) {
+	t.Helper()
+	if _, err := s.q.InsertTranscriptSegment(context.Background(), db.InsertTranscriptSegmentParams{
+		ID: id, MeetingID: m.ID, OrganizationID: m.OrganizationID, SpeakerName: "X", Text: text,
+		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// G18: transcript pages run newest first by spoken_at, but deltas follow
+// created_at - a segment the STT agent delivers late, stamped with an earlier
+// spoken_at, still reaches a client that already holds the newer lines.
+func TestTranscriptFeedPagesAndLateSegments(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Feed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	for i, id := range []string{"t1", "t2", "t3"} {
+		seedTranscript(t, s, m, id, id, base.Add(time.Duration(i)*time.Minute))
+	}
+	page, err := s.Transcript(ctx, ua.ID, m.ID, FeedQuery{Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := func(rows []db.MeetingTranscriptSegment) string {
+		out := make([]string, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, r.ID)
+		}
+		return strings.Join(out, ",")
+	}
+	if ids(page.Items) != "t2,t3" || page.OlderCursor == "" || page.AfterCursor == "" {
+		t.Fatalf("newest page = %s %+v", ids(page.Items), page)
+	}
+	older, err := s.Transcript(ctx, ua.ID, m.ID, FeedQuery{Before: page.OlderCursor, Limit: 2})
+	if err != nil || ids(older.Items) != "t1" || older.OlderCursor != "" {
+		t.Fatalf("older page = %s %+v %v", ids(older.Items), older, err)
+	}
+
+	seedTranscript(t, s, m, "late", "late", base.Add(-time.Minute))
+	delta, err := s.Transcript(ctx, ua.ID, m.ID, FeedQuery{After: page.AfterCursor})
+	if err != nil || !strings.Contains(ids(delta.Items), "late") || delta.HasMoreAfter {
+		t.Fatalf("delta = %s %+v %v", ids(delta.Items), delta, err)
+	}
+
+	if _, err := s.Transcript(ctx, ub.ID, m.ID, FeedQuery{}); err != ErrForbidden {
+		t.Fatalf("non-member read the transcript: %v", err)
+	}
+}
+
+func TestSummaryWindowKeepsTheEnd(t *testing.T) {
+	sizes := func(n, each int) []int {
+		out := make([]int, n)
+		for i := range out {
+			out[i] = each
+		}
+		return out
+	}
+	cases := []struct {
+		name            string
+		sizes           []int
+		budget          int
+		head, tailStart int
+	}{
+		{"fits", sizes(5, 10), 100, 5, 5},
+		{"empty", nil, 100, 0, 0},
+		// head gets an eighth (10 runes → 1 line), the rest goes to the end.
+		{"long", sizes(20, 10), 80, 1, 13},
+		{"head line too big", []int{50, 10, 10, 10}, 40, 0, 1},
+	}
+	for _, c := range cases {
+		head, tailStart := summaryWindow(c.sizes, c.budget)
+		if head != c.head || tailStart != c.tailStart {
+			t.Fatalf("%s: got (%d,%d) want (%d,%d)", c.name, head, tailStart, c.head, c.tailStart)
+		}
+	}
+}
+
+// G18: a long meeting's summary is built from its end - where the decisions
+// are - plus a short opening, with the cut marked, not from its first lines.
+func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Long")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Add(-2 * time.Hour)
+	filler := strings.Repeat("x", 996)
+	for i := 0; i < 100; i++ {
+		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
+	}
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	for _, want := range []string{"L000", "L006", "L048", "L099", "(41 lines omitted)"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt lacks %q", want)
+		}
+	}
+	for _, gone := range []string{"L007", "L030", "L047"} {
+		if strings.Contains(prompt, gone) {
+			t.Fatalf("prompt kept %q from the middle", gone)
+		}
+	}
+	if !(strings.Index(prompt, "L006") < strings.Index(prompt, "(41 lines omitted)") &&
+		strings.Index(prompt, "(41 lines omitted)") < strings.Index(prompt, "L048")) {
+		t.Fatal("omission marker is not between the opening and the end")
 	}
 }

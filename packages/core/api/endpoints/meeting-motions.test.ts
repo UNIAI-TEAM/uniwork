@@ -7,7 +7,9 @@ import {
   closeMeetingMotion,
   createMeetingMotion,
   deleteMeetingMotion,
+  getMotionVoters,
   listMeetingMotions,
+  listMyMotionBallots,
   openMeetingMotion,
   updateMeetingMotion,
 } from "./meeting-motions";
@@ -30,8 +32,6 @@ const closed = {
   total_members: 4,
   cast_count: 3,
   result: { yes: 2, no: 1, abstain: 0, required: 2, outcome: "PASSED" },
-  voters: { yes: ["An", "Bình"], no: ["Chi"], abstain: [] },
-  my_ballot: { on_roll: true, cast: true, choice: "YES" },
 };
 
 const draft = {
@@ -47,8 +47,6 @@ const draft = {
   total_members: null,
   cast_count: 0,
   result: null,
-  voters: null,
-  my_ballot: { on_roll: false, cast: false, choice: null },
 };
 
 const base = "http://api.test/api/v1/meetings/m1/motions";
@@ -72,10 +70,54 @@ describe("meeting motion endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(base);
     expect(got).toHaveLength(2);
     expect(got[0]?.result).toEqual({ yes: 2, no: 1, abstain: 0, required: 2, outcome: "PASSED" });
-    expect(got[0]?.voters?.no).toEqual(["Chi"]);
     expect(got[1]?.result).toBeNull();
     expect(got[1]?.roll_size).toBeNull();
-    expect(got[1]?.my_ballot?.choice).toBeNull();
+  });
+
+  it("listMyMotionBallots reads the caller's roll, choice only on a cast public ballot", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        ballots: [
+          { motion_id: "mo1", cast: true, choice: "YES" },
+          { motion_id: "mo3", cast: true, choice: null },
+          { motion_id: "mo4", cast: false },
+        ],
+      }),
+    );
+    const got = await listMyMotionBallots("m1");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/my-ballots");
+    expect(got).toEqual([
+      { motion_id: "mo1", cast: true, choice: "YES" },
+      { motion_id: "mo3", cast: true, choice: null },
+      { motion_id: "mo4", cast: false },
+    ]);
+  });
+
+  it("listMyMotionBallots degrades to null on drift instead of inventing a roll", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ ballots: [{ motion_id: 1, cast: "yes" }] }))
+      .mockResolvedValueOnce(json({ nope: true }))
+      .mockResolvedValueOnce(json("garbage"));
+    await expect(listMyMotionBallots("m1")).resolves.toBeNull();
+    await expect(listMyMotionBallots("m1")).resolves.toBeNull();
+    await expect(listMyMotionBallots("m1")).resolves.toBeNull();
+  });
+
+  it("getMotionVoters reads one motion's names, null while there are none to show", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ motion_id: "mo1", voters: { yes: ["An", "Bình"], no: ["Chi"], abstain: [] } }))
+      .mockResolvedValueOnce(json({ motion_id: "mo1", voters: null }));
+    expect(await getMotionVoters("m1", "mo1")).toEqual({ yes: ["An", "Bình"], no: ["Chi"], abstain: [] });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(`${base}/mo1/voters`);
+    await expect(getMotionVoters("m1", "mo1")).resolves.toBeNull();
+  });
+
+  it("getMotionVoters degrades to null on drift", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ voters: { yes: "An" } }))
+      .mockResolvedValueOnce(json([1, 2]));
+    await expect(getMotionVoters("m1", "mo1")).resolves.toBeNull();
+    await expect(getMotionVoters("m1", "mo1")).resolves.toBeNull();
   });
 
   it("listMeetingMotions throws on drift instead of hiding an open vote", async () => {
@@ -148,10 +190,14 @@ describe("meeting motion endpoints", () => {
     setGuestSession("g.sig");
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ motions: [] }))
+      .mockResolvedValueOnce(json({ ballots: [] }))
+      .mockResolvedValueOnce(json({ motion_id: "mo1", voters: null }))
       .mockResolvedValueOnce(json({ status: "ok" }));
     expect(await listMeetingMotions("m1")).toEqual([]);
+    expect(await listMyMotionBallots("m1")).toEqual([]);
+    expect(await getMotionVoters("m1", "mo1")).toBeNull();
     await castMeetingBallot("m1", "mo1", "YES");
-    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(4);
     for (const [, init] of vi.mocked(fetch).mock.calls) {
       const headers = init?.headers as Record<string, string>;
       expect(headers[GUEST_SESSION_HEADER]).toBe("g.sig");

@@ -18,6 +18,7 @@ const SCOPES = {
   User: "user",
   Chat: "chat",
   Room: "room",
+  Meeting: "meeting",
   None: "-",
 };
 
@@ -189,7 +190,7 @@ test("the client decodes exactly the fields task.updated lists in Patch", () => 
 test("every event has a scope or is explicitly infrastructure", () => {
   for (const { topic, scope, delivery } of goCatalogue()) {
     assert.ok(
-      ["workspace", "organization", "user", "chat", "room", "-"].includes(scope),
+      ["workspace", "organization", "user", "chat", "room", "meeting", "-"].includes(scope),
       `${topic} has an unknown scope "${scope}"`,
     );
     assert.ok(["outbox", "ephemeral"].includes(delivery), `${topic} has an unknown delivery "${delivery}"`);

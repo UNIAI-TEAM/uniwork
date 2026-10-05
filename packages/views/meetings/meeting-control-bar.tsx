@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTrackToggle } from "@livekit/components-react";
 import { Track } from "livekit-client";
@@ -53,7 +53,8 @@ import { useOwnMicLock } from "./meeting-moderation";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { useScreenShareControl } from "./use-screen-share-control";
 
-export function MeetingControlBar({
+/** Memoized: the stage hands it stable callbacks, so tile and speaker updates pass it by. */
+export const MeetingControlBar = memo(function MeetingControlBar({
   className,
   onLeave,
   meetingId,
@@ -363,4 +364,4 @@ export function MeetingControlBar({
       />
     </>
   );
-}
+});

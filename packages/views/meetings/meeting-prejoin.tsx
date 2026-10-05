@@ -2,7 +2,8 @@
 import { useCallback, useState } from "react";
 import { ArrowLeft, Mic } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { useParticipants } from "@uniwork/core/meetings";
+import { prejoinMicOn, useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -37,7 +38,18 @@ export function MeetingPreJoin({
   onLeave: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const [audio, setAudio] = useState(true);
+  // The roster (people invited and not removed) stands in for how full the
+  // room will be: prejoin has no live count. The room reads the same query.
+  const { data: roster } = useParticipants(meeting?.id ?? "");
+  const rosterSize = roster?.filter((p) => p.status === "ACTIVE").length;
+  const rememberedMic = useMeetingRoomPreferencesStore((s) => s.joinWithMic);
+  const setJoinWithMic = useMeetingRoomPreferencesStore((s) => s.setJoinWithMic);
+  // Derived until the person touches the toggle, so a roster that arrives
+  // after the first paint still sets the default.
+  const [audioChoice, setAudioChoice] = useState<boolean | null>(null);
+  const micDefault = prejoinMicOn(rememberedMic, rosterSize);
+  const audio = audioChoice ?? micDefault;
+  const mutedForCrowd = audioChoice === null && rememberedMic === null && !micDefault;
   const [video, setVideo] = useState(true);
   const [audioDeviceId, setAudioDeviceId] = useState("");
   const [videoDeviceId, setVideoDeviceId] = useState("");
@@ -87,10 +99,18 @@ export function MeetingPreJoin({
             video={video}
             micLabel={t("meetings.deviceMic")}
             cameraLabel={t("meetings.deviceCamera")}
-            onAudioToggle={() => setAudio((v) => !v)}
+            onAudioToggle={() => {
+              setAudioChoice(!audio);
+              setJoinWithMic(!audio);
+            }}
             onVideoToggle={() => setVideo((v) => !v)}
             className="mt-3 flex justify-center gap-3"
           />
+          {mutedForCrowd ? (
+            <p className="mt-2 text-center text-caption text-meeting-bar-muted-foreground" data-testid="prejoin-mic-crowded">
+              {t("meetings.prejoinMicOffCrowded", { count: rosterSize })}
+            </p>
+          ) : null}
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-surface lg:mx-0 lg:w-80">
           <div aria-busy={showSkeleton || undefined}>

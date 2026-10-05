@@ -1,3 +1,4 @@
+import type { MyMotionBallot } from "../api/endpoints/meeting-motions";
 import type { MeetingMotion } from "../types/meeting";
 
 /** MeetingService's limits (motionTitleMax / motionDescriptionMax), in runes after trimming. */
@@ -33,6 +34,27 @@ export function canSubmitMotion(title: string, description: string): boolean {
     titleLength <= MOTION_TITLE_MAX_LENGTH &&
     runeCount(description.trim()) <= MOTION_DESCRIPTION_MAX_LENGTH
   );
+}
+
+/**
+ * The motion list is the same for every caller; the caller's own roll is a
+ * separate read (GET /my-ballots). This joins them into `my_ballot`, which
+ * the cards, the vote prompt and the tab badge read. Until the roll is known
+ * (loading, failed, drifted) the list is returned as it came.
+ */
+export function withMyBallots(
+  motions: MeetingMotion[],
+  ballots: readonly MyMotionBallot[] | null | undefined,
+): MeetingMotion[] {
+  if (!ballots) return motions;
+  const mine = new Map(ballots.map((b) => [b.motion_id, b]));
+  return motions.map((m) => {
+    const b = mine.get(m.id);
+    return {
+      ...m,
+      my_ballot: b ? { on_roll: true, cast: b.cast, choice: b.choice ?? null } : { on_roll: false, cast: false, choice: null },
+    };
+  });
 }
 
 /** The open item waiting for my ballot, if any (at most one is open per meeting). */
