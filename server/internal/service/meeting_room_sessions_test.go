@@ -340,7 +340,15 @@ func TestJoinAfterEndOpensNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	// sessionByRoom may no longer resolve the room; drive the handler directly.
-	if err := s.roomParticipantJoined(ctx, sess, roomEvent("conference.participant_joined", sess.ProviderRoomName, memberPID, "PA_late")); err != nil {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if changed, err := s.roomParticipantJoined(ctx, s.q.WithTx(tx), sess, roomEvent("conference.participant_joined", sess.ProviderRoomName, memberPID, "PA_late")); err != nil || changed {
+		t.Fatalf("join after End: changed=%v err=%v", changed, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if n := countRows(t, s, `SELECT count(*) FROM meeting_attendance_sessions WHERE participant_id = $1`, memberPID); n != 0 {

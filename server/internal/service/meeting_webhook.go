@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -17,6 +19,10 @@ const (
 	webhookInboxBatch   int32 = 20
 	webhookLeaseSeconds int32 = 60
 	webhookMaxAttempts  int32 = 8
+	webhookDrainRounds        = 20
+	// reconcileInterval paces the backstop sweeps (stale room sessions,
+	// provider desync).
+	reconcileInterval = 5 * time.Minute
 )
 
 func (s *MeetingService) EnqueueProviderWebhook(ctx context.Context, provider, eventID, eventType string, payload []byte) (bool, error) {
@@ -42,7 +48,17 @@ func (s *MeetingService) EnqueueProviderWebhook(ctx context.Context, provider, e
 	return true, nil
 }
 
+// ProcessWebhookInbox claims and applies one batch of provider webhooks.
 func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) error {
+	_, err := s.processWebhookBatch(ctx, limit)
+	return err
+}
+
+// processWebhookBatch claims up to limit inbox rows, applies them and reports
+// how many it claimed. A row whose event fails goes back to PENDING with a
+// backoff (DEAD_LETTER after webhookMaxAttempts); one that was interrupted by
+// shutdown is left to its lease, so a deploy costs no attempt.
+func (s *MeetingService) processWebhookBatch(ctx context.Context, limit int32) (int, error) {
 	if limit <= 0 {
 		limit = s.rt.WebhookBatch
 	}
@@ -53,17 +69,17 @@ func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) e
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback(ctx)
 	rows, err := s.q.WithTx(tx).ClaimPendingWebhookInbox(ctx, db.ClaimPendingWebhookInboxParams{
 		LeaseSeconds: float64(webhookLeaseSeconds), LimitN: limit,
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return err
+		return 0, err
 	}
 
 	concurrency := s.rt.WebhookConcurrency
@@ -92,6 +108,9 @@ func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) e
 
 	for _, res := range results {
 		if res.err != nil {
+			if ctx.Err() != nil {
+				continue // shutting down: the lease hands the row back
+			}
 			s.markWebhookFailed(ctx, res.row, res.err)
 			if s.metrics != nil {
 				s.metrics.IncWebhookErrors()
@@ -101,6 +120,23 @@ func (s *MeetingService) ProcessWebhookInbox(ctx context.Context, limit int32) e
 		_ = s.q.MarkWebhookInboxDone(ctx, res.row.ID)
 		if s.metrics != nil {
 			s.metrics.IncWebhookProcessed()
+		}
+	}
+	return len(rows), nil
+}
+
+// drainWebhookInbox processes batches until one comes back short, bounded so
+// one tick cannot hold the loop forever: a join wave of hundreds of people is
+// applied within the tick instead of one batch per tick.
+func (s *MeetingService) drainWebhookInbox(ctx context.Context) error {
+	limit := s.rt.WebhookBatch
+	if limit <= 0 {
+		limit = webhookInboxBatch
+	}
+	for range webhookDrainRounds {
+		n, err := s.processWebhookBatch(ctx, limit)
+		if err != nil || n < int(limit) || ctx.Err() != nil {
+			return err
 		}
 	}
 	return nil
@@ -167,33 +203,46 @@ func (s *MeetingService) ReconcileStaleAttendance(ctx context.Context, limit int
 		closed, err := s.q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
 			MeetingID: meetingID, LeaveReason: strText("reconciled"), LeftAt: m.ActualEndAt,
 		})
-		if err != nil || len(closed) == 0 {
+		if err != nil || closed == 0 {
 			continue
 		}
-		s.meterAttendanceSessions(ctx, meetingID, closed)
 		s.publishAttendanceChanged(ctx, meetingID)
 	}
 	return nil
 }
 
+// RunWorkers runs the meeting workers until ctx is done and returns once all
+// of them have stopped, so the shutdown sequence can await it. Each loop has
+// its own goroutine: a slow reconcile or metering sweep never stalls webhook
+// processing, and the other way round.
 func (s *MeetingService) RunWorkers(ctx context.Context) {
 	tick := s.rt.WorkerTick
 	if tick <= 0 {
 		tick = outboxWorkerTick
 	}
-	outboxTick := time.NewTicker(tick)
-	reconTick := time.NewTicker(5 * time.Minute)
-	defer outboxTick.Stop()
-	defer reconTick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-outboxTick.C:
-			_ = s.ProcessWebhookInbox(ctx, s.rt.WebhookBatch)
-		case <-reconTick.C:
-			_ = s.ReconcileStaleAttendance(ctx, 50)
-			_ = s.ReconcileProviderDesync(ctx, 50)
-		}
+	var wg sync.WaitGroup
+	loop := func(name string, every time.Duration, run func(context.Context) error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			t := time.NewTicker(every)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					if err := run(ctx); err != nil && ctx.Err() == nil {
+						slog.Warn("meeting worker", "worker", name, "err", err)
+					}
+				}
+			}
+		}()
 	}
+	loop("webhook_inbox", tick, s.drainWebhookInbox)
+	loop("attendance_metering", attendanceMeterTick, s.drainAttendanceMetering)
+	loop("reconcile", reconcileInterval, func(ctx context.Context) error {
+		return errors.Join(s.ReconcileStaleAttendance(ctx, 50), s.ReconcileProviderDesync(ctx, 50))
+	})
+	wg.Wait()
 }
