@@ -55,7 +55,7 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
   {
     key: "services", number: 1, icon: Building2, status: "planned",
     groups: [
-      { key: "business", items: [
+      { key: "business", items: [ // plan-literal-ok: landing scene key, not a plan code
         { key: "company", icon: Building2 },
         { key: "tax", icon: Receipt },
         { key: "accounting", icon: Calculator },
