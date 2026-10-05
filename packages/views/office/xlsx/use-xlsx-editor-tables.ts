@@ -1,6 +1,7 @@
 ﻿"use client";
 
-// R4 (chrome amendment R): the live table list the contextual Table tabs read.
+// R4 (chrome amendment R): the live table list the contextual Table tabs read
+// (state lives in use-xlsx-editor-ribbon-data.ts; this file folds the edits).
 // The renderer emits a `table` edit when a table is created or removed this
 // session (xlsx-edit-bridge `XlsxGridTableEdit`); this hook folds those edits
 // into the list the toolbar needs, keyed by the sheet's live name so a session
@@ -9,10 +10,8 @@
 // A file-native table (one already in the .xlsx) has no edit and no renderer
 // read-back yet, so it is a known gap reported with the fix - the contextual
 // tab covers tables the session creates, which is the finding R4 describes.
-import { useCallback, useEffect, useMemo, useState } from "react";
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import { isTableGridEdit } from "./xlsx-edit-bridge";
-import type { XlsxGridSheetInfo } from "./xlsx-grid-surface";
 import type { XlsxToolbarTable, XlsxToolbarTableRange } from "./toolbar/types";
 
 /** Fold one batch of grid edits into the live table list. */
@@ -38,25 +37,4 @@ export function foldTableEdits(
     else next.push(entry);
   }
   return next ?? tables;
-}
-
-export function useXlsxEditorTables(
-  liveSheets: readonly XlsxGridSheetInfo[],
-  documentKey: string,
-): { tables: readonly XlsxToolbarTable[]; onEdits: (edits: readonly XlsxGridEdit[]) => void } {
-  const [tables, setTables] = useState<readonly XlsxToolbarTable[]>([]);
-  useEffect(() => {
-    setTables([]);
-  }, [documentKey]);
-  const nameOf = useCallback(
-    (sheetId: string) => liveSheets.find((sheet) => sheet.id === sheetId)?.name,
-    [liveSheets],
-  );
-  const onEdits = useCallback(
-    (edits: readonly XlsxGridEdit[]) => {
-      setTables((current) => foldTableEdits(current, edits, nameOf));
-    },
-    [nameOf],
-  );
-  return useMemo(() => ({ tables, onEdits }), [tables, onEdits]);
 }
