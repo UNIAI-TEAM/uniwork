@@ -54,19 +54,33 @@ describe("homeParagraphRibbonItems", () => {
     expect(commands.stepParagraphIndent).toHaveBeenNthCalledWith(1, -1);
     expect(commands.stepParagraphIndent).toHaveBeenNthCalledWith(2, 1);
 
-    // The split's primary re-applies the caret's current alignment (center),
-    // and every menu row picks its own alignment.
-    const align = byId(items, "docx-align");
-    expect(align.kind).toBe("split");
-    if (align.kind !== "split") return;
-    expect(align.pressed).toBe(true);
-    align.onExecute();
-    expect(commands.setParagraphAlign).toHaveBeenCalledWith("center");
-    for (const [index, value] of (["left", "center", "right", "justify"] as const).entries()) {
-      align.menu[index]!.onSelect();
+    // Word's four alignment toggles, each applying its own alignment.
+    for (const value of ["left", "center", "right", "justify"] as const) {
+      const toggle = byId(items, `docx-align-${value}`);
+      expect(toggle.kind).toBe("toggle");
+      expect(toggle.size).toBe("icon");
+      if (toggle.kind !== "toggle") return;
+      expect(toggle.pressed).toBe(value === "center");
+      toggle.onExecute();
+      expect(commands.setParagraphAlign).toHaveBeenLastCalledWith(value);
     }
-    expect(commands.setParagraphAlign).toHaveBeenCalledWith("left");
-    expect(commands.setParagraphAlign).toHaveBeenCalledWith("justify");
+  });
+
+  it("merges the list controls into the paragraph group as two icon rows", () => {
+    const items = homeParagraphRibbonItems(context());
+    expect(items.map((item) => item.id)).toEqual([
+      "docx-list-gallery",
+      "docx-list-multilevel",
+      "docx-indent-decrease",
+      "docx-indent-increase",
+      "docx-align-left",
+      "docx-align-center",
+      "docx-align-right",
+      "docx-align-justify",
+      "docx-paragraph-spacing",
+    ]);
+    for (const item of items) expect(item.size).toBe("icon");
+    expect(items.filter((item) => item.rowBreak).map((item) => item.id)).toEqual(["docx-align-left"]);
   });
 
   it("disables every item while read-only and keeps spacing as a custom item", () => {
@@ -74,17 +88,6 @@ describe("homeParagraphRibbonItems", () => {
     for (const item of items) expect(item.disabled).toBe(true);
     const spacing = byId(items, "docx-paragraph-spacing");
     expect(spacing.kind).toBe("custom");
-    expect(spacing.size).toBe("small");
-  });
-
-  it("falls back to left as the split's primary when no alignment is set", () => {
-    const commands = runtime();
-    const items = homeParagraphRibbonItems(
-      context({ commands, format: { align: null } as unknown as DocxToolbarGroupContext["format"] }),
-    );
-    const align = byId(items, "docx-align");
-    if (align.kind !== "split") throw new Error("expected split");
-    align.onExecute();
-    expect(commands.setParagraphAlign).toHaveBeenCalledWith("left");
+    expect(spacing.size).toBe("icon");
   });
 });

@@ -248,7 +248,8 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         // cluster renders there through the page's header-actions slot.
         embedded
         editor={activeEditorView && (effectiveCapability.status === "available" || (readonly && effectiveCapability.status === "readonly")) ? activeEditorView : (
-          <Alert data-testid="office-host-unbound">
+          // The shell no longer pads the editor area (UNI-933 F1), so a message keeps its own margin.
+          <Alert data-testid="office-host-unbound" className="m-4 w-auto">
             <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.capability_unavailable") : t("office.editor.capability_unknown")}</AlertTitle>
             <AlertDescription>{!activeSession && !activeCapability
               ? t("office.editor.editor_pending", { format: effectiveCapability.format })

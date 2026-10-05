@@ -92,3 +92,19 @@ describe("planRibbonStages", () => {
     expect(stages[3]).toBeLessThan(3);
   });
 });
+
+describe("groupWidth constants", () => {
+  const solo = (item: RibbonItem): RibbonGroup => ({ id: "g", labelKey: "", priority: 1, items: [item] });
+  const combo = (width?: number) => ({ kind: "combo", id: "c", labelKey: "c", value: null, options: [], onChange: () => {}, width }) as RibbonItem;
+
+  it("sizes a combo from 140 px by default and never below 56 px", () => {
+    // 13 = group padding + separator, 2 = combo gap
+    expect(groupWidth(solo(combo()), 0, measure)).toBe(140 + 2 + 13);
+    expect(groupWidth(solo(combo(10)), 0, measure)).toBe(56 + 2 + 13);
+  });
+
+  it("packs 24 px icon buttons in 26 px cells", () => {
+    const icons = [button("a", { size: "icon" }), button("b", { size: "icon" })];
+    expect(groupWidth({ id: "g", labelKey: "", priority: 1, items: icons }, 0, measure)).toBe(26 * 2 + 13);
+  });
+});

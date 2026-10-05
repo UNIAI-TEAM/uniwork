@@ -59,13 +59,17 @@ describe("homeStylesRibbonItems", () => {
     expect(item.maxVisible).toBe(4);
     expect(item.options).toHaveLength(DOCX_STYLES_GALLERY.length);
     expect(item.minVisible).toBe(1);
+    // The Styles group shows a real gallery (>= 3 cards), not a lone button.
+    expect(item.maxVisible).toBeGreaterThanOrEqual(3);
 
     const headings = item.options.filter((option) => option.id.startsWith("heading-"));
     expect(headings).toHaveLength(6);
     for (const option of headings) {
-      // Each card carries its full name as a tooltip and its own text.
+      // Each card carries its full name (caption + tooltip) and Word's specimen.
       expect(option.label).toBeTruthy();
-      expect(render(<>{option.preview}</>).container.textContent).toBe(option.label);
+      const preview = render(<>{option.preview}</>).container.firstElementChild;
+      expect(preview?.textContent).toBe("AaBbCcDd");
+      expect(preview).toHaveAttribute("title", option.label);
     }
   });
 

@@ -12,6 +12,7 @@ export {
   type OfficeEditorLoader,
   type OfficeEditorRendererProps,
 } from "./editor-slot";
+export * from "./frame";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
 export { DesktopOpenAction, type DesktopOpenActionProps, type OfficeLaunchSessionFactory, type OfficeSaveOutcome } from "./desktop-open-action";
 export { OfficeInstallPrompt, type OfficeInstallPromptProps, type OfficeInstallChannel } from "./install-prompt";

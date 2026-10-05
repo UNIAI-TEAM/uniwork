@@ -297,4 +297,9 @@ describe("OfficeShell", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
+
+  it("renders the editor edge to edge", () => {
+    render(<OfficeShell title="Document" editor={<div data-testid="ed" />} />);
+    expect(screen.getByTestId("ed").closest("main")!.className).not.toMatch(/(^|\s)p-[0-9]/);
+  });
 });

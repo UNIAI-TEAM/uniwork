@@ -1,6 +1,5 @@
 import { HomeClipboardGroup, homeClipboardRibbonItems } from "../groups/home-clipboard";
 import { HomeFontGroup, homeFontRibbonItems } from "../groups/home-font";
-import { HomeListsGroup } from "../../lists/home-lists";
 import { HomeParagraphGroup } from "../groups/home-paragraph";
 import { HomeStylesGroup } from "../groups/home-styles";
 import type { RibbonItem } from "../../../ribbon";
@@ -9,10 +8,10 @@ import type { DocxToolbarGroup, DocxToolbarTab, DocxToolbarGroupContext } from "
 /**
  * The Home tab in Word's order (C8): Clipboard (paste, cut, copy) | Font
  * (family, size, B I U S x2 x2, colour, highlight, case, clear, painter) |
- * Lists | Paragraph | Styles. Each control appears once per tab (C7): the old
+ * Paragraph (lists, indent, align, spacing) | Styles. Each control appears once per tab (C7): the old
  * "Formatting" group that duplicated B/I/U and the heading/bullet/numbered
  * toggles is gone - the trio lives in the Font group and the list controls in
- * the Lists gallery.
+ * the Paragraph group.
  *
  * The Clipboard and Font groups declare typed `ribbonItems`, so the shared
  * ribbon renders real large/small/icon items for them (R7); a group that does
@@ -52,7 +51,6 @@ export const homeTab: DocxToolbarTab = {
       ribbonItems: homeFontRibbonItems,
       collapseAt: 560,
     }),
-    typed({ id: "home-lists", labelKey: "office.docx.toolbar.groups.lists", component: HomeListsGroup, collapseAt: 800 }),
     typed({ id: "home-paragraph", labelKey: "office.docx.toolbar.groups.paragraph", component: HomeParagraphGroup, collapseAt: 900 }),
     typed({ id: "home-styles", labelKey: "office.docx.toolbar.groups.styles", component: HomeStylesGroup, collapseAt: 1000 }),
   ],

@@ -81,7 +81,7 @@ export function RibbonTabRow({
   const ToggleIcon = collapsed ? (peek ? Pin : PanelTopOpen) : PanelTopClose;
 
   return (
-    <div className="flex h-9 min-w-0 items-stretch gap-1 border-b border-border bg-background px-1.5 pointer-coarse:h-11" data-ribbon-tab-row="">
+    <div className="flex h-9 min-w-0 items-stretch gap-1 px-1.5 pointer-coarse:h-11" data-ribbon-tab-row="">
       {quickAccess ? (
         <div
           role="toolbar"
@@ -122,7 +122,7 @@ export function RibbonTabRow({
               data-ribbon-tab={tab.id}
               data-ribbon-contextual={accent ?? undefined}
               className={cn(
-                "relative shrink-0 cursor-pointer px-3 text-label whitespace-nowrap text-muted-foreground transition-colors select-none hover:text-foreground aria-selected:font-medium aria-selected:text-foreground pointer-coarse:min-h-11",
+                "relative shrink-0 cursor-pointer rounded-t-sm px-3 text-label whitespace-nowrap text-muted-foreground transition-colors select-none hover:bg-surface-hover hover:text-foreground aria-selected:font-medium aria-selected:text-foreground pointer-coarse:min-h-11",
                 "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full aria-selected:after:bg-brand",
                 accent && "border-t-2",
                 accent && ACCENT_CLASS[accent],

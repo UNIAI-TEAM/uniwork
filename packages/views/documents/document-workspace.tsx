@@ -21,6 +21,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
@@ -28,7 +29,7 @@ import type { DocumentAssetUploader } from "./document-asset-upload";
 import { DocumentCommentsHeaderActions } from "./document-comments-context";
 import { DocumentConflictDialog } from "./conflict-dialog";
 import type { DocumentEditorHandle } from "./document-editor";
-import { DocumentFileView } from "./document-file-view";
+import { DocumentFileView, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
@@ -100,6 +101,8 @@ export function DocumentWorkspace({
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
 
+  const officeEnabled = useFlag("office_engine", false);
+  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeEnabled, Boolean(officeEditorHost));
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const editorRef = useRef<DocumentEditorHandle>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -501,7 +504,9 @@ export function DocumentWorkspace({
         className={
           doc.kind === "page"
             ? `min-h-0 min-w-0 flex-1 overflow-y-auto bg-background pt-12 pb-32 md:pt-16 ${PAGE_GUTTER}`
-            : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
+            : officeEditorMounted
+              ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
         }
       >
         {doc.kind === "page" ? (
