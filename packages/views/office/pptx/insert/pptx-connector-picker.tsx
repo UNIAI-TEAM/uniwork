@@ -20,7 +20,7 @@ import { Link2, Shapes } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { Select } from "@uniwork/ui/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -62,16 +62,29 @@ export function PptxConnectorPicker({
   const { t } = useTranslation();
   const [kind, setKind] = useState<PptxConnectorKind>("straight");
   const [arrow, setArrow] = useState<PptxConnectorArrow>("end");
-  const [from, setFrom] = useState<string>(selectedIds[0] ?? "");
-  const [to, setTo] = useState<string>(selectedIds[1] ?? "");
-
   const connectable = useMemo(
     () => elements.filter((element) => element.type === "text" || element.type === "shape" || element.type === "picture"),
     [elements],
   );
+  // Seed from the canvas selection, but only with a shape the pickers can name:
+  // a value without an item makes the select print the raw id.
+  const seed = (id: string | undefined): string => (id !== undefined && connectable.some((element) => element.id === id) ? id : "");
+  const [from, setFrom] = useState<string>(() => seed(selectedIds[0]));
+  const [to, setTo] = useState<string>(() => seed(selectedIds[1]));
+  // An unlabeled shape reads "Shape N" by its position, never by its id.
   const options = useMemo(
-    () => connectable.map((element) => ({ value: element.id, label: element.label ?? element.id })),
-    [connectable],
+    () => connectable.map((element, index) => ({ value: element.id, label: element.label ?? t("office.pptx.insert.connector.shape_n", { n: index + 1 }) })),
+    [connectable, t],
+  );
+  const pickerChildren = (id: string) => (
+    <>
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue placeholder={t("office.pptx.insert.connector.pick_shape")} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+      </SelectContent>
+    </>
   );
   const groupIds = useMemo(() => groupableSelection(selectedIds, elements), [elements, selectedIds]);
   const connectorBlocked = connectorDisabled || busy;
@@ -119,22 +132,24 @@ export function PptxConnectorPicker({
       <div className="space-y-1.5">
         <Label htmlFor="pptx-connector-from">{t("office.pptx.insert.connector.from_label")}</Label>
         <Select
-          id="pptx-connector-from"
           items={options}
-          value={from}
+          value={from || null}
           disabled={connectorBlocked}
           onValueChange={(value) => setFrom(String(value))}
-        />
+        >
+          {pickerChildren("pptx-connector-from")}
+        </Select>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="pptx-connector-to">{t("office.pptx.insert.connector.to_label")}</Label>
         <Select
-          id="pptx-connector-to"
           items={options}
-          value={to}
+          value={to || null}
           disabled={connectorBlocked}
           onValueChange={(value) => setTo(String(value))}
-        />
+        >
+          {pickerChildren("pptx-connector-to")}
+        </Select>
       </div>
 
       <div className="space-y-1.5">

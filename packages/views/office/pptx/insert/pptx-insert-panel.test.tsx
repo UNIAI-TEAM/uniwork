@@ -259,6 +259,26 @@ describe("PptxInsertPanel connectors and grouping", () => {
     expect(onInsertConnector).not.toHaveBeenCalled();
   });
 
+  it("shows a placeholder, never a raw id, for a selection that is not a connectable shape", () => {
+    renderPanel({ selectedIds: ["sp_0", "gone_1"] });
+    const from = screen.getByRole("combobox", { name: "Start shape" });
+    const to = screen.getByRole("combobox", { name: "End shape" });
+    expect(from).toHaveTextContent("Choose a shape");
+    expect(to).toHaveTextContent("Choose a shape");
+    expect(document.querySelector("[data-pptx-insert-connector]")).not.toHaveTextContent(/sp_0|gone_1/);
+    expect(screen.getByTestId("pptx-connector-insert")).toBeDisabled();
+  });
+
+  it("names an unlabeled shape by its position, never by its id", () => {
+    renderPanel({
+      elements: [{ id: "sp_0", type: "shape" }, { id: "sp_1", type: "shape", label: "Arrow" }],
+      selectedIds: ["sp_0", "sp_1"],
+    });
+    expect(screen.getByRole("combobox", { name: "Start shape" })).toHaveTextContent("Shape 1");
+    expect(screen.getByRole("combobox", { name: "End shape" })).toHaveTextContent("Arrow");
+    expect(document.querySelector("[data-pptx-insert-connector]")).not.toHaveTextContent(/sp_0|sp_1/);
+  });
+
   it("says when there is nothing to connect", () => {
     renderPanel({ elements: [], selectedIds: [] });
     expect(screen.getByTestId("pptx-connector-empty")).toHaveTextContent("Add at least two shapes");

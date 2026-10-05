@@ -57,8 +57,10 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, className }: Pp
               if (event.key === "End") { event.preventDefault(); moveSelection(slides.length - 1); }
             }}
           >
-            <span className="flex aspect-video items-center justify-center overflow-hidden rounded-sm border border-border bg-background text-caption text-muted-foreground">
+            <span className="relative flex aspect-video items-center justify-center overflow-hidden rounded-sm border border-border bg-background text-caption text-muted-foreground">
               {slide.thumbnailUrl ? <img src={slide.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : index + 1}
+              {/* A rendered slide is white in both themes, so the button's opacity alone leaves a bright block in dark. */}
+              {slide.hidden ? <span aria-hidden className="absolute inset-0 bg-background/70" data-slide-hidden-veil /> : null}
             </span>
             <span className="truncate px-1 text-caption font-medium max-[480px]:hidden">{slide.label ?? t("slide_number", { index: index + 1 })}</span>
           </button>

@@ -232,6 +232,28 @@ describe("OfficeShell", () => {
     expect(screen.getByRole("button", { name: "Lưu vào máy" })).toHaveTextContent(/^Lưu$/);
   });
 
+  it("keeps Save in the tab order but inert and not primary while there is nothing to save", () => {
+    const saveCoordinator = coordinator("ready");
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).not.toBeDisabled();
+    expect(save.className).not.toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    fireEvent.keyDown(container.querySelector("[data-office-shell]")!, { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("offers a primary, active Save once there is something to save", () => {
+    const saveCoordinator = coordinator("saved");
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).not.toHaveAttribute("aria-disabled");
+    expect(save.className).toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    expect(saveCoordinator.save).toHaveBeenCalledWith("button");
+  });
+
   it("keeps its own header with the cluster when it is not embedded", () => {
     const { container } = render(
       <HeaderActionsSlotProvider>

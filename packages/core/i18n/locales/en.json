@@ -9082,6 +9082,8 @@
           },
           "from_label": "Start shape",
           "to_label": "End shape",
+          "shape_n": "Shape {{n}}",
+          "pick_shape": "Choose a shape",
           "arrow_label": "Arrowheads",
           "arrow": {
             "none": "None",

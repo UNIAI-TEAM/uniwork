@@ -18,6 +18,8 @@ export interface PptxEditorViewProps extends Omit<PptxEditorProps, "host" | "edi
   onRetry?: () => void;
   breadcrumbs?: Parameters<typeof OfficeShell>[0]["breadcrumbs"];
   saveCoordinator?: OfficeSaveCoordinatorLike;
+  /** Where Save lands; a local desktop file names the machine, not UniWork. */
+  saveDestination?: "cloud" | "local";
   fullscreen?: boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
   panel?: ReactNode;
@@ -38,6 +40,7 @@ export function PptxEditorView({
   onRetry,
   breadcrumbs,
   saveCoordinator,
+  saveDestination,
   fullscreen = false,
   onFullscreenChange,
   panel,
@@ -93,6 +96,7 @@ export function PptxEditorView({
       fullscreen={fullscreen}
       onFullscreenChange={onFullscreenChange}
       saveCoordinator={saveCoordinator}
+      saveDestination={saveDestination}
       editorReady={openState === "ready" && (typeof capability === "string" ? capability === "available" : capability.status === "available")}
     />
   );

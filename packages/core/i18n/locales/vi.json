@@ -9075,6 +9075,8 @@
           },
           "from_label": "Hình bắt đầu",
           "to_label": "Hình kết thúc",
+          "shape_n": "Hình {{n}}",
+          "pick_shape": "Chọn hình",
           "arrow_label": "Đầu mũi tên",
           "arrow": {
             "none": "Không",

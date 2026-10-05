@@ -308,7 +308,7 @@ export function PptxSorterPanel({
   return (
     <section
       aria-label={t("office.pptx.sorter.label")}
-      className={cn("flex min-h-0 flex-col gap-2 overflow-y-auto rounded-md border border-border bg-background p-2", className)}
+      className={cn("flex min-h-0 flex-col gap-2 overflow-y-auto scroll-pt-3 rounded-md border border-border bg-background p-2 pt-3", className)}
       data-pptx-sorter-panel
       data-pptx-sorter-pending={pending ? "true" : undefined}
     >

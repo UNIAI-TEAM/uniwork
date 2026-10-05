@@ -17,6 +17,12 @@ describe("PptxEditorView", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
+  it.each([["local", "Save to this computer"], ["cloud", "Save to UniWork"]] as const)("names the %s save target in the header Save button", (saveDestination, name) => {
+    const saveCoordinator = { save: vi.fn(async () => undefined), getState: () => ({ state: "saved", error: null }) as never };
+    render(<PptxEditorView title="Deck" host={host} capability="available" openState="ready" saveCoordinator={saveCoordinator} saveDestination={saveDestination} />);
+    expect(screen.getByRole("button", { name })).toHaveTextContent(/^Save$/);
+  });
+
   it("keeps the lazy editor mounted when the shared shell rerenders", async () => {
     const editorHandle = {
       format: "pptx",

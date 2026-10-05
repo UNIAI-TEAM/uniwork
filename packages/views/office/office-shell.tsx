@@ -152,6 +152,9 @@ export function OfficeShell({
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
   const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
   const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
+  // A clean document: Save stays in the tab order (aria-disabled, not disabled)
+  // but is inert and not primary, so it never contradicts "no changes".
+  const nothingToSave = (saveStatus ?? coordinatorState?.state) === "ready";
   const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;
@@ -160,7 +163,7 @@ export function OfficeShell({
     else setInternalPanelOpen(open);
   };
   const performSave = () => {
-    if (!canSave) return;
+    if (!canSave || nothingToSave) return;
     if (saveCoordinator) {
       void saveCoordinator.save("button");
     } else {
@@ -188,14 +191,14 @@ export function OfficeShell({
       const target = event.target as HTMLElement;
       if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
       event.preventDefault();
-      if (canSave && !effectiveSaving) {
+      if (canSave && !effectiveSaving && !nothingToSave) {
         if (saveCoordinator) void saveCoordinator.save("shortcut");
         else onSave?.();
       }
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [canSave, effectiveSaving, onSave, saveCoordinator]);
+  }, [canSave, effectiveSaving, nothingToSave, onSave, saveCoordinator]);
   // One row, never wrapping: status (hidden on phones, where the alert row
   // below the header still carries a failure) · Save · panel · desktop · host.
   const headerActions = (
@@ -207,7 +210,16 @@ export function OfficeShell({
         />
       ) : null}
       {canSave ? (
-        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel} title={saveLabel} data-office-save>
+        <Button
+          size="sm"
+          variant={nothingToSave ? "outline" : "default"}
+          onClick={performSave}
+          disabled={effectiveSaving}
+          aria-disabled={nothingToSave || undefined}
+          aria-label={saveLabel}
+          title={saveLabel}
+          data-office-save
+        >
           <Save aria-hidden />
           {effectiveSaving ? t("saving") : t("shell.save")}
         </Button>

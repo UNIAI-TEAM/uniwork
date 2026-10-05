@@ -42,6 +42,16 @@ describe("PptxSlideRail", () => {
     expect(first).toHaveAttribute("aria-label", expect.stringContaining("Intro"));
   });
 
+  it("veils a hidden slide's thumbnail with the page token so it dims in light and dark", () => {
+    render(<PptxSlideRail slides={[{ id: "s1", thumbnailUrl: "data:image/png;base64,AA==" }, { id: "s2", thumbnailUrl: "data:image/png;base64,AA==", hidden: true }]} selectedIndex={0} onSelect={vi.fn()} />);
+    const [shown, hidden] = screen.getAllByRole("button");
+    expect(shown!.querySelector("[data-slide-hidden-veil]")).toBeNull();
+    const veil = hidden!.querySelector("[data-slide-hidden-veil]");
+    expect(veil).not.toBeNull();
+    expect(veil!.className).toMatch(/\bbg-background\//);
+    expect(veil).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("keeps a 44px touch target on a coarse pointer even at phone width", () => {
     render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
     for (const slide of screen.getAllByRole("button")) {
