@@ -44,10 +44,30 @@
 import { BLOCKED_URL, buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
 import { gatePreviewCopy } from "./preview-gate";
+import {
+  assertInspectorNonce,
+  injectInspector,
+  inspectorInboundSchema,
+  sealInspectorCommand,
+  type InspectorCommand,
+  type InspectorInbound,
+} from "./preview-inspector";
 
 export interface PreviewCapability {
-  /** Let the document's own scripts run inside the sandbox. Default false. */
+  /** Let the document's own scripts run inside the sandbox. Default false.
+   * This is the legacy trusted-document path: it relies on the CSP, not on
+   * the gate, to stop scripts, so it is only for documents whose author is
+   * trusted. `visualEdit` supersedes it when both are set. */
   scripts: boolean;
+  /**
+   * Visual-edit mode (ADR 0026, user decision 2026-10-04 option (a)). The ONLY
+   * way the frame runs a script without `'unsafe-inline'`: the host injects the
+   * UniWork-owned inspector AFTER the gate, the CSP becomes
+   * `script-src 'nonce-<n>'`, and the gate strips every document script and
+   * on* handler. The nonce is validated (32 lowercase hex) or mount fails
+   * closed. The sandbox stays allow-scripts WITHOUT allow-same-origin.
+   */
+  visualEdit?: { nonce: string };
 }
 
 export interface PreviewAssetScopeRequest {
@@ -82,7 +102,21 @@ export type PreviewEvent =
   | { type: "ready" }
   | { type: "resize"; height: number }
   | { type: "navigated" }
-  | { type: "refused"; reason: "unstable_serialisation" | "residual_after_reparse" };
+  | { type: "refused"; reason: "unstable_serialisation" | "residual_after_reparse" | "inspector_injection_failed" | "unexpected_inspector_message" }
+  // Inspector events, visual-edit only. Each is rebuilt from a zod-validated
+  // frame message (acceptInspectorMessage); the raw frame data never reaches
+  // a caller and is never evaluated.
+  | { type: "select"; sid: number | null }
+  | { type: "hover"; sid: number | null }
+  | { type: "rect"; sid: number; rect: InspectorRect }
+  | { type: "text-edit-commit"; sid: number; text: string };
+
+export interface InspectorRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** Preview TTL when the caller names none: long enough to read, short enough to expire. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -96,9 +130,21 @@ export class PreviewIsolationError extends Error {
   }
 }
 
-/** The ONLY sandbox tokens the preview can ever get. */
+/** The session nonce for visual-edit, or a PreviewIsolationError: a mount that
+ * cannot prove its nonce must not render a frame at all. */
+function visualEditNonce(capability: PreviewCapability | undefined): string {
+  try {
+    return assertInspectorNonce(capability?.visualEdit?.nonce);
+  } catch {
+    throw new PreviewIsolationError("visual-edit nonce must be 32 lowercase hex characters");
+  }
+}
+
+/** The ONLY sandbox tokens the preview can ever get. `allow-same-origin` is
+ * never among them, in either script mode, so the frame keeps its opaque
+ * origin and cannot reach app cookies, storage or DOM. */
 export function previewSandbox(capability: PreviewCapability | undefined): string {
-  return capability?.scripts === true ? "allow-scripts" : "";
+  return capability?.scripts === true || capability?.visualEdit !== undefined ? "allow-scripts" : "";
 }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -124,13 +170,20 @@ export function checkAssetOrigin(origin: string, appOrigin: string): string {
 export function previewCsp(assetOrigin: string | null, capability: PreviewCapability | undefined): string {
   const from = assetOrigin ?? "";
   const src = (extra: string) => (from + " " + extra).trim() || "'none'";
+  // Visual-edit: the ONLY script source is the host's nonce (plus the scoped
+  // asset origin). No 'unsafe-inline', no 'unsafe-eval'. The nonce is asserted
+  // here too, so a bad one can never reach a rendered policy.
+  const scriptSrc = (() => {
+    if (capability?.visualEdit !== undefined) return "script-src " + src("'nonce-" + visualEditNonce(capability) + "'");
+    return capability?.scripts === true ? "script-src " + src("'unsafe-inline'") : "script-src 'none'";
+  })();
   return [
     "default-src 'none'",
     "img-src " + src("data:"),
     "style-src " + src("'unsafe-inline'"),
     "font-src " + src("data:"),
     "media-src " + src(""),
-    capability?.scripts === true ? "script-src " + src("'unsafe-inline'") : "script-src 'none'",
+    scriptSrc,
     "connect-src 'none'",
     "frame-src 'none'",
     "child-src 'none'",
@@ -204,6 +257,80 @@ export function createPreviewBridge(nonce: string, onEvent: (event: PreviewEvent
   };
 }
 
+/**
+ * The inspector gate for inbound port messages (visual-edit only). Same
+ * fail-closed contract as acceptPreviewMessage, stricter: the message must be
+ * a plain object (never an array), the nonce must match the session nonce
+ * EXACTLY, and the zod strictObject schema must accept it - an unknown type, a
+ * missing field, an extra key or an out-of-range value is refused and the
+ * event is never produced. The returned event is rebuilt from validated
+ * fields, so a frame cannot smuggle anything the caller would act on, and the
+ * parent never evaluates frame data. Real port messages carry origin "".
+ */
+export function acceptInspectorMessage(event: { data: unknown; origin?: string }, nonce: string): InspectorInbound | null {
+  // The handler is attached to a MessagePort, whose messages carry origin ""
+  // (a real window message from the sandboxed frame carries "null"). Require
+  // the port origin exactly, so a window-delivered event can never reach this
+  // gate even if a future caller attaches it to a window listener.
+  if (event.origin !== "") return null;
+  const data = event.data;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  if ((data as { nonce?: unknown }).nonce !== nonce) return null;
+  const parsed = inspectorInboundSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Map a validated inspector message to a PreviewEvent. The zod schema already
+ * bounds every value, so this only projects the validated record - it never
+ * trusts a field it did not validate. */
+export function inspectorEvent(message: InspectorInbound): PreviewEvent {
+  switch (message.type) {
+    case "ready":
+      return { type: "ready" };
+    case "resize":
+      return { type: "resize", height: message.height };
+    case "select":
+      return { type: "select", sid: message.sid };
+    case "hover":
+      return { type: "hover", sid: message.sid };
+    case "rect":
+      return { type: "rect", sid: message.sid, rect: message.rect };
+    case "text-edit-commit":
+      return { type: "text-edit-commit", sid: message.sid, text: message.text };
+    default:
+      // A type added to the schema without a case here would be a compile
+      // error (never); at runtime an unknown type is refused, not forwarded.
+      return { type: "refused", reason: "unexpected_inspector_message" };
+  }
+}
+
+export interface InspectorSession {
+  /** Send a validated command to the frame. Returns false when the session is
+   * closed or the command does not pass its schema (never guesses). */
+  command(command: InspectorCommand): boolean;
+  close(): void;
+}
+
+export function createInspectorSession(nonce: string, remote: MessagePort): InspectorSession {
+  let live = true;
+  return {
+    command(command) {
+      if (!live) return false;
+      const sealed = sealInspectorCommand(command, nonce);
+      if (sealed === null) return false;
+      try {
+        remote.postMessage(sealed);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    close() {
+      live = false;
+    },
+  };
+}
+
 export interface MountHtmlPreviewOptions {
   container: HTMLElement;
   /** Accessible name of the frame (already translated by the caller). */
@@ -222,6 +349,9 @@ export interface MountHtmlPreviewOptions {
 export interface HtmlPreviewSession {
   iframe: HTMLIFrameElement;
   nonce: string;
+  /** Visual-edit only: the command channel to the inspector, null in every
+   * other mode. Commands are validated before they leave the app. */
+  inspector: InspectorSession | null;
   /** Re-render from new source. A manifest with keys the scope has not
    * granted reopens the scope (same origin) before rendering. */
   update(text: string, manifest?: AssetManifest): Promise<void>;
@@ -266,10 +396,15 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
 interface AssetManifestEntryWithID {
   asset_id?: unknown;
 }
+  // Visual-edit is validated before any render: a bad nonce fails the mount
+  // (the caller gets no frame), it is never softened into a script-free copy.
+  // It is validated before openScope too, so a refused mount never leaves a
+  // live asset grant behind (SEC F3).
+  const visual = capability?.visualEdit !== undefined;
+  const nonce = visual ? visualEditNonce(capability) : newNonce();
   let current = await openScope(manifest, manifest.entries.map((e) => e.key), null);
   const assetOrigin = current.origin;
   const csp = previewCsp(assetOrigin, capability);
-  const nonce = newNonce();
 
   const assetUrl = (key: string): string | null => {
     const { scope } = current;
@@ -283,15 +418,18 @@ interface AssetManifestEntryWithID {
       return null;
     }
   };
+  // Visual-edit never lets a document script through the engine policy: the
+  // gate strips them below, and the engine is told scripts are off, so the
+  // frame's only script is the inspector injected after the gate.
   const render = (text: string): string =>
     buildHtmlPreviewCopy({
       text,
       manifest,
       assetUrl,
-      scripts: capability?.scripts === true,
+      scripts: !visual && capability?.scripts === true,
       csp,
       color_scheme: options.color_scheme,
-      head_injection: capability?.scripts === true ? BRIDGE_BOOTSTRAP : undefined,
+      head_injection: !visual && capability?.scripts === true ? BRIDGE_BOOTSTRAP : undefined,
     });
 
   const iframe = document.createElement("iframe");
@@ -309,29 +447,79 @@ interface AssetManifestEntryWithID {
   // flag or CSP directive stops self-navigation), so the frame is blanked and
   // the new occupant never gets a port or the nonce (FE review r1 F-1).
   let pending: "document" | "blank" | null = null;
+  let bridge: PreviewBridge | null = null;
+  let inspector: InspectorSession | null = null;
+  let closeInspectorChannel: (() => void) | null = null;
+  // Retire the channels of the document we are about to replace. Closing at
+  // srcdoc-assignment time - not only on the next load - means a caller can
+  // never be handed an inspector whose channel is already dead (FE-M5).
+  const retireChannels = () => {
+    bridge?.close();
+    bridge = null;
+    inspector?.close();
+    inspector = null;
+    closeInspectorChannel?.();
+    closeInspectorChannel = null;
+  };
   const show = (text: string) => {
-    // Final gate: the browser's own parser decides what the copy contains.
-    const gated = gatePreviewCopy(render(text), { assetOrigin, blockedUrl: BLOCKED_URL });
+    retireChannels();
+    // Final gate: the browser's own parser decides what the copy contains. In
+    // visual-edit it also strips every <script> and on* handler, so what comes
+    // out is script-free and the inspector is the only script added after it.
+    const gated = gatePreviewCopy(render(text), { assetOrigin, blockedUrl: BLOCKED_URL, stripScripts: visual, csp });
     if (!gated.ok) {
       pending = "blank";
       iframe.srcdoc = "";
       options.onEvent?.({ type: "refused", reason: gated.reason });
       return;
     }
+    let html = gated.html;
+    if (visual) {
+      // AFTER the gate, never from the document: injectInspector parses the
+      // gated copy and appends the host script (with the nonce) to <head>.
+      try {
+        html = injectInspector(gated.html, nonce);
+      } catch {
+        pending = "blank";
+        iframe.srcdoc = "";
+        options.onEvent?.({ type: "refused", reason: "inspector_injection_failed" });
+        return;
+      }
+    }
     pending = "document";
-    iframe.srcdoc = gated.html;
+    iframe.srcdoc = html;
   };
-  let bridge: PreviewBridge | null = null;
   const onLoad = () => {
     const cause = pending;
     pending = null;
-    bridge?.close();
-    bridge = null;
+    retireChannels();
     if (cause === "blank") return;
     if (cause === null) {
       pending = "blank";
       iframe.srcdoc = "";
       options.onEvent?.({ type: "navigated" });
+      return;
+    }
+    if (visual) {
+      // Visual-edit: a channel whose inbound messages must pass the zod
+      // schema + nonce gate. The inspector script takes the port on its own
+      // init message; the parent never reads frame data, only validated events.
+      const channel = new MessageChannel();
+      channel.port1.onmessage = (event: MessageEvent) => {
+        const accepted = acceptInspectorMessage(event, nonce);
+        if (accepted) options.onEvent?.(inspectorEvent(accepted));
+      };
+      // The parent sends on port1; port2 is the endpoint transferred to the
+      // frame. Posting on the transferred port is a silent no-op (SEC F1).
+      inspector = createInspectorSession(nonce, channel.port1);
+      closeInspectorChannel = () => {
+        channel.port1.onmessage = null;
+        channel.port1.close();
+        channel.port2.close();
+      };
+      // An opaque origin can only be addressed with "*"; the port, not the
+      // origin, is the capability - and it goes to this frame's window only.
+      iframe.contentWindow?.postMessage({ type: INIT_TYPE, nonce }, "*", [channel.port2]);
       return;
     }
     if (capability?.scripts !== true) {
@@ -356,6 +544,9 @@ interface AssetManifestEntryWithID {
   return {
     iframe,
     nonce,
+    get inspector() {
+      return inspector;
+    },
     async update(text, next) {
       const gen = ++generation;
       const target = next ?? requested;
@@ -382,8 +573,7 @@ interface AssetManifestEntryWithID {
     dispose() {
       disposed = true;
       iframe.removeEventListener("load", onLoad);
-      bridge?.close();
-      bridge = null;
+      retireChannels();
       current.scope.revoke();
       iframe.remove();
     },

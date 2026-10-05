@@ -137,6 +137,38 @@ describe("documents endpoints", () => {
     expect(out?.upload_id).toBe("f1");
   });
 
+  it("uploadDocumentFile names a bare Blob's part from opts.filename", async () => {
+    // FileService decides a text document's type from the verified bytes plus
+    // the part's `.md` extension; an unnamed part sniffs as text/plain, and
+    // the commit then refuses the version with 415 format_changed.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        upload_id: "f1",
+        checksum_sha256: "abc",
+        size_bytes: 4,
+        claim_expires_at: "2026-09-28T09:00:00Z",
+      }),
+    );
+    await uploadDocumentFile("d1", new Blob(["# hi"], { type: "text/markdown" }), {
+      filename: "document.md",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const part = (init?.body as FormData).get("file") as File;
+    expect(part).toBeInstanceOf(File);
+    expect(part.name).toBe("document.md");
+    // The part's own type still travels; the name is what lets the server's
+    // extension-based sniff reach text/markdown.
+    expect(part.type).toBe("text/markdown");
+  });
+
+  it("createDocumentFile keeps a named File's own name", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file" }) }));
+    await createDocumentFile("w1", new File(["bytes"], "brief.docx"));
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const part = (init?.body as FormData).get("file") as File;
+    expect(part.name).toBe("brief.docx");
+  });
+
   it("commitDocumentVersion sends upload_id + base_revision with the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ revision: "42" }), version: versionBody() }),

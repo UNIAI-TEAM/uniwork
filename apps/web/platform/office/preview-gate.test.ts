@@ -138,3 +138,120 @@ describe("preview gate (browser parser tree walk)", () => {
     expect(gatePreviewCopy("<p>x</p>", OPTIONS)).toEqual({ ok: false, reason: "unstable_serialisation" });
   });
 });
+
+describe("preview gate: visual-edit strip pass (ADR 0026)", () => {
+  const strip = (html: string) =>
+    gatePreviewCopy(html, { ...OPTIONS, stripScripts: true });
+
+  it("drops every <script> element in any namespace", () => {
+    const result = strip(`<p>x</p><script>parent.postMessage(1)</script><svg><script>alert(1)</script></svg>`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/<script/i);
+    expect(result.html).not.toContain("postMessage");
+  });
+
+  it("drops every on* handler, in any case", () => {
+    const result = strip(`<div onclick="a()" ONMOUSEOVER="b()" onerror="c()">x</div><img src="about:blank#blocked" onload="d()">`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(result.html).not.toContain("a()");
+  });
+
+  it("drops <script> in every namespace, any case, and inside <template> (SEC F11)", () => {
+    const result = strip(
+      `<p>x</p><SCRIPT>a()</SCRIPT><math><script>b()</script></math><template><script>c()</script></template>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/<script/i);
+    expect(result.html).not.toMatch(/a\(\)|b\(\)|c\(\)/);
+  });
+
+  it("drops an SVG animation onbegin handler and a nonce-bearing document script (SEC F11)", () => {
+    const result = strip(
+      `<svg><animate onbegin="a()" attributeName="x" dur="1s"></animate></svg><script nonce="deadbeef">b()</script>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/onbegin|<script/i);
+  });
+
+  it("drops a document-supplied CSP meta but keeps the host's own (SEC F7)", () => {
+    const host = "default-src 'none'; script-src 'nonce-a'";
+    const result = gatePreviewCopy(
+      `<head><meta http-equiv="Content-Security-Policy" content="script-src 'none'">` +
+        `<meta http-equiv="content-security-policy" content="${host}">` +
+        `<meta name="viewport" content="width=device-width"></head><body><p>x</p></body>`,
+      { ...OPTIONS, stripScripts: true, csp: host },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Exactly one CSP meta survives, and it is the host policy.
+    expect(result.html.match(/Content-Security-Policy/gi) ?? []).toHaveLength(1);
+    expect(result.html).toContain(host);
+    expect(result.html).not.toContain("script-src 'none'");
+    // A non-CSP meta is untouched: the rule only drops CSP metas.
+    expect(result.html).toContain('<meta name="viewport" content="width=device-width">');
+  });
+
+  it("keeps a document CSP meta when stripping is off (plain preview byte-parity)", () => {
+    const result = gatePreviewCopy(`<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`, OPTIONS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).toContain("script-src 'none'");
+  });
+
+  it("drops a document CSP meta in strip mode even when no host policy is named", () => {
+    // The strip helper carries no `csp`, so the document meta is the only CSP
+    // and must still go: it could intersect the host's policy away.
+    const result = strip(
+      `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">` +
+        `<meta http-equiv="Content-Security-Policy"><p>x</p>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/Content-Security-Policy/i);
+    expect(result.html).toContain("<p>x</p>");
+  });
+
+  it("leaves the plain preview path byte-identical (stripScripts off by default)", () => {
+    const html = `<p>x</p><script>kept</script><div onclick="kept()">y</div>`;
+    const off = gatePreviewCopy(html, OPTIONS);
+    const offAgain = gatePreviewCopy(html, { ...OPTIONS, stripScripts: false });
+    expect(off.ok && offAgain.ok && off.html === offAgain.html).toBe(true);
+    if (!off.ok) return;
+    // Off: the copy still carries the script/handler; the CSP is what stops it.
+    expect(off.html).toContain("<script>kept</script>");
+    expect(off.html).toContain('onclick="kept()"');
+  });
+
+  it("fails closed when a re-parse re-introduces a script or handler after stripping", () => {
+    const real = DOMParser.prototype.parseFromString;
+    let calls = 0;
+    vi.spyOn(DOMParser.prototype, "parseFromString").mockImplementation(function (this: DOMParser, text: string, type: DOMParserSupportedType) {
+      calls++;
+      // The verification re-parse (second call) shows an on* handler the fix
+      // pass removed: the copy did not stay stripped, so it must be refused.
+      return real.call(this, calls === 2 ? `<div onclick="x()">x</div>` : text, type);
+    });
+    expect(strip("<p>x</p>")).toEqual({ ok: false, reason: "residual_after_reparse" });
+    calls = 0;
+    vi.mocked(DOMParser.prototype.parseFromString).mockImplementation(function (this: DOMParser, text: string, type: DOMParserSupportedType) {
+      calls++;
+      return real.call(this, calls === 2 ? `<p>x</p><script>alert(1)</script>` : text, type);
+    });
+    expect(strip("<p>x</p>")).toEqual({ ok: false, reason: "residual_after_reparse" });
+  });
+
+  it("does not weaken any existing drop rule when stripping", () => {
+    const result = strip(
+      `<base href="${EVIL}/"><iframe src="${EVIL}/i"></iframe><object data="${EVIL}/o"></object>` +
+        `<a href="javascript:alert(1)">j</a><a href="${EVIL}/a">a</a>`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.html).not.toMatch(/evil\.example|javascript:|<base|<iframe|<object/i);
+  });
+});

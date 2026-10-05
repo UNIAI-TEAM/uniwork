@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
 import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
-import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec } from "../shared/document-formats";
+import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
 import type { LoginScreenState } from "./login";
@@ -14,6 +14,7 @@ import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
 import { isDocumentDirty, isXlsxTabSession, useDocumentTabs } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
+import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
@@ -160,7 +161,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
       return;
     }
-    if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
+    // An empty Markdown file is a valid document; only an omitted payload is malformed.
+    if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
     if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
@@ -194,16 +196,17 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     void perform(() => bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, documentId: document.id, version: document.version }), (raw) => acceptCloud(raw, selected, allowSave));
   };
   const openLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION }), acceptLocal); };
-  const createLocal = () => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION, format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), acceptLocal); };
+  const createLocal = (format: DesktopDocumentFormat = DEFAULT_DESKTOP_DOCUMENT_FORMAT) => { if (canOpen()) void perform(() => bridge.call("desktop:file-create", { sessionGeneration: SESSION_GENERATION, format }), acceptLocal); };
   const openRecent = (id: string) => {
     if (!canOpen()) return;
     void perform(() => bridge.call("desktop:recent-open", { sessionGeneration: SESSION_GENERATION, id }), acceptLocal).then(() => recents.reload());
   };
-  const create = () => {
-    if (modeRef.current === "local") { createLocal(); return; }
+  const untitledTitle = (format: DesktopDocumentFormat) => { const spec = desktopDocumentFormatSpec(format); return spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName; };
+  const create = (format: DesktopDocumentFormat = DEFAULT_DESKTOP_DOCUMENT_FORMAT) => {
+    if (modeRef.current === "local") { createLocal(format); return; }
     const selected = scopeRef.current;
     if (!selected || !canOpen()) return;
-    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: t("officeDesktop.library.untitled"), format: DEFAULT_DESKTOP_DOCUMENT_FORMAT }), (raw) => acceptCloud(raw, selected));
+    void perform(() => bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: selected.workspaceId, title: format === DEFAULT_DESKTOP_DOCUMENT_FORMAT ? t("officeDesktop.library.untitled") : untitledTitle(format), format }), (raw) => acceptCloud(raw, selected));
   };
 
   const sendHostAnswer = async (request: HostLeave, choice: LeaveChoice, proceeded: boolean) => {
@@ -327,11 +330,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   // while the sign-in card is shown too (close/update, deep-link prompt).
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const deviceLeaveSet = affected.length > 0 && affected.every((tab) => tab.data.kind === "local");
-  const alerts = <>
-    {actionError ? <p role="alert" className="p-4 text-body text-destructive">{actionError}</p> : null}
-    {syncError ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.sessionError")}</p> : null}
-    {tabs.checkpointFailures.length > 0 ? <p role="alert" className="px-4 py-2 text-body text-destructive">{t("officeDesktop.tabs.checkpointFailed")}</p> : null}
-  </>;
+  const alerts = <WorkspaceAlerts items={[
+    ...(actionError ? [{ id: "action", message: actionError, onDismiss: () => setActionError(null) }] : []),
+    ...(syncError ? [{ id: "session", message: t("officeDesktop.tabs.sessionError") }] : []),
+    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: t("officeDesktop.tabs.checkpointFailed") }] : []),
+  ]} />;
   const leaveDialog = <LeaveDialog key={leave?.host?.requestId ?? "tab-leave"} open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
     onOpenChange={(open) => { if (!open && leaveRef.current) finishLeave("stay"); }} onSave={() => runLeaveAction("save")} onKeepDraft={() => runLeaveAction("keep")} onDiscard={() => runLeaveAction("discard")} onChoice={finishLeave} />;
@@ -343,7 +346,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     accountName={mode === "signed-in" ? account?.name : undefined} accountEmail={mode === "signed-in" ? account?.email : undefined} workspaceName={workspace?.name} onSwitchWorkspace={mode === "signed-in" ? () => requestLeave({ ids: tabs.cloudTabIds(), switchWorkspace: true }) : undefined}
     tabs={tabs.summaries} activeTabId={tabs.activeTabId} onTabSelect={tabs.select} onTabClose={close} onCreate={create} onOpenLocal={openLocal}
     createDisabled={mode === "signed-in" && !scope} busy={busy || leave !== null}>
-    <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+    <div className="relative flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
       event.preventDefault(); const file = event.dataTransfer.files[0];
       if (file && bridge.openDroppedFile && canOpen()) void perform(() => bridge.openDroppedFile!(file), acceptLocal);
     }}>
@@ -367,7 +370,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     <div className={mode === "login" ? "hidden" : "h-full min-h-0"} aria-hidden={mode === "login"} inert={mode === "login"}>
       {workspaceView}
     </div>
-    {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
+    {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="relative flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
       <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
       {alerts}
       <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onUseLocal={onUseLocal} />

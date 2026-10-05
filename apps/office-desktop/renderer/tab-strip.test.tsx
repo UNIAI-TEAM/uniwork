@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import i18n from "i18next";
 import { expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { DesktopTabStrip, type DesktopTabSummary } from "./tab-strip";
@@ -142,4 +143,13 @@ it("pins the on-device home and a sign-in button instead of the cloud account me
   expect(onSignIn).toHaveBeenCalledOnce();
   fireEvent.click(screen.getByRole("tab", { name: /Report.docx/ }));
   expect(actions.onSelect).toHaveBeenCalledWith("a");
+});
+
+it.each([["createDocx", "docx"], ["createMarkdown", "md"], ["createHtml", "html"]])("offers %s in the plus menu and passes the %s format", async (key, format) => {
+  const actions = callbacks();
+  render(<DesktopTabStrip tabs={[]} activeTabId={null} {...actions} />);
+  fireEvent.click(screen.getByRole("button", { name: "Mở tab mới" }));
+  expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual([i18n.t("officeDesktop.tabs.createDocx"), i18n.t("officeDesktop.tabs.createMarkdown"), i18n.t("officeDesktop.tabs.createHtml"), i18n.t("officeDesktop.tabs.openLocal")]);
+  fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(i18n.t(`officeDesktop.tabs.${key}`)) }));
+  expect(actions.onCreate).toHaveBeenCalledExactlyOnceWith(format);
 });

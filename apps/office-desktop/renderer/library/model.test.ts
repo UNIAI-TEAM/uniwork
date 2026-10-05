@@ -15,7 +15,14 @@ describe("desktop library scope and filtering", () => {
     expect(kept.map((document) => document.format)).toEqual(["docx", "xlsx"]);
   });
 
+  it("lists Markdown and HTML documents and drops an unknown format", () => {
+    const kept = filterLibraryDocuments([row({ id: "a", format: "md" }), row({ id: "b", format: "html" }), row({ id: "c", format: "txt" as never })]);
+    expect(kept.map((document) => document.id)).toEqual(["a", "b"]);
+  });
+
   it("keeps a carried format downloadable while the engine is down", () => {
+    expect(canDownloadDocument(row({ format: "md" }), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "html" }), false)).toBe(true);
     expect(canDownloadDocument(row(), false)).toBe(true);
     expect(canDownloadDocument(row({ format: "xlsx", title: "Budget.xlsx" }), false)).toBe(true);
     expect(canDownloadDocument(row({ downloadAvailable: false }), false)).toBe(false);

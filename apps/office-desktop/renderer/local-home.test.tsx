@@ -14,15 +14,16 @@ it("shows a loading skeleton while the list is unknown", () => {
   expect(screen.queryByRole("status")).toBeNull();
 });
 
-it("shows the empty illustration with both primary actions", () => {
+it("shows the empty illustration with both primary actions", async () => {
   const callbacks = actions();
   render(<LocalHomeView files={[]} {...callbacks} />);
   expect(screen.getByText(i18n.t("officeDesktop.local.empty"))).toBeInTheDocument();
   expect(screen.getByText(i18n.t("officeDesktop.local.emptyDescription"))).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.createHtml")) }));
   expect(callbacks.onOpen).toHaveBeenCalledOnce();
-  expect(callbacks.onCreate).toHaveBeenCalledOnce();
+  expect(callbacks.onCreate).toHaveBeenCalledExactlyOnceWith("html");
 });
 
 it("shows a typed error with retry", () => {

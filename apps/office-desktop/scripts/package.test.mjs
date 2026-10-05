@@ -130,13 +130,29 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
   // Associations come from the shared format table: one entry per extension,
   // each carrying its own MIME type on Linux.
-  // The expected list is read from the same table, so a format added there
-  // (xlsx once the table carries it) is asserted without editing this test.
+  // The table-derived list keeps a format added there asserted without editing
+  // this test; the explicit list below pins today's table order.
   const tableFormats = Object.values(formatTable.formats);
   assert.deepEqual(config.linux.fileAssociations, tableFormats.flatMap((format) => format.extensions.map((ext) => ({ ext, name: format.associationName, role: "Editor", mimeType: format.mimeTypes[0] }))));
-  assert.deepEqual(config.linux.fileAssociations.slice(0, 2).map((association) => association.ext), ["docx", "pdf"]);
-  assert.equal(config.linux.fileAssociations[0].mimeType, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, config.linux.fileAssociations.map((association) => association.mimeType));
+  assert.deepEqual(config.linux.fileAssociations, [
+    { ext: "docx", name: "Word document", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { ext: "pdf", name: "PDF document", role: "Editor", mimeType: "application/pdf" },
+    { ext: "md", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "markdown", name: "Markdown document", role: "Editor", mimeType: "text/markdown" },
+    { ext: "html", name: "HTML document", role: "Editor", mimeType: "text/html" },
+    { ext: "htm", name: "HTML document", role: "Editor", mimeType: "text/html" },
+    { ext: "xlsx", name: "Excel spreadsheet", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  ]);
+  // One entry per DISTINCT MIME type, in first-seen order: md/markdown and
+  // html/htm each collapse to a single entry (F4).
+  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [...new Set(config.linux.fileAssociations.map((association) => association.mimeType))]);
+  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/pdf",
+    "text/markdown",
+    "text/html",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ]);
   assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);
   assert.equal(config.extraMetadata.name, "uniwork-office-dev");
