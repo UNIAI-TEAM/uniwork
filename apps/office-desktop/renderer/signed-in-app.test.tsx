@@ -246,10 +246,21 @@ it("unmounts every tab on an account change and preserves tabs when logout fails
   const dispose = vi.spyOn(sessions.get("doc-0")!, "dispose");
   const accountMenu = screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.account", { name: "account" }) });
   fireEvent.click(accountMenu);
-  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.tabs.signOut") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.signOut")) }));
   await screen.findByText(i18n.t("officeDesktop.library.actionError"));
   expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
   h.switchAccount();
   await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
   expect(dispose).toHaveBeenCalled();
+});
+
+it.each([["createDocx", "docx", "officeDesktop.library.untitled"], ["createMarkdown", "md", "officeDesktop.local.untitledMarkdown"], ["createHtml", "html", "officeDesktop.local.untitledHtml"]])("creates a cloud document through %s with the %s format and its own untitled title", async (key, format, title) => {
+  const h = harness();
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.tabs.newTab") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t(`officeDesktop.tabs.${key}`)) }));
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:library-create", expect.objectContaining({ workspaceId: "ws", title: i18n.t(title), format })));
+  // The harness answers create with an unusable body: the failure is a dismissible alert, not a thrown error.
+  const alert = await screen.findByRole("alert");
+  fireEvent.click(within(alert).getByRole("button", { name: i18n.t("officeDesktop.tabs.dismissAlert") }));
+  expect(screen.queryByRole("alert")).toBeNull();
 });

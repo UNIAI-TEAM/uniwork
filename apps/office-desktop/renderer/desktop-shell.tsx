@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { DesktopDocumentFormat } from "../shared/document-formats";
 import { DesktopTabStrip, type DesktopTabSummary } from "./tab-strip";
 
 export interface DesktopShellProps {
@@ -13,7 +14,7 @@ export interface DesktopShellProps {
   activeTabId?: string | null;
   onTabSelect?: (id: string | null) => void;
   onTabClose?: (id: string) => void;
-  onCreate?: () => void;
+  onCreate?: (format: DesktopDocumentFormat) => void;
   onOpenLocal?: () => void;
   createDisabled?: boolean;
   busy?: boolean;
