@@ -238,6 +238,7 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     // here rather than run through an unverified iframe print in the sandbox.
     printPort={null}
     saveCoordinator={session.coordinator}
+    saveDestination={session.localHandle ? "local" : "cloud"}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
     fullscreen={false}
   /></>;

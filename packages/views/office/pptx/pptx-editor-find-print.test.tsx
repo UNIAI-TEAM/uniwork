@@ -87,11 +87,11 @@ describe("PptxEditor find & replace (R2-6)", () => {
     await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
     fireEvent.keyDown(canvas(), { key: "f", ctrlKey: true });
     fireEvent.change(query(), { target: { value: "budget" } });
-    // One hit per run (the engine's replace unit): slide 1's run and slide 2's run.
-    expect(count()).toHaveTextContent("Match 1 of 2");
+    // One hit per occurrence: "Alpha budget" has one, "Second budget and budget" has two.
+    expect(count()).toHaveTextContent("Match 1 of 3");
     await waitFor(() => expect(document.querySelector("[data-pptx-selection-outline]")).not.toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Find next" }));
-    expect(count()).toHaveTextContent("Match 2 of 2");
+    expect(count()).toHaveTextContent("Match 2 of 3");
     await waitFor(() => expect(onSlideSelect).toHaveBeenCalledWith(1));
     fireEvent.change(query(), { target: { value: "nothing like it" } });
     expect(count()).toHaveTextContent("No matches");
@@ -115,7 +115,7 @@ describe("PptxEditor find & replace (R2-6)", () => {
     fireEvent.keyDown(canvas(), { key: "f", ctrlKey: true });
     fireEvent.change(query(), { target: { value: "budget" } });
     fireEvent.click(screen.getByRole("button", { name: "Find next" }));
-    expect(count()).toHaveTextContent("Match 2 of 2");
+    expect(count()).toHaveTextContent("Match 2 of 3");
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
     await waitFor(() => expect(edit).toHaveBeenCalledWith([expect.objectContaining({ slideIndex: 1, elementId: "shape-1", occurrence: 0 })]));
     // The host re-publishes the deck: slide 2's run lost its first match but keeps a second one.
@@ -137,7 +137,7 @@ describe("PptxEditor find & replace (R2-6)", () => {
     renderEditor();
     fireEvent.keyDown(canvas(), { key: "f", ctrlKey: true });
     fireEvent.change(query(), { target: { value: "budget" } });
-    expect(count()).toHaveTextContent("Match 1 of 2");
+    expect(count()).toHaveTextContent("Match 1 of 3");
     expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace all" })).toBeDisabled();
     expect(screen.getByTestId("pptx-find-unbound")).toHaveTextContent("read-only");
