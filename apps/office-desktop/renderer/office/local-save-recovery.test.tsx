@@ -148,7 +148,7 @@ it("does not recreate a draft for snapshot N after its pending local Save is con
   try {
     first.session.editor.commands!.setHeading(2);
     const saving = first.session.coordinator.save();
-    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1));
+    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1), { timeout: 10_000 });
     const snapshotN = await first.session.editor.captureSnapshot();
     vi.spyOn(first.session.editor, "captureSnapshot").mockResolvedValue(snapshotN);
     const checkpointing = first.session.coordinator.checkpoint();
@@ -170,7 +170,7 @@ it("defers an N+1 checkpoint during context refresh and refuses another Save", a
   try {
     first.session.editor.commands!.setHeading(2);
     const saving = first.session.coordinator.save();
-    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1));
+    await vi.waitFor(() => expect(harness.controls.refreshCalls).toBe(1), { timeout: 10_000 });
     first.session.editor.commands!.setHeading(3);
     const snapshotB = await first.session.editor.captureSnapshot();
     vi.spyOn(first.session.editor, "captureSnapshot").mockResolvedValue(snapshotB);

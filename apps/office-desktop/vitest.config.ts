@@ -13,9 +13,10 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     include: ["{main,preload,renderer,shared,test}/**/*.test.{ts,tsx}"],
     // A loaded Windows host can starve a heavy main/renderer file past the
-    // default 5 s budget; the WSL branch below keeps its longer values.
-    testTimeout: 20_000,
-    hookTimeout: 20_000,
+    // default 5 s budget, and the heavy engine save-recovery tests have been seen
+    // past 20 s on a loaded runner; the WSL branch below uses the same budget.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",

@@ -211,13 +211,20 @@ it("keeps an edited local tab mounted through login cancel and success", async (
   expect(accountDraftReads.length).toBeGreaterThan(0);
 });
 
+/** The menu trigger renders only after the DOCX surface has parsed, which a loaded runner can delay past the default window. */
+async function openDocumentMenu() {
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10_000 });
+  await waitFor(() => expect(document.querySelector("[data-office-document-menu]")).not.toBeNull());
+  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+}
+
 it("keeps the AI entry locked and never calls a cloud channel from it", async () => {
   const h = harness({ localMode: true });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   const before = h.channels().length;
-  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  await openDocumentMenu();
   fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.ai.entry") }));
   const prompt = await screen.findByRole("dialog");
   expect(within(prompt).getByText(i18n.t("officeDesktop.ai.title"))).toBeInTheDocument();
@@ -238,7 +245,7 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
   editor.bump();
-  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  await openDocumentMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.local.saveAs") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle })));
   await screen.findByRole("tab", { name: /copy\.docx/ });
@@ -251,7 +258,7 @@ it("keeps the protection warning visible while the sign-in card is shown", async
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 5_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 10_000 });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") }));
   await waitFor(() => expect(h.container.querySelector("[data-login-state]")).not.toBeNull());
   expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument();
@@ -264,7 +271,7 @@ it("clears the protective-checkpoint warning once a local save is confirmed", as
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
   // The 2 s checkpoint tick reports a dirty local file with no durable row.
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 5_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 10_000 });
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.anything()));
   await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeNull());
