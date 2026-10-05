@@ -95,8 +95,20 @@ const row = (n: number, cells: string) => `<row r="${n}">${cells}</row>`;
 const sheetDoc = (rows: string) =>
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet ${NS}><sheetData>${rows}</sheetData></worksheet>`;
 
+interface FixtureOptions {
+  /** Prefix the workbook binds the officeDocument relationships namespace to.
+   *  Any prefix is legal; the gateway resolves the sheet rel id by <sheet>. */
+  readonly relationshipPrefix?: string;
+  /** The worksheet Relationship Type. The gateway resolves the worksheet part
+   *  by Id alone, so a Type that does not end /worksheet is still valid. */
+  readonly worksheetRelationshipType?: string;
+}
+
 /** Stale caches are 1 everywhere; the correct ones are derived from B. */
-function buildFixture(): Uint8Array {
+function buildFixture(options: FixtureOptions = {}): Uint8Array {
+  const rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const prefix = options.relationshipPrefix ?? "r";
+  const worksheetType = options.worksheetRelationshipType ?? `${rel}/worksheet`;
   const data = sheetDoc(
     row(2, num("B2", 10) + master("C2", "C2:C5", 0, "B2*2", 1) + master("D2", "D2:D3", 1, "B2+1", 1)) +
       row(3, num("B3", 20) + follower("C3", 0, 1) + follower("D3", 1, 1)) +
@@ -108,7 +120,6 @@ function buildFixture(): Uint8Array {
   );
   const decl = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const ct = "application/vnd.openxmlformats-officedocument.spreadsheetml";
-  const rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
   return zipStore([
     [
       "[Content_Types].xml",
@@ -120,11 +131,11 @@ function buildFixture(): Uint8Array {
     ],
     [
       "xl/workbook.xml",
-      `${decl}<workbook ${NS} xmlns:r="${rel}"><sheets><sheet name="Data" sheetId="1" r:id="rId1"/><sheet name="Other" sheetId="2" r:id="rId2"/></sheets></workbook>`,
+      `${decl}<workbook ${NS} xmlns:${prefix}="${rel}"><sheets><sheet name="Data" sheetId="1" ${prefix}:id="rId1"/><sheet name="Other" sheetId="2" ${prefix}:id="rId2"/></sheets></workbook>`,
     ],
     [
       "xl/_rels/workbook.xml.rels",
-      `${decl}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${rel}/worksheet" Target="worksheets/sheet2.xml"/></Relationships>`,
+      `${decl}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${worksheetType}" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${worksheetType}" Target="worksheets/sheet2.xml"/></Relationships>`,
     ],
     ["xl/worksheets/sheet1.xml", data],
     ["xl/worksheets/sheet2.xml", other],
@@ -144,7 +155,9 @@ async function sheetXml(engine: Gateway, bytes: Uint8Array, sheetName: string): 
   const workbook = (await engine.readEntryText(bytes, "xl/workbook.xml")) ?? "";
   const rels = (await engine.readEntryText(bytes, "xl/_rels/workbook.xml.rels")) ?? "";
   const tag = [...workbook.matchAll(/<sheet\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`name="${sheetName}"`));
-  const rid = /r:id="([^"]+)"/.exec(tag ?? "")?.[1];
+  // Any relationships prefix is legal; mirror the production reader.
+  const rid =
+    /r:id="([^"]+)"/.exec(tag ?? "")?.[1] ?? /[A-Za-z_][\w.-]*:id="([^"]+)"/.exec(tag ?? "")?.[1];
   const rel = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`Id="${rid}"`));
   const target = /Target="([^"]+)"/.exec(rel ?? "")?.[1];
   if (target === undefined) throw new Error(`no worksheet part for ${sheetName}`);
@@ -386,6 +399,53 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx shared-formula follower caches (R3-
       { address: "C3", value: 200, si: 0 },
       { address: "C5", value: 80, si: 0 },
       { address: "D3", value: 101, si: 1 },
+    ]);
+  });
+
+  it("g. resolves followers when the workbook binds the rels namespace to a non-r prefix", async () => {
+    const engine = await load();
+    const recalc = sharedAwareRecalc(engine);
+    const adapter = createXlsxAdapter({ engine, recalc });
+    const ref = await openSession(adapter, buildFixture({ relationshipPrefix: "foo" }));
+    const saved = await save(adapter, ref, [setCell("Data", "B3", 100), setCell("Other", "B2", 5)]);
+    expect(saved.warnings.some((w) => w.code === "formula_cache_kept")).toBe(false);
+    const data = await sheetXml(engine, saved.bytes, "Data");
+    expect(cellXml(data, "C2")).toContain(">B2*2</f>");
+    expectGroup(data, [
+      { address: "C2", value: 20, si: 0, master: "C2:C5" },
+      { address: "C3", value: 200, si: 0 },
+      { address: "C4", value: 60, si: 0 },
+      { address: "C5", value: 80, si: 0 },
+      { address: "D2", value: 11, si: 1, master: "D2:D3" },
+      { address: "D3", value: 101, si: 1 },
+    ]);
+    expectGroup(await sheetXml(engine, saved.bytes, "Other"), [
+      { address: "C1", value: 6, si: 0, master: "C1:C2" },
+      { address: "C2", value: 10, si: 0 },
+    ]);
+  });
+
+  it("h. resolves followers when the worksheet Relationship Type is not /worksheet", async () => {
+    const engine = await load();
+    const recalc = sharedAwareRecalc(engine);
+    const adapter = createXlsxAdapter({ engine, recalc });
+    const ref = await openSession(
+      adapter,
+      buildFixture({ worksheetRelationshipType: "http://example.invalid/rels/spreadsheetPart" }),
+    );
+    const saved = await save(adapter, ref, [setCell("Data", "B3", 100), setCell("Other", "B2", 5)]);
+    expect(saved.warnings.some((w) => w.code === "formula_cache_kept")).toBe(false);
+    const data = await sheetXml(engine, saved.bytes, "Data");
+    expectGroup(data, [
+      { address: "C2", value: 20, si: 0, master: "C2:C5" },
+      { address: "C3", value: 200, si: 0 },
+      { address: "C4", value: 60, si: 0 },
+      { address: "C5", value: 80, si: 0 },
+      { address: "D3", value: 101, si: 1 },
+    ]);
+    expectGroup(await sheetXml(engine, saved.bytes, "Other"), [
+      { address: "C1", value: 6, si: 0, master: "C1:C2" },
+      { address: "C2", value: 10, si: 0 },
     ]);
   });
 });

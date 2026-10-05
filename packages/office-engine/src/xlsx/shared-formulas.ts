@@ -42,13 +42,20 @@ export async function readSharedFollowers(engine: XlsxGatewayFunctions, bytes: U
   for (const rel of elements(base["xl/_rels/workbook.xml.rels"] ?? "", "Relationship")) {
     const id = attribute(rel.tag, "Id");
     const target = attribute(rel.tag, "Target");
-    if (!id || !target || !/\/worksheet$/.test(attribute(rel.tag, "Type") ?? "")) continue;
+    // The id comes from a <sheet> element, so the relationship Type adds
+    // nothing: the gateway resolves by Id alone (resolveWorksheetPath).
+    if (!id || !target) continue;
     pathById.set(id, target.startsWith("/") ? target.slice(1) : `xl/${target}`.replace(/\/\.\//g, "/"));
   }
   const sheets: { name: string; path: string }[] = [];
   for (const sheet of elements(sectionInner(base["xl/workbook.xml"] ?? "", "sheets"), "sheet")) {
     const name = attribute(sheet.tag, "name");
-    const path = pathById.get(attribute(sheet.tag, "r:id") ?? "");
+    // The relationships namespace is conventionally bound to "r", but any
+    // prefix is legal - mirror parseSheetElements (xlsx-sheets.ts) and fall
+    // back to whatever prefix the producer chose.
+    const relationshipId =
+      attribute(sheet.tag, "r:id") ?? /(?:^|\s)[A-Za-z_][\w.-]*:id="([^"]*)"/.exec(sheet.tag)?.[1];
+    const path = pathById.get(relationshipId ?? "");
     if (name && path) sheets.push({ name: decodeXml(name), path });
   }
   const out = new Map<string, Set<string>>();
