@@ -23,13 +23,16 @@ const SHORTCUT_ROWS: readonly { id: string; labelKey: string; keys: string }[] =
  * affordance last. It replaces the hand-rolled header state text, so the
  * editor draws no chrome row of its own.
  */
-export function MarkdownStatusBar({ state, mode, readOnly = false }: { state: string; mode: "visual" | "source"; readOnly?: boolean }) {
+export function MarkdownStatusBar({ state, mode, readOnly = false, joinedBand = false }: { state: string; mode: "visual" | "source"; readOnly?: boolean; joinedBand?: boolean }) {
   const { t } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
   return (
     <>
       <OfficeStatusBar
         labelKey="office.status.label"
+        // F9: when the assets strip sits directly above, the two share ONE band,
+        // so the status row drops its own separator and only the strip keeps it.
+        className={joinedBand ? "border-t-0" : undefined}
         start={
           <span data-testid="md-open-state">{t(`office.markdown.saveState.${state}`)}</span>
         }

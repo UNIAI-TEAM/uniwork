@@ -28,7 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Clipboard, Copy, MoreHorizontal, Redo2, Undo2 } from "lucide-react";
+import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -37,7 +37,7 @@ import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetSt
 import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
 import type { PreviewSession } from "../source-editor-types";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { MarkdownWysiwygEditor } from "./wysiwyg/editor";
 import { MarkdownRibbon } from "./wysiwyg/ribbon";
@@ -196,6 +196,11 @@ export function MarkdownEditor<TSnapshot = unknown>({
     [assetFailures, uploadFailures],
   );
   const blockedAsset = hasFailedAsset(manifest, failures);
+  // F9: the assets strip and the status row are ONE band. With no assets and no
+  // failures the strip renders nothing at all (no empty row above the status
+  // bar); with assets the two share one surface, so only the strip keeps the
+  // top separator.
+  const assetRowCount = assetManifestRows(manifest).length + Object.keys(failures).length;
 
   useEffect(() => {
     setCoordinatorState(coordinator.getState());
@@ -467,57 +472,39 @@ export function MarkdownEditor<TSnapshot = unknown>({
           }
           subbar={
             /*
-              F3: the source-mode clipboard controls and the print/export menu
-              live on the frame's full-width subbar row, NOT inside the canvas.
-              The ribbon's quick access drives the VISUAL pane through the live
-              TipTap instance, but the source pane has no instance - its undo,
-              redo, copy and paste are the host's own snapshot stack and
-              clipboard port, so they ride here where they stay reachable. The
-              print/export menu is the surface's own (C4/C9): print goes through
-              the injected port with the SANITIZED copy, the PDF/DOCX exports
-              stay disabled with their "not available yet" tooltip. Save is NOT
-              here: the page header cluster owns it (F2).
+              F3: the source-mode clipboard controls live on the frame's
+              full-width subbar row, NOT inside the canvas. The ribbon's quick
+              access drives the VISUAL pane through the live TipTap instance,
+              but the source pane has no instance - its undo, redo, copy and
+              paste are the host's own snapshot stack and clipboard port, so
+              they ride here where they stay reachable. The row renders only in
+              source mode: C5 forbids an empty chrome row, and C9 forbids a
+              command floating over the canvas, so the print/export entries
+              live in the page overflow menu instead (see HeaderActionsFill).
             */
-            <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-subbar" role="toolbar" aria-label={t("toolbar.label")}>
-              {mode === "source" ? (
-                <>
-                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
-                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
-                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
-                </>
-              ) : null}
-              <span className="min-w-0 flex-1" />
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="toolbar"
-                      size="icon-sm"
-                      aria-label={t("office.common.chrome.more")}
-                      aria-haspopup="menu"
-                      data-testid="md-more"
-                    />
-                  }
-                >
-                  <MoreHorizontal aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            mode === "source" ? (
+              <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-subbar" role="toolbar" aria-label={t("toolbar.label")}>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+              </div>
+            ) : undefined
           }
           bottom={
-            <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="md-assets">
-              <AssetManifestPanel manifest={manifest} failures={failures} />
-              {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
-            </aside>
+            assetRowCount > 0 ? (
+              <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="md-assets">
+                <AssetManifestPanel manifest={manifest} failures={failures} />
+                {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
+              </aside>
+            ) : undefined
           }
-          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} />}
+          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} joinedBand={assetRowCount > 0} />}
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
+          {/* M-6/C4: print + export ride the page overflow menu, not a
+              floating button over the canvas (C9). Renders nothing itself. */}
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
             replace) and Escape. It is mounted for BOTH canvases: the visual

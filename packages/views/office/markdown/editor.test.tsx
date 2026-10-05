@@ -4,7 +4,8 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/react";
 import { MarkdownEditor } from "./editor";
-import { HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
 
@@ -27,7 +28,7 @@ const CAPABILITY: TextCapability & { format: "md" } = { format: "md", operation:
 
 const FIXTURE = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string } = {}) {
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string; manifest?: { entries: readonly { key?: string; asset_id?: string; status?: "ready" | "missing" | "unauthorised" | "failed" }[] } | null; pageMenu?: boolean } = {}) {
   let text = options.text ?? FIXTURE;
   const listeners = new Set<(next: string) => void>();
   const handle: MarkdownEditorHandle = {
@@ -45,12 +46,22 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
       subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     },
     clipboard: { writeText: vi.fn(async () => undefined), readText: vi.fn(async () => "pasted") },
-    getAssetManifest: () => ({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }),
+    getAssetManifest: () => options.manifest ?? { entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] },
   };
   const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const saveCoordinator = options.coordinator ?? coordinator();
   const open = vi.fn(async () => options.openFails ? ({ outcome: "failed", document_id: "doc", format: "md", failure_class: "engine_error", message: "boom" } as MarkdownOpenOutcome) : outcome);
-  const rendered = render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} />);
+  const editor = <MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} />;
+  // The page overflow (⋯) menu the host page owns; the editor contributes its
+  // print/export entries to it through `HeaderActionsFill` (M-6/C4).
+  const rendered = options.pageMenu
+    ? render(
+        <HeaderActionsSlotProvider>
+          <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+          {editor}
+        </HeaderActionsSlotProvider>,
+      )
+    : render(editor);
   return { handle, saveCoordinator, open, ...rendered };
 }
 
@@ -355,9 +366,8 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
   });
 
   it("prints the SANITIZED copy through the host print path, never the raw source", async () => {
-    renderEditor({ text: "# Bao cao\n\n<script>parent.postMessage(\"x\", \"*\")</script>\n\n[click](javascript:alert(2))\n" });
+    renderEditor({ text: "# Bao cao\n\n<script>parent.postMessage(\"x\", \"*\")</script>\n\n[click](javascript:alert(2))\n", pageMenu: true });
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("md-more"));
     const menu = await screen.findByRole("menu");
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
     // The port writes the copy into an off-screen frame and prints only that
@@ -370,10 +380,9 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     expect(html).toContain("Bao cao");
   });
 
-  it("offers the print/export entries in the host menu, with the exports disabled", async () => {
-    renderEditor();
+  it("offers the print/export entries in the page overflow menu, with the exports disabled", async () => {
+    renderEditor({ pageMenu: true });
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("md-more"));
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "Print" })).toBeInTheDocument();
     for (const label of ["Export PDF", "Export DOCX"]) {
@@ -398,13 +407,19 @@ describe("MarkdownEditor mounts the shared Office frame (F1/F2/F8)", () => {
     // F1: the ribbon is the frame's first slot and the canvas the editor's pane.
     expect(frame!.querySelector('[data-office-ribbon="markdown"]')).not.toBeNull();
     expect(frame!.querySelector("[data-office-canvas]")).not.toBeNull();
-    // F3: the md row is the frame's subbar, between the ribbon and the canvas -
-    // it is NOT a second chrome strip inside the canvas.
+    // C9/B-1: no floating command button over the canvas - the old md-more
+    // trigger (which also carried a raw i18n key) is gone.
+    expect(screen.queryByTestId("md-more")).toBeNull();
+    expect(frame!.querySelector('[data-testid="md-more"]')).toBeNull();
+    // C5: the visual canvas draws no empty subbar row either; the row appears
+    // only in source mode, where the host clipboard controls live.
+    expect(screen.queryByTestId("md-subbar")).toBeNull();
+    switchToSource();
+    await screen.findByTestId("md-source");
     const subbar = screen.getByTestId("md-subbar");
     const canvas = frame!.querySelector("[data-office-canvas]")!;
     expect(canvas.contains(subbar)).toBe(false);
     expect(subbar.parentElement).toBe(frame);
-    expect(subbar.querySelector('[data-testid="md-more"]')).not.toBeNull();
     // F8: exactly one status bar, with the help "?" affordance last.
     expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
     const help = screen.getByTestId("md-shortcuts-help-trigger");
@@ -413,6 +428,27 @@ describe("MarkdownEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(container.querySelector("[data-testid='md-editor']")!.className).not.toMatch(/rounded-/);
     expect(container.querySelector("[data-testid='md-editor']")!.className).not.toMatch(/border(\s|$)/);
+  });
+
+  it("draws no empty asset row: one status band for a document with no assets (D-md/F9)", async () => {
+    const { container } = renderEditor({ manifest: { entries: [] } });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // F9: the "no assets" strip is not rendered at all, so the status row is
+    // the ONE band under the canvas.
+    expect(screen.queryByTestId("md-assets")).toBeNull();
+    expect(screen.queryByTestId("asset-manifest-empty")).toBeNull();
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    expect(screen.getByTestId("md-shortcuts-help-trigger")).toBeInTheDocument();
+  });
+
+  it("keeps the assets strip and the status row as one band when assets exist (D-md/F9)", async () => {
+    const { container } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    expect(screen.getByTestId("md-assets")).toBeInTheDocument();
+    // The strip keeps the top separator; the joined status row drops its own,
+    // so there is no second full-width border line.
+    const statusBar = container.querySelector<HTMLElement>("[data-office-status-bar]")!;
+    expect(statusBar.className).toContain("border-t-0");
   });
 
   it("opens the shortcuts help dialog from the status bar ?", async () => {

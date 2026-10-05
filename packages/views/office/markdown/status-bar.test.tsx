@@ -85,4 +85,13 @@ describe("MarkdownStatusBar", () => {
     renderBar();
     expect(screen.queryByTestId("md-readonly")).toBeNull();
   });
+
+  it("joins the assets strip band: drops its own separator only when asked (F9)", () => {
+    // D-md: with assets above, the two rows share ONE band, so only the strip
+    // keeps the top separator and the status row renders none.
+    const { container, rerender } = render(<MarkdownStatusBar state="dirty" mode="visual" joinedBand />);
+    expect(container.querySelector("[data-office-status-bar]")!.className).toContain("border-t-0");
+    rerender(<MarkdownStatusBar state="dirty" mode="visual" />);
+    expect(container.querySelector("[data-office-status-bar]")!.className).not.toContain("border-t-0");
+  });
 });
