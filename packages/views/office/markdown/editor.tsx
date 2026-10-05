@@ -546,21 +546,25 @@ export function MarkdownEditor<TSnapshot = unknown>({
                 </>
               ) : (
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-cols-2">
-                  <div ref={sourceWrapperRef} className="relative flex min-h-64 min-w-0 flex-col gap-2">
+                  <div className="flex min-h-64 min-w-0 flex-col gap-2">
                     <label className="text-label font-medium" htmlFor="md-source">{t("source.label")}</label>
-                    <textarea
-                      ref={textAreaRef}
-                      id="md-source"
-                      className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                      value={text}
-                      readOnly={readOnly}
-                      spellCheck={false}
-                      onChange={onTextChange}
-                      onCompositionStart={onCompositionStart}
-                      onCompositionEnd={onCompositionEnd}
-                      data-testid="md-source"
-                      aria-label={t("source.label")}
-                    />
+                    {/* The wrapper holds ONLY the field: M7's source highlight
+                        overlay is portaled here and must align to the textarea. */}
+                    <div ref={sourceWrapperRef} className="relative flex min-h-64 flex-1 flex-col">
+                      <textarea
+                        ref={textAreaRef}
+                        id="md-source"
+                        className="min-h-64 flex-1 resize-none rounded-md border border-border bg-background p-3 font-mono text-body leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        value={text}
+                        readOnly={readOnly}
+                        spellCheck={false}
+                        onChange={onTextChange}
+                        onCompositionStart={onCompositionStart}
+                        onCompositionEnd={onCompositionEnd}
+                        data-testid="md-source"
+                        aria-label={t("source.label")}
+                      />
+                    </div>
                   </div>
                   <div className="flex min-h-64 min-w-0 flex-col gap-2">
                     <span className="text-label font-medium">{t("preview.label")}</span>
