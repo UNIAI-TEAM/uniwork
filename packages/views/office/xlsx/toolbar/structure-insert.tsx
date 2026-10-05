@@ -7,6 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
+import { XLSX_RANGE_TYPE, type XlsxRangeType } from "../selection-mapping";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
 import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
@@ -38,16 +39,23 @@ export function selectionSpan(selection: XlsxSelection | null): XlsxSelectionSpa
   return { startRow, endRow, startColumn, endColumn, rows: endRow - startRow + 1, columns: endColumn - startColumn + 1 };
 }
 
-/** Default Univer grid size: a selection spanning it from the first row/column
- *  is a whole-column/whole-row selection (the toolbar has no sheet bounds). */
+/** Default Univer grid size: without a range type (fallback surface,
+ *  host-set selections), a selection spanning it from the first row/column
+ *  is read as a whole-column/whole-row selection. */
 const WHOLE_COLUMN_ROWS = 1000;
 const WHOLE_ROW_COLUMNS = 26;
 
 /** How many rows/columns the "insert before" commands default to. Excel
  *  inserts the selection's own span on that axis, but with whole columns
  *  selected the row span is the entire sheet (and vice versa), which is never
- *  what an Insert-Rows click means: that axis falls back to one. */
-export function insertCounts(span: XlsxSelectionSpan): { rows: number; columns: number } {
+ *  what an Insert-Rows click means: that axis falls back to one. The grid's
+ *  range type decides exactly; a NORMAL range keeps both spans however wide. */
+export function insertCounts(span: XlsxSelectionSpan, rangeType?: XlsxRangeType): { rows: number; columns: number } {
+  if (rangeType !== undefined) {
+    const wholeColumns = rangeType === XLSX_RANGE_TYPE.COLUMN || rangeType === XLSX_RANGE_TYPE.ALL;
+    const wholeRows = rangeType === XLSX_RANGE_TYPE.ROW || rangeType === XLSX_RANGE_TYPE.ALL;
+    return { rows: wholeColumns ? 1 : span.rows, columns: wholeRows ? 1 : span.columns };
+  }
   const wholeColumns = span.startRow === 0 && span.rows >= WHOLE_COLUMN_ROWS;
   const wholeRows = span.startColumn === 0 && span.columns >= WHOLE_ROW_COLUMNS;
   return { rows: wholeColumns && !wholeRows ? 1 : span.rows, columns: wholeRows && !wholeColumns ? 1 : span.columns };
@@ -68,7 +76,7 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
   const { t } = useTranslation();
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
-  const defaults = span ? insertCounts(span) : null;
+  const defaults = span ? insertCounts(span, selection?.rangeType) : null;
   const rowSpan = defaults?.rows ?? 0;
   const colSpan = defaults?.columns ?? 0;
   const [rowCountDraft, setRowCountDraft] = useState("1");

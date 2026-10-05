@@ -13,7 +13,7 @@ import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useXlsxProtectNames } from "./protect/use-protect-names";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
-import { toA1Address } from "./xlsx-render-model-bridge";
+import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
 import { useXlsxCatalogShortcuts } from "./shortcuts/use-catalog-shortcuts";
 import { XlsxShortcutsDialog } from "./shortcuts/shortcuts-dialog";
@@ -57,7 +57,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   onOpen,
   onViewStateChange,
   onSelectionChange,
-  registerSavePreparation, saveDestination = "cloud",
+  registerSavePreparation,
+  saveDestination = "cloud",
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<XlsxViewState>("opening");
@@ -417,7 +418,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             canvasClassName="overflow-hidden"
             ribbon={
               <XlsxToolbar
-                coordinator={coordinator} saveDestination={saveDestination} showSave={!embedded}
+                coordinator={coordinator}
+                saveDestination={saveDestination}
+                showSave={!embedded}
                 dirty={dirty}
                 saving={saving}
                 readOnly={readOnly || rendererLoading}
@@ -525,11 +528,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                       // the name while the host file's id map kept the old one.
                       const sheetName = gridRef.current?.getSheets?.().find((sheet) => sheet.id === next.sheetId)?.name
                         ?? rendererHost.file.sheets.find((candidate) => candidate.id === next.sheetId)?.name;
-                      const nextSelection: XlsxSelection = {
-                        sheet: sheetName ?? next.sheetId,
-                        address: toA1Address(next.range.startRow, next.range.startColumn),
-                        ...(next.range.startRow !== next.range.endRow || next.range.startColumn !== next.range.endColumn ? { endAddress: toA1Address(next.range.endRow, next.range.endColumn) } : {}),
-                      };
+                      const nextSelection = xlsxSelectionFromGrid(sheetName ?? next.sheetId, next.range);
                       setSelection(nextSelection);
                       setActiveSheet(nextSelection.sheet);
                       setActiveSheetId(next.sheetId);

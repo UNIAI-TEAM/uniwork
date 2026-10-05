@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarCommands } from "../toolbar/types";
+import { XLSX_RANGE_TYPE } from "../selection-mapping";
 import { buildXlsxContextMenu, type XlsxContextMenuEntry, type XlsxContextMenuState } from "./menu-items";
 
 function lookup(dictionary: unknown, key: string): unknown {
@@ -63,6 +64,31 @@ describe("buildXlsxContextMenu", () => {
     expect(find(entries, "unmerge").action).toEqual({ kind: "command", id: "sheet.command.remove-worksheet-merge", params: { ranges: [range] } });
     expect(find(entries, "filter-toggle").action).toEqual({ kind: "command", id: "sheet.command.smart-toggle-filter" });
     expect(find(entries, "filter-clear").action).toEqual({ kind: "command", id: "sheet.command.clear-filter-criteria" });
+  });
+
+  it("applies the ribbon insert-count policy to the before items", () => {
+    const params = (selection: XlsxContextMenuState["selection"], id: string) => {
+      const action = find(buildXlsxContextMenu(state({ selection })), id).action;
+      return action?.kind === "command" ? action.params : undefined;
+    };
+    // Whole columns B:C: Insert row above is one row, not the 1000-row span.
+    const columns = { sheet: "Data", address: "B1", endAddress: "C1000", rangeType: XLSX_RANGE_TYPE.COLUMN };
+    expect(params(columns, "insert-row-above")).toEqual({ value: 1 });
+    expect(params(columns, "insert-col-left")).toEqual({ value: 2 });
+    // Whole rows 2:3.
+    const rows = { sheet: "Data", address: "A2", endAddress: "Z3", rangeType: XLSX_RANGE_TYPE.ROW };
+    expect(params(rows, "insert-row-above")).toEqual({ value: 2 });
+    expect(params(rows, "insert-col-left")).toEqual({ value: 1 });
+    // The whole sheet inserts one of each.
+    const all = { sheet: "Data", address: "A1", endAddress: "Z1000", rangeType: XLSX_RANGE_TYPE.ALL };
+    expect(params(all, "insert-row-above")).toEqual({ value: 1 });
+    expect(params(all, "insert-col-left")).toEqual({ value: 1 });
+    // An explicit wide range keeps its span.
+    const wide = { sheet: "Data", address: "A1", endAddress: "Z5", rangeType: XLSX_RANGE_TYPE.NORMAL };
+    expect(params(wide, "insert-col-left")).toEqual({ value: 26 });
+    // The after items carry no count: Univer derives it from the selection.
+    expect(params(columns, "insert-row-below")).toBeUndefined();
+    expect(params(columns, "insert-col-right")).toBeUndefined();
   });
 
   it("maps cut/copy/paste/find to editor callbacks, never a command", () => {

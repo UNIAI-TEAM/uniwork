@@ -18,7 +18,7 @@ import {
   XLSX_NUMBER_FORMAT_COMMANDS,
 } from "../number-format/catalog";
 import { sortCommandParams, sortRangeIsSortable, sortWithinOpLimit, type XlsxSortRange } from "../sort/sort-commands";
-import { selectionSpan } from "../toolbar/structure-insert";
+import { insertCounts, selectionSpan } from "../toolbar/structure-insert";
 import {
   XLSX_MERGE_ACROSS_COMMAND,
   XLSX_MERGE_ALL_COMMAND,
@@ -120,6 +120,10 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
     ? null
     : { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn };
   const noCommands = state.commands === undefined;
+  // Same counts as the ribbon: a whole-axis selection inserts one line on the
+  // other axis. The after items stay count-less: Univer's insert-row-after /
+  // insert-col-after ignore params and insert the selection's own span.
+  const counts = span === null ? null : insertCounts(span, state.selection?.rangeType);
   const structureBlocked = state.readOnly || noCommands || span === null;
   const mergeBlocked = state.readOnly || noCommands || span === null || (span.rows === 1 && span.columns === 1);
   const mergeAcrossBlocked = mergeBlocked || (span !== null && span.columns === 1);
@@ -175,7 +179,7 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
       labelKey: "office.xlsx.contextMenu.items.insertRowAbove",
       disabled: structureBlocked,
       separatorBefore: true,
-      action: { kind: "command", id: XLSX_CONTEXT_INSERT_ROW_BEFORE_COMMAND, params: span === null ? undefined : { value: span.rows } },
+      action: { kind: "command", id: XLSX_CONTEXT_INSERT_ROW_BEFORE_COMMAND, params: counts === null ? undefined : { value: counts.rows } },
     },
     {
       id: "insert-row-below",
@@ -187,7 +191,7 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
       id: "insert-col-left",
       labelKey: "office.xlsx.contextMenu.items.insertColLeft",
       disabled: structureBlocked,
-      action: { kind: "command", id: XLSX_CONTEXT_INSERT_COL_BEFORE_COMMAND, params: span === null ? undefined : { value: span.columns } },
+      action: { kind: "command", id: XLSX_CONTEXT_INSERT_COL_BEFORE_COMMAND, params: counts === null ? undefined : { value: counts.columns } },
     },
     {
       id: "insert-col-right",

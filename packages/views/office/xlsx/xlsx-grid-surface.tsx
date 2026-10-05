@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { RendererRangeResult, RendererWorkbookFile } from "./xlsx-render-model-bridge";
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
+import type { XlsxGridRange } from "./selection-mapping";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -22,7 +23,7 @@ export interface XlsxGridHostPort {
 
 export interface XlsxGridSelection {
   sheetId: string;
-  range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
+  range: XlsxGridRange;
 }
 
 /** The active-selection style the renderer mirrors back for the toolbar

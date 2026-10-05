@@ -7,6 +7,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
+import type { XlsxRangeType } from "./selection-mapping";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -20,6 +21,9 @@ export interface XlsxSelection {
   sheet: string;
   address: string;
   endAddress?: string;
+  /** Univer RANGE_TYPE from the live grid (see selection-mapping.ts); absent
+   *  for fallback-surface and host-set selections. */
+  rangeType?: XlsxRangeType;
 }
 
 export interface XlsxSelectionPort {

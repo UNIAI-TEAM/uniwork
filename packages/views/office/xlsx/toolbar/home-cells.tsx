@@ -99,8 +99,8 @@ function InsertMenu(context: XlsxToolbarGroupProps) {
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
   const run = (command: string, params?: unknown) => () => fireCommand(commands, command, params);
-  const counts = span === null ? null : insertCounts(span);
-  const entries: readonly CellsMenuEntry[] = span === null || counts === null ? [] : [
+  const counts = span === null ? null : insertCounts(span, selection?.rangeType);
+  const entries: readonly CellsMenuEntry[] = counts === null ? [] : [
     { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: counts.rows }), onSelect: run("sheet.command.insert-row-before", { value: counts.rows }) },
     { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-row-after") },
     { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: counts.columns }), onSelect: run("sheet.command.insert-col-before", { value: counts.columns }) },

@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "./types";
-import { normalizeRowColCount, selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
+import { insertCounts, normalizeRowColCount, selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
+import { XLSX_RANGE_TYPE } from "../selection-mapping";
 import { characterWidthToPixels, parseBoundedNumber, pointsToPixels, XlsxStructureSizeGroup } from "./structure-size";
 import { outlineCommandId, outlineCommandParams, XlsxStructureOutlineGroup } from "./structure-outline";
 
@@ -55,6 +56,23 @@ describe("structure pure logic", () => {
     });
     expect(selectionSpan(null)).toBeNull();
     expect(selectionSpan({ sheet: "Data", address: "nope" })).toBeNull();
+  });
+
+  it("derives insert counts from the grid range type, keeping an explicit span", () => {
+    const span = (address: string, endAddress: string) => selectionSpan({ sheet: "Data", address, endAddress })!;
+    // A NORMAL range anchored at A spanning 26 columns is an explicit choice.
+    expect(insertCounts(span("A1", "Z5"), XLSX_RANGE_TYPE.NORMAL)).toEqual({ rows: 5, columns: 26 });
+    // Whole columns B:C: the row axis spans the sheet, so rows fall back to one.
+    expect(insertCounts(span("B1", "C1000"), XLSX_RANGE_TYPE.COLUMN)).toEqual({ rows: 1, columns: 2 });
+    // Whole rows 2:3: the column axis spans the sheet.
+    expect(insertCounts(span("A2", "Z3"), XLSX_RANGE_TYPE.ROW)).toEqual({ rows: 2, columns: 1 });
+    // The whole sheet: neither span is a count the user chose.
+    expect(insertCounts(span("A1", "Z1000"), XLSX_RANGE_TYPE.ALL)).toEqual({ rows: 1, columns: 1 });
+    // A whole-column type wins even on a grid smaller than the default bounds.
+    expect(insertCounts(span("B1", "C50"), XLSX_RANGE_TYPE.COLUMN)).toEqual({ rows: 1, columns: 2 });
+    // Without a range type (fallback surface, host-set selection) the bounds heuristic stays.
+    expect(insertCounts(span("B1", "C1000"))).toEqual({ rows: 1, columns: 2 });
+    expect(insertCounts(span("B2", "C4"))).toEqual({ rows: 3, columns: 2 });
   });
 
   it("accepts only whole counts in 1..10000", () => {
@@ -155,6 +173,21 @@ describe("XlsxStructureInsertGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 1) }));
     expect(executeMock(rows)).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 1 });
     expect(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 2) })).toBeInTheDocument();
+  });
+
+  it("inserts the explicit span of a wide NORMAL range and one line for whole axes", () => {
+    const wide = groupProps({ selection: { sheet: "Data", address: "A1", endAddress: "Z5", rangeType: XLSX_RANGE_TYPE.NORMAL } });
+    const first = render(<XlsxStructureInsertGroup {...wide} />);
+    expect(screen.getByLabelText(viText("office.xlsx.structure.colCount"))).toHaveValue("26");
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 26) }));
+    expect(executeMock(wide)).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 26 });
+    first.unmount();
+    const sheet = groupProps({ selection: { sheet: "Data", address: "A1", endAddress: "Z1000", rangeType: XLSX_RANGE_TYPE.ALL } });
+    render(<XlsxStructureInsertGroup {...sheet} />);
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertRowsAbove", 1) }));
+    fireEvent.click(screen.getByRole("button", { name: viCount("office.xlsx.structure.insertColsLeft", 1) }));
+    expect(executeMock(sheet)).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 1 });
+    expect(executeMock(sheet)).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 1 });
   });
 
   it("refuses clicks in a read-only mount", () => {
