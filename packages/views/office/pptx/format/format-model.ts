@@ -13,7 +13,6 @@
  *   set_stroke          colour + widthEmu + dash / none (null removes)
  *   set_effects         shadow / glow / softEdge (null clears)
  *   set_shape_geometry  prst passthrough
- *   set_shape_adjust    { gdName: number } map
  *   set_text_anchor     top / middle / bottom
  *   set_text_body_props vert / autofit / insets / wrap
  *   group_elements / ungroup_element / flip_elements
@@ -357,21 +356,6 @@ export function buildShapeGeometryEdit(slideIndex: number, elementId: string, pr
   return { op: "set_shape_geometry", slideIndex, elementId, prst: prst.trim() };
 }
 
-/** `set_shape_adjust` edit; refuses an empty or non-numeric map (fmt_bad_adjust). */
-export function buildShapeAdjustEdit(
-  slideIndex: number,
-  elementId: string,
-  adjust: Record<string, number>,
-): FormatEdit {
-  const keys = Object.keys(adjust ?? {});
-  if (keys.length === 0 || keys.some((key) => !Number.isFinite(adjust[key]))) {
-    throw formatRefusal("fmt_bad_adjust", 'set_shape_adjust "adjust" must be a non-empty { gdName: number } map');
-  }
-  const out: Record<string, number> = {};
-  for (const key of keys) out[key] = adjust[key] as number;
-  return { op: "set_shape_adjust", slideIndex, elementId, adjust: out };
-}
-
 /** `set_text_anchor` edit. */
 export function buildTextAnchorEdit(slideIndex: number, elementId: string, anchor: PptxTextAnchor): FormatEdit {
   if (!(PPTX_TEXT_ANCHORS as readonly string[]).includes(anchor)) {
@@ -498,25 +482,4 @@ export function arrangeEnabled(
     case "distribute":
       return selectedCount >= 3;
   }
-}
-
-/**
- * Parse a `name=value, name2=value2` adjustment field into the engine's
- * `{ gdName: number }` map. Returns null for an empty field, a chunk without
- * `=`, an empty name, or a non-numeric value - so a half-typed field never
- * becomes an edit and the Apply button can disable on null.
- */
-export function parseAdjustField(raw: string): Record<string, number> | null {
-  const out: Record<string, number> = {};
-  for (const chunk of raw.split(",")) {
-    const entry = chunk.trim();
-    if (entry.length === 0) continue;
-    const at = entry.indexOf("=");
-    if (at <= 0) return null;
-    const name = entry.slice(0, at).trim();
-    const value = Number(entry.slice(at + 1).trim());
-    if (name.length === 0 || !Number.isFinite(value)) return null;
-    out[name] = value;
-  }
-  return Object.keys(out).length === 0 ? null : out;
 }

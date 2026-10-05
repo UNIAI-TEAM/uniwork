@@ -221,9 +221,9 @@ export function PptxSlideShow({
         <div
           className={cn(
             // A dark bar, not bare chips: the slide fills the stage and is usually white, so
-            // chips drawn straight on it vanish. Dimmed at idle, full on hover/focus.
+            // chips drawn straight on it vanish. Slightly dimmed at idle (still >= 4.5:1, see pptx-show-contrast.test.ts), full on hover/focus.
             "pointer-events-auto flex items-center gap-2 rounded-full border border-meeting-bar-border bg-meeting-bar-bg px-3 py-1.5 text-meeting-bar-foreground",
-            "opacity-70 transition-opacity group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100",
+            "opacity-90 transition-opacity group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100",
             "pointer-coarse:opacity-100",
           )}
           data-pptx-show-controls
@@ -232,7 +232,7 @@ export function PptxSlideShow({
             <ChevronLeft aria-hidden />
             <span>{t("show.previous")}</span>
           </Button>
-          <span className="px-2 text-caption text-meeting-bar-muted-foreground" data-testid="pptx-show-counter">{counter}</span>
+          <span className="px-2 text-caption text-meeting-bar-foreground" data-testid="pptx-show-counter">{counter}</span>
           <Button type="button" size="sm" variant="meetingChip" disabled={ended} aria-label={t("show.next")} onClick={() => navigate("next")}>
             <span>{t("show.next")}</span>
             <ChevronRight aria-hidden />

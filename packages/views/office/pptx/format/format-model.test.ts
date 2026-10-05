@@ -9,7 +9,6 @@ import {
   buildFillEdit,
   buildFlipEdit,
   buildGroupEdit,
-  buildShapeAdjustEdit,
   buildShapeGeometryEdit,
   buildStrokeEdit,
   buildTextAnchorEdit,
@@ -25,7 +24,6 @@ import {
   gradientAngleUnits,
   isFormatColor,
   normalizeFormatHex,
-  parseAdjustField,
   parseDegrees,
   parseNonNegative,
   parsePoints,
@@ -77,15 +75,6 @@ describe("format-model unit conversions", () => {
     expect(normalizeFormatHex("#ff")).toBe("#ff");
     expect(formatColorInputValue("#FFFFFF80", "#000000")).toBe("#FFFFFF");
     expect(formatColorInputValue("nope", "#4472C4")).toBe("#4472C4");
-  });
-
-  it("parses the adjust field into a numeric map or null", () => {
-    expect(parseAdjustField("adj=0.25")).toEqual({ adj: 0.25 });
-    expect(parseAdjustField("adj=0.25, adj2=3")).toEqual({ adj: 0.25, adj2: 3 });
-    expect(parseAdjustField("")).toBeNull();
-    expect(parseAdjustField("adj")).toBeNull();
-    expect(parseAdjustField("=1")).toBeNull();
-    expect(parseAdjustField("adj=x")).toBeNull();
   });
 });
 
@@ -254,25 +243,17 @@ describe("effects edits", () => {
 });
 
 describe("geometry / adjust / text edits", () => {
-  it("builds the set_shape_geometry and set_shape_adjust payloads", () => {
+  it("builds the set_shape_geometry payload", () => {
     expect(buildShapeGeometryEdit(0, "sh1", "roundRect")).toEqual({
       op: "set_shape_geometry",
       slideIndex: 0,
       elementId: "sh1",
       prst: "roundRect",
     });
-    expect(buildShapeAdjustEdit(0, "sh1", { adj: 0.25 })).toEqual({
-      op: "set_shape_adjust",
-      slideIndex: 0,
-      elementId: "sh1",
-      adjust: { adj: 0.25 },
-    });
   });
 
-  it("refuses an empty preset and an empty or non-numeric adjust map", () => {
+  it("refuses an empty preset", () => {
     expect(errCode(() => buildShapeGeometryEdit(0, "sh1", "  "))).toBe("fmt_bad_prst");
-    expect(errCode(() => buildShapeAdjustEdit(0, "sh1", {}))).toBe("fmt_bad_adjust");
-    expect(errCode(() => buildShapeAdjustEdit(0, "sh1", { adj: Number.NaN }))).toBe("fmt_bad_adjust");
   });
 
   it("builds the anchor, autofit and wrap payloads", () => {

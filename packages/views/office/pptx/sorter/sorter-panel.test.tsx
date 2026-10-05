@@ -259,12 +259,13 @@ describe("PptxSorterPanel", () => {
     expect(names).not.toContain("Blank");
   });
 
-  it("keeps the grid at a readable height and scrolls the panel instead of clipping a row (R2-12)", () => {
+  it("keeps the grid at a readable height and scrolls the panel - the one scroll container - instead of clipping a row (R2-12)", () => {
     renderPanel();
     const grid = document.querySelector("[data-pptx-sorter-grid]")!;
-    expect(grid.className).toContain("min-h-64");
-    expect(grid.className).toContain("flex-1");
-    expect(document.querySelector("[data-pptx-sorter-panel]")!.className).toContain("overflow-y-auto");
+    expect(grid).toHaveClass("min-h-64", "shrink-0");
+    // One scroll region: the panel owns it, the grid never nests a second one.
+    expect(grid.className).not.toMatch(/(^| )overflow-(y-)?(auto|scroll)( |$)/);
+    expect(document.querySelector("[data-pptx-sorter-panel]")).toHaveClass("overflow-y-auto");
     expect(document.querySelector("[data-pptx-sorter-sections]")!.className).toContain("shrink-0");
   });
 

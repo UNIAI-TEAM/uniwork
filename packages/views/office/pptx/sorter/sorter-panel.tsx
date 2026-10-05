@@ -284,7 +284,7 @@ export function PptxSorterPanel({
   const grid = useMemo(
     () => (
       <ul
-        className="grid min-h-64 flex-1 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] content-start gap-3 overflow-y-auto p-1"
+        className="grid min-h-64 shrink-0 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] content-start gap-3 p-1"
         aria-label={t("office.pptx.sorter.grid_label")}
         data-pptx-sorter-grid
       >

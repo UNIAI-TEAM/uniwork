@@ -215,8 +215,8 @@ describe("PptxSlideShow", () => {
     // Token surface, not bare chips on a (usually white) slide.
     expect(bar).toHaveClass("bg-meeting-bar-bg", "border-meeting-bar-border", "text-meeting-bar-foreground");
     // Idle is dimmed but legible; hover and keyboard focus bring it to full strength.
-    expect(bar).toHaveClass("opacity-70", "hover:opacity-100", "focus-within:opacity-100");
-    expect(bar.className).not.toMatch(/(^|s)opacity-0(s|$)/);
+    expect(bar).toHaveClass("opacity-90", "hover:opacity-100", "focus-within:opacity-100");
+    expect(bar).not.toHaveClass("opacity-0");
     // The positioning shell must not swallow stage clicks.
     expect(bar.parentElement).toHaveClass("pointer-events-none");
     expect(bar).toHaveClass("pointer-events-auto");
