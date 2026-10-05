@@ -1,0 +1,32 @@
+/* Color belongs to the shared core; the rest of Bright Studio stays on paper. */
+.landing-site .landing-hero .scene-core::before {
+  content: "";
+  position: absolute;
+  inset: -20px -8%;
+  z-index: -1;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, var(--foreground) 25%, transparent 70%);
+  background:
+    radial-gradient(ellipse at 36% 58%, color-mix(in srgb, var(--landing-close-light) 22%, transparent), transparent 46%),
+    radial-gradient(ellipse at 66% 49%, color-mix(in srgb, var(--brand-accent) 17%, transparent), transparent 48%),
+    radial-gradient(ellipse at 51% 68%, color-mix(in srgb, var(--landing-close-end) 17%, transparent), transparent 55%);
+}
+.landing-site .landing-hero .hero-context {
+  background: color-mix(in srgb, var(--landing-paper) 88%, var(--landing-cyan));
+  box-shadow: 0 12px 30px -20px color-mix(in srgb, var(--landing-close-end) 48%, transparent);
+}
+.landing-site .landing-hero .hero-context-chat { background: var(--landing-cyan); }
+.landing-site .landing-hero .hero-context-meet { background: var(--landing-violet); }
+.landing-site .landing-hero .hero-context-ai { background: color-mix(in srgb, var(--landing-paper) 86%, var(--brand-accent)); }
+.landing-site .landing-hero .hero-context-ai > svg { color: var(--brand-accent); }
+.landing-site .landing-hero .hero-context-meet > svg { color: var(--landing-close-end); }
+.landing-site .landing-hero .scene-brand svg { height: 44px; }
+.landing-site .landing-hero .scene-motion-toggle { color: var(--brand); }
+@media (max-width: 767px) {
+  .landing-site .landing-hero .scene-core { padding-bottom: 42px; }
+  .landing-site .landing-hero .hero-context-meet,
+  .landing-site .landing-hero .hero-context-ai { top: auto; bottom: 0; }
+  .landing-site .landing-hero .scene-motion-toggle { bottom: 42px; }
+  .landing-site .landing-hero .scene-brand svg { height: 36px; }
+  .landing-site .landing-hero .scene-core::before { inset-inline: 0; }
+}

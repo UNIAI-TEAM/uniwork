@@ -11,7 +11,6 @@ import {
   useProjects,
   useTaskProperties,
   useTaskLabels,
-  useTaskStatuses,
   useTasks,
   useUploadWorkspaceAttachment,
   type CreateTaskBody,
@@ -21,7 +20,6 @@ import {
   type CreateTaskDraft,
   type CreateTaskSettings,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
 import { createSafeId } from "@uniwork/core/utils";
@@ -125,7 +123,7 @@ export function useCreateTaskManualState({
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
-  onClose: () => void;
+  onClose: (reason?: "saved" | "submitted") => void;
   createAnother: boolean;
 }) {
   const { t } = useTranslation();
@@ -135,12 +133,12 @@ export function useCreateTaskManualState({
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
-  const { data: statusList } = useTaskStatuses(workspaceId);
   const { data: taskList } = useTasks(workspaceId);
   const { data: propertyList } = useTaskProperties(workspaceId);
   const assignees = useWorkspaceAssigneeOptions(workspaceId);
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
+  const persistSavedDraft = useCreateTaskDraftStore((state) => state.saveDraft);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
   const persistSettings = useCreateTaskDraftStore((state) => state.setSettings);
   const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
@@ -198,25 +196,6 @@ export function useCreateTaskManualState({
     persistDraft(workspaceId, next);
   };
 
-  const statusItems = useMemo(
-    () =>
-      statusList?.statuses.length
-        ? statusList.statuses.map((status) => ({
-            value: status.key,
-            label: status.name,
-            category: status.category,
-          }))
-        : TASK_STATUSES.map((status) => ({
-            value: status,
-            label: t(`tasks.status_${status}`),
-            category: status,
-          })),
-    [statusList, t],
-  );
-  const priorityItems = useMemo(
-    () => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })),
-    [t],
-  );
   const projectItems = useMemo(
     () => (projectList?.projects ?? []).map((project) => ({ value: project.id, label: project.title })),
     [projectList],
@@ -311,7 +290,7 @@ export function useCreateTaskManualState({
         draftRef.current = next;
         setDraftState(next);
         setRevealed(initialRevealed(next));
-        if (!createAnother) onClose();
+        if (!createAnother) onClose("submitted");
       })
       .catch((error: unknown) => {
         toastCreateTaskError(
@@ -387,6 +366,12 @@ export function useCreateTaskManualState({
     updateDraft({ properties });
   };
 
+  const saveDraft = () => {
+    if (create.isPending || uploadCountRef.current > 0) return;
+    persistSavedDraft(workspaceId, draftRef.current);
+    onClose("saved");
+  };
+
   return {
     t,
     draft,
@@ -400,8 +385,6 @@ export function useCreateTaskManualState({
         next.delete(key);
         return next;
       }),
-    statusItems,
-    priorityItems,
     projectItems,
     parentItems,
     maxSiblingStage,
@@ -423,6 +406,7 @@ export function useCreateTaskManualState({
     })(),
     workspaceName: workspaceContext?.workspace.name ?? t("tasks.new"),
     submit,
+    saveDraft,
     uploadFile,
     setProperty,
     create,

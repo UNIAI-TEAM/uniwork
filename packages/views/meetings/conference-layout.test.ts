@@ -8,10 +8,18 @@ import {
   orderTracks,
   paginate,
   primaryGridClass,
+  promoteSpeakers,
+  SPEAKER_HOLD_MS,
+  speakerSlots,
   resolveConferenceStage,
   splitTracksBySource,
   tileGridClass,
   tileRingTone,
+  cameraTileSize,
+  screenShareTileSize,
+  stageFillSize,
+  stripPlacement,
+  tileControlButtons,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -39,23 +47,89 @@ describe("conference layout", () => {
   });
 
   it("keeps a speaker in place when they are already in the main area", () => {
-    const tracks = [track("a"), track("b"), track("c"), track("d")];
-    expect(orderTracks(tracks, ["c"], null, 6).map((t) => t.participant.identity)).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
-    ]);
+    const r = promoteSpeakers(["a", "b", "c", "d"], {
+      cameras: ["a", "b", "c", "d"],
+      slots: 6,
+      speaking: ["c"],
+      lastSpokeAt: new Map(),
+      now: 0,
+    });
+    expect(r.order).toEqual(["a", "b", "c", "d"]);
+    expect(r.retryAt).toBeUndefined();
   });
 
-  it("promotes a speaker who is past the main area", () => {
-    const tracks = [track("a"), track("b"), track("c"), track("d")];
-    expect(orderTracks(tracks, ["d", "b"], null, 2).map((t) => t.participant.identity)).toEqual([
-      "d",
-      "a",
-      "b",
-      "c",
-    ]);
+  it("swaps a speaker past the main area with one quiet tile, leaving the rest in place", () => {
+    const r = promoteSpeakers(["a", "b", "c", "d", "e"], {
+      cameras: ["a", "b", "c", "d", "e"],
+      slots: 3,
+      speaking: ["e"],
+      // b spoke a while ago; a and c never did, so the later slot (c) gives way.
+      lastSpokeAt: new Map([["b", 0]]),
+      now: 10_000,
+    });
+    expect(r.order).toEqual(["a", "b", "e", "d", "c"]);
+  });
+
+  it("holds a promoted speaker in place for a moment after they stop", () => {
+    const cameras = ["x", "a", "b"];
+    const first = promoteSpeakers(cameras, { cameras, slots: 1, speaking: ["a"], lastSpokeAt: new Map(), now: 0 });
+    expect(first.order).toEqual(["a", "x", "b"]);
+    // a went quiet at 1s; b talks straight after and waits out a's hold.
+    const held = promoteSpeakers(first.order, {
+      cameras,
+      slots: 1,
+      speaking: ["b"],
+      lastSpokeAt: new Map([["a", 1_000]]),
+      now: 1_200,
+    });
+    expect(held.order).toEqual(["a", "x", "b"]);
+    expect(held.retryAt).toBe(1_000 + SPEAKER_HOLD_MS);
+    const later = promoteSpeakers(held.order, {
+      cameras,
+      slots: 1,
+      speaking: ["b"],
+      lastSpokeAt: new Map([["a", 1_000], ["b", 3_500]]),
+      now: 1_000 + SPEAKER_HOLD_MS,
+    });
+    expect(later.order).toEqual(["b", "x", "a"]);
+    expect(later.retryAt).toBeUndefined();
+  });
+
+  it("never displaces someone who is still speaking", () => {
+    const cameras = ["a", "b"];
+    const r = promoteSpeakers(cameras, { cameras, slots: 1, speaking: ["a", "b"], lastSpokeAt: new Map(), now: 0 });
+    expect(r.order).toEqual(["a", "b"]);
+    // Nothing frees up on a timer: the next speaking change re-runs it.
+    expect(r.retryAt).toBeUndefined();
+  });
+
+  it("drops people who left and appends newcomers in the room's order", () => {
+    const r = promoteSpeakers(["c", "a", "gone"], {
+      cameras: ["a", "b", "c"],
+      slots: 2,
+      speaking: [],
+      lastSpokeAt: new Map(),
+      now: 0,
+    });
+    expect(r.order).toEqual(["c", "a", "b"]);
+  });
+
+  it("counts the main-area slots a speaker may be promoted into", () => {
+    const nine = Array.from({ length: 9 }, (_, i) => track(String(i)));
+    expect(speakerSlots(nine, { layout: "auto", maxTiles: 6 })).toEqual({
+      cameras: nine.map((t) => t.participant.identity),
+      slots: 6,
+    });
+    expect(speakerSlots(nine, { layout: "spotlight", maxTiles: 6 }).slots).toBe(1);
+    expect(speakerSlots(nine, { layout: "tiled", maxTiles: 9 }).slots).toBe(9);
+    // The pinned tile has its own place; one fewer slot for speakers.
+    const pinned = speakerSlots(nine, { layout: "auto", maxTiles: 6, pinnedIdentity: "4" });
+    expect(pinned.slots).toBe(5);
+    expect(pinned.cameras).not.toContain("4");
+    // Beside a shared screen the first strip page is what the viewer sees.
+    const shared = speakerSlots([...nine, track("s", Track.Source.ScreenShare)], { layout: "auto", maxTiles: 6 });
+    expect(shared.slots).toBe(5);
+    expect(shared.cameras).toHaveLength(9);
   });
 
   it("does not reorder the grid while everyone fits on the stage", () => {
@@ -64,21 +138,21 @@ describe("conference layout", () => {
       layout: "auto",
       maxTiles: 6,
       page: 0,
-      speakingIdentities: ["3", "2"],
+      speakerOrder: ["0", "1", "2", "3"],
     });
     expect(stage.primary.map((t) => t.participant.identity)).toEqual(["0", "1", "2", "3"]);
   });
 
-  it("brings a speaker from the strip into the primary grid", () => {
+  it("lays tiles out in the speaker order it is given", () => {
     const tracks = Array.from({ length: 9 }, (_, i) => track(String(i)));
     const stage = resolveConferenceStage(tracks, {
       layout: "auto",
       maxTiles: 6,
       page: 0,
-      speakingIdentities: ["8"],
+      speakerOrder: ["0", "1", "2", "3", "4", "8", "6", "7", "5"],
     });
-    expect(stage.primary[0]?.participant.identity).toBe("8");
-    expect(stage.primary.map((t) => t.participant.identity)).toContain("0");
+    expect(stage.primary.map((t) => t.participant.identity)).toEqual(["0", "1", "2", "3", "4", "8"]);
+    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["6", "7", "5"]);
   });
 
   it("paginates and clamps the page", () => {
@@ -166,7 +240,7 @@ describe("conference layout", () => {
       layout: "spotlight",
       maxTiles: 6,
       page: 0,
-      speakingIdentities: ["3"],
+      speakerOrder: ["3", "0", "1", "2", "4", "5", "6", "7"],
     });
     expect(spotlight.layoutMode).toBe("spotlight");
     expect(spotlight.primary).toHaveLength(1);
@@ -188,7 +262,7 @@ describe("conference layout", () => {
       layout: "sidebar",
       maxTiles: 5,
       page: 0,
-      speakingIdentities: ["2"],
+      speakerOrder: ["2", "0", "1"],
     });
     expect(sidebar.layoutMode).toBe("sidebar");
     expect(sidebar.primary[0]?.participant.identity).toBe("2");
@@ -277,5 +351,68 @@ describe("tileRingTone", () => {
   it("marks a pinned tile when nothing more urgent applies, else stays idle", () => {
     expect(tileRingTone({ handRaised: false, speaking: false, pinned: true })).toBe("pinned");
     expect(tileRingTone({ handRaised: false, speaking: false, pinned: false })).toBe("idle");
+  });
+});
+
+describe("cameraTileSize", () => {
+  it("never makes a tile wider than its video, and lets it narrow by at most 1.3×", () => {
+    expect(cameraTileSize(16 / 9)).toEqual({
+      width: "min(100cqw, calc(100cqh * 1.7778))",
+      height: "min(100cqh, calc(100cqw * 0.7313))",
+    });
+  });
+
+  it("follows a portrait camera and falls back to 16:9 without a size", () => {
+    expect(cameraTileSize(9 / 16).width).toBe("min(100cqw, calc(100cqh * 0.5625))");
+    expect(cameraTileSize(0)).toEqual(cameraTileSize(16 / 9));
+    expect(cameraTileSize(Number.NaN)).toEqual(cameraTileSize(16 / 9));
+  });
+});
+
+describe("screenShareTileSize", () => {
+  it("takes the shared screen's exact shape, with no side crop", () => {
+    expect(screenShareTileSize(16 / 10)).toEqual({
+      width: "min(100cqw, calc(100cqh * 1.6))",
+      height: "min(100cqh, calc(100cqw * 0.625))",
+    });
+    expect(screenShareTileSize(0)).toEqual(screenShareTileSize(16 / 9));
+  });
+});
+
+describe("tile sizes beside a presentation strip", () => {
+  it("leave the strip's room the stage publishes", () => {
+    expect(screenShareTileSize(2, true)).toEqual({
+      width: "min((100cqw - var(--strip-reserve-x, 0px)), calc((100cqh - var(--strip-reserve-y, 0px)) * 2))",
+      height: "min((100cqh - var(--strip-reserve-y, 0px)), calc((100cqw - var(--strip-reserve-x, 0px)) * 0.5))",
+    });
+    expect(stageFillSize()).toEqual({
+      width: "calc(100cqw - var(--strip-reserve-x, 0px))",
+      height: "calc(100cqh - var(--strip-reserve-y, 0px))",
+    });
+  });
+});
+
+describe("stripPlacement", () => {
+  it("puts the strip beside a wide stage and under a tall or narrow one", () => {
+    expect(stripPlacement(1870, 640)).toBe("beside"); // wide desktop, panel closed
+    expect(stripPlacement(740, 820)).toBe("below"); // portrait tablet
+    expect(stripPlacement(342, 600)).toBe("below"); // phone
+    expect(stripPlacement(660, 590)).toBe("below"); // narrow stage beside the side panel
+  });
+
+  it("measures the strip's room in the page's rem", () => {
+    // At 200% text a strip under a short stage eats more of its height, which
+    // tips a borderline stage to a strip beside.
+    expect(stripPlacement(600, 360, 16)).toBe("below");
+    expect(stripPlacement(600, 360, 32)).toBe("beside");
+  });
+});
+
+describe("tileControlButtons", () => {
+  it("counts what a full tile's corner controls draw", () => {
+    expect(tileControlButtons({ screenShare: false, hostMute: false })).toBe(2); // pin + menu
+    expect(tileControlButtons({ screenShare: false, hostMute: true })).toBe(3); // + mute
+    expect(tileControlButtons({ screenShare: true, hostMute: true })).toBe(2); // mute + menu
+    expect(tileControlButtons({ screenShare: true, hostMute: false })).toBe(0); // no controls
   });
 });

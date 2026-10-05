@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uidx_meeting_motion_ballots_participant;

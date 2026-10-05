@@ -19,6 +19,7 @@ export function useSyncEmailHub(wsId: string) {
       if (result?.synced) {
         invalidateEmailHubThreadsForAccount(qc, wsId, input.accountId);
         invalidateEmailHubUnread(qc, wsId);
+        void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", input.accountId] });
         void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
         void qc.invalidateQueries({
           predicate: (q) => q.queryKey[0] === "email-hub" && q.queryKey[2] === "imap-labels",

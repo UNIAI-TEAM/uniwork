@@ -340,6 +340,56 @@ func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in Cons
 	return s.notifyThreshold(ctx, q, in, e, row)
 }
 
+// meetingMinutesActor attributes the usage events of meeting minutes.
+var meetingMinutesActor = audit.System("meeting.attendance")
+
+// RecordMeetingMinutes meters closed room sessions of one organization into
+// meeting.participant_minutes on the caller's transaction, in one statement
+// however many sessions there are: a usage event per session, idempotent on
+// attendance:<session id>, and one bump of the period's counter. Like
+// RecordUsage it never refuses (the minutes are spent) and skips an
+// organization whose plan does not meter them.
+func (s *EntitlementService) RecordMeetingMinutes(ctx context.Context, q *db.Queries, orgID string, sessionIDs []string) error {
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	sub, e, err := s.entitlement(ctx, q, orgID, FeatureMeetingMinutes, false)
+	if errors.Is(err, ErrEntitlementRequired) || errors.Is(err, ErrSubscriptionInactive) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if e.MeterMode == "snapshot" {
+		return nil
+	}
+	eventIDs := make([]string, len(sessionIDs))
+	for i := range eventIDs {
+		eventIDs[i] = util.NewID()
+	}
+	rows, err := q.MeterAttendanceMinutes(ctx, db.MeterAttendanceMinutesParams{
+		OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: sub.CurrentPeriodStart,
+		SessionIds: sessionIDs, EventIds: eventIDs, ActorID: strText(meetingMinutesActor.ID),
+	})
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	row := rows[0]
+	in := ConsumeInput{OrganizationID: orgID, Meter: FeatureMeetingMinutes, Actor: meetingMinutesActor}
+	// A batch can carry the total past both levels at once. The 100% notice
+	// supersedes the 80% one, so 80 is marked without a notice of its own —
+	// otherwise the next batch would announce 80% after 100%.
+	if e.Limit != nil && *e.Limit > 0 && row.Total >= *e.Limit && !row.Notified80At.Valid {
+		if err := q.MarkUsageThresholdNotified(ctx, db.MarkUsageThresholdNotifiedParams{
+			OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: row.PeriodStart, Level: 80,
+		}); err != nil {
+			return err
+		}
+		row.Notified80At = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+	return s.notifyThreshold(ctx, q, in, e, row)
+}
+
 // storageMeteredPurposes are the upload purposes storage.bytes counts. The
 // quota hook sees every organization upload; only these reserve bytes.
 var storageMeteredPurposes = map[files.UploadPurpose]bool{

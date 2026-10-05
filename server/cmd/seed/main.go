@@ -64,7 +64,11 @@ func main() {
 		orgIDs[o], wsIDs[o] = util.NewID(), util.NewID()
 		owner := userIDs[o*perOrg]
 		orgRows = append(orgRows, []any{orgIDs[o], fmt.Sprintf("perf-org-%d", o), fmt.Sprintf("Perf Org %d", o), owner})
-		wsRows = append(wsRows, []any{wsIDs[o], fmt.Sprintf("perf-ws-%d", o), fmt.Sprintf("Perf WS %d", o), owner, orgIDs[o]})
+		// Task k lands in workspace k % orgs with number k/orgs + 1 (below), so
+		// the counter starts at that workspace's task count and the next task
+		// created through the API takes the next free number.
+		taskCounter := int64((*tasks - o + *orgs - 1) / *orgs)
+		wsRows = append(wsRows, []any{wsIDs[o], fmt.Sprintf("perf-ws-%d", o), fmt.Sprintf("Perf WS %d", o), owner, orgIDs[o], taskCounter})
 		subRows = append(subRows, []any{util.NewID(), orgIDs[o], planID, "active", "manual", owner, "system", owner, "system"})
 		for u := o * perOrg; u < (o+1)*perOrg && u < *users; u++ {
 			role := "member"
@@ -72,14 +76,14 @@ func main() {
 				role = "owner"
 			}
 			orgMembers = append(orgMembers, []any{orgIDs[o], userIDs[u], role})
-			wsMembers = append(wsMembers, []any{wsIDs[o], userIDs[u], role})
+			wsMembers = append(wsMembers, []any{wsIDs[o], orgIDs[o], userIDs[u], role})
 		}
 	}
 	copyRows(ctx, pool, "organizations", []string{"id", "slug", "name", "created_by"}, orgRows)
-	copyRows(ctx, pool, "workspaces", []string{"id", "slug", "name", "created_by", "organization_id"}, wsRows)
+	copyRows(ctx, pool, "workspaces", []string{"id", "slug", "name", "created_by", "organization_id", "task_counter"}, wsRows)
 	copyRows(ctx, pool, "subscriptions", []string{"id", "organization_id", "plan_id", "status", "provider", "created_by", "created_by_kind", "updated_by", "updated_by_kind"}, subRows)
 	copyRows(ctx, pool, "organization_members", []string{"organization_id", "user_id", "role"}, orgMembers)
-	copyRows(ctx, pool, "workspace_members", []string{"workspace_id", "user_id", "role"}, wsMembers)
+	copyRows(ctx, pool, "workspace_members", []string{"workspace_id", "organization_id", "user_id", "role"}, wsMembers)
 
 	// tasks, in batches so a million rows do not sit in memory at once
 	statuses := []string{"todo", "in_progress", "done", "cancelled"}
@@ -90,9 +94,16 @@ func main() {
 		for i := 0; i < n; i++ {
 			k := done + i
 			o := k % *orgs
-			rows[i] = []any{util.NewID(), wsIDs[o], fmt.Sprintf("Task %d", k), statuses[k%4], "medium", float64(k), userIDs[o*perOrg], userIDs[o*perOrg+(k%perOrg)]}
+			creator := userIDs[o*perOrg]
+			rows[i] = []any{
+				util.NewID(), orgIDs[o], wsIDs[o], int64(k / *orgs + 1), fmt.Sprintf("Task %d", k), statuses[k%4], "medium", float64(k),
+				creator, creator, "member", userIDs[o*perOrg+(k%perOrg)], "member", now,
+			}
 		}
-		copyRows(ctx, pool, "tasks", []string{"id", "workspace_id", "title", "status", "priority", "position", "created_by", "assignee_id"}, rows)
+		copyRows(ctx, pool, "tasks", []string{
+			"id", "organization_id", "workspace_id", "number", "title", "status", "priority", "position",
+			"created_by", "creator_id", "creator_type", "assignee_id", "assignee_type", "last_activity_at",
+		}, rows)
 		fmt.Fprintf(os.Stderr, "tasks %d/%d\n", done+n, *tasks)
 	}
 	fmt.Printf("seeded orgs=%d users=%d tasks=%d in %s\nworkspace_ids=%s...\n", *orgs, *users, *tasks, time.Since(start).Round(time.Millisecond), wsIDs[0])

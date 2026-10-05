@@ -9,6 +9,7 @@
 -- ---------------------------------------------------------------------------
 
 -- name: FileBackfillScanAttachments :many
+-- tenant: system
 -- M1/M2: object_key is the locator; object_url is only a hint. The row's own
 -- organization_id is the verified tenant and the workspaces join is the key
 -- cross-check (workspaces/<ws>/attachments/<id>/<name>).
@@ -34,9 +35,10 @@ ORDER BY id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanChatMessages :many
+-- tenant: system
 -- M3/M4 (kind file/voice: object_key in metadata) and M7 (voice_call_log:
 -- recording_url in metadata — a second reference to a call-recording object).
--- Tenant derives through the room; chat_rooms.organization_id may be NULL.
+-- Tenant derives through the room; it is NULL only when the room is gone.
 SELECT m.id, m.room_id, m.workspace_id, m.sender_id, m.sender_kind, m.kind,
        m.metadata, m.deleted_at, m.file_id, m.created_at,
        r.organization_id AS room_organization_id,
@@ -49,6 +51,7 @@ ORDER BY m.id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanMeetingRecordings :many
+-- tenant: system
 -- M5: file_url is the locator; the tenant derives meetings -> workspaces.
 SELECT r.id, r.meeting_id, r.status, r.file_url, r.file_id, r.started_by, r.started_at,
        m.workspace_id  AS meeting_workspace_id,
@@ -62,6 +65,7 @@ ORDER BY r.id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanCallRecordings :many
+-- tenant: system
 -- M6: file_url is the locator; organization_id is on the row.
 SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status,
        file_url, file_id, call_log_message_id, started_by, started_at
@@ -72,6 +76,7 @@ ORDER BY id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanAuditExports :many
+-- tenant: system
 -- M12: object_key is the locator; organization_id is on the row.
 SELECT id, organization_id, requested_by, requested_by_kind, format,
        object_key, file_id, expires_at, created_at
@@ -88,6 +93,7 @@ LIMIT sqlc.arg('limit_n');
 -- ---------------------------------------------------------------------------
 
 -- name: FileBackfillScanTaskDescriptionRefs :many
+-- tenant: system
 SELECT id, organization_id, workspace_id, description AS content
 FROM tasks
 WHERE id > sqlc.arg('after_id') AND description LIKE '%/attachments/%'
@@ -95,6 +101,7 @@ ORDER BY id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanCommentRefs :many
+-- tenant: system
 SELECT id, organization_id, workspace_id, body AS content
 FROM task_comments
 WHERE id > sqlc.arg('after_id') AND body LIKE '%/attachments/%'
@@ -102,6 +109,7 @@ ORDER BY id
 LIMIT sqlc.arg('limit_n');
 
 -- name: FileBackfillScanSourceContextRefs :many
+-- tenant: system
 SELECT id, organization_id, workspace_id, snapshot::text AS content
 FROM task_source_contexts
 WHERE id > sqlc.arg('after_id') AND snapshot::text LIKE '%/attachments/%'
@@ -113,6 +121,7 @@ LIMIT sqlc.arg('limit_n');
 -- ---------------------------------------------------------------------------
 
 -- name: FileBackfillGetFileByLocator :one
+-- tenant: system
 -- The locator identity matches uidx_files_locator (storage, coalesce(bucket,
 -- ''), object_key) and must see tombstones too: a deleted file keeps the
 -- locator claimed forever, so a tombstone hit is reported, not reused.
@@ -122,10 +131,12 @@ WHERE storage = sqlc.arg('storage')
   AND bucket IS NOT DISTINCT FROM sqlc.narg('bucket');
 
 -- name: FileBackfillGetFileByID :one
+-- tenant: system
 -- verify reads the row a business file_id points at.
 SELECT * FROM files WHERE id = sqlc.arg('id');
 
 -- name: FileBackfillGetFilesByIDs :many
+-- tenant: system
 -- The promote-candidate check: a chat message carrying file_id only in its
 -- metadata snapshot must prove the row exists and belongs to the message's
 -- organization before apply promotes the reference into the column.
@@ -135,12 +146,14 @@ WHERE id = ANY(sqlc.arg('ids')::text[])
 ORDER BY id;
 
 -- name: FileBackfillGetChatMessageFileID :one
+-- tenant: system
 -- Conflict read for the promote path: a zero-row guarded update means the
 -- column moved; this tells apply whether it landed the same value or a
 -- different one (file_id_conflict).
 SELECT file_id FROM chat_messages WHERE id = sqlc.arg('id');
 
 -- name: FileBackfillListSessionsForFile :many
+-- tenant: system
 -- verify checks scope/purpose coverage; rollback checks remaining claims.
 SELECT * FROM file_upload_sessions
 WHERE file_id = sqlc.arg('file_id')
@@ -161,6 +174,7 @@ ON CONFLICT DO NOTHING
 RETURNING *;
 
 -- name: FileBackfillMarkFileReady :execrows
+-- tenant: system
 -- Backfill's MarkFileReady: the row this command inserts starts pending and
 -- is readied with the object-verified fields in the same transaction.
 UPDATE files SET
@@ -199,6 +213,7 @@ RETURNING *;
 -- ---------------------------------------------------------------------------
 
 -- name: FileBackfillSetAttachmentFile :execrows
+-- tenant: system
 UPDATE attachments
 SET file_id = sqlc.arg('file_id'), purpose = sqlc.arg('purpose'), updated_at = now()
 WHERE id = sqlc.arg('id') AND file_id IS NULL;
@@ -212,6 +227,7 @@ SET avatar_file_id = sqlc.arg('file_id'), updated_at = now()
 WHERE id = sqlc.arg('id') AND avatar_file_id IS NULL;
 
 -- name: FileBackfillSetChatMessageFile :execrows
+-- tenant: system
 -- The column is authoritative; metadata carries the same id the FS writer
 -- would have written, while the legacy object_key entry stays in place.
 UPDATE chat_messages
@@ -220,16 +236,19 @@ SET file_id = sqlc.arg('file_id'),
 WHERE id = sqlc.arg('id') AND file_id IS NULL;
 
 -- name: FileBackfillSetMeetingRecordingFile :execrows
+-- tenant: system
 UPDATE meeting_recordings
 SET file_id = sqlc.arg('file_id')
 WHERE id = sqlc.arg('id') AND file_id IS NULL;
 
 -- name: FileBackfillSetCallRecordingFile :execrows
+-- tenant: system
 UPDATE chat_voice_recordings
 SET file_id = sqlc.arg('file_id')
 WHERE id = sqlc.arg('id') AND file_id IS NULL;
 
 -- name: FileBackfillSetAuditExportFile :execrows
+-- tenant: system
 UPDATE audit_exports
 SET file_id = sqlc.arg('file_id')
 WHERE id = sqlc.arg('id') AND file_id IS NULL;
@@ -267,6 +286,7 @@ WHERE run_id = sqlc.arg('run_id')
 ORDER BY cohort;
 
 -- name: FileBackfillPutItem :exec
+-- tenant: system
 INSERT INTO file_backfill_items (
   run_id, cohort, source_table, source_id, file_id,
   storage, bucket, object_key, object_version, organization_id,
@@ -286,17 +306,20 @@ ON CONFLICT (run_id, cohort, source_table, source_id) DO UPDATE SET
   details = EXCLUDED.details, updated_at = now();
 
 -- name: FileBackfillListRunItems :many
+-- tenant: system
 SELECT * FROM file_backfill_items
 WHERE run_id = sqlc.arg('run_id')
 ORDER BY cohort, source_table, source_id;
 
 -- name: FileBackfillListDoneItemKeys :many
+-- tenant: system
 -- The resume index: committed item rows mean the business write committed,
 -- so a resumed run skips exactly the work that already landed.
 SELECT source_table, source_id FROM file_backfill_items
 WHERE run_id = sqlc.arg('run_id');
 
 -- name: FileBackfillListRunItemsByStatus :many
+-- tenant: system
 SELECT * FROM file_backfill_items
 WHERE run_id = sqlc.arg('run_id') AND status = sqlc.arg('status')
 ORDER BY cohort, source_table, source_id;
@@ -309,6 +332,7 @@ ORDER BY cohort, source_table, source_id;
 -- ---------------------------------------------------------------------------
 
 -- name: FileBackfillClearAttachmentFile :execrows
+-- tenant: system
 UPDATE attachments SET file_id = NULL, purpose = NULL, updated_at = now()
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
@@ -317,11 +341,13 @@ UPDATE users SET avatar_file_id = NULL, updated_at = now()
 WHERE id = sqlc.arg('id') AND avatar_file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearChatMessageFile :execrows
+-- tenant: system
 UPDATE chat_messages
 SET file_id = NULL, metadata = metadata - 'file_id'
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearPromotedChatFile :execrows
+-- tenant: system
 -- Rollback of a promote: the metadata file_id predates the run (a data-fix
 -- row carried it), so only the column is cleared — the as-was state keeps
 -- its metadata snapshot untouched.
@@ -329,29 +355,36 @@ UPDATE chat_messages SET file_id = NULL
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearMeetingRecordingFile :execrows
+-- tenant: system
 UPDATE meeting_recordings SET file_id = NULL
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearCallRecordingFile :execrows
+-- tenant: system
 UPDATE chat_voice_recordings SET file_id = NULL
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearAuditExportFile :execrows
+-- tenant: system
 UPDATE audit_exports SET file_id = NULL
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillDeleteSession :exec
+-- tenant: system
 DELETE FROM file_upload_sessions WHERE id = sqlc.arg('id') AND file_id = sqlc.arg('file_id');
 
 -- name: FileBackfillDeleteSessionsForFile :exec
+-- tenant: system
 DELETE FROM file_upload_sessions WHERE file_id = sqlc.arg('file_id');
 
 -- name: FileBackfillDeleteFile :execrows
+-- tenant: system
 -- Physical delete, not a tombstone: the file never owned the object, so the
 -- row must not pin the locator in uidx_files_locator against a re-run.
 DELETE FROM files WHERE id = sqlc.arg('id') AND status IN ('pending', 'ready', 'failed');
 
 -- name: FileBackfillRestoreFileState :execrows
+-- tenant: system
 -- Undo an adopted row's ready-marking on rollback: the as-was state the run
 -- snapshot into the item's details is written back. Guarded to rows still
 -- 'ready' — a file that moved on since apply is never rewound.

@@ -1,10 +1,12 @@
 -- name: CreateMeeting :one
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
-  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key
+  status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
+  organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
-  $9, $10, $11, $12, $13, 1, $8, $14, $15
+  $9, $10, $11, $12, $13, 1, $8, $14, $15,
+  $17
 )
 RETURNING *;
 
@@ -16,6 +18,11 @@ SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 -- the viewer's today (the today param, a day in the tz zone) and after come first, soonest
 -- first; earlier days follow, most recent day first, each day by start time.
 -- The id tiebreak keeps LIMIT/OFFSET pages stable across equal start times.
+-- status filters on the status the viewer sees (displayMeetingStatus in
+-- packages/core/meetings/schedule.ts), not the stored one, for the one pair
+-- that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
+-- MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
+-- Every other value matches the stored status.
 SELECT sqlc.embed(meetings),
   EXISTS (
     SELECT 1 FROM meeting_recordings r
@@ -23,7 +30,10 @@ SELECT sqlc.embed(meetings),
   )::boolean AS has_playable_recording
 FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id')
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('status')::text IS NULL
+    OR (sqlc.narg('status') = 'MISSED' AND status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND status = sqlc.narg('status')))
   AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
   AND (sqlc.narg('host_user_id')::text IS NULL OR host_user_id = sqlc.narg('host_user_id'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
@@ -45,7 +55,10 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 -- name: CountMeetingsByWorkspaceFiltered :one
 SELECT count(*)::bigint FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id')
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('status')::text IS NULL
+    OR (sqlc.narg('status') = 'MISSED' AND status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND status = sqlc.narg('status')))
   AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
   AND (sqlc.narg('host_user_id')::text IS NULL OR host_user_id = sqlc.narg('host_user_id'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
@@ -54,9 +67,11 @@ WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'));
 
 -- name: GetMeeting :one
+-- tenant: by-id
 SELECT * FROM meetings WHERE id = $1;
 
 -- name: UpdateMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   title       = COALESCE(sqlc.narg('title'), title),
   description = COALESCE(sqlc.narg('description'), description),
@@ -65,6 +80,11 @@ UPDATE meetings SET
   timezone    = COALESCE(sqlc.narg('timezone'), timezone),
   allow_join_request = COALESCE(sqlc.narg('allow_join_request'), allow_join_request),
   project_id  = COALESCE(sqlc.narg('project_id'), project_id),
+  quorum_percent = CASE
+    WHEN sqlc.narg('quorum_percent')::smallint IS NULL THEN quorum_percent
+    WHEN sqlc.narg('quorum_percent')::smallint = 0 THEN NULL
+    ELSE sqlc.narg('quorum_percent')::smallint
+  END,
   updated_by  = sqlc.narg('updated_by'),
   updated_at  = now(),
   version     = version + 1
@@ -72,6 +92,7 @@ WHERE id = sqlc.arg('id') AND version = sqlc.arg('version')
 RETURNING *;
 
 -- name: StartMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'IN_PROGRESS',
   actual_start_at = now(),
@@ -82,6 +103,7 @@ WHERE id = sqlc.arg('id') AND status = 'SCHEDULED' AND version = sqlc.arg('versi
 RETURNING *;
 
 -- name: EndMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'ENDED',
   actual_end_at = now(),
@@ -92,6 +114,7 @@ WHERE id = sqlc.arg('id') AND status = 'IN_PROGRESS' AND version = sqlc.arg('ver
 RETURNING *;
 
 -- name: CancelMeeting :one
+-- tenant: by-id
 UPDATE meetings SET
   status = 'CANCELED',
   canceled_by = sqlc.arg('canceled_by'),
@@ -104,6 +127,7 @@ WHERE id = sqlc.arg('id') AND status = 'SCHEDULED' AND version = sqlc.arg('versi
 RETURNING *;
 
 -- name: TransferMeetingHost :one
+-- tenant: by-id
 UPDATE meetings SET
   host_user_id = sqlc.arg('host_user_id'),
   updated_by = sqlc.arg('updated_by'),
@@ -113,18 +137,16 @@ WHERE id = sqlc.arg('id') AND version = sqlc.arg('version')
   AND status IN ('SCHEDULED', 'IN_PROGRESS')
 RETURNING *;
 
--- name: DeleteMeeting :exec
-DELETE FROM meetings WHERE id = $1;
-
 -- name: AddMeetingAttendee :exec
-INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+INSERT INTO meeting_attendees (meeting_id, user_id, organization_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: CreateMeetingNote :one
-INSERT INTO meeting_notes (id, meeting_id, author_id, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO meeting_notes (id, meeting_id, author_id, body, organization_id)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListMeetingNotes :many
+-- tenant: parent meeting_id
 SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at;
@@ -132,10 +154,11 @@ WHERE n.meeting_id = $1 ORDER BY n.created_at;
 -- name: MeetingWorkspaceStatistics :one
 SELECT
   count(*)::bigint AS total,
-  count(*) FILTER (WHERE status = 'SCHEDULED')::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)::bigint AS missed,
   count(*) FILTER (WHERE status = 'IN_PROGRESS')::bigint AS in_progress,
   count(*) FILTER (WHERE status = 'ENDED')::bigint AS ended,
   count(*) FILTER (WHERE status = 'CANCELED')::bigint AS canceled,
   count(*) FILTER (WHERE meeting_type = 'INSTANT')::bigint AS instant
 FROM meetings
-WHERE workspace_id = $1;
+WHERE workspace_id = sqlc.arg('workspace_id');

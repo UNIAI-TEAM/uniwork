@@ -15,6 +15,7 @@ SELECT * FROM organizations WHERE slug = $1;
 SELECT id FROM organizations ORDER BY id;
 
 -- name: ListOrganizationsForUser :many
+-- tenant: self
 -- Deactivated memberships stay in the switcher so the person can see which
 -- organization locked them out instead of watching it vanish (spec F-03 §6.3).
 SELECT o.*, m.role, m.deactivated_at
@@ -94,6 +95,7 @@ USING workspaces w
 WHERE w.id = wm.workspace_id AND w.organization_id = $1 AND wm.user_id = $2;
 
 -- name: CountActiveOrganizationsForUser :one
+-- tenant: parent user_id
 -- Deactivating a member revokes their sessions only when this is the last
 -- organization they can still enter.
 SELECT count(*) FROM organization_members

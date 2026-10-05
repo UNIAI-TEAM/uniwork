@@ -68,6 +68,8 @@ export interface UpdateMeetingBody {
   ends_at?: string;
   timezone?: string;
   allow_join_request?: boolean;
+  /** Minimum attendance 1–100; 0 clears it. */
+  quorum_percent?: number;
 }
 
 export interface MeetingListFilters {
@@ -385,7 +387,6 @@ export async function listMeetingActivity(meetingId: string): Promise<MeetingAct
 
 // ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
 
-const TranscriptResponse = z.object({ segments: z.array(TranscriptSegmentSchema) });
 const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
 const RecordingsResponse = z.object({ recordings: z.array(RecordingSchema) });
 const RecordingResponse = z.object({ recording: RecordingSchema });
@@ -394,11 +395,6 @@ const TaskIDsResponse = z.object({ task_ids: z.array(z.string()) });
 export async function getMeetingCapabilities(workspaceId: string): Promise<MeetingCapabilities> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meeting-capabilities`);
   return parseWithFallback(raw, MeetingCapabilitiesSchema, {}, { endpoint: "getMeetingCapabilities" });
-}
-
-export async function listTranscript(meetingId: string): Promise<MeetingTranscriptSegment[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/transcript`);
-  return parseWithFallback(raw, TranscriptResponse, { segments: [] }, { endpoint: "listTranscript" }).segments;
 }
 
 const TranscriptSegmentResponse = z.object({ segment: TranscriptSegmentSchema.nullable() });
@@ -416,13 +412,7 @@ export async function appendTranscript(
     .segment;
 }
 
-const ChatResponse = z.object({ messages: z.array(ChatMessageSchema) });
 const ChatMessageResponse = z.object({ message: ChatMessageSchema });
-
-export async function listMeetingChat(meetingId: string): Promise<MeetingChatMessage[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`);
-  return parseWithFallback(raw, ChatResponse, { messages: [] }, { endpoint: "listMeetingChat" }).messages;
-}
 
 export async function appendMeetingChat(meetingId: string, message: string): Promise<MeetingChatMessage | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`, {

@@ -13,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   PROJECT_PRIORITY_ORDER,
+  PROJECT_STATUS_CONFIG,
   PROJECT_STATUS_ORDER,
 } from "@uniwork/core/projects/config";
 import type {
@@ -48,7 +49,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
+import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_TOOLBAR } from "../layout/page-header";
+import { PriorityIcon } from "../tasks/icons/priority-icon";
+import { FilterAssigneeOptions } from "../tasks/filters/filter-assignee-options";
+import { FILTER_ITEM_CLASS, HoverCheck } from "../tasks/filters/hover-check";
+import { leadFiltersToActors } from "./projects-list-visible";
 
 const COLUMN_KEYS: ProjectColumnKey[] = [
   "priority",
@@ -73,12 +79,24 @@ export function countActiveFilters(f: ProjectListFilters): number {
   return c;
 }
 
+function FilterSubTrigger({ label, count }: { label: string; count: number }) {
+  return (
+    <DropdownMenuSubTrigger>
+      <span className="flex-1">{label}</span>
+      {count > 0 ? (
+        <span className="text-caption font-medium tabular-nums text-primary">{count}</span>
+      ) : null}
+    </DropdownMenuSubTrigger>
+  );
+}
+
 export function ProjectsListToolbar({
   search,
   onSearchChange,
   visibleCount,
   totalCount,
   filters,
+  leadCounts,
   toggleFilter,
   clearFilters,
   sortField,
@@ -96,6 +114,8 @@ export function ProjectsListToolbar({
   visibleCount: number;
   totalCount: number;
   filters: ProjectListFilters;
+  /** Projects per lead, keyed like `filters.leads`. */
+  leadCounts: Map<string, number>;
   toggleFilter: (key: keyof ProjectListFilters, value: string) => void;
   clearFilters: () => void;
   sortField: ProjectSortField;
@@ -200,35 +220,60 @@ export function ProjectsListToolbar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto">
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span className="flex-1">{t("projects.toolbar.section_status")}</span>
-              </DropdownMenuSubTrigger>
+              <FilterSubTrigger
+                label={t("projects.toolbar.section_status")}
+                count={filters.statuses.length}
+              />
               <DropdownMenuSubContent className="w-auto min-w-44">
                 {PROJECT_STATUS_ORDER.map((s) => (
                   <DropdownMenuCheckboxItem
                     key={s}
                     checked={filters.statuses.includes(s)}
                     onCheckedChange={() => toggleFilter("statuses", s)}
+                    className={FILTER_ITEM_CLASS}
                   >
+                    <HoverCheck checked={filters.statuses.includes(s)} />
+                    <span
+                      aria-hidden
+                      className={cn("size-2 shrink-0 rounded-full", PROJECT_STATUS_CONFIG[s].dotColor)}
+                    />
                     {t(`projects.status.${s}`)}
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span className="flex-1">{t("projects.toolbar.section_priority")}</span>
-              </DropdownMenuSubTrigger>
+              <FilterSubTrigger
+                label={t("projects.toolbar.section_priority")}
+                count={filters.priorities.length}
+              />
               <DropdownMenuSubContent className="w-auto min-w-44">
                 {PROJECT_PRIORITY_ORDER.map((pr) => (
                   <DropdownMenuCheckboxItem
                     key={pr}
                     checked={filters.priorities.includes(pr)}
                     onCheckedChange={() => toggleFilter("priorities", pr)}
+                    className={FILTER_ITEM_CLASS}
                   >
+                    <HoverCheck checked={filters.priorities.includes(pr)} />
+                    <PriorityIcon priority={pr} />
                     {t(`projects.priority.${pr}`)}
                   </DropdownMenuCheckboxItem>
                 ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSub>
+              <FilterSubTrigger
+                label={t("projects.toolbar.section_lead")}
+                count={filters.leads.length}
+              />
+              <DropdownMenuSubContent className="w-auto min-w-52 p-0">
+                <FilterAssigneeOptions
+                  counts={leadCounts}
+                  selected={leadFiltersToActors(filters.leads)}
+                  onToggle={(actor) => toggleFilter("leads", `${actor.type}:${actor.id}`)}
+                  showSquads={false}
+                />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           </DropdownMenuContent>
@@ -259,7 +304,7 @@ export function ProjectsListToolbar({
             <TooltipContent side="bottom">{t("projects.toolbar.display")}</TooltipContent>
           </Tooltip>
           <PopoverContent align="end" className="w-64 p-0">
-            <div className="border-b px-3 py-2.5">
+            <div className="border-b border-border px-3 py-2.5">
               <span className="text-caption font-medium text-muted-foreground">
                 {t("projects.toolbar.sort_by")}
               </span>

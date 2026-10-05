@@ -239,11 +239,11 @@ func mintObjectKey(spec files.PurposeSpec, scope files.Scope, id files.FileID, a
 	tail := spec.Prefix + "/" + at.UTC().Format("2006/01") + "/" + string(id) + "/original" + spec.Policy.ObjectKeySuffix
 	switch {
 	case scope.OrganizationID == "":
-		return "v1/users/" + scope.UserID + "/" + tail, nil
+		return storage.FileServiceKeyPrefix + "users/" + scope.UserID + "/" + tail, nil
 	case scope.WorkspaceID != "":
-		return "v1/orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/" + tail, nil
+		return storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/" + tail, nil
 	default:
-		return "v1/orgs/" + scope.OrganizationID + "/" + tail, nil
+		return storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/" + tail, nil
 	}
 }
 

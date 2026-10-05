@@ -29,6 +29,7 @@ export type EmailHubViewDetailPanelProps = {
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
+  onBodyRefetch: () => void;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
@@ -67,6 +68,25 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
         onRetry={props.onRetryScheduled}
       />
     ) : null;
+  } else if (props.activeThread && props.detailError && !props.detailData) {
+    content = (
+      <EmailHubEmptyState
+        icon={TriangleAlert}
+        message={t("email_hub.load_error")}
+        action={
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={actions.onBack}>
+              <ArrowLeft aria-hidden />
+              {t("email_hub.back_to_list")}
+            </Button>
+            <Button type="button" variant="outline" onClick={actions.onRefetch}>
+              <RefreshCw aria-hidden />
+              {t("common.retry")}
+            </Button>
+          </div>
+        }
+      />
+    );
   } else if (props.activeThread) {
     content = (
       <EmailHubThreadDetail
@@ -78,6 +98,7 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
         readableBody={props.readableBody}
         bodyLoading={props.bodyLoading}
         bodyLoadFailed={props.bodyLoadFailed}
+        onBodyRefetch={props.onBodyRefetch}
         actions={actions}
         pending={props.pending}
         aiOpen={props.aiOpen}

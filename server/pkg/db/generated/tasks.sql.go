@@ -543,6 +543,7 @@ const getTask = `-- name: GetTask :one
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 	row := q.db.QueryRow(ctx, getTask, id)
 	var i Task
@@ -697,6 +698,71 @@ func (q *Queries) GetWelcomeTask(ctx context.Context, arg GetWelcomeTaskParams) 
 		&i.DueAt,
 	)
 	return i, err
+}
+
+const listAssigneeFrequency = `-- name: ListAssigneeFrequency :many
+SELECT
+  f.assignee_id::text AS assignee_id,
+  (CASE WHEN wam.agent_id IS NULL THEN 'human' ELSE 'agent' END)::text AS assignee_kind,
+  f.frequency::bigint AS frequency
+FROM (
+  SELECT a.changes::jsonb -> 'assignee_id' ->> 'to' AS assignee_id, COUNT(*) AS frequency
+  FROM audit_events a
+  WHERE a.organization_id = $1::text
+    AND a.workspace_id = $2::text
+    AND a.actor_kind = 'human'
+    AND a.actor_id = $3::text
+    AND a.action IN ('task.created', 'task.updated')
+    AND a.occurred_at >= $4::timestamptz
+    AND a.changes::jsonb -> 'assignee_id' ->> 'to' IS NOT NULL
+  GROUP BY 1
+) f
+LEFT JOIN workspace_agent_members wam
+  ON wam.workspace_id = $2::text AND wam.agent_id = f.assignee_id
+ORDER BY f.frequency DESC, f.assignee_id
+LIMIT 200
+`
+
+type ListAssigneeFrequencyParams struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ActorID        string             `json:"actor_id"`
+	Since          pgtype.Timestamptz `json:"since"`
+}
+
+type ListAssigneeFrequencyRow struct {
+	AssigneeID   string `json:"assignee_id"`
+	AssigneeKind string `json:"assignee_kind"`
+	Frequency    int64  `json:"frequency"`
+}
+
+// How often the caller put each assignee on a task in this workspace since
+// @since: task.created rows that carry an assignee plus task.updated rows that
+// changed assignee_id (audit.Diff keeps only changed fields). An id with a
+// workspace_agent_members row is an agent; ids are ULIDs, so they never clash.
+func (q *Queries) ListAssigneeFrequency(ctx context.Context, arg ListAssigneeFrequencyParams) ([]ListAssigneeFrequencyRow, error) {
+	rows, err := q.db.Query(ctx, listAssigneeFrequency,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ActorID,
+		arg.Since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssigneeFrequencyRow{}
+	for rows.Next() {
+		var i ListAssigneeFrequencyRow
+		if err := rows.Scan(&i.AssigneeID, &i.AssigneeKind, &i.Frequency); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChildTasks = `-- name: ListChildTasks :many
@@ -1063,6 +1129,7 @@ type ListTasksByIdentifierParams struct {
 	Number int64       `json:"number"`
 }
 
+// tenant: by-id
 // Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
 func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIdentifierParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listTasksByIdentifier, arg.Prefix, arg.Number)

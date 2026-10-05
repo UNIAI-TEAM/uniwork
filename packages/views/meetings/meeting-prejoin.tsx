@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mic } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { useParticipants } from "@uniwork/core/meetings";
+import { prejoinMicOn, useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -14,7 +15,7 @@ import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
-import { MeetingMicLevel, MeetingMicPermissionAction } from "./meeting-room-mic-check";
+import { MeetingMediaPermissionAction, MeetingMicLevel } from "./meeting-room-mic-check";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
 export interface PreJoinChoice {
@@ -37,7 +38,18 @@ export function MeetingPreJoin({
   onLeave: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const [audio, setAudio] = useState(true);
+  // The roster (people invited and not removed) stands in for how full the
+  // room will be: prejoin has no live count. The room reads the same query.
+  const { data: roster } = useParticipants(meeting?.id ?? "");
+  const rosterSize = roster?.filter((p) => p.status === "ACTIVE").length;
+  const rememberedMic = useMeetingRoomPreferencesStore((s) => s.joinWithMic);
+  const setJoinWithMic = useMeetingRoomPreferencesStore((s) => s.setJoinWithMic);
+  // Derived until the person touches the toggle, so a roster that arrives
+  // after the first paint still sets the default.
+  const [audioChoice, setAudioChoice] = useState<boolean | null>(null);
+  const micDefault = prejoinMicOn(rememberedMic, rosterSize);
+  const audio = audioChoice ?? micDefault;
+  const mutedForCrowd = audioChoice === null && rememberedMic === null && !micDefault;
   const [video, setVideo] = useState(true);
   const [audioDeviceId, setAudioDeviceId] = useState("");
   const [videoDeviceId, setVideoDeviceId] = useState("");
@@ -66,12 +78,16 @@ export function MeetingPreJoin({
           {t("common.back")}
         </Button>
       </header>
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:flex-row lg:items-center lg:gap-8">
+      {/* Centred as one block, tops aligned: the card starts where the camera does. */}
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:my-auto lg:flex-none lg:flex-row lg:items-start lg:gap-8">
+        {/* The camera frame is its own `dark` island; the toggles below keep
+            the page's tokens so they match the room's control bar exactly. */}
         <div className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1">
           <MeetingCameraPreview
             active={video}
             deviceId={videoDeviceId || undefined}
-            className="aspect-video min-h-0 rounded-xl"
+            // The stage already draws the edge; a second ring framed a frame.
+            className="aspect-video min-h-0 rounded-xl ring-0"
             onStatusChange={onPreviewStatus}
             onRequestEnable={() => setVideo(true)}
             background={background}
@@ -83,10 +99,18 @@ export function MeetingPreJoin({
             video={video}
             micLabel={t("meetings.deviceMic")}
             cameraLabel={t("meetings.deviceCamera")}
-            onAudioToggle={() => setAudio((v) => !v)}
+            onAudioToggle={() => {
+              setAudioChoice(!audio);
+              setJoinWithMic(!audio);
+            }}
             onVideoToggle={() => setVideo((v) => !v)}
             className="mt-3 flex justify-center gap-3"
           />
+          {mutedForCrowd ? (
+            <p className="mt-2 text-center text-caption text-meeting-bar-muted-foreground" data-testid="prejoin-mic-crowded">
+              {t("meetings.prejoinMicOffCrowded", { count: rosterSize })}
+            </p>
+          ) : null}
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-surface lg:mx-0 lg:w-80">
           <div aria-busy={showSkeleton || undefined}>
@@ -121,7 +145,14 @@ export function MeetingPreJoin({
             value={audioDeviceId}
             onValueChange={setAudioDeviceId}
             emptyDescription={t("meetings.deviceMicNeedsPermission")}
-            emptyAction={<MeetingMicPermissionAction onGranted={refresh} />}
+            emptyAction={
+              <MeetingMediaPermissionAction
+                label={t("meetings.micAllow")}
+                icon={Mic}
+                deniedMessage={t("meetings.micAllowDenied")}
+                onGranted={refresh}
+              />
+            }
           >
             {audio ? <MeetingMicLevel deviceId={audioDeviceId || mics[0]?.deviceId} className="mt-1" /> : null}
           </MeetingDeviceField>

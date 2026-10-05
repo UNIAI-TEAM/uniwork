@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import type { Meeting } from "@uniwork/core/types";
-import { wrapWithNav } from "../test/api-mock";
+import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingPreJoin } from "./meeting-prejoin";
 
 const meeting: Meeting = {
@@ -24,6 +24,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  requestMock.mockReset();
+  useMeetingRoomPreferencesStore.setState({ joinWithMic: null });
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
     value: {
@@ -45,12 +47,12 @@ describe("MeetingPreJoin", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Micro", pressed: true })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Camera", pressed: true })).toBeInTheDocument();
     expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
     expect(screen.getByText("FaceTime HD")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Micro", pressed: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Mic", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
 
@@ -107,7 +109,7 @@ describe("MeetingPreJoin", () => {
       },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    expect(await screen.findByText("Cho phép micro để chọn thiết bị")).toBeInTheDocument();
+    expect(await screen.findByText("Cho phép mic để chọn thiết bị")).toBeInTheDocument();
     expect(screen.getByText("Cho phép camera để chọn thiết bị")).toBeInTheDocument();
   });
 
@@ -130,11 +132,11 @@ describe("MeetingPreJoin", () => {
       value: { enumerateDevices, getUserMedia, addEventListener: vi.fn(), removeEventListener: vi.fn() },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép mic" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }));
     await waitFor(() => expect(stop).toHaveBeenCalled());
     expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
-    expect(screen.getByRole("meter", { name: "Mức âm thanh micro" })).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Mức âm thanh mic" })).toBeInTheDocument();
   });
 
   it("says how to unblock the microphone when the browser refuses", async () => {
@@ -148,7 +150,54 @@ describe("MeetingPreJoin", () => {
       },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đang chặn micro");
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép mic" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đang chặn mic");
+  });
+
+  describe("in a crowded meeting", () => {
+    function roster(active: number) {
+      requestMock.mockImplementation((path: unknown) =>
+        String(path).endsWith("/meetings/m1/participants")
+          ? Promise.resolve({
+              participants: [
+                ...Array.from({ length: active }, (_, i) => ({
+                  id: `p${i}`, meeting_id: "m1", principal_type: "USER", role: "PARTICIPANT", status: "ACTIVE",
+                })),
+                { id: "gone", meeting_id: "m1", principal_type: "USER", role: "PARTICIPANT", status: "REMOVED" },
+              ],
+            })
+          : Promise.resolve({}),
+      );
+    }
+
+    it("starts with the mic off, says why, and leaves the camera alone", async () => {
+      roster(12);
+      const onJoin = vi.fn();
+      render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={onJoin} onLeave={() => {}} />));
+      expect(await screen.findByRole("button", { name: "Mic", pressed: false })).toBeInTheDocument();
+      expect(screen.getByText(/Cuộc họp có 12 người nên mic đang tắt sẵn/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Camera", pressed: true })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
+      expect(onJoin).toHaveBeenCalledWith(expect.objectContaining({ audio: false, video: true }));
+    });
+
+    it("keeps the mic on in a small meeting", async () => {
+      roster(10);
+      render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants"));
+      expect(screen.getByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
+      expect(screen.queryByText(/mic đang tắt sẵn/)).not.toBeInTheDocument();
+    });
+
+    it("lets a remembered choice win, and remembers a new one", async () => {
+      roster(40);
+      useMeetingRoomPreferencesStore.setState({ joinWithMic: true });
+      render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants"));
+      expect(screen.getByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
+      expect(screen.queryByText(/mic đang tắt sẵn/)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Mic", pressed: true }));
+      expect(useMeetingRoomPreferencesStore.getState().joinWithMic).toBe(false);
+    });
   });
 });

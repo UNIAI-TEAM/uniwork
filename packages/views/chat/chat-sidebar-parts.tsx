@@ -13,7 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { moduleTone } from "../layout/module-tones";
 import { toastChatError } from "./chat-error-message";
-import type { ChatSidebarKindFilter } from "./chat-sidebar-unified";
+import type { ChatSidebarActivityFilter, ChatSidebarKindFilter } from "./chat-sidebar-unified";
 
 /** A quiet icon action in the sidebar header, named by its tooltip. */
 export function SidebarIconAction({
@@ -146,14 +146,16 @@ type SidebarEmptyActions = {
 export function SidebarEmpty({
   searching,
   kindFilter,
+  activityFilter = "all",
   actions,
 }: {
   searching: boolean;
   kindFilter: ChatSidebarKindFilter;
+  activityFilter?: ChatSidebarActivityFilter;
   actions: SidebarEmptyActions;
 }) {
   const { t } = useTranslation();
-  const filtered = kindFilter !== "all";
+  const filtered = kindFilter !== "all" || activityFilter !== "all";
   const showAll = filtered ? (
     <Button type="button" variant="ghost" size="sm" onClick={actions.onShowAll}>
       {t("chat.sidebar_show_all")}
@@ -177,7 +179,13 @@ export function SidebarEmpty({
     </Button>
   );
   let secondary: ReactNode = null;
-  if (kindFilter === "dm") {
+  if (activityFilter === "unread") {
+    hint = t("chat.sidebar_filter_empty_unread_hint");
+    primary = null;
+  } else if (activityFilter === "mentions") {
+    hint = t("chat.sidebar_filter_empty_mentions_hint");
+    primary = null;
+  } else if (kindFilter === "dm") {
     hint = t("chat.sidebar_filter_empty_dm_hint");
   } else if (kindFilter === "group" && actions.onCreateGroup) {
     hint = t("chat.sidebar_filter_empty_group_hint");

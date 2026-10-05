@@ -54,6 +54,14 @@ func errMemberDeactivated() error {
 	return CodedError{Code: "member_deactivated", Status: http.StatusForbidden, Msg: "tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này", Err: ErrMemberDeactivated}
 }
 
+// errInvitationForAnotherEmail refuses an invitation redeemed by an account
+// whose address is not the one it was sent to. The answer names no address:
+// the person holding the link learns only that they must sign in as the
+// invitee.
+func errInvitationForAnotherEmail() error {
+	return CodedError{Code: "invitation_email_mismatch", Status: http.StatusForbidden, Msg: "lời mời này gửi tới một email khác", Err: ErrForbidden}
+}
+
 // ErrLastOwner: an organization always has exactly one owner, so the last one
 // cannot leave or be demoted — they transfer ownership first.
 var ErrLastOwner = errors.New("last_owner")
@@ -120,4 +128,8 @@ func errInvalidState() error {
 
 func errNotHost() error {
 	return coded(http.StatusForbidden, "not_meeting_host", "chỉ chủ tọa hoặc quản trị workspace mới được thực hiện")
+}
+
+func errNotClerk() error {
+	return coded(http.StatusForbidden, "not_meeting_clerk", "chỉ chủ tọa, thư ký hoặc quản trị workspace mới được thực hiện")
 }

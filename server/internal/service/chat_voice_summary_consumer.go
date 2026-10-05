@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 )
@@ -19,6 +20,10 @@ func NewChatVoiceSummaryConsumer(chat *ChatService) *ChatVoiceSummaryConsumer {
 }
 
 func (*ChatVoiceSummaryConsumer) Name() string { return "chat_voice_summary" }
+
+// DeliveryTimeout leaves room for the LLM summary, which can run about 60s;
+// the dispatcher default would cut it off and retry it until it dead-letters.
+func (*ChatVoiceSummaryConsumer) DeliveryTimeout() time.Duration { return 90 * time.Second }
 
 func (*ChatVoiceSummaryConsumer) Topics() []string {
 	return []string{"chat.voice.call.completed"}

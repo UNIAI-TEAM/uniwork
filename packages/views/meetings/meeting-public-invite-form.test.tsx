@@ -69,7 +69,7 @@ describe("MeetingPublicInviteForm", () => {
     });
     try {
       renderForm();
-      expect(await screen.findByLabelText("Micro")).toBeInTheDocument();
+      expect(await screen.findByLabelText("Mic")).toBeInTheDocument();
       expect(screen.queryByLabelText("Camera", { selector: "[id='guest-camera']" })).not.toBeInTheDocument();
     } finally {
       Reflect.deleteProperty(navigator, "mediaDevices");

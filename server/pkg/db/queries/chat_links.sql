@@ -15,6 +15,7 @@ SELECT * FROM chat_message_links
 WHERE id = $1 AND workspace_id = $2;
 
 -- name: GetChatMessageLinkByPair :one
+-- tenant: parent message_id
 SELECT * FROM chat_message_links
 WHERE message_id = $1 AND target_type = $2 AND target_id = $3;
 
@@ -24,6 +25,7 @@ WHERE message_id = $1 AND workspace_id = $2
 ORDER BY created_at ASC;
 
 -- name: ListChatMessageLinksByRoomMessages :many
+-- tenant: parent room_id
 -- One room's timeline asks for the links of every message it shows at once,
 -- instead of one request per message. The room is the only scope: DM and
 -- group rooms are org-level and their links carry the creator's workspace, so
@@ -34,6 +36,7 @@ WHERE room_id = $1
 ORDER BY created_at ASC;
 
 -- name: DeleteChatMessageLink :one
+-- tenant: by-id
 -- Scoped by room, not workspace, for the same reason as the room batch above.
 DELETE FROM chat_message_links
 WHERE id = $1 AND room_id = $2 AND message_id = $3
@@ -50,10 +53,12 @@ INSERT INTO chat_thread_task_links (
 RETURNING *;
 
 -- name: GetChatThreadTaskLinkByThread :one
+-- tenant: parent thread_root_id
 SELECT * FROM chat_thread_task_links
 WHERE thread_root_id = $1;
 
 -- name: GetChatThreadTaskLinkByTask :one
+-- tenant: system
 SELECT * FROM chat_thread_task_links
 WHERE task_id = $1
 ORDER BY created_at ASC
@@ -66,13 +71,15 @@ WHERE thread_root_id = $1 AND workspace_id = $2;
 -- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body,
-  reply_to_message_id, thread_root_id, mirrored_from_comment_id
+  reply_to_message_id, thread_root_id, mirrored_from_comment_id, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6,
-  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id)
+  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id),
+  sqlc.arg(organization_id)
 )
 RETURNING *;
 
 -- name: GetChatMessageByMirroredComment :one
+-- tenant: system
 SELECT * FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL;

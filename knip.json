@@ -17,6 +17,7 @@
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
+        "lucide-react",
         "k6",
         "sharp",
         "jszip",

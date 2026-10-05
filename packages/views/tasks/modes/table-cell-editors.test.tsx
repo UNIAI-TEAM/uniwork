@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { requestMock, wrap } from "../../test/api-mock";
 import {
   TableAssigneeCell,
   TablePriorityCell,
@@ -15,7 +16,8 @@ const options = [{ id: "u1", kind: "human" as const, name: "An Nguyễn" }];
 
 describe("table cell pickers: accessible name contains the visible value", () => {
   it("status", () => {
-    render(<TableStatusCell value="in_progress" onChange={vi.fn()} />);
+    requestMock.mockReturnValue(new Promise(() => {}));
+    render(wrap(<TableStatusCell workspaceId="w1" value="in_progress" onChange={vi.fn()} />));
     const trigger = screen.getByRole("button", { name: "Trạng thái: Đang làm" });
     expect(trigger).toHaveTextContent("Đang làm");
   });
@@ -28,14 +30,14 @@ describe("table cell pickers: accessible name contains the visible value", () =>
 
   it("assignee", () => {
     render(<TableAssigneeCell assigneeId="u1" options={options} onChange={vi.fn()} />);
-    const trigger = screen.getByRole("combobox", { name: "Người phụ trách: An Nguyễn" });
+    const trigger = screen.getByRole("button", { name: "Người phụ trách: An Nguyễn" });
     expect(trigger).toHaveTextContent("An Nguyễn");
   });
 
   it("unassigned", () => {
     render(<TableAssigneeCell options={options} onChange={vi.fn()} />);
     expect(
-      screen.getByRole("combobox", { name: "Người phụ trách: Chưa giao" }),
+      screen.getByRole("button", { name: "Người phụ trách: Chưa giao" }),
     ).toHaveTextContent("Chưa giao");
   });
 
@@ -49,7 +51,7 @@ describe("table cell pickers: accessible name contains the visible value", () =>
         onChange={vi.fn()}
       />,
     );
-    const trigger = screen.getByRole("combobox", { name: /^Người phụ trách: Trợ lý QA / });
+    const trigger = screen.getByRole("button", { name: /^Người phụ trách: Trợ lý QA / });
     expect(trigger).toHaveTextContent("Agent");
     expect(trigger).toHaveAccessibleName("Người phụ trách: Trợ lý QA Agent");
   });

@@ -1,5 +1,5 @@
 /**
- * In-room signals (raise hand, reactions, host mute request) ride the
+ * In-room signals (raise hand, reactions, host mute requests) ride the
  * LiveKit data channel on one topic. Nothing here touches the server: the
  * signals are ephemeral and every client rebuilds state from the messages
  * it sees. This file is the pure part (encode / decode / reduce) so it can be
@@ -27,7 +27,9 @@ export function reactionLabelKey(value: string): string | null {
 export type MeetingSignal =
   | { kind: "hand"; value: boolean }
   | { kind: "reaction"; value: string }
-  | { kind: "mute_request"; target: string };
+  | { kind: "mute_request"; target: string }
+  /** The host mutes the room at once; every other host keeps their mic. */
+  | { kind: "mute_all" };
 
 type ReactionBubble = { id: string; identity: string; value: string; at: number };
 
@@ -58,6 +60,7 @@ export function decodeSignal(payload: Uint8Array): MeetingSignal | null {
       return { kind: "reaction", value: r.value };
     }
     if (r.kind === "mute_request" && typeof r.target === "string") return { kind: "mute_request", target: r.target };
+    if (r.kind === "mute_all") return { kind: "mute_all" };
     return null;
   } catch {
     return null;
@@ -91,7 +94,7 @@ export function forgetIdentity(state: SignalsState, identity: string): SignalsSt
   return { ...state, hands: state.hands.filter((h) => h !== identity) };
 }
 
-export type MeetingParticipantRole = "agent" | "guest";
+export type MeetingParticipantRole = "agent" | "guest" | "secretary" | "observer";
 
 /** LiveKit identities of the meeting's guest participants (invite-link joiners). */
 export function guestIdentities(
@@ -141,4 +144,19 @@ export function muteRequesterIdentities(
 
 export function shouldHonorMuteRequest(from: string, allowedIdentities: readonly string[]): boolean {
   return allowedIdentities.includes(from);
+}
+
+// TrackSource.MICROPHONE in @livekit/protocol, which views does not import.
+const MICROPHONE_SOURCE = 2;
+
+/**
+ * Whether the host has locked this person's mic: their publish sources list
+ * everything but the microphone (an empty list allows every source). A role
+ * that never publishes (audience) is not "locked" — nobody can unlock it.
+ */
+export function micLockedNow(participant: {
+  permissions?: { canPublishSources?: readonly number[] } | null;
+}): boolean {
+  const sources = participant.permissions?.canPublishSources ?? [];
+  return sources.length > 0 && !sources.includes(MICROPHONE_SOURCE);
 }

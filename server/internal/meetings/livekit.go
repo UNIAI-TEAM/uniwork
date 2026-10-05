@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/livekit/protocol/auth"
@@ -48,15 +49,34 @@ func mintToken(apiKey, apiSecret string, req IssueJoinCredentialRequest) (string
 // LiveKit must not auto-close rooms; UniWork EndMeeting owns lifecycle.
 const controlPlaneEmptyTimeoutSeconds uint32 = 86400
 
+// Deadlines for one LiveKit RPC. The SDK builds its Twirp clients on a bare
+// http.Client{} with no Timeout and no option to replace it, so the bound is
+// carried by the context of every call instead. Room-service calls answer in
+// milliseconds when LiveKit is healthy; starting egress waits for a recorder
+// to launch, so it gets longer.
+const (
+	defaultRoomRPCTimeout   = 10 * time.Second
+	defaultEgressRPCTimeout = 30 * time.Second
+)
+
 // LiveKitAdapter implements ConferenceProvider. LiveKit protobuf types stay here.
 type LiveKitAdapter struct {
 	URL, APIKey, APISecret string
 	TokenTTL               time.Duration
 	EmptyTimeout           time.Duration
-	roomClient             *lksdk.RoomServiceClient
+	// RPCTimeout, when positive, replaces the default deadline of every
+	// LiveKit RPC (room service and egress alike).
+	RPCTimeout time.Duration
 	// Recording is nil when no S3 bucket is configured; recording is then
 	// reported as unavailable instead of failing at start time.
 	Recording *RecordingS3
+
+	// The adapter is shared by every request goroutine, so the clients are
+	// built exactly once and reused.
+	roomOnce   sync.Once
+	roomClient *lksdk.RoomServiceClient
+	egressOnce sync.Once
+	egressCl   *lksdk.EgressClient
 }
 
 // RecordingS3 is where LiveKit Egress uploads room composite recordings.
@@ -74,11 +94,30 @@ func (a *LiveKitAdapter) Capabilities(context.Context) ConferenceCapabilities {
 }
 
 func (a *LiveKitAdapter) client() *lksdk.RoomServiceClient {
-	if a.roomClient != nil {
-		return a.roomClient
-	}
-	a.roomClient = lksdk.NewRoomServiceClient(a.URL, a.APIKey, a.APISecret)
+	a.roomOnce.Do(func() { a.roomClient = lksdk.NewRoomServiceClient(a.URL, a.APIKey, a.APISecret) })
 	return a.roomClient
+}
+
+func (a *LiveKitAdapter) egress() *lksdk.EgressClient {
+	a.egressOnce.Do(func() { a.egressCl = lksdk.NewEgressClient(a.URL, a.APIKey, a.APISecret) })
+	return a.egressCl
+}
+
+func (a *LiveKitAdapter) rpcTimeout(def time.Duration) time.Duration {
+	if a.RPCTimeout > 0 {
+		return a.RPCTimeout
+	}
+	return def
+}
+
+// roomCtx and egressCtx bound one RPC. Each RPC gets its own deadline, so a
+// fallback call after a timed-out one is not born already expired.
+func (a *LiveKitAdapter) roomCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, a.rpcTimeout(defaultRoomRPCTimeout))
+}
+
+func (a *LiveKitAdapter) egressCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, a.rpcTimeout(defaultEgressRPCTimeout))
 }
 
 func roomEmptyTimeoutSeconds(requested, adapterDefault time.Duration) uint32 {
@@ -93,12 +132,16 @@ func roomEmptyTimeoutSeconds(requested, adapterDefault time.Duration) uint32 {
 
 func (a *LiveKitAdapter) EnsureSession(ctx context.Context, req EnsureSessionRequest) (ProviderSessionRef, error) {
 	empty := roomEmptyTimeoutSeconds(req.EmptyTimeout, a.EmptyTimeout)
-	res, err := a.client().CreateRoom(ctx, &livekit.CreateRoomRequest{
+	cctx, cancel := a.roomCtx(ctx)
+	res, err := a.client().CreateRoom(cctx, &livekit.CreateRoomRequest{
 		Name: req.RoomName, EmptyTimeout: empty, MaxParticipants: req.MaxParticipants,
 	})
+	cancel()
 	if err != nil {
 		// Idempotent: a room that already exists is fine.
-		rooms, listErr := a.client().ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{req.RoomName}})
+		lctx, lcancel := a.roomCtx(ctx)
+		rooms, listErr := a.client().ListRooms(lctx, &livekit.ListRoomsRequest{Names: []string{req.RoomName}})
+		lcancel()
 		if listErr == nil && len(rooms.GetRooms()) > 0 {
 			r := rooms.Rooms[0]
 			return ProviderSessionRef{RoomName: r.Name, RoomSID: r.Sid}, nil
@@ -125,28 +168,41 @@ func (a *LiveKitAdapter) IssueJoinCredential(_ context.Context, req IssueJoinCre
 }
 
 func (a *LiveKitAdapter) RemoveParticipant(ctx context.Context, req RemoveProviderParticipantRequest) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
 	_, err := a.client().RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: req.RoomName, Identity: req.Identity})
 	return err
 }
 
 func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProviderParticipantRequest) error {
-	perm := &livekit.ParticipantPermission{}
-	if req.CanPublish != nil {
-		perm.CanPublish = *req.CanPublish
-	}
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
-		Room: req.RoomName, Identity: req.Identity, Permission: perm,
+		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
 	})
 	return err
 }
 
-func (a *LiveKitAdapter) EndSession(ctx context.Context, req EndProviderSessionRequest) error {
-	_, err := a.client().DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: req.RoomName})
-	return err
+// participantPermission is the full set LiveKit stores: a field left false
+// here is a grant taken away, not one left alone.
+func participantPermission(p MediaPermissions) *livekit.ParticipantPermission {
+	perm := &livekit.ParticipantPermission{
+		CanSubscribe: p.CanSubscribe, CanPublish: p.CanPublish, CanPublishData: p.CanPublishData,
+	}
+	// An empty source list means every source; a locked mic lists the rest.
+	if p.MicrophoneLocked {
+		perm.CanPublishSources = []livekit.TrackSource{
+			livekit.TrackSource_CAMERA, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO,
+		}
+	}
+	return perm
 }
 
-func (a *LiveKitAdapter) egress() *lksdk.EgressClient {
-	return lksdk.NewEgressClient(a.URL, a.APIKey, a.APISecret)
+func (a *LiveKitAdapter) EndSession(ctx context.Context, req EndProviderSessionRequest) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.client().DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: req.RoomName})
+	return err
 }
 
 func recordingLayout(layout string) string {
@@ -224,6 +280,8 @@ func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingR
 		}
 		filepath = key
 	}
+	ctx, cancel := a.egressCtx(ctx)
+	defer cancel()
 	info, err := a.egress().StartRoomCompositeEgress(ctx, &livekit.RoomCompositeEgressRequest{
 		RoomName: req.RoomName,
 		Layout:   recordingLayout(req.Layout),
@@ -243,6 +301,8 @@ func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingR
 }
 
 func (a *LiveKitAdapter) StopRecording(ctx context.Context, req StopRecordingRequest) error {
+	ctx, cancel := a.egressCtx(ctx)
+	defer cancel()
 	_, err := a.egress().StopEgress(ctx, &livekit.StopEgressRequest{EgressId: req.RecordingID})
 	return err
 }

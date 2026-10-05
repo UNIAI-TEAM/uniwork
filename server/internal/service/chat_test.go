@@ -212,7 +212,7 @@ func TestChatRoomModerationPromoteMuteAndGroupKick(t *testing.T) {
 }
 
 func TestChatMessageEditDeletePin(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
@@ -243,8 +243,15 @@ func TestChatMessageEditDeletePin(t *testing.T) {
 		t.Fatalf("edit other user: %v", err)
 	}
 
+	pub.events = nil
 	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, sent.RoomID, sent.ID); err != nil {
 		t.Fatalf("delete: %v", err)
+	}
+	var auditCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'chat.message.deleted' AND resource_id = $1`, sent.ID,
+	).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("delete audit: err=%v count=%d", err, auditCount)
 	}
 	if pub.events[len(pub.events)-1].Type != "chat.message.deleted" {
 		t.Fatalf("delete publish: %+v", pub.events[len(pub.events)-1])
@@ -258,8 +265,12 @@ func TestChatMessageEditDeletePin(t *testing.T) {
 
 func addWorkspaceMember(t *testing.T, q *db.Queries, workspaceID, userID string) {
 	t.Helper()
+	w, err := q.GetWorkspaceByID(context.Background(), workspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
-		WorkspaceID: workspaceID, UserID: userID, Role: "member",
+		WorkspaceID: workspaceID, OrganizationID: w.OrganizationID, UserID: userID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}

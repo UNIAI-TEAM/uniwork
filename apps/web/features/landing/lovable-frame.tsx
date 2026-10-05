@@ -16,14 +16,14 @@ export function usePreviewLabels() {
 }
 
 /** A fitted desktop illustration, not a miniature set of interactive controls. */
-export function LovableFrame({ feature, children, label, completed = false, playback, onSceneVisibilityChange }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean; playback?: { running: boolean; reduced: boolean; pressing: boolean; control: ReactNode }; onSceneVisibilityChange?: (visible: boolean) => void }) {
+export function LovableFrame({ feature, children, label, completed = false, playback, toolbarActions, onSceneVisibilityChange }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean; playback?: { running: boolean; reduced: boolean; pressing: boolean; control: ReactNode }; toolbarActions?: ReactNode; onSceneVisibilityChange?: (visible: boolean) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [meetingList, setMeetingList] = useState(false);
   const compact = useCompactPreview();
   const copy = usePreviewLabels();
   const content = <FittedViewport feature={feature} label={meetingList ? copy("meetingList") : label} expanded={expanded} completed={completed}>{meetingList ? <LovableMeetings /> : children}</FittedViewport>;
   return <div className="lovable-preview">
-    <div className="lovable-preview-tools"><span>{copy("reference")}<small>{copy("sample")}</small></span><div className="lovable-preview-actions">{!compact && !expanded && !meetingList && playback?.control}<Button size="sm" variant="ghost" data-action="expand-preview" onClick={() => setExpanded(true)}><Maximize2 aria-hidden />{copy("expand")}</Button></div></div>
+    <div className="lovable-preview-tools"><span>{copy("reference")}<small>{copy("sample")}</small></span><div className="lovable-preview-actions">{toolbarActions}{!compact && !expanded && !meetingList && playback?.control}<Button size="sm" variant="ghost" data-action="expand-preview" onClick={() => setExpanded(true)}><Maximize2 aria-hidden />{copy("expand")}</Button></div></div>
     {feature === "meetings" && <div className="lovable-meeting-view-switch">{[true, false].map(list => <Button key={String(list)} size="sm" variant={meetingList === list ? "secondary" : "ghost"} aria-pressed={meetingList === list} onClick={() => { setMeetingList(list); onSceneVisibilityChange?.(!list); }}>{copy(list ? "meetingList" : "meetingRoom")}</Button>)}</div>}
     {!expanded && content}
     <Dialog open={expanded} onOpenChange={setExpanded}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { ArrowLeftRight, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowLeftRight, Maximize2, Minimize2, PanelBottomClose, X } from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import type { CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import {
   ContentEditor,
   FileDropOverlay,
@@ -19,11 +20,10 @@ import {
 } from "../editor";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
+import { PriorityPicker, StatusPicker } from "./pickers";
 import {
   CreateTaskAssigneeField,
   CreateTaskLabelField,
-  CreateTaskPriorityField,
-  CreateTaskStatusField,
 } from "./pickers/create-task-property-fields";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { useCreateTaskManualState } from "./use-create-task-manual";
@@ -32,7 +32,7 @@ export type CreateTaskManualPanelProps = {
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
-  onClose: () => void;
+  onClose: (reason?: "saved" | "submitted") => void;
   onSwitchMode: (carry?: Record<string, unknown> | null) => void;
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
@@ -67,8 +67,6 @@ export function CreateTaskManualPanel({
     revealed,
     reveal,
     unreveal,
-    statusItems,
-    priorityItems,
     projectItems,
     parentItems,
     maxSiblingStage,
@@ -79,6 +77,7 @@ export function CreateTaskManualPanel({
     assigneeLabel,
     workspaceName,
     submit,
+    saveDraft,
     uploadFile,
     setProperty,
     uploading,
@@ -90,6 +89,14 @@ export function CreateTaskManualPanel({
   const submitIfReady = () => {
     if (uploadGate.isBlocked()) return;
     submit();
+  };
+  const saveCurrentDraft = () => {
+    if (busy || uploadGate.isBlocked()) return;
+    const description = editorRef.current?.getMarkdown();
+    if (description !== undefined && description !== draft.description) {
+      updateDraft({ description });
+    }
+    saveDraft();
   };
   const { isDragOver, dropZoneProps } = useFileDropZone({
     onDrop: (files) => files.forEach((file) => editorRef.current?.uploadFile(file)),
@@ -106,28 +113,72 @@ export function CreateTaskManualPanel({
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
           <DialogTitle className="truncate text-body font-medium">
-            {workspaceName}
+            <span className="font-normal text-muted-foreground">{workspaceName}</span>
             <span className="mx-1.5 text-muted-foreground" aria-hidden>
               ›
             </span>
-            {t("tasks.create.manual_breadcrumb")}
+            <span className="text-foreground">{t("tasks.create.manual_breadcrumb")}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={onClose}>
-            <X className="size-4" aria-hidden />
-          </Button>
-        </div>
+        <TooltipProvider delay={300}>
+          <div className="flex shrink-0 items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+                  onClick={() => setIsExpanded(!isExpanded)}
+                />
+              }
+            >
+              {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-label={t("tasks.create.save_draft")}
+                  aria-disabled={busy || isUploading || undefined}
+                  onClick={saveCurrentDraft}
+                />
+              }
+            >
+              <PanelBottomClose className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={t("common.close")}
+                  onClick={() => onClose()}
+                />
+              }
+            >
+              <X className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
+          </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       <div className="shrink-0 px-5 pb-2">
@@ -173,16 +224,19 @@ export function CreateTaskManualPanel({
           data-testid="create-task-property-toolbar"
           className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 py-2"
         >
-          <CreateTaskStatusField
-            items={statusItems}
+          <StatusPicker
+            workspaceId={workspaceId}
+            appearance="pill"
             value={draft.status ?? "todo"}
+            ariaLabel={t("tasks.status")}
             searchPlaceholder={t("tasks.create.status_search_placeholder")}
             noResultsLabel={t("tasks.create.options_no_results")}
             onChange={(value) => updateDraft({ status: value })}
           />
-          <CreateTaskPriorityField
-            items={priorityItems}
+          <PriorityPicker
+            appearance="pill"
             value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>}
+            ariaLabel={t("tasks.priority")}
             onChange={(value) => updateDraft({ priority: value })}
           />
           <CreateTaskAssigneeField
@@ -194,8 +248,6 @@ export function CreateTaskManualPanel({
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}
-            membersLabel={t("tasks.create.assignee_members")}
-            agentsLabel={t("tasks.create.assignee_agents")}
           />
           <CreateTaskLabelField
             labels={labelList?.labels ?? []}

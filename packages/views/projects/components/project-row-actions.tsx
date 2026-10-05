@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Pin, PinOff, Trash2 } from "lucide-react";
+import { ExternalLink, MoreHorizontal, Pin, PinOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -26,6 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { toastApiError } from "../../toast-api-error";
+import type { OpenProject } from "../project-row-metrics";
 
 export function ProjectRowActions({
   workspaceId,
@@ -38,7 +40,7 @@ export function ProjectRowActions({
   project: Project;
   pinned: boolean;
   canDelete: boolean;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
 }) {
   const { t } = useTranslation();
   const createPin = useCreatePin(workspaceId);
@@ -47,10 +49,11 @@ export function ProjectRowActions({
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const togglePin = () => {
+    const onError = (err: unknown) => toastApiError(err, t("common.error"));
     if (pinned) {
-      deletePin.mutate({ itemType: "project", itemId: project.id });
+      deletePin.mutate({ itemType: "project", itemId: project.id }, { onError });
     } else {
-      createPin.mutate({ item_type: "project", item_id: project.id });
+      createPin.mutate({ item_type: "project", item_id: project.id }, { onError });
     }
   };
 
@@ -69,8 +72,11 @@ export function ProjectRowActions({
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onClick={() => onOpenProject(project.id)}>
-            {t("projects.page.open")}
+          <DropdownMenuItem
+            onClick={() => onOpenProject(project.id, "foreground-tab")}
+          >
+            <ExternalLink className="size-3.5" />
+            {t("projects.page.open_in_new_tab")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={togglePin}>

@@ -93,7 +93,7 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: "owner"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: userID, Role: "owner"}); err != nil {
 		return WorkspaceView{}, err
 	}
 	w, err = q.UpdateWorkspaceTaskPrefix(ctx, db.UpdateWorkspaceTaskPrefixParams{
@@ -240,7 +240,7 @@ func (s *WorkspaceService) RequireMemberQ(ctx context.Context, q *db.Queries, wo
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).
 	telemetry.SetTenant(ctx, access.OrganizationID, workspaceID)
-	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: access.Role}, nil
+	return db.WorkspaceMember{WorkspaceID: workspaceID, OrganizationID: access.OrganizationID, UserID: userID, Role: access.Role}, nil
 }
 
 // RequireAgentMember is the agent counterpart of RequireMember: an agent is
@@ -609,7 +609,13 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 	return invs, skipped, nil
 }
 
+// PendingInvitations hands out the tokens of the invitations sent to the
+// caller's address, so the address must be proven first: otherwise anyone who
+// registers an invitee's email before they do reads the token here.
 func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string) ([]db.ListInvitationsForEmailRow, error) {
+	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
+		return nil, err
+	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -625,6 +631,13 @@ type AcceptResult struct {
 	Workspace    *WorkspaceView
 }
 
+// sameMailbox: addresses are stored lower-cased, so the comparison is exact.
+// Unicode case folding (strings.EqualFold) would let "ſam@" redeem "sam@".
+func sameMailbox(a, b string) bool {
+	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+	return norm(a) == norm(b)
+}
+
 // AcceptInvite turns one invitation into membership, in a single transaction:
 // organization member (if new), profile, workspace member when the invitation
 // named one, the invitation marked accepted, and the user marked onboarded.
@@ -636,6 +649,21 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	}
 	if err != nil {
 		return AcceptResult{}, err
+	}
+	// The token travels by mail and gets forwarded, pasted and screenshotted;
+	// it names the mailbox it was sent to, and only an account that has
+	// proven that mailbox may redeem it. Otherwise anyone the link reaches -
+	// or anyone who registers the invitee's address first - joins the
+	// organization as whoever was invited (ADR 0008 isolation matrix).
+	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
+		return AcceptResult{}, err
+	}
+	caller, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return AcceptResult{}, err
+	}
+	if !sameMailbox(caller.Email, inv.Email) {
+		return AcceptResult{}, errInvitationForAnotherEmail()
 	}
 	org, err := s.q.GetOrganizationByID(ctx, inv.OrganizationID)
 	if err != nil {
@@ -688,7 +716,7 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		return AcceptResult{}, err
 	}
 	if inv.WorkspaceID.Valid {
-		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, UserID: userID, Role: inv.Role}); err != nil {
+		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, UserID: userID, Role: inv.Role}); err != nil {
 			return AcceptResult{}, err
 		}
 	}

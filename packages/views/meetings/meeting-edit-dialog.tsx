@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@uniwork/ui/components/ui/input-group";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -50,6 +51,7 @@ function meetingDraft(meeting: Meeting) {
     end: initialEnd.time,
     timezone,
     allowJoin: meeting.allow_join_request !== false,
+    quorum: meeting.quorum_percent ? String(meeting.quorum_percent) : "",
   };
 }
 
@@ -64,6 +66,7 @@ function meetingRevision(meeting: Meeting): string {
     meeting.timezone,
     meeting.allow_join_request,
     meeting.status,
+    meeting.quorum_percent,
   ]);
 }
 
@@ -89,7 +92,7 @@ export function MeetingEditDialog({
   // when the dialog opens, and a newer server copy is offered, not forced.
   const [seed, setSeed] = useState(() => ({ draft: meetingDraft(meeting), revision: meetingRevision(meeting) }));
   const [submitted, setSubmitted] = useState(false);
-  const { title, description, date, start, end, timezone, allowJoin } = draft;
+  const { title, description, date, start, end, timezone, allowJoin, quorum } = draft;
   const set = <K extends keyof typeof draft>(key: K) => (value: (typeof draft)[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -112,6 +115,15 @@ export function MeetingEditDialog({
   const problems = scheduleProblems({ date, start, end, timeZone: timezone, nowMs, checkPast: startTouched });
   const scheduleOk = inProgress || scheduleReady(date, problems);
   const showTitleError = titleMissing && submitted;
+  // Empty means "no minimum"; the server reads 0 as clearing it.
+  const quorumValue = quorum.trim() === "" ? 0 : Number(quorum);
+  const quorumInvalid =
+    quorum.trim() !== "" && (!Number.isInteger(quorumValue) || quorumValue < 1 || quorumValue > 100);
+  const showQuorumError = quorumInvalid && submitted;
+  // A finalized roll refuses any quorum change (409), so an untouched field is
+  // left out: editing only the title must still save after the roll is locked.
+  const seedQuorum = seed.draft.quorum.trim() === "" ? 0 : Number(seed.draft.quorum);
+  const quorumChanged = quorumValue !== seedQuorum;
   // The record may carry a zone the short list does not; keep it pickable.
   const zones: string[] = MEETING_TIMEZONES.includes(timezone as (typeof MEETING_TIMEZONES)[number])
     ? [...MEETING_TIMEZONES]
@@ -135,6 +147,10 @@ export function MeetingEditDialog({
               focusScheduleProblem(id, problems);
               return;
             }
+            if (quorumInvalid) {
+              document.getElementById(`${id}-quorum`)?.focus();
+              return;
+            }
             const slot = inProgress ? null : scheduleWindowIso(date, start, end, timezone);
             update.mutate(
               {
@@ -142,6 +158,7 @@ export function MeetingEditDialog({
                 description,
                 timezone,
                 allow_join_request: allowJoin,
+                ...(quorumChanged ? { quorum_percent: quorumValue } : {}),
                 ...(slot ? { starts_at: slot.starts_at, ends_at: slot.ends_at } : {}),
               },
               {
@@ -257,6 +274,36 @@ export function MeetingEditDialog({
                 />
               </div>
               <FieldDescription>{t("meetings.externalGuestLinkWhere")}</FieldDescription>
+            </section>
+
+            <section className="space-y-3" aria-labelledby={`${id}-formal`}>
+              <h3 id={`${id}-formal`} className="text-overline text-muted-foreground">
+                {t("meetings.editSectionFormal")}
+              </h3>
+              <Field data-invalid={showQuorumError || undefined}>
+                <FieldLabel htmlFor={`${id}-quorum`}>{t("meetings.quorumLabel")}</FieldLabel>
+                {/* Field stretches its direct children; the wrapper keeps a 1–100 box narrow. */}
+                <div>
+                  <InputGroup className="w-32">
+                    <InputGroupInput
+                      id={`${id}-quorum`}
+                      inputMode="numeric"
+                      value={quorum}
+                      aria-invalid={showQuorumError || undefined}
+                      aria-describedby={showQuorumError ? `${id}-quorum-error` : `${id}-quorum-hint`}
+                      onChange={(e) => set("quorum")(e.target.value)}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                {showQuorumError ? (
+                  <FieldError id={`${id}-quorum-error`}>{t("meetings.quorumInvalid")}</FieldError>
+                ) : (
+                  <FieldDescription id={`${id}-quorum-hint`}>{t("meetings.quorumHint")}</FieldDescription>
+                )}
+              </Field>
             </section>
           </FormDialogBody>
           <FormDialogFooter

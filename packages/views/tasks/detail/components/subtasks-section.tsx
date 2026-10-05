@@ -11,9 +11,10 @@ import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import {
   useChildTaskProgress,
-  useCreateTask,
+  useTask,
   useTaskChildren,
   useTaskProperties,
+  type CreateTaskBody,
 } from "@uniwork/core/tasks";
 import { useSubtaskDisplayStore } from "@uniwork/core/tasks/stores/subtask-display-store";
 import {
@@ -27,10 +28,9 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../../../layout/workspace-context";
-import { toastApiError } from "../../../toast-api-error";
+import { CreateTaskDialog } from "../../create-task-dialog";
 import { useWorkspaceAssigneeOptions } from "../../pickers";
 import {
   TaskSurfaceSelectionProvider,
@@ -52,10 +52,18 @@ export function TaskDetailSubtasksSection({
   const { data: children = [], isLoading } = useTaskChildren(taskId);
   const { data: progressRows = [] } = useChildTaskProgress(workspaceId);
   const propertyCatalog = useTaskProperties(workspaceId).data?.properties ?? [];
-  const create = useCreateTask(workspaceId);
-  const [title, setTitle] = useState("");
-  const [pending, setPending] = useState(false);
+  const { data: parent } = useTask(taskId);
   const [creating, setCreating] = useState(false);
+  // A sub-task lives in its parent's project; the server does not inherit it.
+  // Until the parent loads, the form's own project default stands.
+  const parentProjectId = parent ? parent.project_id ?? null : undefined;
+  const createDefaults = useMemo<Partial<CreateTaskBody>>(
+    () =>
+      parentProjectId === undefined
+        ? { parent_task_id: taskId }
+        : { parent_task_id: taskId, project_id: parentProjectId },
+    [taskId, parentProjectId],
+  );
   const selection = useCreateTaskSurfaceSelection(
     `${taskId}:${children.map((child) => child.id).join(",")}`,
   );
@@ -90,40 +98,40 @@ export function TaskDetailSubtasksSection({
   }, [children]);
   const allSelected = children.length > 0 && selected.size === children.length;
 
-  const onCreate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = title.trim();
-    if (!trimmed || pending) return;
-    setPending(true);
-    try {
-      await create.mutateAsync({ title: trimmed, parent_task_id: taskId });
-      setTitle("");
-      setCreating(false);
-    } catch (error) {
-      toastApiError(error, t("common.error"));
-    } finally {
-      setPending(false);
-    }
-  };
+  const createDialog = creating ? (
+    <CreateTaskDialog
+      workspaceId={workspaceId}
+      defaults={createDefaults}
+      open
+      onOpenChange={setCreating}
+      showTrigger={false}
+    />
+  ) : null;
 
-  if (!isLoading && children.length === 0 && !creating) {
+  // The dialog keeps the same slot in both returns, so the first sub-task
+  // (empty state → list) does not remount it mid "create another".
+  if (!isLoading && children.length === 0) {
     return (
-      <section aria-label={t("tasks.detail.section_subtasks")} className="mt-6">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-0 text-caption text-muted-foreground hover:bg-transparent hover:text-foreground"
-          onClick={() => setCreating(true)}
-        >
-          <Plus aria-hidden className="size-3.5" />
-          {t("tasks.detail.add_subtask")}
-        </Button>
-      </section>
+      <>
+        <section aria-label={t("tasks.detail.section_subtasks")} className="mt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-0 text-caption text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={() => setCreating(true)}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            {t("tasks.detail.add_subtask")}
+          </Button>
+        </section>
+        {createDialog}
+      </>
     );
   }
 
   return (
+    <>
     <TaskSurfaceSelectionProvider selection={selection}>
       <section
         aria-label={t("tasks.detail.section_subtasks")}
@@ -228,7 +236,7 @@ export function TaskDetailSubtasksSection({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label={t("tasks.detail.subtask_add_button")}
+              aria-label={t("tasks.detail.add_subtask")}
               onClick={() => setCreating(true)}
             >
               <Plus aria-hidden />
@@ -284,37 +292,10 @@ export function TaskDetailSubtasksSection({
             ))}
           </div>
         ) : null}
-
-        {creating ? (
-          <form
-            className={cn("flex gap-2", children.length > 0 && "mt-2")}
-            onSubmit={(event) => void onCreate(event)}
-          >
-            <Input
-              autoFocus
-              aria-label={t("tasks.detail.add_subtask")}
-              placeholder={t("tasks.detail.add_subtask_placeholder")}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              disabled={pending}
-            />
-            <Button type="submit" disabled={pending || !title.trim()}>
-              {t("tasks.detail.add_subtask_action")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setCreating(false);
-                setTitle("");
-              }}
-            >
-              {t("common.cancel")}
-            </Button>
-          </form>
-        ) : null}
         </div>
       </section>
     </TaskSurfaceSelectionProvider>
+    {createDialog}
+    </>
   );
 }

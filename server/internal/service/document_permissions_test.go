@@ -91,8 +91,12 @@ func (f *docPermFixture) orgMember(t *testing.T, orgID, userID, role string) {
 
 func (f *docPermFixture) wsMember(t *testing.T, wsID, userID, role string) {
 	t.Helper()
+	w, err := f.q.GetWorkspaceByID(f.ctx, wsID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: wsID, UserID: userID, Role: role,
+		WorkspaceID: wsID, OrganizationID: w.OrganizationID, UserID: userID, Role: role,
 	}); err != nil {
 		t.Fatal(err)
 	}

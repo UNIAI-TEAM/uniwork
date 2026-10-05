@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,7 +24,7 @@ func rfc3339(t pgtype.Timestamptz) string {
 }
 
 func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
-	return sdo.MeetingDTO{
+	d := sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
@@ -31,6 +32,11 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version,
 	}
+	if m.QuorumPercent.Valid {
+		v := m.QuorumPercent.Int16
+		d.QuorumPercent = &v
+	}
+	return d
 }
 
 func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +133,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		service.UpdateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
+			QuorumPercent: in.QuorumPercent,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -228,13 +235,34 @@ func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingStatisticsSDO{
-		Total: st.Total, Scheduled: st.Scheduled, InProgress: st.InProgress, Ended: st.Ended,
+		Total: st.Total, Scheduled: st.Scheduled, Missed: st.Missed, InProgress: st.InProgress, Ended: st.Ended,
 		Canceled: st.Canceled, Instant: st.Instant,
 		InvPending: st.InvPending, InvAccepted: st.InvAccepted, InvDeclined: st.InvDeclined, InvTentative: st.InvTentative,
 		JoinTotal: st.JoinTotal, JoinApproved: st.JoinApproved, JoinRejected: st.JoinRejected,
 		AvgApprovalSeconds: st.AvgApprovalSeconds,
 		LinksCreated:       st.LinksCreated, LinksUsed: st.LinksUsed, LinksRevoked: st.LinksRevoked, LinksExpired: st.LinksExpired,
 	})
+}
+
+// activityPayloadEvents lists the timeline rows whose stored payload reaches
+// the client. Every other row keeps its payload server-side (MEETING_CREATED
+// stores meeting_type, for one); a new event opts in here deliberately.
+var activityPayloadEvents = map[string]struct{}{
+	"MOTION_OPENED": {},
+	"MOTION_CLOSED": {},
+}
+
+// activityPayload decodes an allowlisted row's payload; nil for any other
+// row, and for a payload that is not a flat string map.
+func activityPayload(a db.MeetingAuditLog) map[string]string {
+	if _, ok := activityPayloadEvents[a.EventType]; !ok {
+		return nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(a.Payload), &out); err != nil || len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +276,7 @@ func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sdo.ActivityItemDTO{
 			ID: a.ID, EventType: a.EventType, ActorID: a.ActorID,
 			FromState: a.FromState.String, ToState: a.ToState.String, OccurredAt: rfc3339(a.OccurredAt),
+			Payload: activityPayload(a),
 		})
 	}
 	respondJSON(w, 200, map[string]any{"activity": out})

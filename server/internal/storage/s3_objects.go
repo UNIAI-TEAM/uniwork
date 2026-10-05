@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -240,7 +241,10 @@ func (s *s3ObjectStore) SignRead(ctx context.Context, loc ObjectLocator, opts Si
 	if err != nil {
 		return SignedURL{}, fmt.Errorf("s3 SignRead: %w", err)
 	}
-	return SignedURL{URL: out.URL, Method: "GET", ExpiresAt: time.Now().Add(ttl)}, nil
+	return SignedURL{
+		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
+		ExpiresAt: time.Now().Add(ttl),
+	}, nil
 }
 
 // SignWrite implements ObjectStore: a presigned PUT for the provider-upload
@@ -264,7 +268,10 @@ func (s *s3ObjectStore) SignWrite(ctx context.Context, loc ObjectLocator, opts S
 	if err != nil {
 		return SignedURL{}, fmt.Errorf("s3 SignWrite: %w", err)
 	}
-	return SignedURL{URL: out.URL, Method: "PUT", ExpiresAt: time.Now().Add(ttl)}, nil
+	return SignedURL{
+		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
+		ExpiresAt: time.Now().Add(ttl),
+	}, nil
 }
 
 // maxPresignTTL is the longest lifetime a presigned URL is signed for. AWS
@@ -279,6 +286,19 @@ func clampPresignTTL(ttl time.Duration) time.Duration {
 		return maxPresignTTL
 	}
 	return ttl
+}
+
+func signedHeaderMap(h http.Header) map[string]string {
+	if len(h) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(h))
+	for k, vals := range h {
+		if len(vals) > 0 {
+			out[k] = vals[0]
+		}
+	}
+	return out
 }
 
 // Probe implements ObjectStore: one HeadBucket, bounded by the caller's

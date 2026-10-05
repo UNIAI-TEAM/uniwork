@@ -10,8 +10,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 )
 
-// SetParticipantPublish toggles LiveKit CanPublish for a participant without
-// removing them from the room. Host/admin only; requires a synced conference session.
+// SetParticipantPublish locks (false) or unlocks (true) a participant's mic
+// without removing them from the room. Host/admin only; requires a synced
+// conference session.
 func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, meetingID, participantID string, canPublish bool) error {
 	if s.provider == nil {
 		return coded(http.StatusServiceUnavailable, "livekit_not_configured", "LiveKit chưa được cấu hình trên server")
@@ -51,8 +52,13 @@ func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, mee
 	if room == "" {
 		room = meetings.RoomNameForMeeting(m.ID)
 	}
+	// The role's grants with only the mic locked or unlocked: the provider
+	// replaces the whole set, and a locked participant still listens, sends
+	// signals, and keeps their camera and screen share.
+	perms := meetings.MediaPermissionsForRole(p.Role)
+	perms.MicrophoneLocked = !canPublish
 	if err := s.provider.UpdateParticipant(ctx, meetings.UpdateProviderParticipantRequest{
-		RoomName: room, Identity: meetings.IdentityForParticipant(participantID), CanPublish: &canPublish,
+		RoomName: room, Identity: meetings.IdentityForParticipant(participantID), Permissions: perms,
 	}); err != nil {
 		return coded(http.StatusServiceUnavailable, "provider_unavailable", "không cập nhật được quyền media")
 	}
@@ -60,6 +66,6 @@ func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, mee
 	if canPublish {
 		action = "PARTICIPANT_PUBLISH_GRANTED"
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, action, actorID, "", participantID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, action, actorID, "", participantID, "{}")
 	return nil
 }

@@ -16,7 +16,7 @@ import {
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
-import { useWorkspaceEvents } from "@uniwork/core/realtime";
+import { useMeetingScope, useWorkspaceEvents } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -28,10 +28,12 @@ import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
+import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
+import { MeetingMotionsSection } from "./meeting-motions-section";
 import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
@@ -56,6 +58,9 @@ export function MeetingDetailView({
   const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
   useWorkspaceEvents(workspaceId);
+  // In-room events (roll, motions, transcript) are meeting-scoped; the detail
+  // page shows them live, so it holds the meeting open like the room does.
+  useMeetingScope(meetingId);
   const { data: meeting, isError, error, isPending, refetch } = useMeeting(meetingId);
   const { data: invitations } = useInvitations(meetingId);
   const { data: participants } = useParticipants(meetingId);
@@ -221,11 +226,19 @@ export function MeetingDetailView({
                   <MeetingJoinRequestsPanel meetingId={meetingId} compact />
                 </div>
               ) : null}
+              {/* Drafted before the meeting and run while it is live: the head of the working column. */}
+              <div className="order-3 min-w-0 empty:hidden">
+                <MeetingMotionsSection meeting={meeting} workspaceId={workspaceId} />
+              </div>
               {showSummary ? (
                 <div className="order-3 min-w-0">
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
                 </div>
               ) : null}
+              {/* The roll is working space while the meeting runs, so it gets the wide column. */}
+              <div className="order-3 min-w-0 empty:hidden">
+                <MeetingAttendanceCard meeting={meeting} workspaceId={workspaceId} />
+              </div>
               <div className="order-3 min-w-0">
                 <MeetingNotesSection meetingId={meetingId} locked={closed} />
               </div>

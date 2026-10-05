@@ -109,7 +109,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		return DocumentFileResult{}, Invalid("tên tài liệu tối đa 500 ký tự")
 	}
 	if in.ParentID != "" {
-		if _, _, err := s.authorizeDocument(ctx, actor, in.ParentID, DocumentLevelEdit); err != nil {
+		if err := s.authorizeParentIn(ctx, actor, in.ParentID, src.WorkspaceID); err != nil {
 			return DocumentFileResult{}, err
 		}
 	}

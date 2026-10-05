@@ -3,14 +3,13 @@
 import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { BatchUpdateBody } from "@uniwork/core/api/endpoints/tasks-suite";
-import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
+import type { Task, TaskPriority } from "@uniwork/core/types";
 import { DateField } from "../../common/date-field";
-import { PriorityIcon } from "../icons/priority-icon";
-import { StatusIcon } from "../icons/status-icon";
 import {
   AssigneePicker,
   PriorityPicker,
   StatusPicker,
+  useDecoratedAssigneeOptions,
   type AssigneeOption,
 } from "../pickers";
 
@@ -19,10 +18,12 @@ import {
 type BatchUpdates = BatchUpdateBody["updates"];
 
 export function BatchStatusPicker({
+  workspaceId,
   status,
   disabled,
   onUpdate,
 }: {
+  workspaceId: string;
   status: string | null;
   disabled?: boolean;
   onUpdate: (updates: BatchUpdates) => void;
@@ -36,11 +37,13 @@ export function BatchStatusPicker({
           single value to display. */}
       <span data-testid="batch-status-value" data-status={status ?? "__none__"} hidden />
       <StatusPicker
-        value={status as TaskStatus | null}
+        workspaceId={workspaceId}
+        value={status}
         disabled={disabled}
         ariaLabel={label}
+        searchPlaceholder={t("tasks.create.status_search_placeholder")}
+        noResultsLabel={t("tasks.create.options_no_results")}
         align="center"
-        icon={(value) => <StatusIcon status={value} className="size-3.5" />}
         onChange={(value) => onUpdate({ status: value })}
       >
         {label}
@@ -66,7 +69,6 @@ export function BatchPriorityPicker({
       disabled={disabled}
       ariaLabel={label}
       align="center"
-      icon={(value) => <PriorityIcon priority={value} />}
       onChange={(value) => onUpdate({ priority: value })}
     >
       {label}
@@ -75,12 +77,14 @@ export function BatchPriorityPicker({
 }
 
 export function BatchAssigneePicker({
+  workspaceId,
   assigneeId,
   mixed,
   disabled,
   members,
   onUpdate,
 }: {
+  workspaceId: string;
   assigneeId: string | null;
   mixed?: boolean;
   disabled?: boolean;
@@ -96,11 +100,11 @@ export function BatchAssigneePicker({
   }, [assigneeId, members, mixed, t]);
   // Batch only ever offers human members (no agent assignment here — see
   // assignee-picker.tsx and the task-2 report for why that stays as-is).
-  const options: AssigneeOption[] = members.map((m) => ({
-    id: m.id,
-    kind: "human",
-    name: m.name,
-  }));
+  const baseOptions = useMemo<AssigneeOption[]>(
+    () => members.map((m) => ({ id: m.id, kind: "human", name: m.name })),
+    [members],
+  );
+  const options = useDecoratedAssigneeOptions(workspaceId, baseOptions);
 
   return (
     <AssigneePicker

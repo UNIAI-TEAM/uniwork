@@ -1,18 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
-import {
-  Eye,
-  EyeOff,
-  MicOff,
-  MoreVertical,
-  Pin,
-  PinOff,
-  UserMinus,
-  Volume2,
-} from "lucide-react";
+import { Eye, EyeOff, Lock, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -26,7 +18,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRoleChip } from "./meeting-role-chip";
 import type { MeetingParticipantRole } from "./meeting-signals";
-import { useMeetingSignals } from "./use-meeting-signals";
+import { MeetingModerationMenuItems, useMicLocked } from "./meeting-moderation";
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -36,29 +28,29 @@ export function MeetingParticipantRow({
   participant,
   subtitle,
   canHost,
-  onRemove,
-  onRevokeSpeaking,
-  onAllowSpeaking,
   pinned,
   avatarUrl,
   roleChip = null,
+  menuExtra = null,
+  removable = true,
 }: {
   participant: Participant;
   subtitle?: string;
   canHost?: boolean;
-  onRemove?: () => void;
-  onRevokeSpeaking?: () => void;
-  onAllowSpeaking?: () => void;
   pinned?: boolean;
   /** Photo for this person when the caller can resolve it (e.g. from workspace members). */
   avatarUrl?: unknown;
-  /** Guest or agent chip beside the name; `null` for a workspace member. */
+  /** Guest, agent, secretary or observer chip beside the name; `null` for a plain member. */
   roleChip?: MeetingParticipantRole | null;
+  /** Extra menu entries the caller owns, e.g. the host's role controls. */
+  menuExtra?: ReactNode;
+  /** False on the meeting host's row: no "remove" entry. */
+  removable?: boolean;
 }) {
   const { t } = useTranslation();
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
-  const { requestMute } = useMeetingSignals();
+  const micLocked = useMicLocked(participant);
   const pinParticipant = useMeetingViewSessionStore((s) => s.pinParticipant);
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
@@ -86,7 +78,15 @@ export function MeetingParticipantRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {micMuted ? (
+        {micLocked ? (
+          <span
+            role="img"
+            className="flex size-7 items-center justify-center rounded-full text-warning"
+            aria-label={t("meetings.micLocked")}
+          >
+            <Lock aria-hidden className="size-3.5" />
+          </span>
+        ) : micMuted ? (
           <span
             role="img"
             className="flex size-7 items-center justify-center rounded-full text-muted-foreground"
@@ -137,34 +137,10 @@ export function MeetingParticipantRow({
               )}
               {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
             </DropdownMenuItem>
-            {canHost && !participant.isLocal ? (
-              <>
-                {!micMuted ? (
-                  <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
-                    <MicOff aria-hidden className="size-4" />
-                    {t("meetings.muteParticipant", { name })}
-                  </DropdownMenuItem>
-                ) : null}
-                {canHost && !participant.isLocal && onRevokeSpeaking && !micMuted ? (
-                  <DropdownMenuItem onClick={onRevokeSpeaking}>
-                    <MicOff aria-hidden className="size-4" />
-                    {t("meetings.revokeSpeaking")}
-                  </DropdownMenuItem>
-                ) : null}
-                {canHost && !participant.isLocal && onAllowSpeaking && micMuted ? (
-                  <DropdownMenuItem onClick={onAllowSpeaking}>
-                    <Volume2 aria-hidden className="size-4" />
-                    {t("meetings.allowSpeakingAgain")}
-                  </DropdownMenuItem>
-                ) : null}
-                {onRemove ? (
-                  <DropdownMenuItem variant="destructive" onClick={onRemove}>
-                    <UserMinus aria-hidden className="size-4" />
-                    {t("meetings.removeFromCall")}
-                  </DropdownMenuItem>
-                ) : null}
-              </>
+            {canHost ? (
+              <MeetingModerationMenuItems participant={participant} micMuted={micMuted} removable={removable} />
             ) : null}
+            {menuExtra}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -25,7 +25,6 @@
 .feature-page-details p { margin-top: 20px; max-width: 48ch; }
 .feature-page-details ul { display: grid; gap: 24px; align-content: center; }
 .feature-page-details li { display: flex; align-items: flex-start; gap: 14px; font-size: var(--text-body-lg); line-height: 1.7; }
-.feature-page-details li svg { width: 20px; height: 20px; color: var(--brand); margin-top: 4px; }
 .feature-page-related { max-width: var(--marketing-width); padding: 48px var(--marketing-inline) 64px; margin: 0 auto 48px; background: var(--landing-stage-soft); border-radius: 16px; }
 .feature-page-related > div { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 32px; }
 .feature-page-related a { display: flex; align-items: flex-start; gap: 14px; flex: 1 1 250px; padding-block: 16px; }

@@ -173,3 +173,35 @@ func TestRecordRejectsIncompleteEntry(t *testing.T) {
 		t.Fatal("an entry without an actor kind must be rejected")
 	}
 }
+
+// A guest who joined a meeting by invite link has no user row. Guest keeps
+// the audit row honest about who acted instead of filing a guest session id
+// as a human, and the outbox row carries the same kind.
+func TestRecordStoresGuestActor(t *testing.T) {
+	g := Guest("g1")
+	if g.Kind != KindGuest || g.ID != "g1" {
+		t.Fatalf("Guest(g1) = %+v", g)
+	}
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	e := entry()
+	e.Actor = g
+	if err := NewRecorder().Record(ctx, db.New(pool), e,
+		Event{Topic: "task.updated", Payload: map[string]string{"task_id": "t1"}}); err != nil {
+		t.Fatal(err)
+	}
+	var kind, id string
+	if err := pool.QueryRow(ctx, `SELECT actor_kind, actor_id FROM audit_events`).Scan(&kind, &id); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "guest" || id != "g1" {
+		t.Fatalf("audit actor = %s/%s, want guest/g1", kind, id)
+	}
+	var outboxKind string
+	if err := pool.QueryRow(ctx, `SELECT actor_kind FROM outbox_events`).Scan(&outboxKind); err != nil {
+		t.Fatal(err)
+	}
+	if outboxKind != "guest" {
+		t.Fatalf("outbox actor_kind = %q, want guest", outboxKind)
+	}
+}

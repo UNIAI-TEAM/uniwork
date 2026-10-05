@@ -1,4 +1,4 @@
-# 0025 — Office desktop host: Electron boundary and typed IPC
+# 0026 — Office desktop host: Electron boundary and typed IPC
 
 **Trạng thái:** accepted (2026-09-29, G4-D2; UNI-830)
 **Issue:** UNI-830 · **Liên quan:** UNI-636, G4-01a, G4-02a

@@ -137,34 +137,27 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 	return nil
 }
 
-// SignalPresence broadcasts that the caller is online or offline in the workspace.
-func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) error {
+// SignalPresence records a presence heartbeat ("online", the default) or an
+// explicit leave ("offline") in the workspace. The workspace hears about it
+// only when the caller's state changes (chat_presence.go). An online beat
+// returns the users online in the workspace, the caller included; nil when
+// the store could not answer or for a leave.
+func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) ([]string, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return err
+		return nil, err
 	}
 	normalized := strings.ToLower(strings.TrimSpace(state))
 	if normalized == "" {
 		normalized = "online"
 	}
-	if normalized != "online" && normalized != "offline" {
-		return Invalid("state must be online or offline")
+	switch normalized {
+	case "online":
+		return s.presence().beat(ctx, workspaceID, userID)
+	case "offline":
+		return nil, s.presence().leave(ctx, workspaceID, userID)
+	default:
+		return nil, Invalid("state must be online or offline")
 	}
-	topic := "user.presence"
-	if normalized == "online" {
-		if !shouldPublishPresence(userID, time.Now()) {
-			return nil
-		}
-	} else {
-		clearPresenceThrottle(userID)
-		topic = "user.offline"
-	}
-	s.pub.Publish(ctx, workspaceID, Event{
-		Type: topic,
-		Payload: map[string]string{
-			"user_id": userID,
-		},
-	})
-	return nil
 }
 
 func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom, userID string) {

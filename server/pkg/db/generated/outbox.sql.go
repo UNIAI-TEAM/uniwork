@@ -11,10 +11,161 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimPendingOutboxExcept = `-- name: ClaimPendingOutboxExcept :many
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = $1,
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => $2::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+    AND topic <> ALL($3::text[])
+  ORDER BY created_at
+  LIMIT $4
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at, organization_id, event_version, correlation_id, actor_kind, actor_id, done_at, dead_at
+`
+
+type ClaimPendingOutboxExceptParams struct {
+	LockedBy     pgtype.Text `json:"locked_by"`
+	LeaseSeconds float64     `json:"lease_seconds"`
+	Excluded     []string    `json:"excluded"`
+	LimitN       int32       `json:"limit_n"`
+}
+
+// tenant: system
+// The realtime lane claims every topic no other lane owns, so a topic nobody
+// consumes yet is still completed instead of pending forever.
+func (q *Queries) ClaimPendingOutboxExcept(ctx context.Context, arg ClaimPendingOutboxExceptParams) ([]OutboxEvent, error) {
+	rows, err := q.db.Query(ctx, claimPendingOutboxExcept,
+		arg.LockedBy,
+		arg.LeaseSeconds,
+		arg.Excluded,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutboxEvent{}
+	for rows.Next() {
+		var i OutboxEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Topic,
+			&i.Payload,
+			&i.Status,
+			&i.Attempts,
+			&i.LastError,
+			&i.AvailableAt,
+			&i.CreatedAt,
+			&i.LockedBy,
+			&i.LockedAt,
+			&i.LockedUntil,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.EventVersion,
+			&i.CorrelationID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.DoneAt,
+			&i.DeadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimPendingOutboxTopics = `-- name: ClaimPendingOutboxTopics :many
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = $1,
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => $2::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+    AND topic = ANY($3::text[])
+  ORDER BY created_at
+  LIMIT $4
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at, organization_id, event_version, correlation_id, actor_kind, actor_id, done_at, dead_at
+`
+
+type ClaimPendingOutboxTopicsParams struct {
+	LockedBy     pgtype.Text `json:"locked_by"`
+	LeaseSeconds float64     `json:"lease_seconds"`
+	Topics       []string    `json:"topics"`
+	LimitN       int32       `json:"limit_n"`
+}
+
+// tenant: system
+// One dispatcher lane claims only its own topics, so a slow lane's backlog
+// never sits in front of another lane's rows. Same lease as ClaimPendingOutbox.
+func (q *Queries) ClaimPendingOutboxTopics(ctx context.Context, arg ClaimPendingOutboxTopicsParams) ([]OutboxEvent, error) {
+	rows, err := q.db.Query(ctx, claimPendingOutboxTopics,
+		arg.LockedBy,
+		arg.LeaseSeconds,
+		arg.Topics,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutboxEvent{}
+	for rows.Next() {
+		var i OutboxEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Topic,
+			&i.Payload,
+			&i.Status,
+			&i.Attempts,
+			&i.LastError,
+			&i.AvailableAt,
+			&i.CreatedAt,
+			&i.LockedBy,
+			&i.LockedAt,
+			&i.LockedUntil,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.EventVersion,
+			&i.CorrelationID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.DoneAt,
+			&i.DeadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countDeadOutbox = `-- name: CountDeadOutbox :one
 SELECT count(*)::bigint AS dead FROM outbox_events WHERE dead_at IS NOT NULL
 `
 
+// tenant: system
 func (q *Queries) CountDeadOutbox(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countDeadOutbox)
 	var dead int64
@@ -76,12 +227,13 @@ type MarkOutboxDeadParams struct {
 	LastError pgtype.Text `json:"last_error"`
 }
 
+// tenant: system
 func (q *Queries) MarkOutboxDead(ctx context.Context, arg MarkOutboxDeadParams) error {
 	_, err := q.db.Exec(ctx, markOutboxDead, arg.ID, arg.LastError)
 	return err
 }
 
-const markOutboxDoneAt = `-- name: MarkOutboxDoneAt :exec
+const markOutboxDoneBatch = `-- name: MarkOutboxDoneBatch :exec
 UPDATE outbox_events SET
   status = 'DONE',
   completed_at = now(),
@@ -90,11 +242,12 @@ UPDATE outbox_events SET
   locked_at = NULL,
   locked_until = NULL,
   updated_at = now()
-WHERE id = $1
+WHERE id = ANY($1::text[])
 `
 
-func (q *Queries) MarkOutboxDoneAt(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markOutboxDoneAt, id)
+// tenant: system
+func (q *Queries) MarkOutboxDoneBatch(ctx context.Context, ids []string) error {
+	_, err := q.db.Exec(ctx, markOutboxDoneBatch, ids)
 	return err
 }
 
@@ -115,6 +268,7 @@ type OutboxStatsByTopicRow struct {
 	OldestPendingAgeSeconds float64 `json:"oldest_pending_age_seconds"`
 }
 
+// tenant: system
 func (q *Queries) OutboxStatsByTopic(ctx context.Context) ([]OutboxStatsByTopicRow, error) {
 	rows, err := q.db.Query(ctx, outboxStatsByTopic)
 	if err != nil {

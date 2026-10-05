@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -8,6 +8,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useParticipants } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { isPastScheduledEnd, useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
@@ -34,6 +35,7 @@ import {
   meetingLocale,
 } from "./meeting-datetime";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 
 const URGENT_MS = 5 * 60_000;
 const HEADER_AVATARS = 4;
@@ -97,7 +99,64 @@ function RecordingAnnouncer({ recording }: { recording: boolean }) {
   );
 }
 
-export function MeetingStageHeader({
+/** Joins and leaves are always followed; a rename is the one other change the avatars show. */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
+
+/**
+ * Who is here, next to the clock; a click opens the full list. Its own leaf:
+ * the roster changes far more often than anything else in the header.
+ */
+function StageHeaderPeople({ peopleOpen, onOpenPeople }: { peopleOpen: boolean; onOpenPeople?: () => void }) {
+  const { t } = useTranslation();
+  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const avatarOf = useRoomAvatarOf();
+  // Others first: your own face is the one you least need to find here.
+  const othersFirst = [...participants.filter((p) => !p.isLocal), ...participants.filter((p) => p.isLocal)];
+  const avatarPeople = othersFirst.slice(0, HEADER_AVATARS);
+  const overflowCount = Math.max(0, participants.length - HEADER_AVATARS);
+  if (avatarPeople.length === 0) return null;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="hidden h-8 gap-1.5 rounded-full px-1 hover:bg-meeting-bar-chip-hover aria-pressed:bg-meeting-bar-chip-bg sm:inline-flex"
+      // The visible "+N" leads the name, so voice control can say what it sees.
+      aria-label={
+        overflowCount > 0
+          ? t("meetings.roomPeopleViewMore", {
+              count: participants.length,
+              more: t("meetings.moreParticipantsShort", { count: overflowCount }),
+            })
+          : t("meetings.roomPeopleView", { count: participants.length })
+      }
+      aria-pressed={peopleOpen}
+      title={othersFirst.map((p) => p.name || p.identity).join(", ")}
+      onClick={onOpenPeople}
+    >
+      <span className="flex -space-x-2">
+        {avatarPeople.map((p) => (
+          <MeetingPersonAvatar
+            key={p.identity}
+            name={p.name || p.identity}
+            avatarUrl={avatarOf(p.identity)}
+            size="sm"
+            tone="stage"
+            className="ring-2 ring-meeting-stage"
+          />
+        ))}
+      </span>
+      {overflowCount > 0 ? (
+        <span aria-hidden className="pr-1 text-caption tabular-nums text-meeting-bar-muted-foreground">
+          {t("meetings.moreParticipantsShort", { count: overflowCount })}
+        </span>
+      ) : null}
+    </Button>
+  );
+}
+
+/** Memoized: the stage passes stable callbacks, so a tile or caption update never repaints it. */
+export const MeetingStageHeader = memo(function MeetingStageHeader({
   meeting,
   meetingTitle,
   workspaceId,
@@ -109,6 +168,7 @@ export function MeetingStageHeader({
   onToggleSidebar,
   onOpenSidebar,
   onOpenPeople,
+  peopleOpen = false,
 }: {
   meeting?: Meeting;
   meetingTitle?: string;
@@ -121,9 +181,10 @@ export function MeetingStageHeader({
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
   onOpenPeople?: () => void;
+  /** The people tab is on screen; the join-request panel steps aside. */
+  peopleOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const participants = useParticipants();
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const start = useStartMeeting(workspaceId ?? "");
   const end = useEndMeeting(workspaceId ?? "");
@@ -139,16 +200,15 @@ export function MeetingStageHeader({
   const inProgress = meeting?.status === "IN_PROGRESS";
   const showHostActions = Boolean(workspaceId && canHost.allowed && !guestMode);
   const showInvite = Boolean(meeting?.id && showHostActions);
-  const avatarPeople = participants.slice(0, HEADER_AVATARS);
-  const overflowCount = Math.max(0, participants.length - HEADER_AVATARS);
 
   return (
     <>
       <div
-        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
+        className="@container/stagehead relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
         data-testid="meeting-stage-header"
       >
-        <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
+        {/* Title and actions share a row only when the header has room; it narrows with the docked panel, not the window. */}
+        <div className="grid gap-1.5 @2xl/stagehead:grid-cols-[minmax(0,1fr)_auto] @2xl/stagehead:items-center @2xl/stagehead:gap-x-3">
           <div className="min-w-0">
             {meetingsHref && !guestMode ? (
               <nav
@@ -172,11 +232,15 @@ export function MeetingStageHeader({
               </nav>
             ) : null}
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0 [@media(max-height:500px)]:flex-nowrap">
-              <h1 className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground">
+              <h1
+                data-stage-heading
+                className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground"
+              >
                 {title}
               </h1>
               {scheduleRange && meeting ? (
-                <>
+                // The separator wraps with the time, never alone on a line.
+                <span className="flex min-w-0 items-baseline gap-x-2">
                   <span aria-hidden className="shrink-0 text-meeting-bar-muted-foreground">
                     ·
                   </span>
@@ -186,7 +250,7 @@ export function MeetingStageHeader({
                   >
                     {scheduleRange}
                   </time>
-                </>
+                </span>
               ) : null}
             </div>
             {description ? (
@@ -196,7 +260,7 @@ export function MeetingStageHeader({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 @2xl/stagehead:justify-end sm:gap-2">
             <RecordingAnnouncer recording={recording} />
             {recording ? (
               <span
@@ -212,6 +276,8 @@ export function MeetingStageHeader({
             ) : null}
 
             {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
+
+            <StageHeaderPeople peopleOpen={peopleOpen} onOpenPeople={onOpenPeople} />
 
             {showInvite ? (
               <Button
@@ -253,28 +319,8 @@ export function MeetingStageHeader({
               </Button>
             ) : null}
 
-            {avatarPeople.length > 0 ? (
-              <div className="hidden items-center sm:flex" aria-hidden>
-                <div className="flex -space-x-2">
-                  {avatarPeople.map((p) => (
-                    <MeetingPersonAvatar
-                      key={p.identity}
-                      name={p.name || p.identity}
-                      size="sm"
-                      className="ring-2 ring-meeting-stage"
-                    />
-                  ))}
-                </div>
-                {overflowCount > 0 ? (
-                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-muted-foreground">
-                    {t("meetings.moreParticipantsShort", { count: overflowCount })}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
             {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} />
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
             ) : null}
 
             {onOpenSidebar ? (
@@ -334,4 +380,4 @@ export function MeetingStageHeader({
       </AlertDialog>
     </>
   );
-}
+});

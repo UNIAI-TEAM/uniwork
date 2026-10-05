@@ -95,6 +95,7 @@ const getAgent = `-- name: GetAgent :one
 SELECT id, organization_id, name, handle, description, avatar_url, status, owner_user_id, autonomy_policy, allowed_tools, skills, budget_tokens_per_run, created_by, created_by_kind, created_at, updated_at, archived_at FROM agents WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetAgent(ctx context.Context, id string) (Agent, error) {
 	row := q.db.QueryRow(ctx, getAgent, id)
 	var i Agent
@@ -120,6 +121,27 @@ func (q *Queries) GetAgent(ctx context.Context, id string) (Agent, error) {
 	return i, err
 }
 
+const getAgentStatusInOrg = `-- name: GetAgentStatusInOrg :one
+SELECT status, archived_at FROM agents WHERE organization_id = $1 AND id = $2
+`
+
+type GetAgentStatusInOrgParams struct {
+	OrganizationID string `json:"organization_id"`
+	ID             string `json:"id"`
+}
+
+type GetAgentStatusInOrgRow struct {
+	Status     string             `json:"status"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+}
+
+func (q *Queries) GetAgentStatusInOrg(ctx context.Context, arg GetAgentStatusInOrgParams) (GetAgentStatusInOrgRow, error) {
+	row := q.db.QueryRow(ctx, getAgentStatusInOrg, arg.OrganizationID, arg.ID)
+	var i GetAgentStatusInOrgRow
+	err := row.Scan(&i.Status, &i.ArchivedAt)
+	return i, err
+}
+
 const getAgentsByIDs = `-- name: GetAgentsByIDs :many
 SELECT id, name, avatar_url, status FROM agents WHERE id = ANY($1::text[])
 `
@@ -131,6 +153,7 @@ type GetAgentsByIDsRow struct {
 	Status    string      `json:"status"`
 }
 
+// tenant: by-id
 func (q *Queries) GetAgentsByIDs(ctx context.Context, ids []string) ([]GetAgentsByIDsRow, error) {
 	rows, err := q.db.Query(ctx, getAgentsByIDs, ids)
 	if err != nil {
@@ -332,6 +355,7 @@ type UpdateAgentParams struct {
 	ID          string      `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateAgent(ctx context.Context, arg UpdateAgentParams) (Agent, error) {
 	row := q.db.QueryRow(ctx, updateAgent,
 		arg.Name,

@@ -1,62 +1,88 @@
 "use client";
 
-import type { ReactNode, SyntheticEvent } from "react";
-import { useTranslation } from "react-i18next";
-import { TASK_STATUSES, type TaskStatus } from "@uniwork/core/types";
-import { EnumFieldPicker, type EnumOption } from "./enum-field-picker";
+import type { ComponentProps, ReactNode } from "react";
+import { StatusIcon } from "../icons/status-icon";
+import { EnumFieldPicker } from "./enum-field-picker";
+import { useStatusCatalog, type StatusOption } from "./status-catalog";
 
-/**
- * Builds the TASK_STATUSES options list, translated via existing `tasks.status_*` keys.
- * The row actions menu reads it too, so the picker and the menu cannot drift.
- */
-export function useStatusOptions(
-  icon?: (status: TaskStatus) => ReactNode,
-): EnumOption[] {
-  const { t } = useTranslation();
-  return TASK_STATUSES.map((status) => ({
-    value: status,
-    label: t(`tasks.status_${status}`),
-    icon: icon?.(status),
-  }));
+type PassThrough = Omit<
+  ComponentProps<typeof EnumFieldPicker>,
+  "options" | "value" | "onChange" | "valueLabel" | "searchPlaceholder" | "noResultsLabel" | "children"
+>;
+
+export function StatusOptionIcon({
+  option,
+  className = "size-3.5",
+}: {
+  option: StatusOption;
+  className?: string;
+}) {
+  return (
+    <StatusIcon
+      status={option.key}
+      category={option.category}
+      color={option.color}
+      className={className}
+    />
+  );
 }
 
+/**
+ * The one status picker: detail sidebar, table cell, batch toolbar, chat
+ * peek, subtask row and the create dialog. Lists the workspace's catalog
+ * (custom statuses included, archived ones left out) with the same icon
+ * everywhere. Without `children` the trigger shows the current status's icon
+ * and label, and the accessible name carries both; a caller that passes
+ * `children` (a fixed action label, an icon-only trigger) owns what is
+ * shown and passes `valueLabel` when the trigger shows the value.
+ */
 export function StatusPicker({
+  workspaceId,
   value,
   onChange,
-  disabled,
-  ariaLabel,
   valueLabel,
-  onTriggerNavigationGuard,
-  triggerClassName,
-  align,
-  icon,
+  searchPlaceholder,
+  noResultsLabel,
   children,
-}: {
-  value: TaskStatus | null;
-  onChange: (value: TaskStatus) => void;
-  disabled?: boolean;
-  ariaLabel: string;
+  ...rest
+}: PassThrough & {
+  workspaceId: string;
+  value: string | null;
+  onChange: (value: string) => void;
   valueLabel?: string;
-  onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
-  triggerClassName?: string;
-  align?: "start" | "center" | "end";
-  icon?: (status: TaskStatus) => ReactNode;
-  children: ReactNode;
+  searchPlaceholder?: string;
+  noResultsLabel?: string;
+  children?: ReactNode;
 }) {
-  const options = useStatusOptions(icon);
+  const { options, optionOf } = useStatusCatalog(workspaceId);
+  const current = value ? optionOf(value) : null;
   return (
     <EnumFieldPicker
+      {...rest}
       value={value}
-      options={options}
-      onChange={(next) => onChange(next as TaskStatus)}
-      disabled={disabled}
-      ariaLabel={ariaLabel}
-      valueLabel={valueLabel}
-      onTriggerNavigationGuard={onTriggerNavigationGuard}
-      triggerClassName={triggerClassName}
-      align={align}
+      onChange={onChange}
+      valueLabel={children === undefined ? current?.label : valueLabel}
+      searchPlaceholder={searchPlaceholder}
+      noResultsLabel={noResultsLabel}
+      options={options.map((option) => ({
+        value: option.key,
+        label: option.label,
+        content: (
+          <>
+            <StatusOptionIcon option={option} />
+            <span className="truncate">{option.label}</span>
+          </>
+        ),
+      }))}
     >
-      {children}
+      {children === undefined && current ? (
+        <>
+          <StatusOptionIcon option={current} className="size-3.5 shrink-0" />
+          <span className="truncate">{current.label}</span>
+        </>
+      ) : (
+        children
+      )}
     </EnumFieldPicker>
   );
 }

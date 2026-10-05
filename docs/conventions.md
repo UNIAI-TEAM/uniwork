@@ -181,6 +181,16 @@ fails on drift. One flat namespace, keys nested by section:
 | notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
 | mention (@someone) | **nhắc** / **nhắc đến** | Mention | `notifications.kind.mentioned = "… đã nhắc đến bạn …"` |
 | note (meeting) | **ghi chú** | Note | |
+| attendance | **điểm danh** | Attendance | `meetings.governance.attendanceTitle` |
+| observer | **dự thính** | Observer | `meetings.governance.standing_OBSERVER`; the other standing is **thành viên** / Member |
+| secretary | **thư ký** | Secretary | `meetings.governance.secretary`; code calls whoever runs attendance and votes (host, secretary, workspace admin) the "clerk" (`useMeetingClerk`, `requireMeetingClerk`) — never a user-facing word |
+| quorum | **tỉ lệ có mặt tối thiểu** | Minimum attendance | `meetings.quorumLabel`; spell "tỉ lệ", not "tỷ lệ"; never the loanword "quorum" in vi copy |
+| motion (an item put to a vote) | **nội dung biểu quyết** | Vote item | `meetings.governance.motionAdd = "Thêm nội dung"`; the section and room tab are **Biểu quyết** / Votes; not "kiến nghị", not "đề xuất" |
+| ballot | **phiếu** | Vote | `meetings.governance.voteSubmit = "Gửi phiếu"`; one per member on the roll |
+| vote (verb) | **bỏ phiếu** | Vote | `meetings.governance.motionStatus_OPEN = "Đang bỏ phiếu"` |
+| pass / passed | **thông qua** | Pass / Passed | `outcome_PASSED = "Thông qua"`, `outcome_FAILED = "Không thông qua"` |
+| abstain | **không ý kiến** | Abstain | `choice_ABSTAIN`; for / against are **tán thành** / **không tán thành** |
+| secret ballot | **bỏ phiếu kín** | Secret ballot | `ballotMode_SECRET`; the other mode is **công khai** / Open ballot |
 | onboarding | **onboarding** | Onboarding | section name stays English |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian

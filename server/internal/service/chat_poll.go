@@ -181,12 +181,13 @@ func (s *ChatService) SendPollMessage(
 
 	anchorWS := roomAnchorWorkspaceID(room)
 	msg, err := s.q.CreateChatPollMessage(ctx, db.CreateChatPollMessageParams{
-		ID:          util.NewID(),
-		RoomID:      room.ID,
-		WorkspaceID: anchorWS,
-		SenderID:    userID,
-		Body:        question,
-		Metadata:    meta,
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       userID,
+		Body:           question,
+		Metadata:       meta,
 	})
 	if err != nil {
 		return ChatMessageRow{}, err

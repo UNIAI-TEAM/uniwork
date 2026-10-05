@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Forward, RefreshCw, Reply, ReplyAll } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useEmailHubConversation } from "@uniwork/core/email-hub/hooks";
+import {
+  emailHubBodyAwaitingMailboxRefetch,
+  useEmailHubConversation,
+} from "@uniwork/core/email-hub/hooks";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -30,17 +33,18 @@ interface EmailHubThreadDetailProps {
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
+  onBodyRefetch: () => void;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
 }
 
-function BodySkeleton() {
+function BodySkeleton({ refetchFromMailbox = false }: { refetchFromMailbox?: boolean }) {
   const { t } = useTranslation();
   return (
     <div className="space-y-3 rounded-lg border border-border p-5" aria-busy="true">
       <p className="text-caption text-muted-foreground" role="status">
-        {t("email_hub.body_loading")}
+        {refetchFromMailbox ? t("email_hub.body_refetch_from_mailbox") : t("email_hub.body_loading")}
       </p>
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-5/6" />
@@ -59,6 +63,7 @@ export function EmailHubThreadDetail({
   readableBody,
   bodyLoading,
   bodyLoadFailed,
+  onBodyRefetch,
   actions,
   pending,
   aiOpen,
@@ -72,8 +77,12 @@ export function EmailHubThreadDetail({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [alwaysShowRemoteImages, setAlwaysShowRemoteImages] = useEmailHubRemoteImagesPref();
   const [allowRemoteImages, setAllowRemoteImages] = useState(alwaysShowRemoteImages);
-  const conversation = useEmailHubConversation(wsId, accountId, activeThread.id);
+  const conversationCount =
+    detailData?.conversation_message_count ?? activeThread.conversation_message_count ?? 1;
+  const needsConversation = conversationCount > 1;
+  const conversation = useEmailHubConversation(wsId, accountId, needsConversation ? activeThread.id : null);
   const allowRemote = alwaysShowRemoteImages || allowRemoteImages;
+  const refetchFromMailbox = emailHubBodyAwaitingMailboxRefetch(detailData ?? activeThread, bodyLoading);
 
   const messages = useMemo(() => {
     const list = conversation.data?.messages?.filter(Boolean) ?? [];
@@ -91,7 +100,8 @@ export function EmailHubThreadDetail({
     headingRef.current?.focus({ preventScroll: true });
   }, [activeThread.id]);
 
-  const showPrimarySkeleton = !multiMessage && bodyLoading;
+  const showPrimarySkeleton = !multiMessage && (bodyLoading || (!readableBody && !bodyLoadFailed));
+  const showBodyLoadFailed = !multiMessage && bodyLoadFailed;
 
   return (
     <article className="flex h-full min-h-0 w-full min-w-0 flex-col" aria-labelledby="email-hub-thread-subject">
@@ -165,7 +175,7 @@ export function EmailHubThreadDetail({
           </header>
 
           {conversation.isLoading && multiMessage ? (
-            <BodySkeleton />
+            <BodySkeleton refetchFromMailbox={refetchFromMailbox} />
           ) : multiMessage ? (
             <div className="space-y-4">
               {messages.map((msg) => (
@@ -175,6 +185,7 @@ export function EmailHubThreadDetail({
                   accountId={accountId}
                   message={msg}
                   detailOverride={msg.id === activeThread.id ? detailData : null}
+                  bodyFetchPriority={msg.id === activeThread.id}
                   allowRemote={allowRemote}
                   onAllowRemote={() => {
                     setAllowRemoteImages(true);
@@ -185,13 +196,21 @@ export function EmailHubThreadDetail({
               ))}
             </div>
           ) : showPrimarySkeleton ? (
-            <BodySkeleton />
+            <BodySkeleton refetchFromMailbox={refetchFromMailbox} />
+          ) : showBodyLoadFailed ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-10 text-center">
+              <p className="text-body text-muted-foreground">{t("email_hub.load_error")}</p>
+              <Button type="button" variant="outline" onClick={onBodyRefetch}>
+                <RefreshCw aria-hidden />
+                {t("common.retry")}
+              </Button>
+            </div>
           ) : (
             <EmailHubConversationMessage
               wsId={wsId}
               accountId={accountId}
               message={activeThread}
-              detailOverride={detailData}
+              detailOverride={readableBody ? detailData : null}
               allowRemote={allowRemote}
               onAllowRemote={() => {
                 setAllowRemoteImages(true);

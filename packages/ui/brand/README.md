@@ -100,20 +100,53 @@ point the valleys and the underside of the crest come to visible points.
 
 ```bash
 pnpm brand:build                          # mark + rasters
-BRAND_FONT_TTF=/path/to/PlusJakartaSans[wght].ttf pnpm brand:build   # + wordmark and lockups
+BRAND_FONT_TTF=/path/to/PlusJakartaSans[wght].ttf pnpm brand:build   # + wordmark, lockups, link previews
 ```
 
 Three steps: `build-svg.py` draws the mark, `build-assets.mjs` rasterises it in
 Chromium, `squeeze.py` re-encodes the output. The squeeze is not cosmetic —
 Chromium writes PNGs at zlib's default level with no filter search, and the pass
-takes the shipped rasters from 422 KB to 137 KB. It also converts the Open Graph
-card to JPEG, which is why `apps/web/app/` holds `opengraph-image.jpg`.
+takes the shipped icons from 422 KB to 137 KB.
 
 Needs `python3` with `fonttools` and `pillow`. Chromium comes from the repo's
-Playwright install. The wordmark step is skipped without `BRAND_FONT_TTF` — its
-outlines are already committed, so a mark-only change does not need the font.
+Playwright install. The wordmark and link-preview steps are skipped without
+`BRAND_FONT_TTF` — their output is committed, so a mark-only change does not
+need the font. Pin the font file you rebuild the wordmark with: a newer Plus
+Jakarta release moves the outlines by fractions of a unit.
 Plus Jakarta Sans is OFL-licensed (google/fonts, `ofl/plusjakartasans`); the
-variable file is fine, the build instances it at ExtraBold. The binary is not
+variable file is fine, the build instances the weights it needs. The binary is not
 committed because nothing at runtime reads it.
 
 Changing the mark means editing `scripts/brand/geometry.py`, never the SVGs.
+
+## Link previews
+
+What Slack, X, LinkedIn, Telegram, iMessage and WhatsApp show for a pasted
+UniWork URL. Four 1200×630 cards, one layout (`scripts/brand/og-cards.mjs`):
+the lockup, a two-line headline, a subline, and on the right the product's own
+objects — a task a person and UNI own together, a live meeting, Ask UNI — in
+the product's tint and signal colours with lucide icons.
+
+| Card | File | Used by |
+| --- | --- | --- |
+| Your team. One workspace. | `apps/web/app/opengraph-image.png` | every page without its own card |
+| You're invited to a meeting. | `apps/web/public/brand/og/meeting-invite.png` | `/invite/meeting/*` |
+| You're invited to join the team. | `apps/web/public/brand/og/workspace-invite.png` | `/invite/*` |
+| A document, shared with you. | `apps/web/public/brand/og/shared-document.png` | `/share/*` |
+
+- **English, always.** A crawler sends no locale cookie, and English is the
+  product default for that request. The cards speak to a team anywhere.
+- **Nothing behind the link's secret.** Invite and share previews never name
+  the meeting, workspace or document: an unfurl prints them for a whole
+  channel.
+- **Pages name their card.** `apps/web/platform/share-metadata.ts` writes
+  title, description, Open Graph and Twitter tags from one copy and points at
+  the card through `og-image.generated.ts`. A segment that sets `openGraph`
+  otherwise loses the root card Next wires by file convention.
+- **A changed card is a changed URL.** Unfurlers cache images for weeks; each
+  URL carries `?v=` from the card's own HTML.
+- The cards are PNG: flat fields and type are smaller and exact in PNG (~80 KB
+  each), under the ~300 KB WhatsApp will preview.
+
+Editing the copy or layout means rebuilding with the font;
+`brand-assets.test.mjs` fails while `og-cards.mjs` and the lock disagree.

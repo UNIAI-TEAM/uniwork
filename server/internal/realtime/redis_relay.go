@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,11 @@ const (
 	heartbeatPeriod           = 30 * time.Second
 	consumerIdleGrace         = 10 * time.Minute
 	consumerSweepPeriod       = 5 * time.Minute
+	// streamIdleTTL is how long a scope's stream and node registry outlive
+	// their last write or heartbeat. Every XADD and every heartbeat of a
+	// node with local subscribers pushes it back, so only keys nobody
+	// publishes to or listens on expire — and their groups go with them.
+	streamIdleTTL = time.Hour
 )
 
 // envelope is what we serialise into each XADD message. It is opaque to the
@@ -45,6 +51,10 @@ type envelope struct {
 	CreatedAt   string `json:"created_at"`
 	NodeID      string `json:"node_id"`
 	PayloadJSON string `json:"payload_json"` // raw JSON of the original ws frame
+	// LocalDelivered marks an envelope the publishing node already fanned
+	// out to its own clients (DualWriteBroadcaster); that node's consumer
+	// drops it when it reads it back.
+	LocalDelivered bool `json:"local_delivered"`
 }
 
 func newEnvelope(nodeID, scopeType, scopeID, exclude string, frame []byte, id string) envelope {
@@ -68,16 +78,24 @@ func newEnvelope(nodeID, scopeType, scopeID, exclude string, frame []byte, id st
 
 func envelopeRedisValues(ev envelope) map[string]any {
 	return map[string]any{
-		"event_id":     ev.EventID,
-		"event_type":   ev.EventType,
-		"scope":        ev.Scope,
-		"scope_id":     ev.ScopeID,
-		"workspace_id": ev.WorkspaceID,
-		"actor_id":     ev.ActorID,
-		"created_at":   ev.CreatedAt,
-		"node_id":      ev.NodeID,
-		"payload_json": ev.PayloadJSON,
+		"event_id":        ev.EventID,
+		"event_type":      ev.EventType,
+		"scope":           ev.Scope,
+		"scope_id":        ev.ScopeID,
+		"workspace_id":    ev.WorkspaceID,
+		"actor_id":        ev.ActorID,
+		"created_at":      ev.CreatedAt,
+		"node_id":         ev.NodeID,
+		"payload_json":    ev.PayloadJSON,
+		"local_delivered": localDeliveredValue(ev.LocalDelivered),
 	}
+}
+
+func localDeliveredValue(b bool) string {
+	if b {
+		return "1"
+	}
+	return ""
 }
 
 func envelopeFromXMessage(msg redis.XMessage) (envelope, bool) {
@@ -91,6 +109,10 @@ func envelopeFromXMessage(msg redis.XMessage) (envelope, bool) {
 		CreatedAt:   redisString(msg.Values["created_at"]),
 		NodeID:      redisString(msg.Values["node_id"]),
 		PayloadJSON: redisString(msg.Values["payload_json"]),
+		// Envelopes from a node that predates the field read as not
+		// delivered, which is what they were: those nodes fan out locally
+		// only through the loopback.
+		LocalDelivered: redisString(msg.Values["local_delivered"]) == "1",
 	}
 	return ev, ev.PayloadJSON != ""
 }
@@ -256,10 +278,15 @@ func (r *RedisRelay) Broadcast(message []byte) {
 }
 
 func (r *RedisRelay) publish(scopeType, scopeID, exclude string, frame []byte) {
-	ev := newEnvelope(r.nodeID, scopeType, scopeID, exclude, frame, ulid.Make().String())
+	_ = r.xadd(newEnvelope(r.nodeID, scopeType, scopeID, exclude, frame, ulid.Make().String()))
+}
 
+// xadd appends ev to its scope's stream and pushes the stream's expiry
+// back in the same round trip.
+func (r *RedisRelay) xadd(ev envelope) error {
+	stream := StreamKey(ev.Scope, ev.ScopeID)
 	args := &redis.XAddArgs{
-		Stream: StreamKey(scopeType, scopeID),
+		Stream: stream,
 		MaxLen: streamMaxLen,
 		Approx: true,
 		Values: envelopeRedisValues(ev),
@@ -267,14 +294,20 @@ func (r *RedisRelay) publish(scopeType, scopeID, exclude string, frame []byte) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := r.writeRDB.XAdd(ctx, args).Err(); err != nil {
+	_, err := r.writeRDB.Pipelined(ctx, func(p redis.Pipeliner) error {
+		p.XAdd(ctx, args)
+		p.Expire(ctx, stream, streamIdleTTL)
+		return nil
+	})
+	if err != nil {
 		M.RedisXAddErrors.Add(1)
 		M.SetRedisLastError(err.Error())
-		slog.Warn("realtime/redis: XADD failed", "error", err, "scope", scopeType, "scope_id", scopeID)
-		return
+		slog.Warn("realtime/redis: XADD failed", "error", err, "scope", ev.Scope, "scope_id", ev.ScopeID)
+		return err
 	}
 	M.RedisXAddTotal.Add(1)
 	M.RedisLastXAddLagMicros.Store(time.Since(start).Microseconds())
+	return nil
 }
 
 // startConsumer kicks off a single per-scope XREADGROUP loop if not already
@@ -323,22 +356,13 @@ func (r *RedisRelay) runConsumer(ctx context.Context, c *scopeConsumer, scopeTyp
 	group := "node:" + r.nodeID
 	consumerName := r.nodeID
 
-	// MKSTREAM ensures the stream exists. Ignore BUSYGROUP.
-	createCtx, createCancel := context.WithTimeout(ctx, 2*time.Second)
-	if err := r.writeRDB.XGroupCreateMkStream(createCtx, stream, group, "$").Err(); err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+	if err := r.ensureGroup(ctx, stream, group); err != nil && ctx.Err() == nil {
 		slog.Warn("realtime/redis: XGROUP CREATE failed", "error", err, "scope", scopeType, "scope_id", scopeID)
 	}
-	createCancel()
+	r.register(ctx, []scopeKey{sk(scopeType, scopeID)})
 
-	// Register ourselves as a node interested in this scope.
-	regCtx, regCancel := context.WithTimeout(ctx, 2*time.Second)
-	r.writeRDB.ZAdd(regCtx, NodesKey(scopeType, scopeID), redis.Z{Score: float64(time.Now().Add(heartbeatTTL).Unix()), Member: r.nodeID})
-	regCancel()
-
-	for {
-		if ctx.Err() != nil {
-			break
-		}
+read:
+	for ctx.Err() == nil {
 		readCtx, readCancel := context.WithTimeout(ctx, 6*time.Second)
 		res, err := r.readRDB.XReadGroup(readCtx, &redis.XReadGroupArgs{
 			Group:    group,
@@ -354,10 +378,18 @@ func (r *RedisRelay) runConsumer(ctx context.Context, c *scopeConsumer, scopeTyp
 		if err != nil {
 			M.RedisXReadErrors.Add(1)
 			M.SetRedisLastError(err.Error())
+			// The stream expired or was deleted under us, taking the group
+			// with it: recreate both at the tail rather than failing on
+			// NOGROUP until the scope empties, and give the recreated
+			// stream its expiry at once.
+			if streamGone(err) && r.ensureGroup(ctx, stream, group) == nil {
+				r.register(ctx, []scopeKey{sk(scopeType, scopeID)})
+				continue
+			}
 			// Brief backoff to avoid busy-looping on a flapping connection.
 			select {
 			case <-ctx.Done():
-				return
+				break read
 			case <-time.After(time.Second):
 			}
 			continue
@@ -377,10 +409,68 @@ func (r *RedisRelay) runConsumer(ctx context.Context, c *scopeConsumer, scopeTyp
 		}
 	}
 
-	// Best-effort consumer cleanup.
+	// The group is this node's alone, so dropping it leaves other nodes'
+	// reads untouched and leaves nothing behind for a later 0→1 to replay.
+	// A consumer started for the scope while this one was still blocked in
+	// its read (a member leaving and rejoining) owns the group now and is
+	// left alone; if it registered just after this check, its next read
+	// sees NOGROUP and recreates the group.
+	r.mu.Lock()
+	successor, ok := r.consumers[sk(scopeType, scopeID)]
+	r.mu.Unlock()
+	if ok && successor != c {
+		return
+	}
 	cleanCtx, cleanCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	r.writeRDB.XGroupDelConsumer(cleanCtx, stream, group, consumerName)
+	if err := r.writeRDB.XGroupDestroy(cleanCtx, stream, group).Err(); err != nil {
+		slog.Debug("realtime/redis: XGROUP DESTROY failed", "error", err, "scope", scopeType, "scope_id", scopeID)
+	}
 	cleanCancel()
+}
+
+// ensureGroup creates this node's group on stream at the tail, or moves an
+// existing one there. The group is created when a scope goes 0→1 local
+// subscribers; a group left over from an earlier subscription (a cleanup
+// that never reached Redis) still points at the last id it delivered, and
+// reading '>' from there would hand the new subscriber every event it
+// missed while nobody on this node listened.
+func (r *RedisRelay) ensureGroup(ctx context.Context, stream, group string) error {
+	gctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	err := r.writeRDB.XGroupCreateMkStream(gctx, stream, group, "$").Err()
+	if err != nil && strings.Contains(err.Error(), "BUSYGROUP") {
+		err = r.writeRDB.XGroupSetID(gctx, stream, group, "$").Err()
+	}
+	return err
+}
+
+// streamGone reports a read that failed because the stream or this node's
+// group no longer exists.
+func streamGone(err error) bool {
+	msg := err.Error()
+	return strings.HasPrefix(msg, "NOGROUP") || strings.HasPrefix(msg, "UNBLOCKED")
+}
+
+// register records this node under each scope's registry and pushes back
+// the expiry of the scope's registry and stream, in one round trip.
+func (r *RedisRelay) register(ctx context.Context, scopes []scopeKey) {
+	if len(scopes) == 0 {
+		return
+	}
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	expiry := float64(time.Now().Add(heartbeatTTL).Unix())
+	if _, err := r.writeRDB.Pipelined(rctx, func(p redis.Pipeliner) error {
+		for _, key := range scopes {
+			nodes := NodesKey(key.Type, key.ID)
+			p.ZAdd(rctx, nodes, redis.Z{Score: expiry, Member: r.nodeID})
+			p.Expire(rctx, nodes, streamIdleTTL)
+			p.Expire(rctx, StreamKey(key.Type, key.ID), streamIdleTTL)
+		}
+		return nil
+	}); err != nil && ctx.Err() == nil {
+		slog.Debug("realtime/redis: scope registration failed", "error", err, "scopes", len(scopes))
+	}
 }
 
 func (r *RedisRelay) deliverMessage(scopeType, scopeID string, msg redis.XMessage) {
@@ -393,6 +483,9 @@ func (r *RedisRelay) deliverMessage(scopeType, scopeID string, msg redis.XMessag
 	}
 	if ev.ScopeID == "" {
 		ev.ScopeID = scopeID
+	}
+	if ev.LocalDelivered && ev.NodeID == r.nodeID {
+		return // fanned out here when it was published
 	}
 	deliverEnvelope(r.hub, ev)
 }
@@ -421,16 +514,14 @@ func (r *RedisRelay) heartbeatOnce(ctx context.Context) {
 		return
 	}
 	M.RedisConnected.Store(true)
-	expiry := float64(time.Now().Add(heartbeatTTL).Unix())
-	for _, key := range r.hub.LocalScopes() {
-		r.writeRDB.ZAdd(hbCtx, NodesKey(key.Type, key.ID), redis.Z{Score: expiry, Member: r.nodeID})
-	}
+	r.register(ctx, r.hub.LocalScopes())
 }
 
 // consumerSweeper periodically drops stale ZSET entries (nodes whose TTL
-// expired). Best-effort: we only sweep the scopes this node currently has
-// local subscribers for, since they're the only ones we can reason about
-// without scanning all keys.
+// expired) and those nodes' groups. Best-effort: we only sweep the scopes
+// this node currently has local subscribers for, since they're the only ones
+// we can reason about without scanning all keys — and they are the streams
+// that never sit idle long enough to expire with their dead groups.
 func (r *RedisRelay) consumerSweeper(ctx context.Context) {
 	t := time.NewTicker(consumerSweepPeriod)
 	defer t.Stop()
@@ -440,12 +531,35 @@ func (r *RedisRelay) consumerSweeper(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		now := float64(time.Now().Unix())
-		for _, key := range r.hub.LocalScopes() {
-			swCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			r.writeRDB.ZRemRangeByScore(swCtx, NodesKey(key.Type, key.ID), "-inf", fmt.Sprintf("%f", now))
-			cancel()
+		r.sweepOnce(ctx, time.Now())
+	}
+}
+
+// sweepStaleNodes removes every node whose registry entry expired from a
+// scope's registry (KEYS[1]) and destroys its group on the scope's stream
+// (KEYS[2]). A node that died without its consumers' cleanup (SIGKILL, or
+// a shutdown that did not wait out their blocked reads) leaves a group
+// behind on every stream it read. It runs as one script so a node
+// re-registering cannot be judged stale from an entry it has just
+// refreshed.
+var sweepStaleNodes = redis.NewScript(`
+local stale = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+for _, node in ipairs(stale) do
+  redis.pcall('XGROUP', 'DESTROY', KEYS[2], 'node:' .. node)
+  redis.call('ZREM', KEYS[1], node)
+end
+return #stale
+`)
+
+func (r *RedisRelay) sweepOnce(ctx context.Context, now time.Time) {
+	cutoff := strconv.FormatInt(now.Unix(), 10)
+	for _, key := range r.hub.LocalScopes() {
+		swCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		keys := []string{NodesKey(key.Type, key.ID), StreamKey(key.Type, key.ID)}
+		if err := sweepStaleNodes.Run(swCtx, r.writeRDB, keys, cutoff).Err(); err != nil && ctx.Err() == nil {
+			slog.Debug("realtime/redis: stale node sweep failed", "error", err, "scope", key.Type, "scope_id", key.ID)
 		}
+		cancel()
 	}
 }
 
@@ -514,7 +628,7 @@ func (d *DualWriteBroadcaster) BroadcastToScope(scopeType, scopeID string, messa
 	// Local fast path: BroadcastToScopeDedup marks each client as having
 	// seen `id`, so the Redis loopback for the same id will be ignored.
 	d.local.BroadcastToScopeDedup(scopeType, scopeID, frame, id)
-	_ = d.relay.PublishWithID(scopeType, scopeID, "", message, id)
+	d.publish(scopeType, scopeID, "", message, id)
 }
 
 func (d *DualWriteBroadcaster) BroadcastToWorkspace(workspaceID string, message []byte) {
@@ -529,38 +643,33 @@ func (d *DualWriteBroadcaster) SendToUser(userID string, message []byte, exclude
 	id := ulid.Make().String()
 	frame := injectEventID(message, id)
 	d.local.fanoutUser(userID, frame, exclude, id)
-	_ = d.relay.PublishWithID(ScopeUser, userID, exclude, message, id)
+	d.publish(ScopeUser, userID, exclude, message, id)
 }
 
 func (d *DualWriteBroadcaster) Broadcast(message []byte) {
 	id := ulid.Make().String()
 	frame := injectEventID(message, id)
 	d.local.fanoutAllDedup(frame, "", id)
-	_ = d.relay.PublishWithID("global", "all", "", message, id)
+	d.publish("global", "all", "", message, id)
+}
+
+// publish hands the event to the relay after the local fanout. A
+// *RedisRelay is told the event is already delivered here, so its own
+// consumer does not decode and re-fan it when it reads it back.
+func (d *DualWriteBroadcaster) publish(scopeType, scopeID, exclude string, message []byte, id string) {
+	if r, ok := d.relay.(*RedisRelay); ok {
+		ev := newEnvelope(r.nodeID, scopeType, scopeID, exclude, message, id)
+		ev.LocalDelivered = true
+		_ = r.xadd(ev)
+		return
+	}
+	_ = d.relay.PublishWithID(scopeType, scopeID, exclude, message, id)
 }
 
 // PublishWithID is like publish but uses a caller-supplied event id so the
 // dual-write path can dedup.
 func (r *RedisRelay) PublishWithID(scopeType, scopeID, exclude string, frame []byte, id string) error {
-	ev := newEnvelope(r.nodeID, scopeType, scopeID, exclude, frame, id)
-	args := &redis.XAddArgs{
-		Stream: StreamKey(scopeType, scopeID),
-		MaxLen: streamMaxLen,
-		Approx: true,
-		Values: envelopeRedisValues(ev),
-	}
-	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := r.writeRDB.XAdd(ctx, args).Err(); err != nil {
-		M.RedisXAddErrors.Add(1)
-		M.SetRedisLastError(err.Error())
-		slog.Warn("realtime/redis: XADD failed", "error", err, "scope", scopeType, "scope_id", scopeID)
-		return err
-	}
-	M.RedisXAddTotal.Add(1)
-	M.RedisLastXAddLagMicros.Store(time.Since(start).Microseconds())
-	return nil
+	return r.xadd(newEnvelope(r.nodeID, scopeType, scopeID, exclude, frame, id))
 }
 
 var _ Broadcaster = (*RedisRelay)(nil)

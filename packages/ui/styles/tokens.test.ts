@@ -114,6 +114,7 @@ describe("token contract", () => {
       "--text-hero-opening",
       "--text-hero-opening-tablet",
       "--text-hero-opening-mobile",
+      "--text-avatar-stage",
     ]) {
       expect(definedVars(theme), `missing type step ${step}`).toContain(step);
     }

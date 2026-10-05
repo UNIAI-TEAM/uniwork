@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_meeting_access_grants_meeting_active;

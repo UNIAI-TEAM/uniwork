@@ -45,6 +45,10 @@ type EmailHubService struct {
 	// AI and Tasks are wired from main after construction; nil disables summarize → task.
 	AI    *ai.Gateway
 	Tasks *TaskService
+
+	// scheduleWorkerOwnerFn and testHookScheduledSend are set only in tests.
+	scheduleWorkerOwnerFn func() string
+	testHookScheduledSend func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {
@@ -199,15 +203,39 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return err
 	}
-	if err := s.q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+	// Only the caller's own live mailbox in this organization is theirs to
+	// disconnect. Nothing below may run for any other id: the cleanup deletes
+	// a mailbox's cached mail, and the account id is all a caller supplies
+	// (ADR 0008 isolation matrix).
+	n, err := s.q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
 		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
+	if n == 0 {
+		// Either not the caller's mailbox, or theirs and already disconnected.
+		// The second case runs the cleanup again: the flip and the deletes
+		// are not one transaction, so a cleanup that failed last time must
+		// be retryable, and a repeated disconnect must not turn into a 404.
+		acc, err := s.q.GetEmailHubAccountByID(ctx, accountID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if acc.UserID != actor.ID || acc.OrganizationID != ws.OrganizationID || !acc.DisconnectedAt.Valid {
+			return ErrNotFound
+		}
+	}
 	s.hubWatch.forceStop(accountID)
-	_ = s.q.DeleteEmailHubAttachmentsForAccount(ctx, accountID)
-	_ = s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, accountID)
-	return s.q.DeleteEmailHubThreadsForAccount(ctx, accountID)
+	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: ws.OrganizationID}
+	return errors.Join(
+		s.q.DeleteEmailHubAttachmentsForAccount(ctx, scope),
+		s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope)),
+		s.q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope)),
+	)
 }
 
 func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, fetchBody, markRead bool) (EmailHubThreadView, error) {
@@ -259,9 +287,6 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 			s.log.Warn("email hub hydrate body failed", "thread_id", threadID, "err", err)
 		}
 		if view.BodyText != "" || view.BodyHTML != "" {
-			if markRead {
-				view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
-			}
 			return view, nil
 		}
 		if strings.TrimSpace(row.BodyObjectKey) == "" {
@@ -608,8 +633,7 @@ func (s *EmailHubService) Sync(
 	}
 	if synced {
 		s.emitInboxChanged(ctx, acc)
-		afterUnread := s.inboxUnreadForAccount(ctx, acc)
-		if newUnread > 0 || afterUnread > beforeUnread {
+		if newUnread > 0 || s.inboxUnreadForAccount(ctx, acc) > beforeUnread {
 			s.emitEmailHubNewMail(ctx, acc, workspaceID)
 		}
 	}

@@ -19,11 +19,18 @@ import {
   LIST_GRID_BOTTOM_CLEARANCE,
   type ListGridSortDirection,
 } from "@uniwork/ui/components/ui/list-grid";
+import { resolveClickIntent } from "../navigation";
+import type { AssigneeOption } from "../tasks/pickers/assignee-picker";
 import { ProjectIcon } from "./components/project-icon";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "./components/project-badge";
+import { ProjectLeadPicker } from "./components/project-lead-picker";
 import { ProjectProgressRing } from "./components/project-progress";
 import { ProjectRowActions } from "./components/project-row-actions";
-import { formatRelativeDate } from "./project-row-metrics";
+import {
+  formatRelativeDate,
+  type OpenProject,
+  type ProjectRowPatch,
+} from "./project-row-metrics";
 
 const COLUMN_WIDTHS: Record<ProjectColumnKey, number> = {
   priority: 116,
@@ -99,7 +106,7 @@ function ProjectTableRow({
   onToggleSelect,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   project: Project;
@@ -108,14 +115,13 @@ function ProjectTableRow({
   isColVisible: (key: ProjectColumnKey) => boolean;
   selected: boolean;
   onToggleSelect: () => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
-  const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
   const handleUpdate = useCallback(
-    (patch: { status?: string; priority?: string }) =>
+    (patch: ProjectRowPatch) =>
       putProject.mutate({
         projectId: project.id,
         body: { ...patch, revision: project.revision },
@@ -127,7 +133,10 @@ function ProjectTableRow({
   return (
     <ListGridRow
       className={`h-11 cursor-pointer ${selected ? "bg-accent/30" : ""}`}
-      onClick={() => onOpenProject(project.id)}
+      onClick={(e) => onOpenProject(project.id, resolveClickIntent(e))}
+      onAuxClick={(e) => {
+        if (e.button === 1) onOpenProject(project.id, "background-tab");
+      }}
     >
       <CheckboxCell checked={selected} onToggle={onToggleSelect} />
       <ListGridCell className="gap-2">
@@ -168,10 +177,16 @@ function ProjectTableRow({
       )}
 
       {isColVisible("lead") ? (
-        <ListGridCell className="hidden @2xl:flex">
-          <span className="min-w-0 truncate text-caption text-muted-foreground">
-            {resolveLeadName(project) ?? t("projects.lead.no_lead")}
-          </span>
+        <ListGridCell
+          className="hidden @2xl:flex"
+          onClick={stopRowNavigation}
+          onAuxClick={stopRowNavigation}
+        >
+          <ProjectLeadPicker
+            project={project}
+            options={leadOptions}
+            onChange={handleUpdate}
+          />
         </ListGridCell>
       ) : (
         <ListGridCell className="hidden px-0 @2xl:flex" />
@@ -322,7 +337,7 @@ export function ProjectsListTable({
   onSort,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   projects: Project[];
@@ -335,9 +350,9 @@ export function ProjectsListTable({
   onToggleSelect: (id: string) => void;
   onToggleAll: () => void;
   onSort: (field: ProjectSortField) => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
   const selectedCount = projects.filter((p) => selectedIds.has(p.id)).length;
   const allSelected = projects.length > 0 && selectedCount === projects.length;
@@ -373,7 +388,7 @@ export function ProjectsListTable({
             onToggleSelect={() => onToggleSelect(project.id)}
             onOpenProject={onOpenProject}
             locale={locale}
-            resolveLeadName={resolveLeadName}
+            leadOptions={leadOptions}
           />
         ))}
       </ListGrid>

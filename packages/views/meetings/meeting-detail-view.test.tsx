@@ -113,6 +113,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -140,6 +141,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -187,6 +189,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -232,6 +235,7 @@ describe("MeetingDetailView", () => {
           ],
         });
       }
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -301,6 +305,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -332,6 +337,7 @@ describe("MeetingDetailView", () => {
         });
       }
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -420,6 +426,7 @@ describe("MeetingDetailView", () => {
       }
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -430,6 +437,68 @@ describe("MeetingDetailView", () => {
     expect(screen.queryByRole("button", { name: "Chuyển chủ trì" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Nhấn «Tạo liên kết mới»/)).not.toBeInTheDocument();
     expect(screen.queryByText("Khách bên ngoài (không cần tài khoản)")).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingDetailView › attendance", () => {
+  function respondWith(status: string) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) {
+        return Promise.resolve({
+          members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
+        });
+      }
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: { ...meeting, status } });
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", display_name_snapshot: "Me", role: "HOST", status: "ACTIVE", standing: "MEMBER" },
+          ],
+        });
+      }
+      if (p.endsWith("/attendance")) {
+        return Promise.resolve({
+          summary: { members: 1, present: 1, late: 0, excused: 0, absent: 0 },
+          rows: [
+            { participant_id: "p-host", principal_type: "USER", user_id: "u-host", display_name: "Me", standing: "MEMBER", is_secretary: false, status: "PRESENT", source: "SUGGESTED", present_seconds: 60, session_count: 1 },
+          ],
+        });
+      }
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("lets the host run the roll once the meeting is live", async () => {
+    respondWith("IN_PROGRESS");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const card = await screen.findByRole("region", { name: "Điểm danh" });
+    expect(await within(card).findByRole("button", { name: "Chốt điểm danh" })).toBeInTheDocument();
+  });
+
+  it("has no roll before the meeting starts", async () => {
+    respondWith("SCHEDULED");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Điểm danh" })).not.toBeInTheDocument();
+  });
+  it("gives the host the vote card to draft items before the meeting", async () => {
+    respondWith("SCHEDULED");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const card = await screen.findByRole("region", { name: "Biểu quyết" });
+    expect(
+      await within(card).findByText("Chưa có nội dung biểu quyết. Soạn trước, mở từng nội dung khi đang họp."),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Thêm nội dung" })).toBeInTheDocument();
   });
 });
 
@@ -482,6 +551,65 @@ describe("MeetingRoomView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
+  });
+
+  it("tells the host their meeting has not started instead of asking them to wait for themselves", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      // A plain member who hosts this meeting: the start right comes from being its host.
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/join")) {
+        return Promise.resolve({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    expect(await screen.findByRole("heading", { name: "Cuộc họp chưa bắt đầu" })).toBeInTheDocument();
+    expect(screen.queryByText("Đang chờ người chủ trì bắt đầu cuộc họp")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
+  });
+
+  it("tells the host when starting the meeting failed", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/start")) return Promise.reject(new ApiError("boom", "internal", 500));
+      if (p.endsWith("/join")) {
+        return Promise.resolve({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bắt đầu" }));
+    expect(await screen.findByText("Chưa bắt đầu được cuộc họp. Thử lại.")).toBeInTheDocument();
+  });
+
+  it("joins again when someone else started the meeting first", async () => {
+    let joins = 0;
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/start")) return Promise.reject(new ApiError("already", "invalid_meeting_state", 409));
+      if (p.endsWith("/join")) {
+        joins += 1;
+        return Promise.resolve(
+          joins === 1
+            ? { decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" }
+            : { decision: "ADMIT", participant_token: "tok", server_url: "wss://lk.test" },
+        );
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bắt đầu" }));
+    await screen.findByTestId("livekit-room");
+    expect(screen.queryByText("Chưa bắt đầu được cuộc họp. Thử lại.")).not.toBeInTheDocument();
   });
 
   it("shows waiting-for-host and does not mount LiveKit when admission does not admit", async () => {
@@ -567,7 +695,10 @@ describe("MeetingRoomView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     act(() => lastDisconnected?.(DisconnectReason.PARTICIPANT_REMOVED));
-    expect(await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" });
+    // The room vanished under the pointer: focus lands on why, so a screen
+    // reader hears it instead of losing its place on a removed video tile.
+    await waitFor(() => expect(heading).toHaveFocus());
   });
 
   it("uses the guest prejoin choice when already admitted", async () => {

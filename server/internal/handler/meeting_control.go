@@ -20,6 +20,7 @@ func toParticipantDTO(p db.MeetingParticipant, redactGuestFields bool) sdo.Parti
 		ID: p.ID, MeetingID: p.MeetingID, PrincipalType: p.PrincipalType,
 		UserID: p.UserID.String, GuestID: p.GuestID.String,
 		DisplayNameSnapshot: p.DisplayNameSnapshot, Role: p.Role, Status: p.Status,
+		Standing: p.Standing, IsSecretary: p.IsSecretary,
 	}
 	if redactGuestFields {
 		d.GuestID = ""

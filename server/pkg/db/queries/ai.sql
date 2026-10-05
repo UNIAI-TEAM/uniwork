@@ -10,6 +10,7 @@ INSERT INTO ai_usage_events (
 RETURNING *;
 
 -- name: AiFinishUsageEvent :one
+-- tenant: by-id
 UPDATE ai_usage_events SET
   status = $2, reason_code = $3, rate_id = $4, input_tokens = $5, output_tokens = $6,
   cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now()
@@ -17,6 +18,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: AiGetUsageEvent :one
+-- tenant: by-id
 SELECT * FROM ai_usage_events WHERE id = $1;
 
 -- name: AiLatestRate :one
@@ -59,6 +61,7 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: AiGetConversation :one
+-- tenant: by-id
 SELECT * FROM ai_conversations WHERE id = $1;
 
 -- name: AiListConversations :many
@@ -68,13 +71,16 @@ ORDER BY updated_at DESC
 LIMIT 20;
 
 -- name: AiTouchConversation :exec
+-- tenant: by-id
 UPDATE ai_conversations SET updated_at = now(), title = CASE WHEN title = '' THEN $2 ELSE title END
 WHERE id = $1;
 
 -- name: AiDeleteConversation :exec
+-- tenant: by-id
 DELETE FROM ai_conversations WHERE id = $1;
 
 -- name: AiDeleteMessages :exec
+-- tenant: parent conversation_id
 DELETE FROM ai_messages WHERE conversation_id = $1;
 
 -- name: AiInsertMessage :one
@@ -83,4 +89,5 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: AiListMessages :many
+-- tenant: parent conversation_id
 SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200;

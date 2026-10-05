@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CalendarDays, Flag, FolderKanban, ListChecks, Sparkles, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubSummaryActionItem } from "@uniwork/core/types/email-hub";
 import type { TaskPriority } from "@uniwork/core/types";
-import { TASK_PRIORITIES } from "@uniwork/core/types";
 import type { SummaryTaskFieldOverrides } from "@uniwork/core/meetings/summary-task-items";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -18,14 +17,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
-import { PriorityIcon } from "../tasks/icons/priority-icon";
+import { PriorityPicker } from "../tasks/pickers/priority-picker";
 import { MeetingAssigneeSelect } from "../meetings/meeting-assignee-select";
 import { dueHintToDateInput } from "./email-hub-summary-task-due";
 import { EmailHubTaskProjectSelect } from "./email-hub-task-project-select";
@@ -72,7 +64,6 @@ function SummaryTaskEditorCard({
   item,
   draft,
   assigneeId,
-  priorityItems,
   onAssigneeChange,
   onPriorityChange,
   onDueChange,
@@ -84,7 +75,6 @@ function SummaryTaskEditorCard({
   item: EmailHubSummaryActionItem;
   draft: EmailHubSummaryTaskDraft;
   assigneeId?: string;
-  priorityItems: { value: string; label: string }[];
   onAssigneeChange: (userId: string | undefined) => void;
   onPriorityChange: (priority: TaskPriority) => void;
   onDueChange: (dueDate: string | undefined) => void;
@@ -131,28 +121,12 @@ function SummaryTaskEditorCard({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldBlock icon={Flag} label={t("tasks.priority")}>
-            <Select
-              items={priorityItems}
+            <PriorityPicker
               value={draft.priority}
-              onValueChange={(next) => {
-                if (next) onPriorityChange(next as TaskPriority);
-              }}
-            >
-              <SelectTrigger size="sm" className={FIELD_CLASS} aria-label={t("tasks.priority")}>
-                <SelectValue>
-                  <PriorityIcon priority={draft.priority} className="shrink-0" />
-                  {priorityItems.find((p) => p.value === draft.priority)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {priorityItems.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    <PriorityIcon priority={p.value as TaskPriority} className="shrink-0" />
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              ariaLabel={t("tasks.priority")}
+              triggerClassName={cn(FIELD_CLASS, "justify-start gap-1.5 border border-input px-2.5 font-normal")}
+              onChange={onPriorityChange}
+            />
           </FieldBlock>
           <FieldBlock icon={CalendarDays} label={t("tasks.dueDate")} htmlFor={dueId}>
             <DateField
@@ -198,11 +172,6 @@ export function EmailHubCreateSummaryTasksDialog({
   const [projectId, setProjectId] = useState<string | undefined>(initialProjectId);
   const [assignees, setAssignees] = useState<Record<number, string | undefined>>({});
   const [drafts, setDrafts] = useState<Record<number, EmailHubSummaryTaskDraft>>({});
-
-  const priorityItems = useMemo(
-    () => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })),
-    [t],
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -258,7 +227,6 @@ export function EmailHubCreateSummaryTasksDialog({
                   item={item}
                   draft={draft}
                   assigneeId={assignees[index]}
-                  priorityItems={priorityItems}
                   onAssigneeChange={(userId) => {
                     setAssignees((prev) => ({ ...prev, [index]: userId }));
                     setDrafts((prev) => ({

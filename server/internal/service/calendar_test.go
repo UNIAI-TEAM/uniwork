@@ -44,7 +44,7 @@ func calendarFixture(t *testing.T) calendarFix {
 		t.Fatal(err)
 	}
 	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID: v.Workspace.ID, UserID: ub.ID, Role: "member",
+		WorkspaceID: v.Workspace.ID, OrganizationID: v.Workspace.OrganizationID, UserID: ub.ID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -102,8 +102,8 @@ func sidebarMeetingIDs(meetings []CalendarSidebarMeeting) string {
 
 func (f calendarFix) meeting(t *testing.T, id, host, status string, starts time.Time) {
 	t.Helper()
-	f.exec(t, `INSERT INTO meetings (id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id, status)
-		VALUES ($1, $2, $1, $3, $4, $1, $5, $5, $6)`, id, f.w.ID, starts, starts.Add(30*time.Minute), host, status)
+	f.exec(t, `INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, room_name, created_by, host_user_id, status)
+		VALUES ($1, $2, $7, $1, $3, $4, $1, $5, $5, $6)`, id, f.w.ID, starts, starts.Add(30*time.Minute), host, status, f.w.OrganizationID)
 }
 
 func (f calendarFix) participant(t *testing.T, meetingID, userID string, removed bool) {
@@ -112,8 +112,8 @@ func (f calendarFix) participant(t *testing.T, meetingID, userID string, removed
 	if removed {
 		removedAt = time.Now()
 	}
-	f.exec(t, `INSERT INTO meeting_participants (id, meeting_id, principal_type, user_id, added_by, removed_at)
-		VALUES ($1, $2, 'USER', $3, $3, $4)`, meetingID+"-"+userID, meetingID, userID, removedAt)
+	f.exec(t, `INSERT INTO meeting_participants (id, meeting_id, organization_id, principal_type, user_id, added_by, removed_at)
+		SELECT $1, m.id, m.organization_id, 'USER', $3, $3, $4 FROM meetings m WHERE m.id = $2`, meetingID+"-"+userID, meetingID, userID, removedAt)
 }
 
 func day(y int, m time.Month, d int) time.Time {

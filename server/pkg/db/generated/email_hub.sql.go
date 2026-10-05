@@ -41,6 +41,70 @@ func (q *Queries) CancelEmailHubScheduledSend(ctx context.Context, arg CancelEma
 	return result.RowsAffected(), nil
 }
 
+const claimDueEmailHubScheduledSends = `-- name: ClaimDueEmailHubScheduledSends :many
+UPDATE email_hub_scheduled_sends SET
+  status = 'sending',
+  lease_owner = $1,
+  lease_expires_at = $2
+WHERE id IN (
+  SELECT email_hub_scheduled_sends.id
+  FROM email_hub_scheduled_sends
+  WHERE email_hub_scheduled_sends.status = 'pending'
+    AND email_hub_scheduled_sends.send_at <= $3
+  ORDER BY email_hub_scheduled_sends.send_at ASC, email_hub_scheduled_sends.id ASC
+  LIMIT $4
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at, lease_owner, lease_expires_at
+`
+
+type ClaimDueEmailHubScheduledSendsParams struct {
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	Now            pgtype.Timestamptz `json:"now"`
+	LimitN         int32              `json:"limit_n"`
+}
+
+// tenant: system
+func (q *Queries) ClaimDueEmailHubScheduledSends(ctx context.Context, arg ClaimDueEmailHubScheduledSendsParams) ([]EmailHubScheduledSend, error) {
+	rows, err := q.db.Query(ctx, claimDueEmailHubScheduledSends,
+		arg.LeaseOwner,
+		arg.LeaseExpiresAt,
+		arg.Now,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubScheduledSend{}
+	for rows.Next() {
+		var i EmailHubScheduledSend
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AccountID,
+			&i.OrganizationID,
+			&i.UserID,
+			&i.Payload,
+			&i.SendAt,
+			&i.Status,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.SentAt,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countEmailHubInboxConversations = `-- name: CountEmailHubInboxConversations :one
 SELECT
   count(*)::bigint AS total,
@@ -334,7 +398,7 @@ INSERT INTO email_hub_scheduled_sends (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-RETURNING id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
+RETURNING id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at, lease_owner, lease_expires_at
 `
 
 type CreateEmailHubScheduledSendParams struct {
@@ -370,17 +434,24 @@ func (q *Queries) CreateEmailHubScheduledSend(ctx context.Context, arg CreateEma
 		&i.LastError,
 		&i.CreatedAt,
 		&i.SentAt,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
 	)
 	return i, err
 }
 
 const deleteEmailHubAttachmentsForAccount = `-- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, accountID)
+type DeleteEmailHubAttachmentsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubAttachmentsForAccount(ctx context.Context, arg DeleteEmailHubAttachmentsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -389,6 +460,7 @@ DELETE FROM email_hub_attachments
 WHERE thread_id = $1
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubAttachmentsForThread(ctx context.Context, threadID string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThread, threadID)
 	return err
@@ -399,6 +471,7 @@ DELETE FROM email_hub_attachments
 WHERE thread_id = ANY($1::text[])
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubAttachmentsForThreads(ctx context.Context, dollar_1 []string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThreads, dollar_1)
 	return err
@@ -424,11 +497,16 @@ func (q *Queries) DeleteEmailHubThread(ctx context.Context, arg DeleteEmailHubTh
 
 const deleteEmailHubThreadAiSummariesForAccount = `-- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, accountID)
+type DeleteEmailHubThreadAiSummariesForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadAiSummariesForAccount(ctx context.Context, arg DeleteEmailHubThreadAiSummariesForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -437,6 +515,7 @@ DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = $1
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubThreadAiSummariesForThread(ctx context.Context, threadID string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThread, threadID)
 	return err
@@ -447,6 +526,7 @@ DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = ANY($1::text[])
 `
 
+// tenant: parent thread_id
 func (q *Queries) DeleteEmailHubThreadAiSummariesForThreads(ctx context.Context, dollar_1 []string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThreads, dollar_1)
 	return err
@@ -472,11 +552,16 @@ func (q *Queries) DeleteEmailHubThreadsByIDs(ctx context.Context, arg DeleteEmai
 
 const deleteEmailHubThreadsForAccount = `-- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1
+WHERE account_id = $1 AND organization_id = $2
 `
 
-func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, accountID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, accountID)
+type DeleteEmailHubThreadsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteEmailHubThreadsForAccount(ctx context.Context, arg DeleteEmailHubThreadsForAccountParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadsForAccount, arg.AccountID, arg.OrganizationID)
 	return err
 }
 
@@ -523,7 +608,7 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 	return err
 }
 
-const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :exec
+const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -538,9 +623,50 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) error {
-	_, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
-	return err
+func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const emailHubAccountSidebarCounts = `-- name: EmailHubAccountSidebarCounts :one
+SELECT
+  (
+    SELECT count(*) FILTER (WHERE NOT t.is_read)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = $1
+      AND t.organization_id = $2
+      AND t.folder = 'INBOX'
+      AND (t.snoozed_until IS NULL OR t.snoozed_until <= now())
+  ) AS inbox_unread,
+  (
+    SELECT count(*)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = $1
+      AND t.organization_id = $2
+      AND t.folder = 'INBOX'
+      AND t.snoozed_until IS NOT NULL
+      AND t.snoozed_until > now()
+  ) AS snoozed_total
+`
+
+type EmailHubAccountSidebarCountsParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type EmailHubAccountSidebarCountsRow struct {
+	InboxUnread  int64 `json:"inbox_unread"`
+	SnoozedTotal int64 `json:"snoozed_total"`
+}
+
+func (q *Queries) EmailHubAccountSidebarCounts(ctx context.Context, arg EmailHubAccountSidebarCountsParams) (EmailHubAccountSidebarCountsRow, error) {
+	row := q.db.QueryRow(ctx, emailHubAccountSidebarCounts, arg.AccountID, arg.OrganizationID)
+	var i EmailHubAccountSidebarCountsRow
+	err := row.Scan(&i.InboxUnread, &i.SnoozedTotal)
+	return i, err
 }
 
 const expireEmailHubThreadBodiesBefore = `-- name: ExpireEmailHubThreadBodiesBefore :many
@@ -581,6 +707,28 @@ func (q *Queries) ExpireEmailHubThreadBodiesBefore(ctx context.Context, arg Expi
 		return nil, err
 	}
 	return items, nil
+}
+
+const failExpiredEmailHubScheduledSendLeases = `-- name: FailExpiredEmailHubScheduledSendLeases :execrows
+UPDATE email_hub_scheduled_sends
+SET status = 'failed',
+    last_error = 'worker lease expired',
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE status = 'sending'
+  AND lease_expires_at IS NOT NULL
+  AND lease_expires_at <= $1
+`
+
+// tenant: system
+// At-most-once after a crash: an expired sending lease becomes failed so the
+// user can review/retry explicitly; it never returns to pending for a blind resend.
+func (q *Queries) FailExpiredEmailHubScheduledSendLeases(ctx context.Context, now pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, failExpiredEmailHubScheduledSendLeases, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getEmailHubAccount = `-- name: GetEmailHubAccount :one
@@ -626,6 +774,7 @@ FROM email_hub_accounts
 WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) GetEmailHubAccountByID(ctx context.Context, id string) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, getEmailHubAccountByID, id)
 	var i EmailHubAccount
@@ -864,52 +1013,12 @@ WHERE id = $1
 RETURNING body_object_key
 `
 
+// tenant: by-id
 func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) (string, error) {
 	row := q.db.QueryRow(ctx, invalidateEmailHubThreadBody, id)
 	var body_object_key string
 	err := row.Scan(&body_object_key)
 	return body_object_key, err
-}
-
-const listDueEmailHubScheduledSends = `-- name: ListDueEmailHubScheduledSends :many
-SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
-FROM email_hub_scheduled_sends
-WHERE status = 'pending'
-  AND send_at <= now()
-ORDER BY send_at ASC
-LIMIT $1
-`
-
-func (q *Queries) ListDueEmailHubScheduledSends(ctx context.Context, limit int32) ([]EmailHubScheduledSend, error) {
-	rows, err := q.db.Query(ctx, listDueEmailHubScheduledSends, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailHubScheduledSend{}
-	for rows.Next() {
-		var i EmailHubScheduledSend
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.AccountID,
-			&i.OrganizationID,
-			&i.UserID,
-			&i.Payload,
-			&i.SendAt,
-			&i.Status,
-			&i.LastError,
-			&i.CreatedAt,
-			&i.SentAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listEmailHubAccountsByUser = `-- name: ListEmailHubAccountsByUser :many
@@ -969,6 +1078,7 @@ ORDER BY updated_at ASC
 LIMIT $1
 `
 
+// tenant: system
 func (q *Queries) ListEmailHubAccountsConnected(ctx context.Context, limit int32) ([]EmailHubAccount, error) {
 	rows, err := q.db.Query(ctx, listEmailHubAccountsConnected, limit)
 	if err != nil {
@@ -1367,7 +1477,7 @@ func (q *Queries) ListEmailHubInboxConversationPage(ctx context.Context, arg Lis
 }
 
 const listEmailHubOpenScheduledSends = `-- name: ListEmailHubOpenScheduledSends :many
-SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
+SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at, lease_owner, lease_expires_at
 FROM email_hub_scheduled_sends
 WHERE workspace_id = $1
   AND account_id = $2
@@ -1405,6 +1515,8 @@ func (q *Queries) ListEmailHubOpenScheduledSends(ctx context.Context, arg ListEm
 			&i.LastError,
 			&i.CreatedAt,
 			&i.SentAt,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2033,37 +2145,58 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 	return items, nil
 }
 
-const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :exec
+const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :execrows
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
-    last_error = $2
-WHERE id = $1
-  -- A user cancel that lands mid-send stays cancelled; it must not resurface
-  -- as a retryable failure.
-  AND status = 'pending'
+    last_error = $1,
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE id = $2
+  AND (
+    (status = 'sending' AND lease_owner = $3)
+    OR (status = 'pending' AND $3 = '')
+  )
 `
 
 type MarkEmailHubScheduledSendFailedParams struct {
-	ID        string      `json:"id"`
-	LastError pgtype.Text `json:"last_error"`
+	LastError  pgtype.Text `json:"last_error"`
+	ID         string      `json:"id"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
 }
 
-func (q *Queries) MarkEmailHubScheduledSendFailed(ctx context.Context, arg MarkEmailHubScheduledSendFailedParams) error {
-	_, err := q.db.Exec(ctx, markEmailHubScheduledSendFailed, arg.ID, arg.LastError)
-	return err
+// tenant: system
+func (q *Queries) MarkEmailHubScheduledSendFailed(ctx context.Context, arg MarkEmailHubScheduledSendFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markEmailHubScheduledSendFailed, arg.LastError, arg.ID, arg.LeaseOwner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const markEmailHubScheduledSendSent = `-- name: MarkEmailHubScheduledSendSent :exec
+const markEmailHubScheduledSendSent = `-- name: MarkEmailHubScheduledSendSent :execrows
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
-    last_error = NULL
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
 WHERE id = $1
+  AND status = 'sending'
+  AND lease_owner = $2
 `
 
-func (q *Queries) MarkEmailHubScheduledSendSent(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markEmailHubScheduledSendSent, id)
-	return err
+type MarkEmailHubScheduledSendSentParams struct {
+	ID         string      `json:"id"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+}
+
+// tenant: system
+func (q *Queries) MarkEmailHubScheduledSendSent(ctx context.Context, arg MarkEmailHubScheduledSendSentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markEmailHubScheduledSendSent, arg.ID, arg.LeaseOwner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const patchEmailHubThreadSnippet = `-- name: PatchEmailHubThreadSnippet :exec
@@ -2078,6 +2211,7 @@ type PatchEmailHubThreadSnippetParams struct {
 	Snippet string `json:"snippet"`
 }
 
+// tenant: by-id
 func (q *Queries) PatchEmailHubThreadSnippet(ctx context.Context, arg PatchEmailHubThreadSnippetParams) error {
 	_, err := q.db.Exec(ctx, patchEmailHubThreadSnippet, arg.ID, arg.Snippet)
 	return err
@@ -2085,7 +2219,11 @@ func (q *Queries) PatchEmailHubThreadSnippet(ctx context.Context, arg PatchEmail
 
 const retryEmailHubScheduledSend = `-- name: RetryEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
-SET status = 'pending', send_at = now(), last_error = NULL
+SET status = 'pending',
+    send_at = now(),
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
 WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
@@ -2143,16 +2281,17 @@ func (q *Queries) SumEmailHubInboxUnreadByUser(ctx context.Context, arg SumEmail
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND organization_id = $3
 `
 
 type UpdateEmailHubAccountSyncStateParams struct {
-	ID        string `json:"id"`
-	SyncState []byte `json:"sync_state"`
+	ID             string `json:"id"`
+	SyncState      []byte `json:"sync_state"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) UpdateEmailHubAccountSyncState(ctx context.Context, arg UpdateEmailHubAccountSyncStateParams) error {
-	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState, arg.ID, arg.SyncState)
+	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState, arg.ID, arg.SyncState, arg.OrganizationID)
 	return err
 }
 
@@ -2173,6 +2312,7 @@ type UpdateEmailHubThreadBodyParams struct {
 	BodyHtml pgtype.Text `json:"body_html"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateEmailHubThreadBody(ctx context.Context, arg UpdateEmailHubThreadBodyParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubThreadBody, arg.ID, arg.BodyText, arg.BodyHtml)
 	var i EmailHubThread
@@ -2220,6 +2360,7 @@ type UpdateEmailHubThreadBodyObjectParams struct {
 	BodyObjectKey string `json:"body_object_key"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateEmailHubThreadBodyObject(ctx context.Context, arg UpdateEmailHubThreadBodyObjectParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubThreadBodyObject, arg.ID, arg.BodyObjectKey)
 	var i EmailHubThread
@@ -2459,6 +2600,7 @@ type UpsertEmailHubThreadParams struct {
 	ConversationKey string             `json:"conversation_key"`
 }
 
+// tenant: parent account_id
 func (q *Queries) UpsertEmailHubThread(ctx context.Context, arg UpsertEmailHubThreadParams) (EmailHubThread, error) {
 	row := q.db.QueryRow(ctx, upsertEmailHubThread,
 		arg.ID,
@@ -2517,7 +2659,6 @@ INSERT INTO email_hub_thread_ai_summaries (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (thread_id, locale) DO UPDATE SET
-  organization_id = EXCLUDED.organization_id,
   account_id = EXCLUDED.account_id,
   source_fingerprint = EXCLUDED.source_fingerprint,
   summary = EXCLUDED.summary,
@@ -2529,6 +2670,7 @@ ON CONFLICT (thread_id, locale) DO UPDATE SET
   created_by = EXCLUDED.created_by,
   created_by_kind = EXCLUDED.created_by_kind,
   updated_at = now()
+WHERE email_hub_thread_ai_summaries.organization_id = EXCLUDED.organization_id
 RETURNING id, organization_id, thread_id, account_id, locale, source_fingerprint, summary, key_points, action_items, needs_reply, reply_hint, model, created_by, created_by_kind, created_at, updated_at
 `
 
@@ -2549,6 +2691,9 @@ type UpsertEmailHubThreadAiSummaryParams struct {
 	CreatedByKind     string `json:"created_by_kind"`
 }
 
+// tenant: parent thread_id
+// A summary never changes tenant: a conflicting row of another organization
+// is left alone (no row comes back) instead of being taken over.
 func (q *Queries) UpsertEmailHubThreadAiSummary(ctx context.Context, arg UpsertEmailHubThreadAiSummaryParams) (EmailHubThreadAiSummary, error) {
 	row := q.db.QueryRow(ctx, upsertEmailHubThreadAiSummary,
 		arg.ID,

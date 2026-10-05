@@ -746,6 +746,9 @@ html.dark[data-accent] {
   --text-hero-opening: clamp(36px, 4vw, 52px);
   --text-hero-opening-tablet: clamp(34px, 4.6vw, 46px);
   --text-hero-opening-mobile: clamp(32px, 7vw, 36px);
+  /* Initials in a meeting stage avatar, which grows with its tile: the tile's
+     cell is a size container, so cqmin tracks the tile, not the viewport. */
+  --text-avatar-stage: clamp(20px, 9cqmin, 48px); --text-avatar-stage--line-height: 1;
 }
 
 /* Headings take the display family through the type utility itself, so the

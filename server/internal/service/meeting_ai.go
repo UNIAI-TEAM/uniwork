@@ -7,8 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -29,8 +32,13 @@ const (
 	RecordingComplete   = "COMPLETE"
 	RecordingFailed     = "FAILED"
 
-	transcriptLimit = 5000
-	chatLimit       = 500
+	// The summary reads the newest rows and keeps what fits its rune budget
+	// (summaryWindow); ai.estimateTokens counts ~4 runes per token, so the
+	// budgets are ~15k tokens of transcript and ~4k of chat (G18).
+	summaryTranscriptRows  = 2000
+	summaryChatRows        = 500
+	summaryTranscriptRunes = 60000
+	summaryChatRunes       = 16000
 
 	// autoEndOvertime is the hard cap after ends_at while a conference is still open.
 	autoEndOvertime = 2 * time.Hour
@@ -75,7 +83,7 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 		}
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
 		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
 	})
 	if err != nil {
@@ -128,7 +136,7 @@ func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingI
 		speaker = participantIdentity
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
 		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
 	})
 	if err != nil {
@@ -138,11 +146,49 @@ func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingI
 	return seg, nil
 }
 
-func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string) ([]db.MeetingTranscriptSegment, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
-		return nil, err
+// transcriptFeedKeys pages by spoken_at, which the caption client or the STT
+// agent supplies, and follows deltas by created_at, which the database does:
+// a segment delivered late must still reach a client that holds newer ones.
+var transcriptFeedKeys = feedKeys[db.MeetingTranscriptSegment]{
+	id:    func(s db.MeetingTranscriptSegment) string { return s.ID },
+	key:   func(s db.MeetingTranscriptSegment) time.Time { return s.SpokenAt.Time },
+	delta: func(s db.MeetingTranscriptSegment) time.Time { return s.CreatedAt.Time },
+}
+
+// Transcript reads one page of the meeting's transcript (see FeedQuery).
+func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
+	if err := q.validate(); err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
-	return s.q.ListTranscriptSegments(ctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
+	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	limit := q.limit()
+	switch {
+	case q.After != "":
+		at, _, _ := decodeFeedCursor(q.After)
+		rows, err := s.q.ListTranscriptSegmentsCreatedSince(ctx, db.ListTranscriptSegmentsCreatedSinceParams{
+			MeetingID: meetingID, Since: pgtype.Timestamptz{Time: at.Add(-feedDeltaOverlap), Valid: true}, RowLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return FeedPage[db.MeetingTranscriptSegment]{}, err
+		}
+		return pageFromDelta(rows, limit, transcriptFeedKeys, q.After), nil
+	case q.Before != "":
+		at, id, _ := decodeFeedCursor(q.Before)
+		rows, err := s.q.ListTranscriptSegmentsBefore(ctx, db.ListTranscriptSegmentsBeforeParams{
+			MeetingID: meetingID, BeforeAt: pgtype.Timestamptz{Time: at, Valid: true}, BeforeID: id, RowLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return FeedPage[db.MeetingTranscriptSegment]{}, err
+		}
+		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
+	}
+	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(limit + 1)})
+	if err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	return pageFromNewest(rows, limit, transcriptFeedKeys, true), nil
 }
 
 // ---- AI summary --------------------------------------------------------------
@@ -163,9 +209,27 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 
 func (s *MeetingService) AIEnabled() bool { return s.AI.Enabled() }
 
-// Summarize gathers transcript + notes, asks the gateway (capability
-// meeting_summarization) and stores the result with the usage row that paid
-// for it. Any host/admin may re-run it; the latest row wins.
+// MeetingCapabilities is what the meeting screens of one workspace may offer.
+type MeetingCapabilities struct {
+	AISummary, Recording, ServerSTT bool
+}
+
+// Capabilities answers GET /workspaces/{id}/meeting-capabilities. The flags
+// are process-wide today, but the route names a workspace, so only its
+// members get an answer - like every other workspace route (ADR 0008).
+func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID string) (MeetingCapabilities, error) {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return MeetingCapabilities{}, err
+	}
+	return MeetingCapabilities{
+		AISummary: s.AIEnabled(), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
+	}, nil
+}
+
+// Summarize gathers transcript, notes, chat, the attendance report and the
+// closed votes, asks the gateway (capability meeting_summarization) and
+// stores the result with the usage row that paid for it. Any host/admin may
+// re-run it; the latest row wins.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -183,10 +247,13 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
 	var chat []db.MeetingChatMessage
+	var rep AttendanceReport
+	var closed []db.MeetingMotion
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		segs, err = s.q.ListTranscriptSegments(gctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
+		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
+		slices.Reverse(segs)
 		return err
 	})
 	g.Go(func() error {
@@ -196,14 +263,27 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	})
 	g.Go(func() error {
 		var err error
-		chat, err = s.q.ListMeetingChatMessages(gctx, db.ListMeetingChatMessagesParams{MeetingID: meetingID, Limit: chatLimit})
+		chat, err = s.q.ListMeetingChatMessagesLatest(gctx, db.ListMeetingChatMessagesLatestParams{MeetingID: meetingID, Limit: summaryChatRows})
+		slices.Reverse(chat)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		rep, err = s.attendanceReport(gctx, s.q, m)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		closed, err = s.q.ListClosedMeetingMotions(gctx, meetingID)
 		return err
 	})
 	if err := g.Wait(); err != nil {
 		return db.MeetingSummary{}, err
 	}
-	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 {
-		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript hay ghi chú nào để tóm tắt")
+	// Attendance alone is not material (every meeting has a roll); a closed
+	// vote is: it is a decision the minutes must carry.
+	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 && len(closed) == 0 {
+		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript, ghi chú, chat hay kết quả biểu quyết nào để tóm tắt")
 	}
 	orgID, err := s.organizationOf(ctx, m)
 	if err != nil {
@@ -213,6 +293,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, sg := range segs {
 		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
 	}
+	transcript = windowSummaryLines(transcript, summaryTranscriptRunes,
+		func(l ai.TranscriptLine) int {
+			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
+		},
+		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
 	noteBodies := make([]string, 0, len(notes))
 	for _, n := range notes {
 		noteBodies = append(noteBodies, n.Body)
@@ -221,10 +306,17 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, c := range chat {
 		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
 	}
+	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
+		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
+		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
 	resp, err := s.AI.Complete(ctx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
-		Vars: map[string]any{"title": m.Title, "agenda": m.Description, "locale": locale, "transcript": transcript, "notes": noteBodies, "chat": chatLines},
+		Vars: map[string]any{
+			"title": m.Title, "agenda": m.Description, "locale": locale,
+			"transcript": transcript, "notes": noteBodies, "chat": chatLines,
+			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
+		},
 	})
 	if err != nil {
 		s.count("summary_error")
@@ -242,7 +334,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	decisions, _ := json.Marshal(res.Decisions)
 	items, _ := json.Marshal(res.ActionItems)
 	row, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: meetingID, Summary: res.Summary,
+		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,
 		UsageEventID: strText(resp.UsageEventID),
 	})
@@ -250,9 +342,101 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		return db.MeetingSummary{}, err
 	}
 	s.count("summary_ok")
-	_ = s.writeAudit(ctx, s.q, meetingID, "SUMMARY_CREATED", userID, "", row.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "SUMMARY_CREATED", userID, "", row.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "summary.created", Payload: map[string]string{"meeting_id": meetingID}})
 	return row, nil
+}
+
+// summaryWindow picks which lines of a too-long transcript or chat the
+// summary reads, given each line's size in runes: lines[:head] and
+// lines[tailStart:]. Everything fits → (n, n). Otherwise an eighth of the
+// budget keeps how the meeting opened and the rest goes to its end, where
+// the conclusions are; the middle is what is dropped. Deterministic.
+func summaryWindow(sizes []int, budget int) (head, tailStart int) {
+	n, total := len(sizes), 0
+	for _, sz := range sizes {
+		total += sz
+	}
+	if total <= budget {
+		return n, n
+	}
+	used := 0
+	for head < n && used+sizes[head] <= budget/8 {
+		used += sizes[head]
+		head++
+	}
+	tailStart = n
+	for tailStart > head && used+sizes[tailStart-1] <= budget {
+		used += sizes[tailStart-1]
+		tailStart--
+	}
+	return head, tailStart
+}
+
+// windowSummaryLines applies summaryWindow and marks the cut with a line.
+func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) []T {
+	sizes := make([]int, len(lines))
+	for i, l := range lines {
+		sizes[i] = size(l)
+	}
+	head, tailStart := summaryWindow(sizes, budget)
+	if tailStart == head {
+		return lines[:head]
+	}
+	out := make([]T, 0, head+1+len(lines)-tailStart)
+	out = append(out, lines[:head]...)
+	out = append(out, marker(tailStart-head))
+	return append(out, lines[tailStart:]...)
+}
+
+func summaryOmitted(n int) string { return "(" + strconv.Itoa(n) + " lines omitted)" }
+
+// summaryAttendanceFacts turns the attendance report into prompt facts.
+// Counted members only (attendanceReport's summary): observers, and anyone
+// who joined after the roll was finalized, are neither counted nor named. nil when the
+// meeting has no members, so the prompt carries no empty attendance block.
+func summaryAttendanceFacts(m db.Meeting, rep AttendanceReport) *ai.AttendanceFacts {
+	if rep.Summary.Members == 0 {
+		return nil
+	}
+	f := &ai.AttendanceFacts{
+		Members: rep.Summary.Members, Present: rep.Summary.Present, Late: rep.Summary.Late,
+		Excused: rep.Summary.Excused, Absent: rep.Summary.Absent,
+		QuorumMet: rep.Summary.QuorumMet, Finalized: m.AttendanceFinalizedAt.Valid,
+		NamesByStatus: map[string][]string{},
+	}
+	if m.QuorumPercent.Valid {
+		f.QuorumPercent = int(m.QuorumPercent.Int16)
+	}
+	for _, r := range rep.Rows {
+		if !r.counted() {
+			continue
+		}
+		// Same bucketing as attendanceReport's summary: anything else is absent.
+		status := r.Status
+		switch status {
+		case AttendancePresent, AttendanceLate, AttendanceExcused:
+		default:
+			status = AttendanceAbsent
+		}
+		f.NamesByStatus[status] = append(f.NamesByStatus[status], r.Participant.DisplayNameSnapshot)
+	}
+	return f
+}
+
+// summaryMotionFacts carries each closed vote's stored count and outcome.
+// Voter names are never read here, whatever the ballot mode.
+func summaryMotionFacts(closed []db.MeetingMotion) []ai.MotionFact {
+	out := make([]ai.MotionFact, 0, len(closed))
+	for _, mo := range closed {
+		d := motionDenominator(mo.Base, int(mo.RollSize.Int32), int(mo.TotalMembers.Int32))
+		out = append(out, ai.MotionFact{
+			Title: mo.Title, BallotMode: mo.BallotMode,
+			Yes: int(mo.YesCount), No: int(mo.NoCount), Abstain: int(mo.AbstainCount),
+			Required: requiredYes(mo.Threshold, d), Outcome: mo.Outcome.String,
+		})
+	}
+	return out
 }
 
 type SummaryTaskItem struct {
@@ -330,7 +514,7 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		out = append(out, t)
 	}
 	payload, _ := json.Marshal(map[string]int{"count": len(out)})
-	_ = s.writeAudit(ctx, s.q, meetingID, "TASKS_CREATED_FROM_SUMMARY", userID, "", "", string(payload))
+	_ = s.writeAudit(ctx, s.q, m, "TASKS_CREATED_FROM_SUMMARY", userID, "", "", string(payload))
 	return out, nil
 }
 
@@ -410,12 +594,12 @@ func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID s
 	// until the session expires; the reconciler collects it — the egress
 	// writes an object nobody claims.
 	rec, err := s.q.InsertMeetingRecording(ctx, db.InsertMeetingRecordingParams{
-		ID: recID, MeetingID: meetingID, EgressID: ref.RecordingID, StartedBy: userID, FileID: fileID,
+		ID: recID, MeetingID: meetingID, OrganizationID: m.OrganizationID, EgressID: ref.RecordingID, StartedBy: userID, FileID: fileID,
 	})
 	if err != nil {
 		return db.MeetingRecording{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "RECORDING_STARTED", userID, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "RECORDING_STARTED", userID, "", rec.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.started", Payload: map[string]string{"meeting_id": meetingID}})
 	return rec, nil
 }
@@ -462,7 +646,7 @@ func (s *MeetingService) stopActiveRecording(ctx context.Context, m db.Meeting, 
 	if err != nil {
 		return db.MeetingRecording{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, "RECORDING_STOPPED", actorID, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "RECORDING_STOPPED", actorID, "", rec.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.stopped", Payload: map[string]string{"meeting_id": m.ID}})
 	return rec, nil
 }
@@ -611,7 +795,7 @@ func (s *MeetingService) finishRecordingFileClaim(ctx context.Context, ev Provid
 	}); err != nil {
 		return
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "RECORDING_COMPLETED", rec.StartedBy, "", rec.ID, "{}")
+	_ = s.writeAudit(ctx, q, m, "RECORDING_COMPLETED", rec.StartedBy, "", rec.ID, "{}")
 	if err := tx.Commit(ctx); err != nil {
 		return
 	}
@@ -787,7 +971,7 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	}
 	n := 0
 	for _, m := range rows {
-		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+		if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")
 		}
@@ -809,7 +993,7 @@ func (s *MeetingService) endIfOverdueEmpty(ctx context.Context, meetingID string
 	if sess, err := s.q.GetOpenConferenceSession(ctx, meetingID); err == nil && sess.Status == "ACTIVE" {
 		return
 	}
-	if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+	if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 		s.count("auto_ended")
 	}
 }

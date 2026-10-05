@@ -35,6 +35,7 @@ type MeetingDTO struct {
 	ActualStartAt    string `json:"actual_start_at,omitempty"`
 	ActualEndAt      string `json:"actual_end_at,omitempty"`
 	Version          int32  `json:"version"`
+	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
 }
 
 type NoteDTO struct {
@@ -82,6 +83,8 @@ type ParticipantDTO struct {
 	DisplayNameSnapshot string `json:"display_name_snapshot"`
 	Role                string `json:"role"`
 	Status              string `json:"status"`
+	Standing            string `json:"standing" description:"MEMBER | OBSERVER" example:"MEMBER"`
+	IsSecretary         bool   `json:"is_secretary"`
 }
 
 type ParticipantListSDO struct {
@@ -146,7 +149,8 @@ type JoinRequestListSDO struct {
 
 type MeetingStatisticsSDO struct {
 	Total              int64   `json:"total"`
-	Scheduled          int64   `json:"scheduled"`
+	Scheduled          int64   `json:"scheduled" description:"Cuộc họp SCHEDULED chưa qua giờ kết thúc dự kiến (ends_at >= now)"`
+	Missed             int64   `json:"missed" description:"Cuộc họp SCHEDULED đã qua giờ kết thúc dự kiến mà chưa bắt đầu (ends_at < now)"`
 	InProgress         int64   `json:"in_progress"`
 	Ended              int64   `json:"ended"`
 	Canceled           int64   `json:"canceled"`
@@ -166,12 +170,13 @@ type MeetingStatisticsSDO struct {
 }
 
 type ActivityItemDTO struct {
-	ID         string `json:"id"`
-	EventType  string `json:"event_type"`
-	ActorID    string `json:"actor_id"`
-	FromState  string `json:"from_state,omitempty"`
-	ToState    string `json:"to_state,omitempty"`
-	OccurredAt string `json:"occurred_at"`
+	ID         string            `json:"id"`
+	EventType  string            `json:"event_type"`
+	ActorID    string            `json:"actor_id"`
+	FromState  string            `json:"from_state,omitempty"`
+	ToState    string            `json:"to_state,omitempty"`
+	OccurredAt string            `json:"occurred_at"`
+	Payload    map[string]string `json:"payload,omitempty" description:"Chỉ có ở MOTION_OPENED {title} và MOTION_CLOSED {title, outcome}"`
 }
 
 type ActivityListSDO struct {
@@ -191,10 +196,6 @@ type TranscriptSegmentSDO struct {
 	Segment TranscriptSegmentDTO `json:"segment"`
 }
 
-type TranscriptListSDO struct {
-	Segments []TranscriptSegmentDTO `json:"segments"`
-}
-
 type MeetingChatMessageDTO struct {
 	ID             string `json:"id"`
 	MeetingID      string `json:"meeting_id"`
@@ -207,10 +208,6 @@ type MeetingChatMessageDTO struct {
 
 type MeetingChatMessageSDO struct {
 	Message MeetingChatMessageDTO `json:"message"`
-}
-
-type MeetingChatListSDO struct {
-	Messages []MeetingChatMessageDTO `json:"messages"`
 }
 
 type SummaryActionItemDTO struct {
@@ -267,4 +264,44 @@ type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
 	ServerSTT bool `json:"server_stt"`
+}
+
+type ParticipantSDO struct {
+	Participant ParticipantDTO `json:"participant"`
+}
+
+type AttendanceRowDTO struct {
+	ParticipantID       string `json:"participant_id"`
+	PrincipalType       string `json:"principal_type" example:"USER"`
+	UserID              string `json:"user_id,omitempty"`
+	DisplayName         string `json:"display_name"`
+	Standing            string `json:"standing" example:"MEMBER"`
+	IsSecretary         bool   `json:"is_secretary"`
+	Status              string `json:"status" description:"PRESENT | LATE | EXCUSED | ABSENT" example:"PRESENT"`
+	Source              string `json:"source" description:"AUTO | MANUAL | SUGGESTED" example:"SUGGESTED"`
+	Note                string `json:"note"`
+	FirstJoinedAt       string `json:"first_joined_at,omitempty"`
+	LastLeftAt          string `json:"last_left_at,omitempty"`
+	InRoom              bool   `json:"in_room"`
+	PresentSeconds      int64  `json:"present_seconds"`
+	SessionCount        int32  `json:"session_count"`
+	Removed             bool   `json:"removed" description:"true khi điểm danh đã chốt và người này đã bị gỡ khỏi cuộc họp sau khi được ghi nhận; vẫn được tính trong bản chốt"`
+	JoinedAfterFinalize bool   `json:"joined_after_finalize" description:"true khi điểm danh đã chốt và người này được thêm sau đó (source SUGGESTED); không tính vào tổng số, tỉ lệ có mặt hay danh sách biểu quyết"`
+}
+
+type AttendanceSummaryDTO struct {
+	Members   int   `json:"members"`
+	Present   int   `json:"present"`
+	Late      int   `json:"late"`
+	Excused   int   `json:"excused"`
+	Absent    int   `json:"absent"`
+	QuorumMet *bool `json:"quorum_met" description:"null khi không đặt tỉ lệ hoặc chưa có thành viên"`
+}
+
+type AttendanceSDO struct {
+	FinalizedAt   string               `json:"finalized_at,omitempty"`
+	FinalizedBy   string               `json:"finalized_by,omitempty"`
+	QuorumPercent *int16               `json:"quorum_percent"`
+	Summary       AttendanceSummaryDTO `json:"summary"`
+	Rows          []AttendanceRowDTO   `json:"rows"`
 }

@@ -24,11 +24,12 @@ WHERE id = $1
   AND disconnected_at IS NULL;
 
 -- name: GetEmailHubAccountByID :one
+-- tenant: system
 SELECT *
 FROM email_hub_accounts
 WHERE id = $1;
 
--- name: DisconnectEmailHubAccount :exec
+-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
 SET disconnected_at = now(), updated_at = now()
 WHERE id = $1
@@ -39,9 +40,10 @@ WHERE id = $1
 -- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1;
+WHERE id = $1 AND organization_id = $3;
 
 -- name: UpsertEmailHubThread :one
+-- tenant: parent account_id
 INSERT INTO email_hub_threads (
   id, account_id, organization_id, folder, imap_uid, message_id,
   subject, snippet, from_addr, from_name, to_addrs, sent_at,
@@ -174,10 +176,12 @@ WHERE account_id = $1
 RETURNING body_object_key;
 
 -- name: DeleteEmailHubAttachmentsForThreads :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_attachments
 WHERE thread_id = ANY($1::text[]);
 
 -- name: DeleteEmailHubThreadAiSummariesForThreads :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = ANY($1::text[]);
 
@@ -188,6 +192,7 @@ WHERE account_id = sqlc.arg('account_id')
   AND id = ANY(sqlc.arg('thread_ids')::text[]);
 
 -- name: UpdateEmailHubThreadBody :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = $2,
     body_html = $3,
@@ -198,6 +203,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: UpdateEmailHubThreadBodyObject :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
@@ -223,6 +229,7 @@ WHERE id = $1
   AND organization_id = $3;
 
 -- name: InvalidateEmailHubThreadBody :one
+-- tenant: by-id
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
@@ -246,6 +253,7 @@ WHERE account_id = $1
   AND body_object_key = '';
 
 -- name: PatchEmailHubThreadSnippet :exec
+-- tenant: by-id
 UPDATE email_hub_threads
 SET snippet = $2,
     synced_at = now()
@@ -305,7 +313,7 @@ FROM (
 
 -- name: DeleteEmailHubThreadsForAccount :exec
 DELETE FROM email_hub_threads
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: UpdateEmailHubThreadRead :one
 UPDATE email_hub_threads
@@ -333,6 +341,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: ListEmailHubAccountsConnected :many
+-- tenant: system
 SELECT *
 FROM email_hub_accounts
 WHERE disconnected_at IS NULL
@@ -590,12 +599,13 @@ WHERE t.account_id = sqlc.arg('account_id')
   );
 
 -- name: DeleteEmailHubAttachmentsForThread :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_attachments
 WHERE thread_id = $1;
 
 -- name: DeleteEmailHubAttachmentsForAccount :exec
 DELETE FROM email_hub_attachments
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
 
 -- name: CreateEmailHubAttachment :one
 INSERT INTO email_hub_attachments (
@@ -629,29 +639,60 @@ INSERT INTO email_hub_scheduled_sends (
 )
 RETURNING *;
 
--- name: ListDueEmailHubScheduledSends :many
-SELECT *
-FROM email_hub_scheduled_sends
-WHERE status = 'pending'
-  AND send_at <= now()
-ORDER BY send_at ASC
-LIMIT $1;
+-- name: FailExpiredEmailHubScheduledSendLeases :execrows
+-- tenant: system
+-- At-most-once after a crash: an expired sending lease becomes failed so the
+-- user can review/retry explicitly; it never returns to pending for a blind resend.
+UPDATE email_hub_scheduled_sends
+SET status = 'failed',
+    last_error = 'worker lease expired',
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE status = 'sending'
+  AND lease_expires_at IS NOT NULL
+  AND lease_expires_at <= sqlc.arg('now');
 
--- name: MarkEmailHubScheduledSendSent :exec
+-- name: ClaimDueEmailHubScheduledSends :many
+-- tenant: system
+UPDATE email_hub_scheduled_sends SET
+  status = 'sending',
+  lease_owner = sqlc.arg('lease_owner'),
+  lease_expires_at = sqlc.arg('lease_expires_at')
+WHERE id IN (
+  SELECT email_hub_scheduled_sends.id
+  FROM email_hub_scheduled_sends
+  WHERE email_hub_scheduled_sends.status = 'pending'
+    AND email_hub_scheduled_sends.send_at <= sqlc.arg('now')
+  ORDER BY email_hub_scheduled_sends.send_at ASC, email_hub_scheduled_sends.id ASC
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- name: MarkEmailHubScheduledSendSent :execrows
+-- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
-    last_error = NULL
-WHERE id = $1;
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE id = sqlc.arg('id')
+  AND status = 'sending'
+  AND lease_owner = sqlc.arg('lease_owner');
 
--- name: MarkEmailHubScheduledSendFailed :exec
+-- name: MarkEmailHubScheduledSendFailed :execrows
+-- tenant: system
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
-    last_error = $2
-WHERE id = $1
-  -- A user cancel that lands mid-send stays cancelled; it must not resurface
-  -- as a retryable failure.
-  AND status = 'pending';
+    last_error = sqlc.arg('last_error'),
+    lease_owner = NULL,
+    lease_expires_at = NULL
+WHERE id = sqlc.arg('id')
+  AND (
+    (status = 'sending' AND lease_owner = sqlc.arg('lease_owner'))
+    OR (status = 'pending' AND sqlc.arg('lease_owner') = '')
+  );
 
 -- name: ListEmailHubOpenScheduledSends :many
 -- Open = still the user's concern: pending (waiting to go out) or failed (the
@@ -675,7 +716,11 @@ WHERE id = $1
 
 -- name: RetryEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
-SET status = 'pending', send_at = now(), last_error = NULL
+SET status = 'pending',
+    send_at = now(),
+    last_error = NULL,
+    lease_owner = NULL,
+    lease_expires_at = NULL
 WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
@@ -690,6 +735,7 @@ WHERE thread_id = $1
   AND organization_id = $3;
 
 -- name: UpsertEmailHubThreadAiSummary :one
+-- tenant: parent thread_id
 INSERT INTO email_hub_thread_ai_summaries (
   id, organization_id, thread_id, account_id, locale, source_fingerprint,
   summary, key_points, action_items, needs_reply, reply_hint, model,
@@ -698,7 +744,6 @@ INSERT INTO email_hub_thread_ai_summaries (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (thread_id, locale) DO UPDATE SET
-  organization_id = EXCLUDED.organization_id,
   account_id = EXCLUDED.account_id,
   source_fingerprint = EXCLUDED.source_fingerprint,
   summary = EXCLUDED.summary,
@@ -710,12 +755,36 @@ ON CONFLICT (thread_id, locale) DO UPDATE SET
   created_by = EXCLUDED.created_by,
   created_by_kind = EXCLUDED.created_by_kind,
   updated_at = now()
+-- A summary never changes tenant: a conflicting row of another organization
+-- is left alone (no row comes back) instead of being taken over.
+WHERE email_hub_thread_ai_summaries.organization_id = EXCLUDED.organization_id
 RETURNING *;
 
 -- name: DeleteEmailHubThreadAiSummariesForThread :exec
+-- tenant: parent thread_id
 DELETE FROM email_hub_thread_ai_summaries
 WHERE thread_id = $1;
 
 -- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
-WHERE account_id = $1;
+WHERE account_id = $1 AND organization_id = $2;
+
+-- name: EmailHubAccountSidebarCounts :one
+SELECT
+  (
+    SELECT count(*) FILTER (WHERE NOT t.is_read)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = sqlc.arg('account_id')
+      AND t.organization_id = sqlc.arg('organization_id')
+      AND t.folder = 'INBOX'
+      AND (t.snoozed_until IS NULL OR t.snoozed_until <= now())
+  ) AS inbox_unread,
+  (
+    SELECT count(*)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = sqlc.arg('account_id')
+      AND t.organization_id = sqlc.arg('organization_id')
+      AND t.folder = 'INBOX'
+      AND t.snoozed_until IS NOT NULL
+      AND t.snoozed_until > now()
+  ) AS snoozed_total;

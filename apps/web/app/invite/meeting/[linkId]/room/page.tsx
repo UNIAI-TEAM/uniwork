@@ -96,7 +96,10 @@ export default function MeetingInviteRoomPage() {
       <Suspense fallback={<MeetingStagePageSkeleton />}>
         <MeetingRoomView
           meetingId={session.meetingId}
-          guestMode={isGuest}
+          // Members are sent to the workspace room, so everyone here is
+          // outside the workspace — signed in or not — and must not reach
+          // its APIs (UNI-901).
+          guestMode
           joinBody={session.joinBody}
           invite={isGuest ? { linkId, secret: inviteSecret } : undefined}
           meetingTitle={session.meetingTitle}

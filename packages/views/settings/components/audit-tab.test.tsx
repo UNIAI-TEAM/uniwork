@@ -127,6 +127,31 @@ describe("AuditTab", () => {
     fireEvent.click(row!);
     expect(await screen.findByText("corr1")).toBeInTheDocument();
   });
+  it("names a guest voter by kind and the vote item in words", async () => {
+    const guestId = "01J8Z0M3K9Q2V4X6Y8A0B2C4G7";
+    mockApi("admin", {
+      events: {
+        events: [
+          {
+            ...auditEvent,
+            id: "g1",
+            actor_kind: "guest",
+            actor_id: guestId,
+            action: "meeting.ballot_cast",
+            resource_type: "meeting_motion",
+            resource_id: "m1",
+            changes: {},
+          },
+        ],
+        next_before: "",
+      },
+    });
+    renderTab();
+    // A guest has no workspace name: the row says "Khách", the id stays on hover.
+    expect(await screen.findByTitle(guestId)).toHaveTextContent("Khách");
+    expect(screen.getByText("Nội dung biểu quyết")).toBeInTheDocument();
+    expect(screen.queryByText("meeting_motion")).toBeNull();
+  });
 
   it("tells a plain member why the log is not theirs, instead of showing an empty table", async () => {
     mockApi("member");

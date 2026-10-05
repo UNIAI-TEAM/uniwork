@@ -124,6 +124,7 @@ UPDATE users SET mfa_recovery_codes = array_remove(mfa_recovery_codes, $2::text)
 WHERE id = $1 AND $2::text = ANY(mfa_recovery_codes);
 
 -- name: CountOwnedOrganizationsForUser :one
+-- tenant: self
 SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner';
 
 -- name: AnonymizeUser :one
@@ -138,10 +139,12 @@ WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: DeactivateAllOrganizationMembershipsForUser :exec
+-- tenant: self
 UPDATE organization_members SET deactivated_at = now(), deactivated_by = $1, updated_at = now()
 WHERE user_id = $1 AND deactivated_at IS NULL;
 
 -- name: ScrubMemberProfilesForUser :exec
+-- tenant: self
 UPDATE organization_member_profiles SET
   phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
   search_text = '', updated_at = now()

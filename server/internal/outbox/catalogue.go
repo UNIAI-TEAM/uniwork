@@ -31,6 +31,11 @@ const (
 	// not to a workspace, so a per-workspace fan-out would both miss people
 	// and repeat itself (F-03 §6.4).
 	ScopeOrganization Scope = "organization"
+	// ScopeMeeting goes to the sockets holding one meeting open: a member's
+	// room and detail page subscribe meeting:{id} through an authorizer, and
+	// a guest's lobby socket hears the topics it needs. In-room traffic used
+	// to reach every socket in the workspace (G8).
+	ScopeMeeting Scope = "meeting"
 	// ScopeNone is infrastructure work with no client to notify.
 	ScopeNone Scope = ""
 )
@@ -179,7 +184,11 @@ var catalogue = []EventDef{
 	{Topic: "chat.voice.recording.stopped", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.call.completed", Version: 1, Payload: []string{"room_id", "workspace_id", "organization_id", "call_id", "call_log_message_id", "caller_id", "started_at", "ended_at", "duration_seconds", "duration_label", "participants"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
-	// Meetings
+	// Meetings. The lifecycle and roster rows stay on the workspace: the
+	// meeting list, the calendar and the home summary follow them from outside
+	// any meeting. What only a screen holding the meeting open shows (chat,
+	// transcript, the roll, motions, recordings, the lobby queue) is
+	// meeting-scoped; the room and the detail page subscribe to it.
 	{Topic: "meeting.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "meeting.updated", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "meeting.deleted", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -189,19 +198,31 @@ var catalogue = []EventDef{
 	{Topic: "host.transferred", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.invited", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.removed", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "participant.updated", Version: 1, Payload: []string{"meeting_id", "version", "participant_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.marked", Version: 1, Payload: []string{"meeting_id", "version", "participant_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.finalized", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.reopened", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A webhook opened or closed a room session; panels refetch the roll.
+	{Topic: "attendance.updated", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "motion.created", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.updated", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.deleted", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.opened", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.closed", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.rejected", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.canceled", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.rejected", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.canceled", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invite_link.revoked", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 
 	// Documents (UNI-675): ids only; consumers refetch the page/file.
 	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

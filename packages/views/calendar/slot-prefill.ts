@@ -42,14 +42,37 @@ export function taskDefaultsFromSlot(slot: CalendarSlot): Partial<CreateTaskBody
   };
 }
 
-export function meetingScheduleFromSlot(slot: CalendarSlot): ScheduleDraft {
+const MEETING_START_STEP_MS = 15 * 60 * 1000;
+const ALL_DAY_MEETING_MS = 60 * 60 * 1000;
+
+/** The first quarter hour at or after `nowMs`. */
+function nextMeetingStart(nowMs: number): Date {
+  return new Date(Math.ceil(nowMs / MEETING_START_STEP_MS) * MEETING_START_STEP_MS);
+}
+
+function draftFrom(start: Date, end: Date): ScheduleDraft {
+  return { date: ymdLocal(start), start: hmLocal(start), end: hmLocal(end) };
+}
+
+/**
+ * A meeting window for a calendar slot, or null when the slot has already
+ * passed: the server and the dialog refuse a start in the past, so the
+ * calendar must not offer one. A slot that is still running starts at the
+ * next quarter hour and keeps its length; today's all-day slot does the same
+ * instead of a morning that is already gone.
+ */
+export function meetingScheduleFromSlot(slot: CalendarSlot, nowMs: number): ScheduleDraft | null {
   if (slot.allDay) {
-    return { date: ymdLocal(slot.start), start: "09:00", end: "10:00" };
+    const day = ymdLocal(slot.start);
+    const today = ymdLocal(new Date(nowMs));
+    if (day < today) return null;
+    if (day > today) return { date: day, start: "09:00", end: "10:00" };
+    const start = nextMeetingStart(nowMs);
+    return draftFrom(start, new Date(start.getTime() + ALL_DAY_MEETING_MS));
   }
   const end = slot.end ?? addHours(slot.start, 1);
-  return {
-    date: ymdLocal(slot.start),
-    start: hmLocal(slot.start),
-    end: hmLocal(end),
-  };
+  if (end.getTime() <= nowMs) return null;
+  if (slot.start.getTime() >= nowMs) return draftFrom(slot.start, end);
+  const start = nextMeetingStart(nowMs);
+  return draftFrom(start, new Date(start.getTime() + (end.getTime() - slot.start.getTime())));
 }

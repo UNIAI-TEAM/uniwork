@@ -16,7 +16,7 @@ type CreateMeetingSDI struct {
 
 // ListMeetingsSDI documents GET /api/v1/workspaces/{workspaceID}/meetings query params.
 type ListMeetingsSDI struct {
-	Status      string `query:"status" description:"Lọc theo status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
+	Status      string `query:"status" enum:"SCHEDULED,MISSED,IN_PROGRESS,ENDED,CANCELED" description:"Lọc theo trạng thái người xem thấy: SCHEDULED = chưa bắt đầu và chưa qua giờ kết thúc (ends_at >= now); MISSED = SCHEDULED đã qua giờ kết thúc (ends_at < now); các giá trị khác khớp status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
 	MeetingType string `query:"meeting_type" description:"SCHEDULED hoặc INSTANT; bỏ trống = cả hai" example:"SCHEDULED"`
 	HostUserID  string `query:"host_user_id" description:"Lọc theo ULID người chủ trì" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	ProjectID   string `query:"project_id" description:"Lọc theo ULID project" example:""`
@@ -42,6 +42,7 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 
 type CreateNoteSDI struct {
@@ -139,4 +140,40 @@ type SummaryTasksSDI struct {
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
 type AppendChatSDI struct {
 	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
+}
+
+// PatchParticipantSDI sets who votes and who clerks (host/admin only).
+type PatchParticipantSDI struct {
+	Standing    *string `json:"standing" enum:"MEMBER,OBSERVER" description:"MEMBER = thành viên chính thức, OBSERVER = dự thính" example:"OBSERVER"`
+	IsSecretary *bool   `json:"is_secretary" description:"Giao/bỏ vai thư ký (chỉ tài khoản)" example:"true"`
+}
+
+// MarkAttendanceSDI is PUT /api/v1/meetings/{meetingID}/attendance/{participantID}.
+type MarkAttendanceSDI struct {
+	Status string `json:"status" enum:"PRESENT,LATE,EXCUSED,ABSENT" example:"EXCUSED"`
+	Note   string `json:"note" maxLength:"200" description:"Lý do vắng; chỉ lưu khi EXCUSED" example:"Đi công tác"`
+}
+
+// CreateMotionSDI is POST /api/v1/meetings/{meetingID}/motions.
+type CreateMotionSDI struct {
+	Title       string `json:"title" minLength:"1" maxLength:"200" description:"Nội dung biểu quyết (đếm theo ký tự)" example:"Thông qua kế hoạch quý IV"`
+	Description string `json:"description" maxLength:"2000" description:"Mô tả thêm, không bắt buộc" example:""`
+	BallotMode  string `json:"ballot_mode" enum:"PUBLIC,SECRET" description:"PUBLIC = công khai, SECRET = bỏ phiếu kín" example:"SECRET"`
+	Threshold   string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" description:"Ngưỡng thông qua" example:"MAJORITY"`
+	Base        string `json:"base" enum:"PRESENT,ALL_MEMBERS" description:"Mẫu số: số thành viên có mặt hoặc tổng thành viên" example:"PRESENT"`
+}
+
+// PatchMotionSDI is PATCH /api/v1/meetings/{meetingID}/motions/{motionID}; draft only.
+type PatchMotionSDI struct {
+	Title       *string `json:"title" minLength:"1" maxLength:"200" example:"Thông qua kế hoạch quý IV"`
+	Description *string `json:"description" maxLength:"2000" example:""`
+	BallotMode  *string `json:"ballot_mode" enum:"PUBLIC,SECRET" example:"PUBLIC"`
+	Threshold   *string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" example:"TWO_THIRDS"`
+	Base        *string `json:"base" enum:"PRESENT,ALL_MEMBERS" example:"ALL_MEMBERS"`
+	Position    *int32  `json:"position" minimum:"1" description:"Đổi chỗ với nội dung đang ở vị trí này (cả hai phải còn nháp)" example:"1"`
+}
+
+// CastBallotSDI is POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot.
+type CastBallotSDI struct {
+	Choice string `json:"choice" enum:"YES,NO,ABSTAIN" description:"Không đổi được sau khi gửi" example:"YES"`
 }

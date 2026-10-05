@@ -66,6 +66,7 @@ type CountActiveOrganizationsForUserParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+// tenant: parent user_id
 // Deactivating a member revokes their sessions only when this is the last
 // organization they can still enter.
 func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg CountActiveOrganizationsForUserParams) (int64, error) {
@@ -414,6 +415,7 @@ type ListOrganizationsForUserRow struct {
 	DeactivatedAt   pgtype.Timestamptz `json:"deactivated_at"`
 }
 
+// tenant: self
 // Deactivated memberships stay in the switcher so the person can see which
 // organization locked them out instead of watching it vanish (spec F-03 §6.3).
 func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) ([]ListOrganizationsForUserRow, error) {

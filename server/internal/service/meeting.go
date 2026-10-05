@@ -191,12 +191,14 @@ func (s *MeetingService) requireHostOrAdmin(ctx context.Context, userID, meeting
 	return m, nil
 }
 
-func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, meetingID, eventType, actorID, from, to, payload string) error {
+// writeAudit takes the meeting row, not its id: the timeline row carries the
+// meeting's organization (ADR 0008).
+func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, m db.Meeting, eventType, actorID, from, to, payload string) error {
 	if payload == "" {
 		payload = "{}"
 	}
 	return q.InsertAuditLog(ctx, db.InsertAuditLogParams{
-		ID: util.NewID(), MeetingID: meetingID, EventType: eventType,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, EventType: eventType,
 		ActorType: "USER", ActorID: actorID,
 		FromState: strText(from), ToState: strText(to), Payload: payload,
 	})
@@ -218,7 +220,7 @@ func (s *MeetingService) addHostParticipant(ctx context.Context, q *db.Queries, 
 		return db.MeetingParticipant{}, err
 	}
 	p, err := q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser,
 		UserID: strText(userID), DisplayNameSnapshot: u.DisplayName,
 		EmailSnapshot: strText(u.Email), Role: RoleModerator, SourceType: GrantCreator, AddedBy: userID,
 	})
@@ -226,7 +228,7 @@ func (s *MeetingService) addHostParticipant(ctx context.Context, q *db.Queries, 
 		return db.MeetingParticipant{}, err
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID,
 		SourceType: GrantCreator, GrantedBy: userID,
 	})
 	return p, err
@@ -248,7 +250,8 @@ func (s *MeetingService) Create(ctx context.Context, userID, workspaceID string,
 }
 
 func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceID string, in CreateMeetingInput) (db.Meeting, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
 		return db.Meeting{}, err
 	}
 	if strings.TrimSpace(in.Title) == "" {
@@ -265,6 +268,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if in.AllowJoinRequest != nil {
 		allow = *in.AllowJoinRequest
 	}
+	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, in.ProjectID); err != nil {
+		return db.Meeting{}, err
+	}
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -273,7 +279,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
-		ID: id, WorkspaceID: workspaceID,
+		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID,
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: in.EndsAt, Valid: true},
@@ -296,7 +302,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 			return db.Meeting{}, err
 		}
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
 		return db.Meeting{}, err
 	}
 	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil,
@@ -319,98 +325,6 @@ func (s *MeetingService) Get(ctx context.Context, userID, meetingID string) (db.
 	return m, err
 }
 
-type UpdateMeetingInput struct {
-	Title            *string
-	Description      *string
-	StartsAt         *time.Time
-	EndsAt           *time.Time
-	Timezone         *string
-	AllowJoinRequest *bool
-	ProjectID        *string
-}
-
-func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, in UpdateMeetingInput) (db.Meeting, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
-	if err != nil {
-		return db.Meeting{}, err
-	}
-	if m.Status == MeetingEnded || m.Status == MeetingCanceled {
-		return db.Meeting{}, errInvalidState()
-	}
-	if m.Status == MeetingInProgress && (in.StartsAt != nil || in.EndsAt != nil) {
-		return db.Meeting{}, Invalid("không sửa thời gian dự kiến khi cuộc họp đang diễn ra")
-	}
-	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
-		return db.Meeting{}, Invalid("tiêu đề không được để trống")
-	}
-	params := db.UpdateMeetingParams{
-		ID: meetingID, Version: m.Version, Title: optText(in.Title), Description: optText(in.Description),
-		StartsAt: optTimestamptz(in.StartsAt), EndsAt: optTimestamptz(in.EndsAt),
-		Timezone: optText(in.Timezone), AllowJoinRequest: optBool(in.AllowJoinRequest),
-		ProjectID: optText(in.ProjectID), UpdatedBy: strText(userID),
-	}
-	up, err := s.q.UpdateMeeting(ctx, params)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.Meeting{}, ErrConflict
-	}
-	if err != nil {
-		return db.Meeting{}, err
-	}
-	if !up.EndsAt.Time.After(up.StartsAt.Time) {
-		return db.Meeting{}, Invalid("thời gian kết thúc phải sau thời gian bắt đầu")
-	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
-	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
-		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt)},
-		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt)},
-	))
-	return up, nil
-}
-
-const (
-	defaultExtendMinutes = 15
-	maxExtendMinutes     = 120
-)
-
-// Extend pushes ends_at forward while the meeting is live. Calendar PATCH
-// cannot do this: Update forbids schedule edits on IN_PROGRESS meetings.
-func (s *MeetingService) Extend(ctx context.Context, userID, meetingID string, minutes int) (db.Meeting, error) {
-	if minutes <= 0 {
-		minutes = defaultExtendMinutes
-	}
-	if minutes > maxExtendMinutes {
-		return db.Meeting{}, Invalid("chỉ được gia hạn tối đa 120 phút")
-	}
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
-	if err != nil {
-		return db.Meeting{}, err
-	}
-	if m.Status != MeetingInProgress {
-		return db.Meeting{}, errInvalidState()
-	}
-	base := time.Now().UTC()
-	if m.EndsAt.Valid && m.EndsAt.Time.After(base) {
-		base = m.EndsAt.Time.UTC()
-	}
-	next := base.Add(time.Duration(minutes) * time.Minute)
-	params := db.UpdateMeetingParams{
-		ID: meetingID, Version: m.Version, EndsAt: optTimestamptz(&next), UpdatedBy: strText(userID),
-	}
-	up, err := s.q.UpdateMeeting(ctx, params)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.Meeting{}, ErrConflict
-	}
-	if err != nil {
-		return db.Meeting{}, err
-	}
-	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
-	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
-		map[string]any{"ends_at": tsOrNil(m.EndsAt)},
-		map[string]any{"ends_at": tsOrNil(up.EndsAt)},
-	))
-	return up, nil
-}
-
 func optBool(b *bool) pgtype.Bool {
 	if b == nil {
 		return pgtype.Bool{}
@@ -431,14 +345,15 @@ func (s *MeetingService) Delete(ctx context.Context, userID, meetingID string) e
 }
 
 func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body string) (db.MeetingNote, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	m, _, err := s.authorize(ctx, userID, meetingID)
+	if err != nil {
 		return db.MeetingNote{}, err
 	}
 	if strings.TrimSpace(body) == "" {
 		return db.MeetingNote{}, Invalid("nội dung không được để trống")
 	}
 	return s.q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
-		ID: util.NewID(), MeetingID: meetingID, AuthorID: userID, Body: body,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, AuthorID: userID, Body: body,
 	})
 }
 
@@ -476,6 +391,16 @@ var meetingActionFor = map[string]string{
 	"host.transferred":      "meeting.host_transferred",
 	"participant.invited":   "meeting.participant_invited",
 	"participant.removed":   "meeting.participant_removed",
+	"participant.updated":   "meeting.participant_updated",
+	"attendance.marked":     "meeting.attendance_marked",
+	"attendance.finalized":  "meeting.attendance_finalized",
+	"attendance.reopened":   "meeting.attendance_reopened",
+	"motion.created":        "meeting.motion_created",
+	"motion.updated":        "meeting.motion_updated",
+	"motion.deleted":        "meeting.motion_deleted",
+	"motion.opened":         "meeting.motion_opened",
+	"motion.closed":         "meeting.motion_closed",
+	"motion.ballot_cast":    "meeting.ballot_cast",
 	"invitation.responded":  "meeting.invitation_responded",
 	"join_request.created":  "meeting.join_requested",
 	"join_request.approved": "meeting.join_request_approved",
@@ -491,14 +416,22 @@ var meetingActionFor = map[string]string{
 // reach here, and they are the remaining work of migrating Meeting off its
 // own audit table.
 func (s *MeetingService) record(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, topic string, payload map[string]string, changes map[string]audit.Change) {
+	s.recordResource(ctx, q, m, actor, topic, payload, changes, "meeting", m.ID)
+}
+
+// recordResource is record for a command whose audit row belongs to a
+// resource inside the meeting — a ballot is filed under its motion (spec
+// §6.1). Everything, the organization lookup included, goes through q: inside
+// a transaction that keeps the command on the one connection it already
+// holds, so N concurrent commands need N pool connections, not 2N.
+func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	action, ok := meetingActionFor[topic]
 	if !ok {
 		return
 	}
-	orgID := ""
-	if w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
-		orgID = w.OrganizationID
-	}
+	// The meeting carries its tenant (ADR 0008), so no workspace read runs
+	// inside the caller's transaction - for a ballot, under the motion lock.
+	orgID := m.OrganizationID
 	if payload == nil {
 		payload = meetingEventPayload(m)
 	}
@@ -509,10 +442,10 @@ func (s *MeetingService) record(ctx context.Context, q *db.Queries, m db.Meeting
 		OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Actor:        actor,
 		Action:       action,
-		ResourceType: "meeting", ResourceID: m.ID,
+		ResourceType: resourceType, ResourceID: resourceID,
 		Changes: changes,
 	}, audit.Event{Topic: topic, Payload: payload, OrganizationID: orgID, WorkspaceID: m.WorkspaceID}); err != nil {
-		slog.Warn("audit: meeting command not recorded", "action", action, "meeting", m.ID, "err", err)
+		slog.Warn("audit: meeting command not recorded", "action", action, "meeting", m.ID, "resource", resourceType, "err", err)
 	}
 }
 
@@ -522,4 +455,12 @@ func tsOrNil(t pgtype.Timestamptz) any {
 		return nil
 	}
 	return t.Time.UTC().Format(time.RFC3339)
+}
+
+// quorumOrNil normalizes the nullable quorum for an audit change entry.
+func quorumOrNil(q pgtype.Int2) any {
+	if !q.Valid {
+		return nil
+	}
+	return q.Int16
 }

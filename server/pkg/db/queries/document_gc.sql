@@ -11,6 +11,7 @@
 -- past the previous batch inside one pass so a row that keeps failing can
 -- never pin the sweep on the first page.
 -- name: ListDocumentsForPurge :many
+-- tenant: system
 SELECT id, organization_id, workspace_id, purge_after
 FROM documents
 WHERE archived_at IS NOT NULL
@@ -91,6 +92,7 @@ WHERE id = sqlc.arg(id)
 -- archived documents: they purge whole with their rows. after_* keysets
 -- past the previous batch inside one pass.
 -- name: ListOrphanedDocumentAssets :many
+-- tenant: system
 SELECT a.id, a.organization_id, a.workspace_id, a.document_id, a.orphaned_at
 FROM document_assets a
 JOIN documents d
@@ -137,6 +139,7 @@ WHERE id = sqlc.arg(id)
 -- previous batch inside one pass so a page that keeps failing cannot pin
 -- the sweep on the first page.
 -- name: ListDocumentsForAutoVersion :many
+-- tenant: system
 SELECT id, organization_id, workspace_id, content_saved_at
 FROM documents
 WHERE kind = 'page'
@@ -170,6 +173,7 @@ RETURNING *;
 -- after_id keysets past the previous batch inside one pass so a document
 -- that cannot be compacted (protected overflow) never pins the sweep.
 -- name: ListDocumentsOverVersionLimit :many
+-- tenant: system
 SELECT document_id, organization_id, workspace_id, count(*) AS total
 FROM document_versions
 WHERE sqlc.narg(after_id)::text IS NULL

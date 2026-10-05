@@ -50,7 +50,7 @@ func TestHomeEndpoints(t *testing.T) {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, UserID: memberID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 

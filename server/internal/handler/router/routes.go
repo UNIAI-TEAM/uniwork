@@ -115,6 +115,7 @@ type Routes struct {
 	BatchUpdateTasks      http.HandlerFunc
 	BatchDeleteTasks      http.HandlerFunc
 	ListMyTasks           http.HandlerFunc
+	GetAssigneeFrequency  http.HandlerFunc
 	ListTaskChildren      http.HandlerFunc
 	ListChildrenByParents http.HandlerFunc
 	ChildTaskProgress     http.HandlerFunc
@@ -167,6 +168,7 @@ type Routes struct {
 
 	ListEmailHubAccounts          http.HandlerFunc
 	GetEmailHubUnreadCount        http.HandlerFunc
+	GetEmailHubSidebarCounts      http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc
 	DisconnectEmailHubAccount     http.HandlerFunc
 	ListEmailHubImapLabels        http.HandlerFunc
@@ -293,6 +295,21 @@ type Routes struct {
 	RespondInvitation              http.HandlerFunc
 	RemoveParticipant              http.HandlerFunc
 	SetParticipantPublish          http.HandlerFunc
+	PatchParticipant               http.HandlerFunc
+	GetAttendance                  http.HandlerFunc
+	MarkAttendance                 http.HandlerFunc
+	ClearAttendanceMark            http.HandlerFunc
+	FinalizeAttendance             http.HandlerFunc
+	ReopenAttendance               http.HandlerFunc
+	ListMotions                    http.HandlerFunc
+	ListMyBallots                  http.HandlerFunc
+	ListMotionVoters               http.HandlerFunc
+	CreateMotion                   http.HandlerFunc
+	UpdateMotion                   http.HandlerFunc
+	DeleteMotion                   http.HandlerFunc
+	OpenMotion                     http.HandlerFunc
+	CloseMotion                    http.HandlerFunc
+	CastBallot                     http.HandlerFunc
 	ListInviteLinks                http.HandlerFunc
 	CreateInviteLink               http.HandlerFunc
 	RevokeInviteLink               http.HandlerFunc

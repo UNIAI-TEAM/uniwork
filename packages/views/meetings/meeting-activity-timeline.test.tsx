@@ -78,4 +78,40 @@ describe("MeetingActivityTimeline", () => {
     expect(screen.getByText("Hệ thống")).toBeInTheDocument();
     expect(screen.getAllByText("Thành viên đã rời").length).toBeGreaterThan(0);
   });
+  it("names the vote item and its outcome, and reads an automatic close as the system", async () => {
+    activityRespond(() =>
+      Promise.resolve({
+        activity: [
+          {
+            id: "v2",
+            event_type: "MOTION_CLOSED",
+            actor_id: "system",
+            from_state: "OPEN",
+            to_state: "PASSED",
+            occurred_at: "2026-09-22T02:40:00Z",
+            payload: { title: "Thông qua kế hoạch quý IV", outcome: "PASSED" },
+          },
+          {
+            id: "v1",
+            event_type: "MOTION_OPENED",
+            actor_id: "u1",
+            from_state: "DRAFT",
+            to_state: "OPEN",
+            occurred_at: "2026-09-22T02:30:00Z",
+            payload: { title: "Thông qua kế hoạch quý IV" },
+          },
+          { id: "v0", event_type: "ATTENDANCE_FINALIZED", actor_id: "u1", occurred_at: "2026-09-22T02:20:00Z" },
+        ],
+      }),
+    );
+    renderTimeline();
+
+    expect(await screen.findByText("đã đóng biểu quyết")).toBeInTheDocument();
+    expect(screen.getByText("đã mở biểu quyết")).toBeInTheDocument();
+    expect(screen.getByText("đã chốt điểm danh")).toBeInTheDocument();
+    expect(screen.getByText("“Thông qua kế hoạch quý IV” · Thông qua")).toBeInTheDocument();
+    expect(screen.getByText("“Thông qua kế hoạch quý IV”")).toBeInTheDocument();
+    expect(screen.getByText("Hệ thống")).toBeInTheDocument();
+    expect(screen.queryByText(/PASSED|DRAFT/)).not.toBeInTheDocument();
+  });
 });

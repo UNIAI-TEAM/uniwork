@@ -18,36 +18,6 @@ export function Container({
   );
 }
 
-/**
- * A section whose polarity is flipped against the page.
- *
- * The background is painted here and the CONTENT is wrapped in `.dark`, which
- * is not a stylistic choice: custom properties are computed and then
- * inherited, so `.dark` on this same element would resolve
- * --surface-emphasis to its own dark value and the band would look identical
- * in both themes. Split across two elements, the ground tracks the page theme
- * while the text, brand hue and focus ring come from the dark palette — which
- * is what keeps the eyebrow above 4.5:1 (packages/ui/styles/tokens.test.ts).
- *
- * Do not put a load-bearing border inside: --border sits at 1.04 against the
- * dark-page band. Separate with radius and elevation instead.
- */
-export function EmphasisSection({
-  id,
-  className,
-  children,
-}: {
-  id?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className={cn("bg-surface-emphasis", className)}>
-      <div className="dark text-foreground">{children}</div>
-    </section>
-  );
-}
-
 /** Section heading. `font-heading` is the display face; see tokens.css. */
 export function SectionTitle({ className, children }: { className?: string; children: React.ReactNode }) {
   return (

@@ -70,8 +70,8 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   await owner.getByText(`Việc cho B ${stamp}`).click();
   await expect(owner).toHaveURL(/\/tasks\/[0-9A-Z]+$/);
   const taskURL = owner.url();
-  await owner.getByRole("combobox").filter({ hasText: "Chưa giao" }).click();
-  await owner.getByRole("option", { name: "Thành Viên" }).click();
+  await owner.getByRole("button", { name: "Người phụ trách: Chưa giao" }).click();
+  await owner.getByRole("button", { name: "Thành Viên", exact: true }).click();
 
   // B: the badge appears over the socket, no reload. The row crosses the
   // outbox twice (task.updated → consumer, notification.created → socket) at

@@ -30,6 +30,7 @@ WHERE organization_id = $1 AND workspace_id = $2
 ORDER BY status, position, created_at;
 
 -- name: GetTask :one
+-- tenant: by-id
 SELECT * FROM tasks WHERE id = $1;
 
 -- name: GetTaskInWorkspace :one
@@ -184,6 +185,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'));
 
 -- name: ListTasksByIdentifier :many
+-- tenant: by-id
 -- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
 SELECT t.* FROM tasks t
 INNER JOIN workspaces w
@@ -295,3 +297,29 @@ WHERE t.organization_id = sqlc.arg('organization_id')
   AND lower(btrim(regexp_replace(t.title, '[[:space:]]+', ' ', 'g'))) = sqlc.arg('normalized_title')
 ORDER BY t.created_at ASC
 LIMIT 1;
+
+-- name: ListAssigneeFrequency :many
+-- How often the caller put each assignee on a task in this workspace since
+-- @since: task.created rows that carry an assignee plus task.updated rows that
+-- changed assignee_id (audit.Diff keeps only changed fields). An id with a
+-- workspace_agent_members row is an agent; ids are ULIDs, so they never clash.
+SELECT
+  f.assignee_id::text AS assignee_id,
+  (CASE WHEN wam.agent_id IS NULL THEN 'human' ELSE 'agent' END)::text AS assignee_kind,
+  f.frequency::bigint AS frequency
+FROM (
+  SELECT a.changes::jsonb -> 'assignee_id' ->> 'to' AS assignee_id, COUNT(*) AS frequency
+  FROM audit_events a
+  WHERE a.organization_id = sqlc.arg('organization_id')::text
+    AND a.workspace_id = sqlc.arg('workspace_id')::text
+    AND a.actor_kind = 'human'
+    AND a.actor_id = sqlc.arg('actor_id')::text
+    AND a.action IN ('task.created', 'task.updated')
+    AND a.occurred_at >= sqlc.arg('since')::timestamptz
+    AND a.changes::jsonb -> 'assignee_id' ->> 'to' IS NOT NULL
+  GROUP BY 1
+) f
+LEFT JOIN workspace_agent_members wam
+  ON wam.workspace_id = sqlc.arg('workspace_id')::text AND wam.agent_id = f.assignee_id
+ORDER BY f.frequency DESC, f.assignee_id
+LIMIT 200;

@@ -121,12 +121,13 @@ func (q *Queries) CreateChatThreadTaskLink(ctx context.Context, arg CreateChatTh
 const createMirroredChatThreadReply = `-- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body,
-  reply_to_message_id, thread_root_id, mirrored_from_comment_id
+  reply_to_message_id, thread_root_id, mirrored_from_comment_id, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6,
-  $7, $8, $9
+  $7, $8, $9,
+  $10
 )
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateMirroredChatThreadReplyParams struct {
@@ -139,6 +140,7 @@ type CreateMirroredChatThreadReplyParams struct {
 	ReplyToMessageID      pgtype.Text `json:"reply_to_message_id"`
 	ThreadRootID          pgtype.Text `json:"thread_root_id"`
 	MirroredFromCommentID pgtype.Text `json:"mirrored_from_comment_id"`
+	OrganizationID        string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateMirroredChatThreadReplyParams) (ChatMessage, error) {
@@ -152,6 +154,7 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 		arg.ReplyToMessageID,
 		arg.ThreadRootID,
 		arg.MirroredFromCommentID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -173,6 +176,7 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -189,6 +193,7 @@ type DeleteChatMessageLinkParams struct {
 	MessageID string `json:"message_id"`
 }
 
+// tenant: by-id
 // Scoped by room, not workspace, for the same reason as the room batch above.
 func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessageLinkParams) (string, error) {
 	row := q.db.QueryRow(ctx, deleteChatMessageLink, arg.ID, arg.RoomID, arg.MessageID)
@@ -216,10 +221,11 @@ func (q *Queries) DeleteChatThreadTaskLinkByThread(ctx context.Context, arg Dele
 }
 
 const getChatMessageByMirroredComment = `-- name: GetChatMessageByMirroredComment :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredFromCommentID pgtype.Text) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByMirroredComment, mirroredFromCommentID)
 	var i ChatMessage
@@ -242,6 +248,7 @@ func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredF
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -286,6 +293,7 @@ type GetChatMessageLinkByPairParams struct {
 	TargetID   string `json:"target_id"`
 }
 
+// tenant: parent message_id
 func (q *Queries) GetChatMessageLinkByPair(ctx context.Context, arg GetChatMessageLinkByPairParams) (ChatMessageLink, error) {
 	row := q.db.QueryRow(ctx, getChatMessageLinkByPair, arg.MessageID, arg.TargetType, arg.TargetID)
 	var i ChatMessageLink
@@ -312,6 +320,7 @@ ORDER BY created_at ASC
 LIMIT 1
 `
 
+// tenant: system
 func (q *Queries) GetChatThreadTaskLinkByTask(ctx context.Context, taskID string) (ChatThreadTaskLink, error) {
 	row := q.db.QueryRow(ctx, getChatThreadTaskLinkByTask, taskID)
 	var i ChatThreadTaskLink
@@ -335,6 +344,7 @@ SELECT id, organization_id, workspace_id, room_id, thread_root_id, task_id, dire
 WHERE thread_root_id = $1
 `
 
+// tenant: parent thread_root_id
 func (q *Queries) GetChatThreadTaskLinkByThread(ctx context.Context, threadRootID string) (ChatThreadTaskLink, error) {
 	row := q.db.QueryRow(ctx, getChatThreadTaskLinkByThread, threadRootID)
 	var i ChatThreadTaskLink
@@ -408,6 +418,7 @@ type ListChatMessageLinksByRoomMessagesParams struct {
 	MessageIds []string `json:"message_ids"`
 }
 
+// tenant: parent room_id
 // One room's timeline asks for the links of every message it shows at once,
 // instead of one request per message. The room is the only scope: DM and
 // group rooms are org-level and their links carry the creator's workspace, so

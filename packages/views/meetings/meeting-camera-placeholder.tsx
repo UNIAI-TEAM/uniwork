@@ -4,9 +4,14 @@ import type { ReactNode } from "react";
 import { VideoOff } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
-/** The camera frame every preview state shares: stage surface, 4:3 by default. */
+/**
+ * The camera frame every preview state shares: stage surface, 4:3 by default.
+ * `text-foreground` beside `dark`: `color` is computed where it is declared, so
+ * without it the frame inherits the light page's ink and anything that does not
+ * set its own (an outline button's label) reads dark on the dark stage.
+ */
 export const CAMERA_PREVIEW_FRAME =
-  "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-meeting-stage ring-1 ring-border";
+  "dark text-foreground relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-meeting-stage ring-1 ring-border";
 
 /**
  * What the camera frame shows when there is no picture: an icon, a headline,

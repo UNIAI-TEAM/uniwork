@@ -43,6 +43,7 @@ describe("CalendarSidebar", () => {
     );
 
     expect(screen.getByText("Bảng kế hoạch")).toBeInTheDocument();
+    expect(screen.getByText("Bảng kế hoạch").parentElement).toHaveClass("h-12");
     const createButton = screen.getByRole("button", { name: "Tạo mục lịch" });
     fireEvent.click(createButton);
     expect(onQuickCreate).toHaveBeenCalledWith(createButton);
@@ -68,6 +69,9 @@ describe("CalendarSidebar", () => {
     expect(screen.getByText("Giao cho tôi")).toBeInTheDocument();
     expect(screen.getByText("Hôm nay & quá hạn")).toBeInTheDocument();
     expect(screen.getByText("Tồn đọng")).toBeInTheDocument();
+    const prioritiesSection = screen.getByRole("button", { name: /Ưu tiên cao/ })
+      .parentElement?.parentElement;
+    expect(prioritiesSection).not.toHaveClass("border-b");
     expect(
       screen.getByText("Không có việc ưu tiên cao đang mở."),
     ).toBeInTheDocument();

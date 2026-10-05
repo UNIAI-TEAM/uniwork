@@ -18,6 +18,7 @@ const FONT_SIZES = [
   "title-sm", "title", "title-lg",
   "display-sm", "display",
   "hero-sm", "hero", "hero-lg",
+  "avatar-stage",
 ] as const;
 
 /* Semantic radius roles declared beside the numeric ramp in tokens.css. */

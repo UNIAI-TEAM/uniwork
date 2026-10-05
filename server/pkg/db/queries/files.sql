@@ -17,6 +17,7 @@ INSERT INTO files (
 ) RETURNING *;
 
 -- name: GetFileByID :one
+-- tenant: by-id
 -- Internal read (worker, service internals). No tenant predicate: callers in
 -- internal/service must never use it to answer a tenant request.
 SELECT * FROM files WHERE id = sqlc.arg('id');
@@ -34,6 +35,7 @@ WHERE organization_id = sqlc.arg('organization_id')
 ORDER BY id;
 
 -- name: GetAvatarFileForUser :one
+-- tenant: by-id
 -- Identity branch only: the row must carry the NULL tenant AND trace to an
 -- upload session staged by this user for purpose user_avatar. (The
 -- users.avatar_file_id half of the grant lands with the identity lane's
@@ -49,6 +51,7 @@ WHERE f.id = sqlc.arg('id')
   );
 
 -- name: LockFilesInIDOrder :many
+-- tenant: by-id
 -- Lock contract: every multi-row mutation locks file rows first, ordered by
 -- id, before touching sessions or jobs (spec 9.5). Pass sorted ids.
 SELECT * FROM files
@@ -57,6 +60,7 @@ ORDER BY id
 FOR UPDATE;
 
 -- name: MarkFileReady :execrows
+-- tenant: by-id
 -- Pending/processing -> ready with the verified content fields; ready_at is
 -- set exactly once (COALESCE keeps the first stamp) and never moves again.
 -- ready_at is caller-supplied so the file-age anchor is deterministic.
@@ -72,6 +76,7 @@ UPDATE files SET
 WHERE id = sqlc.arg('id') AND status IN ('pending', 'processing');
 
 -- name: MarkFileFailed :execrows
+-- tenant: by-id
 -- Terminal write failure; only a still-open file can fail.
 UPDATE files SET
   status = 'failed',
@@ -79,6 +84,7 @@ UPDATE files SET
 WHERE id = sqlc.arg('id') AND status IN ('pending', 'processing');
 
 -- name: MarkFileDeleting :execrows
+-- tenant: by-id
 -- GC barrier: only a finished file can enter deleting. Zero rows means the
 -- file was claimed, already terminal or still open - the worker must stop.
 UPDATE files SET
@@ -87,6 +93,7 @@ UPDATE files SET
 WHERE id = sqlc.arg('id') AND status IN ('ready', 'failed');
 
 -- name: MarkFileDeleted :execrows
+-- tenant: by-id
 -- Tombstone: only from deleting, after bytes are gone. deleted_at is
 -- caller-supplied so reconcile and GC share one clock.
 UPDATE files SET
@@ -96,6 +103,7 @@ UPDATE files SET
 WHERE id = sqlc.arg('id') AND status = 'deleting';
 
 -- name: SetFileChecksum :execrows
+-- tenant: by-id
 -- Late verification backfill: write-once, never overwrite an existing digest.
 UPDATE files SET
   checksum_sha256 = sqlc.arg('checksum_sha256'),
@@ -109,6 +117,7 @@ FROM files
 WHERE organization_id = sqlc.arg('organization_id') AND status = 'ready';
 
 -- name: ListGCFileCandidates :many
+-- tenant: system
 -- Internal worker scan (no tenant filter): ready files past the claim/GC age
 -- cutoff. Reference and session state are checked per-row under lock by the
 -- worker before any transition.

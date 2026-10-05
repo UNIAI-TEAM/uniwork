@@ -211,6 +211,7 @@ type ChatMessage struct {
 	LastReplyAt           pgtype.Timestamptz `json:"last_reply_at"`
 	MirroredFromCommentID pgtype.Text        `json:"mirrored_from_comment_id"`
 	FileID                pgtype.Text        `json:"file_id"`
+	OrganizationID        string             `json:"organization_id"`
 }
 
 type ChatMessageFollowUp struct {
@@ -253,7 +254,7 @@ type ChatRoom struct {
 	CreatedBy         string             `json:"created_by"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	OrganizationID    pgtype.Text        `json:"organization_id"`
+	OrganizationID    string             `json:"organization_id"`
 	MemberPermissions []byte             `json:"member_permissions"`
 	Visibility        string             `json:"visibility"`
 	ProjectID         pgtype.Text        `json:"project_id"`
@@ -278,6 +279,7 @@ type ChatRoomMember struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	SendRestricted bool               `json:"send_restricted"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type ChatThreadFollower struct {
@@ -625,6 +627,8 @@ type EmailHubScheduledSend struct {
 	LastError      pgtype.Text        `json:"last_error"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
 }
 
 type EmailHubThread struct {
@@ -923,47 +927,64 @@ type Invoice struct {
 }
 
 type Meeting struct {
-	ID                   string             `json:"id"`
-	WorkspaceID          string             `json:"workspace_id"`
-	Title                string             `json:"title"`
-	Description          string             `json:"description"`
-	StartsAt             pgtype.Timestamptz `json:"starts_at"`
-	EndsAt               pgtype.Timestamptz `json:"ends_at"`
-	RoomName             string             `json:"room_name"`
-	CreatedBy            string             `json:"created_by"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
-	Status               string             `json:"status"`
-	MeetingType          string             `json:"meeting_type"`
-	HostUserID           string             `json:"host_user_id"`
-	ActualStartAt        pgtype.Timestamptz `json:"actual_start_at"`
-	ActualEndAt          pgtype.Timestamptz `json:"actual_end_at"`
-	Timezone             string             `json:"timezone"`
-	AllowJoinRequest     bool               `json:"allow_join_request"`
-	PreferredProviderKey pgtype.Text        `json:"preferred_provider_key"`
-	Version              int32              `json:"version"`
-	UpdatedBy            pgtype.Text        `json:"updated_by"`
-	CanceledBy           pgtype.Text        `json:"canceled_by"`
-	CanceledAt           pgtype.Timestamptz `json:"canceled_at"`
-	CancelReason         pgtype.Text        `json:"cancel_reason"`
-	ProjectID            pgtype.Text        `json:"project_id"`
-	CreatedByKind        string             `json:"created_by_kind"`
+	ID                    string             `json:"id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	Title                 string             `json:"title"`
+	Description           string             `json:"description"`
+	StartsAt              pgtype.Timestamptz `json:"starts_at"`
+	EndsAt                pgtype.Timestamptz `json:"ends_at"`
+	RoomName              string             `json:"room_name"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Status                string             `json:"status"`
+	MeetingType           string             `json:"meeting_type"`
+	HostUserID            string             `json:"host_user_id"`
+	ActualStartAt         pgtype.Timestamptz `json:"actual_start_at"`
+	ActualEndAt           pgtype.Timestamptz `json:"actual_end_at"`
+	Timezone              string             `json:"timezone"`
+	AllowJoinRequest      bool               `json:"allow_join_request"`
+	PreferredProviderKey  pgtype.Text        `json:"preferred_provider_key"`
+	Version               int32              `json:"version"`
+	UpdatedBy             pgtype.Text        `json:"updated_by"`
+	CanceledBy            pgtype.Text        `json:"canceled_by"`
+	CanceledAt            pgtype.Timestamptz `json:"canceled_at"`
+	CancelReason          pgtype.Text        `json:"cancel_reason"`
+	ProjectID             pgtype.Text        `json:"project_id"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	QuorumPercent         pgtype.Int2        `json:"quorum_percent"`
+	AttendanceFinalizedAt pgtype.Timestamptz `json:"attendance_finalized_at"`
+	AttendanceFinalizedBy pgtype.Text        `json:"attendance_finalized_by"`
+	OrganizationID        string             `json:"organization_id"`
 }
 
 type MeetingAccessGrant struct {
-	ID            string             `json:"id"`
-	MeetingID     string             `json:"meeting_id"`
-	ParticipantID string             `json:"participant_id"`
-	SourceType    string             `json:"source_type"`
-	SourceID      pgtype.Text        `json:"source_id"`
-	Status        string             `json:"status"`
-	ValidFrom     pgtype.Timestamptz `json:"valid_from"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
-	GrantedBy     string             `json:"granted_by"`
-	GrantedAt     pgtype.Timestamptz `json:"granted_at"`
-	RevokedBy     pgtype.Text        `json:"revoked_by"`
-	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
-	RevokeReason  pgtype.Text        `json:"revoke_reason"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	ParticipantID  string             `json:"participant_id"`
+	SourceType     string             `json:"source_type"`
+	SourceID       pgtype.Text        `json:"source_id"`
+	Status         string             `json:"status"`
+	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	GrantedBy      string             `json:"granted_by"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason   pgtype.Text        `json:"revoke_reason"`
+	OrganizationID string             `json:"organization_id"`
+}
+
+type MeetingAttendanceMark struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	ParticipantID  string             `json:"participant_id"`
+	Status         string             `json:"status"`
+	Note           string             `json:"note"`
+	Source         string             `json:"source"`
+	MarkedBy       pgtype.Text        `json:"marked_by"`
+	MarkedAt       pgtype.Timestamptz `json:"marked_at"`
 }
 
 type MeetingAttendanceSession struct {
@@ -976,29 +997,34 @@ type MeetingAttendanceSession struct {
 	LeftAt                      pgtype.Timestamptz `json:"left_at"`
 	LeaveReason                 pgtype.Text        `json:"leave_reason"`
 	ProviderEventID             pgtype.Text        `json:"provider_event_id"`
+	ProviderParticipantSid      pgtype.Text        `json:"provider_participant_sid"`
+	OrganizationID              string             `json:"organization_id"`
+	MeteredAt                   pgtype.Timestamptz `json:"metered_at"`
 }
 
 type MeetingAttendee struct {
-	MeetingID string             `json:"meeting_id"`
-	UserID    string             `json:"user_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	MeetingID      string             `json:"meeting_id"`
+	UserID         string             `json:"user_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingAuditLog struct {
-	ID         string             `json:"id"`
-	MeetingID  string             `json:"meeting_id"`
-	EventType  string             `json:"event_type"`
-	ActorType  string             `json:"actor_type"`
-	ActorID    string             `json:"actor_id"`
-	TargetType pgtype.Text        `json:"target_type"`
-	TargetID   pgtype.Text        `json:"target_id"`
-	FromState  pgtype.Text        `json:"from_state"`
-	ToState    pgtype.Text        `json:"to_state"`
-	Payload    string             `json:"payload"`
-	RequestID  pgtype.Text        `json:"request_id"`
-	IpAddress  pgtype.Text        `json:"ip_address"`
-	UserAgent  pgtype.Text        `json:"user_agent"`
-	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	EventType      string             `json:"event_type"`
+	ActorType      string             `json:"actor_type"`
+	ActorID        string             `json:"actor_id"`
+	TargetType     pgtype.Text        `json:"target_type"`
+	TargetID       pgtype.Text        `json:"target_id"`
+	FromState      pgtype.Text        `json:"from_state"`
+	ToState        pgtype.Text        `json:"to_state"`
+	Payload        string             `json:"payload"`
+	RequestID      pgtype.Text        `json:"request_id"`
+	IpAddress      pgtype.Text        `json:"ip_address"`
+	UserAgent      pgtype.Text        `json:"user_agent"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingChatMessage struct {
@@ -1010,6 +1036,7 @@ type MeetingChatMessage struct {
 	Message        string             `json:"message"`
 	SentAt         pgtype.Timestamptz `json:"sent_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingConferenceSession struct {
@@ -1025,6 +1052,7 @@ type MeetingConferenceSession struct {
 	ProviderMetadata   pgtype.Text        `json:"provider_metadata"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID     string             `json:"organization_id"`
 }
 
 type MeetingGuest struct {
@@ -1042,21 +1070,23 @@ type MeetingInvitation struct {
 	RespondedAt    pgtype.Timestamptz `json:"responded_at"`
 	DeliveryStatus pgtype.Text        `json:"delivery_status"`
 	LastNotifiedAt pgtype.Timestamptz `json:"last_notified_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingInviteLink struct {
-	ID         string             `json:"id"`
-	MeetingID  string             `json:"meeting_id"`
-	Name       string             `json:"name"`
-	SecretHash string             `json:"secret_hash"`
-	AccessMode string             `json:"access_mode"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	MaxUses    pgtype.Int4        `json:"max_uses"`
-	UsedCount  int32              `json:"used_count"`
-	RevokedBy  pgtype.Text        `json:"revoked_by"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
-	CreatedBy  string             `json:"created_by"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	Name           string             `json:"name"`
+	SecretHash     string             `json:"secret_hash"`
+	AccessMode     string             `json:"access_mode"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	MaxUses        pgtype.Int4        `json:"max_uses"`
+	UsedCount      int32              `json:"used_count"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingJoinRequest struct {
@@ -1072,14 +1102,55 @@ type MeetingJoinRequest struct {
 	ReviewedAt          pgtype.Timestamptz `json:"reviewed_at"`
 	DecisionReason      pgtype.Text        `json:"decision_reason"`
 	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	OrganizationID      string             `json:"organization_id"`
+}
+
+type MeetingMotion struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Position       int32              `json:"position"`
+	BallotMode     string             `json:"ballot_mode"`
+	Threshold      string             `json:"threshold"`
+	Base           string             `json:"base"`
+	Status         string             `json:"status"`
+	TotalMembers   pgtype.Int4        `json:"total_members"`
+	RollSize       pgtype.Int4        `json:"roll_size"`
+	YesCount       int32              `json:"yes_count"`
+	NoCount        int32              `json:"no_count"`
+	AbstainCount   int32              `json:"abstain_count"`
+	Outcome        pgtype.Text        `json:"outcome"`
+	OpenedAt       pgtype.Timestamptz `json:"opened_at"`
+	OpenedBy       pgtype.Text        `json:"opened_by"`
+	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
+	ClosedBy       pgtype.Text        `json:"closed_by"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Version        int32              `json:"version"`
+}
+
+type MeetingMotionBallot struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	MotionID       string             `json:"motion_id"`
+	ParticipantID  string             `json:"participant_id"`
+	Choice         pgtype.Text        `json:"choice"`
+	CastAt         pgtype.Timestamptz `json:"cast_at"`
 }
 
 type MeetingNote struct {
-	ID        string             `json:"id"`
-	MeetingID string             `json:"meeting_id"`
-	AuthorID  string             `json:"author_id"`
-	Body      string             `json:"body"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	AuthorID       string             `json:"author_id"`
+	Body           string             `json:"body"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingParticipant struct {
@@ -1099,6 +1170,9 @@ type MeetingParticipant struct {
 	RemovedBy           pgtype.Text        `json:"removed_by"`
 	RemovedAt           pgtype.Timestamptz `json:"removed_at"`
 	RemoveReason        pgtype.Text        `json:"remove_reason"`
+	Standing            string             `json:"standing"`
+	IsSecretary         bool               `json:"is_secretary"`
+	OrganizationID      string             `json:"organization_id"`
 }
 
 type MeetingProviderEvent struct {
@@ -1119,29 +1193,39 @@ type MeetingRecording struct {
 	StartedAt pgtype.Timestamptz `json:"started_at"`
 	EndedAt   pgtype.Timestamptz `json:"ended_at"`
 	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
-	FileID pgtype.Text `json:"file_id"`
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+type MeetingReminder struct {
+	MeetingID      string             `json:"meeting_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RemindedAt     pgtype.Timestamptz `json:"reminded_at"`
 }
 
 type MeetingSummary struct {
-	ID           string             `json:"id"`
-	MeetingID    string             `json:"meeting_id"`
-	Summary      string             `json:"summary"`
-	Decisions    string             `json:"decisions"`
-	ActionItems  string             `json:"action_items"`
-	Model        string             `json:"model"`
-	CreatedBy    string             `json:"created_by"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UsageEventID pgtype.Text        `json:"usage_event_id"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	Summary        string             `json:"summary"`
+	Decisions      string             `json:"decisions"`
+	ActionItems    string             `json:"action_items"`
+	Model          string             `json:"model"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UsageEventID   pgtype.Text        `json:"usage_event_id"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type MeetingTranscriptSegment struct {
-	ID            string             `json:"id"`
-	MeetingID     string             `json:"meeting_id"`
-	ParticipantID pgtype.Text        `json:"participant_id"`
-	SpeakerName   string             `json:"speaker_name"`
-	Text          string             `json:"text"`
-	SpokenAt      pgtype.Timestamptz `json:"spoken_at"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	ParticipantID  pgtype.Text        `json:"participant_id"`
+	SpeakerName    string             `json:"speaker_name"`
+	Text           string             `json:"text"`
+	SpokenAt       pgtype.Timestamptz `json:"spoken_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type Notification struct {
@@ -1719,8 +1803,9 @@ type WorkspaceAgentMember struct {
 }
 
 type WorkspaceMember struct {
-	WorkspaceID string             `json:"workspace_id"`
-	UserID      string             `json:"user_id"`
-	Role        string             `json:"role"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
 }

@@ -18,6 +18,7 @@ import {
   useEmailHubLazyFolderSync,
   useEmailHubLiveSync,
   useEmailHubScheduledSends,
+  useEmailHubSidebarCounts,
   useEmailHubThread,
   useEmailHubThreads,
   useSummarizeEmailHubThread,
@@ -45,6 +46,9 @@ import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
 import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
 import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
+
+const EMAIL_HUB_LIST_PREFETCH_TOP = 2;
+const EMAIL_HUB_HOVER_PREFETCH_MS = 150;
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
@@ -96,15 +100,32 @@ export function EmailHubView() {
   const mailFolder: EmailHubMailFolderKey = isScheduledFolder ? "INBOX" : folder;
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
   const readingEmail = !!selectedId;
+  const hoverPrefetchTimers = useRef(new Map<string, number>());
   useEmailHubLiveSync(wsId, accountId, folder === "INBOX" || folder === "STARRED", readingEmail && !isScheduledFolder);
-  const snoozedMeta = useEmailHubThreads(wsId, accountId, "SNOOZED", {}, !!accountId, {
-    staleTime: 120_000,
-    refetchOnWindowFocus: false,
-  });
-  const inboxMeta = useEmailHubThreads(wsId, accountId, "INBOX", {}, !!accountId && folder !== "INBOX", {
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  });
+
+  useEffect(() => {
+    const timers = hoverPrefetchTimers.current;
+    return () => {
+      for (const timer of timers.values()) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
+  const prefetchThreadHover = useCallback(
+    (id: string) => {
+      if (!accountId || id === selectedId || readingEmail) return;
+      const timers = hoverPrefetchTimers.current;
+      const pending = timers.get(id);
+      if (pending !== undefined) window.clearTimeout(pending);
+      const timer = window.setTimeout(() => {
+        timers.delete(id);
+        prefetchEmailHubThread(qc, wsId, accountId, id);
+      }, EMAIL_HUB_HOVER_PREFETCH_MS);
+      timers.set(id, timer);
+    },
+    [accountId, qc, readingEmail, selectedId, wsId],
+  );
+  const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
   const accountList = useMemo(() => {
     const byEmail = new Map<string, EmailHubAccount>();
@@ -137,8 +158,9 @@ export function EmailHubView() {
     [debouncedSearch, selectedLabel, unreadOnly, hasAttachmentsOnly],
   );
   const threads = useEmailHubThreads(wsId, accountId, mailFolder, filters, !isScheduledFolder);
-  const lazyMailFolder = isScheduledFolder || folder === "STARRED" || folder === "SNOOZED" ? "" : mailFolder;
-  const folderSyncing = useEmailHubLazyFolderSync(wsId, accountId, lazyMailFolder, {
+  const lazySyncFolder =
+    isScheduledFolder || folder === "STARRED" ? "" : folder === "SNOOZED" ? "SNOOZED" : mailFolder;
+  const folderSyncing = useEmailHubLazyFolderSync(wsId, accountId, lazySyncFolder, {
     listFetched: threads.isFetched,
     listTotal: threads.data?.pages[0]?.counts.total ?? 0,
     skip: !!debouncedSearch || unreadOnly || hasAttachmentsOnly,
@@ -164,11 +186,11 @@ export function EmailHubView() {
   }, [accountId, debouncedSearch, hasAttachmentsOnly, isScheduledFolder, qc, rows, selectedId, threads.isFetched, threads.isFetching, unreadOnly, wsId]);
 
   useEffect(() => {
-    if (!accountId || rows.length === 0) return;
-    for (const row of rows.slice(0, 5)) {
+    if (!accountId || rows.length === 0 || readingEmail) return;
+    for (const row of rows.slice(0, EMAIL_HUB_LIST_PREFETCH_TOP)) {
       if (row.id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, row.id);
     }
-  }, [accountId, rows, qc, wsId, selectedId]);
+  }, [accountId, readingEmail, rows, qc, wsId, selectedId]);
 
   const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
     setComposeMode(mode);
@@ -296,7 +318,8 @@ export function EmailHubView() {
   });
 
   const counts = threads.data?.pages[0]?.counts ?? { total: 0, unread: 0 };
-  const inboxUnread = folder === "INBOX" ? counts.unread : (inboxMeta.data?.pages[0]?.counts.unread ?? 0);
+  const inboxUnread =
+    folder === "INBOX" ? counts.unread : (sidebarCounts.data?.inbox_unread ?? 0);
   const nav = {
     folder,
     selectedLabel,
@@ -304,7 +327,7 @@ export function EmailHubView() {
     counts: {
       inboxUnread,
       scheduled: scheduledRows.length,
-      snoozed: snoozedMeta.data?.pages[0]?.counts.total ?? 0,
+      snoozed: sidebarCounts.data?.snoozed_total ?? 0,
     },
     onFolderChange: setFolder,
     onLabelChange: setSelectedLabel,
@@ -376,6 +399,7 @@ export function EmailHubView() {
           readableBody={readableBody}
           bodyLoading={detail.isBodyLoading}
           bodyLoadFailed={detail.isBodyLoadFailed}
+          onBodyRefetch={() => void detail.refetch()}
           actions={actions}
           pending={threadActions.pending}
           aiOpen={aiOpen}
@@ -466,9 +490,7 @@ export function EmailHubView() {
               }),
             onSelectThread: selectThread,
             onSelectScheduled: setSelectedId,
-            onPrefetch: (id) => {
-              if (accountId && id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, id);
-            },
+            onPrefetch: prefetchThreadHover,
             onToggleStar: threadActions.star,
             aiEnabled,
             analyzingThreadId,
@@ -487,7 +509,7 @@ export function EmailHubView() {
           wsId={wsId}
           accountId={accountId}
           threadId={selectedId}
-          bodyReady={readableBody || !!activeThread?.snippet || !!activeThread?.subject}
+          bodyReady={readableBody}
           initialSummary={threadAiSummaries[selectedId]}
           onSummaryChange={handleThreadAiSummary}
         />

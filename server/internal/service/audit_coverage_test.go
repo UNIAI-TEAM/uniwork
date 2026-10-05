@@ -797,6 +797,34 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatMessageDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "delete audit"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.DeleteChatMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, msg.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatRoomMemberUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			f.addMember(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			adminRole := "admin"
+			if err := f.chat.UpdateChatRoomMember(f.ctx, f.owner.ID, w.ID, room.RoomID, f.member.ID, UpdateChatRoomMemberInput{
+				Role: &adminRole,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatFollowUpDeleted: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
@@ -1263,6 +1291,8 @@ func auditActions() []string {
 		audit.ActionChatFollowUpUpdated,
 		audit.ActionChatFollowUpCompleted,
 		audit.ActionChatFollowUpDeleted,
+		audit.ActionChatMessageDeleted,
+		audit.ActionChatRoomMemberUpdated,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,

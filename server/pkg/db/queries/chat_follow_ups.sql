@@ -12,6 +12,7 @@ SELECT * FROM chat_message_follow_ups
 WHERE id = $1 AND workspace_id = $2;
 
 -- name: GetChatMessageFollowUpByUserMessage :one
+-- tenant: parent message_id
 SELECT * FROM chat_message_follow_ups
 WHERE user_id = $1 AND message_id = $2;
 

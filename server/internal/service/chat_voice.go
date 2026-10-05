@@ -129,7 +129,7 @@ func (s *ChatService) requireDMVoiceAllowed(ctx context.Context, room db.ChatRoo
 	if err != nil {
 		return err
 	}
-	blocked, err := s.dmMessagingBlocked(ctx, roomOrganizationID(room), userID, peerID)
+	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (s *ChatService) ensureVoiceRoomMember(ctx context.Context, room db.ChatRoo
 		return err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
-	return s.ensureRoomMember(ctx, room.ID, anchorWS, userID, "member")
+	return s.ensureRoomMember(ctx, room, anchorWS, userID, "member")
 }
 
 func (s *ChatService) userCanJoinVoiceRoom(ctx context.Context, room db.ChatRoom, userID string) (bool, error) {
@@ -264,7 +264,7 @@ func (s *ChatService) requireVoiceTokenAccess(ctx context.Context, room db.ChatR
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		if syncErr := s.syncWorkspaceRoomMembers(ctx, room.ID, wsID); syncErr != nil {
+		if syncErr := s.syncWorkspaceRoomMembers(ctx, room, wsID); syncErr != nil {
 			return syncErr
 		}
 		if _, retryErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
@@ -345,7 +345,7 @@ func (s *ChatService) ListPendingVoiceInvites(
 		if err != nil {
 			return true
 		}
-		if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+		if room.OrganizationID != w.OrganizationID {
 			return true
 		}
 		if !s.userIsVoiceInviteRecipient(ctx, room, userID, sess.callerID) {
@@ -447,7 +447,7 @@ func (s *ChatService) authorizeVoiceSignalRoom(
 	if isWorkspaceDefaultRoom(room) {
 		return db.ChatRoom{}, ErrForbidden
 	}
-	if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+	if room.OrganizationID != w.OrganizationID {
 		return db.ChatRoom{}, ErrNotFound
 	}
 	if blockErr := s.requireDMVoiceAllowed(ctx, room, userID); blockErr != nil {
@@ -498,11 +498,12 @@ func (s *ChatService) finalizeVoiceCall(
 		return err
 	}
 	msg, err := s.q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
-		ID:          msgID,
-		RoomID:      room.ID,
-		WorkspaceID: anchorWS,
-		SenderID:    sess.callerID,
-		Metadata:    meta,
+		ID:             msgID,
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       sess.callerID,
+		Metadata:       meta,
 	})
 	if err != nil {
 		return err
@@ -519,7 +520,7 @@ func (s *ChatService) finalizeVoiceCall(
 		payload := map[string]string{
 			"room_id":             room.ID,
 			"workspace_id":        anchorWS,
-			"organization_id":     roomOrganizationID(room),
+			"organization_id":     room.OrganizationID,
 			"call_id":             callID,
 			"call_log_message_id": msgID,
 			"caller_id":           sess.callerID,

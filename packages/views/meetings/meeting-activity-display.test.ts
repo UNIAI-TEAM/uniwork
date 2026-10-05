@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingActivityItem } from "@uniwork/core/types/meeting";
-import { activityKind, activityLabel, activityStateChange, visibleActivity } from "./meeting-activity-display";
+import {
+  activityKind,
+  activityLabel,
+  activityMotionDetail,
+  activityStateChange,
+  visibleActivity,
+} from "./meeting-activity-display";
 
 const item = (over: Partial<MeetingActivityItem>): MeetingActivityItem => ({
   id: "a",
@@ -47,5 +53,34 @@ describe("meeting activity display", () => {
     expect(activityLabel("SUMMARY_CREATED")).toBe("meetings.activity_summary_created");
     expect(activityLabel("MEETING_STARTED")).toBe("meetings.activity_started");
     expect(activityLabel("SOMETHING_NEW")).toBe("meetings.activity_generic");
+  });
+  it("files attendance and vote milestones under governance", () => {
+    expect(activityKind("ATTENDANCE_FINALIZED")).toBe("governance");
+    expect(activityKind("MOTION_OPENED")).toBe("governance");
+    expect(activityKind("MOTION_CLOSED")).toBe("governance");
+    expect(activityLabel("MOTION_OPENED")).toBe("meetings.activity_motion_opened");
+    expect(activityLabel("MOTION_CLOSED")).toBe("meetings.activity_motion_closed");
+    expect(activityLabel("ATTENDANCE_FINALIZED")).toBe("meetings.activity_attendance_finalized");
+    expect(activityStateChange(item({ event_type: "MOTION_CLOSED", from_state: "OPEN", to_state: "PASSED" }))).toBeNull();
+  });
+
+  it("names the vote item, and its outcome once it is closed", () => {
+    expect(activityMotionDetail(item({ event_type: "MOTION_OPENED", payload: { title: "Kế hoạch quý IV" } }))).toEqual({
+      key: "meetings.governance.activityMotionDetail",
+      vars: { title: "Kế hoạch quý IV" },
+    });
+    expect(
+      activityMotionDetail(item({ event_type: "MOTION_CLOSED", payload: { title: "Kế hoạch quý IV", outcome: "FAILED" } })),
+    ).toEqual({
+      key: "meetings.governance.activityMotionDetailOutcome",
+      vars: { title: "Kế hoạch quý IV", outcome: "meetings.governance.outcome_FAILED" },
+    });
+    // An outcome the web does not know falls back to the title alone.
+    expect(
+      activityMotionDetail(item({ event_type: "MOTION_CLOSED", payload: { title: "Kế hoạch quý IV", outcome: "TIED" } })),
+    ).toEqual({ key: "meetings.governance.activityMotionDetail", vars: { title: "Kế hoạch quý IV" } });
+    expect(activityMotionDetail(item({ event_type: "MOTION_OPENED" }))).toBeNull();
+    expect(activityMotionDetail(item({ event_type: "MOTION_OPENED", payload: { title: "   " } }))).toBeNull();
+    expect(activityMotionDetail(item({ event_type: "MEETING_STARTED", payload: { title: "x" } }))).toBeNull();
   });
 });

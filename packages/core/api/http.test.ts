@@ -107,6 +107,27 @@ describe("request", () => {
     }
   });
 
+  it("reads Retry-After as seconds, as an HTTP date, and ignores junk", async () => {
+    const withRetryAfter = (value: string) =>
+      new Response(JSON.stringify({ error: { code: "rate_limited", message: "m" } }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": value },
+      });
+    vi.mocked(fetch).mockResolvedValueOnce(withRetryAfter("60"));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ status: 429, retryAfterSeconds: 60 });
+
+    const inAMinute = new Date(Date.now() + 60_000).toUTCString();
+    vi.mocked(fetch).mockResolvedValueOnce(withRetryAfter(inAMinute));
+    const dated = (await request("/api/v1/x").catch((e: unknown) => e)) as ApiError;
+    expect(dated.retryAfterSeconds).toBeGreaterThanOrEqual(58);
+    expect(dated.retryAfterSeconds).toBeLessThanOrEqual(60);
+
+    vi.mocked(fetch).mockResolvedValueOnce(withRetryAfter("soon"));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ retryAfterSeconds: undefined });
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "c", message: "m" } }, 503));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ retryAfterSeconds: undefined });
+  });
+
   it("leaves errorClass undefined when the server omits it", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "not_found", message: "m" } }, 404));
     await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "not_found", errorClass: undefined });

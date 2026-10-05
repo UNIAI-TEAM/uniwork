@@ -27,7 +27,7 @@
 - Redis quá tải → xem `redis-cli --latency`, `INFO memory`; nâng máy hoặc bật `maxmemory-policy` hợp lý. Redis chỉ là relay giữa các replica; một replica có thể tạm bỏ `REDIS_URL`.
 - Một topic khác chiếm lô → sửa consumer chậm đó (thường là provider ngoài); realtime sẽ tự nhanh lại.
 - Nhiều kết nối từ một tổ chức bất thường (tab mở hàng loạt, bot) → xem `/admin/organizations/<id>`; nếu cần, tạm khoá tổ chức với lý do ghi rõ.
-- API thiếu CPU → thêm replica (realtime qua Redis nên scale ngang an toàn).
+- API thiếu CPU → nâng `be.resources.limits.cpu`. Chưa thêm replica: ADR 0025 giữ BE ở một replica cho tới khi có leader lock cho các vòng nền.
 
 ## Leo thang
 

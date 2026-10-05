@@ -404,10 +404,10 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 	})
 	r.With(chatTypingLimit).Post("/workspaces/{workspaceID}/chat/presence", h.SignalChatPresence, apiOp{
 		summary:     "Signal chat presence",
-		description: "Báo online/offline trong workspace (heartbeat hoặc rời trang).",
+		description: "Heartbeat online (trả về danh sách thành viên đang online) hoặc báo offline khi rời trang.",
 		tags:        []string{"chat"},
 		sdi:         sdi.ChatPresenceSDI{},
-		sdo:         sdo.StatusSDO{},
+		sdo:         sdo.ChatPresenceSDO{},
 		auth:        true,
 	})
 }

@@ -257,7 +257,7 @@ describe("BatchActionToolbar delete", () => {
         </TaskSurfaceActionsProvider>,
       ),
     );
-    const trigger = screen.getByRole("combobox", { name });
+    const trigger = screen.getByRole("button", { name });
     expect(name).toContain(trigger.textContent?.trim() ?? "__missing__");
   });
 

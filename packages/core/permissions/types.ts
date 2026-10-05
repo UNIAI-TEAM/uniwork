@@ -41,6 +41,8 @@ export type DecisionReason =
   | "last_owner"
   | "not_resource_owner"
   | "insufficient_level"
+  | "agent_paused"
+  | "agent_archived"
   | "unknown";
 
 export interface Decision {

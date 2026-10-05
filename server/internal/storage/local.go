@@ -299,6 +299,18 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 		http.NotFound(w, r)
 		return
 	}
+	// FileService writes into the same directory (localObjectStore shares
+	// uploadDir), and this route checks nobody: it would hand any tenant's
+	// file to anyone who can spell its key. FileService objects are served
+	// only by the authorized /api/v1/files route. The test is on the cleaned
+	// path, so "./v1/…" or "x/../v1/…" cannot slip past it, and ignores
+	// case: on a case-insensitive volume (macOS, Windows) "V1/…" opens the
+	// same object.
+	if rel, err := filepath.Rel(s.uploadDir, filePath); err != nil ||
+		strings.HasPrefix(strings.ToLower(filepath.ToSlash(rel))+"/", FileServiceKeyPrefix) {
+		http.NotFound(w, r)
+		return
+	}
 	slog.Info("serving file", "filename", filename, "filepath", filePath)
 
 	// Mirror the S3 Upload path: when sidecar metadata exists for this key,

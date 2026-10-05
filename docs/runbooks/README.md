@@ -1,6 +1,6 @@
 # Runbooks theo alert
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-09-07 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-05 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
 
 Mỗi rule trong `deploy/alerts.yml` có `runbook_url` trỏ tới đúng một file ở
 đây; `scripts/alerts-runbooks.test.mjs` fail khi thiếu file, thiếu mục hoặc có
@@ -12,10 +12,15 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `ApiErrorRateHigh` | 1 | 5xx / tổng > 2 % trong 5 phút | [ApiErrorRateHigh.md](ApiErrorRateHigh.md) |
 | `ReadinessFailing` | 1 | `/readyz` 503 quá 2 phút | [ReadinessFailing.md](ReadinessFailing.md) |
 | `ApiLatencyP95High` | 2 | p95 GET > 400 ms trong 10 phút | [ApiLatencyP95High.md](ApiLatencyP95High.md) |
+| `ApiRateLimitedSpike` | 2 | một route trả 429 > 0,5 req/s trong 5 phút; webhook LiveKit: bất kỳ 429 nào | [ApiRateLimitedSpike.md](ApiRateLimitedSpike.md) |
 | `OutboxLagHigh` | 2 | dòng outbox chờ > 60 s | [OutboxLagHigh.md](OutboxLagHigh.md) |
 | `OutboxDeadLetter` | 2 | có dead letter mới trong 15 phút | [OutboxDeadLetter.md](OutboxDeadLetter.md) |
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
+| `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
+| `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
+| `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |
+| `RealtimeRedisXReadErrors` | 3 | > 30 lỗi XREAD Redis trong 5 phút, kéo dài 10 phút | [RealtimeRedisXReadErrors.md](RealtimeRedisXReadErrors.md) |
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
@@ -36,6 +41,9 @@ Sev 3: đưa vào sprint, không đánh thức ai.
    `docker compose logs server | grep '"trace_id":"<id>"'` hoặc Loki
    `{container="uniwork-server-1"} | json | trace_id = "<id>"`.
 4. Span: nếu `OTEL_EXPORTER_OTLP_ENDPOINT` được đặt, tìm trace id trong backend
-   trace (Tempo/Jaeger) hoặc `docker compose logs otel-collector`.
+   trace (Tempo/Jaeger) hoặc `docker compose logs otel-collector`. Khi biến này
+   rỗng (production hiện nay), API vẫn cấp trace id cho mọi request nhưng không
+   ghi span nào, nên chỉ còn bước 2 và 3.
 5. Cần 100 % sampling cho một lần tái hiện: gọi lại với header
-   `X-Debug-Trace: 1` từ tài khoản có `platform_role`.
+   `X-Debug-Trace: 1` từ tài khoản có `platform_role`. Header này chỉ có tác
+   dụng khi có exporter.

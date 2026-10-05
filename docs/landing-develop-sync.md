@@ -1,13 +1,21 @@
 # Landing: đối chiếu develop và bản Lovable
 
-> **Trạng thái:** đã cập nhật và xác minh landing cục bộ; chưa merge develop vào nhánh landing, chưa kiểm thử backend develop đang chạy.
+> **Trạng thái:** landing đã cập nhật lên `origin/develop` tại `626e80e5` và xác minh cục bộ; chưa kiểm thử backend develop đang chạy.
 
 ## Mốc đối chiếu
+
+### Đồng bộ develop ngày 2026-09-29
+
+- Nhánh `feature/landing-page` đã nhận 16 commit mới từ develop và giữ toàn bộ thay đổi landing chưa commit.
+- Conflict trong `vi.json` và `en.json` đã được resolve, giữ nội dung landing cùng các bản dịch mới của develop.
+- Dependency đã đồng bộ bằng pnpm 10.28.2 theo lockfile. TypeScript web, ESLint landing/provider, 9 kiểm tra i18n, 3 kiểm tra khóa dịch trùng và 9 kiểm tra E2E landing đạt.
+- E2E chỉ kiểm tra các trang công khai, dùng cấu hình riêng bỏ bước chuẩn bị database Documents. `make check` chưa chạy được vì máy Windows thiếu `make`; không diễn giải các kiểm tra cục bộ thành gate toàn repo.
 
 ### Cập nhật preview ngày 2026-09-24
 
 - Đã đăng nhập và chỉ đọc giao diện tại `https://uniwork.demo.ubos.vn/dashboard` bằng tài khoản demo người dùng cung cấp. Không lưu thông tin đăng nhập trong repo, không thay đổi dữ liệu/cấu hình nguồn.
 - Landing hiện có 18 mục (thêm Dashboard): 5 kịch bản hành động và 13 cảnh tĩnh đều có chế độ xem theo bố cục Lovable; chế độ tự khám phá giữ tương tác cũ.
+- Chế độ minh họa bỏ thanh "Bản minh họa" / "Tự khám phá" riêng theo phản hồi người dùng. Điều khiển tự khám phá dùng biểu tượng con trỏ trên thanh demo hiện có; chế độ tương tác giữ thanh tìm kiếm và đặt lại.
 - Canvas 1760×1000 thu nhỏ đồng bộ theo chiều rộng, giữ menu, toolbar và cột AI trên mobile. Có mở rộng/phóng chi tiết; điều khiển thật không bị thu nhỏ.
 - Đối chiếu trực tiếp Dashboard, My Space, Tasks, Projects, Meetings, Email, Chat, Documents, Work Products, Approvals, Knowledge, Workflows, People, Agent Builder và AI Assistant. Lịch/phòng họp dùng thêm ảnh người dùng gửi; Nhật ký giữ minh họa cũ. Dùng logo chung và dữ liệu tổng hợp, không sao chép nội dung riêng của tài khoản.
 - Không chứng nhận giống từng pixel hoặc các chức năng đã phát hành trên develop. Các số lượng 17 mục và bố cục cũ bên dưới là ghi nhận lịch sử trước lần cập nhật này.

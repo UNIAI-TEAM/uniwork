@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-09-14 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-05 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -25,7 +25,10 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
   và phòng ban thuộc về công ty, không thuộc một workspace),
   `user` (các kết nối của đúng một người), `chat` (một phòng đã đăng ký),
   `room` (từng thành viên phòng, giải quyết lúc gửi — cần cho sự kiện thành viên
-  vì người vừa được thêm chưa đăng ký phòng), `-` (không có client nào nghe).
+  vì người vừa được thêm chưa đăng ký phòng), `meeting` (các socket đang mở
+  một cuộc họp: phòng họp và trang chi tiết của thành viên đăng ký
+  `meeting:{id}` qua authorizer, socket lobby của khách nghe những topic khách
+  cần), `-` (không có client nào nghe).
 - **Cách gửi**: `outbox` ghi cùng transaction với thay đổi rồi phát bởi
   `outbox.Dispatcher` — mất process cũng không mất sự kiện. `ephemeral` phát
   thẳng qua socket, không lưu. Tiêu chí cho `ephemeral` chỉ có một câu: **mất thì
@@ -67,7 +70,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id` | — | user | ephemeral |
-| `chat.message` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `chat.message.created` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
@@ -95,15 +98,15 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.voice.recording.started` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.recording.stopped` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.call.completed` | 1 | `room_id`, `workspace_id`, `organization_id`, `call_id`, `call_log_message_id`, `caller_id`, `started_at`, `ended_at`, `duration_seconds`, `duration_label`, `participants` | — | - | outbox |
-| `conference.session_ready` | 1 | `meeting_id`, `version` | — | workspace | ephemeral |
+| `conference.session_ready` | 1 | `meeting_id`, `version` | — | meeting | ephemeral |
 | `flag.updated` | 1 | `flag_key` | — | - | outbox |
 | `host.transferred` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `invitation.responded` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `invite_link.revoked` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.approved` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
-| `join_request.rejected` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.approved` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
+| `join_request.canceled` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
+| `join_request.created` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
+| `join_request.rejected` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
 | `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |
@@ -154,13 +157,24 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `participant.updated` | 1 | `meeting_id`, `version`, `participant_id` | — | meeting | outbox |
+| `attendance.marked` | 1 | `meeting_id`, `version`, `participant_id` | — | meeting | outbox |
+| `attendance.finalized` | 1 | `meeting_id`, `version` | — | meeting | outbox |
+| `attendance.reopened` | 1 | `meeting_id`, `version` | — | meeting | outbox |
+| `attendance.updated` | 1 | `meeting_id` | — | meeting | ephemeral |
+| `motion.created` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `motion.updated` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `motion.deleted` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `motion.opened` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |
 | `quota.threshold` | 1 | `organization_id`, `user_id` | — | user | outbox |
-| `recording.ready` | 1 | `meeting_id` | — | workspace | ephemeral |
-| `recording.started` | 1 | `meeting_id` | — | workspace | ephemeral |
-| `recording.stopped` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `recording.ready` | 1 | `meeting_id` | — | meeting | ephemeral |
+| `recording.started` | 1 | `meeting_id` | — | meeting | ephemeral |
+| `recording.stopped` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
 | `summary.created` | 1 | `meeting_id` | — | workspace | ephemeral |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
@@ -201,7 +215,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
-| `transcript.appended` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `transcript.appended` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
 | `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | — | - | outbox |

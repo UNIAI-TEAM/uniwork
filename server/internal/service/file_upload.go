@@ -677,13 +677,17 @@ func (s *FileService) writeTarget(ctx context.Context, loc storage.ObjectLocator
 	if err != nil {
 		return files.WriteTarget{}, files.StorageUnavailable(err)
 	}
+	headers := signed.Headers
+	if headers == nil {
+		headers = map[string]string{}
+	}
 	// The URL may live shorter than the deadline (the storage layer caps a
 	// presigned lifetime); never report a longer life than the URL has.
 	expiresAt := deadline
 	if !signed.ExpiresAt.IsZero() && signed.ExpiresAt.Before(expiresAt) {
 		expiresAt = signed.ExpiresAt
 	}
-	return files.WriteTarget{URL: signed.URL, Method: signed.Method, Headers: map[string]string{}, ExpiresAt: expiresAt}, nil
+	return files.WriteTarget{URL: signed.URL, Method: signed.Method, Headers: headers, ExpiresAt: expiresAt}, nil
 }
 
 func providerKey(operationID string) string { return "provider:" + operationID }

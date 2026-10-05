@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -25,123 +24,113 @@ type ProviderNeutralEvent struct {
 	Identity        string
 	ProviderEventID string
 	RoomSID         string
+	// ParticipantSID is the provider's id for one connection of Identity; a
+	// reconnect keeps the identity and gets a new SID. Empty on old payloads.
+	ParticipantSID string
+	// OccurredAt is when the provider says the event happened; zero when it
+	// did not say. Room sessions use it so a retried delivery keeps its time.
+	OccurredAt time.Time
 	// Recording fields are set for conference.recording_ended.
 	RecordingID     string
 	RecordingURL    string
 	RecordingFailed bool
 }
 
+// HandleProviderEvent applies one provider webhook. Delivery is at least
+// once: the event's ledger row (meeting_provider_events) commits in the same
+// transaction as the change it makes, and a failure returns its error, so the
+// inbox retries the event — and dead-letters it after webhookMaxAttempts —
+// instead of losing it. A redelivered event finds its ledger row and changes
+// nothing.
 func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeutralEvent) error {
+	if ev.Type == "conference.recording_ended" {
+		// The recording finish is idempotent (the finish queries gate on
+		// ACTIVE/PROCESSING and the FS claim replays on OperationID), and a
+		// webhook retry may reuse the provider event id — so it runs on every
+		// delivery, and a row a transient fault left non-terminal can still
+		// land. The ledger row only records that the event was seen.
+		if ev.ProviderEventID != "" {
+			if _, err := s.q.InsertProviderEvent(ctx, db.InsertProviderEventParams{
+				ID: util.NewID(), ProviderKey: s.rt.ProviderKey, ProviderEventID: ev.ProviderEventID,
+			}); err != nil {
+				return err
+			}
+		}
+		s.finishRecordingFromProvider(ctx, ev)
+		return nil
+	}
+	sess, err := s.sessionByRoom(ctx, ev.RoomName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // no open conference for this room: nothing to apply
+	}
+	if err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	// The ledger row first, then any lock the event takes: a concurrent copy
+	// of the same event waits here for this transaction and then finds the
+	// row, so the two never hold each other's locks.
 	if ev.ProviderEventID != "" {
-		n, err := s.q.InsertProviderEvent(ctx, db.InsertProviderEventParams{
+		n, err := q.InsertProviderEvent(ctx, db.InsertProviderEventParams{
 			ID: util.NewID(), ProviderKey: s.rt.ProviderKey, ProviderEventID: ev.ProviderEventID,
 		})
 		if err != nil {
 			return err
 		}
 		if n == 0 {
-			// Duplicate delivery of a recorded event. The recording finish is
-			// idempotent (the finish queries gate on ACTIVE/PROCESSING and the
-			// FS claim replays on OperationID), and a webhook retry may reuse
-			// the provider event id — let recording_ended re-enter so a row a
-			// transient fault left non-terminal can still land. Every other
-			// event type stays deduplicated.
-			if ev.Type == "conference.recording_ended" {
-				s.finishRecordingFromProvider(ctx, ev)
-			}
-			return nil
+			return nil // a redelivery of an event already applied
 		}
 	}
-	if ev.Type == "conference.recording_ended" {
-		s.finishRecordingFromProvider(ctx, ev)
-		return nil
-	}
-	sess, err := s.sessionByRoom(ctx, ev.RoomName)
+	changed, err := s.applyRoomEvent(ctx, q, sess, ev)
 	if err != nil {
-		return nil
+		return err
 	}
-	switch ev.Type {
-	case "conference.room_started":
-		_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
-			ID: sess.ID, Status: strText("ACTIVE"), ProviderRoomSid: strText(ev.RoomSID),
-			StartedAt: optTimestamptz(ptrTime(time.Now())),
-		})
-	case "conference.room_finished":
-		_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
-			ID: sess.ID, Status: strText("IDLE"), EndedAt: optTimestamptz(ptrTime(time.Now())),
-		})
-		_ = s.q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
-			ConferenceSessionID: sess.ID, LeaveReason: strText("room_finished"),
-		})
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if changed {
+		s.publishAttendanceChanged(ctx, sess.MeetingID)
+	}
+	if ev.Type == "conference.room_finished" {
+		// Best effort: RunAutoEnd ends an overdue meeting on its next tick
+		// anyway; this only spares an empty overtime room the wait.
 		s.endIfOverdueEmpty(ctx, sess.MeetingID)
-	case "conference.participant_joined":
-		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
-		if pid == ev.Identity || pid == "" {
-			return nil
-		}
-		if _, err := s.q.GetOpenAttendance(ctx, pid); err == nil {
-			return nil
-		}
-		_, _ = s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
-			ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
-			ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
-			ProviderEventID: strText(ev.ProviderEventID),
-		})
-	case "conference.participant_left", "conference.participant_connection_aborted":
-		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
-		open, err := s.q.GetOpenAttendance(ctx, pid)
-		if err != nil {
-			return nil
-		}
-		reason := "left"
-		if ev.Type == "conference.participant_connection_aborted" {
-			reason = "connection_aborted"
-		}
-		closed, err := s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
-		if err == nil {
-			s.meterAttendance(ctx, sess.MeetingID, closed)
-		}
 	}
 	return nil
 }
 
-// meterAttendance adds a closed attendance session to
-// meeting.participant_minutes, idempotent on the session id. Minutes already
-// spent cannot be refused, so this records rather than consumes; the counter
-// still moves and the threshold events still fire.
-//
-// ponytail: only the single-session close path is metered. The bulk closes on
-// room_finished and stale reconciliation are not; meter them when C-05 shows
-// people the number.
-func (s *MeetingService) meterAttendance(ctx context.Context, meetingID string, sess db.MeetingAttendanceSession) {
-	if !sess.LeftAt.Valid {
-		return
+// applyRoomEvent makes the change one room webhook asks for, on the event's
+// transaction. changed reports whether room sessions opened or closed, so the
+// caller tells open attendance panels to refetch once it has committed.
+func (s *MeetingService) applyRoomEvent(ctx context.Context, q *db.Queries, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) (bool, error) {
+	switch ev.Type {
+	case "conference.room_started":
+		_, err := q.MarkConferenceRoomStarted(ctx, db.MarkConferenceRoomStartedParams{
+			ID: sess.ID, ProviderRoomSid: strText(ev.RoomSID), StartedAt: eventTime(ev),
+		})
+		return false, err
+	case "conference.room_finished":
+		n, err := q.MarkConferenceRoomFinished(ctx, db.MarkConferenceRoomFinishedParams{
+			ID: sess.ID, EndedAt: eventTime(ev),
+		})
+		if err != nil || n == 0 {
+			return false, err
+		}
+		closed, err := q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
+			ConferenceSessionID: sess.ID, LeaveReason: strText("room_finished"), LeftAt: eventTime(ev),
+		})
+		return closed > 0, err
+	case "conference.participant_joined":
+		return s.roomParticipantJoined(ctx, q, sess, ev)
+	case "conference.participant_left", "conference.participant_connection_aborted":
+		return s.roomParticipantLeft(ctx, q, sess, ev)
 	}
-	minutes := int64(math.Ceil(sess.LeftAt.Time.Sub(sess.JoinedAt.Time).Minutes()))
-	if minutes <= 0 {
-		return
-	}
-	m, err := s.q.GetMeeting(ctx, meetingID)
-	if err != nil {
-		return
-	}
-	orgID, err := s.organizationOf(ctx, m)
-	if err != nil {
-		return
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return
-	}
-	defer tx.Rollback(ctx)
-	if err := s.ent.RecordUsage(ctx, s.q.WithTx(tx), ConsumeInput{
-		OrganizationID: orgID, WorkspaceID: m.WorkspaceID, Meter: FeatureMeetingMinutes, Delta: minutes,
-		Actor: audit.System("meeting.attendance"), RefType: "meeting", RefID: meetingID,
-		IdempotencyKey: "attendance:" + sess.ID,
-	}); err != nil {
-		return
-	}
-	_ = tx.Commit(ctx)
+	return false, nil
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
@@ -162,6 +151,9 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 	}
 	switch row.Topic {
 	case "provider.ensure_session":
+		if s.ensureAlreadySettled(ctx, p["session_id"]) {
+			return nil
+		}
 		ref, err := s.provider.EnsureSession(ctx, meetings.EnsureSessionRequest{
 			MeetingID: p["meeting_id"], RoomName: p["room_name"], EmptyTimeout: s.rt.EmptyTimeout,
 		})
@@ -180,21 +172,33 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 	}
 }
 
-func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID string, ref meetings.ProviderSessionRef, err error) {
-	sync := "SYNCED"
-	sid := strText(ref.RoomSID)
-	st := strText("READY")
-	if err != nil {
-		sync = "FAILED"
-		st = pgtype.Text{}
+// ensureAlreadySettled reports whether a queued ensure has nothing left to
+// do: Start and instant meetings also ensure inline, so the queued copy
+// usually finds the session joinable already, and an ended session must not
+// get its room back. An unreadable session is ensured as before.
+func (s *MeetingService) ensureAlreadySettled(ctx context.Context, sessionID string) bool {
+	if sessionID == "" {
+		return false
 	}
-	_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
-		ID: sessionID, Status: st, ProviderSyncStatus: strText(sync), ProviderRoomSid: sid,
-	})
-	if err != nil || sync != "SYNCED" {
+	sess, err := s.q.GetConferenceSession(ctx, sessionID)
+	if err != nil {
+		return false
+	}
+	return conferenceSessionReady(sess) || sess.Status == "ENDED"
+}
+
+// recordConferenceEnsure writes the outcome of a provider ensure. Both writes
+// are conditional (MarkConferenceSessionEnsured / ...EnsureFailed): a failure
+// never downgrades a session another ensure already made joinable, and a
+// success never revives an ended one.
+func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID string, ref meetings.ProviderSessionRef, err error) {
+	if err != nil {
+		_, _ = s.q.MarkConferenceSessionEnsureFailed(ctx, sessionID)
 		return
 	}
-	sess, serr := s.q.GetConferenceSession(ctx, sessionID)
+	sess, serr := s.q.MarkConferenceSessionEnsured(ctx, db.MarkConferenceSessionEnsuredParams{
+		ID: sessionID, ProviderRoomSid: strText(ref.RoomSID),
+	})
 	if serr != nil {
 		return
 	}
@@ -211,6 +215,9 @@ func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID s
 }
 
 type MeetingListFilter struct {
+	// Status is the status the viewer sees, not the stored one: "SCHEDULED"
+	// is a scheduled meeting that can still start, "MISSED" one whose window
+	// passed without it starting (displayMeetingStatus on the client).
 	Status, MeetingType, HostUserID, ProjectID, Q string
 	From, To                                      *time.Time
 	Limit, Offset                                 int32
@@ -232,6 +239,9 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 		WorkspaceID: workspaceID, Status: strText(f.Status), MeetingType: strText(f.MeetingType),
 		HostUserID: strText(f.HostUserID), ProjectID: strText(f.ProjectID), Q: strText(f.Q),
 		LimitN: f.Limit, OffsetN: f.Offset, Sort: f.Sort,
+		// One instant for the page and its count, so a meeting whose window
+		// closes between the two queries cannot be in one and not the other.
+		Now: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 	// The zone decides which calendar day "today" is and which day each
 	// meeting falls on, so the pages cut the same day groups the client draws.
@@ -255,7 +265,7 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 	n, err := s.q.CountMeetingsByWorkspaceFiltered(ctx, db.CountMeetingsByWorkspaceFilteredParams{
 		WorkspaceID: workspaceID, Status: params.Status, MeetingType: params.MeetingType,
 		HostUserID: params.HostUserID, ProjectID: params.ProjectID, Q: params.Q,
-		FromAt: params.FromAt, ToAt: params.ToAt,
+		FromAt: params.FromAt, ToAt: params.ToAt, Now: params.Now,
 	})
 	return rows, n, err
 }
@@ -263,8 +273,12 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 // WorkspaceMeetingStats is served as-is; the tags are the contract with
 // packages/core/types/meeting.ts (MeetingStatisticsSchema).
 type WorkspaceMeetingStats struct {
-	Total              int64   `json:"total"`
+	Total int64 `json:"total"`
+	// Scheduled counts the meetings that can still start; Missed the
+	// scheduled ones whose window passed. Together they are the stored
+	// SCHEDULED rows, and each matches its list filter.
 	Scheduled          int64   `json:"scheduled"`
+	Missed             int64   `json:"missed"`
 	InProgress         int64   `json:"in_progress"`
 	Ended              int64   `json:"ended"`
 	Canceled           int64   `json:"canceled"`
@@ -287,7 +301,9 @@ func (s *MeetingService) Statistics(ctx context.Context, userID, workspaceID str
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return WorkspaceMeetingStats{}, err
 	}
-	ms, err := s.q.MeetingWorkspaceStatistics(ctx, workspaceID)
+	ms, err := s.q.MeetingWorkspaceStatistics(ctx, db.MeetingWorkspaceStatisticsParams{
+		WorkspaceID: workspaceID, Now: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
 	if err != nil {
 		return WorkspaceMeetingStats{}, err
 	}
@@ -295,7 +311,7 @@ func (s *MeetingService) Statistics(ctx context.Context, userID, workspaceID str
 	jr, _ := s.q.JoinRequestStats(ctx, workspaceID)
 	lk, _ := s.q.InviteLinkStats(ctx, workspaceID)
 	return WorkspaceMeetingStats{
-		Total: ms.Total, Scheduled: ms.Scheduled, InProgress: ms.InProgress, Ended: ms.Ended,
+		Total: ms.Total, Scheduled: ms.Scheduled, Missed: ms.Missed, InProgress: ms.InProgress, Ended: ms.Ended,
 		Canceled: ms.Canceled, Instant: ms.Instant,
 		InvPending: inv.Pending, InvAccepted: inv.Accepted, InvDeclined: inv.Declined, InvTentative: inv.Tentative,
 		JoinTotal: jr.Total, JoinApproved: jr.Approved, JoinRejected: jr.Rejected, AvgApprovalSeconds: jr.AvgApprovalSeconds,
@@ -313,9 +329,13 @@ func (s *MeetingService) Activity(ctx context.Context, userID, meetingID string,
 	return s.q.ListMeetingAuditLogs(ctx, db.ListMeetingAuditLogsParams{MeetingID: meetingID, Limit: limit, Offset: offset})
 }
 
-func (s *MeetingService) MeetingCounts(ctx context.Context, userID, meetingID string) (db.MeetingListStatsRow, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
-		return db.MeetingListStatsRow{}, err
+// publishAttendanceChanged tells open attendance panels to refetch after a
+// webhook opened or closed a room session. Ephemeral: a lost frame only
+// delays the refresh until the next one.
+func (s *MeetingService) publishAttendanceChanged(ctx context.Context, meetingID string) {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return
 	}
-	return s.q.MeetingListStats(ctx, meetingID)
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "attendance.updated", Payload: map[string]string{"meeting_id": meetingID}})
 }

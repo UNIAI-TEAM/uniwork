@@ -56,6 +56,7 @@ export function LabelPicker({
   onTriggerNavigationGuard,
   triggerClassName,
   align = "start",
+  defaultOpen = false,
   children,
 }: {
   /** The workspace label catalog, passed in so a table never queries per row. */
@@ -78,6 +79,8 @@ export function LabelPicker({
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
   align?: "start" | "center" | "end";
+  /** Opens the menu on mount, for a row the user has just added. */
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
   // `disabled` stays off the trigger's own `disabled` prop: Base UI would put
@@ -85,7 +88,7 @@ export function LabelPicker({
   // MenuTrigger opens on mousedown and ignores `aria-disabled`
   // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
   // held closed here, as AssigneePicker does for its combobox.
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [query, setQuery] = useState("");
   // A controlled close never fires onOpenChange, so disabling an open menu
   // would leave `open` true and the menu would pop back when `disabled`

@@ -83,7 +83,7 @@ function classify(path) {
   const p = path.toLowerCase();
   // AgentRun / VCS / PR / and slice-2 leftovers that stay capability stubs.
   if (
-    /task-runs|pull-requests|\/vcs\/|\/usage$|\/rerun$|\/active-task$|\/cancel$|retry-source-context|quick-actions|\/messages$|assignee-frequency|limit-usage|\/tasks\/search$|\/move$|preview-trigger|quick-create/.test(
+    /task-runs|pull-requests|\/vcs\/|\/usage$|\/rerun$|\/active-task$|\/cancel$|retry-source-context|quick-actions|\/messages$|limit-usage|\/tasks\/search$|\/move$|preview-trigger|quick-create/.test(
       p,
     )
   ) {

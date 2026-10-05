@@ -23,6 +23,7 @@ type ArchiveChatChannelParams struct {
 	ArchivedBy pgtype.Text `json:"archived_by"`
 }
 
+// tenant: by-id
 func (q *Queries) ArchiveChatChannel(ctx context.Context, arg ArchiveChatChannelParams) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, archiveChatChannel, arg.ID, arg.ArchivedBy)
 	var i ChatRoom
@@ -58,7 +59,7 @@ WHERE id = $2
   AND workspace_id = $4
   AND thread_root_id IS NULL
   AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type BumpChatThreadReplyStatsParams struct {
@@ -95,16 +96,19 @@ func (q *Queries) BumpChatThreadReplyStats(ctx context.Context, arg BumpChatThre
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9, $10
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9, $10,
+  $11
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatFileMessageParams struct {
@@ -118,6 +122,7 @@ type CreateChatFileMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	FileID           pgtype.Text `json:"file_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileMessageParams) (ChatMessage, error) {
@@ -132,6 +137,7 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.FileID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -153,16 +159,19 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9,
+  $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatMessageParams struct {
@@ -175,6 +184,7 @@ type CreateChatMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	ThreadRootID     pgtype.Text `json:"thread_root_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error) {
@@ -188,6 +198,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.ThreadRootID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -209,25 +220,27 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatNoteMessage = `-- name: CreateChatNoteMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'note', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatNoteMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteMessageParams) (ChatMessage, error) {
@@ -238,6 +251,7 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -259,25 +273,27 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatPollMessage = `-- name: CreateChatPollMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'poll', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatPollMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollMessageParams) (ChatMessage, error) {
@@ -288,6 +304,7 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -309,25 +326,27 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatPostMessage = `-- name: CreateChatPostMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'post', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatPostMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostMessageParams) (ChatMessage, error) {
@@ -338,6 +357,7 @@ func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostM
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -359,25 +379,27 @@ func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatReminderMessage = `-- name: CreateChatReminderMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'reminder', $5, $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatReminderMessageParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Body        string `json:"body"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Body           string `json:"body"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatReminderMessageParams) (ChatMessage, error) {
@@ -388,6 +410,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		arg.SenderID,
 		arg.Body,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -409,6 +432,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -427,7 +451,7 @@ type CreateChatRoomParams struct {
 	ID              string      `json:"id"`
 	Kind            string      `json:"kind"`
 	WorkspaceID     pgtype.Text `json:"workspace_id"`
-	OrganizationID  pgtype.Text `json:"organization_id"`
+	OrganizationID  string      `json:"organization_id"`
 	Name            string      `json:"name"`
 	MemberSetKey    pgtype.Text `json:"member_set_key"`
 	LivekitRoomName string      `json:"livekit_room_name"`
@@ -481,18 +505,19 @@ func (q *Queries) CreateChatRoom(ctx context.Context, arg CreateChatRoomParams) 
 
 const createChatVoiceCallLog = `-- name: CreateChatVoiceCallLog :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata
+  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'voice_call_log', '', $5
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, 'voice_call_log', '', $5, $6
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatVoiceCallLogParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SenderID    string `json:"sender_id"`
-	Metadata    []byte `json:"metadata"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	SenderID       string `json:"sender_id"`
+	Metadata       []byte `json:"metadata"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoiceCallLogParams) (ChatMessage, error) {
@@ -502,6 +527,7 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		arg.WorkspaceID,
 		arg.SenderID,
 		arg.Metadata,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -523,16 +549,19 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const createChatVoiceMessage = `-- name: CreateChatVoiceMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
+  organization_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8, $9,
+  $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateChatVoiceMessageParams struct {
@@ -545,6 +574,7 @@ type CreateChatVoiceMessageParams struct {
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	FileID           pgtype.Text `json:"file_id"`
+	OrganizationID   string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoiceMessageParams) (ChatMessage, error) {
@@ -558,6 +588,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
 		arg.FileID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -579,6 +610,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -610,6 +642,7 @@ type GetActiveChatRoomMemberRow struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+// tenant: parent room_id
 func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChatRoomMemberParams) (GetActiveChatRoomMemberRow, error) {
 	row := q.db.QueryRow(ctx, getActiveChatRoomMember, arg.RoomID, arg.UserID)
 	var i GetActiveChatRoomMemberRow
@@ -632,7 +665,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 }
 
 const getChatMessageByClientMsgID = `-- name: GetChatMessageByClientMsgID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
@@ -645,6 +678,7 @@ type GetChatMessageByClientMsgIDParams struct {
 	ClientMsgID pgtype.Text `json:"client_msg_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMessageByClientMsgIDParams) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByClientMsgID, arg.RoomID, arg.SenderID, arg.ClientMsgID)
 	var i ChatMessage
@@ -667,15 +701,17 @@ func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMe
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE id = $1 AND deleted_at IS NULL
 `
 
+// tenant: by-id
 func (q *Queries) GetChatMessageByID(ctx context.Context, id string) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByID, id)
 	var i ChatMessage
@@ -698,12 +734,13 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id string) (ChatMessag
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatMessageInRoom = `-- name: GetChatMessageInRoom :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 `
 
@@ -735,6 +772,7 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -743,6 +781,7 @@ const getChatRoomByID = `-- name: GetChatRoomByID :one
 SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetChatRoomByID(ctx context.Context, id string) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, getChatRoomByID, id)
 	var i ChatRoom
@@ -776,7 +815,7 @@ LIMIT 1
 `
 
 type GetChatRoomByKindAndMemberSetParams struct {
-	OrganizationID pgtype.Text `json:"organization_id"`
+	OrganizationID string      `json:"organization_id"`
 	Kind           string      `json:"kind"`
 	MemberSetKey   pgtype.Text `json:"member_set_key"`
 }
@@ -817,6 +856,7 @@ type GetChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) GetChatThreadFollower(ctx context.Context, arg GetChatThreadFollowerParams) (ChatThreadFollower, error) {
 	row := q.db.QueryRow(ctx, getChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	var i ChatThreadFollower
@@ -913,19 +953,20 @@ func (q *Queries) GetWorkspaceChatRoom(ctx context.Context, workspaceID pgtype.T
 
 const insertChatRoomMember = `-- name: InsertChatRoomMember :one
 INSERT INTO chat_room_members (
-  id, room_id, workspace_id, user_id, role, status, joined_at, created_at, updated_at
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted
+  $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
+) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id
 `
 
 type InsertChatRoomMemberParams struct {
-	ID          string `json:"id"`
-	RoomID      string `json:"room_id"`
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
-	Role        string `json:"role"`
-	Status      string `json:"status"`
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMemberParams) (ChatRoomMember, error) {
@@ -936,6 +977,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		arg.UserID,
 		arg.Role,
 		arg.Status,
+		arg.OrganizationID,
 	)
 	var i ChatRoomMember
 	err := row.Scan(
@@ -952,6 +994,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SendRestricted,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -967,6 +1010,7 @@ type LeaveChatRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) LeaveChatRoomMember(ctx context.Context, arg LeaveChatRoomMemberParams) error {
 	_, err := q.db.Exec(ctx, leaveChatRoomMember, arg.RoomID, arg.UserID)
 	return err
@@ -1311,6 +1355,7 @@ WHERE file_id = ANY($1::text[])
   AND deleted_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) ListChatMessageFileRefs(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, listChatMessageFileRefs, dollar_1)
 	if err != nil {
@@ -1686,6 +1731,7 @@ SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active')
 `
 
+// tenant: parent room_id
 func (q *Queries) ListChatRoomMemberUserIDs(ctx context.Context, roomID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listChatRoomMemberUserIDs, roomID)
 	if err != nil {
@@ -1727,6 +1773,7 @@ type ListChatRoomMembersRow struct {
 	DisplayName    string `json:"display_name"`
 }
 
+// tenant: parent room_id
 func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]ListChatRoomMembersRow, error) {
 	rows, err := q.db.Query(ctx, listChatRoomMembers, roomID)
 	if err != nil {
@@ -1813,8 +1860,8 @@ ORDER BY COALESCE(last_msg.created_at, r.updated_at) DESC
 `
 
 type ListChatRoomsForMemberParams struct {
-	UserID         string      `json:"user_id"`
-	OrganizationID pgtype.Text `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 type ListChatRoomsForMemberRow struct {
@@ -1872,6 +1919,7 @@ SELECT user_id FROM chat_thread_followers
 WHERE thread_root_id = $1 AND muted = false
 `
 
+// tenant: parent thread_root_id
 func (q *Queries) ListChatThreadFollowerUserIDs(ctx context.Context, threadRootID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listChatThreadFollowerUserIDs, threadRootID)
 	if err != nil {
@@ -2098,6 +2146,7 @@ type MarkChatThreadReadParams struct {
 	LastReadAt   pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) MarkChatThreadRead(ctx context.Context, arg MarkChatThreadReadParams) error {
 	_, err := q.db.Exec(ctx, markChatThreadRead, arg.ThreadRootID, arg.UserID, arg.LastReadAt)
 	return err
@@ -2114,6 +2163,7 @@ type MuteChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) MuteChatThreadFollower(ctx context.Context, arg MuteChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, muteChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	return err
@@ -2130,6 +2180,7 @@ type ReactivateChatRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+// tenant: parent room_id
 func (q *Queries) ReactivateChatRoomMember(ctx context.Context, arg ReactivateChatRoomMemberParams) error {
 	_, err := q.db.Exec(ctx, reactivateChatRoomMember, arg.RoomID, arg.UserID)
 	return err
@@ -2227,7 +2278,7 @@ const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type SoftDeleteChatMessageParams struct {
@@ -2264,6 +2315,7 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2272,6 +2324,7 @@ const touchChatRoomUpdatedAt = `-- name: TouchChatRoomUpdatedAt :exec
 UPDATE chat_rooms SET updated_at = now() WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) TouchChatRoomUpdatedAt(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, touchChatRoomUpdatedAt, id)
 	return err
@@ -2284,6 +2337,7 @@ WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
 RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
 `
 
+// tenant: by-id
 func (q *Queries) UnarchiveChatChannel(ctx context.Context, id string) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, unarchiveChatChannel, id)
 	var i ChatRoom
@@ -2321,6 +2375,7 @@ type UnmuteChatThreadFollowerParams struct {
 	UserID       string `json:"user_id"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) UnmuteChatThreadFollower(ctx context.Context, arg UnmuteChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, unmuteChatThreadFollower, arg.ThreadRootID, arg.UserID)
 	return err
@@ -2353,6 +2408,7 @@ type UpdateChatChannelParams struct {
 	ID           string      `json:"id"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatChannel(ctx context.Context, arg UpdateChatChannelParams) (ChatRoom, error) {
 	row := q.db.QueryRow(ctx, updateChatChannel,
 		arg.Name,
@@ -2390,7 +2446,7 @@ const updateChatMessageBody = `-- name: UpdateChatMessageBody :one
 UPDATE chat_messages
 SET body = $4, edited_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $5 AND kind = 'text' AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type UpdateChatMessageBodyParams struct {
@@ -2429,6 +2485,7 @@ func (q *Queries) UpdateChatMessageBody(ctx context.Context, arg UpdateChatMessa
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2437,7 +2494,7 @@ const updateChatMessageMetadata = `-- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type UpdateChatMessageMetadataParams struct {
@@ -2474,6 +2531,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
 		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2490,6 +2548,7 @@ type UpdateChatRoomMemberLastReadParams struct {
 	LastReadAt pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberLastRead(ctx context.Context, arg UpdateChatRoomMemberLastReadParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberLastRead, arg.RoomID, arg.UserID, arg.LastReadAt)
 	return err
@@ -2504,6 +2563,7 @@ type UpdateChatRoomMemberPermissionsParams struct {
 	MemberPermissions []byte `json:"member_permissions"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatRoomMemberPermissions(ctx context.Context, arg UpdateChatRoomMemberPermissionsParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberPermissions, arg.ID, arg.MemberPermissions)
 	return err
@@ -2521,6 +2581,7 @@ type UpdateChatRoomMemberRoleParams struct {
 	Role   string `json:"role"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberRole(ctx context.Context, arg UpdateChatRoomMemberRoleParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberRole, arg.RoomID, arg.UserID, arg.Role)
 	return err
@@ -2538,6 +2599,7 @@ type UpdateChatRoomMemberSendRestrictedParams struct {
 	SendRestricted bool   `json:"send_restricted"`
 }
 
+// tenant: parent room_id
 func (q *Queries) UpdateChatRoomMemberSendRestricted(ctx context.Context, arg UpdateChatRoomMemberSendRestrictedParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberSendRestricted, arg.RoomID, arg.UserID, arg.SendRestricted)
 	return err
@@ -2552,6 +2614,7 @@ type UpdateChatRoomNameParams struct {
 	Name string `json:"name"`
 }
 
+// tenant: by-id
 func (q *Queries) UpdateChatRoomName(ctx context.Context, arg UpdateChatRoomNameParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomName, arg.ID, arg.Name)
 	return err
@@ -2590,6 +2653,7 @@ type UpsertChatThreadFollowerParams struct {
 	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// tenant: parent thread_root_id
 func (q *Queries) UpsertChatThreadFollower(ctx context.Context, arg UpsertChatThreadFollowerParams) error {
 	_, err := q.db.Exec(ctx, upsertChatThreadFollower,
 		arg.ID,

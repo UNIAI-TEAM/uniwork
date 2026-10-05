@@ -30,6 +30,7 @@ type AcquireUploadSessionLeaseParams struct {
 	Now            pgtype.Timestamptz `json:"now"`
 }
 
+// tenant: by-id
 // Write lease: take it only while the session is still open and no live lease
 // blocks it. Zero rows means another writer owns it - refuse, do not wait.
 // `now` comes from the caller so the expiry check is deterministic in tests.
@@ -61,6 +62,7 @@ type BumpUploadSessionFileParams struct {
 	ID     string `json:"id"`
 }
 
+// tenant: by-id
 // Technical retry after an uncertain write (spec 9.4): repoint the session
 // at the new attempt file, bump the write generation and drop the lease, so
 // a stale completion carrying the old generation is refused.
@@ -112,6 +114,7 @@ type CancelUploadSessionParams struct {
 	ID       string             `json:"id"`
 }
 
+// tenant: by-id
 // Either open state -> canceled; terminal rows never resurrect (T1-Q8).
 func (q *Queries) CancelUploadSession(ctx context.Context, arg CancelUploadSessionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelUploadSession, arg.ClosedAt, arg.ID)
@@ -136,6 +139,7 @@ type ConsumeUploadSessionParams struct {
 	ID  string             `json:"id"`
 }
 
+// tenant: by-id
 // Claim consumes the grant: staged -> claimed, only inside the deadline.
 // Zero rows means already claimed/canceled/expired or past the window - the
 // service maps that to file_already_claimed / file_claim_expired (T1-Q5).
@@ -157,6 +161,7 @@ WHERE status = 'staged' AND claim_expires_at <= $1
 RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code
 `
 
+// tenant: system
 // Daily sweep: staged sessions past the claim deadline. The update marks
 // them and returns the rows so the worker can schedule file cleanup. `now`
 // is the caller's sweep instant.
@@ -256,6 +261,7 @@ type FindUserUploadSessionByIdempotencyKeyParams struct {
 	IdempotencyKey string `json:"idempotency_key"`
 }
 
+// tenant: self
 // Identity branch (organization_id IS NULL, ADR 0023): the key is unique per
 // uploader, so a replay finds the stored session by actor + key.
 func (q *Queries) FindUserUploadSessionByIdempotencyKey(ctx context.Context, arg FindUserUploadSessionByIdempotencyKeyParams) (FileUploadSession, error) {
@@ -290,6 +296,7 @@ const getUploadSessionByFile = `-- name: GetUploadSessionByFile :one
 SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE file_id = $1
 `
 
+// tenant: parent file_id
 // file_id is unique per session; the session row is the temporary grant the
 // claim path consumes.
 func (q *Queries) GetUploadSessionByFile(ctx context.Context, fileID string) (FileUploadSession, error) {
@@ -324,6 +331,7 @@ const getUploadSessionByID = `-- name: GetUploadSessionByID :one
 SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) GetUploadSessionByID(ctx context.Context, id string) (FileUploadSession, error) {
 	row := q.db.QueryRow(ctx, getUploadSessionByID, id)
 	var i FileUploadSession
@@ -356,6 +364,7 @@ const getUploadSessionByIDForUpdate = `-- name: GetUploadSessionByIDForUpdate :o
 SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE id = $1 FOR UPDATE
 `
 
+// tenant: by-id
 func (q *Queries) GetUploadSessionByIDForUpdate(ctx context.Context, id string) (FileUploadSession, error) {
 	row := q.db.QueryRow(ctx, getUploadSessionByIDForUpdate, id)
 	var i FileUploadSession
@@ -389,6 +398,7 @@ SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, works
 WHERE provider_operation_id = $1
 `
 
+// tenant: parent provider_operation_id
 // Provider callback -> session (egress/job completion retry path).
 func (q *Queries) GetUploadSessionByProviderOp(ctx context.Context, providerOperationID pgtype.Text) (FileUploadSession, error) {
 	row := q.db.QueryRow(ctx, getUploadSessionByProviderOp, providerOperationID)
@@ -501,6 +511,7 @@ ORDER BY file_id
 FOR UPDATE
 `
 
+// tenant: parent file_id
 // Lock contract step 2: after LockFilesInIDOrder, lock sessions in the same
 // file_id order before mutating (spec 9.5).
 func (q *Queries) LockUploadSessionsByFileIDs(ctx context.Context, fileIds []string) ([]FileUploadSession, error) {
@@ -559,6 +570,7 @@ type MarkUploadSessionStagedParams struct {
 	ID             string             `json:"id"`
 }
 
+// tenant: by-id
 // receiving -> staged when the file readies: stamp the 24h claim deadline
 // (ready_at + 24h, T1-Q5) and drop the write lease.
 func (q *Queries) MarkUploadSessionStaged(ctx context.Context, arg MarkUploadSessionStagedParams) (int64, error) {
@@ -586,6 +598,7 @@ type RefuseUploadSessionParams struct {
 	ID          string             `json:"id"`
 }
 
+// tenant: by-id
 // A permanent refusal (file_too_large | file_type_rejected) closes the
 // session WITH its code, so a replay of the same idempotency key answers the
 // same refusal without reading a body (T1-Q8, contract
@@ -611,6 +624,7 @@ type ReleaseUploadSessionLeaseParams struct {
 	LeaseOwner pgtype.Text `json:"lease_owner"`
 }
 
+// tenant: by-id
 func (q *Queries) ReleaseUploadSessionLease(ctx context.Context, arg ReleaseUploadSessionLeaseParams) (int64, error) {
 	result, err := q.db.Exec(ctx, releaseUploadSessionLease, arg.ID, arg.LeaseOwner)
 	if err != nil {

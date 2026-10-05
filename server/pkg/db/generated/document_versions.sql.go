@@ -226,6 +226,7 @@ type ListDocumentVersionFileHoldsRow struct {
 // version_history once superseded, soft_deleted while the parent document
 // is archived-but-not-purged. Provider-facing: intentionally NOT tenant
 // filtered - the collector asks whether a given file_id is still held.
+// tenant: system
 func (q *Queries) ListDocumentVersionFileHolds(ctx context.Context, fileIds []string) ([]ListDocumentVersionFileHoldsRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentVersionFileHolds, fileIds)
 	if err != nil {

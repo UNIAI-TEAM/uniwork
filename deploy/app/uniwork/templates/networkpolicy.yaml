@@ -24,5 +24,14 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    {{- with .Values.networkPolicy.metricsScrapeNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.be.metricsPort }}
+    {{- end }}
   egress:
     - {}

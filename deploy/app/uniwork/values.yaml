@@ -17,6 +17,8 @@ public:
   livekitUrl: wss://livekit.vn247.info:7880
 
 be:
+  # One replica until ADR 0025 §3 holds: several background loops (Email Hub
+  # sends, digests, …) are unsafe on two replicas without a leader lock.
   replicaCount: 1
   image:
     registry: registry-harbor.ubos.vn/uniwork
@@ -26,6 +28,9 @@ be:
     requireDigest: true
     pullPolicy: IfNotPresent
   port: 8080
+  # Prometheus listener. Must match METRICS_ADDR in deploy/app/env/uniwork-be.env
+  # (the server only opens it when that variable is set).
+  metricsPort: 9090
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
@@ -51,7 +56,11 @@ be:
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
 
 fe:
-  replicaCount: 1
+  # The Next app keeps no per-pod state (no route handlers, middleware, ISR or
+  # server actions; every pod of one image serves the same build), so two
+  # replicas ride out a node drain or a crash. A PodDisruptionBudget is
+  # rendered whenever this is above 1.
+  replicaCount: 2
   image:
     registry: registry-harbor.ubos.vn/uniwork
     repository: uniwork-fe
@@ -72,3 +81,6 @@ fe:
 
 networkPolicy:
   livekitTunnelCidr: "10.244.217.192/32"
+  # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
+  # Empty renders no rule: the port stays closed to every other pod.
+  metricsScrapeNamespace: ""

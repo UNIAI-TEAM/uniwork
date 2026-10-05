@@ -86,3 +86,24 @@ func TestAdminRoutesNeedPlatformRoleSource(t *testing.T) {
 		t.Fatal("swagger mounted while EnableSwagger is false")
 	}
 }
+
+// The motions list is refetched by every client in the room after every
+// ballot, and a formal meeting often sits behind one office NAT. Behind the
+// 60/min credential budget a refused refetch right after a vote opens hides
+// the vote from members; the list is a session/guest-gated read and lives on
+// the global budget only (per signed-in user; per address for guests and
+// anonymous callers).
+func TestMotionListIsNotOnTheCredentialBudget(t *testing.T) {
+	refuse := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
+	}
+	pass := func(next http.Handler) http.Handler { return next }
+	mux := chi.NewRouter()
+	registerPublicMeetings(newAPI(mux, &apiCatalog{}), stubRoutes(), refuse, pass, pass)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/meetings/m1/motions", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "ListMotions" {
+		t.Fatalf("GET motions = %d %q, want 200 from ListMotions", rec.Code, rec.Body.String())
+	}
+}

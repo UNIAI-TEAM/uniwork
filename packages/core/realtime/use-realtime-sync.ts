@@ -11,9 +11,14 @@ import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
-import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "../email-hub/hooks";
+import {
+  invalidateEmailHubReadingCachesForAccount,
+  invalidateEmailHubThreadsForAccount,
+  invalidateEmailHubUnread,
+} from "../email-hub/hooks";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
+import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
 import { peopleRootKey } from "../people/hooks";
@@ -169,6 +174,10 @@ function keysFor(
       if (payload.meeting_id) {
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
+        // The quorum lives on the meeting; the roll shows whether it is met.
+        push(meetingKeys.attendance(payload.meeting_id));
+        // Ending the meeting closes and counts every open motion.
+        if (type === "meeting.ended") push(meetingKeys.motions(payload.meeting_id));
       }
       pushCalendar();
       break;
@@ -182,8 +191,54 @@ function keysFor(
         push(meetingKeys.invitations(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
+        // A roster change moves someone onto or off the roll.
+        push(meetingKeys.attendance(payload.meeting_id));
       }
       pushCalendar();
+      break;
+    }
+    case "participant.updated": {
+      if (payload.meeting_id) {
+        push(meetingKeys.participants(payload.meeting_id));
+        push(meetingKeys.attendance(payload.meeting_id));
+        // Standing decides who joins the next roll and what my_ballot says.
+        push(meetingKeys.motions(payload.meeting_id));
+      }
+      break;
+    }
+    case "attendance.marked":
+    case "attendance.updated": {
+      if (payload.meeting_id) push(meetingKeys.attendance(payload.meeting_id));
+      break;
+    }
+    case "attendance.finalized":
+    case "attendance.reopened": {
+      if (payload.meeting_id) {
+        push(meetingKeys.attendance(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.detail(payload.meeting_id));
+      }
+      break;
+    }
+    case "motion.created":
+    case "motion.updated":
+    case "motion.deleted": {
+      if (payload.meeting_id) push(meetingKeys.motions(payload.meeting_id));
+      break;
+    }
+    case "motion.ballot_cast": {
+      // A ballot moves the tallies only; the voter's own roll refreshes from
+      // its mutation, so a room voting at once does not refetch my-ballots.
+      if (payload.meeting_id) push(motionKeys.list(payload.meeting_id));
+      break;
+    }
+    case "motion.opened":
+    case "motion.closed": {
+      if (payload.meeting_id) {
+        push(meetingKeys.motions(payload.meeting_id));
+        // Opening and closing are timeline rows.
+        push(meetingKeys.activity(payload.meeting_id));
+      }
       break;
     }
     case "join_request.created":
@@ -194,6 +249,7 @@ function keysFor(
         push(meetingKeys.joinRequests(payload.meeting_id));
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.attendance(payload.meeting_id));
       }
       break;
     }
@@ -417,6 +473,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const scheduler = createInvalidateScheduler(qc);
     const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
+    const tallyScheduler = createInvalidateScheduler(qc, MOTION_TALLY_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
@@ -436,7 +493,11 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         payload.account_id
       ) {
         invalidateEmailHubThreadsForAccount(qc, wsId, payload.account_id);
+        invalidateEmailHubReadingCachesForAccount(qc, wsId, payload.account_id);
         invalidateEmailHubUnread(qc, wsId);
+        void qc.invalidateQueries({
+          queryKey: ["email-hub", wsId, "sidebar-counts", payload.account_id],
+        });
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
@@ -451,6 +512,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
           transcriptScheduler.schedule(queryKey);
           continue;
         }
+        if (eventType === "motion.ballot_cast") {
+          tallyScheduler.schedule(queryKey);
+          continue;
+        }
         scheduler.schedule(queryKey);
       }
     });
@@ -462,6 +527,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       offReconnect();
       scheduler.dispose();
       transcriptScheduler.dispose();
+      tallyScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);

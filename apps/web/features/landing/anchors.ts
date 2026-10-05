@@ -5,6 +5,7 @@
  * convention in docs/conventions.md.
  */
 export const ANCHORS = {
+  businessOs: "business-os",
   platform: "platform",
   solutions: "giai-phap",
   meetings: "hop",

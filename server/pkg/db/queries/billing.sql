@@ -43,6 +43,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $6, $7)
 RETURNING *;
 
 -- name: ChangeSubscriptionPlan :one
+-- tenant: by-id
 UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
@@ -59,6 +60,7 @@ WHERE id = $1 AND row_version = $2
 RETURNING *;
 
 -- name: SetSubscriptionCancelAt :one
+-- tenant: by-id
 UPDATE subscriptions SET
   cancel_at = $2,
   row_version = row_version + 1,

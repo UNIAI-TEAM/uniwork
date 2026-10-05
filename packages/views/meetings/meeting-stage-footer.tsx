@@ -1,8 +1,9 @@
 "use client";
 
 import { useParticipants } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { Hand } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -19,12 +20,20 @@ const DOCK_RESERVE_BUFFER_PX = 8;
 const MIN_DOCK_RESERVE_PX = 80;
 const COLLAPSED_RESERVE_MIN_PX = 8;
 
-function MeetingHandsBanner({ className }: { className?: string }) {
-  const { t, i18n } = useTranslation();
-  const { hands } = useMeetingSignals();
-  const participants = useParticipants();
+/** Joins and leaves are always followed; a rename is the one other change the names show. */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
+function MeetingHandsBanner({ className }: { className?: string }) {
+  const { hands } = useMeetingSignals();
+  // The roster is only read while a hand is up: the rest of the time the
+  // banner follows no room event at all.
   if (hands.length === 0) return null;
+  return <HandsBannerNames hands={hands} className={className} />;
+}
+
+function HandsBannerNames({ hands, className }: { hands: readonly string[]; className?: string }) {
+  const { t, i18n } = useTranslation();
+  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
 
   const names = new Intl.ListFormat(meetingLocale(i18n.language), {
     style: "long",
@@ -65,10 +74,12 @@ function reserveTotal(contentPx: number, collapsed = false): number {
   return contentPx + edge + buffer;
 }
 
-export function MeetingStageFooter({
+/** Memoized: the stage memoizes the prompt, captions and control bar it passes. */
+export const MeetingStageFooter = memo(function MeetingStageFooter({
   stageContentRef,
   captionsOn,
   captions,
+  prompt,
   controlBar,
   className,
   onReserveHeightChange,
@@ -77,6 +88,11 @@ export function MeetingStageFooter({
   captionsOn: boolean;
   /** The captions overlay; it keeps its own state so its updates stay local. */
   captions?: ReactNode;
+  /**
+   * A card stacked above everything else (the vote prompt). It sits inside the
+   * measured stack, so the stage reserve grows with it and the tiles reflow once.
+   */
+  prompt?: ReactNode;
   controlBar: ReactNode;
   className?: string;
   onReserveHeightChange?: (heightPx: number) => void;
@@ -129,12 +145,17 @@ export function MeetingStageFooter({
 
     const dockHeight = dock.scrollHeight;
     let overhead = 0;
+    let rows = 0;
     for (const child of stack.children) {
       if (child === dock) continue;
-      overhead += (child as HTMLElement).getBoundingClientRect().height;
+      const height = (child as HTMLElement).getBoundingClientRect().height;
+      // An empty prompt slot (`empty:hidden`) stays in the DOM but takes no row and no gap.
+      if (height <= 0) continue;
+      overhead += height;
+      rows += 1;
     }
     const gapPx = Number.parseFloat(getComputedStyle(stack).rowGap) || 8;
-    const gaps = Math.max(0, stack.children.length - 1) * gapPx;
+    const gaps = rows * gapPx;
     const expandedContent = Math.max(overhead + gaps + dockHeight, MIN_DOCK_RESERVE_PX);
     const collapsedContent = Math.max(overhead + gaps, 0);
 
@@ -265,6 +286,11 @@ export function MeetingStageFooter({
         ref={measureRef}
         className="flex w-fit max-w-full flex-col items-center gap-2 sm:gap-2.5"
       >
+        {prompt ? (
+          // The footer lets clicks through to the stage; the card takes its own.
+          // `empty:hidden` drops the wrapper while the card renders nothing.
+          <div className="pointer-events-auto max-w-full empty:hidden">{prompt}</div>
+        ) : null}
         <MeetingHandsBanner />
         {captionsOn ? captions : null}
         <div
@@ -284,4 +310,4 @@ export function MeetingStageFooter({
       </div>
     </div>
   );
-}
+});

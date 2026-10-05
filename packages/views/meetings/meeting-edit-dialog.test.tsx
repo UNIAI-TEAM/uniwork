@@ -43,6 +43,60 @@ describe("MeetingEditDialog", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu thay đổi"));
   });
 
+  it("sends the quorum the host types", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu") as HTMLInputElement;
+    expect(input.value).toBe("50");
+    fireEvent.change(input, { target: { value: "60" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ quorum_percent: 60 }) }),
+      ),
+    );
+  });
+
+  it("clears the quorum with 0 when the field is emptied", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu"), { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ body: expect.objectContaining({ quorum_percent: 0 }) }),
+      ),
+    );
+  });
+
+  it("leaves an untouched quorum out, so a title edit still saves on a finalized roll", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Standup mới" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ title: "Standup mới" }) }),
+      ),
+    );
+    const call = requestMock.mock.calls.find(([url]) => url === "/api/v1/meetings/m1");
+    expect(call?.[1]?.body).not.toHaveProperty("quorum_percent");
+  });
+
+  it("rejects a quorum outside 1–100 and keeps focus on it", () => {
+    const dialog = openDialog();
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu");
+    fireEvent.change(input, { target: { value: "150" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    expect(within(dialog).getByText("Nhập số nguyên từ 1 đến 100")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(document.activeElement).toBe(input);
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   it("names hour and minute segments apart", () => {
     const dialog = openDialog();
     expect(within(dialog).getByLabelText("Giờ bắt đầu")).toBeInTheDocument();

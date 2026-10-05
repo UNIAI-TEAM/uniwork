@@ -95,6 +95,37 @@ export function toChatItems(
     .sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
 }
 
+/** How far the reader has seen: a row's time and id, or the start of the room. */
+export type ChatWatermark = { at: number; id: string };
+
+/** The watermark at the newest row (rows in reading order), or the start when there is none. */
+export function chatWatermark(rows: PersistedChatMessage[]): ChatWatermark {
+  const last = rows[rows.length - 1];
+  return last ? { at: Date.parse(last.sent_at) || 0, id: last.id } : { at: -Infinity, id: "" };
+}
+
+/**
+ * Messages from others after the watermark, oldest first. Walks back from
+ * the end only as far as the watermark, so the unread badge costs what is
+ * unread, not the whole history - and still holds when a refetch replaced
+ * the rows the watermark was taken from.
+ */
+export function unreadChatSince(
+  rows: PersistedChatMessage[],
+  mark: ChatWatermark,
+  localIdentity: string,
+): MeetingChatItem[] {
+  const out: MeetingChatItem[] = [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i]!;
+    const at = Date.parse(row.sent_at) || 0;
+    if (at < mark.at || (at === mark.at && row.id.localeCompare(mark.id) <= 0)) break;
+    const item = toChatItem(row, localIdentity);
+    if (!item.isLocal) out.push(item);
+  }
+  return out.reverse();
+}
+
 /** Map ephemeral LiveKit messages for offline / guest fallback. */
 export function toEphemeralChatItems(live: LiveChatMessage[]): MeetingChatItem[] {
   return live

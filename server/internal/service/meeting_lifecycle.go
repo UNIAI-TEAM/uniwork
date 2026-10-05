@@ -16,7 +16,8 @@ import (
 )
 
 func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID string, title string) (db.Meeting, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
 		return db.Meeting{}, err
 	}
 	if title == "" {
@@ -31,7 +32,7 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
-		ID: id, WorkspaceID: workspaceID, Title: title, Description: "",
+		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID, Title: title, Description: "",
 		StartsAt: pgtype.Timestamptz{Time: now, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
@@ -44,11 +45,11 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	if _, err := s.addHostParticipant(ctx, q, m, userID); err != nil {
 		return db.Meeting{}, err
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"INSTANT"}`); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"INSTANT"}`); err != nil {
 		return db.Meeting{}, err
 	}
 	sess, err := q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-		ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ProviderKey: s.rt.ProviderKey,
 		ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
 	})
 	if err != nil {
@@ -61,10 +62,10 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_STARTED", userID, MeetingScheduled, MeetingInProgress, "{}"); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_STARTED", userID, MeetingScheduled, MeetingInProgress, "{}"); err != nil {
 		return db.Meeting{}, err
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "CONFERENCE_SESSION_CREATED", userID, "", sess.Status, "{}")
+	_ = s.writeAudit(ctx, q, m, "CONFERENCE_SESSION_CREATED", userID, "", sess.Status, "{}")
 	if err := s.enqueue(ctx, q, workspaceID, "provider.ensure_session", map[string]string{
 		"meeting_id": m.ID, "session_id": sess.ID, "room_name": sess.ProviderRoomName,
 	}); err != nil {
@@ -100,7 +101,7 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	sess, err := q.GetOpenConferenceSession(ctx, m.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		sess, err = q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
-			ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+			ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ProviderKey: s.rt.ProviderKey,
 			ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
 		})
 	}
@@ -114,7 +115,7 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_STARTED", userID, MeetingScheduled, MeetingInProgress, "{}"); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_STARTED", userID, MeetingScheduled, MeetingInProgress, "{}"); err != nil {
 		return db.Meeting{}, err
 	}
 	if err := s.enqueue(ctx, q, m.WorkspaceID, "provider.ensure_session", map[string]string{
@@ -132,6 +133,10 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	return started, nil
 }
 
+// ensureProviderSession is the inline copy of the provider.ensure_session row
+// the caller just queued: it saves the first joiner a worker tick. The queued
+// row skips a session this call already made joinable, and whichever of the
+// two fails cannot undo the other's success (recordConferenceEnsure).
 func (s *MeetingService) ensureProviderSession(ctx context.Context, sess db.MeetingConferenceSession) {
 	if s.provider == nil {
 		return
@@ -150,13 +155,19 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 	return s.endMeeting(ctx, m, userID, "MEETING_ENDED")
 }
 
+// systemActorID is the actor id a scheduled job passes for a meeting command
+// nobody asked for. The meeting's own columns and timeline (updated_by,
+// meeting_audit_logs.actor_id) keep storing it verbatim; audit_events and the
+// outbox get audit.System instead, so "system" is never filed as a person.
+const systemActorID = "system"
+
 // endMeeting is the IN_PROGRESS → ENDED transition shared by End (host) and
 // AutoEndOverdue (system). eventType names the audit row.
 func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, eventType string) (db.Meeting, error) {
-	// AutoEndOverdue passes no actor: the scheduler ended the meeting, and the
-	// audit row says so rather than blaming the last host.
+	// The scheduler (systemActorID, or no actor at all) ended the meeting, and
+	// the audit row says so rather than blaming the last host.
 	actor := audit.User(actorID)
-	if actorID == "" {
+	if actorID == "" || actorID == systemActorID {
 		actor = audit.System("meeting-auto-end")
 	}
 	if m.Status != MeetingInProgress {
@@ -177,9 +188,42 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	if err != nil {
 		return db.Meeting{}, err
 	}
+	// Voting cannot outlive the meeting (spec §6.3): close and count every
+	// OPEN item in this same transaction. The version-CAS UPDATE above holds
+	// the meeting row, so taking the motion rows now keeps OpenMotion's
+	// meeting → motion lock order. A ballot that locked the motion first
+	// commits before FOR UPDATE returns the row, so its vote is counted; one
+	// that arrives later finds the motion CLOSED. A clerk closing the same
+	// item concurrently drops it from this list (status no longer OPEN).
+	// An auto-end leaves closed_by NULL: nobody closed the vote by hand.
+	closedBy := actorID
+	if actor.Kind == audit.KindSystem {
+		closedBy = ""
+	}
+	openMotions, err := q.ListOpenMeetingMotionsForUpdate(ctx, m.ID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	for _, mo := range openMotions {
+		if _, err := s.closeMotionTx(ctx, q, ended, mo, actor, closedBy); err != nil {
+			return db.Meeting{}, err
+		}
+	}
+	// Nobody is in the room once the meeting has ended: close every open room
+	// session at the end time, in this transaction, so the attendance panel
+	// never shows someone "in the room" of an ended meeting while the
+	// provider's leave webhooks (or the stale sweep) catch up. One statement
+	// however many people were in the room; the metering sweep records their
+	// minutes off this request, so a client that hangs up cannot lose them.
+	closedSessions, err := q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
+		MeetingID: m.ID, LeaveReason: strText(leaveReasonMeetingEnded), LeftAt: ended.ActualEndAt,
+	})
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(actorID), RevokeReason: strText("meeting_ended")})
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)
-	if err := s.writeAudit(ctx, q, m.ID, eventType, actorID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
+	if err := s.writeAudit(ctx, q, m, eventType, actorID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
 		return db.Meeting{}, err
 	}
 	sess, serr := q.GetOpenConferenceSession(ctx, m.ID)
@@ -188,7 +232,7 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.end_session", map[string]string{
 			"meeting_id": m.ID, "room_name": sess.ProviderRoomName, "session_id": sess.ID,
 		})
-		_ = s.writeAudit(ctx, q, m.ID, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
+		_ = s.writeAudit(ctx, q, m, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
 	s.record(ctx, q, ended, actor, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingInProgress}, map[string]any{"status": MeetingEnded}))
@@ -196,6 +240,9 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		return db.Meeting{}, err
 	}
 	s.count("ended")
+	if closedSessions > 0 {
+		s.publishAttendanceChanged(ctx, m.ID)
+	}
 	return ended, nil
 }
 
@@ -223,7 +270,7 @@ func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason s
 		return err
 	}
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_CANCELED", userID, MeetingScheduled, MeetingCanceled, "{}"); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_CANCELED", userID, MeetingScheduled, MeetingCanceled, "{}"); err != nil {
 		return err
 	}
 	if sess, serr := q.GetOpenConferenceSession(ctx, m.ID); serr == nil {
@@ -271,7 +318,7 @@ func (s *MeetingService) TransferHost(ctx context.Context, userID, meetingID, ne
 		return db.Meeting{}, err
 	}
 	payload, _ := json.Marshal(map[string]string{"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID})
-	_ = s.writeAudit(ctx, s.q, m.ID, "HOST_TRANSFERRED", userID, m.HostUserID, newHostUserID, string(payload))
+	_ = s.writeAudit(ctx, s.q, m, "HOST_TRANSFERRED", userID, m.HostUserID, newHostUserID, string(payload))
 	s.record(ctx, s.q, up, audit.User(userID), "host.transferred",
 		meetingRelatedPayload(up, map[string]string{"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID}),
 		audit.Diff(map[string]any{"host_user_id": m.HostUserID}, map[string]any{"host_user_id": newHostUserID}))

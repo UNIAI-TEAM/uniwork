@@ -2,6 +2,7 @@
 import { useTranslation } from "react-i18next";
 import { landingFont } from "../../platform/landing-font";
 import { AiWorkforce } from "./ai-workforce";
+import { BusinessOs } from "./business-os";
 import { Capabilities } from "./capabilities";
 import { Faq } from "./faq";
 import { FinalCta } from "./final-cta";
@@ -32,6 +33,7 @@ import "./landing-lovable.css";
 import "./landing-decisions.css";
 import "./landing-ai-stage.css";
 import trustStyles from "./landing-trust.module.css";
+import "./hero-nexus.css";
 
 /**
  * THESIS: One shared product stage covers six families and eighteen entries,
@@ -66,6 +68,7 @@ export function LandingPage() {
         <Hero />
         <div className="landing-product-story">
           <Capabilities />
+          <BusinessOs />
           <SolutionsTeaser />
           <AiWorkforce />
         </div>

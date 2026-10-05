@@ -1,22 +1,18 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalParticipant, useMediaDeviceSelect, useRoomContext } from "@livekit/components-react";
+import type { LucideIcon } from "lucide-react";
 import {
-  Ban,
-  Check,
-  Droplets,
-  ImageIcon,
+  Mic,
+  Play,
   RefreshCw,
-  Upload,
+  Video,
+  Volume2,
 } from "lucide-react";
-import {
-  useMeetingRoomPreferencesStore,
-  type MeetingBackgroundPreset,
-  MEETING_BACKGROUND_PRESETS,
-  MEETING_BACKGROUND_IMAGE_PATHS,
-} from "@uniwork/core/meetings/room-preferences";
+import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { IconTile, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -29,341 +25,394 @@ import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldError,
-  FieldGroup,
   FieldLabel,
+  FieldTitle,
 } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { cn } from "@uniwork/ui/lib/utils";
-import { MeetingCameraPreview } from "./meeting-camera-preview";
+import { MeetingBackgroundPicker } from "./meeting-background-picker";
+import { MeetingCameraPreview, type CameraPreviewStatus } from "./meeting-camera-preview";
+import { MeetingMediaPermissionAction, MeetingMicLevel } from "./meeting-room-mic-check";
+import { playSpeakerTest } from "./meeting-speaker-test";
 
-const ACCEPTED_BACKGROUND_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const MAX_BACKGROUND_MB = 5;
-const MAX_BACKGROUND_BYTES = MAX_BACKGROUND_MB * 1024 * 1024;
+type MediaKind = "videoinput" | "audioinput" | "audiooutput";
 
-function DeviceSelectField({
+/** Every row carries the Meetings identity: the icon says which device, the tint says where you are. */
+const DEVICE_TONE = "violet" satisfies Tint;
+
+function canPickOutput(): boolean {
+  return typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+}
+
+/**
+ * One device: its mark and name, then the picker (or why there is none) and
+ * whatever proves the device works — a level meter, a test tone. With
+ * `focusRequested` (access was just granted from this row) it takes focus:
+ * the picker once the list arrives, the row itself until then.
+ */
+function DeviceRow({
   id,
+  icon,
   label,
   value,
-  onValueChange,
   devices,
-  emptyLabel,
+  onValueChange,
+  empty,
+  focusRequested = false,
+  onFocused,
+  children,
 }: {
   id: string;
+  icon: LucideIcon;
   label: string;
   value: string;
-  onValueChange: (id: string) => void;
   devices: Array<{ deviceId: string; label: string }>;
-  emptyLabel: string;
+  onValueChange: (id: string) => void;
+  /** Shown in place of the picker while the list is empty. */
+  empty: ReactNode;
+  focusRequested?: boolean;
+  onFocused?: () => void;
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const items = devices.map((device) => ({
     value: device.deviceId,
     label: device.label || t("meetings.deviceUnnamed"),
   }));
+  // LiveKit reports "default" until a device is picked, and a camera list has
+  // no such id: show the first real device rather than the raw value.
+  const selected = items.some((item) => item.value === value) ? value : items[0]?.value;
+  const hasItems = items.length > 0;
+
+  useEffect(() => {
+    if (!focusRequested) return;
+    const picker = hasItems ? document.getElementById(id) : null;
+    (picker ?? document.getElementById(`${id}-row`))?.focus();
+    if (picker) onFocused?.();
+  }, [focusRequested, hasItems, id, onFocused]);
 
   return (
-    <Field className="min-w-0">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      {items.length > 0 ? (
-        <Select
-          id={id}
-          value={value}
-          onValueChange={(next) => next && onValueChange(next)}
-          items={items}
-        />
+    <Field id={`${id}-row`} tabIndex={-1} className="min-w-0 gap-3 px-4 py-4 outline-offset-[-2px]">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <IconTile icon={icon} tone={DEVICE_TONE} size="sm" aria-hidden />
+        {hasItems ? (
+          <FieldLabel htmlFor={id} className="min-w-0 truncate text-label font-medium">
+            {label}
+          </FieldLabel>
+        ) : (
+          <FieldTitle className="min-w-0 truncate text-label">{label}</FieldTitle>
+        )}
+      </div>
+      {hasItems && selected ? (
+        <Select id={id} value={selected} onValueChange={(next) => next && onValueChange(next)} items={items} />
       ) : (
-        <p className="text-caption text-muted-foreground">{emptyLabel}</p>
+        <div className="space-y-2 text-caption text-muted-foreground">{empty}</div>
       )}
+      {children}
     </Field>
   );
 }
 
-function PreferenceSwitchField({
+function PreferenceSwitch({
+  id,
   label,
   description,
   checked,
   onCheckedChange,
 }: {
+  id: string;
   label: string;
   description: string;
   checked: boolean;
   onCheckedChange: (value: boolean) => void;
 }) {
   return (
-    <Field orientation="horizontal" className="min-w-0 items-start gap-3">
-      <FieldContent className="min-w-0 flex-1">
-        <FieldLabel className="font-normal">{label}</FieldLabel>
-        <FieldDescription>{description}</FieldDescription>
+    <Field orientation="horizontal" className="min-w-0 items-start gap-4">
+      <FieldContent className="min-w-0">
+        <FieldLabel htmlFor={id} className="text-label font-normal">
+          {label}
+        </FieldLabel>
+        <FieldDescription id={`${id}-hint`} className="text-caption text-pretty group-has-data-horizontal/field:text-pretty">
+          {description}
+        </FieldDescription>
       </FieldContent>
       <Switch
+        id={id}
         className="mt-0.5 shrink-0"
         checked={checked}
         onCheckedChange={onCheckedChange}
-        aria-label={label}
+        aria-describedby={`${id}-hint`}
       />
     </Field>
   );
 }
 
-function BackgroundOption({
-  selected,
-  label,
-  onSelect,
-  children,
-}: {
-  selected: boolean;
-  label: string;
-  onSelect: () => void;
-  children: ReactNode;
-}) {
+function SpeakerTestButton({ deviceId }: { deviceId?: string }) {
+  const { t } = useTranslation();
+  const [state, setState] = useState<"idle" | "playing" | "failed">("idle");
+  const playing = state === "playing";
+
+  const play = async () => {
+    setState("playing");
+    try {
+      await playSpeakerTest(deviceId);
+      setState("idle");
+    } catch {
+      setState("failed");
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        "relative flex w-24 shrink-0 cursor-pointer flex-col gap-1.5 rounded-xl p-1 text-left transition-[box-shadow,ring-color]",
-        selected ? "ring-2 ring-brand" : "ring-1 ring-border hover:ring-border",
-      )}
-    >
-      <span className="relative block aspect-[4/3] overflow-hidden rounded-lg bg-muted">{children}</span>
-      <span className="truncate px-0.5 text-caption text-foreground">{label}</span>
-      {selected ? (
-        <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-brand text-brand-foreground">
-          <Check aria-hidden className="size-3" />
-        </span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {/* aria-disabled, not disabled: the button keeps focus while it plays. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-disabled={playing || undefined}
+        aria-busy={playing || undefined}
+        onClick={() => void play()}
+      >
+        {playing ? (
+          <Volume2 aria-hidden className="size-3.5 motion-safe:animate-pulse" />
+        ) : (
+          <Play aria-hidden className="size-3.5" />
+        )}
+        {playing ? t("meetings.deviceSpeakerTesting") : t("meetings.deviceSpeakerTest")}
+      </Button>
+      {state === "failed" ? (
+        <p role="alert" className="text-caption text-destructive">
+          {t("meetings.deviceSpeakerTestFailed")}
+        </p>
       ) : null}
-    </button>
+    </div>
   );
 }
 
-function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
+/**
+ * The three pickers. Keyed by the refresh counter so "Reload" (or a granted
+ * permission) re-lists them; the card header around them — and the Reload
+ * button a keyboard user just pressed — stays mounted.
+ */
+function MediaDeviceRows({
+  onGranted,
+  focusRow,
+  onFocused,
+}: {
+  onGranted: (rowId: string) => void;
+  focusRow: string | null;
+  onFocused: () => void;
+}) {
   const { t } = useTranslation();
   const room = useRoomContext();
+  const { isMicrophoneEnabled, microphoneTrack } = useLocalParticipant();
+  const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
+  const setMirrorCamera = useMeetingRoomPreferencesStore((s) => s.setMirrorCamera);
+
+  const cameras = useMediaDeviceSelect({ kind: "videoinput", requestPermissions: true });
+  const mics = useMediaDeviceSelect({ kind: "audioinput", requestPermissions: true });
+  const speakers = useMediaDeviceSelect({ kind: "audiooutput", requestPermissions: true });
+
+  const switchTo = (kind: MediaKind, select: typeof cameras) => (id: string) => {
+    void select.setActiveMediaDevice(id);
+    void room.switchActiveDevice(kind, id);
+  };
+
+  const publishedMic = microphoneTrack?.audioTrack?.mediaStreamTrack;
+  const activeSpeaker = speakers.activeDeviceId || speakers.devices[0]?.deviceId;
+  const permission = (kind: "audio" | "video", rowId: string) => (
+    <MeetingMediaPermissionAction
+      kind={kind}
+      label={t("meetings.deviceAllow")}
+      deniedMessage={t("meetings.deviceAllowDenied")}
+      onGranted={() => onGranted(rowId)}
+    />
+  );
+  const rowFocus = (rowId: string) => ({ focusRequested: focusRow === rowId, onFocused });
+
+  return (
+    <div className="divide-y divide-surface-border">
+      <DeviceRow
+        id="room-device-camera"
+        icon={Video}
+        label={t("meetings.deviceCamera")}
+        value={cameras.activeDeviceId}
+        devices={cameras.devices}
+        onValueChange={switchTo("videoinput", cameras)}
+        empty={
+          <>
+            <p>{t("meetings.deviceCameraNeedsPermission")}</p>
+            {permission("video", "room-device-camera")}
+          </>
+        }
+        {...rowFocus("room-device-camera")}
+      >
+        <PreferenceSwitch
+          id="room-device-mirror"
+          label={t("meetings.deviceMirror")}
+          description={t("meetings.deviceMirrorHint")}
+          checked={mirrorCamera}
+          onCheckedChange={setMirrorCamera}
+        />
+      </DeviceRow>
+
+      <DeviceRow
+        id="room-device-mic"
+        icon={Mic}
+        label={t("meetings.deviceMic")}
+        value={mics.activeDeviceId}
+        devices={mics.devices}
+        onValueChange={switchTo("audioinput", mics)}
+        empty={
+          <>
+            <p>{t("meetings.deviceMicNeedsPermission")}</p>
+            {permission("audio", "room-device-mic")}
+          </>
+        }
+        {...rowFocus("room-device-mic")}
+      >
+        {mics.devices.length > 0 ? (
+          // A muted viewer should not see a meter move: it would read as
+          // "the others can hear me". Unmuted, it listens to the track the
+          // room already hears rather than opening the mic a second time.
+          isMicrophoneEnabled && publishedMic ? (
+            <MeetingMicLevel track={publishedMic} className="mt-1" />
+          ) : (
+            <p className="text-caption text-muted-foreground">{t("meetings.deviceMicLevelOff")}</p>
+          )
+        ) : null}
+      </DeviceRow>
+
+      <DeviceRow
+        id="room-device-speaker"
+        icon={Volume2}
+        label={t("meetings.deviceSpeaker")}
+        value={speakers.activeDeviceId}
+        devices={speakers.devices}
+        onValueChange={switchTo("audiooutput", speakers)}
+        empty={
+          canPickOutput() ? (
+            // Chrome lists outputs only once some media access is granted.
+            <>
+              <p>{t("meetings.deviceSpeakerNeedsPermission")}</p>
+              {permission("audio", "room-device-speaker")}
+            </>
+          ) : (
+            <p>{t("meetings.deviceSpeakerEmpty")}</p>
+          )
+        }
+        {...rowFocus("room-device-speaker")}
+      >
+        <SpeakerTestButton deviceId={activeSpeaker} />
+      </DeviceRow>
+    </div>
+  );
+}
+
+function MediaDevicesCard({ refreshKey, onRefresh }: { refreshKey: number; onRefresh: () => void }) {
+  const { t } = useTranslation();
+  const headingId = useId();
+  const [focusRow, setFocusRow] = useState<string | null>(null);
+  const clearFocusRow = useCallback(() => setFocusRow(null), []);
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="min-w-0 overflow-hidden rounded-xl bg-surface ring-1 ring-surface-border"
+    >
+      <div className="flex min-w-0 items-center justify-between gap-2 border-b border-surface-border py-2 pr-2 pl-4">
+        <h3 id={headingId} className="text-label font-semibold text-foreground">
+          {t("meetings.deviceMediaTitle")}
+        </h3>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-muted-foreground"
+          onClick={() => {
+            void navigator.mediaDevices?.enumerateDevices();
+            onRefresh();
+          }}
+        >
+          <RefreshCw aria-hidden className="size-3.5" />
+          {t("meetings.deviceReload")}
+        </Button>
+      </div>
+      <MediaDeviceRows
+        key={refreshKey}
+        focusRow={focusRow}
+        onFocused={clearFocusRow}
+        onGranted={(rowId) => {
+          setFocusRow(rowId);
+          onRefresh();
+        }}
+      />
+    </section>
+  );
+}
+
+function MeetingDevicesPanel() {
+  const { t } = useTranslation();
   const { isCameraEnabled } = useLocalParticipant();
   // Opening settings must not switch on a camera the viewer turned off.
   const [previewOn, setPreviewOn] = useState(isCameraEnabled);
-  const [uploadError, setUploadError] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
   const background = useMeetingRoomPreferencesStore((s) => s.background);
   const customBackgroundDataUrl = useMeetingRoomPreferencesStore((s) => s.customBackgroundDataUrl);
-  const setMirrorCamera = useMeetingRoomPreferencesStore((s) => s.setMirrorCamera);
   const setShowExpandedLabels = useMeetingRoomPreferencesStore((s) => s.setShowExpandedLabels);
-  const setBackground = useMeetingRoomPreferencesStore((s) => s.setBackground);
-  const setCustomBackgroundDataUrl = useMeetingRoomPreferencesStore((s) => s.setCustomBackgroundDataUrl);
+  const cameras = useMediaDeviceSelect({ kind: "videoinput" });
+  // The first live frame means the browser granted the camera: device labels
+  // are readable now, so list them again.
+  const onPreviewStatus = useCallback((status: CameraPreviewStatus) => {
+    if (status === "live") refresh();
+  }, [refresh]);
 
-  const cameras = useMediaDeviceSelect({
-    kind: "videoinput",
-    requestPermissions: true,
-  });
-  const mics = useMediaDeviceSelect({
-    kind: "audioinput",
-    requestPermissions: true,
-  });
-  const speakers = useMediaDeviceSelect({
-    kind: "audiooutput",
-    requestPermissions: true,
-  });
-
-  const reloadDevices = () => {
-    void navigator.mediaDevices.enumerateDevices();
-    onReload();
-  };
-
-  const selectBackground = (preset: MeetingBackgroundPreset) => {
-    setBackground(preset);
-  };
-
-  const selectCustomBackground = () => {
-    if (customBackgroundDataUrl && background === "custom") {
-      fileInputRef.current?.click();
-      return;
-    }
-    if (customBackgroundDataUrl) {
-      setBackground("custom");
-      return;
-    }
-    fileInputRef.current?.click();
-  };
-
-  const onUploadBackground = (file: File | undefined) => {
-    if (!file) return;
-    const accepted = ACCEPTED_BACKGROUND_TYPES.includes(file.type as (typeof ACCEPTED_BACKGROUND_TYPES)[number]);
-    setUploadError(!accepted || file.size > MAX_BACKGROUND_BYTES);
-    if (!accepted || file.size > MAX_BACKGROUND_BYTES) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : null;
-      if (!result) return;
-      setCustomBackgroundDataUrl(result);
-      setBackground("custom");
-    };
-    reader.readAsDataURL(file);
-  };
+  // A camera that is not in the list ("default" before one is picked) would
+  // be asked for by that exact id and fail; let the browser choose instead.
+  const previewDeviceId = cameras.devices.some((d) => d.deviceId === cameras.activeDeviceId)
+    ? cameras.activeDeviceId
+    : undefined;
 
   return (
-    <div className="min-w-0 space-y-6">
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <section className="min-w-0 space-y-2">
-          <h3 className="text-label text-foreground">{t("meetings.devicePreviewTitle")}</h3>
-          <MeetingCameraPreview
-            deviceId={cameras.activeDeviceId}
-            active={previewOn}
-            onRequestEnable={() => setPreviewOn(true)}
-            background={background}
-            customBackgroundDataUrl={customBackgroundDataUrl}
-            mirrorCamera={mirrorCamera}
-          />
-        </section>
-
-        <section className="min-w-0 space-y-4">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <h3 className="text-label text-foreground">{t("meetings.deviceMediaTitle")}</h3>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={reloadDevices}
-            >
-              <RefreshCw aria-hidden className="size-3.5" />
-              {t("meetings.deviceReload")}
-            </Button>
-          </div>
-
-          <FieldGroup className="min-w-0 gap-4">
-            <DeviceSelectField
-              id="room-device-camera"
-              label={t("meetings.deviceCamera")}
-              value={cameras.activeDeviceId}
-              devices={cameras.devices}
-              emptyLabel={t("meetings.deviceListEmpty")}
-              onValueChange={(id) => {
-                void cameras.setActiveMediaDevice(id);
-                void room.switchActiveDevice("videoinput", id);
-              }}
-            />
-            <DeviceSelectField
-              id="room-device-mic"
-              label={t("meetings.deviceMic")}
-              value={mics.activeDeviceId}
-              devices={mics.devices}
-              emptyLabel={t("meetings.deviceListEmpty")}
-              onValueChange={(id) => {
-                void mics.setActiveMediaDevice(id);
-                void room.switchActiveDevice("audioinput", id);
-              }}
-            />
-            <DeviceSelectField
-              id="room-device-speaker"
-              label={t("meetings.deviceSpeaker")}
-              value={speakers.activeDeviceId}
-              devices={speakers.devices}
-              emptyLabel={t("meetings.deviceSpeakerEmpty")}
-              onValueChange={(id) => {
-                void speakers.setActiveMediaDevice(id);
-                void room.switchActiveDevice("audiooutput", id);
-              }}
-            />
-          </FieldGroup>
-
-          <div className="min-w-0 space-y-4 border-t border-border pt-4">
-            <PreferenceSwitchField
-              label={t("meetings.deviceMirror")}
-              description={t("meetings.deviceMirrorHint")}
-              checked={mirrorCamera}
-              onCheckedChange={setMirrorCamera}
-            />
-            <PreferenceSwitchField
-              label={t("meetings.deviceExpandedLabels")}
-              description={t("meetings.deviceExpandedLabelsHint")}
-              checked={showExpandedLabels}
-              onCheckedChange={setShowExpandedLabels}
-            />
-          </div>
-        </section>
+    // Blocks in the order that matters on a phone: the picture, the devices
+    // (what the dialog is for), the background, then the room switch. A wide
+    // screen keeps the devices on the right and stacks the rest under the
+    // picture they change.
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[auto_auto_1fr] lg:gap-x-8">
+      <div className="min-w-0 rounded-2xl bg-meeting-stage p-2 ring-1 ring-surface-border lg:col-start-1 lg:row-start-1">
+        <MeetingCameraPreview
+          deviceId={previewDeviceId}
+          active={previewOn}
+          onRequestEnable={() => setPreviewOn(true)}
+          onStatusChange={onPreviewStatus}
+          background={background}
+          customBackgroundDataUrl={customBackgroundDataUrl}
+          mirrorCamera={mirrorCamera}
+          // The stage already draws the edge; a second ring framed a frame.
+          className="aspect-video min-h-44 rounded-xl ring-0"
+        />
       </div>
 
-      <section className="min-w-0 space-y-3 border-t border-border pt-4">
-        <h3 className="text-label text-foreground">{t("meetings.deviceBackgroundTitle")}</h3>
-        <div className="-mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 pb-1">
-          <BackgroundOption
-            selected={background === "none"}
-            label={t("meetings.deviceBackgroundNone")}
-            onSelect={() => selectBackground("none")}
-          >
-            <span className="flex size-full items-center justify-center text-muted-foreground">
-              <Ban aria-hidden className="size-6" />
-            </span>
-          </BackgroundOption>
-          <BackgroundOption
-            selected={background === "blur"}
-            label={t("meetings.deviceBackgroundBlur")}
-            onSelect={() => selectBackground("blur")}
-          >
-            <span className="flex size-full items-center justify-center bg-muted text-muted-foreground">
-              <Droplets aria-hidden className="size-6" />
-            </span>
-          </BackgroundOption>
-          <BackgroundOption
-            selected={background === "classroom"}
-            label={t("meetings.deviceBackgroundClassroom")}
-            onSelect={() => selectBackground("classroom")}
-          >
-            <img
-              src={MEETING_BACKGROUND_IMAGE_PATHS.classroom}
-              alt=""
-              className="size-full object-cover"
-            />
-          </BackgroundOption>
-          <BackgroundOption
-            selected={background === "nature"}
-            label={t("meetings.deviceBackgroundNature")}
-            onSelect={() => selectBackground("nature")}
-          >
-            <img
-              src={MEETING_BACKGROUND_IMAGE_PATHS.nature}
-              alt=""
-              className="size-full object-cover"
-            />
-          </BackgroundOption>
-          <BackgroundOption
-            selected={background === "custom"}
-            label={t("meetings.deviceBackgroundUpload")}
-            onSelect={selectCustomBackground}
-          >
-            {customBackgroundDataUrl ? (
-              <img src={customBackgroundDataUrl} alt="" className="size-full object-cover" />
-            ) : (
-              <span className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
-                <Upload aria-hidden className="size-5" />
-                <ImageIcon aria-hidden className="size-4 opacity-70" />
-              </span>
-            )}
-          </BackgroundOption>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          aria-label={t("meetings.deviceBackgroundUpload")}
-          aria-invalid={uploadError || undefined}
-          aria-describedby={uploadError ? "room-background-upload-error" : undefined}
-          accept={ACCEPTED_BACKGROUND_TYPES.join(",")}
-          className="sr-only"
-          onChange={(event) => {
-            onUploadBackground(event.target.files?.[0]);
-            event.target.value = "";
-          }}
+      <div className="min-w-0 lg:col-start-2 lg:row-span-3 lg:row-start-1">
+        <MediaDevicesCard refreshKey={refreshKey} onRefresh={refresh} />
+      </div>
+
+      <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        <MeetingBackgroundPicker />
+      </div>
+
+      <section className="min-w-0 self-start rounded-xl bg-surface px-4 py-4 ring-1 ring-surface-border lg:col-start-1 lg:row-start-3">
+        <h3 className="mb-3 text-label font-semibold text-foreground">{t("meetings.deviceRoomTitle")}</h3>
+        <PreferenceSwitch
+          id="room-expanded-labels"
+          label={t("meetings.deviceExpandedLabels")}
+          description={t("meetings.deviceExpandedLabelsHint")}
+          checked={showExpandedLabels}
+          onCheckedChange={setShowExpandedLabels}
         />
-        {uploadError ? (
-          <FieldError id="room-background-upload-error">
-            {t("meetings.deviceBackgroundInvalid", { size: MAX_BACKGROUND_MB })}
-          </FieldError>
-        ) : null}
       </section>
     </div>
   );
@@ -379,22 +428,25 @@ export function MeetingDevicesDialog({
   trigger: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger}
-      <DialogContent className="max-h-[min(92dvh,44rem)] overflow-x-hidden overflow-y-auto sm:max-w-3xl">
-        <DialogHeader className="pr-8">
+      {/* Header stays put, only the body scrolls: the title and the close
+          button are always one glance away on a short laptop screen. */}
+      <DialogContent
+        className="flex max-h-[min(92dvh,48rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        closeLabel={t("common.close")}
+      >
+        <DialogHeader className="shrink-0 border-b border-surface-border px-5 pt-5 pb-4 pr-12">
           <DialogTitle>{t("meetings.devicesSettingsTitle")}</DialogTitle>
           <DialogDescription>{t("meetings.devicesSettingsDescription")}</DialogDescription>
         </DialogHeader>
-        {open ? (
-          <MeetingDevicesPanel onReload={() => setRefreshKey((value) => value + 1)} key={refreshKey} />
-        ) : null}
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 pt-5 pb-6">
+          {open ? <MeetingDevicesPanel /> : null}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-export { MEETING_BACKGROUND_PRESETS };

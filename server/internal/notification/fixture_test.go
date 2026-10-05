@@ -70,7 +70,7 @@ func newFixture(t *testing.T) *fixture {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: org.ID, UserID: f.member.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.wsID, UserID: f.member.ID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.wsID, OrganizationID: org.ID, UserID: f.member.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	return f

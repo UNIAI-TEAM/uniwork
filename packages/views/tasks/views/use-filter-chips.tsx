@@ -247,10 +247,17 @@ export function useFilterChips(
   const actorDetails = (values: ActorFilterValue[]) =>
     values.map((value) => {
       const name = actorName(value) ?? value.id;
+      const avatarUrl =
+        value.type === "member"
+          ? members.find((member) => member.user_id === value.id)?.avatar_url
+          : value.type === "agent"
+            ? agents.find((agent) => agent.id === value.id)?.avatar_url
+            : undefined;
       return {
-        id: value.id,
+        id: `${value.type}:${value.id}`,
         name,
-        avatarUrl: undefined as string | undefined,
+        avatarUrl: typeof avatarUrl === "string" ? avatarUrl : undefined,
+        type: value.type,
       };
     });
 

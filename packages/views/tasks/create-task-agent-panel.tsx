@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, MoreHorizontal, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, MoreHorizontal, PanelBottomClose, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
@@ -10,7 +10,6 @@ import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import { useProjects, useTasks, useUploadWorkspaceAttachment } from "@uniwork/core/tasks";
 import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { TASK_PRIORITIES } from "@uniwork/core/types";
 import type { Agent } from "@uniwork/core/types/agent";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
@@ -18,6 +17,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { AgentBadge } from "../agents/agent-badge";
 import { PillButton } from "../common/pill-button";
 import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type ContentEditorRef } from "../editor";
@@ -25,7 +25,7 @@ import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
-import { CreateTaskPriorityField } from "./pickers/create-task-property-fields";
+import { PriorityPicker } from "./pickers/priority-picker";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { PickerEmpty, PickerItem, PickerSection, PropertyPicker } from "./pickers/property-picker";
 import { draftFromDefaults } from "./use-create-task-manual";
@@ -33,7 +33,7 @@ import { draftFromDefaults } from "./use-create-task-manual";
 export type CreateTaskAgentPanelProps = {
   workspaceId: string;
   carry?: Record<string, unknown> | null;
-  onClose: () => void;
+  onClose: (reason?: "saved" | "submitted") => void;
   onSwitchMode: (carry?: Record<string, unknown> | null) => void;
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
@@ -108,6 +108,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
+  const persistSavedDraft = useCreateTaskDraftStore((state) => state.saveDraft);
   const initialDraft = draftFor(workspaceId) ?? draftFromDefaults(undefined, settingsFor(workspaceId));
   const [draft, setDraft] = useState<CreateTaskDraft>(() => ({
     ...initialDraft,
@@ -129,7 +130,6 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const agents = useMemo(() => (agentsQuery.data ?? []).filter((agent) => agent.status === "active"), [agentsQuery.data]);
   const selectedAgent = agents.find((agent) => agent.id === draft.agentId);
   const projectItems = useMemo(() => (projectsQuery.data?.projects ?? []).map((project) => ({ value: project.id, label: project.title })), [projectsQuery.data]);
-  const priorityItems = useMemo(() => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })), [t]);
   const parent = (tasksQuery.data ?? []).find((task) => task.id === draft.parentTaskId);
 
   const updateDraft = useCallback((patch: Partial<CreateTaskDraft>) => {
@@ -185,22 +185,83 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     });
     onSwitchMode({ project_id: current.projectId, parent_task_id: current.parentTaskId });
   };
+  const saveCurrentDraft = () => {
+    if (uploadGate.isBlocked() || uploadCountRef.current > 0) return;
+    const prompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
+    if (prompt !== draftRef.current.agentPrompt) updateDraft({ agentPrompt: prompt });
+    persistSavedDraft(workspaceId, draftRef.current);
+    onClose("saved");
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
           <DialogTitle className="truncate text-body font-medium">
-            {workspaceName}<span className="mx-1.5 text-muted-foreground" aria-hidden>›</span>{t("tasks.create.agent_breadcrumb")}
+            <span className="font-normal text-muted-foreground">{workspaceName}</span>
+            <span className="mx-1.5 text-muted-foreground" aria-hidden>›</span>
+            <span className="text-foreground">{t("tasks.create.agent_breadcrumb")}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{t("tasks.create.sr_agent")}</DialogDescription>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")} onClick={() => setIsExpanded(!isExpanded)}>
-            {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={onClose}><X className="size-4" aria-hidden /></Button>
-        </div>
+        <TooltipProvider delay={300}>
+          <div className="flex shrink-0 items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+                  onClick={() => setIsExpanded(!isExpanded)}
+                />
+              }
+            >
+              {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-label={t("tasks.create.save_draft")}
+                  aria-disabled={isUploading || undefined}
+                  onClick={saveCurrentDraft}
+                />
+              }
+            >
+              <PanelBottomClose className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={t("common.close")}
+                  onClick={() => onClose()}
+                />
+              }
+            >
+              <X className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
+          </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       <div className="shrink-0 px-5 pt-1 pb-2">
@@ -225,7 +286,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
         <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
-        {showPriority ? <CreateTaskPriorityField items={priorityItems} value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} onChange={(priority) => updateDraft({ priority })} /> : null}
+        {showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
         {showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
         {!showPriority || !showDueDate ? (
           <DropdownMenu>

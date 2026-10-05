@@ -1,0 +1,63 @@
+/*
+ * THESIS: One continuous light opening connects the offer, example and wayfinding.
+ * OWN-WORLD: Bright Studio ground, official identity and scarce cobalt actions.
+ * FIRST VIEWPORT: Copy beside a complete work window with aligned actions.
+ * STORY: The shared opening leads into named examples and the existing demo.
+ * FORM: Light-only refinement; category color belongs inside the work content.
+ */
+:root:not(.dark) .marketing-site .chapter-world {
+  --chapter-light-ground: color-mix(in srgb, var(--landing-stage) 60%, var(--background));
+}
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero, .chapter-jumps, .feature-family-nav) {
+  position: relative;
+  isolation: isolate;
+}
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero)::before,
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-jumps, .feature-family-nav)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  inset-inline: calc((100% - 100vw) / 2);
+  background: var(--chapter-light-ground);
+  pointer-events: none;
+}
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero)::before { top: -120px; }
+:root:not(.dark) .marketing-site .chapter-world .chapter-hero { gap: 40px; padding-block: 32px 40px; }
+:root:not(.dark) .marketing-site .chapter-world .feature-page-hero { padding-bottom: 48px; }
+:root:not(.dark) .marketing-site .chapter-world .marketing-actions .chapter-link { margin-top: 0; }
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene-media, .feature-page-art > .feature-art, .feature-page-details.feature-examples .feature-art) {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+:root:not(.dark) .marketing-site .chapter-world .feature-art-window {
+  box-shadow: 0 18px 48px -24px color-mix(in srgb, var(--landing-deep) 28%, transparent);
+}
+:root:not(.dark) .marketing-site .chapter-world .feature-page-art > .feature-art { min-height: 0; }
+:root:not(.dark) .marketing-site .chapter-world .feature-page-art .feature-art-window { transform: none; }
+:root:not(.dark) .marketing-site .chapter-world .feature-art-bar {
+  background: color-mix(in srgb, var(--landing-stage-soft) 70%, var(--landing-paper));
+}
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene figcaption, .feature-art-caption) {
+  padding-inline: 0;
+  gap: 10px;
+  font-size: var(--text-caption);
+}
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene figcaption, .feature-art-caption) > svg { width: 18px; height: 18px; }
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene figcaption, .feature-art-caption) > span { margin-left: 6px; }
+:root:not(.dark) .marketing-site .chapter-world .feature-family-nav { border-top: 0; }
+:root:not(.dark) .marketing-site .chapter-world .feature-family-nav a { background: transparent; }
+:root:not(.dark) .marketing-site .chapter-world .feature-family-nav a:hover { background: var(--landing-paper); }
+:root:not(.dark) .marketing-site .chapter-world .chapter-soft { background: var(--chapter-light-ground); }
+:root:not(.dark) .marketing-site .chapter-world :is(.chapter-route-media, .feature-directory-visual a > .feature-art, .feature-related-preview) {
+  background: var(--landing-stage-soft);
+}
+@media (max-width: 1100px) {
+  :root:not(.dark) .marketing-site .chapter-world .chapter-hero { gap: 32px; }
+}
+@media (max-width: 767px) {
+  :root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero)::before { top: -94px; }
+  :root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero) { padding-block: 16px 32px; gap: 28px; }
+  :root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene figcaption, .feature-art-caption) > span { margin-left: 0; }
+}

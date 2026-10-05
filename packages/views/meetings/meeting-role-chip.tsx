@@ -10,7 +10,8 @@ const CHIP = "h-4 px-1.5 text-micro";
 
 /**
  * Who a participant is, beside their name: an agent carries the product's one
- * agent badge (ADR 0007), a guest from an invite link carries "Guest".
+ * agent badge (ADR 0007), a guest from an invite link carries "Guest", and a
+ * formal meeting marks its secretary and its observers.
  */
 export function MeetingRoleChip({
   role,
@@ -21,9 +22,24 @@ export function MeetingRoleChip({
 }) {
   const { t } = useTranslation();
   if (role === "agent") return <AgentBadge className={cn(CHIP, className)} />;
+  const label =
+    role === "secretary"
+      ? t("meetings.governance.secretary")
+      : role === "observer"
+        ? t("meetings.governance.standing_OBSERVER")
+        : t("meetings.guest");
+  // The secretary holds a duty, so it is filled; standing and guest stay outlined.
   return (
-    <Badge variant="outline" className={cn(CHIP, className)}>
-      {t("meetings.guest")}
+    <Badge
+      variant="outline"
+      className={cn(
+        CHIP,
+        role === "secretary" && "border-transparent bg-brand-subtle text-brand-subtle-foreground",
+        role === "observer" && "text-muted-foreground",
+        className,
+      )}
+    >
+      {label}
     </Badge>
   );
 }

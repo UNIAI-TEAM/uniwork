@@ -94,34 +94,119 @@ export function trackTileKey(track: TrackReferenceOrPlaceholder): string {
 }
 
 /**
- * Stage order: the pinned tile, then screen shares, then everyone in their
- * existing order. A speaker moves up only from a place the viewer cannot see
- * well — past `stableSlots` (off the page, or down in the thumbnail strip);
- * someone already in the main area stays put, so tiles do not jump while
- * people talk. `stableSlots = 0` promotes every speaker.
+ * Stage order: the pinned tile, then screen shares, then cameras in
+ * `speakerOrder` (see promoteSpeakers), anyone it does not name after them in
+ * the room's own order.
  */
 export function orderTracks(
   tracks: readonly TrackReferenceOrPlaceholder[],
-  speakingIdentities: readonly string[],
+  speakerOrder: readonly string[],
   pinnedIdentity?: string | null,
-  stableSlots = 0,
 ): TrackReferenceOrPlaceholder[] {
-  const baseRank = (t: TrackReferenceOrPlaceholder): number => {
+  const slot = new Map(speakerOrder.map((identity, i) => [identity, i]));
+  const rank = (t: TrackReferenceOrPlaceholder): number => {
     if (pinnedIdentity && t.participant.identity === pinnedIdentity) return -1;
     if (t.source === Track.Source.ScreenShare) return 0;
-    return 1_000_000;
+    return 1 + (slot.get(t.participant.identity) ?? 1_000_000);
   };
-  const base = tracks
-    .map((t, i) => ({ t, i, r: baseRank(t) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i);
-  return base
-    .map((x, pos) => {
-      if (x.r !== 1_000_000 || pos < stableSlots) return { ...x, pos };
-      const i = speakingIdentities.indexOf(x.t.participant.identity);
-      return { ...x, pos, r: i === -1 ? x.r : 1 + i };
-    })
-    .sort((a, b) => a.r - b.r || a.pos - b.pos)
+  return tracks
+    .map((t, i) => ({ t, i, r: rank(t) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
     .map((x) => x.t);
+}
+
+/** How long a promoted speaker keeps their tile after they last spoke. */
+export const SPEAKER_HOLD_MS = 2500;
+
+/**
+ * The camera tiles that take part in speaker promotion, in the room's order
+ * (the pinned one keeps its own place), and how many of them the viewer sees
+ * in the main area: past those slots, a speaker is promoted into them.
+ */
+export function speakerSlots(
+  tracks: readonly TrackReferenceOrPlaceholder[],
+  options: {
+    layout: MeetingViewLayout;
+    maxTiles: number;
+    pinnedIdentity?: string | null;
+    hiddenIdentities?: readonly string[];
+    hideWithoutVideo?: boolean;
+  },
+): { cameras: string[]; slots: number } {
+  const { layout, maxTiles, pinnedIdentity = null, hiddenIdentities = [], hideWithoutVideo = false } = options;
+  const { screenShares, cameras } = splitTracksBySource(
+    filterVisibleTracks(tracks, hiddenIdentities, hideWithoutVideo),
+  );
+  // The first strip page is what the viewer sees next to a share.
+  const mainSlots =
+    screenShares.length > 0
+      ? Math.max(0, THUMBNAIL_STRIP_TILES - (screenShares.length - 1))
+      : layout === "spotlight" || layout === "sidebar"
+        ? 1
+        : layout === "tiled"
+          ? maxTiles
+          : Math.min(maxTiles, PRIMARY_GRID_TILES);
+  const identities = [...new Set(cameras.map((t) => t.participant.identity))];
+  const pinned = pinnedIdentity !== null && identities.includes(pinnedIdentity);
+  return {
+    cameras: pinned ? identities.filter((id) => id !== pinnedIdentity) : identities,
+    slots: Math.max(0, mainSlots - (pinned ? 1 : 0)),
+  };
+}
+
+/**
+ * The next speaker order. A speaker past the first `slots` swaps places with
+ * the quietest tile inside them, so one tile moves in and one out while every
+ * other tile stays where it was. A tile whose person spoke within `holdMs`
+ * (or still speaks) is never the one to give way: the speaker waits, and
+ * `retryAt` says when the first held tile frees up. People who left drop out;
+ * newcomers join the end in the room's order.
+ */
+export function promoteSpeakers(
+  order: readonly string[],
+  input: {
+    cameras: readonly string[];
+    slots: number;
+    speaking: readonly string[];
+    lastSpokeAt: ReadonlyMap<string, number>;
+    now: number;
+    holdMs?: number;
+  },
+): { order: string[]; retryAt?: number } {
+  const { cameras, slots, speaking, lastSpokeAt, now, holdMs = SPEAKER_HOLD_MS } = input;
+  const present = new Set(cameras);
+  const next = order.filter((id) => present.has(id));
+  const placed = new Set(next);
+  for (const id of cameras) if (!placed.has(id)) next.push(id);
+  const talking = new Set(speaking);
+  const shown = Math.min(slots, next.length);
+  let retryAt: number | undefined;
+  for (const id of speaking) {
+    const from = next.indexOf(id);
+    if (from < shown) continue;
+    let victim = -1;
+    let victimSpoke = Infinity;
+    for (let j = 0; j < shown; j++) {
+      const occupant = next[j]!;
+      if (talking.has(occupant)) continue;
+      const spoke = lastSpokeAt.get(occupant) ?? -Infinity;
+      if (now - spoke < holdMs) {
+        retryAt = Math.min(retryAt ?? Infinity, spoke + holdMs);
+        continue;
+      }
+      // The quietest gives way; on a tie the later slot, so the top-left stays put.
+      if (spoke <= victimSpoke) {
+        victim = j;
+        victimSpoke = spoke;
+      }
+    }
+    if (victim === -1) continue;
+    next[from] = next[victim]!;
+    next[victim] = id;
+  }
+  // A wait only matters while someone still waits for a slot.
+  const waiting = speaking.some((id) => next.indexOf(id) >= shown);
+  return waiting && retryAt !== undefined ? { order: next, retryAt } : { order: next };
 }
 
 export function paginate<T>(
@@ -164,7 +249,8 @@ export function resolveConferenceStage(
     pinnedIdentity?: string | null;
     hiddenIdentities?: readonly string[];
     hideWithoutVideo?: boolean;
-    speakingIdentities?: readonly string[];
+    /** Camera identities in stage order, from useSpeakerOrder; omitted, the room's own order. */
+    speakerOrder?: readonly string[];
   },
 ): ConferenceStage {
   const {
@@ -174,26 +260,17 @@ export function resolveConferenceStage(
     pinnedIdentity = null,
     hiddenIdentities = [],
     hideWithoutVideo = false,
-    speakingIdentities = [],
+    speakerOrder = [],
   } = options;
 
   const visible = filterVisibleTracks(tracks, hiddenIdentities, hideWithoutVideo);
   const { screenShares, cameras } = splitTracksBySource(visible);
 
   if (screenShares.length > 0) {
-    // The first strip page is what the viewer sees next to the share.
-    const stripSlots = Math.max(0, THUMBNAIL_STRIP_TILES - (screenShares.length - 1));
-    const orderedCameras = orderTracks(cameras, speakingIdentities, pinnedIdentity, stripSlots);
-    return resolvePresentationStage(screenShares, orderedCameras, page);
+    return resolvePresentationStage(screenShares, orderTracks(cameras, speakerOrder, pinnedIdentity), page);
   }
 
-  const mainSlots =
-    layout === "spotlight" || layout === "sidebar"
-      ? 1
-      : layout === "tiled"
-        ? maxTiles
-        : Math.min(maxTiles, PRIMARY_GRID_TILES);
-  const ordered = orderTracks(visible, speakingIdentities, pinnedIdentity, mainSlots);
+  const ordered = orderTracks(visible, speakerOrder, pinnedIdentity);
 
   switch (layout) {
     case "spotlight": {
@@ -265,6 +342,96 @@ export function copilotPanelShown({
   pinned: boolean;
 }): boolean {
   return tab === "copilot" && (compact ? sheetOpen : pinned);
+}
+
+/** A camera frame's shape until its video reports its own. */
+export const DEFAULT_CAMERA_ASPECT = 16 / 9;
+/** How much narrower than its video a camera tile may get, cropping only the sides. */
+const MAX_SIDE_CROP = 1.3;
+
+/**
+ * Size of a camera tile inside a `container-type: size` cell. The tile is
+ * never wider than its video, so a wide window cannot crop a face top and
+ * bottom (UNI-846); in a tall cell it may be up to 1.3× narrower, a bounded
+ * side crop, instead of a full-height strip that shows a third of the frame.
+ */
+export function cameraTileSize(aspect: number, besideStrip = false): { width: string; height: string } {
+  return videoTileSize(aspect, MAX_SIDE_CROP, besideStrip);
+}
+
+/**
+ * Size of a screen-share tile: exactly its video's shape, never cropped. The
+ * frame (ring, name, controls) then hugs the shared screen instead of the
+ * cell, which letterboxed it off-centre whenever the cell changed shape, as
+ * when the side panel opens.
+ */
+export function screenShareTileSize(aspect: number, besideStrip = false): { width: string; height: string } {
+  return videoTileSize(aspect, 1, besideStrip);
+}
+
+/**
+ * A presentation stage lays the main tile and its thumbnail strip out as one
+ * group, centred together, so the strip sits against the tile instead of the
+ * far edge of the stage. The tile is then sized from the whole stage (the
+ * size container) minus the strip's room, which the stage publishes in these
+ * two custom properties: a width beside the tile, a height under it.
+ */
+export const STRIP_RESERVE_X = "--strip-reserve-x";
+export const STRIP_RESERVE_Y = "--strip-reserve-y";
+function reserved(besideStrip: boolean): { w: string; h: string } {
+  if (!besideStrip) return { w: "100cqw", h: "100cqh" };
+  return {
+    w: `(100cqw - var(${STRIP_RESERVE_X}, 0px))`,
+    h: `(100cqh - var(${STRIP_RESERVE_Y}, 0px))`,
+  };
+}
+
+/**
+ * How many buttons a full tile's corner controls hold, mirroring what
+ * MeetingTileActions draws: a camera tile has pin + menu (+ host mute); a
+ * shared screen has no pin or watch toggle, so it shows host mute + menu only
+ * when the host can mute, and nothing otherwise.
+ */
+export function tileControlButtons({ screenShare, hostMute }: { screenShare: boolean; hostMute: boolean }): number {
+  if (screenShare) return hostMute ? 2 : 0;
+  return hostMute ? 3 : 2;
+}
+
+/** Room a strip takes beside the main tile (w-28 + gap-3) or under it (w-24 at 4:3 + pb-1 + gap-2), in rem. */
+export const STRIP_BESIDE_REM = 7.75;
+export const STRIP_BELOW_REM = 5.25;
+
+/**
+ * Where the thumbnail strip goes: whichever side leaves the bigger main tile
+ * for a 16:9 presentation in a stage of this size. Decided by the stage's own
+ * shape, not the viewport: a portrait tablet or a narrow stage beside the
+ * side panel wants the strip under the share, a wide one beside it.
+ */
+export function stripPlacement(width: number, height: number, remPx = 16): "beside" | "below" {
+  const ar = DEFAULT_CAMERA_ASPECT;
+  const besideWidth = Math.min(width - STRIP_BESIDE_REM * remPx, height * ar);
+  const belowWidth = Math.min(width, (height - STRIP_BELOW_REM * remPx) * ar);
+  return besideWidth > belowWidth ? "beside" : "below";
+}
+
+/** A tile with no video shape (the presenter's own card) fills the stage's room. */
+export function stageFillSize(): { width: string; height: string } {
+  const { w, h } = reserved(true);
+  return { width: `calc${w}`, height: `calc${h}` };
+}
+
+function videoTileSize(
+  aspect: number,
+  maxSideCrop: number,
+  besideStrip: boolean,
+): { width: string; height: string } {
+  const ar = Number.isFinite(aspect) && aspect > 0 ? aspect : DEFAULT_CAMERA_ASPECT;
+  const round = (n: number) => Number(n.toFixed(4));
+  const { w, h } = reserved(besideStrip);
+  return {
+    width: `min(${w}, calc(${h} * ${round(ar)}))`,
+    height: `min(${h}, calc(${w} * ${round(maxSideCrop / ar)}))`,
+  };
 }
 
 export type TileRingTone = "hand" | "speaking" | "pinned" | "idle";

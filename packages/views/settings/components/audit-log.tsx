@@ -104,9 +104,11 @@ export function AuditLog({
   const applied = toQuery({ ...filters, actor_id: appliedActor });
 
   const events = useAuditEvents(orgId, applied);
+  // System and guest actors have no workspace name; their kind is the honest
+  // label, and the id stays on hover and in the detail sheet.
   const actorName = (event: AuditEvent) =>
-    event.actor_kind === "system"
-      ? labels.actorKind("system")
+    event.actor_kind === "system" || event.actor_kind === "guest"
+      ? labels.actorKind(event.actor_kind)
       : names.get(event.actor_id) ?? shortId(event.actor_id);
 
   const rows = events.data?.pages.flatMap((p) => p.events) ?? [];
