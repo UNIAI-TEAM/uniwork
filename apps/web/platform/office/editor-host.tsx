@@ -199,8 +199,20 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     }));
   }, [dirty]);
 
-  useEffect(() => () => {
-    void recoveryRef.current?.dispose();
+  // React dev (StrictMode) replays mount -> cleanup -> mount on the SAME
+  // session. Disposing synchronously would hand the replayed mount a dead
+  // editor (xlsx_editor_disposed); the replay re-arms this flag before the
+  // microtask runs, so only a real unmount releases the session.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const closing = recoveryRef.current;
+      queueMicrotask(() => {
+        if (!mountedRef.current) void closing?.dispose();
+      });
+    };
   }, []);
 
   const finishLeave = (allowed: boolean) => {

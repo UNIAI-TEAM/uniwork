@@ -7,6 +7,7 @@ import process from "node:process";
 import { createRequire } from "node:module";
 import identity from "../identity.json" with { type: "json" };
 import { generateReleaseInventory } from "./release-inventory.mjs";
+import { XLSX_ASSETS_DIRECTORY, stageXlsxAssets } from "./xlsx-assets.mjs";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 
 const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -106,7 +107,13 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     // sanitized package name. Keep that name in the accepted channel profile
     // so dev is isolated while beta and stable intentionally upgrade in place.
     extraMetadata: { name: channelIdentity.userDataNamespace, version: buildVersion, dependencies: {}, devDependencies: {} },
-    extraResources: [{ from: join(distDirectory, "release-inventory"), to: "release-inventory" }],
+    // Two staged resource dirs ride beside app.asar: the licence inventory and
+    // the xlsx engine assets (patched gateway + platform sidecar). The main
+    // process resolves the latter from process.resourcesPath - no env var.
+    extraResources: [
+      { from: join(distDirectory, "release-inventory"), to: "release-inventory" },
+      { from: join(distDirectory, XLSX_ASSETS_DIRECTORY), to: XLSX_ASSETS_DIRECTORY },
+    ],
     asar: true,
     compression: "store",
     npmRebuild: false,
@@ -365,6 +372,11 @@ export async function packageDesktop({ platform = process.platform, arch, output
   try {
     const metafile = await runBuild();
     await generateReleaseInventory({ metafile });
+    // Stage the bundled xlsx engine assets into dist/ so electron-builder can
+    // copy them into the payload (extraResources above). A missing gateway
+    // fails here with the build command to run, instead of shipping a package
+    // whose local .xlsx open dies with engine_incompatible.
+    await stageXlsxAssets({ repositoryRoot, distDirectory, platform });
     for (const targetArch of arches) {
       const config = createPackagerConfig({
         platform,

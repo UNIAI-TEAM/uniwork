@@ -514,9 +514,9 @@ async function buildXlsx(ctx) {
   });
   if (ctx.formulas !== false) {
     dataRows.push([
-      xCell('A5', { sharedIndex: si(VI.labels[2]) }),
-      xCell('B5', { formula: 'SUM(B2:B4)', cached: 4908000000 }),
-      xCell('C5', { formula: 'SUM(C2:C4)', cached: 5408000000 }),
+      xCell('A6', { sharedIndex: si(VI.labels[2]) }),
+      xCell('B6', { formula: 'SUM(B2:B4)', cached: 4908000000 }),
+      xCell('C6', { formula: 'SUM(C2:C4)', cached: 5408000000 }),
     ]);
   }
   // A sparse sheet keeps a missing row and a self-closing row, the two shapes a targeted edit must not normalise away.

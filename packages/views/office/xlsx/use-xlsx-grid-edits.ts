@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { rendererEditsToOperations, type XlsxGridCellEdit } from "./xlsx-edit-bridge";
+import { rendererEditsToOperations, type XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type { XlsxEditorHandle, XlsxSaveCoordinator } from "./types";
 
@@ -22,7 +22,7 @@ export function useXlsxGridEdits<TSnapshot>(
     return () => { session.current += 1; };
   }, [documentKey, editor, coordinator, host]);
 
-  const onEdits = useCallback((edits: XlsxGridCellEdit[]) => {
+  const onEdits = useCallback((edits: XlsxGridEdit[]) => {
     if (!canEdit || !host || edits.length === 0) return;
     const generation = session.current;
     const captured = structuredClone(edits);

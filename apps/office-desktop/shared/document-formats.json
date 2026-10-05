@@ -18,6 +18,14 @@
       "associationName": "PDF document",
       "untitledName": "Untitled.pdf",
       "engineBuild": "pdf-desktop-lane/1"
+    },
+    "xlsx": {
+      "extensions": ["xlsx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+      "dialogFilterName": "Excel",
+      "associationName": "Excel spreadsheet",
+      "untitledName": "Untitled.xlsx",
+      "engineBuild": "xlsx-desktop-1"
     }
   }
 }

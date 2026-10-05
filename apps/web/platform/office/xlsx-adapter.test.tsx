@@ -1,12 +1,47 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { isValidElement } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createElement, isValidElement, StrictMode, useEffect, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput, OfficeUploadReceipt } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import { createXlsxFormatAdapter, createXlsxSaveTransport, type XlsxDocumentsTransport, type XlsxSessionRuntime } from "./xlsx-adapter";
 import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+
+initI18n();
+
+// jsdom ships neither matchMedia nor the observers the vendored XlsxEditor
+// tree mounts (the office ribbon reads a media query; the grid surface uses
+// ResizeObserver). The StrictMode tests render that real tree, so install the
+// minimal stubs once. Every query answers false and every observer is inert.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = ((query: string) => ({
+    media: query,
+    matches: false,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+class TestResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= TestResizeObserver;
+class TestIntersectionObserver {
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as never); }
+  unobserve() {}
+  disconnect() {}
+  takeRecords() { return []; }
+}
+(globalThis as { IntersectionObserver?: unknown }).IntersectionObserver ??= TestIntersectionObserver;
 
 const identity: OfficeIdentity = {
   deploymentId: "dep",
@@ -102,6 +137,7 @@ function documents(): XlsxDocumentsTransport & { uploaded: Blob[]; commits: numb
   };
 }
 
+beforeEach(async () => { await setLocale("en"); });
 afterEach(() => vi.restoreAllMocks());
 
 describe("web XLSX format adapter", () => {
@@ -345,5 +381,70 @@ describe("web XLSX format adapter", () => {
     await transport.commit({ intent, upload });
     expect(engine.serialize).toHaveBeenCalledTimes(1);
     expect(engine.setBaseRevision).toHaveBeenCalledWith("2", intent.intentId);
+  });
+
+  // UNI-926 R3-STRICTMODE: `next dev` mounts every tree twice (mount ->
+  // cleanup -> mount). The shared OfficeEditorHost disposes
+  // formatAdapter.session in its [] unmount cleanup, and xlsx-office-host
+  // mounts OfficeEditorHost only once the adapter exists (pending gate), so
+  // the simulated unmount used to kill a LIVE session and the replayed mount
+  // then opened a dead editor ("xlsx_editor_disposed").
+  async function mountStrict(adapter: ReturnType<typeof createXlsxFormatAdapter>) {
+    const container = document.createElement("div");
+    document.body.append(container);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    function Host(): ReactElement {
+      useEffect(() => () => { void adapter.session.dispose(); }, []);
+      return adapter.editorView as ReactElement;
+    }
+    let root!: Root;
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(Host))); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    return { container, root };
+  }
+
+  it("survives a StrictMode double mount: the workbook renders and the model is not released", async () => {
+    const engine = runtime();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    const { container, root } = await mountStrict(adapter);
+    expect(container.querySelector('[data-testid="xlsx-error-state"]')).toBeNull();
+    expect(container.querySelector('[data-testid="xlsx-workbook-surface"]')).not.toBeNull();
+    expect(engine.released).toEqual([]);
+
+    // A real unmount still releases the model.
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(engine.released).toEqual(["model-1"]);
+    container.remove();
+  });
+
+  it("retries a failed open on the same adapter under StrictMode", async () => {
+    const engine = runtime();
+    const open = vi.mocked(engine.open);
+    const succeed = open.getMockImplementation()!;
+    open.mockImplementationOnce(() => Promise.reject(new Error("transient")));
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    const { container, root } = await mountStrict(adapter);
+    const retry = container.querySelector('[data-testid="xlsx-error-state"] button') as HTMLButtonElement | null;
+    expect(retry).not.toBeNull();
+    expect(container.querySelector('[data-testid="xlsx-error-state"]')?.textContent).not.toContain("xlsx_editor_disposed");
+    open.mockImplementation(succeed);
+    await act(async () => { retry!.click(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(container.querySelector('[data-testid="xlsx-workbook-surface"]')).not.toBeNull();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    container.remove();
+  });
+
+  it("makes session dispose idempotent and lets a later open cancel a pending disposal", async () => {
+    const engine = runtime();
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await adapter.open.open();
+    const first = adapter.session.dispose();
+    expect(adapter.session.dispose()).toBe(first);
+    await adapter.open.open();
+    await first;
+    expect(engine.released).toEqual([]);
+    await adapter.session.dispose();
+    await adapter.session.dispose();
+    expect(engine.released).toEqual(["model-1"]);
   });
 });

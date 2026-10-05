@@ -21,6 +21,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:file-open",
   "desktop:file-save",
   "desktop:file-save-as",
+  "desktop:file-xlsx",
   "desktop:draft-checkpoint",
   "desktop:draft-list",
   "desktop:draft-recover",
@@ -37,7 +38,9 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:library-create",
   "desktop:library-download",
   "desktop:office-open",
+  "desktop:office-context",
   "desktop:office-save",
+  "desktop:office-job",
   "desktop:leave-resolved",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
@@ -184,6 +187,11 @@ export const desktopOfficeOpenResponseSchema = z.object({
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
 export type DesktopLibraryCreateResponse = DesktopOfficeOpenResponse;
+/** A metadata-only open: it registers the main-owned document context without
+ *  downloading bytes. The xlsx editor opens through the server job and never
+ *  reads the raw bytes, so a cloud xlsx open uses this instead of office-open. */
+export const desktopOfficeContextResponseSchema = z.object({ document: libraryDocumentSchema }).strict();
+export type DesktopOfficeContextResponse = z.infer<typeof desktopOfficeContextResponseSchema>;
 export const desktopOfficeSaveResponseSchema = z.object({
   documentId: documentIdSchema,
   intentId: z.string().min(1).max(160),
@@ -193,6 +201,50 @@ export const desktopOfficeSaveResponseSchema = z.object({
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeSaveResponse = z.infer<typeof desktopOfficeSaveResponseSchema>;
+/** The server office-job surface for a carried non-docx format (xlsx today).
+ *  The renderer names only ids, a carried format, a bounded operation and the
+ *  op list; main owns the bearer token, the base revision and every network
+ *  call. The edits list stays opaque here: main validates the envelope only,
+ *  and the engine op parser on the server validates each op. */
+export const desktopOfficeJobOperationSchema = z.enum(["open", "edit"]);
+export const desktopOfficeJobRequestSchema = z.object({
+  sessionGeneration: sessionGenerationSchema,
+  workspaceId: opaqueHandleSchema,
+  documentId: documentIdSchema,
+  format: documentFormatSchema,
+  operation: desktopOfficeJobOperationSchema,
+  baseRevision: z.string().regex(/^\d+$/),
+  edits: z.array(z.record(z.string(), z.unknown())).max(10_000).optional(),
+}).strict();
+export type DesktopOfficeJobRequest = z.infer<typeof desktopOfficeJobRequestSchema>;
+export const desktopOfficeJobResponseSchema = z.object({
+  jobId: z.string().min(1).max(160),
+  documentId: documentIdSchema,
+  state: z.enum(["accepted", "running", "completed", "failed", "timed_out", "cancelled", "crashed"]),
+  /** The JSON snapshot (open) or the produced bytes (edit), base64. */
+  outputBase64: base64BytesSchema.optional(),
+  outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+}).strict();
+export type DesktopOfficeJobResponse = z.infer<typeof desktopOfficeJobResponseSchema>;
+/** The local xlsx engine job (C1b): the SAME shape as the cloud office-job
+ *  response, but keyed by an opaque local file handle instead of a workspace
+ *  document. Main owns the bytes and the bundled IronCalc sidecar + xlsx
+ *  gateway; the renderer never names a path, an engine or a grant. */
+export const desktopFileXlsxRequestSchema = z.object({
+  sessionGeneration: sessionGenerationSchema,
+  handle: fileHandleSchema,
+  operation: desktopOfficeJobOperationSchema,
+  baseRevision: z.string().regex(/^\d+$/),
+  edits: z.array(z.record(z.string(), z.unknown())).max(10_000).optional(),
+}).strict();
+export type DesktopFileXlsxRequest = z.infer<typeof desktopFileXlsxRequestSchema>;
+export const desktopFileXlsxResponseSchema = z.object({
+  state: z.enum(["completed", "failed"]),
+  /** The JSON snapshot (open) or the produced bytes (edit), base64. */
+  outputBase64: base64BytesSchema.optional(),
+  outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+}).strict();
+export type DesktopFileXlsxResponse = z.infer<typeof desktopFileXlsxResponseSchema>;
 export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 export const leaveRequestedEventSchema = z.object({ requestId: opaqueHandleSchema, reason: z.enum(["close", "logout", "update"]) }).strict();
@@ -238,7 +290,10 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:library-create": desktopOfficeOpenResponseSchema,
   "desktop:library-download": desktopLibraryDownloadResponseSchema,
   "desktop:office-open": desktopOfficeOpenResponseSchema,
+  "desktop:office-context": desktopOfficeContextResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
+  "desktop:office-job": desktopOfficeJobResponseSchema,
+  "desktop:file-xlsx": desktopFileXlsxResponseSchema,
   "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
@@ -293,6 +348,9 @@ const requestSchemas = {
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255), format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
+  "desktop:office-context": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
+  "desktop:office-job": desktopOfficeJobRequestSchema,
+  "desktop:file-xlsx": desktopFileXlsxRequestSchema,
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
 } as const;
@@ -347,10 +405,10 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves and engine calls carry the serialized document in the same
-  // bounded byte class as local-file and draft payloads. Keep the remaining
-  // control calls at the smaller limit.
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  // Office saves, engine calls and office jobs carry the serialized document
+  // in the same bounded byte class as local-file and draft payloads. Keep the
+  // remaining control calls at the smaller limit.
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:office-job" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {

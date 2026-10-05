@@ -1,0 +1,98 @@
+"use client";
+
+import { Minus, Plus, ZoomIn } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { clampZoom, stepZoom, XLSX_ZOOM_DEFAULT, XLSX_ZOOM_PRESETS } from "../view/zoom";
+import { useViewEcho, XLSX_ZOOM_SET_COMMAND, zoomRatioTarget } from "./view-echo";
+import {
+  XLSX_ICON_BUTTON_CLASS,
+  XlsxGroupBody,
+  XlsxGroupRow,
+  XlsxGroupRows,
+  XlsxLargeButton,
+  XlsxLargeLabel,
+} from "./group-layout";
+import type { XlsxToolbarGroupProps } from "./types";
+
+/** View > zoom: the stepper, the presets and the reset. Zoom is session view
+ *  state and the port exposes no zoom read, so the control keeps an echo of
+ *  its own changes; the echo is owned by the TOOLBAR (`viewEcho`) so a ribbon
+ *  tab switch cannot reset it while the renderer keeps its zoom. Every action
+ *  sends the ABSOLUTE `set-zoom-ratio` target, so the applied zoom is correct
+ *  even if the echo is ever stale; nothing is persisted. */
+export function XlsxViewZoomGroup({ commands, viewEcho }: XlsxToolbarGroupProps) {
+  const { t } = useTranslation();
+  const echo = useViewEcho(viewEcho);
+  const percent = echo.zoomPercent;
+
+  const apply = (next: number, reset = false) => {
+    if (!commands) return;
+    const clamped = clampZoom(next);
+    if (reset) void commands.execute(XLSX_ZOOM_SET_COMMAND, zoomRatioTarget(XLSX_ZOOM_DEFAULT));
+    else void commands.execute(XLSX_ZOOM_SET_COMMAND, zoomRatioTarget(clamped));
+    echo.setZoomPercent(clamped);
+  };
+  const blocked = !commands || undefined;
+
+  const presets = (list: readonly number[]) =>
+    list.map((preset) => (
+      <Button
+        key={preset}
+        type="button"
+        variant="toolbar"
+        size="sm"
+        className="h-6 px-1.5"
+        aria-label={t("office.xlsx.view.zoom.preset", { percent: preset })}
+        title={t("office.xlsx.view.zoom.preset", { percent: preset })}
+        aria-pressed={percent === preset}
+        aria-disabled={blocked}
+        onClick={() => apply(preset)}
+      >
+        {t("office.xlsx.view.zoom.presetShort", { percent: preset })}
+      </Button>
+    ));
+  const half = Math.ceil(XLSX_ZOOM_PRESETS.length / 2);
+
+  return (
+    <XlsxGroupBody>
+      <XlsxLargeButton aria-disabled={blocked} onClick={() => apply(XLSX_ZOOM_DEFAULT, true)}>
+        <ZoomIn aria-hidden />
+        <XlsxLargeLabel>{t("office.xlsx.view.zoom.reset")}</XlsxLargeLabel>
+      </XlsxLargeButton>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.view.zoom.out")}
+            title={t("office.xlsx.view.zoom.out")}
+            aria-disabled={blocked}
+            onClick={() => apply(stepZoom(percent, -1))}
+          >
+            <Minus aria-hidden />
+          </Button>
+          <span className="min-w-9 text-center text-caption tabular-nums" data-testid="xlsx-view-zoom-value">
+            {t("office.xlsx.view.zoom.value", { percent })}
+          </span>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.view.zoom.in")}
+            title={t("office.xlsx.view.zoom.in")}
+            aria-disabled={blocked}
+            onClick={() => apply(stepZoom(percent, 1))}
+          >
+            <Plus aria-hidden />
+          </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>{presets(XLSX_ZOOM_PRESETS.slice(0, half))}</XlsxGroupRow>
+        <XlsxGroupRow>{presets(XLSX_ZOOM_PRESETS.slice(half))}</XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
+  );
+}

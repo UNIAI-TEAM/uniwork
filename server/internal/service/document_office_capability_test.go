@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -400,6 +401,323 @@ func TestOfficeOutputKeepsFormat(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := officeOutputKeepsFormat(string(c.job), c.current, c.incoming); got != c.want {
 				t.Fatalf("officeOutputKeepsFormat(%s, %q, %q) = %v, want %v", c.job, c.current, c.incoming, got, c.want)
+			}
+		})
+	}
+}
+
+// TestValidateOfficeJobEdits is the per-op-kind table: the bound vocabulary
+// (set_cell, clear_cell, set_cells) accepts real payloads and refuses unknown
+// op names, malformed targets and malformed attributes/styles before a job
+// row exists. The loop-level count and marshalled-size bounds are unchanged.
+func TestValidateOfficeJobEdits(t *testing.T) {
+	target := json.RawMessage(`{"sheet":"Data","cell":"B2"}`)
+	edit := func(op string, mutate func(*office.EditOp)) office.EditOp {
+		out := office.EditOp{Op: op, Target: target}
+		if mutate != nil {
+			mutate(&out)
+		}
+		return out
+	}
+	overText := strings.Repeat("a", maxOfficeEditTextLen+1)
+	bigStyle := json.RawMessage(`{"padding":"` + strings.Repeat("x", 5_000) + `"}`)
+	filterValues := make([]string, maxOfficeFilterValues+1)
+	for i := range filterValues {
+		filterValues[i] = `"v"`
+	}
+	overValues := "[" + strings.Join(filterValues, ",") + "]"
+	filterHidden := make([]string, maxOfficeFilterHiddenRow+1)
+	for i := range filterHidden {
+		filterHidden[i] = "0"
+	}
+	overHidden := "[" + strings.Join(filterHidden, ",") + "]"
+	bigEdits := make([]office.EditOp, 2_000)
+	for i := range bigEdits {
+		bigEdits[i] = edit("set_cell", func(e *office.EditOp) { e.Style = bigStyle })
+	}
+	if raw, err := json.Marshal(bigEdits); err != nil || len(raw) <= maxOfficeEditsSize {
+		t.Fatalf("size fixture does not exceed the bound: %d bytes, %v", len(raw), err)
+	}
+	tooMany := make([]office.EditOp, maxOfficeEditOps+1)
+	for i := range tooMany {
+		tooMany[i] = edit("clear_cell", nil)
+	}
+
+	cases := []struct {
+		name      string
+		operation office.Operation
+		edits     []office.EditOp
+		valid     bool
+	}{
+		{"set_cell text", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "hello" })}, true},
+		{"set_cell attributes value", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"value":100}`) })}, true},
+		{"set_cell formula", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"formula":"=SUM(A1:A3)"}`) })}, true},
+		{"set_cell row/column", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":0,"column":25}`), Text: "x"}}, true},
+		{"set_cell style only", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Style = json.RawMessage(`{"bold":true}`) })}, true},
+		{"set_cell styleReset without style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"styleReset":false}`) })}, true},
+		{"set_cell attributes style", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"style":{"bold":true}}`) })}, true},
+		{"clear_cell", office.OperationEdit, []office.EditOp{edit("clear_cell", nil)}, true},
+		// set_cells reads its target only for the sheet (parseRange); the
+		// fixture the engine grammar accepts is sheet-only.
+		{"set_cells sheet-only target with A1 range", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Text: "x"}}, true},
+		{"set_cells bounds range", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1,"endColumn":1}`), Attributes: json.RawMessage(`{"value":0}`)}}, true},
+		{"set_cells ignores a target cell address", office.OperationEdit, []office.EditOp{{Op: "set_cells", Target: json.RawMessage(`{"sheet":"S","cell":"XFE99999"}`), Range: json.RawMessage(`"A1:B2"`), Text: "x"}}, true},
+		// Row/column structure (B1): fields ride attributes; target needs only
+		// the sheet ref, positions are 0-based on the op's own axis.
+		{"insert_rows", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":0,"count":1}`) })}, true},
+		{"remove_rows at the last row", office.OperationEdit, []office.EditOp{edit("remove_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":1048575,"count":1}`) })}, true},
+		{"insert_cols at the last column", office.OperationEdit, []office.EditOp{edit("insert_cols", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":16383,"count":1}`) })}, true},
+		{"remove_cols sheet-only target", office.OperationEdit, []office.EditOp{{Op: "remove_cols", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"index":5,"count":2}`)}}, true},
+		{"set_row_size points", office.OperationEdit, []office.EditOp{edit("set_row_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":1,"end":4,"size":30}`) })}, true},
+		{"set_col_size reset to default", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":2,"size":null}`) })}, true},
+		{"set_rows_hidden", office.OperationEdit, []office.EditOp{edit("set_rows_hidden", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":2,"end":2,"hidden":true}`) })}, true},
+		{"set_cols_hidden false", office.OperationEdit, []office.EditOp{edit("set_cols_hidden", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"hidden":false}`) })}, true},
+		{"set_rows_outline with collapsed", office.OperationEdit, []office.EditOp{edit("set_rows_outline", func(e *office.EditOp) {
+			e.Attributes = json.RawMessage(`{"start":1,"end":3,"level":2,"collapsed":false}`)
+		})}, true},
+		{"set_cols_outline level 0", office.OperationEdit, []office.EditOp{edit("set_cols_outline", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":0}`) })}, true},
+		// Merges (B2): the rectangle rides the envelope's own range field; the
+		// target only needs the sheet ref (a cell address there is ignored).
+		{"merge_cells A1 range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`)}}, true},
+		{"unmerge_cells bounds range", office.OperationEdit, []office.EditOp{{Op: "unmerge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}`)}}, true},
+		{"merge_cells ignores a target cell address", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S","cell":"XFE99999"}`), Range: json.RawMessage(`"A1:B2"`)}}, true},
+		{"merge_cells at the last cell", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"XFD1048575:XFD1048576"`)}}, true},
+		// Filters (B4): the declarative snapshot rides attributes; the target
+		// only needs the sheet ref.
+		{"set_filter value and custom criteria", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":3,"endColumn":1},"columns":[{"colId":0,"values":["alpha","beta"]},{"colId":1,"customs":{"and":true,"filters":[{"val":"x","operator":"notEqual"},{"val":5,"operator":"greaterThanOrEqual"}]}}]},"hiddenRows":[2,3],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":3,"endColumn":1}}`)}}, true},
+		{"set_filter blank-only column and no criteria", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":1,"startColumn":2,"endRow":4,"endColumn":2},"columns":[{"colId":0,"blank":true}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":4,"endColumn":2}}`)}}, true},
+		{"clear_filter visibility range", office.OperationEdit, []office.EditOp{{Op: "clear_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"visibilityRange":{"startRow":0,"startColumn":0,"endRow":9,"endColumn":3}}`)}}, true},
+		{"set_filter custom value without operator", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":1,"endColumn":0},"columns":[{"colId":0,"customs":{"filters":[{"val":"text"}]}}]},"hiddenRows":[1],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":1,"endColumn":0}}`)}}, true},
+		// Page setup (C2): the declarative page-layout snapshot rides attributes.
+		{"set_page_setup orientation and print area", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"orientation":"landscape","printArea":"A1:C10"}`)}}, true},
+		{"set_page_setup fit to page and margins", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToPage":true,"fitToWidth":1,"fitToHeight":0,"margins":"narrow","paperSize":9,"scale":75}`)}}, true},
+		{"set_page_setup titles, breaks and frozen panes", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printTitles":"1:2","rowBreaks":[1,5],"colBreaks":[2],"frozenRows":1,"frozenColumns":0,"printGridlines":true,"printHeadings":false}`)}}, true},
+		{"set_page_setup clears print area and titles with null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printArea":null,"printTitles":null}`)}}, true},
+		{"set_page_setup single field", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"orientation":"portrait"}`)}}, true},
+		// Sheet management (B3): shape-only rows (the live sheet set, name
+		// uniqueness and the last-sheet rule live with the engine).
+		{"add_sheet name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"Scratch"}`)}}, true},
+		{"add_sheet name with index", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"Scratch","index":0}`)}}, true},
+		{"add_sheet empty target object", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Target: json.RawMessage(`{}`), Attributes: json.RawMessage(`{"name":"Scratch"}`)}}, true},
+		{"duplicate_sheet name", office.OperationEdit, []office.EditOp{{Op: "duplicate_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"S copy","index":1}`)}}, true},
+		{"rename_sheet newName", office.OperationEdit, []office.EditOp{{Op: "rename_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"newName":"Ngân sách"}`)}}, true},
+		{"rename_sheet 31 characters", office.OperationEdit, []office.EditOp{{Op: "rename_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"newName":"` + strings.Repeat("a", 31) + `"}`)}}, true},
+		{"remove_sheet target only", office.OperationEdit, []office.EditOp{{Op: "remove_sheet", Target: json.RawMessage(`{"sheet":"S"}`)}}, true},
+		{"reorder_sheet index", office.OperationEdit, []office.EditOp{{Op: "reorder_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"index":2}`)}}, true},
+		{"set_sheet_hidden true", office.OperationEdit, []office.EditOp{{Op: "set_sheet_hidden", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"hidden":true}`)}}, true},
+		{"set_sheet_hidden false", office.OperationEdit, []office.EditOp{{Op: "set_sheet_hidden", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"hidden":false}`)}}, true},
+		// Tables (B9): create_table rides the envelope range + attributes; remove_table cancels a session add.
+		{"create_table over a header and data rows", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:C5"`), Attributes: json.RawMessage(`{"name":"Sales","columnNames":["Region","Q1","Q2"]}`)}}, true},
+		{"create_table with a style and banded rows", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":4,"endColumn":2}`), Attributes: json.RawMessage(`{"name":"Table1","columnNames":["A","B","C"],"style":"TableStyleLight9","bandedRows":false}`)}}, true},
+		{"create_table single data row", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"_T","columnNames":["x","y"]}`)}}, true},
+		{"remove_table by name", office.OperationEdit, []office.EditOp{{Op: "remove_table", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"Sales"}`)}}, true},
+		// Hyperlinks + notes (B6).
+		{"set_hyperlink external URL", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"B2","target":"https://example.com"}`)}}, true},
+		{"set_hyperlink internal anchor", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1","target":"#Sheet1!A1"}`)}}, true},
+		{"set_hyperlink null removes the link", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1","target":null}`)}}, true},
+		{"set_notes snapshot", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[{"row":0,"column":0,"author":"An","text":"Xem lai"},{"row":3,"column":2,"author":"","text":""}]}`)}}, true},
+		{"set_notes empty list removes every note", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[]}`)}}, true},
+		{"serialize without edits", office.OperationSerialize, nil, true},
+
+		{"unknown op", office.OperationEdit, []office.EditOp{edit("drop_sheet", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"op with surrounding space", office.OperationEdit, []office.EditOp{edit(" set_cell", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"empty op", office.OperationEdit, []office.EditOp{edit("", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"set_cell missing target", office.OperationEdit, []office.EditOp{{Op: "set_cell", Text: "x"}}, false},
+		{"set_cell target without sheet", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"cell":"A1"}`), Text: "x"}}, false},
+		{"set_cell sheet empty", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"","cell":"A1"}`), Text: "x"}}, false},
+		{"set_cell cell outside grid", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"XFE1"}`), Text: "x"}}, false},
+		{"set_cell row outside grid", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":1048576,"column":0}`), Text: "x"}}, false},
+		{"set_cell row not an integer", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":0.5,"column":0}`), Text: "x"}}, false},
+		{"set_cell row not a number", office.OperationEdit, []office.EditOp{{Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","row":"0","column":0}`), Text: "x"}}, false},
+		{"set_cell without content or style", office.OperationEdit, []office.EditOp{edit("set_cell", nil)}, false},
+		{"set_cell malformed formula", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"formula":"SUM(A1:A2)"}`) })}, false},
+		{"set_cell non-scalar value", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"value":{"a":1}}`) })}, false},
+		{"set_cell style not an object", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Style = json.RawMessage(`"bold"`) })}, false},
+		{"set_cell styleReset not a boolean", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "x"; e.Attributes = json.RawMessage(`{"styleReset":1}`) })}, false},
+		{"set_cell attributes not an object", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = "x"; e.Attributes = json.RawMessage(`[1]`) })}, false},
+		{"set_cell text over the bound", office.OperationEdit, []office.EditOp{edit("set_cell", func(e *office.EditOp) { e.Text = overText })}, false},
+		{"clear_cell missing target", office.OperationEdit, []office.EditOp{{Op: "clear_cell"}}, false},
+		{"set_cells missing range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Text = "x" })}, false},
+		{"set_cells malformed range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1"`); e.Text = "x" })}, false},
+		{"set_cells reversed range", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"B2:A1"`); e.Text = "x" })}, false},
+		{"set_cells over the op budget", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:Z1000"`); e.Text = "x" })}, false},
+		{"set_cells without content", office.OperationEdit, []office.EditOp{edit("set_cells", func(e *office.EditOp) { e.Range = json.RawMessage(`"A1:B2"`) })}, false},
+		{"insert_rows without attributes", office.OperationEdit, []office.EditOp{edit("insert_rows", nil)}, false},
+		{"insert_rows attributes not an object", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`[0,1]`) })}, false},
+		{"insert_rows negative index", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":-1,"count":1}`) })}, false},
+		{"insert_rows zero count", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":0,"count":0}`) })}, false},
+		{"insert_rows fractional count", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":0,"count":1.5}`) })}, false},
+		{"insert_rows index outside the grid", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":1048576,"count":1}`) })}, false},
+		{"insert_rows count overflows the grid", office.OperationEdit, []office.EditOp{edit("insert_rows", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":1048575,"count":2}`) })}, false},
+		{"insert_cols count overflows the grid", office.OperationEdit, []office.EditOp{edit("insert_cols", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"index":16383,"count":2}`) })}, false},
+		{"insert_rows missing target sheet", office.OperationEdit, []office.EditOp{{Op: "insert_rows", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"index":0,"count":1}`)}}, false},
+		{"set_row_size reversed span", office.OperationEdit, []office.EditOp{edit("set_row_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":5,"end":2,"size":10}`) })}, false},
+		{"set_row_size end outside the grid", office.OperationEdit, []office.EditOp{edit("set_row_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":1048576,"size":10}`) })}, false},
+		{"set_row_size over the span ceiling", office.OperationEdit, []office.EditOp{edit("set_row_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":100000,"size":10}`) })}, false},
+		{"set_col_size zero size", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"size":0}`) })}, false},
+		{"set_col_size negative size", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"size":-5}`) })}, false},
+		{"set_col_size size over the bound", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"size":501}`) })}, false},
+		{"set_col_size size not a number", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"size":"10"}`) })}, false},
+		{"set_col_size missing size", office.OperationEdit, []office.EditOp{edit("set_col_size", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0}`) })}, false},
+		{"set_rows_hidden not a boolean", office.OperationEdit, []office.EditOp{edit("set_rows_hidden", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"hidden":1}`) })}, false},
+		{"set_rows_outline level over 7", office.OperationEdit, []office.EditOp{edit("set_rows_outline", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":8}`) })}, false},
+		{"set_rows_outline negative level", office.OperationEdit, []office.EditOp{edit("set_rows_outline", func(e *office.EditOp) { e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":-1}`) })}, false},
+		{"set_rows_outline collapsed not a boolean", office.OperationEdit, []office.EditOp{edit("set_rows_outline", func(e *office.EditOp) {
+			e.Attributes = json.RawMessage(`{"start":0,"end":0,"level":1,"collapsed":"yes"}`)
+		})}, false},
+		{"merge_cells missing range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`)}}, false},
+		{"merge_cells malformed range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1"`)}}, false},
+		{"merge_cells three-part range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2:C3"`)}}, false},
+		{"merge_cells reversed range", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"B2:A1"`)}}, false},
+		{"merge_cells single cell", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:A1"`)}}, false},
+		{"unmerge_cells single cell bounds", office.OperationEdit, []office.EditOp{{Op: "unmerge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":3,"startColumn":3,"endRow":3,"endColumn":3}`)}}, false},
+		{"merge_cells range outside the grid", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:XFE1"`)}}, false},
+		{"merge_cells bounds outside the grid", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":0,"endColumn":16384}`)}}, false},
+		{"merge_cells over the span ceiling", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:A100001"`)}}, false},
+		{"merge_cells fractional bounds", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`{"startRow":0,"startColumn":0,"endRow":1.5,"endColumn":1}`)}}, false},
+		{"merge_cells missing target sheet", office.OperationEdit, []office.EditOp{{Op: "merge_cells", Target: json.RawMessage(`{"cell":"A1"}`), Range: json.RawMessage(`"A1:B2"`)}}, false},
+		// Filter (B4) refusals.
+		{"set_filter missing attributes", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`)}}, false},
+		{"set_filter missing filter", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":1,"endColumn":0}}`)}}, false},
+		{"set_filter header-only range", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":0,"endColumn":1},"columns":[]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":0,"endColumn":1}}`)}}, false},
+		{"set_filter column outside the range", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":1},"columns":[{"colId":2,"blank":true}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":1}}`)}}, false},
+		{"set_filter duplicate column", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":1},"columns":[{"colId":0,"blank":true},{"colId":0,"values":["x"]}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":1}}`)}}, false},
+		{"set_filter column without criteria", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter non-string value", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"values":[7]}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter null values", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"values":null}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter over the value count", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"values":` + overValues + `}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter three custom conditions", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"customs":{"filters":[{"val":"a"},{"val":"b"},{"val":"c"}]}}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter unknown operator", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"customs":{"filters":[{"val":"a","operator":"contains"}]}}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter null custom value", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"customs":{"filters":[{"val":null}]}}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter non-boolean join", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[{"colId":0,"customs":{"and":1,"filters":[{"val":"a"}]}}]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter hidden row outside the grid", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[]},"hiddenRows":[1048576],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter over the hidden-row count", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[]},"hiddenRows":` + overHidden + `,"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"set_filter reversed visibility range", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[]},"hiddenRows":[],"visibilityRange":{"startRow":2,"startColumn":0,"endRow":0,"endColumn":0}}`)}}, false},
+		{"set_filter missing visibility range", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[]},"hiddenRows":[]}`)}}, false},
+		{"set_filter over the span ceiling", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":100000,"endColumn":0},"columns":[]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":100000,"endColumn":0}}`)}}, false},
+		{"set_filter missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_filter", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"filter":{"range":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0},"columns":[]},"hiddenRows":[],"visibilityRange":{"startRow":0,"startColumn":0,"endRow":2,"endColumn":0}}`)}}, false},
+		{"clear_filter missing visibility range", office.OperationEdit, []office.EditOp{{Op: "clear_filter", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"clear_filter missing attributes", office.OperationEdit, []office.EditOp{{Op: "clear_filter", Target: json.RawMessage(`{"sheet":"S"}`)}}, false},
+		// Page setup (C2) refusals.
+		{"set_page_setup missing attributes", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(``)}}, false},
+		{"set_page_setup missing attributes object", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`)}}, false},
+		{"set_page_setup empty attributes", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"set_page_setup unknown field", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"orientation":"portrait","foo":1}`)}}, false},
+		{"set_page_setup bad orientation", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"orientation":"diagonal"}`)}}, false},
+		{"set_page_setup bad margins", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"margins":"huge"}`)}}, false},
+		{"set_page_setup paper size over range", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"paperSize":119}`)}}, false},
+		{"set_page_setup paper size not an integer", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"paperSize":9.5}`)}}, false},
+		{"set_page_setup scale below minimum", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"scale":9}`)}}, false},
+		{"set_page_setup scale above maximum", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"scale":401}`)}}, false},
+		{"set_page_setup fit width negative", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToWidth":-1}`)}}, false},
+		{"set_page_setup fit height over bound", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToHeight":1001}`)}}, false},
+		{"set_page_setup fit to page non-boolean", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToPage":1}`)}}, false},
+		{"set_page_setup print gridlines non-boolean", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printGridlines":"yes"}`)}}, false},
+		{"set_page_setup frozen rows negative", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenRows":-1}`)}}, false},
+		{"set_page_setup frozen columns out of grid", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenColumns":16384}`)}}, false},
+		{"set_page_setup malformed print area", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printArea":"A1:"}`)}}, false},
+		{"set_page_setup print area out of grid", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printArea":"A1:XFE1"}`)}}, false},
+		{"set_page_setup print titles malformed", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printTitles":"A1:B2"}`)}}, false},
+		{"set_page_setup print titles reversed span", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printTitles":"3:1"}`)}}, false},
+		{"set_page_setup print titles non-string", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printTitles":3}`)}}, false},
+		{"set_page_setup row break zero", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"rowBreaks":[0]}`)}}, false},
+		{"set_page_setup row break out of grid", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"rowBreaks":[1048576]}`)}}, false},
+		{"set_page_setup row breaks not an array", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"rowBreaks":1}`)}}, false},
+		{"set_page_setup col break fractional", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"colBreaks":[1.5]}`)}}, false},
+		{"set_page_setup missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"orientation":"portrait"}`)}}, false},
+		{"set_page_setup fit to page null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"fitToPage":null}`)}}, false},
+		{"set_page_setup print gridlines null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printGridlines":null}`)}}, false},
+		{"set_page_setup print headings null", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"printHeadings":null}`)}}, false},
+		{"set_page_setup frozen rows without columns", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenRows":2}`)}}, false},
+		{"set_page_setup frozen columns without rows", office.OperationEdit, []office.EditOp{{Op: "set_page_setup", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"frozenColumns":2}`)}}, false},
+		// Sheet management (B3) refusals.
+		{"add_sheet missing name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{}`)}}, false},
+		{"add_sheet empty name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":""}`)}}, false},
+		{"add_sheet name too long", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"` + strings.Repeat("a", 32) + `"}`)}}, false},
+		{"add_sheet forbidden character", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"a/b"}`)}}, false},
+		{"add_sheet quoted name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"'q'"}`)}}, false},
+		{"add_sheet non-string name", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":7}`)}}, false},
+		{"add_sheet missing attributes", office.OperationEdit, []office.EditOp{{Op: "add_sheet"}}, false},
+		{"add_sheet with a sheet target", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"Scratch"}`)}}, false},
+		{"add_sheet negative index", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"Scratch","index":-1}`)}}, false},
+		{"add_sheet fractional index", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"Scratch","index":1.5}`)}}, false},
+		{"add_sheet index over the ceiling", office.OperationEdit, []office.EditOp{{Op: "add_sheet", Attributes: json.RawMessage(`{"name":"Scratch","index":10000}`)}}, false},
+		{"duplicate_sheet missing name", office.OperationEdit, []office.EditOp{{Op: "duplicate_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"index":1}`)}}, false},
+		{"duplicate_sheet missing target", office.OperationEdit, []office.EditOp{{Op: "duplicate_sheet", Attributes: json.RawMessage(`{"name":"Copy"}`)}}, false},
+		{"rename_sheet missing newName", office.OperationEdit, []office.EditOp{{Op: "rename_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"rename_sheet malformed newName", office.OperationEdit, []office.EditOp{{Op: "rename_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"newName":"a[b"}`)}}, false},
+		{"remove_sheet missing target", office.OperationEdit, []office.EditOp{{Op: "remove_sheet", Attributes: json.RawMessage(`{}`)}}, false},
+		{"remove_sheet array attributes", office.OperationEdit, []office.EditOp{{Op: "remove_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`[1]`)}}, false},
+		{"reorder_sheet missing index", office.OperationEdit, []office.EditOp{{Op: "reorder_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"reorder_sheet index over the ceiling", office.OperationEdit, []office.EditOp{{Op: "reorder_sheet", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"index":10000}`)}}, false},
+		{"set_sheet_hidden missing hidden", office.OperationEdit, []office.EditOp{{Op: "set_sheet_hidden", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"set_sheet_hidden non-boolean", office.OperationEdit, []office.EditOp{{Op: "set_sheet_hidden", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"hidden":1}`)}}, false},
+		{"set_sheet_hidden missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_sheet_hidden", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"hidden":true}`)}}, false},
+		// Table (B9) refusals.
+		{"create_table missing range", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a"]}`)}}, false},
+		{"create_table header only", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:C1"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b","c"]}`)}}, false},
+		{"create_table reversed range", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"C5:A1"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a"]}`)}}, false},
+		{"create_table name starts with a digit", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"1T","columnNames":["a","b"]}`)}}, false},
+		{"create_table name is a cell reference", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"A1","columnNames":["a","b"]}`)}}, false},
+		{"create_table blank column name", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a"," "]}`)}}, false},
+		{"create_table duplicate column names", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","A"]}`)}}, false},
+		{"create_table column count mismatch", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:C5"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b"]}`)}}, false},
+		{"create_table unknown field", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b"],"foo":1}`)}}, false},
+		{"create_table bad style", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b"],"style":"Fancy"}`)}}, false},
+		{"create_table bandedRows non-boolean", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b"],"bandedRows":1}`)}}, false},
+		{"create_table missing target sheet", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"cell":"A1"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a","b"]}`)}}, false},
+		{"create_table empty attributes", office.OperationEdit, []office.EditOp{{Op: "create_table", Target: json.RawMessage(`{"sheet":"S"}`), Range: json.RawMessage(`"A1:B2"`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"remove_table missing name", office.OperationEdit, []office.EditOp{{Op: "remove_table", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"remove_table extra field", office.OperationEdit, []office.EditOp{{Op: "remove_table", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"T","columnNames":["a"]}`)}}, false},
+		{"remove_table bad name", office.OperationEdit, []office.EditOp{{Op: "remove_table", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"name":"B2"}`)}}, false},
+		// Hyperlinks + notes (B6) refusals.
+		{"set_hyperlink missing cell", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"target":"https://example.com"}`)}}, false},
+		{"set_hyperlink malformed cell", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"1A","target":"https://example.com"}`)}}, false},
+		{"set_hyperlink cell out of grid", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"XFE1","target":"https://example.com"}`)}}, false},
+		{"set_hyperlink missing target", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1"}`)}}, false},
+		{"set_hyperlink empty target", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1","target":""}`)}}, false},
+		{"set_hyperlink non-string target", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1","target":7}`)}}, false},
+		{"set_hyperlink target over the length bound", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"cell":"A1","target":"` + strings.Repeat("a", 2084) + `"}`)}}, false},
+		{"set_hyperlink missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_hyperlink", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"cell":"A1","target":"https://example.com"}`)}}, false},
+		{"set_notes missing notes", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{}`)}}, false},
+		{"set_notes notes not an array", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":1}`)}}, false},
+		{"set_notes note not an object", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[1]}`)}}, false},
+		{"set_notes cell out of grid", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[{"row":1048576,"column":0,"author":"A","text":"x"}]}`)}}, false},
+		{"set_notes author over the bound", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[{"row":0,"column":0,"author":"` + strings.Repeat("a", 256) + `","text":"x"}]}`)}}, false},
+		{"set_notes text over the bound", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[{"row":0,"column":0,"author":"A","text":"` + strings.Repeat("a", 32768) + `"}]}`)}}, false},
+		{"set_notes duplicate cell", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"notes":[{"row":0,"column":0,"author":"A","text":"x"},{"row":0,"column":0,"author":"B","text":"y"}]}`)}}, false},
+		{"set_notes missing target sheet", office.OperationEdit, []office.EditOp{{Op: "set_notes", Target: json.RawMessage(`{"cell":"A1"}`), Attributes: json.RawMessage(`{"notes":[]}`)}}, false},
+		// Sheet protection (B7): a sheet-ref target plus exactly one raw boolean flag.
+		{"set_sheet_protection true", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"protected":true}`)}}, true},
+		{"set_sheet_protection false", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"protected":false}`)}}, true},
+		{"set_sheet_protection null flag", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"protected":null}`)}}, false},
+		{"set_sheet_protection non-bool flag", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"protected":"yes"}`)}}, false},
+		{"set_sheet_protection unknown field", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"protected":true,"extra":1}`)}}, false},
+		{"set_sheet_protection no sheet", office.OperationEdit, []office.EditOp{{Op: "set_sheet_protection", Attributes: json.RawMessage(`{"protected":true}`)}}, false},
+		// Defined names (B7): workbook-scoped snapshot with an Excel-grammar name.
+		{"set_defined_names one workbook name", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"Sales","formula":"Sheet1!$A$1:$B$2"}]}`)}}, true},
+		{"set_defined_names sheet-scoped name", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"_local","formula":"Sheet1!$A$1","sheetIndex":1}]}`)}}, true},
+		{"set_defined_names preserveNames", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[],"preserveNames":["Old"]}`)}}, true},
+		{"set_defined_names cell-ref name", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"A1","formula":"Sheet1!$A$1"}]}`)}}, false},
+		{"set_defined_names reserved prefix", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"_xlnm.Print_Area","formula":"Sheet1!$A$1"}]}`)}}, false},
+		{"set_defined_names blank formula", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":""}]}`)}}, false},
+		{"set_defined_names duplicate scope", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1"},{"name":"N","formula":"A2"}]}`)}}, false},
+		{"set_defined_names out-of-grid sheetIndex", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1","sheetIndex":16384}]}`)}}, false},
+		{"set_defined_names unknown field", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[],"junk":1}`)}}, false},
+		{"set_defined_names name also preserved", office.OperationEdit, []office.EditOp{{Op: "set_defined_names", Attributes: json.RawMessage(`{"names":[{"name":"N","formula":"A1"}],"preserveNames":["N"]}`)}}, false},
+		{"edits on a non-edit operation", office.OperationSerialize, []office.EditOp{edit("clear_cell", nil)}, false},
+		{"over the op count", office.OperationEdit, tooMany, false},
+		{"over the marshalled size", office.OperationEdit, bigEdits, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateOfficeJobEdits(c.operation, c.edits)
+			if c.valid && err != nil {
+				t.Fatalf("validateOfficeJobEdits = %v, want nil", err)
+			}
+			if !c.valid && !errors.Is(err, ErrOfficeJobInvalid) {
+				t.Fatalf("validateOfficeJobEdits = %v, want office_job_invalid", err)
 			}
 		})
 	}
