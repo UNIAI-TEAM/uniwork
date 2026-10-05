@@ -195,6 +195,12 @@ interface RuntimeSession {
    * undone and wait on the redo path (a cursor, not a popped stack, so a
    * fresh edit can drop the redo tail the way a text editor does). */
   cursor: number;
+  /** History step boundaries: the journal length after each edit() call (and
+   * after each replayed draft entry), ascending. One undo/redo moves the cursor
+   * across one step, so a multi-entry batch is one gesture in history. The
+   * cursor is always 0 or one of these. Session-only: the snapshot stays a flat
+   * entry journal, so draft recovery and validSnapshot are unchanged. */
+  steps: number[];
   /** The opened base package; undo/redo replay the journal onto it. */
   baseBytes: Uint8Array;
 }
@@ -252,6 +258,67 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     return { revision, ...(createdId ? { createdId } : {}) };
   }
 
+  /** Reopen the base package into a fresh engine session and replay
+   * journal[0..count-1] onto it; returns the engine revision it ends at. Throws
+   * before the engine ref is swapped when the reopen itself fails. */
+  async function rebuildFromBase(ref: string, session: RuntimeSession, count: number): Promise<number> {
+    const reopened = await engineAdapter().open({ bytes: session.baseBytes, format: "pptx", document_id: ref });
+    if (reopened.outcome !== "opened" || !reopened.document_model_ref) throw new Error("pptx_undo_replay_failed");
+    const previous = currentEngineRef(ref);
+    engineRefs.set(ref, reopened.document_model_ref);
+    engineAdapter().release(previous);
+    let revision = 0;
+    for (let i = 0; i < count; i += 1) revision = applyEntry(ref, session.journal[i] as PptxEdit).revision;
+    return revision;
+  }
+
+  /** Apply a batch all-or-nothing (W10 review F1). A per-entry engine refusal
+   * after k > 0 entries landed rolls the model back to journal[0..cursor-1] by
+   * the same reopen-and-replay undo uses, then rethrows the original error, so
+   * the failed gesture leaves no trace and journal, cursor, revision and model
+   * agree. Should the rollback's reopen fail (the old engine session still
+   * holds the applied prefix), `adopt` records that prefix as a step instead,
+   * which is still a self-consistent history. */
+  async function applyAll(
+    ref: string,
+    session: RuntimeSession,
+    edits: readonly PptxEdit[],
+    adopt: (applied: number, revision: number) => void,
+  ): Promise<{ revision: number; createdIds: string[] }> {
+    let revision = session.revision;
+    let applied = 0;
+    const createdIds: string[] = [];
+    try {
+      for (const edit of edits) {
+        const result = applyEntry(ref, edit);
+        revision = result.revision;
+        applied += 1;
+        if (result.createdId) createdIds.push(result.createdId);
+      }
+    } catch (error) {
+      if (applied > 0) {
+        const before = currentEngineRef(ref);
+        try {
+          session.revision = await rebuildFromBase(ref, session, session.cursor);
+        } catch {
+          if (currentEngineRef(ref) === before) adopt(applied, revision);
+        }
+      }
+      throw error;
+    }
+    return { revision, createdIds };
+  }
+
+  /** Drop the redo tail (text-editor behavior) and append one history step. */
+  function commitStep(session: RuntimeSession, entries: readonly PptxEdit[], revision: number): void {
+    session.journal.splice(session.cursor);
+    session.steps = session.steps.filter((step) => step <= session.cursor);
+    session.journal.push(...entries);
+    session.cursor = session.journal.length;
+    session.steps.push(session.cursor);
+    session.revision = revision;
+  }
+
   function liveSession(ref: string): LivePptxSession {
     return engineAdapter().sessionOf(currentEngineRef(ref)) as unknown as LivePptxSession;
   }
@@ -307,7 +374,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
             ...(outcome.engine_error ? { engine_error: outcome.engine_error } : {}),
           };
         }
-        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0, cursor: 0, baseBytes: bytes };
+        const session: RuntimeSession = { ref: outcome.document_model_ref, journal: [], revision: 0, cursor: 0, steps: [], baseBytes: bytes };
         sessions.set(session.ref, session);
         engineRefs.set(session.ref, session.ref);
         return {
@@ -321,20 +388,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
     },
 
     async edit(documentModelRef, edits) {
-      return serializeOperation(() => {
+      return serializeOperation(async () => {
         const session = requireSession(documentModelRef);
-        // A fresh edit after an undo drops the redo tail (text-editor behavior).
-        if (session.cursor < session.journal.length) session.journal.splice(session.cursor);
-        let revision = session.revision;
-        const createdIds: string[] = [];
-        for (const edit of edits) {
-          const applied = applyEntry(documentModelRef, edit);
-          revision = applied.revision;
-          if (applied.createdId) createdIds.push(applied.createdId);
-          session.journal.push(edit);
-        }
-        session.cursor = session.journal.length;
-        session.revision = revision;
+        const { revision, createdIds } = await applyAll(documentModelRef, session, edits, (applied, at) => {
+          commitStep(session, edits.slice(0, applied), at);
+        });
+        // One edit() call is one history step; the redo tail drops only once
+        // the whole batch landed, so a refused batch keeps the redo path.
+        if (edits.length > 0) commitStep(session, edits, revision);
         return { revision, ...(createdIds.length ? { createdIds } : {}) };
       });
     },
@@ -350,13 +411,15 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         // journal[0..cursor-1], so the comparison and replay must ignore the
         // undone entries (a tail left over from an undo before recovery).
         if (session.cursor < session.journal.length) session.journal.splice(session.cursor);
+        session.steps = session.steps.filter((step) => step <= session.cursor);
         if (!journalIsSnapshotPrefix(session, snapshot)) throw new Error("pptx_restore_diverged");
+        // The draft carries no step grouping, so each replayed entry is its own
+        // step; journal, cursor and revision advance together per entry, so a
+        // refusal mid-replay leaves the replayed prefix as a valid history.
         for (let i = session.journal.length; i < snapshot.edits.length; i += 1) {
           const edit = decodePptxEdit(snapshot.edits[i] as PptxJournalEntry);
-          session.revision = applyEntry(documentModelRef, edit).revision;
-          session.journal.push(edit);
+          commitStep(session, [edit], applyEntry(documentModelRef, edit).revision);
         }
-        session.cursor = session.journal.length;
       });
     },
 
@@ -364,32 +427,32 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       return serializeOperation(async () => {
         const session = requireSession(documentModelRef);
         if (session.cursor === 0) return false;
-        const nextCursor = session.cursor - 1;
+        // The previous step boundary: one undo reverts one edit() call.
+        const nextCursor = session.steps.filter((step) => step < session.cursor).at(-1) ?? 0;
         // Reopen the base package and replay the journal up to (not including)
-        // the undone entry, so the model holds exactly the after-undo deck and a
+        // the undone step, so the model holds exactly the after-undo deck and a
         // later save serializes a genuine prefix of the journal. Reopening mid
         // session is feasible: the engine open is just another lane operation.
-        const reopened = await engineAdapter().open({ bytes: session.baseBytes, format: "pptx", document_id: documentModelRef });
-        if (reopened.outcome !== "opened" || !reopened.document_model_ref) throw new Error("pptx_undo_replay_failed");
-        const previous = currentEngineRef(documentModelRef);
-        engineRefs.set(documentModelRef, reopened.document_model_ref);
-        engineAdapter().release(previous);
-        let revision = 0;
-        for (let i = 0; i < nextCursor; i += 1) revision = applyEntry(documentModelRef, session.journal[i] as PptxEdit).revision;
+        session.revision = await rebuildFromBase(documentModelRef, session, nextCursor);
         session.cursor = nextCursor;
-        session.revision = revision;
         return true;
       });
     },
 
     async redo(documentModelRef) {
-      return serializeOperation(() => {
+      return serializeOperation(async () => {
         const session = requireSession(documentModelRef);
-        if (session.cursor >= session.journal.length) return false;
+        const next = session.steps.find((step) => step > session.cursor);
+        if (next === undefined) return false;
         // The live model already holds journal[0..cursor-1]; replaying the next
-        // entry forward is the whole redo.
-        session.revision = applyEntry(documentModelRef, session.journal[session.cursor] as PptxEdit).revision;
-        session.cursor += 1;
+        // step's entries forward is the whole redo (all-or-nothing like edit).
+        const { revision } = await applyAll(documentModelRef, session, session.journal.slice(session.cursor, next), (applied, at) => {
+          session.cursor += applied;
+          session.steps = [...session.steps.filter((step) => step < session.cursor), session.cursor, ...session.steps.filter((step) => step > session.cursor)];
+          session.revision = at;
+        });
+        session.cursor = next;
+        session.revision = revision;
         return true;
       });
     },
