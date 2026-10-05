@@ -42,9 +42,11 @@ export interface LocalXlsxEngineOptions {
    *  is UNIWORK_XLSX_ASSETS; in a packaged build it is the staged
    *  resources/xlsx-assets dir (see resolveLocalXlsxAssetsDir). */
   readonly assetsDir?: string;
-  /** Override for tests: bind a fake gateway/recalc instead of the artifacts. */
+  /** Override for tests: bind a fake gateway instead of the artifact. */
   readonly engine?: XlsxGatewayFunctions;
-  readonly recalc?: XlsxRecalcPort;
+  /** Override for tests: create one recalc port per edit job instead of
+   *  spawning the staged sidecar. */
+  readonly createRecalc?: () => XlsxRecalcPort;
 }
 
 /** The staged assets directory name inside an Electron package's resources. */
@@ -72,7 +74,6 @@ function sha256Hex(bytes: Uint8Array): string {
 /** The engine build identity bound into each session, fixed at load time. */
 export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXlsxEngine {
   let gateway: Promise<XlsxGatewayFunctions> | null = null;
-  let sidecar: XlsxRecalcPort | null | undefined;
   const loadGateway = (): Promise<XlsxGatewayFunctions> => {
     if (options.engine) return Promise.resolve(options.engine);
     gateway ??= (async () => {
@@ -81,16 +82,17 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
     })();
     return gateway;
   };
-  const loadRecalc = (): XlsxRecalcPort | undefined => {
-    if (options.recalc !== undefined) return options.recalc;
-    if (sidecar === null) return undefined;
+  // The recalc port is per-job: the adapter closes it terminally when the
+  // job's last session ends, so a port cached across jobs failed every Save
+  // after the first with engine_crashed (R4B-1). Each edit job spawns its own
+  // sidecar, and a failure to create one is not remembered by the next job.
+  const createRecalc = options.createRecalc ?? (() => createXlsxSidecar({ binaryPath: xlsxSidecarPath(options.assetsDir) }));
+  const openRecalc = (): XlsxRecalcPort | undefined => {
     try {
-      sidecar ??= createXlsxSidecar({ binaryPath: xlsxSidecarPath(options.assetsDir) });
-      return sidecar;
+      return createRecalc();
     } catch {
       // A missing sidecar only refuses formula-bearing saves (the adapter
       // fails closed); a formula-free edit still completes.
-      sidecar = null;
       return undefined;
     }
   };
@@ -100,8 +102,17 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
       return { snapshot: opened.snapshot, renderModel: opened.renderModel };
     },
     async edit(bytes, edits) {
-      const output = await applyXlsxEditBytes(await loadGateway(), loadRecalc(), bytes, [...edits]);
-      return { bytes: output.bytes, checksum: `sha256:${sha256Hex(output.bytes)}` };
+      const gatewayFunctions = await loadGateway();
+      const recalc = openRecalc();
+      try {
+        const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits]);
+        return { bytes: output.bytes, checksum: `sha256:${sha256Hex(output.bytes)}` };
+      } finally {
+        // The adapter's release() already closes the port once a session
+        // opened; an open that failed never got there. close() is
+        // idempotent, so always reap the job's sidecar here.
+        await recalc?.close().catch(() => {});
+      }
     },
   };
 }
