@@ -43,8 +43,9 @@ describe("OfficeStatusZoom", () => {
     render(<OfficeStatusZoom value={125} onZoomIn={onZoomIn} onZoomOut={onZoomOut} onReset={onReset} />);
     fireEvent.click(screen.getByRole("button", { name: "Phóng to" }));
     fireEvent.click(screen.getByRole("button", { name: "Thu nhỏ" }));
-    fireEvent.click(screen.getByRole("button", { name: "Đặt lại thu phóng" }));
-    expect(screen.getByRole("button", { name: "Đặt lại thu phóng" }).textContent).toBe("125%");
+    // Label in name: the accessible name starts with the visible value.
+    fireEvent.click(screen.getByRole("button", { name: "125% Đặt lại thu phóng" }));
+    expect(screen.getByRole("button", { name: "125% Đặt lại thu phóng" }).textContent).toBe("125%");
     expect([onZoomIn, onZoomOut, onReset].map((f) => f.mock.calls.length)).toEqual([1, 1, 1]);
   });
 

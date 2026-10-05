@@ -3,7 +3,6 @@
 import { ClipboardPaste, ClipboardType, Copy, Paintbrush, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { useFormatPainter } from "../../character/format-painter";
 import type { RibbonItem } from "../../../ribbon";
 import { copySelection, cutSelection, insertPastePayload, readClipboardPayload, readClipboardText } from "../../context-menu/clipboard-actions";
@@ -63,19 +62,25 @@ function FormatPainterItem({
 }: Pick<DocxToolbarGroupContext, "editor" | "commands"> & { disabled: boolean }) {
   const { t } = useTranslation();
   const painter = useFormatPainter({ editor, commands, disabled });
+  const label = painter.armed ? t("office.docx.character.formatPainterArmed") : t("office.docx.character.formatPainter");
+  const blocked = disabled || !editor.selection?.subscribe;
+  // A ribbon icon button (UNI-933): the Button primitive keeps the focus
+  // outline and the 44px coarse target, and aria-disabled keeps it in the tab
+  // order while the primitive blocks the click.
   return (
-    <Toggle
+    <Button
       type="button"
-      variant="toolbar"
-      size="sm"
-      pressed={painter.armed}
-      onPressedChange={() => painter.toggle()}
-      disabled={disabled || !editor.selection?.subscribe}
-      aria-label={painter.armed ? t("office.docx.character.formatPainterArmed") : t("office.docx.character.formatPainter")}
+      variant="ghost"
+      className="size-6 p-0 aria-pressed:bg-surface-selected aria-pressed:text-surface-selected-foreground [&_svg:not([class*='size-'])]:size-4"
+      aria-pressed={painter.armed}
+      aria-disabled={blocked || undefined}
+      aria-label={label}
+      title={label}
+      onClick={() => painter.toggle()}
       data-testid="docx-format-painter"
     >
       <Paintbrush aria-hidden />
-    </Toggle>
+    </Button>
   );
 }
 

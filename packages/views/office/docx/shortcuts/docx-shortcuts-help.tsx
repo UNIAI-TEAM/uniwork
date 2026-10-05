@@ -79,6 +79,7 @@ export function DocxShortcutsHelp({ readOnly = false }: DocxToolbarGroupContext)
         variant="ghost"
         size="icon-xs"
         aria-label={t("office.docx.shortcuts.title")}
+        title={t("office.docx.shortcuts.title")}
         aria-haspopup="dialog"
         data-testid="docx-shortcuts-help-trigger"
         onClick={() => setOpen(true)}

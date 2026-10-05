@@ -6915,8 +6915,7 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomReset": "Reset zoom",
-      "zoomValue": "{{value}}%",
-      "help": "Help"
+      "zoomValue": "{{value}}%"
     },
     "docx": {
       "title": "DOCX document",
@@ -7638,8 +7637,7 @@
         "words": "Words: {{value}}",
         "characters": "Characters: {{value}}",
         "charactersNoSpaces": "Characters (no spaces): {{value}}",
-        "language": "Language: {{language}}",
-        "zoom": "Zoom: {{percent}}%"
+        "language": "Language: {{language}}"
       },
       "actions": {
         "undo": "Undo",

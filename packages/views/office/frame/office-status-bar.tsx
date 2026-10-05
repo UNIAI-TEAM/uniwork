@@ -26,7 +26,7 @@ export function OfficeStatusBar({ start, end, help, labelKey, className }: Offic
       role="group"
       aria-label={t(labelKey ?? "office.status.label")}
       className={cn(
-        "flex h-7 shrink-0 items-center gap-3 border-t border-border bg-office-band px-2 text-caption text-muted-foreground",
+        "flex h-7 shrink-0 items-center pointer-coarse:h-11 gap-3 border-t border-border bg-office-band px-2 text-caption text-muted-foreground",
         className,
       )}
       data-office-status-bar
@@ -58,7 +58,7 @@ export function OfficeStatusZoom({ value, onZoomIn, onZoomOut, onReset, min = 10
   return (
     <div className="flex items-center gap-0.5" data-office-status-zoom>
       <Button
-        type="button" variant="ghost" size="icon-xs" aria-label={t("office.status.zoomOut")}
+        type="button" variant="ghost" size="icon-xs" aria-label={t("office.status.zoomOut")} title={t("office.status.zoomOut")}
         aria-disabled={atMin || !onZoomOut || undefined}
         onClick={atMin ? undefined : onZoomOut}
       >
@@ -66,7 +66,9 @@ export function OfficeStatusZoom({ value, onZoomIn, onZoomOut, onReset, min = 10
       </Button>
       {onReset ? (
         <Button
-          type="button" variant="ghost" size="xs" aria-label={t("office.status.zoomReset")}
+          type="button" variant="ghost" size="xs" title={t("office.status.zoomReset")}
+          // Label in name (WCAG 2.5.3): the visible value leads the accessible name.
+          aria-label={`${text} ${t("office.status.zoomReset")}`}
           className="min-w-10 tabular-nums" onClick={onReset}
         >
           {text}
@@ -75,7 +77,7 @@ export function OfficeStatusZoom({ value, onZoomIn, onZoomOut, onReset, min = 10
         <span className="min-w-10 text-center tabular-nums">{text}</span>
       )}
       <Button
-        type="button" variant="ghost" size="icon-xs" aria-label={t("office.status.zoomIn")}
+        type="button" variant="ghost" size="icon-xs" aria-label={t("office.status.zoomIn")} title={t("office.status.zoomIn")}
         aria-disabled={atMax || !onZoomIn || undefined}
         onClick={atMax ? undefined : onZoomIn}
       >

@@ -237,7 +237,10 @@ describe("adaptive collapse", () => {
     expect(card.className).toContain("h-14");
     expect(card.className).not.toContain("h-full");
     expect(card).toHaveAttribute("aria-label", expect.stringMatching(/normal/i));
-    expect(card.querySelector("span")).not.toBeEmptyDOMElement();
+    // Specimen line on top, the card's own name underneath - both rendered.
+    const [specimen, name] = Array.from(card.querySelectorAll("span"));
+    expect(specimen).toHaveTextContent("AaBbCcDd");
+    expect(name).toHaveTextContent(/normal/i);
 
     // The caption row stays the last child, below the cards, not overlapped.
     expect(inPanel.lastElementChild).toHaveTextContent("Styles");

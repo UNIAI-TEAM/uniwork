@@ -22,6 +22,14 @@ DOCX (`packages/views/office/docx/docx-editor.tsx`, `docx/status/status-bar.tsx`
 - `OfficeStatusBar` (`start`, `end`, `help`) one 28px row on the band surface + `OfficeStatusZoom` (− value% +,
   `onReset`, bounds) - use these instead of your own bar/zoom.
 
+## Behaviour changes you get on merge (self-review A1-A3)
+- The document page no longer scrolls or pads an Office file (`usesOfficeEditor`), the shell drops its `p-3` and the
+  editor slot drops its card once the editor is mounted. Until your format mounts `OfficeFrame`, your ready-state
+  root must be `flex h-full min-h-0 flex-col` and scroll its own canvas, or content below the fold is clipped.
+- A `kind: "custom"` item with `size: "icon"` now packs into icon strip rows (MD lane: `blockStyle` 140px and
+  `link` customs in markdown/wysiwyg/toolbar/build-items.tsx) - drop `size` if it must stand alone.
+- Large buttons fill the row height with a 32px icon and a 2-line label; the body is 96px; separators are inset hairlines.
+
 ## Checklist per format (F1-F10; F1/F2/F8 blocking)
 1. Mount: `<OfficeFrame ribbon={<OfficeRibbon .../>} subbar=... rail=... bottom=... statusBar={<OfficeStatusBar .../>}>`
    canvas `</OfficeFrame>` as the ONLY chrome of the ready state.
