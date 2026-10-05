@@ -11,6 +11,7 @@ import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
 import { pdfEditErrorKey } from "./pdf-edit-error";
+import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
@@ -103,13 +104,7 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
   PDF_COMMANDS.fitPage,
 ];
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.1;
-
-function clampZoom(value: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(value.toFixed(2))));
-}
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
@@ -126,6 +121,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [revision, setRevision] = useState(0);
   const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
   const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
@@ -222,6 +219,24 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       void activeEditor.dispose();
     };
   }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
+
+  useEffect(() => {
+    if (viewState !== "ready") return undefined;
+    const apply = () => {
+      if (initialFitDoneRef.current === documentKey) return;
+      const pane = canvasRef.current;
+      const page = editorRef.current.getCanvasPages?.()?.[0];
+      if (!pane || !page || pane.clientWidth <= 0) return;
+      const fitted = fitPdfZoom("fit-width", { width: pane.clientWidth, height: pane.clientHeight }, page);
+      if (fitted !== null && fitted < 1) setZoom(fitted);
+      initialFitDoneRef.current = documentKey;
+    };
+    apply();
+    // The pane is zero-sized at the first paint; a resize is the first chance
+    // to measure it in a real host (and the only signal jsdom offers).
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [documentKey, viewState]);
 
   const submitPassword = useCallback(async (password: string) => {
     const activeOpen = openRef.current;
@@ -336,10 +351,23 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
   const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
-  const zoomOut = useCallback(() => setZoom((value) => clampZoom(value - ZOOM_STEP)), []);
-  const zoomIn = useCallback(() => setZoom((value) => clampZoom(value + ZOOM_STEP)), []);
-  const fitWidth = useCallback(() => setZoom(1), []);
-  const fitPage = useCallback(() => setZoom(1), []);
+  const zoomOut = useCallback(() => setZoom((value) => clampPdfZoom(value - ZOOM_STEP)), []);
+  const zoomIn = useCallback(() => setZoom((value) => clampPdfZoom(value + ZOOM_STEP)), []);
+  /** F-12: fit the page into the measured canvas pane instead of resetting to
+   *  100%. The pane is the frame's scroll container; the page box (including its
+   *  /Rotate) comes from the host renderer's page geometry. A pane or page that
+   *  cannot be measured yet keeps the current zoom. */
+  const fitTo = useCallback((mode: "fit-width" | "fit-page") => {
+    const pane = canvasRef.current;
+    const canvasPages = editorRef.current.getCanvasPages?.() ?? [];
+    const selected = selection?.page;
+    const page = canvasPages.find((candidate) => candidate.pageNumber === selected) ?? canvasPages[0];
+    if (!pane || !page) return;
+    const next = fitPdfZoom(mode, { width: pane.clientWidth, height: pane.clientHeight }, page);
+    if (next !== null) setZoom(next);
+  }, [selection]);
+  const fitWidth = useCallback(() => fitTo("fit-width"), [fitTo]);
+  const fitPage = useCallback(() => fitTo("fit-page"), [fitTo]);
   const executeCommand = useCallback((id: PdfCommandId) => {
     if (id === PDF_COMMANDS.save) save("button");
     else if (id === PDF_COMMANDS.undo) undo();
@@ -426,6 +454,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           pages={pages}
           readOnly={readOnly}
           zoom={zoom}
+          canvasRef={canvasRef}
           selection={selection}
           selectedPage={selectedPage}
           revision={revision}

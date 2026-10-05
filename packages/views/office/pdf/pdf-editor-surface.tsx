@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -37,6 +37,9 @@ export interface PdfEditorSurfaceProps {
   pages: readonly PdfPage[];
   readOnly: boolean;
   zoom: number;
+  /** The frame's canvas scroll container, so the shell can measure the pane for
+   *  the fit modes (F-12). */
+  canvasRef?: Ref<HTMLDivElement>;
   selection: PdfSelection | null;
   selectedPage: number | null;
   /** Bumped by the shell whenever the document bytes changed (edit, undo, redo). */
@@ -114,7 +117,7 @@ function noop(): void {
  * so a successful edit marks the save coordinator dirty and a failure shows a
  * translated message instead of crashing the editor.
  */
-export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner }: PdfEditorSurfaceProps) {
+export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner }: PdfEditorSurfaceProps) {
   const { t } = useTranslation();
   const canvasMode = editor.renderer !== undefined && editor.getCanvasPages !== undefined;
   const [canvasPages, setCanvasPages] = useState<readonly PdfCanvasPage[]>(() => (canvasMode ? freshPages(editor) : NO_PAGES));
@@ -302,6 +305,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, selection, sel
       aside={aside}
       bottom={objectEditor}
       statusBar={statusBar}
+      canvasRef={canvasRef}
       canvasClassName="flex flex-col overflow-hidden"
     >
       {canvasMode && editor.renderer ? (

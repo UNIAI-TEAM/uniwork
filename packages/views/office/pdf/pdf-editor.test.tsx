@@ -8,6 +8,7 @@ import { createPdfEditorLoader } from "./pdf-editor-slot";
 import type { OfficeSaveReceipt, SaveAttemptResult } from "@uniwork/core/office";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
+import type { PdfCanvasPage } from "./canvas";
 
 function coordinator(overrides: Partial<PdfSaveCoordinator> = {}): PdfSaveCoordinator {
   const state = {
@@ -463,5 +464,92 @@ describe("PdfEditor", () => {
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
     expect(markDirty).not.toHaveBeenCalled();
+  });
+
+  // F-12: Fit width / Fit page must compute the zoom from the real canvas pane
+  // and the page box, not reset to 100%. jsdom has no layout, so the pane is
+  // stubbed on the canvas element the shell measures.
+  function stubPane(width: number, height: number) {
+    const pane = screen.getByTestId("pdf-canvas").querySelector("[data-office-canvas]") as HTMLElement;
+    Object.defineProperty(pane, "clientWidth", { value: width, configurable: true });
+    Object.defineProperty(pane, "clientHeight", { value: height, configurable: true });
+    return pane;
+  }
+
+  function canvasPage(overrides: Partial<PdfCanvasPage> = {}): readonly PdfCanvasPage[] {
+    return [{ pageNumber: 1, width: 595, height: 842, rotation: 0, ...overrides }];
+  }
+
+  function clickViewItem(id: string) {
+    fireEvent.click(screen.getByTestId("pdf-chrome-tab-view"));
+    fireEvent.click(document.querySelector(`[data-ribbon-item='${id}']`) as HTMLElement);
+  }
+
+  it("fits the page width to the measured pane instead of resetting to 100% (F-12)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage() });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    stubPane(975, 575);
+
+    // The r5 pane: (975 - 32) / 595 = 1.58, never 100%.
+    clickViewItem("fit-width");
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("158%");
+  });
+
+  it("fits the whole page so it no longer overflows the pane (F-12)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage() });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    stubPane(975, 575);
+
+    // min((975 - 32) / 595, (575 - 32) / 842) = 0.64, so the page height fits.
+    clickViewItem("fit-page");
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("64%");
+  });
+
+  it("fits a rotated page by its displayed box (F-12)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage({ rotation: 90 }) });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    stubPane(900, 575);
+
+    // A quarter-turn page displays 842 x 595: (900 - 32) / 842 = 1.03.
+    clickViewItem("fit-width");
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("103%");
+  });
+
+  it("keeps the current zoom when the pane cannot be measured yet (F-12)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage() });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    // jsdom reports a zero-size pane: fit must not guess and must not reset.
+    clickViewItem("zoom-in");
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("110%");
+    clickViewItem("fit-page");
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("110%");
+  });
+
+  it("opens fit-width (capped at 100%) when the pane is narrower than the page (F-12, 390px)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage() });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    // jsdom measures 0 at first paint; the pane becomes measurable on resize.
+    stubPane(390, 575);
+    fireEvent(window, new Event("resize"));
+    // (390 - 32) / 595 = 0.60, so the 595pt page fits the phone pane.
+    await waitFor(() => expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("60%"));
+  });
+
+  it("keeps 100% on open when the pane is wider than the page (F-12)", async () => {
+    const handle = editor({ renderer: browserRenderer, getCanvasPages: () => canvasPage() });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+
+    // A wide pane fits 1.58x; the initial zoom is capped at 100%, never grown.
+    stubPane(1440, 900);
+    fireEvent(window, new Event("resize"));
+    expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("100%");
   });
 });

@@ -56,4 +56,20 @@ describe("PdfView", () => {
     expect(input).toHaveValue(2);
     expect(onPageChange).not.toHaveBeenCalled();
   });
+
+  it("fits a rotated page by its displayed box (F-12)", () => {
+    const onZoomChange = vi.fn();
+    const rotated: readonly PdfCanvasPage[] = [{ pageNumber: 1, width: 600, height: 800, rotation: 90 }];
+    render(<PdfView pages={rotated} renderer={renderer()} onZoomChange={onZoomChange} viewportWidth={1000} viewportHeight={800} />);
+    // A quarter-turn page displays 800 x 600: (1000 - 32) / 800 = 1.21.
+    fireEvent.click(screen.getByRole("button", { name: "Fit width" }));
+    expect(onZoomChange).toHaveBeenLastCalledWith(1.21, "fit-width");
+  });
+
+  it("keeps the current zoom when the viewport is not measured yet (F-12)", () => {
+    const onZoomChange = vi.fn();
+    render(<PdfView pages={pages} renderer={renderer()} onZoomChange={onZoomChange} viewportWidth={0} viewportHeight={0} />);
+    fireEvent.click(screen.getByRole("button", { name: "Fit page" }));
+    expect(onZoomChange).not.toHaveBeenCalled();
+  });
 });
