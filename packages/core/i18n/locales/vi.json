@@ -7979,6 +7979,8 @@
     "ribbon": {
       "label": "Dải lệnh",
       "tabs": "Các thẻ dải lệnh",
+      "tabsPrev": "Các thẻ trước",
+      "tabsNext": "Các thẻ sau",
       "quickAccess": "Truy cập nhanh",
       "collapse": "Thu gọn dải lệnh",
       "expand": "Hiện dải lệnh",

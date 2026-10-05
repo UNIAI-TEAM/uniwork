@@ -366,7 +366,7 @@ describe("PdfRibbonBar", () => {
     expect(screen.getByTestId("pdf-ribbon-bar").className).toContain("min-w-0");
     expect(screen.getByRole("region").className).toContain("min-w-0");
     const rowChildren = Array.from(tabRow.children) as HTMLElement[];
-    expect(rowChildren.filter((node) => node.className.includes("flex-1"))).toEqual([tablist]);
+    expect(rowChildren.filter((node) => node.className.includes("flex-1"))).toEqual([tablist.parentElement]);
     expect(rowChildren.filter((node) => node.className.includes("shrink-0")).length).toBeGreaterThan(0);
   });
 
