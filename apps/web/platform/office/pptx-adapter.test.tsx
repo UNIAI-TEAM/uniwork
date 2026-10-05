@@ -32,6 +32,12 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   patternGrid: () => undefined,
   presetPath: () => null,
   presetPolygon: () => null,
+  // The deck renderer (W3) builds its canvas font measurer from this class when
+  // the artifact carries it; vitest throws on a mock export that is not defined.
+  HeuristicMetrics: class HeuristicMetrics {
+    metrics = () => ({ ascent: 1, descent: 0.2, lineHeight: 1.2 });
+    measure = (text: string) => text.length;
+  },
 }));
 import { createPptxFormatAdapter, makePptxEditorHost, type PptxEditorHandle } from "./pptx-adapter";
 import type { PptxDocumentsTransport } from "./pptx-save-transport";
@@ -248,6 +254,18 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
     adapter.editor.undo();
     expect(engine.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the runtime's minted element ids back through the edit handle", async () => {
+    const engine = runtime();
+    vi.mocked(engine.edit).mockResolvedValueOnce({ revision: 1, createdIds: ["new_1"] });
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    await adapter.open.open();
+    const insert: PptxEdit = { op: "add_element", slideIndex: 0, kind: "rect", xPx: 1, yPx: 1, wPx: 10, hPx: 10 };
+    expect(await adapter.editor.edit([insert])).toEqual({ revision: 1, createdIds: ["new_1"] });
+    // A non-creating edit stays `{ revision }` only.
+    expect(await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }])).toEqual({ revision: 1 });
+    await adapter.session.dispose();
   });
 
   it("mounts the real shared canvas once the deck is bound and republishes the revision per edit", async () => {

@@ -74,7 +74,8 @@ export interface PptxRuntimeSerializedOutput {
  */
 export interface PptxSessionRuntime {
   open(input: { bytes: Uint8Array; documentId: string }): Promise<PptxRuntimeOpenResult>;
-  edit(documentModelRef: string, edits: readonly PptxEdit[]): Promise<{ revision: number }>;
+  /** `createdIds` lists the element ids the edits minted (add_element, add_table, ...), in edit order. */
+  edit(documentModelRef: string, edits: readonly PptxEdit[]): Promise<{ revision: number; createdIds?: string[] }>;
   snapshot(documentModelRef: string): PptxDeckSnapshot;
   /** Replay a recovered draft journal onto the freshly opened base. */
   restore?(documentModelRef: string, snapshot: PptxDeckSnapshot): Promise<void>;
@@ -95,6 +96,8 @@ export interface PptxSessionRuntime {
    * slide carries none). Optional on the seam so a hand-built test double that
    * predates this read stays assignable; both shipped runtimes implement it. */
   slideNotes?(documentModelRef: string, slideIndex: number): string;
+  /** Slide layouts of the LIVE package ([] when the engine binds no layout read). Optional like slideNotes. */
+  slideLayouts?(documentModelRef: string): { name: string; path: string }[];
   release(documentModelRef: string): Promise<void>;
 }
 
@@ -239,8 +242,9 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
   }
 
   /** Apply one already-decoded journal entry on the live engine session. */
-  function applyEntry(ref: string, entry: PptxEdit): number {
-    return engineAdapter().edit(currentEngineRef(ref), entry).revision;
+  function applyEntry(ref: string, entry: PptxEdit): { revision: number; createdId?: string } {
+    const { revision, createdId } = engineAdapter().edit(currentEngineRef(ref), entry);
+    return { revision, ...(createdId ? { createdId } : {}) };
   }
 
   function liveSession(ref: string): LivePptxSession {
@@ -317,13 +321,16 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         // A fresh edit after an undo drops the redo tail (text-editor behavior).
         if (session.cursor < session.journal.length) session.journal.splice(session.cursor);
         let revision = session.revision;
+        const createdIds: string[] = [];
         for (const edit of edits) {
-          revision = applyEntry(documentModelRef, edit);
+          const applied = applyEntry(documentModelRef, edit);
+          revision = applied.revision;
+          if (applied.createdId) createdIds.push(applied.createdId);
           session.journal.push(edit);
         }
         session.cursor = session.journal.length;
         session.revision = revision;
-        return { revision };
+        return { revision, ...(createdIds.length ? { createdIds } : {}) };
       });
     },
 
@@ -341,7 +348,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         if (!journalIsSnapshotPrefix(session, snapshot)) throw new Error("pptx_restore_diverged");
         for (let i = session.journal.length; i < snapshot.edits.length; i += 1) {
           const edit = decodePptxEdit(snapshot.edits[i] as PptxJournalEntry);
-          session.revision = applyEntry(documentModelRef, edit);
+          session.revision = applyEntry(documentModelRef, edit).revision;
           session.journal.push(edit);
         }
         session.cursor = session.journal.length;
@@ -363,7 +370,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         engineRefs.set(documentModelRef, reopened.document_model_ref);
         engineAdapter().release(previous);
         let revision = 0;
-        for (let i = 0; i < nextCursor; i += 1) revision = applyEntry(documentModelRef, session.journal[i] as PptxEdit);
+        for (let i = 0; i < nextCursor; i += 1) revision = applyEntry(documentModelRef, session.journal[i] as PptxEdit).revision;
         session.cursor = nextCursor;
         session.revision = revision;
         return true;
@@ -376,7 +383,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         if (session.cursor >= session.journal.length) return false;
         // The live model already holds journal[0..cursor-1]; replaying the next
         // entry forward is the whole redo.
-        session.revision = applyEntry(documentModelRef, session.journal[session.cursor] as PptxEdit);
+        session.revision = applyEntry(documentModelRef, session.journal[session.cursor] as PptxEdit).revision;
         session.cursor += 1;
         return true;
       });
@@ -410,6 +417,10 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       // reflected exactly like deck()/slides(). A released session refuses
       // through currentEngineRef (pptx_runtime_not_open).
       return engineAdapter().slideNotes(currentEngineRef(documentModelRef), slideIndex);
+    },
+
+    slideLayouts(documentModelRef) {
+      return engineAdapter().slideLayouts(currentEngineRef(documentModelRef));
     },
 
     slides(documentModelRef) {

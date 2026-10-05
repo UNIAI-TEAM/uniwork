@@ -187,6 +187,14 @@ export class PptxAdapter {
     return getSlideNotes(session.model.opened.archive, path);
   }
 
+  /** Slide layouts of the held package (vendored listSlideLayouts over the
+   * opened archive). An engine without the read answers [] — the caller
+   * offers its blank-slide fallback; an unknown ref refuses like every read. */
+  slideLayouts(documentModelRef: string): { name: string; path: string }[] {
+    const session = this.sessionOf(documentModelRef);
+    return this.deps.engine.listSlideLayouts?.(session.model.opened.archive) ?? [];
+  }
+
   async serialize(input: {
     document_model_ref: string;
     format: OfficeFormat;

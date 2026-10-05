@@ -157,6 +157,55 @@ describe("pptx session model ops", () => {
     expect(pic?.type).toBe("picture");
   });
 
+  it("add_element hands the vendored op a finite stroke.widthEmu (pt -> EMU), never widthPt", async () => {
+    const engine = createFakePptxEngine();
+    const fakeOps = createFakePptxOps();
+    const seen: Array<Record<string, unknown>> = [];
+    const ops = {
+      runTxn: (opened: Parameters<typeof fakeOps.runTxn>[0], req: Parameters<typeof fakeOps.runTxn>[1]) => {
+        if (!req.dryRun) seen.push(...(req.ops as Array<Record<string, unknown>>));
+        return fakeOps.runTxn(opened, req);
+      },
+    };
+    const adapter = createPptxAdapter({ engine, ops });
+    const out = await adapter.open({ bytes: makeFakePptxBytes(), format: "pptx", document_id: "d" });
+    if (out.outcome !== "opened") throw new Error("open failed");
+    adapter.edit(out.document_model_ref, {
+      op: "add_element",
+      slideIndex: 0,
+      kind: "rect",
+      xPx: 10,
+      yPx: 10,
+      wPx: 100,
+      hPx: 40,
+      fillColor: "#4472C4",
+      stroke: { color: "#2F528F", widthPt: 1 },
+    });
+    const stroke = seen.find((op) => op.op === "addElement")?.stroke as Record<string, unknown> | undefined;
+    expect(stroke).toEqual({ color: "#2F528F", widthEmu: 12700 });
+    expect(Number.isFinite(stroke?.widthEmu)).toBe(true);
+    expect(stroke).not.toHaveProperty("widthPt");
+  });
+
+  it("edit returns the minted id for creating kinds and none for the rest", async () => {
+    const { adapter, ref } = await openModel();
+    const created = adapter.edit(ref, { op: "add_element", slideIndex: 0, kind: "rect", xPx: 1, yPx: 1, wPx: 10, hPx: 10 });
+    expect(typeof created.createdId).toBe("string");
+    const plain = adapter.edit(ref, { op: "set_slide_hidden", slideIndex: 0, hidden: true });
+    expect(plain.createdId).toBeUndefined();
+  });
+
+  it("slideLayouts reads the held archive; unknown ref refuses; an unbound read answers []", async () => {
+    const { adapter, ref } = await openModel();
+    expect(adapter.slideLayouts(ref)).toEqual([{ name: "Title Slide", path: "ppt/slideLayouts/slideLayout1.xml" }]);
+    expect(errCode(() => adapter.slideLayouts("nope"))).toBe("not_found");
+    const { listSlideLayouts: _unbound, ...engine } = createFakePptxEngine();
+    const bare = createPptxAdapter({ engine, ops: createFakePptxOps() });
+    const out = await bare.open({ bytes: makeFakePptxBytes(), format: "pptx", document_id: "d" });
+    if (out.outcome !== "opened") throw new Error("open failed");
+    expect(bare.slideLayouts(out.document_model_ref)).toEqual([]);
+  });
+
   it("replace_picture swaps bytes on an existing picture element", async () => {
     const { adapter, ref, model } = await openModel();
     adapter.edit(ref, { op: "replace_picture", slideIndex: 0, elementId: "p1", bytes: new Uint8Array([9]), ext: "png" });

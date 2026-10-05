@@ -312,7 +312,8 @@ export class PptxSessionModel {
         },
         ...(input.paragraphs?.length ? { paragraphs: input.paragraphs } : {}),
         ...(input.fillColor ? { fill: input.fillColor } : {}),
-        ...(input.stroke ? { stroke: input.stroke } : {}),
+        // The vendored buildSpXml reads stroke.widthEmu; the typed edit speaks pt.
+        ...(input.stroke ? { stroke: { color: input.stroke.color, widthEmu: Math.round(input.stroke.widthPt * 12700) } } : {}),
       },
     ]);
     const created = PptxSessionModel.createdIds(result.records);

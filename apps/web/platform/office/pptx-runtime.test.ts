@@ -339,6 +339,28 @@ describe("web PPTX session runtime", () => {
     expect(() => runtime.slideNotes!(ref, 0)).toThrow("pptx_runtime_not_open");
   });
 
+  it("returns the minted element ids from the edit channel, and none for non-creating edits", async () => {
+    const { runtime, ref } = await opened();
+    const box = (xPx: number): PptxEdit => ({ op: "add_element", slideIndex: 0, kind: "rect", xPx, yPx: 1, wPx: 10, hPx: 10 });
+    const one = await runtime.edit(ref, [box(1)]);
+    expect(one.revision).toBe(1);
+    expect(one.createdIds).toHaveLength(1);
+    const created = one.createdIds![0]!;
+    expect(runtime.slides(ref)[0]?.elements.some((element) => element.id === created)).toBe(true);
+    // A mixed batch lists ids in edit order and skips the edits that mint none.
+    const mixed = await runtime.edit(ref, [hidden(0, true), box(2), box(3)]);
+    expect(mixed.createdIds).toHaveLength(2);
+    expect(new Set([created, ...mixed.createdIds!]).size).toBe(3);
+    expect(await runtime.edit(ref, [hidden(0, false)])).toEqual({ revision: 5 });
+  });
+
+  it("reads the live package's slide layouts and refuses after release", async () => {
+    const { runtime, ref } = await opened();
+    expect(runtime.slideLayouts!(ref)).toEqual([{ name: "Title Slide", path: "ppt/slideLayouts/slideLayout1.xml" }]);
+    await runtime.release(ref);
+    expect(() => runtime.slideLayouts!(ref)).toThrow("pptx_runtime_not_open");
+  });
+
   it("keeps revision and fingerprint consistent across history", async () => {
     const { runtime, ref } = await opened();
     await runtime.edit(ref, [hidden(0, true)]);

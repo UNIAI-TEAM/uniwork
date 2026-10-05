@@ -35,7 +35,8 @@ export interface PptxOpenOutcome {
  * channel, the deck view the canvas renders and the revision the canvas keys
  * its rendition cache on. */
 export interface PptxEditorHandle extends EditorHandle<PptxDeckSnapshot> {
-  edit(edits: readonly PptxEdit[]): Promise<{ revision: number }>;
+  /** `createdIds`: element ids the edits minted, so the editor can select a new insert. */
+  edit(edits: readonly PptxEdit[]): Promise<{ revision: number; createdIds?: string[] }>;
   slides(): PptxSlideSummary[];
   snapshot(): PptxDeckSnapshot | null;
   /** The opened engine deck the shared canvas renders (null before open). */
@@ -178,6 +179,8 @@ function PptxEditorSurface(props: {
   open: (signal?: AbortSignal) => Promise<PptxOpenOutcome>;
   /** Speaker-notes read of the live session (UNI-927 NOTES-WIRE). */
   slideNotes: (slideIndex: number) => string | null;
+  /** Layout catalog of the live package (empty once released). */
+  slideLayouts: () => { name: string; path: string }[];
 }): ReactNode {
   const { t } = useTranslation();
   // F7: the open effect must not restart on a fresh `t` identity. react-i18next
@@ -187,7 +190,7 @@ function PptxEditorSurface(props: {
   // seam-stabilization the deck renderer and the editor use.
   const tRef = useRef(t);
   tRef.current = t;
-  const { editor, coordinator, editable, open, view, subscribe, slideNotes } = props;
+  const { editor, coordinator, editable, open, view, subscribe, slideNotes, slideLayouts } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
@@ -315,6 +318,7 @@ function PptxEditorSurface(props: {
       {...(editable ? { onCommitText: commitText, onTransform: transform, onApplyEdit: applyEdit, onDeleteElements: deleteElements } : {})}
       onFind={find}
       slideNotes={slideNotes}
+      slideLayouts={slideLayouts}
       saveCoordinator={coordinator}
       includeSave={false}
     />
@@ -445,6 +449,11 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const slideNotes = (slideIndex: number): string | null =>
     (modelRef && !disposed ? options.runtime.slideNotes?.(modelRef, slideIndex) ?? null : null);
 
+  // The layout catalog of the LIVE package, same guard as the notes read: a
+  // released session answers [] (the sorter then offers only its blank slide).
+  const slideLayouts = (): { name: string; path: string }[] =>
+    (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []);
+
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
     documents: options.documents,
@@ -521,6 +530,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         editable={options.readonly !== true}
         open={open.open}
         slideNotes={slideNotes}
+        slideLayouts={slideLayouts}
       />
     ),
     open,
