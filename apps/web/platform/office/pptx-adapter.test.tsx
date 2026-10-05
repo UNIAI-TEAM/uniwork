@@ -24,6 +24,14 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   // (an optional member); the mock must carry it or the import throws before
   // any test runs. The suite drives a fake runtime, so it is never called.
   getSlideNotes: () => "",
+  // The real shared canvas (r6 d7768245) mounts PptxEditor, whose deck renderer
+  // reads these three optional accessors off the artifact namespace
+  // (deck-renderer.ts:89-91). The mock must carry them or the access throws
+  // before the mount can render; the fake buildRenderSlide returns an empty
+  // tree, so none of them is ever called.
+  patternGrid: () => undefined,
+  presetPath: () => null,
+  presetPolygon: () => null,
 }));
 import { createPptxFormatAdapter, makePptxEditorHost, type PptxEditorHandle } from "./pptx-adapter";
 import type { PptxDocumentsTransport } from "./pptx-save-transport";

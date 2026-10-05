@@ -318,7 +318,7 @@ describe("PptxFormatPanel", () => {
   it("renders vi copy when the locale is Vietnamese", async () => {
     await setLocale("vi");
     renderPanel();
-    expect(screen.getByRole("region", { name: "Äá»‹nh dáº¡ng" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Định dạng" })).toBeInTheDocument();
     await setLocale("en");
   });
 });
