@@ -1,29 +1,30 @@
 "use client";
 
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, TextWrap } from "lucide-react";
+import { AlignCenter, AlignCenterHorizontal, AlignEndHorizontal, AlignLeft, AlignRight, AlignStartHorizontal, TextWrap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { RibbonItem } from "../../ribbon";
 import { XLSX_HORIZONTAL_ALIGN, XLSX_TEXT_ROTATIONS, XLSX_VERTICAL_ALIGN, XLSX_WRAP_STRATEGY } from "./home-format";
 import { xlsxMergeRibbonItem } from "./structure-merge";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
+import { XLSX_FIELD_BOX_CLASS, XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const HORIZONTAL_ALIGNMENTS = [
-  { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: AlignStartHorizontal },
-  { key: "center", value: XLSX_HORIZONTAL_ALIGN.center, Icon: AlignCenterHorizontal },
-  { key: "right", value: XLSX_HORIZONTAL_ALIGN.right, Icon: AlignEndHorizontal },
+  { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: AlignLeft },
+  { key: "center", value: XLSX_HORIZONTAL_ALIGN.center, Icon: AlignCenter },
+  { key: "right", value: XLSX_HORIZONTAL_ALIGN.right, Icon: AlignRight },
 ] as const;
 
 const VERTICAL_ALIGNMENTS = [
-  { key: "top", value: XLSX_VERTICAL_ALIGN.top, Icon: AlignStartVertical },
-  { key: "middle", value: XLSX_VERTICAL_ALIGN.middle, Icon: AlignCenterVertical },
-  { key: "bottom", value: XLSX_VERTICAL_ALIGN.bottom, Icon: AlignEndVertical },
+  { key: "top", value: XLSX_VERTICAL_ALIGN.top, Icon: AlignStartHorizontal },
+  { key: "middle", value: XLSX_VERTICAL_ALIGN.middle, Icon: AlignCenterHorizontal },
+  { key: "bottom", value: XLSX_VERTICAL_ALIGN.bottom, Icon: AlignEndHorizontal },
 ] as const;
 
-const ROTATION_WIDTH = 84;
+const ROTATION_WIDTH = 60;
 
 function isBlocked({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps): boolean {
   return readOnly || !canFormat || !commands;
@@ -37,7 +38,7 @@ function RotationSelect({ context }: { context: XlsxToolbarGroupProps }) {
   const { t } = useTranslation();
   const blocked = isBlocked(context);
   return (
-    <div className="w-20 shrink-0">
+    <div className={cn(XLSX_FIELD_BOX_CLASS, "w-14")}>
       <Select
         aria-label={t("office.xlsx.toolbar.groups.alignment.rotation")}
         triggerVariant="subtle"

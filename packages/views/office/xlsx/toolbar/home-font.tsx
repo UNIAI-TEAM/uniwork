@@ -7,17 +7,18 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { RibbonItem } from "../../ribbon";
 import { clampFontSize, stepFontSize, XLSX_DEFAULT_FONT_FAMILY, XLSX_DEFAULT_FONT_SIZE, XLSX_FONT_FAMILIES, XLSX_PALETTE_COLORS } from "./home-format";
 import { xlsxBordersRibbonItem } from "./home-borders";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
+import { XLSX_FIELD_BOX_CLASS, XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const SIZE_DECREASE = -1;
 const SIZE_INCREASE = 1;
 const FAMILY_WIDTH = 140;
-const SIZE_FIELD_WIDTH = 56;
+const SIZE_FIELD_WIDTH = 48;
 const COLOR_BUTTON_WIDTH = 26;
 
 function isBlocked({ readOnly = false, canFormat, commands }: XlsxToolbarGroupProps): boolean {
@@ -74,7 +75,7 @@ function FontFamilySelect({ context }: { context: XlsxToolbarGroupProps }) {
   const { t } = useTranslation();
   const run = runner(context);
   return (
-    <div className="w-36 min-w-35 shrink-0">
+    <div className={cn(XLSX_FIELD_BOX_CLASS, "w-36 min-w-35")}>
       <Select
         aria-label={t("office.xlsx.toolbar.groups.font.family")}
         triggerVariant="subtle"
@@ -110,7 +111,7 @@ function FontSizeField({ context }: { context: XlsxToolbarGroupProps }) {
 
   return (
     <Input
-      className="h-6 w-14 min-w-14 px-1 text-center text-caption"
+      className="h-6 w-12 min-w-12 rounded-sm border-input px-1 text-center text-caption"
       inputMode="numeric"
       aria-label={t("office.xlsx.toolbar.groups.font.size")}
       disabled={isBlocked(context)}

@@ -168,7 +168,7 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
             type="button"
             variant="toolbar"
             size="sm"
-            className="w-[116px] justify-between px-1.5"
+            className="h-6 w-[116px] justify-between rounded-sm border border-input bg-background px-1.5 font-normal pointer-coarse:h-11"
             title={t("office.xlsx.commands.numberFormat")}
             aria-label={t("office.xlsx.commands.numberFormat")}
             aria-disabled={blocked || undefined}
