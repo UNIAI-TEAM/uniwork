@@ -1,7 +1,7 @@
 "use client";
 
 import { Scaling, StretchHorizontal, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -33,8 +33,12 @@ export function useDocxZoomState(controller: DocxZoomController): DocxZoomState 
 /** The zoom painted on the canvas (the user's percent capped to a narrow
  *  canvas); the ruler and the status readout follow it, not the setting. */
 export function useDocxEffectiveZoomPercent(controller: DocxZoomController): number {
-  useDocxZoomState(controller);
-  return controller.getEffectivePercent();
+  // A store read, not useState: the cap can change between this render and the
+  // subscription (the editor attaches the canvas in its own effect), and React
+  // re-reads the snapshot once it has subscribed.
+  const subscribe = useCallback((onChange: () => void) => controller.subscribe(onChange), [controller]);
+  const read = useCallback(() => controller.getEffectivePercent(), [controller]);
+  return useSyncExternalStore(subscribe, read, read);
 }
 
 /** View ▸ Zoom: step buttons, the preset picker and the two fit modes. Every
