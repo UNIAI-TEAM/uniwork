@@ -51,7 +51,7 @@ export function XlsxTableGroup({ readOnly = false, selection, commands, tables }
       <XlsxGroupRows>
         <XlsxGroupRow>
           <Input
-            className="h-6 w-24 px-1 text-caption"
+            className="h-6 w-24 rounded-sm px-1 text-caption"
             aria-label={t("office.xlsx.table.nameLabel")}
             title={nameOk ? t("office.xlsx.table.nameLabel") : t("office.xlsx.table.nameInvalid")}
             aria-invalid={nameOk ? undefined : true}

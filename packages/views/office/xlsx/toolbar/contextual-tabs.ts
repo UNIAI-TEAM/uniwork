@@ -18,7 +18,7 @@ import {
   Table2,
   TableCellsMerge,
   TableCellsSplit,
-  Trash2,
+  Grid3X3,
 } from "lucide-react";
 import type { RibbonCustomItem, RibbonGroup, RibbonTab } from "../../ribbon";
 import { XlsxTableDesignName } from "./table-design-name";
@@ -150,13 +150,13 @@ function tableDesignTab(context: XlsxToolbarGroupProps, when: boolean): RibbonTa
         id: "table-design-tools",
         labelKey: "office.xlsx.table.contextual.tools",
         priority: 11,
-        icon: Trash2,
+        icon: Grid3X3,
         items: [
           {
             kind: "button",
             id: "table-design-convert",
             labelKey: "office.xlsx.table.contextual.convertToRange",
-            icon: Trash2,
+            icon: Grid3X3,
             size: "small",
             disabled,
             onExecute: () => {

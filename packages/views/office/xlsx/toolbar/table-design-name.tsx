@@ -14,7 +14,7 @@ export function XlsxTableDesignName({ name }: { name: string }) {
       <span className="text-caption text-muted-foreground">{t("office.xlsx.table.nameLabel")}</span>
       <Input
         readOnly
-        className="h-6 w-32 px-1 text-caption"
+        className="h-6 w-32 rounded-sm px-1 text-caption"
         aria-label={t("office.xlsx.table.nameLabel")}
         value={name}
         data-testid="xlsx-table-design-name"
