@@ -24,7 +24,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
-import { mergeAttributes, type DOMOutputSpec, type JSONContent } from "@tiptap/core";
+import { mergeAttributes, type JSONContent } from "@tiptap/core";
+import type { DOMOutputSpec } from "@tiptap/pm/model";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { createMarkdownEditorExtensions } from "./extensions";
@@ -95,8 +96,10 @@ function isDelimiterRow(line: string): boolean {
  */
 export function parseGfmTable(source: string): GfmTable | null {
   const lines = source.split("\n").filter((line) => line.trim().length > 0);
-  if (lines.length < 2) return null;
-  const [headerLine, delimiterLine, ...bodyLines] = lines;
+  const headerLine = lines[0];
+  const delimiterLine = lines[1];
+  if (headerLine === undefined || delimiterLine === undefined) return null;
+  const bodyLines = lines.slice(2);
   if (!headerLine.trim().startsWith("|") || !delimiterLine.trim().startsWith("|")) return null;
   if (!isDelimiterRow(delimiterLine)) return null;
   const header = splitTableRow(headerLine);
