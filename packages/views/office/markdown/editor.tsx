@@ -465,6 +465,50 @@ export function MarkdownEditor<TSnapshot = unknown>({
               scope="markdown"
             />
           }
+          subbar={
+            /*
+              F3: the source-mode clipboard controls and the print/export menu
+              live on the frame's full-width subbar row, NOT inside the canvas.
+              The ribbon's quick access drives the VISUAL pane through the live
+              TipTap instance, but the source pane has no instance - its undo,
+              redo, copy and paste are the host's own snapshot stack and
+              clipboard port, so they ride here where they stay reachable. The
+              print/export menu is the surface's own (C4/C9): print goes through
+              the injected port with the SANITIZED copy, the PDF/DOCX exports
+              stay disabled with their "not available yet" tooltip. Save is NOT
+              here: the page header cluster owns it (F2).
+            */
+            <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-subbar" role="toolbar" aria-label={t("toolbar.label")}>
+              {mode === "source" ? (
+                <>
+                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
+                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+                  <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
+                </>
+              ) : null}
+              <span className="min-w-0 flex-1" />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="toolbar"
+                      size="icon-sm"
+                      aria-label={t("office.common.chrome.more")}
+                      aria-haspopup="menu"
+                      data-testid="md-more"
+                    />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          }
           bottom={
             <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="md-assets">
               <AssetManifestPanel manifest={manifest} failures={failures} />
@@ -482,42 +526,6 @@ export function MarkdownEditor<TSnapshot = unknown>({
             open state to drive).
           */}
           <MarkdownFind ref={findRef} editor={instance} handle={editor} mode={mode} editable={!readOnly} sourceTextarea={textAreaRef} sourceOverlayTarget={sourceWrapperRef} />
-          <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
-            {mode === "source" ? (
-              <>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
-                <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
-              </>
-            ) : null}
-            <span className="min-w-0 flex-1" />
-            {/*
-              M8 print/export entries (C4/C9): the host's own menu. Print goes
-              through the injected port with the SANITIZED copy; the PDF/DOCX
-              exports stay disabled with their "not available yet" tooltip.
-              Save is NOT here: the page header cluster owns it (F2).
-            */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="toolbar"
-                    size="icon-sm"
-                    aria-label={t("office.common.chrome.more")}
-                    aria-haspopup="menu"
-                    data-testid="md-more"
-                  />
-                }
-              >
-                <MoreHorizontal aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
           <div className="flex min-h-0 flex-1">
             {outlineVisible ? <MarkdownOutlinePane editor={instance} className="max-h-full" /> : null}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">

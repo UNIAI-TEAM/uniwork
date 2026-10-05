@@ -241,9 +241,9 @@ describe("MarkdownEditor source mode", () => {
     const before = source.value;
     vi.mocked(handle.undo!).mockImplementation(() => { handle.source?.setText("undo result"); });
     vi.mocked(handle.redo!).mockImplementation(() => { handle.source?.setText(before); });
-    // The ribbon's quick access and the source toolbar both label undo/redo;
-    // the source toolbar is the one wired to the snapshot stack here.
-    const toolbar = within(screen.getByTestId("md-toolbar"));
+    // F3: the ribbon's quick access drives the VISUAL pane; in source mode the
+    // frame's subbar row is the one wired to the host snapshot stack.
+    const toolbar = within(screen.getByTestId("md-subbar"));
     fireEvent.click(toolbar.getByRole("button", { name: "Undo" }));
     expect(source.value).toBe("undo result");
     fireEvent.click(toolbar.getByRole("button", { name: "Redo" }));
@@ -398,6 +398,13 @@ describe("MarkdownEditor mounts the shared Office frame (F1/F2/F8)", () => {
     // F1: the ribbon is the frame's first slot and the canvas the editor's pane.
     expect(frame!.querySelector('[data-office-ribbon="markdown"]')).not.toBeNull();
     expect(frame!.querySelector("[data-office-canvas]")).not.toBeNull();
+    // F3: the md row is the frame's subbar, between the ribbon and the canvas -
+    // it is NOT a second chrome strip inside the canvas.
+    const subbar = screen.getByTestId("md-subbar");
+    const canvas = frame!.querySelector("[data-office-canvas]")!;
+    expect(canvas.contains(subbar)).toBe(false);
+    expect(subbar.parentElement).toBe(frame);
+    expect(subbar.querySelector('[data-testid="md-more"]')).not.toBeNull();
     // F8: exactly one status bar, with the help "?" affordance last.
     expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
     const help = screen.getByTestId("md-shortcuts-help-trigger");
