@@ -152,9 +152,10 @@ export function OfficeShell({
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
   const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
   const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
-  // A clean document: Save stays in the tab order (aria-disabled, not disabled)
-  // but is inert and not primary, so it never contradicts "no changes".
-  const nothingToSave = (saveStatus ?? coordinatorState?.state) === "ready";
+  // A clean document (never edited, or just saved): Save stays in the tab order
+  // (aria-disabled, not disabled) but is inert and not primary, so it never
+  // contradicts the status. Any edit publishes "dirty" and re-enables it.
+  const nothingToSave = ["ready", "saved"].includes(saveStatus ?? coordinatorState?.state ?? "");
   const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
   const [internalPanelOpen, setInternalPanelOpen] = useState(panelOpen);
   const isPanelOpen = onPanelOpenChange ? panelOpen : internalPanelOpen;

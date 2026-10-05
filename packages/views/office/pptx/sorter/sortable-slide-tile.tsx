@@ -68,7 +68,7 @@ export function PptxSortableSlideTile({
         })}
         aria-current={selected ? "true" : undefined}
         className={cn(
-          "flex aspect-video w-full items-center justify-center overflow-hidden rounded-md border bg-background text-caption text-muted-foreground",
+          "relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md border bg-background text-caption text-muted-foreground",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           selected ? "border-primary ring-2 ring-primary" : "border-border",
         )}
@@ -79,6 +79,7 @@ export function PptxSortableSlideTile({
         ) : (
           <span data-pptx-sorter-placeholder>{index + 1}</span>
         )}
+        {slide.hidden ? <span aria-hidden className="absolute inset-0 bg-background/70" data-slide-hidden-veil /> : null}
       </button>
       <div className="flex min-w-0 items-center justify-between gap-1 px-0.5">
         <span className="line-clamp-2 min-w-0 break-words text-caption font-medium" data-pptx-sorter-tile-label>

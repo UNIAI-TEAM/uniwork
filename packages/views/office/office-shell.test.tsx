@@ -8,7 +8,7 @@ import { OfficeShell, type OfficeSaveCoordinatorLike } from "./office-shell";
 
 initI18n();
 
-function coordinator(state: "ready" | "saving" | "saved"): OfficeSaveCoordinatorLike {
+function coordinator(state: "ready" | "saving" | "saved" | "dirty"): OfficeSaveCoordinatorLike {
   return {
     save: vi.fn(async () => ({ accepted: true })),
     getState: () => ({
@@ -244,8 +244,20 @@ describe("OfficeShell", () => {
     expect(saveCoordinator.save).not.toHaveBeenCalled();
   });
 
-  it("offers a primary, active Save once there is something to save", () => {
+  it("keeps Save inert and not primary right after a save, until an edit makes the document dirty", () => {
     const saveCoordinator = coordinator("saved");
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
+    const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).not.toBeDisabled();
+    expect(save.className).not.toMatch(/\bbg-primary\b/);
+    fireEvent.click(save);
+    fireEvent.keyDown(container.querySelector("[data-office-shell]")!, { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
+  });
+
+  it("offers a primary, active Save once there is something to save", () => {
+    const saveCoordinator = coordinator("dirty");
     render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={saveCoordinator} />);
     const save = screen.getByRole("button", { name: "Lưu vào UniWork" });
     expect(save).not.toHaveAttribute("aria-disabled");

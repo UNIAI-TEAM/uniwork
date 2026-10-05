@@ -312,8 +312,8 @@ export function PptxSorterPanel({
       data-pptx-sorter-panel
       data-pptx-sorter-pending={pending ? "true" : undefined}
     >
-      <header className="flex min-w-0 items-center justify-between gap-2">
-        <h2 className="truncate text-title-sm font-medium">{t("office.pptx.sorter.title")}</h2>
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+        <h2 className="min-w-0 break-words text-title-sm font-medium">{t("office.pptx.sorter.title")}</h2>
         <span className="shrink-0 text-caption text-muted-foreground" data-pptx-sorter-selection>
           {current ? t("office.pptx.sorter.selected", { index: selectedIndex + 1 }) : t("office.pptx.sorter.no_selection")}
         </span>

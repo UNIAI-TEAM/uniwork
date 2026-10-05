@@ -80,6 +80,24 @@ beforeEach(async () => {
 });
 
 describe("PptxSorterPanel", () => {
+  it("veils a hidden slide's own tile with the page token so it dims in light and dark", () => {
+    renderPanel();
+    const shown = document.querySelector("[data-pptx-sorter-slide='0']")!;
+    const hidden = document.querySelector("[data-pptx-sorter-slide='1']")!;
+    expect(shown.querySelector("[data-slide-hidden-veil]")).toBeNull();
+    const veil = hidden.querySelector("[data-slide-hidden-veil]");
+    expect(veil).not.toBeNull();
+    expect(veil!.className).toContain("bg-background/");
+    expect(veil).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("lets the pane header wrap so the title is never truncated beside the selection caption", () => {
+    renderPanel();
+    const header = document.querySelector("[data-pptx-sorter-panel] > header")!;
+    expect(header.className).toContain("flex-wrap");
+    expect(header.querySelector("h2")!.className).not.toContain("truncate");
+  });
+
   it("renders the grid, the selection readout and the section list", () => {
     renderPanel();
     expect(screen.getByLabelText(copy("office.pptx.sorter.label"))).toBeInTheDocument();
