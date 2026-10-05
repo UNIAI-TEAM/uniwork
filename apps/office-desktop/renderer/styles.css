@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "@uniwork/ui/styles/tokens.css";
 @import "@uniwork/ui/styles/base.css";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
 
 /* Same dark-mode binding as the web host (ADR'd in apps/web/app/globals.css):
    the `.dark` class on <html>, not prefers-color-scheme, so the renderer can
@@ -59,3 +63,12 @@
 /* Native controls (scrollbars, form widgets) follow the same .dark class. */
 :root { color-scheme: light; }
 :root.dark { color-scheme: dark; }
+
+/* tokens.css reads these three vars; the web host sets them through
+   next/font. The desktop renderer must stay offline, so the families come
+   from the bundled Fontsource variable fonts imported above. */
+:root {
+  --font-inter: "Inter Variable";
+  --font-plus-jakarta: "Plus Jakarta Sans Variable";
+  --font-jetbrains-mono: "JetBrains Mono Variable";
+}
