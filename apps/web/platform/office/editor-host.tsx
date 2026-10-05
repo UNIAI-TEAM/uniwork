@@ -97,6 +97,12 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   const checkpointPending = useRef(0);
   const recoveryRef = useRef(activeSession);
   recoveryRef.current = activeSession;
+  // Bumped on every transition to `saved`. A recovery read that started before
+  // the bump describes a draft the Save already consumed, so its result is
+  // dropped however the coordinator state reads by the time it resolves (the
+  // 2s checkpoint timer can flip `saved` back to `dirty` in between, which is
+  // why a plain `state === "saved"` check missed the note/page-ops flows).
+  const saveEpoch = useRef(0);
   const effectiveCapability = useMemo<OfficeCapabilityEntry>(() => activeCapability ?? ({
     format: documentFormat(document),
     operation: "open",
@@ -118,7 +124,13 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       return;
     }
     setCoordinatorState(activeSession.coordinator.getState());
-    return activeSession.coordinator.subscribe(setCoordinatorState);
+    // Bump the save epoch synchronously on the publish that reports `saved`,
+    // not in a post-commit effect: a recovery read resolving in the same
+    // microtask batch as the save must still see the bumped epoch.
+    return activeSession.coordinator.subscribe((next) => {
+      if (next.state === "saved") saveEpoch.current += 1;
+      setCoordinatorState(next);
+    });
   }, [activeSession]);
 
   useEffect(() => {
@@ -128,12 +140,13 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     }
     let active = true;
     setRecovery(null);
+    const epochAtRead = saveEpoch.current;
     void activeSession.recoverDraft().then((result) => {
       if (!active) return;
       // A Save that landed while recovery was reading has already discarded the
       // durable draft; showing the offer now would resurrect a record the
       // coordinator deleted. The dialog follows the store, not this late read.
-      if (result.status !== "missing" && activeSession.coordinator.getState().state === "saved") return;
+      if (result.status !== "missing" && saveEpoch.current !== epochAtRead) return;
       setRecovery(result.status === "missing" ? null : result);
     });
     return () => { active = false; };

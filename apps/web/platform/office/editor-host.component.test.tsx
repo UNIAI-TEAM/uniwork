@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 
 import React from "react";
 import { act } from "react";
@@ -312,6 +312,28 @@ describe("OfficeEditorHost viewport bound", () => {
 });
 
 describe("OfficeEditorHost draft recovery", () => {
+  it("drops a recovery read that lands after Save even when a later checkpoint marks the doc dirty", async () => {
+    const { session, coordinator, setDirtyAfterSave } = makeSession();
+    let resolveRecovery!: (value: unknown) => void;
+    vi.mocked(session.recoverDraft).mockReturnValue(new Promise((resolve) => { resolveRecovery = resolve; }) as never);
+    const rendered = renderHost(session, { onRecoverSnapshot: async () => undefined });
+    await settle();
+    // The Save settles while the recovery read is still in flight; the 2s
+    // checkpoint timer then marks the doc dirty again (note/page-ops flows).
+    await act(async () => { await coordinator.save(); });
+    act(() => { setDirtyAfterSave(); });
+    await act(async () => {
+      resolveRecovery({
+        status: "recovered",
+        snapshot: { generation: 1, fingerprint: "fp", value: { text: "draft" } },
+        metadata: { draftId: "document", generation: 1, checksum: "sha256:1", byteLength: 3, updatedAt: 1, identity: identity as never },
+      });
+    });
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    rendered.root.unmount();
+  });
+
   it("closes a live Draft-found offer after a successful Save", async () => {
     const { session, coordinator } = makeSession();
     vi.mocked(session.recoverDraft).mockResolvedValue({
