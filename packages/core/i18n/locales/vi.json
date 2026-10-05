@@ -8427,6 +8427,48 @@
     },
     "pptx": {
       "toolbar_label": "Lệnh PowerPoint",
+      "show_menu": {
+        "from_start": "Từ đầu",
+        "from_current": "Từ trang hiện tại",
+        "presenter_view": "Chế độ diễn giả"
+      },
+      "panels": {
+        "new_slide": "Trang mới",
+        "sorter": "Sắp xếp trang",
+        "format": "Định dạng",
+        "text_format": "Tùy chọn chữ",
+        "shapes": "Hình dạng",
+        "shapes_hint": "Chèn hình, ảnh, WordArt và đường nối",
+        "link": "Liên kết",
+        "header_footer": "Đầu/chân trang",
+        "media": "Phương tiện",
+        "themes": "Chủ đề",
+        "transitions": "Hiệu ứng",
+        "comments": "Bình luận",
+        "change_picture": "Đổi ảnh",
+        "font_dialog": "Tùy chọn phông chữ",
+        "paragraph_dialog": "Tùy chọn đoạn văn"
+      },
+      "reasons": {
+        "open_shell": "Mở tệp khác từ thư viện tài liệu",
+        "edit_text_unbound": "Chỉnh sửa văn bản chưa được kết nối với trình soạn thảo này",
+        "transform_unbound": "Kéo một hình trên trang chiếu để di chuyển hoặc đổi kích thước",
+        "export_pdf_unbound": "Ứng dụng này chưa hỗ trợ in",
+        "edit_unbound": "Không thể chỉnh sửa bản trình bày này tại đây",
+        "layouts_pending": "Chưa hỗ trợ trang chiếu cái và bố cục",
+        "embedded_fonts_pending": "Chưa hỗ trợ phông chữ nhúng",
+        "render_fidelity_pending": "Độ trung thực được đo so với trình hiển thị tham chiếu"
+      },
+      "colors": {
+        "black": "Đen",
+        "white": "Trắng",
+        "red": "Đỏ",
+        "orange": "Cam",
+        "green": "Xanh lá",
+        "blue": "Xanh dương",
+        "purple": "Tím",
+        "more": "Màu khác…"
+      },
       "slide_rail_label": "Trang chiếu",
       "slide_label": "Trang chiếu {{index}}{{label}}",
       "slide_number": "Trang chiếu {{index}}",
@@ -8464,7 +8506,6 @@
       "zoom_out": "Thu nhỏ",
       "zoom_fit": "Vừa chiều rộng",
       "zoom_level": "Thu phóng {{percent}}%",
-      "tab_empty": "Thẻ này chưa có lệnh nào.",
       "overflow_label": "Thêm lệnh",
       "history_empty": "Chưa có lịch sử chỉnh sửa.",
       "find_label": "Tìm trong bản trình bày",
@@ -8599,6 +8640,27 @@
         "view": "Xem"
       },
       "groups": {
+        "slides": "Trang chiếu",
+        "font": "Phông chữ",
+        "paragraph": "Đoạn văn",
+        "drawing": "Vẽ",
+        "tables": "Bảng",
+        "images": "Minh họa",
+        "charts": "Biểu đồ",
+        "links": "Liên kết",
+        "text": "Văn bản",
+        "media": "Phương tiện",
+        "themes": "Chủ đề",
+        "customize": "Tùy chỉnh",
+        "transitions": "Chuyển tiếp",
+        "comments": "Bình luận",
+        "notes": "Ghi chú",
+        "views": "Chế độ xem",
+        "arrange": "Sắp xếp",
+        "shape_styles": "Kiểu hình",
+        "picture": "Ảnh",
+        "table": "Bảng",
+        "chart": "Biểu đồ",
         "file": "Tệp",
         "history": "Lịch sử",
         "editing": "Chỉnh sửa",
@@ -8621,13 +8683,13 @@
         "edit_shape_image": "Hình / ảnh",
         "save": "Lưu",
         "export_pdf": "Xuất PDF",
-        "speaker_notes": "Ghi chú diễn giả",
+        "speaker_notes": "Ghi chú",
         "masters_layouts": "Bố cục",
         "animations": "Hoạt ảnh",
         "charts": "Biểu đồ",
         "tables": "Bảng",
         "embedded_fonts": "Phông nhúng",
-        "render_fidelity": "Độ trung thực hiển thị",
+        "render_fidelity": "Độ trung thực",
         "find": "Tìm",
         "undo": "Hoàn tác",
         "redo": "Làm lại",
@@ -8635,6 +8697,7 @@
         "fullscreen": "Toàn màn hình"
       },
       "context": {
+        "chart": "Thiết kế biểu đồ",
         "picture": "Định dạng ảnh",
         "shape": "Định dạng hình",
         "table": "Thiết kế bảng"
@@ -8831,6 +8894,7 @@
         "apply": "Áp dụng"
       },
       "sorter": {
+        "new_blank": "Trang chiếu trống",
         "title": "Sắp xếp trang chiếu",
         "label": "Bảng sắp xếp trang chiếu",
         "grid_label": "Trang chiếu",
@@ -8958,6 +9022,7 @@
           }
         },
         "text_box": {
+          "placeholder": "Nhập văn bản",
           "title": "Hộp văn bản",
           "insert": "Hộp văn bản",
           "hint": "Thêm một hộp văn bản trống để bạn nhập nội dung."

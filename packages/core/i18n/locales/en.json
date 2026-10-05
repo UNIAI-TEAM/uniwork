@@ -8434,6 +8434,48 @@
     },
     "pptx": {
       "toolbar_label": "PowerPoint commands",
+      "show_menu": {
+        "from_start": "From Beginning",
+        "from_current": "From Current Slide",
+        "presenter_view": "Presenter View"
+      },
+      "panels": {
+        "new_slide": "New slide",
+        "sorter": "Slide sorter",
+        "format": "Format pane",
+        "text_format": "Text options",
+        "shapes": "Shapes",
+        "shapes_hint": "Insert shapes, pictures, WordArt and connectors",
+        "link": "Link",
+        "header_footer": "Header/Footer",
+        "media": "Media",
+        "themes": "Themes",
+        "transitions": "Effects",
+        "comments": "Comments",
+        "change_picture": "Change picture",
+        "font_dialog": "Font options",
+        "paragraph_dialog": "Paragraph options"
+      },
+      "reasons": {
+        "open_shell": "Open another file from the document library",
+        "edit_text_unbound": "Text editing is not connected to this editor",
+        "transform_unbound": "Drag a shape on the slide to move or resize it",
+        "export_pdf_unbound": "Printing is not available in this app",
+        "edit_unbound": "This presentation cannot be edited here",
+        "layouts_pending": "Masters and layouts are not supported yet",
+        "embedded_fonts_pending": "Embedded fonts are not supported yet",
+        "render_fidelity_pending": "Render fidelity is measured against the reference renderer"
+      },
+      "colors": {
+        "black": "Black",
+        "white": "White",
+        "red": "Red",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple",
+        "more": "More colors…"
+      },
       "slide_rail_label": "Slides",
       "slide_label": "Slide {{index}}{{label}}",
       "slide_number": "Slide {{index}}",
@@ -8471,7 +8513,6 @@
       "zoom_out": "Zoom out",
       "zoom_fit": "Fit to width",
       "zoom_level": "Zoom {{percent}}%",
-      "tab_empty": "This tab has no commands yet.",
       "overflow_label": "More commands",
       "history_empty": "No edit history yet.",
       "find_label": "Find in presentation",
@@ -8606,6 +8647,27 @@
         "view": "View"
       },
       "groups": {
+        "slides": "Slides",
+        "font": "Font",
+        "paragraph": "Paragraph",
+        "drawing": "Drawing",
+        "tables": "Tables",
+        "images": "Illustrations",
+        "charts": "Charts",
+        "links": "Links",
+        "text": "Text",
+        "media": "Media",
+        "themes": "Themes",
+        "customize": "Customize",
+        "transitions": "Transitions",
+        "comments": "Comments",
+        "notes": "Notes",
+        "views": "Views",
+        "arrange": "Arrange",
+        "shape_styles": "Shape Styles",
+        "picture": "Picture",
+        "table": "Table",
+        "chart": "Chart",
         "file": "File",
         "history": "History",
         "editing": "Editing",
@@ -8638,10 +8700,11 @@
         "find": "Find",
         "undo": "Undo",
         "redo": "Redo",
-        "presenter": "Presenter",
+        "presenter": "Present",
         "fullscreen": "Fullscreen"
       },
       "context": {
+        "chart": "Chart Design",
         "picture": "Picture Format",
         "shape": "Shape Format",
         "table": "Table Design"
@@ -8838,6 +8901,7 @@
         "apply": "Apply"
       },
       "sorter": {
+        "new_blank": "Blank slide",
         "title": "Slide sorter",
         "label": "Slide sorter panel",
         "grid_label": "Slides",
@@ -8965,6 +9029,7 @@
           }
         },
         "text_box": {
+          "placeholder": "Type your text",
           "title": "Text box",
           "insert": "Text box",
           "hint": "Adds an empty text box you can type into."
