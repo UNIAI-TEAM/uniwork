@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
@@ -43,6 +43,10 @@ export interface PptxEditorHandle extends EditorHandle<PptxDeckSnapshot> {
   deck(): PptxDeckModel | null;
   /** Bumps on every applied edit / undo / redo / restore, so the canvas and the
    *  rail thumbnails rebuild exactly when the model moved. */
+  /** Transition + auto-advance of a LIVE slide; null once released (X1, R2-1). */
+  slideTransition(slideIndex: number): PptxSlideTransitionRead | null;
+  /** Animation timeline of a LIVE slide, play order; null once released (X1, R2-2). */
+  slideAnimations(slideIndex: number): PptxSlideAnimationRead[] | null;
   revision(): number;
   /** Journal-backed history on the runtime (narrows the optional EditorHandle
    *  methods to required, so the ribbon can rely on them existing). */
@@ -442,6 +446,8 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       });
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
+    slideTransition: (slideIndex) => (modelRef && !disposed ? options.runtime.slideTransition?.(modelRef, slideIndex) ?? null : null),
+    slideAnimations: (slideIndex) => (modelRef && !disposed ? options.runtime.slideAnimations?.(modelRef, slideIndex) ?? null : null),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),
     deck: () => (modelRef && !disposed ? options.runtime.deck(modelRef) : null),
     revision: () => viewRevision,

@@ -193,6 +193,32 @@ describe("web PPTX format adapter", () => {
     expect(engine.released).toEqual([]);
   });
 
+  it("reads the live slide's transition and animations through the handle, null before open and after dispose (X1)", async () => {
+    const engine = runtime();
+    const transition = { kind: "fade" as const, advanceMs: 2000 };
+    const animations = [{ spid: 2, elementId: "e1", effect: "fade" as const, trigger: "onClick" as const, durationMs: 500, delayMs: 0 }];
+    engine.slideTransition = vi.fn(() => transition);
+    engine.slideAnimations = vi.fn(() => animations);
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    expect(adapter.editor.slideTransition(0)).toBeNull();
+    expect(adapter.editor.slideAnimations(0)).toBeNull();
+    await adapter.open.open();
+    expect(adapter.editor.slideTransition(1)).toEqual(transition);
+    expect(engine.slideTransition).toHaveBeenCalledWith("model-1", 1);
+    expect(adapter.editor.slideAnimations(1)).toEqual(animations);
+    await adapter.session.dispose();
+    expect(adapter.editor.slideTransition(1)).toBeNull();
+    expect(adapter.editor.slideAnimations(1)).toBeNull();
+  });
+
+  it("reads null when the runtime binds no transition/animation read (X1)", async () => {
+    const adapter = createPptxFormatAdapter(options(runtime(), documents()));
+    await adapter.open.open();
+    expect(adapter.editor.slideTransition(0)).toBeNull();
+    expect(adapter.editor.slideAnimations(0)).toBeNull();
+    await adapter.session.dispose();
+  });
+
   it("refuses an edit before open and after dispose", async () => {
     const engine = runtime();
     const adapter = createPptxFormatAdapter(options(engine, documents()));

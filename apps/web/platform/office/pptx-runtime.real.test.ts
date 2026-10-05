@@ -232,3 +232,83 @@ describe("web PPTX runtime on the real engine - save-point rebase (W14)", () => 
     await fresh.release(second.document_model_ref);
   }, 60_000);
 });
+
+describe("web PPTX runtime on the real engine - panel read-back (X1)", () => {
+  const slidesFixture = (name: string) => new Uint8Array(readFileSync(resolve(process.cwd(), "../../docs/office/g0/fixtures/files/slides/" + name)));
+  type Runtime = ReturnType<typeof createWebPptxSessionRuntime>;
+  const openFixture = async (bytes: Uint8Array, id: string): Promise<{ runtime: Runtime; ref: string }> => {
+    const runtime = createWebPptxSessionRuntime({ documentId: id });
+    const result = await runtime.open({ bytes, documentId: id });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error(id + " did not open: " + String(result.message));
+    return { runtime, ref: result.document_model_ref };
+  };
+  const saveBytes = async (runtime: Runtime, ref: string): Promise<Uint8Array> => {
+    const value = runtime.snapshot(ref);
+    return (await runtime.serialize(ref, { snapshot: { generation: value.revision, fingerprint: "fp", value } })).bytes;
+  };
+
+  it("reads the existing speaker notes and follows set_notes through undo, redo, save and reopen (R2-3)", async () => {
+    const { runtime, ref } = await openFixture(slidesFixture("pptx-notes.pptx"), "real-notes");
+    // The fixture's notes shape has no type="body" placeholder; the vendored read alone answered ''.
+    expect(runtime.slideNotes!(ref, 0)).toBe("Ghi chú trình bày cho buổi họp tuần.");
+    await runtime.edit(ref, [{ op: "set_notes", slideIndex: 0, text: "Ghi chú mới\ndòng hai" } as PptxEdit]);
+    expect(runtime.slideNotes!(ref, 0)).toBe("Ghi chú mới\ndòng hai");
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.slideNotes!(ref, 0)).toBe("Ghi chú trình bày cho buổi họp tuần.");
+    expect(await runtime.redo(ref)).toBe(true);
+    const saved = await saveBytes(runtime, ref);
+    const reopened = await openFixture(saved, "real-notes-2");
+    expect(reopened.runtime.slideNotes!(reopened.ref, 0)).toBe("Ghi chú mới\ndòng hai");
+    // Clearing the notes reads '' - the older placeholder-less text never comes back.
+    await reopened.runtime.edit(reopened.ref, [{ op: "set_notes", slideIndex: 0, text: "" } as PptxEdit]);
+    expect(reopened.runtime.slideNotes!(reopened.ref, 0)).toBe("");
+    await runtime.release(ref);
+    await reopened.runtime.release(reopened.ref);
+  }, 60_000);
+
+  it("reads the slide transition and advance time through edit, undo, redo, save and reopen (R2-1)", async () => {
+    const { runtime, ref } = await openFixture(fixture(), "real-transition");
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "none", advanceMs: null });
+    await runtime.edit(ref, [{ op: "set_transition", slideIndex: 0, kind: "fade" } as PptxEdit]);
+    await runtime.edit(ref, [{ op: "set_advance_time", slideIndex: 0, ms: 3000 } as PptxEdit]);
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "fade", advanceMs: 3000 });
+    expect(runtime.slideTransition!(ref, 1)).toEqual({ kind: "none", advanceMs: null });
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "fade", advanceMs: null });
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "none", advanceMs: null });
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "fade", advanceMs: 3000 });
+    const reopened = await openFixture(await saveBytes(runtime, ref), "real-transition-2");
+    expect(reopened.runtime.slideTransition!(reopened.ref, 0)).toEqual({ kind: "fade", advanceMs: 3000 });
+    expect(() => runtime.slideTransition!(ref, 99)).toThrow(/slide index 99/);
+    await runtime.release(ref);
+    await reopened.runtime.release(reopened.ref);
+  }, 60_000);
+
+  it("lists the fixture's existing animation and an added one through undo, redo, save and reopen (R2-2)", async () => {
+    const { runtime, ref } = await openFixture(slidesFixture("pptx-animations.pptx"), "real-anim");
+    const target = elementsOf(runtime.deck(ref)).find((element) => /<p:cNvPr\s[^>]*\bid="2"/.test(String((element as { anchor?: { originalXml?: string } }).anchor?.originalXml)));
+    if (!target) throw new Error("fixture has no shape with cNvPr id 2");
+    const existing = { spid: 2, elementId: target.id, effect: "fade", trigger: "onClick", durationMs: 500, delayMs: 0 };
+    expect(runtime.slideAnimations!(ref, 0)).toEqual([existing]);
+    await runtime.edit(ref, [{ op: "add_animation", slideIndex: 0, elementId: target.id, effect: "zoom", trigger: "afterPrev", durationMs: 700, delayMs: 200 } as PptxEdit]);
+    const added = runtime.slideAnimations!(ref, 0);
+    expect(added).toHaveLength(2);
+    expect(added[1]).toMatchObject({ spid: 2, effect: "zoom", trigger: "afterPrev", durationMs: 700, delayMs: 200 });
+    // Undo reopens the base: the ids are re-minted, the read follows the live deck.
+    expect(await runtime.undo(ref)).toBe(true);
+    const undone = runtime.slideAnimations!(ref, 0);
+    expect(undone).toHaveLength(1);
+    expect(elementsOf(runtime.deck(ref)).some((element) => element.id === undone[0]?.elementId)).toBe(true);
+    expect(await runtime.redo(ref)).toBe(true);
+    expect(runtime.slideAnimations!(ref, 0)).toHaveLength(2);
+    const reopened = await openFixture(await saveBytes(runtime, ref), "real-anim-2");
+    const read = reopened.runtime.slideAnimations!(reopened.ref, 0);
+    expect(read.map((entry) => entry.effect)).toEqual(["fade", "zoom"]);
+    expect(read.every((entry) => elementsOf(reopened.runtime.deck(reopened.ref)).some((element) => element.id === entry.elementId))).toBe(true);
+    await runtime.release(ref);
+    await reopened.runtime.release(reopened.ref);
+  }, 60_000);
+});

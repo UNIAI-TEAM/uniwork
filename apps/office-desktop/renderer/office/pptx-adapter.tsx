@@ -8,7 +8,7 @@
 "use client";
 
 import type { EditorHandle, OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import { isPptxSessionDiverged, type PptxEdit } from "@uniwork/office-engine/pptx";
+import { isPptxSessionDiverged, type PptxEdit, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
 import { fingerprintPptxSnapshot, type PptxDeckSnapshot, type PptxSessionRuntime, type PptxSlideSummary } from "./pptx-runtime";
 
@@ -34,6 +34,10 @@ export interface DesktopPptxEditorHandle extends EditorHandle<PptxDeckSnapshot> 
   /** Speaker-notes text of one slide of the LIVE session ('' when the slide has
    *  none); null once the session is released/disposed (UNI-927 NOTES-WIRE). */
   slideNotes(slideIndex: number): string | null;
+  /** Transition + auto-advance of a LIVE slide; null once released (X1, R2-1). */
+  slideTransition(slideIndex: number): PptxSlideTransitionRead | null;
+  /** Animation timeline of a LIVE slide, play order; null once released (X1, R2-2). */
+  slideAnimations(slideIndex: number): PptxSlideAnimationRead[] | null;
   /** Layout catalog of the LIVE package ([] once released or when the engine binds no read). */
   slideLayouts(): { name: string; path: string }[];
   /** Replay a recovered draft journal onto the freshly opened base. */
@@ -178,6 +182,8 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
     // this port; a released session answers null (the honest empty-notes line).
     slideNotes: (slideIndex) => (modelRef && !disposed ? options.runtime.slideNotes?.(modelRef, slideIndex) ?? null : null),
     slideLayouts: () => (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []),
+    slideTransition: (slideIndex) => (modelRef && !disposed ? options.runtime.slideTransition?.(modelRef, slideIndex) ?? null : null),
+    slideAnimations: (slideIndex) => (modelRef && !disposed ? options.runtime.slideAnimations?.(modelRef, slideIndex) ?? null : null),
     revision: () => viewRevision,
   };
 

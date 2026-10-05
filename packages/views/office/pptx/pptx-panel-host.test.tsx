@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import { box } from "./canvas/pptx-render-fixtures";
-import { buildPptxPanel, pptxContextualSelection, pptxPanelForContextualTab, pptxPanelForTab, pptxPanelSelection, pptxPanelPlacement, type PptxPanelEdit } from "./pptx-panel-host";
+import { buildPptxPanel, readPptxPanelMotion, pptxContextualSelection, pptxPanelForContextualTab, pptxPanelForTab, pptxPanelSelection, pptxPanelPlacement, type PptxPanelEdit } from "./pptx-panel-host";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -171,5 +171,51 @@ describe("selection wiring", () => {
     expect(screen.getByText("hi")).toBeInTheDocument();
     expect(screen.getByTestId("pptx-comments-readonly")).toHaveTextContent("This presentation cannot be edited here");
     expect(screen.queryByRole("textbox", { name: "Write a comment" })).toBeNull();
+  });
+});
+
+describe("panel read-back (X1)", () => {
+  it("shows the slide's transition and advance time as read (R2-1)", () => {
+    const view = render(buildPptxPanel({ panelKind: "transitions", onApplyEdit: async () => undefined, slideIndex: 0, slides: [{ id: "s1" }], data: { transition: { kind: "fade", advanceMs: 3000 } } }));
+    expect(screen.getByTestId("pptx-transitions-current")).toHaveTextContent("Current transition: Fade");
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("3");
+    // An undo reads back the previous state: the panel follows it.
+    view.rerender(buildPptxPanel({ panelKind: "transitions", onApplyEdit: async () => undefined, slideIndex: 0, slides: [{ id: "s1" }], data: { transition: { kind: "none", advanceMs: null } } }));
+    expect(screen.getByTestId("pptx-transitions-current")).toHaveTextContent("Current transition: None");
+    expect(screen.queryByRole("textbox", { name: "Seconds" })).toBeNull();
+  });
+
+  it("applies a transition to every slide in one gesture when 'Apply to all' is on", async () => {
+    const onApplyEdit = vi.fn(async (_edit: PptxPanelEdit) => undefined);
+    const onApplyEdits = vi.fn(async (_edits: readonly PptxPanelEdit[]) => undefined);
+    render(buildPptxPanel({ panelKind: "transitions", onApplyEdit, onApplyEdits, slideIndex: 1, slides: [{ id: "s1" }, { id: "s2" }, { id: "s3" }] }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Apply to all slides" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fade" }));
+    await waitFor(() => expect(onApplyEdits).toHaveBeenCalledWith([0, 1, 2].map((slideIndex) => ({ op: "set_transition", slideIndex, kind: "fade" }))));
+    expect(onApplyEdit).not.toHaveBeenCalled();
+  });
+
+  it("lists the slide's animations as read (R2-2)", () => {
+    render(buildPptxPanel({
+      panelKind: "animations",
+      onApplyEdit: async () => undefined,
+      slideIndex: 0,
+      slides: [{ id: "s1" }],
+      data: { animations: [{ effect: "fade", trigger: "onClick", durationMs: 500, delayMs: 0 }, { effect: "zoom", trigger: "afterPrev", durationMs: 700, delayMs: 200 }] },
+    }));
+    expect(screen.queryByTestId("pptx-animation-empty")).toBeNull();
+    const list = screen.getByRole("list", { name: "Animation order" });
+    expect(list.querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Fade, starts On click" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom, starts After previous" })).toBeInTheDocument();
+  });
+
+  it("reads the handle's live-slide ports, guarding absent and throwing ones", () => {
+    const transition = { kind: "fade" as const, advanceMs: null };
+    const handle = { slideTransition: vi.fn(() => transition), slideAnimations: vi.fn(() => { throw new Error("no_slide"); }) };
+    expect(readPptxPanelMotion(handle, 2)).toEqual({ transition, animations: null });
+    expect(handle.slideTransition).toHaveBeenCalledWith(2);
+    expect(readPptxPanelMotion({ slideAnimations: () => null }, 0)).toEqual({ animations: null });
+    expect(readPptxPanelMotion(null, 0)).toEqual({});
   });
 });

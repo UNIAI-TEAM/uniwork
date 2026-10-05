@@ -23,6 +23,8 @@ import {
   type PptxAdapter,
   type PptxEdit,
   type PptxReplayDeck,
+  type PptxSlideAnimationRead,
+  type PptxSlideTransitionRead,
 } from "@uniwork/office-engine/pptx";
 import {
   buildRenderSlide,
@@ -123,6 +125,10 @@ export interface PptxSessionRuntime {
    * slide carries none). Optional on the seam so a hand-built test double that
    * predates this read stays assignable; both shipped runtimes implement it. */
   slideNotes?(documentModelRef: string, slideIndex: number): string;
+  /** Transition + auto-advance of a LIVE slide (X1). Optional like slideNotes. */
+  slideTransition?(documentModelRef: string, slideIndex: number): PptxSlideTransitionRead;
+  /** Animation timeline of a LIVE slide, in play order (X1). Optional like slideNotes. */
+  slideAnimations?(documentModelRef: string, slideIndex: number): PptxSlideAnimationRead[];
   /** Slide layouts of the LIVE package ([] when the engine binds no layout read). Optional like slideNotes. */
   slideLayouts?(documentModelRef: string): { name: string; path: string }[];
   slides(documentModelRef: string): PptxSlideSummary[];
@@ -597,6 +603,14 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       // reflected exactly like deck()/slides(). A released session refuses
       // through currentEngineRef (pptx_runtime_not_open).
       return engineAdapter().slideNotes(currentEngineRef(documentModelRef), slideIndex);
+    },
+
+    slideTransition(documentModelRef, slideIndex) {
+      return engineAdapter().slideTransition(currentEngineRef(documentModelRef), slideIndex);
+    },
+
+    slideAnimations(documentModelRef, slideIndex) {
+      return engineAdapter().slideAnimations(currentEngineRef(documentModelRef), slideIndex);
     },
 
     slideLayouts(documentModelRef) {

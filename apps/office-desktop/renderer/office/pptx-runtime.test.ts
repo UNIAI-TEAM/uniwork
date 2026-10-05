@@ -75,6 +75,18 @@ describe("desktop PPTX session runtime", () => {
     expect(() => runtime.slideLayouts!(ref)).toThrow("pptx_runtime_not_open");
   });
 
+  // X1: the panel reads go to the live engine session (real round trips:
+  // apps/web/platform/office/pptx-runtime.real.test.ts on the mirrored runtime).
+  it("reads a live slide's transition and animations, refusing a missing slide and after release", async () => {
+    const { runtime, ref } = await opened();
+    expect(runtime.slideTransition!(ref, 0)).toEqual({ kind: "none", advanceMs: null });
+    expect(runtime.slideAnimations!(ref, 0)).toEqual([]);
+    expect(() => runtime.slideTransition!(ref, 42)).toThrow(/slide index 42/);
+    await runtime.release(ref);
+    expect(() => runtime.slideTransition!(ref, 0)).toThrow("pptx_runtime_not_open");
+    expect(() => runtime.slideAnimations!(ref, 0)).toThrow("pptx_runtime_not_open");
+  });
+
   // UNI-927 W11a (W10 review F1): a multi-entry edit() is all-or-nothing and
   // one history step.
   it("rolls a batch refused mid-array back so save, undo and redo still agree", async () => {

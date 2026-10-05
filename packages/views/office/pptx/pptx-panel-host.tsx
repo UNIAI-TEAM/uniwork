@@ -18,7 +18,7 @@
  * the transport or the save coordinator directly.
  */
 import type { ReactNode } from "react";
-import type { FormatEdit, HeaderFooterEdit, MediaEdit, NotesCommentEdit, PptxEdit } from "@uniwork/office-engine/pptx";
+import type { FormatEdit, HeaderFooterEdit, MediaEdit, NotesCommentEdit, PptxEdit, PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import type { PptxNodeBox } from "./canvas/render-tree";
 import type { PptxSlideView } from "./slide-rail";
 import type { PptxAnimationEntry } from "./animations";
@@ -76,6 +76,10 @@ export type PptxPanelEdit = PptxEdit | FormatEdit | NotesCommentEdit | HeaderFoo
 export interface PptxPanelData {
   notes?: string | null;
   notesLoading?: boolean;
+  /** The current slide's transition + advance time as the engine reads it (X1). */
+  transition?: PptxSlideTransitionRead | null;
+  /** The current slide's animation timeline, play order (X1). */
+  animations?: readonly PptxAnimationEntry[] | null;
   comments?: readonly PptxComment[];
   commentsLoading?: boolean;
   defaultAuthor?: string;
@@ -85,6 +89,32 @@ export interface PptxPanelData {
   /** Top-level elements of the current slide for the insert panel pickers. */
   insertElements?: readonly PptxInsertElementRef[];
   readonly?: boolean;
+}
+
+/** The live-slide read ports an editor handle may carry (both shipped hosts do). */
+interface PptxMotionReadPorts {
+  slideTransition?: (slideIndex: number) => PptxSlideTransitionRead | null;
+  slideAnimations?: (slideIndex: number) => readonly PptxAnimationEntry[] | null;
+}
+
+/**
+ * X1 (R2-1, R2-2): the transitions/animations panel data read off the editor
+ * handle for one slide. A port the handle lacks stays absent (the panel keeps
+ * its unread state); a read that throws (released session, no such slide)
+ * reads as null, never as a fabricated value.
+ */
+export function readPptxPanelMotion(handle: unknown, slideIndex: number): Pick<PptxPanelData, "transition" | "animations"> {
+  const ports = (handle ?? {}) as PptxMotionReadPorts;
+  const read = <T,>(port: ((index: number) => T | null) | undefined): T | null | undefined => {
+    if (typeof port !== "function") return undefined;
+    try { return port.call(handle, slideIndex) ?? null; } catch { return null; }
+  };
+  const transition = read(ports.slideTransition);
+  const animations = read(ports.slideAnimations);
+  return {
+    ...(transition !== undefined ? { transition } : {}),
+    ...(animations !== undefined ? { animations } : {}),
+  };
 }
 
 /**
@@ -233,7 +263,7 @@ export function PptxPanelHost({
       return (
         <PptxAnimationsPanel
           slideIndex={slideIndex}
-          entries={[]}
+          entries={data.animations ?? []}
           {...(selection ? { targetElementId: selection.elementId } : {})}
           {...(onApplyEdit
             ? {
@@ -250,9 +280,15 @@ export function PptxPanelHost({
       return (
         <PptxTransitionsPanel
           slideIndex={slideIndex}
+          {...(data.transition ? { currentKind: data.transition.kind, advanceMs: data.transition.advanceMs } : {})}
           {...(onApplyEdit
             ? {
-                onApplyTransition: (kind, allSlides) => void onApplyEdit({ op: "set_transition", slideIndex: slideIndex ?? 0, kind }),
+                // "Apply to all" is one gesture over every slide (one history entry when the bulk port is bound).
+                onApplyTransition: (kind, allSlides) => {
+                  const targets = allSlides && slideCount > 0 ? Array.from({ length: slideCount }, (_, index) => index) : [slideIndex ?? 0];
+                  const edits = targets.map((index): PptxPanelEdit => ({ op: "set_transition", slideIndex: index, kind }));
+                  void (onApplyEdits && edits.length > 1 ? onApplyEdits(edits) : Promise.all(edits.map((edit) => onApplyEdit(edit))));
+                },
                 onApplyAdvance: (ms) => void onApplyEdit({ op: "set_advance_time", slideIndex: slideIndex ?? 0, ms }),
               }
             : {})}

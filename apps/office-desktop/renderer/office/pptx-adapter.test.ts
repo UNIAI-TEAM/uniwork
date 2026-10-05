@@ -66,6 +66,25 @@ describe("desktop PPTX adapter handle", () => {
     expect(adapter.editor.slideLayouts()).toEqual([]);
   });
 
+  it("reads the live slide's transition and animations, null before open, after dispose and without a runtime read (X1)", async () => {
+    const backing = runtime();
+    const transition = { kind: "push" as const, advanceMs: null };
+    const animations = [{ spid: 4, elementId: null, effect: "zoom" as const, trigger: "afterPrev" as const, durationMs: 700, delayMs: 200 }];
+    const adapter = createDesktopPptxAdapter({ identity, runtime: backing, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability });
+    expect(adapter.editor.slideTransition(0)).toBeNull();
+    await adapter.open();
+    expect(adapter.editor.slideTransition(0)).toBeNull();
+    expect(adapter.editor.slideAnimations(0)).toBeNull();
+    backing.slideTransition = vi.fn(() => transition);
+    backing.slideAnimations = vi.fn(() => animations);
+    expect(adapter.editor.slideTransition(2)).toEqual(transition);
+    expect(backing.slideTransition).toHaveBeenCalledWith("m1", 2);
+    expect(adapter.editor.slideAnimations(2)).toEqual(animations);
+    await adapter.editor.dispose();
+    expect(adapter.editor.slideTransition(2)).toBeNull();
+    expect(adapter.editor.slideAnimations(2)).toBeNull();
+  });
+
   // UNI-927 W12b: a diverged session must not look like a no-op undo/redo.
   it("marks the deck dirty on a diverged undo/redo and swallows a plain refusal", async () => {
     const engine = runtime();
