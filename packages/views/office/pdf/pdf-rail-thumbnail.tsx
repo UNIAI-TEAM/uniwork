@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import type { PdfCanvasPage, PdfPageRenderService, PdfRenderResult } from "./canvas";
 
-/** Rendered width of a rail thumbnail in CSS px (the rail is w-36 with padding). */
-const RAIL_THUMBNAIL_WIDTH = 112;
+/** Rendered width of a rail thumbnail in CSS px: the content width of the w-36 rail (144 - p-2 16 - button p-1 8 - border 2). */
+const RAIL_THUMBNAIL_WIDTH = 118;
 
 export interface PdfRailThumbnailProps {
   page: PdfCanvasPage;

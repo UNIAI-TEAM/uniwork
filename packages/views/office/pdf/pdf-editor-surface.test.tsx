@@ -81,7 +81,7 @@ describe("PdfEditorSurface", () => {
     await mount(handle);
     const rail = screen.getByTestId("pdf-thumbnails-rail");
     await waitFor(() => expect(within(rail).getByTestId("pdf-rail-thumbnail-2").querySelector("img")).not.toBeNull());
-    expect(renderer.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 2, scale: 112 / 200 }));
+    expect(renderer.renderPage).toHaveBeenCalledWith(expect.objectContaining({ pageNumber: 2, scale: 118 / 200 }));
     expect(within(rail).queryByTestId("pdf-thumbnail-placeholder-1")).toBeNull();
   });
 
