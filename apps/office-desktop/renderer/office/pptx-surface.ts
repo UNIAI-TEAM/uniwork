@@ -1,9 +1,11 @@
 import { createDesktopPptxAdapter, type DesktopPptxAdapter, type DesktopPptxEditorHandle } from "./pptx-adapter";
 import { createWebPptxSessionRuntime, type PptxSessionRuntime } from "./pptx-runtime";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
+import { desktopEngineBuild } from "../../shared/document-formats";
 
-/** The genoffice commit the vendored pptx artifact is pinned to (UNI-684). */
-export const PPTX_DESKTOP_ENGINE_BUILD = "09485f884dc845cf3bf27fb7edfe489f9d457aad";
+/** The genoffice commit the vendored pptx artifact is pinned to (UNI-684); the
+ * shared desktop format table is its single source. */
+export const PPTX_DESKTOP_ENGINE_BUILD = desktopEngineBuild("pptx");
 
 export type DesktopPptxSurface = DesktopPptxEditorHandle;
 

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import i18n from "i18next";
 import { expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
     call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as RendererBridge["call"],
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} kind="cloud" signedIn onBack={() => undefined} />);
   return { calls, session };
 }
@@ -98,7 +98,7 @@ it("shows the typed locked notice when recovery is refused by a locked store", a
 
 it("shows no recovery prompt when the store holds no draft for this document", async () => {
   mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
-  await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("office.ribbon.more") })).toBeInTheDocument());
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
 });
 
@@ -173,7 +173,7 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   const session = createPptxDocumentSession(
     bridge,
     identity,
-    { dataBase64: "UEsDBA==", checksum },
+    { format: "pptx", dataBase64: "UEsDBA==", checksum },
     (onDirty) => {
       created = createPptxTestSurface(onDirty);
       return {
@@ -204,13 +204,56 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   await waitFor(() => expect((pptxProbe.views.at(-1)?.deck as { revision: number } | undefined)?.revision).toBe(1));
 });
 
-it("renders the header actions at the compact size the web Save cluster uses", async () => {
-  mount(async () => ({}));
-  const back = await screen.findByRole("button", { name: i18n.t("officeDesktop.library.back") });
-  const save = document.querySelector("[data-office-save]");
-  expect(save).not.toBeNull();
-  for (const token of ["h-7", "text-label"]) {
-    expect(save?.className).toContain(token);
-    expect(back.className).toContain(token);
-  }
+it("exposes the local-mode AI entry as a labelled group and keeps it locked", async () => {
+  const bridge = {
+    call: (async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {}) as RendererBridge["call"],
+    onSessionChanged: () => () => undefined,
+  } as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" kind="local" signedIn={false} onSignIn={() => undefined} onBack={() => undefined} />);
+
+  // The AI entry is reachable as a labelled group inside the document menu, not
+  // a bare <div> child of role=menu.
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("office.ribbon.more") }));
+  const group = await screen.findByRole("group", { name: i18n.t("officeDesktop.ai.entry") });
+  const entry = within(group).getByRole("button", { name: i18n.t("officeDesktop.ai.entry") });
+  expect(entry).toHaveAttribute("data-ai-entry", "locked");
+
+  // Behaviour is unchanged: opening it stays locked and only offers sign-in.
+  fireEvent.click(entry);
+  const prompt = await screen.findByRole("dialog");
+  expect(within(prompt).getByText(i18n.t("officeDesktop.ai.title"))).toBeInTheDocument();
+  expect(within(prompt).getByRole("button", { name: i18n.t("officeDesktop.ai.signIn") })).toBeInTheDocument();
+});
+
+it("renders the desktop editor without a second bordered card under the shell header", async () => {
+  mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
+  const slot = await waitFor(() => {
+    const element = document.querySelector<HTMLElement>("[data-office-editor-slot]");
+    if (!element) throw new Error("editor slot not mounted");
+    return element;
+  });
+  // The OfficeShell header is the single frame (F-9): the shared EditorSlot
+  // must not add its own rounded/bordered/padded card on the desktop, so the
+  // editor fills the page like web.
+  expect(slot).toHaveClass("border-0", "rounded-none", "p-0", "bg-transparent");
+  const classes = slot.className.split(/\s+/);
+  expect(classes).not.toContain("border");
+  expect(classes).not.toContain("p-3");
+  expect(classes.some((name) => /^rounded-(?:lg|md|xl|2xl|3xl|full)$/.test(name))).toBe(false);
+});
+
+it("keeps ONE primary Save in the header and moves Save As and back into the document menu", async () => {
+  mount(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
+  await waitFor(() => expect(screen.getByTestId("office-save-ready")).toBeInTheDocument());
+
+  // The header cluster is Save + the overflow trigger only: no Save As or
+  // back-to-library outline buttons sit beside it.
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.library.saveAs") })).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.library.back") })).toBeNull();
+  expect(screen.getAllByRole("button", { name: i18n.t("office.shell.save_to_cloud") })).toHaveLength(1);
+
+  // Save As and back-to-library stay reachable through the "..." menu.
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.ribbon.more") }));
+  expect(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.back") })).toBeInTheDocument();
 });

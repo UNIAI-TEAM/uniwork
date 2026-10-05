@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopDraftMetadata, DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+import { settleDocxSessions } from "../test/settle-sessions";
 
 installDocxGeometry();
 const fixtureBase64 = Buffer.from(docxSource).toString("base64");
@@ -20,16 +21,7 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
-afterEach(async () => {
-  // Unmount first so no view callback outlives its editor.
-  cleanup();
-  for (const session of sessions.values()) session.dispose();
-  sessions.clear();
-  // The vendored docx reader parses on setImmediate ticks that dispose() does
-  // not cancel; drain them while the environment is alive, or a tick that
-  // lands after teardown throws "reading 'uint8array'" as an unhandled error.
-  for (let tick = 0; tick < 200; tick += 1) await new Promise<void>((resolve) => setImmediate(resolve));
-});
+afterEach(() => settleDocxSessions(sessions));
 
 function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;

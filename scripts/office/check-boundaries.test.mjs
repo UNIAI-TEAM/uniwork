@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkBoundaries } from "./check-boundaries.mjs";
+import { bareNodeGlobals, checkBoundaries } from "./check-boundaries.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -138,6 +138,40 @@ test("fails on unverifiable module access in browser scope", () => {
   const detail = result.violations.map((v) => v.detail).join("\n");
   assert.ok(detail.includes("computed import()"), "expected the computed import() to be flagged");
   assert.ok(detail.includes("createRequire"), "expected createRequire to be flagged");
+});
+
+test("fails on a bare Node global re-added to a browser-scope file", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      'export const x = Buffer.from("x");\nexport const y = process.env.NODE_ENV;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('references the Node global "Buffer"'), "expected Buffer.from to be flagged");
+  assert.ok(detail.includes('references the Node global "process"'), "expected process.env to be flagged");
+  assert.ok(rules(result).every((rule) => rule === "browser_isolation"));
+});
+
+test("fails on a bare Node global in a transitive browser-scope helper", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts": 'import { x } from "../pdf/helper";\nexport const y = x;\n',
+    "packages/office-engine/src/pdf/helper.ts": 'export const x = Buffer.from("x");\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('references the Node global "Buffer"'), "expected the transitive Buffer to be flagged");
+});
+
+test("ignores Node global names in browser-scope comments and strings", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      "// Buffer.from and process.cwd() are documented here, not used.\n" +
+      'export const note = "Buffer is a Node global";\nexport const tag = `process`;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, true, result.violations.map((v) => v.detail).join("\n"));
 });
 
 test("fails on a template import the checker cannot enumerate", () => {
@@ -283,4 +317,83 @@ test("an empty LICENSE is a violation, not a pass", () => {
   const result = checkBoundaries(root);
   assert.equal(result.ok, false);
   assert.ok(rules(result).includes("licence"));
+});
+
+// --- R14-2: bare-global scan covers the whole browser surface ---------------
+
+test("fails on a bare Node global planted in a widened browser root", () => {
+  for (const rel of [
+    "apps/web/platform/office/pdf-render.ts",
+    "packages/core/office/pdf-render.ts",
+    "packages/office-engine/src/markdown/vendor.ts",
+    "packages/office-engine/src/html/vendor.ts",
+    "packages/office-engine/src/assets/vendor.ts",
+  ]) {
+    const root = plant({ [rel]: 'export const x = Buffer.from("x");\n' });
+    const result = checkBoundaries(root);
+    assert.equal(result.ok, false, `expected ${rel} to be scanned for bare globals`);
+    const detail = result.violations.map((v) => v.detail).join("\n");
+    assert.ok(detail.includes('references the Node global "Buffer"'), `expected ${rel} Buffer to be flagged`);
+  }
+});
+
+test("the xlsx vendor typeof-Buffer feature-detect stays allowed, per file", () => {
+  const root = plant({
+    // The exact shape the allowlist exists for: a typeof guard before Buffer use.
+    "packages/office-engine/src/xlsx/vendor.ts":
+      'const toEngineBytes = (bytes: Uint8Array): Uint8Array =>\n' +
+      '  typeof Buffer === "undefined" ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);\n' +
+      'export const x = toEngineBytes;\n',
+    // A sibling xlsx file with an unguarded Buffer must still be flagged, so the
+    // allowlist is per-file, not a blanket exemption for the lane.
+    "packages/office-engine/src/xlsx/adapter.ts": 'export const y = Buffer.from("y");\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const flagged = result.violations.filter((v) => v.file.includes("vendor.ts"));
+  assert.deepEqual(flagged, [], "xlsx/vendor.ts must stay clean under the allowlist");
+  const detail = result.violations.map((v) => v.file + " " + v.detail).join("\n");
+  assert.ok(detail.includes("adapter.ts"), "a sibling xlsx file must still be flagged");
+});
+
+test("global/module/exports are forbidden bare globals", () => {
+  const root = plant({
+    "packages/core/office/ambient.ts":
+      "globalThis.global.fetch;\nmodule.exports = {};\nexport const x = 1;\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('references the Node global "module"'), "expected module to be flagged");
+});
+
+// --- R14-3: ternary/case/regex edge cases ----------------------------------
+
+test("a ternary or a switch case still trips the global scan", () => {
+  for (const [name, hit] of [
+    ["cond ? process : fallback", "process"],
+    ["case Buffer:", "Buffer"],
+  ]) {
+    assert.deepEqual(bareNodeGlobals(`const x = ${name};\n`), [hit], `expected ${name} to flag ${hit}`);
+  }
+});
+
+test("a regex literal is not a comment and does not false-positive", () => {
+  assert.deepEqual(bareNodeGlobals("const re = /Buffer\\.from/;\nexport const x = re;\n"), []);
+  // Escaped slashes inside a regex must not be read as a line comment that
+  // blanks the rest of the line - the real global after it is still caught.
+  assert.deepEqual(
+    bareNodeGlobals("const re = /a\\/\\/b/;\nexport const y = process;\n"),
+    ["process"],
+  );
+});
+
+test("object keys, member access and local shadows are not bare globals", () => {
+  assert.deepEqual(bareNodeGlobals("export const o = { process: 1 };\n"), []);
+  assert.deepEqual(bareNodeGlobals("export const v = foo.Buffer;\n"), []);
+  assert.deepEqual(bareNodeGlobals("export function f(process) { return process; }\n"), []);
+  assert.deepEqual(
+    bareNodeGlobals('import { dynamic } from "next/dynamic";\nconst h = dynamic(() => import("./x").then((module) => module.X));\n'),
+    [],
+  );
 });

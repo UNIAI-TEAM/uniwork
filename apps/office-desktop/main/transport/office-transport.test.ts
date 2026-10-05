@@ -27,7 +27,7 @@ describe("desktop office HTTP transport", () => {
       throw new Error("Unexpected engine call");
     });
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
-    const result = await transport.create({ workspaceId: "ws", title: "Blank.docx" });
+    const result = await transport.create({ workspaceId: "ws", title: "Blank.docx", format: "docx" });
     expect(result.document).toMatchObject({ id: "new-doc", version: 1, canEdit: true });
     expect(Buffer.from(result.dataBase64, "base64")).toEqual(Buffer.from(bytes));
     expect(fetchImpl).toHaveBeenCalledTimes(2);

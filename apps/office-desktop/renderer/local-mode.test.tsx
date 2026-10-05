@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+import { settleDocxSessions } from "../test/settle-sessions";
 
 installDocxGeometry();
 const fixtureBase64 = Buffer.from(docxSource).toString("base64");
@@ -19,6 +20,9 @@ vi.mock("./office/session", async (importOriginal) => {
   } };
 });
 beforeEach(() => sessions.clear());
+// Several tests end with a DOCX tab still parsing (a background recent-file tab,
+// an OS open asserted only on its tab); settle every load before teardown.
+afterEach(() => settleDocxSessions(sessions));
 
 /** Every channel a signed-out device may legitimately use; anything else in a
  * local-mode test is a network path and fails the test. */
@@ -213,7 +217,8 @@ it("keeps the AI entry locked and never calls a cloud channel from it", async ()
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   const before = h.channels().length;
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.ai.entry") }));
+  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.ai.entry") }));
   const prompt = await screen.findByRole("dialog");
   expect(within(prompt).getByText(i18n.t("officeDesktop.ai.title"))).toBeInTheDocument();
   fireEvent.click(within(prompt).getByRole("button", { name: i18n.t("officeDesktop.ai.signIn") }));
@@ -233,7 +238,8 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle })));
   editor.bump();
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.saveAs") }));
+  fireEvent.click(document.querySelector("[data-office-document-menu]")!);
+  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.local.saveAs") }));
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save-as", expect.objectContaining({ handle })));
   await screen.findByRole("tab", { name: /copy\.docx/ });
   expect(screen.queryByRole("tab", { name: /Local\.docx/ })).toBeNull();

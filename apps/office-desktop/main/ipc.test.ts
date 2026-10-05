@@ -27,9 +27,19 @@ describe("desktop IPC allowlist", () => {
   }, 20_000);
   it("allows DOCX save bytes above the control-message budget", () => {
     const dataBase64 = Buffer.alloc(96 * 1024).toString("base64");
-    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
+    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx" as const, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
     expect(() => validateIpcRequest("desktop:office-save", request, context)).not.toThrow();
     expect(() => validateIpcRequest("desktop:office-save", { ...request, dataBase64: "x".repeat(IPC_FILE_MAX_BYTES) }, context)).toThrowError(IpcValidationError);
+  });
+  it("allows PDF engine payloads above the control-message budget but refuses a genuinely oversized one", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "x".repeat(100_000), edits: [] } };
+    expect(() => validateIpcRequest("desktop:engine-call", payload, context)).not.toThrow();
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { value: "x".repeat(IPC_FILE_MAX_BYTES) } }, context)).toThrowError(IpcValidationError);
+  });
+  it("accepts user content that starts with a path-like character", () => {
+    const payload = { ...valid, operation: "edit" as const, args: { dataBase64: "b2s=", edits: [{ op: "insert", value: "/leading slash" }], password: "/secret-password" } };
+    expect(validateIpcRequest("desktop:engine-call", payload, context)).toEqual(payload);
+    expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { nested: { file_path: "/etc/passwd" } } }, context)).toThrowError(IpcValidationError);
   });
 
   it("sanitizes file handler errors and validates handler responses", async () => {
@@ -55,15 +65,17 @@ describe("desktop IPC allowlist", () => {
     expect(guard.busy).toBe(false);
   });
 
-  it("accepts the three OOXML picks and refuses any other extension", async () => {
+  it("accepts every format-table pick and refuses any other extension", async () => {
     const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "Deck.pptx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
     const registry = { openPath: async () => metadata, read: async () => new Uint8Array([1]) } as unknown as FileHandleRegistry;
-    for (const path of ["C:\\Deck.pptx", "C:\\Sheet.xlsx", "C:\\Plan.docx"]) {
+    for (const path of ["C:\\Deck.pptx", "C:\\Report.pdf", "C:\\Plan.docx"]) {
       const handlers = createFileIpcHandlers({ registry, pickOpen: async () => path });
       await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toMatchObject({ opened: true, metadata });
     }
-    const refused = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\notes.txt" });
-    await expect(refused["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ opened: false, unsupported: true });
+    for (const path of ["C:\\notes.txt", "C:\\Sheet.xlsx"]) {
+      const refused = createFileIpcHandlers({ registry, pickOpen: async () => path });
+      await expect(refused["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ opened: false, unsupported: true });
+    }
     const recents = { resolve: async () => ({ path: "C:\\Deck.pptx" }) };
     const recentHandlers = createFileIpcHandlers({ registry, recents: recents as never });
     await expect(recentHandlers["desktop:recent-open"]({ sessionGeneration: "session_1234", id: `recent_${"a".repeat(16)}` })).resolves.toMatchObject({ opened: true });
@@ -107,7 +119,7 @@ describe("desktop IPC allowlist", () => {
   });
   it("rejects payloads over the byte limit", () => {
     const large = { ...valid, args: { value: "x".repeat(IPC_MAX_BYTES) } };
-    expect(() => validateIpcRequest("desktop:engine-call", large, context)).toThrow(/byte limit/);
+    expect(() => validateIpcRequest("desktop:window-theme", large, context)).toThrow(/byte limit/);
   });
   it("rejects structured-clone values instead of measuring only JSON", () => {
     const payload = { ...valid, args: { buffer: new ArrayBuffer(8 * 1024 * 1024) } };
@@ -169,11 +181,25 @@ describe("desktop IPC allowlist", () => {
     };
     const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => true });
     await expect(handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).resolves.toMatchObject({ engineAvailable: false });
-    await expect(handlers["desktop:office-save"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })).resolves.toMatchObject({ revision: "10" });
+    await expect(handlers["desktop:office-save"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", format: "docx", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` })).resolves.toMatchObject({ revision: "10" });
     expect(transport.save).toHaveBeenCalledOnce();
     expect(desktopLibraryResponseSchema.safeParse(await handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).success).toBe(true);
     const signedOut = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
     await expect(signedOut["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).rejects.toMatchObject({ code: "login_required" });
+  });
+  it("refuses a save whose declared format disagrees with the format main opened", async () => {
+    const row = { id: "deck-1", workspaceId: "ws-1", title: "Deck.pptx", kind: "file", format: "pptx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
+    const transport = {
+      open: vi.fn(async () => ({ document: row, dataBase64: "aGVsbG8=", filename: "Deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", checksum: `sha256:${"a".repeat(64)}` })),
+      save: vi.fn(async (input: { intentId: string; idempotencyKey: string }) => ({ documentId: "deck-1", intentId: input.intentId, idempotencyKey: input.idempotencyKey, versionId: "version-2", revision: "10", checksum: `sha256:${"b".repeat(64)}` })),
+    };
+    const handlers = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => true });
+    await handlers["desktop:office-open"]({ sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "deck-1" });
+    const save = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "deck-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` };
+    await expect(handlers["desktop:office-save"]({ ...save, format: "docx" })).rejects.toMatchObject({ code: "document_context_refused" });
+    expect(transport.save).not.toHaveBeenCalled();
+    await expect(handlers["desktop:office-save"]({ ...save, format: "pptx" })).resolves.toMatchObject({ revision: "10" });
+    expect(transport.save).toHaveBeenCalledWith(expect.objectContaining({ format: "pptx" }));
   });
   it("rejects token-shaped fields returned by an untrusted manager implementation", () => {
     const leakyManager = {

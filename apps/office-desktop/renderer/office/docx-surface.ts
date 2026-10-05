@@ -2,8 +2,9 @@ import { bindDocxEngine, createDocxAdapter } from "@uniwork/office-engine/docx";
 import { parseDocx, saveDocx } from "@uniwork/office-upstream/docs-renderer-editor";
 import { createDocxTiptapHandle, type DocxEditorHandle, type DocxOpenSuccess } from "@uniwork/views/office/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
+import { desktopEngineBuild } from "../../shared/document-formats";
 
-export const DOCX_DESKTOP_ENGINE_BUILD = "09485f884dc845cf3bf27fb7edfe489f9d457aad";
+export const DOCX_DESKTOP_ENGINE_BUILD = desktopEngineBuild("docx");
 
 export type DesktopDocxSurface = DocxEditorHandle<Uint8Array> & {
   openOutcome(): DocxOpenSuccess | null;

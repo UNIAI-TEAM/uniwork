@@ -4,6 +4,7 @@ import type { DesktopPptxAdapter } from "./pptx-adapter";
 import type { DesktopPptxSurface } from "./pptx-surface";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import type { OpenedBytes } from "./session";
 import type { PptxDeckSnapshot } from "./pptx-runtime";
 
 const SESSION_GENERATION = "desktop-dev-session";
@@ -33,9 +34,9 @@ export type PptxDraftRecoverOutcome = "recovered" | "locked" | "failed";
 export function createPptxDocumentSession(
   bridge: LibraryBridge,
   inputIdentity: OfficeIdentity,
-  openedBytes: { dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean },
+  openedBytes: OpenedBytes,
   createSurface: (onDirty: (generation: number) => void) => DesktopPptxAdapter,
-  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: { dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean } }) => void } = {},
+  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => void } = {},
 ) {
   const identity = { ...inputIdentity };
   let localHandle = openedBytes.localHandle;
@@ -167,7 +168,7 @@ export function createPptxDocumentSession(
         revision = String(BigInt(output.localBase.revision) > BigInt(intent.identity.baseRevision) ? BigInt(output.localBase.revision) : BigInt(intent.identity.baseRevision) + 1n);
         if (useSaveAs && result.metadata.handle !== localHandle) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
       } else {
-        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: "pptx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }

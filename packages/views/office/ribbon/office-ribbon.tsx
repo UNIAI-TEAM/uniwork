@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -150,7 +150,7 @@ export function OfficeRibbon({
   return (
     <div
       ref={rootRef}
-      className={cn("relative z-20 shrink-0 border-b border-border bg-office-band font-sans", className)}
+      className={cn("relative z-20 min-w-0 shrink-0 border-b border-border bg-office-band font-sans", className)}
       aria-label={t(labelKey)}
       role="region"
       data-office-ribbon={scope}

@@ -62,6 +62,10 @@ type Deps struct {
 	// 501 on the document routes until the server wires it.
 	Documents *service.DocumentService
 
+	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
+	// answers 501 on the signature routes until the server wires it.
+	Signatures *service.SignatureService
+
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
 	// without an engine.
@@ -569,6 +573,10 @@ func New(d Deps) http.Handler {
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,
+
+		ListSavedSignatures:  h.listSavedSignatures,
+		CreateSavedSignature: h.createSavedSignature,
+		DeleteSavedSignature: h.deleteSavedSignature,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

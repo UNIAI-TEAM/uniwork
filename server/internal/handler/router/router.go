@@ -147,6 +147,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatFollowUps(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
+			registerSignatures(authed, h)
 			registerOfficeLaunch(authed, h)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {

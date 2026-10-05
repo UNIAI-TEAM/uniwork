@@ -9,16 +9,16 @@ describe("desktop library scope and filtering", () => {
     expect(filterLibraryDocuments([row(), row({ id: "doc-work", ownerKind: "work_product" }), row({ id: "doc-x", format: "docx" })])).toHaveLength(2);
   });
 
-  it("keeps every OOXML format and drops a foreign one", () => {
-    const kept = filterLibraryDocuments([row(), row({ id: "doc-x", format: "xlsx" }), row({ id: "doc-p", format: "pptx" })]);
-    expect(kept.map((document) => document.format)).toEqual(["docx", "xlsx", "pptx"]);
-    expect(filterLibraryDocuments([row({ id: "doc-pdf", format: "pdf" as never })])).toHaveLength(0);
+  it("keeps every format-table format and drops a foreign one", () => {
+    const kept = filterLibraryDocuments([row(), row({ id: "doc-pdf", format: "pdf" }), row({ id: "doc-p", format: "pptx" })]);
+    expect(kept.map((document) => document.format)).toEqual(["docx", "pdf", "pptx"]);
+    expect(filterLibraryDocuments([row({ id: "doc-x", format: "xlsx" as never })])).toHaveLength(0);
   });
 
-  it("keeps OOXML download available while the engine is down", () => {
+  it("keeps format-table downloads available while the engine is down", () => {
     expect(canDownloadDocument(row({ format: "pptx" }), false)).toBe(true);
-    expect(canDownloadDocument(row({ format: "xlsx" }), false)).toBe(true);
-    expect(canDownloadDocument(row({ format: "pdf" as never }), false)).toBe(false);
+    expect(canDownloadDocument(row({ format: "pdf" }), false)).toBe(true);
+    expect(canDownloadDocument(row({ format: "xlsx" as never }), false)).toBe(false);
   });
 
   it("keeps DOCX download available while the engine is down", () => {

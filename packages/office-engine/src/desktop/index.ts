@@ -76,3 +76,5 @@ export function createDesktopOfficeEngine(options: DesktopTransportOptions): Off
 }
 
 export type { OfficeEngine };
+
+export * from "./pdf-host";

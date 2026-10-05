@@ -244,6 +244,9 @@ export function chainPdfium<T>(fn: () => Promise<T>): Promise<T> {
 
 /** FPDF_GetLastError codes we classify (fpdfview.h). */
 export const FPDF_ERR_PASSWORD = 4;
+/** A security handler the build cannot satisfy with a password — a
+    certificate-encrypted document answers this even with no password. */
+export const FPDF_ERR_SECURITY = 5;
 
 /** A document pdfium refused to open — the adapter maps this to a typed
     corrupt/encrypted refusal instead of engine_crashed. */
@@ -257,15 +260,44 @@ export class PdfOpenError extends Error {
   }
 }
 
+/**
+ * Open `bytes` in pdfium and run `fn` on the document pointer. An encrypted
+ * document is opened with `password` when one is supplied (pdfium performs the
+ * decryption; this build never writes decrypted bytes anywhere). The password
+ * is UTF-8 + NUL terminated into the wasm heap for the load call only, then
+ * wiped and freed before `fn` runs — it is never kept, echoed back or logged.
+ */
 export async function withDocument<T>(
   m: Pdfium,
   bytes: Uint8Array,
   fn: (doc: number) => Promise<T>,
+  password?: string,
 ): Promise<T> {
   const docPtr = m._malloc(bytes.length);
   if (!docPtr) throw new PdfOpenError("heap");
   m.HEAPU8.set(bytes, docPtr);
-  const doc = m._FPDF_LoadMemDocument(docPtr, bytes.length, 0);
+  let passwordPtr = 0;
+  let passwordSize = 0;
+  if (password !== undefined) {
+    const encoded = new TextEncoder().encode(password);
+    passwordSize = encoded.length + 1;
+    passwordPtr = m._malloc(passwordSize);
+    if (!passwordPtr) {
+      m._free(docPtr);
+      throw new PdfOpenError("heap");
+    }
+    m.HEAPU8.set(encoded, passwordPtr);
+    m.HEAPU8[passwordPtr + encoded.length] = 0;
+  }
+  let doc = 0;
+  try {
+    doc = m._FPDF_LoadMemDocument(docPtr, bytes.length, passwordPtr);
+  } finally {
+    if (passwordPtr) {
+      m.HEAPU8.fill(0, passwordPtr, passwordPtr + passwordSize);
+      m._free(passwordPtr);
+    }
+  }
   if (!doc) {
     const err = m._FPDF_GetLastError();
     m._free(docPtr);

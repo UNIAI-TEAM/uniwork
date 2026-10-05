@@ -67,7 +67,7 @@ it("shows the real slides and deck on first open without any edit", async () => 
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
   let created!: ReturnType<typeof createLateOpenSurface>;
-  const session = createPptxDocumentSession(bridge, identity, { dataBase64: "UEsDBA==", checksum }, () => {
+  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: "UEsDBA==", checksum }, () => {
     created = createLateOpenSurface();
     return {
       editor: created.surface,

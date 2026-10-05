@@ -446,6 +446,11 @@ type Routes struct {
 	UnfavoriteDocument            http.HandlerFunc
 	ListDocumentFavorites         http.HandlerFunc
 
+	// Saved signatures (UNI-925 B6): the caller's own signature images.
+	ListSavedSignatures  http.HandlerFunc
+	CreateSavedSignature http.HandlerFunc
+	DeleteSavedSignature http.HandlerFunc
+
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).
 	ListDocuments          http.HandlerFunc

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, LINUX_PPTX_MIME, LINUX_XLSX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
+import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
@@ -122,13 +122,19 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.equal(config.protocols, undefined);
   assert.equal(config.fileAssociations, undefined);
   assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
-  // The desktop host accepts the three OOXML formats; each carries its own
-  // association and MIME so the OS hands the right file to the app.
-  assert.deepEqual(config.linux.fileAssociations.map((association) => association.ext), ["docx", "xlsx", "pptx"]);
-  assert.equal(config.linux.fileAssociations[0].mimeType, LINUX_DOCX_MIME);
-  assert.equal(config.linux.fileAssociations[1].mimeType, LINUX_XLSX_MIME);
-  assert.equal(config.linux.fileAssociations[2].mimeType, LINUX_PPTX_MIME);
-  assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the OOXML MimeTypes");
+  // Associations come from the shared format table: one entry per extension,
+  // each carrying its own MIME type on Linux.
+  assert.deepEqual(config.linux.fileAssociations, [
+    { ext: "docx", name: "Word document", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { ext: "pdf", name: "PDF document", role: "Editor", mimeType: "application/pdf" },
+    { ext: "pptx", name: "PowerPoint presentation", role: "Editor", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+  ]);
+  assert.deepEqual(LINUX_DOCUMENT_MIME_TYPES, [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ]);
+  assert.equal("mimeTypes" in config.linux, false, "the file associations already supply the MimeType entries");
   assert.equal(config.publish, null);
   assert.equal(config.extraMetadata.name, "uniwork-office-dev");
   assert.equal(validateLinuxTargets(config), true);

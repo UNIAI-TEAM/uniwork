@@ -1,5 +1,6 @@
 // PDF op input types — ported from office-upstream apps/pdf/src/shared/ipc.ts,
-// trimmed to the G2-05 scope (text/image/page edits, annot deletes, metadata).
+// trimmed to the G2-05 scope (text/image/page edits, markups, drawings, ink,
+// annot deletes, metadata).
 // Coordinates are PDF user space points (y up); page indices are 0-based.
 
 /** Stroke width of a synthetic-bold run as a fraction of the em. Bold on the
@@ -16,6 +17,87 @@ export const EDIT_FONTS = [
 
 export type MarkupType = "highlight" | "underline" | "strikeout";
 
+/** Authoring primitives kept as PDF annotations so content streams are never rewritten. */
+export type DrawingKind = "rect" | "ellipse" | "line" | "arrow" | "ink";
+export type DrawingType = Exclude<DrawingKind, "ink">;
+export type DrawingGeometry =
+  | { rect: { x: number; y: number; width: number; height: number } }
+  | { start: { x: number; y: number }; end: { x: number; y: number } }
+  | { points: { x: number; y: number }[] };
+
+export interface DrawingInput {
+  pageIndex: number;
+  kind: DrawingKind;
+  geometry: DrawingGeometry;
+  color: [number, number, number];
+  width: number;
+  fill?: [number, number, number];
+}
+
+/** Freehand ink is one or more open paths, each flattened as [x,y,...]. */
+export type InkInput = DrawingInput;
+
+/** A text selection annotation. Quads are PDF user-space points (y up), in
+ * [x1,yTop,x2,yTop,x1,yBottom,x2,yBottom] groups. RGB channels are normalized. */
+export interface MarkupInput {
+  pageIndex: number;
+  type: MarkupType;
+  color: [number, number, number];
+  quads: number[][];
+}
+
+/** Reply target: a note (Text) annotation saved in the file. The object number
+    is only a lookup hint — pdfium stages that run before pdf-lib may renumber
+    objects — so the parent is confirmed by rect + contents at write time. */
+export interface NoteReplyTarget {
+  objNum: number;
+  rect: [number, number, number, number];
+  contents: string;
+}
+
+/** A sticky-note comment saved as a standard Text annotation (viewers draw the
+    icon; no appearance stream is written). Replies chain through /IRT + /RT. */
+export interface NoteInput {
+  pageIndex: number;
+  /** Annotation /Rect in PDF user space (icon bounds, y up) */
+  rect: [number, number, number, number];
+  contents: string;
+  /** Annotation author (/T); omitted → 'UniWork' */
+  author?: string;
+  /** Creation time (ms since epoch) → /CreationDate and /M; omitted → save time */
+  createdMs?: number;
+  /** Key for parenting replies inside the same request (parents sort before children) */
+  localId?: string;
+  /** This note replies to a note saved in the file */
+  replyTo?: NoteReplyTarget;
+  /** This note replies to another note in this request, by its localId */
+  replyToLocalId?: string;
+}
+
+/** Rewrite the /Contents of a note saved in the file, in place — the object keeps
+    its number so saved replies' /IRT chains stay intact (unlike delete + re-add).
+    Identity matches like NoteReplyTarget: rect + current contents, with the object
+    number as a tie-break hint. */
+export interface NoteEditInput {
+  pageIndex: number;
+  objNum: number;
+  rect: [number, number, number, number];
+  /** /Contents currently in the file (identity match) */
+  oldContents: string;
+  contents: string;
+}
+
+/** Review state of a saved note (PDF review state model: /StateModel /Review with
+    /State /Completed or /None). Upstream's save-pdf port has no resolve semantics;
+    this is the closest standard contract. */
+export interface NoteResolveInput {
+  pageIndex: number;
+  objNum: number;
+  rect: [number, number, number, number];
+  contents: string;
+  resolved: boolean;
+}
+
 /** Delete an annotation already saved in the file. Object number is only a lookup
     hint; subtype + rect guard against (and recover from) object renumbering by a
     rewrite. 'note' targets Text (comment) annotations. */
@@ -29,6 +111,21 @@ export interface AnnotDeleteInput {
   /** /Contents to match. Required identity for notes: every comment of a thread
       shares the root's rect, so rect alone would delete the wrong member. */
   contents?: string;
+}
+
+/** AcroForm field kinds this lane can write. `choice` binds to whichever of
+    dropdown / option list the document's field actually is. */
+export type FormFieldKind = "text" | "checkbox" | "radio" | "choice";
+
+/** One AcroForm field value to write. The document owns the field's type, so a
+    mismatch between `kind` and the field it names is a typed refusal rather than
+    a silent no-op. */
+export interface FormFieldInput {
+  name: string;
+  kind: FormFieldKind;
+  /** string for text/choice and for a radio option; boolean for a checkbox or
+      a two-state radio (false clears the group) */
+  value: string | boolean;
 }
 
 /** Document info; an empty string clears the field */
@@ -150,6 +247,30 @@ export type ImageEditInput =
     }
   | { kind: "deleteImage"; pageIndex: number; oldRect: [number, number, number, number] };
 
+/** Right-angle rotation of a stamp, clockwise, in quarter turns. */
+export type QuarterTurns = 0 | 90 | 180 | 270;
+
+/** One placed stamp from the B6 stamps / signature provider: a pasted image or a
+    drawn visual signature. `rect` is [x1,y1,x2,y2] in PDF user space and
+    `pageIndex` is the engine's original 0-based page index (the UI has already
+    resolved the displayed page order). Both kinds take the same drawing path: a
+    plain image XObject in the target page's content stream, so no annotation or
+    form field is invented. */
+export interface StampInput {
+  kind: "image" | "signature";
+  pageIndex: number;
+  /** PDF user space [x1,y1,x2,y2] footprint; the image fills it. */
+  rect: [number, number, number, number];
+  /** image/png or image/jpeg only. */
+  contentType: string;
+  /** base64 image bytes, without the data: prefix. */
+  image: string;
+  /** Signature stamps carry the id of the signature that produced the image;
+      validated by the op parser, recorded for the caller, never persisted. */
+  signatureId?: string;
+  quarterTurns?: QuarterTurns;
+}
+
 /** An existing content-stream image on a page */
 export interface PageImageRef {
   pageIndex: number;
@@ -203,19 +324,160 @@ export interface PageRenderRequest {
   rotate?: number;
 }
 
+/** Insert one blank page after `afterPageIndex` in the original document
+    (-1 = front). Absent `width`/`height` copy the neighboring page's size and
+    /Rotate, so the blank sheet matches its neighbor instead of shrinking or
+    displaying sideways. */
+export interface InsertBlankPageInput {
+  /** Original 0-based page index the blank page goes after; -1 = front. */
+  afterPageIndex: number;
+  /** Explicit page size in PDF points; both or neither. */
+  width?: number;
+  height?: number;
+}
+
+/** Insert pages of another PDF after `afterPageIndex` (-1 = front). The bytes
+    arrive base64-encoded because the browser resolves an asset id through
+    `PdfAssetProvider` and never touches a Node codec; the host owns the bytes. */
+export interface InsertPdfPagesInput {
+  afterPageIndex: number;
+  /** Source PDF, base64 without a data: prefix. */
+  pdf: string;
+  /** Source page indices to insert (0-based, in order); absent = every page. */
+  pages?: number[];
+}
+
+/** Extract pages (0-based positions in the saved output, in order) into a NEW
+    document; the producer reads the output, not the opened file. */
+export interface ExtractPagesInput {
+  pages: number[];
+  /** Suggested output name stem (no extension); the host commits the document. */
+  name?: string;
+}
+
+/** Append the pages of other PDFs (base64, in order) to this document and
+    produce a NEW document. */
+export interface MergePdfsInput {
+  pdfs: string[];
+  name?: string;
+}
+
+/** Split into consecutive chunks of `chunkSize` pages, each a NEW document. */
+export interface SplitPdfInput {
+  chunkSize: number;
+  name?: string;
+}
+
+/** Paper presets N-up imposition can size a sheet to; absent keeps the source
+    page's own size. */
+export type NUpPaper = "a4" | "letter";
+
+/** Target box of a page in the page tree: `media` is the physical sheet,
+    `crop` the visible window a viewer shows. */
+export type PageBoxKind = "media" | "crop";
+
+/** Set the MediaBox or CropBox of the listed pages (original 0-based indices).
+    `rect` is [left, bottom, right, top] in PDF points with positive extents. */
+export interface SetPageBoxInput {
+  pages: number[];
+  box: PageBoxKind;
+  rect: [number, number, number, number];
+}
+
+export interface SetPageBoxResult {
+  /** Pages whose box was set. */
+  applied: number;
+}
+
+/** N-up grid: `rows` down the sheet, `cols` across it. */
+export interface NUpLayout {
+  rows: number;
+  cols: number;
+}
+
+/** Impose the listed pages (original 0-based indices) onto rows x cols sheets,
+    replacing the document's page tree with the sheets. */
+export interface SetNUpInput {
+  pages: number[];
+  layout: NUpLayout;
+  paper?: NUpPaper;
+}
+
+export interface SetNUpResult {
+  /** Sheets the pages were imposed onto. */
+  sheets: number;
+  /** Source pages placed (one per grid slot, in order). */
+  pages: number;
+  rows: number;
+  cols: number;
+}
+
+/** A document produced by a page op (extract / merge / split). The engine never
+    writes it anywhere: F2 requires the host to persist it through a Documents
+    commit, so this carries bytes plus the suggested name and nothing else. */
+export interface PdfNewDocument {
+  op: "extractPages" | "mergePdfs" | "splitPdf";
+  /** Suggested filename stem, extension excluded. */
+  name: string;
+  bytes: Uint8Array;
+  pageCount: number;
+  /** 1-based part ordinal for split output; absent for single-document ops. */
+  part?: number;
+}
+
+/** A page op that produced no document and was skipped, with the reason. */
+export interface PageOpFailure {
+  /** Op name from the wire vocabulary (e.g. "extractPages"). */
+  op: string;
+  /** Index within that op's request list, or 0 for single-item ops. */
+  index: number;
+  reason: string;
+}
+
 /** The batch an edit job carries — the G2-05-scoped subset of upstream
-    SavePdfRequest. Annotation/form authoring ops are out of this lane. */
+    SavePdfRequest. Forms remain outside this lane. */
 export interface PdfEditRequest {
+  markups?: MarkupInput[];
+  drawings?: DrawingInput[];
+  notes?: NoteInput[];
+  /** In-place /Contents rewrites of saved notes, applied after the note stage so
+      same-request replies still match their parent by its old contents. */
+  noteEdits?: NoteEditInput[];
+  /** Review-state writes on saved notes, applied after note edits. */
+  noteResolves?: NoteResolveInput[];
   /** Saved markup annotations to remove (applied before every other stage) */
   annotDeletes?: AnnotDeleteInput[];
   textEdits?: TextEditInput[];
   textInserts?: TextInsertInput[];
   imageEdits?: ImageEditInput[];
+  /** Image / signature stamps, in request order (drawn as content-stream images
+      on the target page only; applied after image edits). */
+  stamps?: StampInput[];
   /** Page rotation deltas (original page index → multiple of 90 clockwise) */
   rotations?: { pageIndex: number; delta: number }[];
   /** Pages to delete (original page indices) */
   deletedPages?: number[];
   /** New page order (array of original page indices, excluding deleted) */
   pageOrder?: number[];
+  /** Blank pages to insert, in request order (applied after deletion/reorder). */
+  blankPages?: InsertBlankPageInput[];
+  /** Pages of other PDFs to insert, in request order. */
+  insertedPdfs?: InsertPdfPagesInput[];
+  /** Produce a new document holding just these pages (read from the saved output). */
+  extractPages?: ExtractPagesInput;
+  /** Produce a new document appending other PDFs' pages to the saved output. */
+  mergePdfs?: MergePdfsInput;
+  /** Produce N new documents, one per consecutive chunk of the saved output. */
+  splitPdf?: SplitPdfInput;
+  /** AcroForm field values to write, in request order (later writes win). */
+  formValues?: FormFieldInput[];
+  /** Bake every filled field's appearance into its page and drop the
+      interactive form, after the formValues stage. */
+  flattenForms?: boolean;
+  /** MediaBox / CropBox writes, in request order (original page indices). */
+  pageBoxes?: SetPageBoxInput[];
+  /** N-up imposition; replaces the page tree with the imposed sheets. At most
+      one per request, applied after every index-addressed op. */
+  nUp?: SetNUpInput;
   metadata?: MetadataInput;
 }

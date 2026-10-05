@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { desktopDocumentFormatSchema, desktopMimeTypeSchema } from "./document-format";
+import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, DESKTOP_DOCUMENT_FORMATS, desktopDocumentMimeTypes, type DesktopDocumentFormat } from "./document-formats";
 import { isAllowedExternalUrl } from "./external-url";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
@@ -46,7 +46,7 @@ export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
-const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
+const operationSchema = z.enum(["capability", "open", "edit", "render", "text", "serialize", "cancel"]);
 const originSchema = z.string().url().max(2048);
 const deploymentSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, "invalid deployment");
 const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid client id");
@@ -135,8 +135,8 @@ export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status",
 ]);
 export const desktopDraftDiscardResponseSchema = z.object({ discarded: z.boolean() }).strict();
 const documentKindSchema = z.literal("file");
-const documentFormatSchema = desktopDocumentFormatSchema;
-const ooxmlMimeSchema = desktopMimeTypeSchema;
+const documentFormatSchema = z.enum(DESKTOP_DOCUMENT_FORMATS as [DesktopDocumentFormat, ...DesktopDocumentFormat[]]);
+const documentMimeTypeSchema = z.enum(desktopDocumentMimeTypes() as [string, ...string[]]);
 const libraryDocumentSchema = z.object({
   id: documentIdSchema,
   workspaceId: opaqueHandleSchema,
@@ -170,7 +170,7 @@ export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
   version: z.number().int().nonnegative(),
   filename: z.string().min(1).max(255),
-  mimeType: ooxmlMimeSchema,
+  mimeType: documentMimeTypeSchema,
   dataBase64: base64BytesSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
@@ -179,7 +179,7 @@ export const desktopOfficeOpenResponseSchema = z.object({
   document: libraryDocumentSchema,
   dataBase64: base64BytesSchema,
   filename: z.string().min(1).max(255),
-  mimeType: ooxmlMimeSchema,
+  mimeType: documentMimeTypeSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
@@ -273,7 +273,7 @@ const requestSchemas = {
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
   "desktop:tabs-update": z.object({ sessionGeneration: sessionGenerationSchema, documentIds: z.array(opaqueHandleSchema).max(8), activeDocumentId: opaqueHandleSchema.nullable() }).strict().refine((value) => new Set(value.documentIds).size === value.documentIds.length && (value.activeDocumentId === null || value.documentIds.includes(value.activeDocumentId)), "invalid tab membership"),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
-  "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema, format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
   "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
@@ -290,10 +290,10 @@ const requestSchemas = {
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
-  "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255) }).strict(),
+  "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255), format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
-  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
+  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
@@ -347,9 +347,10 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves carry the serialized document bytes in the same bounded byte
-  // class as local-file and draft payloads. Keep control calls at the smaller limit.
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  // Office saves and engine calls carry the serialized document in the same
+  // bounded byte class as local-file and draft payloads. Keep the remaining
+  // control calls at the smaller limit.
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {
@@ -384,6 +385,6 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
 
 function containsPathLikeValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsPathLikeValue);
-  if (!value || typeof value !== "object") return typeof value === "string" && (/^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\") || value.startsWith("/"));
+  if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => /(?:^|_)(?:path|filepath|file_path)$/i.test(key) || containsPathLikeValue(child));
 }
