@@ -8504,6 +8504,15 @@
         "reset": "Reset zoom",
         "level": "Zoom level {{percent}}%"
       },
+      "status": {
+        "label": "Status",
+        "figures": "{{length}} chars · {{lines}} lines · {{language}}",
+        "selection": "{{from}}–{{to}} selected",
+        "selectionNone": "No selection"
+      },
+      "selection": {
+        "announce": "Selected element {{sid}}"
+      },
       "ribbon": {
         "label": "Insert",
         "heading": "Heading",

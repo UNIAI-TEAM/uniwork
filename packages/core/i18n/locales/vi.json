@@ -8497,6 +8497,15 @@
         "reset": "Cỡ mặc định",
         "level": "Mức thu phóng {{percent}}%"
       },
+      "status": {
+        "label": "Trạng thái",
+        "figures": "{{length}} ký tự · {{lines}} dòng · {{language}}",
+        "selection": "Đang chọn {{from}}–{{to}}",
+        "selectionNone": "Không chọn"
+      },
+      "selection": {
+        "announce": "Đã chọn phần tử {{sid}}"
+      },
       "ribbon": {
         "label": "Chèn nội dung",
         "heading": "Tiêu đề",
