@@ -393,3 +393,66 @@ test("packaged asar location covers flat and macOS bundle layouts", () => {
     assert.equal(locatePackagedAsar(mac), join(mac, "UniWork Office.app", "Contents", "Resources", "app.asar"));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("staging verifies the staged sidecar against the build record's binary hash", async () => {
+  // A shared CARGO_TARGET_DIR can hold another build's binary. When a build
+  // record is staged it is the sidecar's provenance: the recorded
+  // native.binary.sha256 must equal the candidate's own bytes.
+  const { createHash } = await import("node:crypto");
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-provenance-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "build");
+  mkdirSync(buildDir, { recursive: true });
+  const sidecarBody = "MZ-sidecar-bytes";
+  const sha = (value) => createHash("sha256").update(value).digest("hex");
+  writeFileSync(join(buildDir, XLSX_GATEWAY_FILE), "// gateway\n");
+  writeFileSync(join(buildDir, xlsxSidecarFile("win32")), sidecarBody);
+  const record = (recorded) => JSON.stringify({ kind: "uniwork-office-upstream-build-record", native: { binary: { sha256: recorded } } });
+  try {
+    // Match: the record attests the exact bytes we are about to stage.
+    writeFileSync(join(buildDir, "build-record.json"), record(sha(sidecarBody).toUpperCase()));
+    const matched = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(matched.sidecar.sha256, sha(sidecarBody));
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "build-record.json")), "the build record ships beside the artifacts");
+    // Mismatch: a stale binary must fail loudly instead of staging silently.
+    writeFileSync(join(buildDir, "build-record.json"), record("0".repeat(64)));
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      (error) => /xlsx sidecar sha256 mismatch/.test(error.message) && /CARGO_TARGET_DIR/.test(error.message) && /build-upstream\.mjs --with-native/.test(error.message),
+    );
+    // A record without a native section (built without --with-native) has
+    // nothing to verify; staging stays legal and the record still ships.
+    writeFileSync(join(buildDir, "build-record.json"), JSON.stringify({ kind: "uniwork-office-upstream-build-record", verdict: "pass" }));
+    const noNative = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } });
+    assert.equal(noNative.sidecar.sha256, sha(sidecarBody));
+    // An unreadable record fails loudly rather than skipping the comparison.
+    writeFileSync(join(buildDir, "build-record.json"), "{ not json");
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      /build record .* could not be read/,
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the missing-gateway error names the directory that was actually searched", async () => {
+  // Explicit OFFICE_DESKTOP_XLSX_ASSETS mode probes <dir>/xlsx-gateway.mjs
+  // directly - the error must not send the operator to a <dir>/dist that was
+  // never searched (F3).
+  const root = mkdtempSync(join(tmpdir(), "uniwork-xlsx-missing-dir-"));
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  const buildDir = join(root, "explicit-assets");
+  mkdirSync(buildDir, { recursive: true });
+  try {
+    await assert.rejects(
+      () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { OFFICE_DESKTOP_XLSX_ASSETS: buildDir } }),
+      (error) => {
+        const searched = join(buildDir, XLSX_GATEWAY_FILE).replaceAll("\\", "/");
+        assert.ok(error.message.includes(searched), `error must name ${searched}: ${error.message}`);
+        assert.ok(!error.message.includes(`${buildDir.replaceAll("\\", "/")}/dist`), `error must not name an unsearched dist dir: ${error.message}`);
+        return true;
+      },
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

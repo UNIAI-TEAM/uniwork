@@ -42,6 +42,8 @@ function firstExisting(candidates) {
  * release dir); otherwise the standard build-upstream scratch tree is used.
  * `gateway` is the artifact every local open needs; `sidecar` is the optional
  * native recalculation binary; `buildRecord` carries the shipped checksums.
+ * `gatewayCandidates` is the exact ordered list of paths probed, so the
+ * missing-gateway error names what was actually searched.
  */
 export function resolveXlsxAssetSources({ repositoryRoot, platform = process.platform, environment = process.env } = {}) {
   const explicit = environment.OFFICE_DESKTOP_XLSX_ASSETS?.trim();
@@ -54,16 +56,19 @@ export function resolveXlsxAssetSources({ repositoryRoot, platform = process.pla
   const cargoTargetSidecar = environment.CARGO_TARGET_DIR?.trim()
     ? join(resolve(environment.CARGO_TARGET_DIR), "release", xlsxSidecarFile(platform))
     : null;
-  const gateway = firstExisting(explicit
+  const gatewayCandidates = explicit
     ? [join(buildDirectory, XLSX_GATEWAY_FILE)]
-    : [join(buildDirectory, "dist", XLSX_GATEWAY_FILE), join(repositoryRoot, "packages", "office-upstream", "dist", XLSX_GATEWAY_FILE)]);
+    : [join(buildDirectory, "dist", XLSX_GATEWAY_FILE), join(repositoryRoot, "packages", "office-upstream", "dist", XLSX_GATEWAY_FILE)];
+  const gateway = firstExisting(gatewayCandidates);
   const sidecar = firstExisting(explicit
     ? [join(buildDirectory, xlsxSidecarFile(platform))]
     : [join(buildDirectory, "upstream", "apps", "sheets", "native", "xlsx-engine", "target", "release", xlsxSidecarFile(platform)), cargoTargetSidecar]);
-  const buildRecord = firstExisting(explicit
-    ? [join(buildDirectory, XLSX_BUILD_RECORD_FILE)]
-    : [join(buildDirectory, XLSX_BUILD_RECORD_FILE)]);
-  return { explicit: Boolean(explicit), buildDirectory, gateway, sidecar, buildRecord };
+  const buildRecord = firstExisting([join(buildDirectory, XLSX_BUILD_RECORD_FILE)]);
+  return { explicit: Boolean(explicit), buildDirectory, gatewayCandidates, gateway, sidecar, buildRecord };
+}
+
+async function sha256File(file) {
+  return createHash("sha256").update(await readFile(file)).digest("hex");
 }
 
 async function describe(file) {
@@ -71,14 +76,45 @@ async function describe(file) {
   return { file, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
-/** The actionable failure for a missing gateway: name the artifact, the dir
- *  searched and the exact command that produces it. */
-export function missingGatewayError({ buildDirectory }) {
+/** The actionable failure for a missing gateway: name the artifact, the exact
+ *  paths searched and the command that produces it. */
+export function missingGatewayError({ buildDirectory, gatewayCandidates }) {
+  const searched = (gatewayCandidates ?? [join(buildDirectory, "dist", XLSX_GATEWAY_FILE)])
+    .map((candidate) => candidate.split("\\").join("/"))
+    .join(", ");
   return new Error(
-    `xlsx gateway artifact is not staged: expected ${XLSX_GATEWAY_FILE} under ${join(buildDirectory, "dist")}. ` +
+    `xlsx gateway artifact is not staged: expected ${XLSX_GATEWAY_FILE} at ${searched}. ` +
       "Build it first with: node scripts/office/build-upstream.mjs --with-native --out " +
       DEFAULT_XLSX_BUILD_DIRECTORY.split("\\").join("/") +
       " (or point OFFICE_DESKTOP_XLSX_ASSETS at a directory that already holds it).",
+  );
+}
+
+/**
+ * The sidecar sha256 a build record attests (its `native.binary.sha256`), or
+ * null when the record was produced without --with-native - no native build
+ * was attempted, so there is nothing to verify a staged binary against. A
+ * record that cannot be read at all fails loudly: staging it as shipped
+ * evidence while silently skipping the comparison is the drift this check
+ * exists to stop.
+ */
+async function recordedSidecarSha256(buildRecord) {
+  let record;
+  try {
+    record = JSON.parse(await readFile(buildRecord, "utf8"));
+  } catch (error) {
+    throw new Error(`xlsx build record ${buildRecord} could not be read: ${error.message}`);
+  }
+  const recorded = record?.native?.binary?.sha256;
+  return typeof recorded === "string" && recorded.trim() ? recorded.trim().toLowerCase() : null;
+}
+
+/** The loud failure for a sidecar whose bytes contradict its build record. */
+function sidecarProvenanceError({ buildRecord, sidecar, recorded, actual }) {
+  return new Error(
+    `xlsx sidecar sha256 mismatch: ${sidecar} hashes ${actual} but ${buildRecord} records ${recorded}. ` +
+      "The candidate is stale - a shared CARGO_TARGET_DIR can hold another build's binary. " +
+      "Rebuild with: node scripts/office/build-upstream.mjs --with-native, or point OFFICE_DESKTOP_XLSX_ASSETS at that build output.",
   );
 }
 
@@ -90,21 +126,33 @@ export function missingGatewayError({ buildDirectory }) {
  * .xlsx, which is the R3-2 defect. The sidecar is optional: without it the
  * engine still opens and edits formula-free workbooks, and a formula-bearing
  * save fails closed. Its absence is recorded in the manifest, never faked.
+ * When a build record is staged it is the sidecar's provenance: the recorded
+ * binary sha256 must equal the candidate's own hash, so a stale binary left in
+ * a shared CARGO_TARGET_DIR cannot stage silently next to a record that
+ * describes a different build.
  */
 export async function stageXlsxAssets({ repositoryRoot, distDirectory, platform = process.platform, environment = process.env } = {}) {
   const sources = resolveXlsxAssetSources({ repositoryRoot, platform, environment });
   if (!sources.gateway) throw missingGatewayError(sources);
+  const sidecarName = xlsxSidecarFile(platform);
+  if (sources.sidecar && sources.buildRecord) {
+    const recorded = await recordedSidecarSha256(sources.buildRecord);
+    const actual = await sha256File(sources.sidecar);
+    if (recorded && recorded !== actual) {
+      throw sidecarProvenanceError({ buildRecord: sources.buildRecord, sidecar: sources.sidecar, recorded, actual });
+    }
+  }
   const directory = join(distDirectory, XLSX_ASSETS_DIRECTORY);
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
   await cp(sources.gateway, join(directory, XLSX_GATEWAY_FILE));
-  if (sources.sidecar) await cp(sources.sidecar, join(directory, xlsxSidecarFile(platform)));
+  if (sources.sidecar) await cp(sources.sidecar, join(directory, sidecarName));
   if (sources.buildRecord) await cp(sources.buildRecord, join(directory, XLSX_BUILD_RECORD_FILE));
   const manifest = {
     schemaVersion: 1,
     platform,
     gateway: await describe(join(directory, XLSX_GATEWAY_FILE)),
-    sidecar: sources.sidecar ? await describe(join(directory, xlsxSidecarFile(platform))) : null,
+    sidecar: sources.sidecar ? await describe(join(directory, sidecarName)) : null,
     buildRecord: sources.buildRecord ? await describe(join(directory, XLSX_BUILD_RECORD_FILE)) : null,
   };
   await writeFile(join(directory, "staged-assets.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
