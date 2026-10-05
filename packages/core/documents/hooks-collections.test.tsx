@@ -205,7 +205,8 @@ describe("documents collection hooks", () => {
     await act(async () => {
       await result.current.mutateAsync({ documentId: "d1" });
     });
-    expect(result.current.data?.batch_id).toBe("b1");
+    // The observer publishes data after mutateAsync resolves; wait for it instead of racing the re-render.
+    await waitFor(() => expect(result.current.data?.batch_id).toBe("b1"));
     expect(qc.getQueryData(documentKeys.detail("w1", "d1"))).toBeDefined();
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ batch_id: "b2", affected: ["d1"] }));
