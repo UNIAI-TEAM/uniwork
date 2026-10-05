@@ -8,11 +8,13 @@ import {
   PPTX_FIND_UNSET_HIT,
   activeHitTarget,
   clampHitIndex,
+  findOccurrences,
   flattenDeckRuns,
   planFind,
   replaceAllEdit,
   replaceOneEdit,
   stepHitIndex,
+  type PptxFindOccurrence,
   type PptxFindTextTarget,
 } from "./pptx-find-model";
 
@@ -65,10 +67,39 @@ describe("hit navigation", () => {
   });
 
   it("resolves the target under the active hit", () => {
-    const plan = planFind(targets, "slide", false);
-    expect(activeHitTarget(targets, plan, 0)?.elementId).toBe("t1");
-    expect(activeHitTarget(targets, plan, 2)?.elementId).toBe("t4");
-    expect(activeHitTarget(targets, plan, 99)).toBeNull();
+    const hits = findOccurrences(targets, "slide", false);
+    expect(activeHitTarget(hits, 0)?.elementId).toBe("t1");
+    expect(activeHitTarget(hits, 2)?.elementId).toBe("t4");
+    expect(activeHitTarget(hits, 99)).toBeNull();
+  });
+});
+
+describe("findOccurrences (R3 F-1: a hit is one occurrence, not one run)", () => {
+  it("lists every occurrence inside one run, with its offset", () => {
+    const single: PptxFindTextTarget[] = [{ text: "alpha beta alpha", slideIndex: 0, elementId: "t1" }];
+    expect(findOccurrences(single, "alpha", false)).toEqual<PptxFindOccurrence[]>([
+      { run: 0, offset: 0, length: 5, slideIndex: 0, elementId: "t1" },
+      { run: 0, offset: 11, length: 5, slideIndex: 0, elementId: "t1" },
+    ]);
+  });
+
+  it("agrees with the engine plan's total, case-folded unless matchCase", () => {
+    const runs: PptxFindTextTarget[] = [
+      { text: "Go go GO", slideIndex: 0, elementId: "t1" },
+      { text: "gogo", slideIndex: 1 },
+    ];
+    expect(findOccurrences(runs, "go", false)).toHaveLength(planFind(runs, "go", false).total);
+    expect(findOccurrences(runs, "go", false).map((hit) => [hit.run, hit.offset])).toEqual([[0, 0], [0, 3], [0, 6], [1, 0], [1, 2]]);
+    expect(findOccurrences(runs, "GO", true).map((hit) => [hit.run, hit.offset])).toEqual([[0, 6]]);
+  });
+
+  it("matches non-overlapping, literally (metacharacters are text)", () => {
+    expect(findOccurrences([{ text: "aaaa", slideIndex: 0 }], "aa", false).map((hit) => hit.offset)).toEqual([0, 2]);
+    expect(findOccurrences([{ text: "a.b axb a.b", slideIndex: 0 }], "a.b", false).map((hit) => hit.offset)).toEqual([0, 8]);
+  });
+
+  it("finds nothing for an empty query", () => {
+    expect(findOccurrences(targets, "", false)).toEqual([]);
   });
 });
 
@@ -84,8 +115,8 @@ describe("emitted edits", () => {
   });
 
   it("scopes replace-one to the hit element and caps it at one match", () => {
-    const plan = planFind(targets, "slide", false);
-    expect(replaceOneEdit(targets, plan, 1, "slide", "deck", false)).toEqual({
+    const hits = findOccurrences(targets, "slide", false);
+    expect(replaceOneEdit(hits, 1, "slide", "deck", false)).toEqual({
       op: "find_replace",
       find: "slide",
       replace: "deck",
@@ -105,17 +136,25 @@ describe("emitted edits", () => {
       { text: "go on", slideIndex: 0, elementId: "t2" },
       { text: "go home", slideIndex: 1, elementId: "t1" },
     ];
-    const plan = planFind(runs, "go", false);
-    const ordinal = (hitIndex: number) => replaceOneEdit(runs, plan, hitIndex, "go", "X", false)?.occurrence;
-    // t1 on slide 0 holds three matches over two runs: the second hit starts at its 2nd match.
-    expect([0, 1, 2, 3].map(ordinal)).toEqual([0, 1, 0, 0]);
-    expect(replaceOneEdit(runs, plan, 1, "go", "X", false)).toMatchObject({ slideIndex: 0, elementId: "t1", occurrence: 1 });
+    const hits = findOccurrences(runs, "go", false);
+    const ordinal = (hitIndex: number) => replaceOneEdit(hits, hitIndex, "go", "X", false)?.occurrence;
+    // t1 on slide 0 holds three matches over two runs, each its own hit.
+    expect(hits).toHaveLength(5);
+    expect([0, 1, 2, 3, 4].map(ordinal)).toEqual([0, 1, 2, 0, 0]);
+    expect(replaceOneEdit(hits, 2, "go", "X", false)).toMatchObject({ slideIndex: 0, elementId: "t1", occurrence: 2 });
+  });
+
+  it("targets the second occurrence of one run alone (R3 F-1)", () => {
+    const single: PptxFindTextTarget[] = [{ text: "alpha beta alpha", slideIndex: 0, elementId: "t1" }];
+    const hits = findOccurrences(single, "alpha", false);
+    expect(replaceOneEdit(hits, 0, "alpha", "GAMMA", false)).toMatchObject({ elementId: "t1", occurrence: 0 });
+    expect(replaceOneEdit(hits, 1, "alpha", "GAMMA", false)).toMatchObject({ elementId: "t1", occurrence: 1, firstOnly: true });
   });
 
   it("omits the element id when the target has none", () => {
     const bare: PptxFindTextTarget[] = [{ text: "slide", slideIndex: 2 }];
-    const plan = planFind(bare, "slide", false);
-    expect(replaceOneEdit(bare, plan, 0, "slide", "deck", false)).toEqual({
+    const hits = findOccurrences(bare, "slide", false);
+    expect(replaceOneEdit(hits, 0, "slide", "deck", false)).toEqual({
       op: "find_replace",
       find: "slide",
       replace: "deck",
@@ -126,8 +165,7 @@ describe("emitted edits", () => {
   });
 
   it("emits no replace-one edit without a hit", () => {
-    const plan = planFind(targets, "zzz", false);
-    expect(replaceOneEdit(targets, plan, 0, "zzz", "x", false)).toBeNull();
+    expect(replaceOneEdit(findOccurrences(targets, "zzz", false), 0, "zzz", "x", false)).toBeNull();
   });
 });
 

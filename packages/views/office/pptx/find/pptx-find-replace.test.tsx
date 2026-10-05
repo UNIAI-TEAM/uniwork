@@ -88,6 +88,39 @@ describe("PptxFindReplacePanel", () => {
     });
   });
 
+  it("counts and targets each occurrence inside one run (R3 F-1)", async () => {
+    const single: PptxFindTextTarget[] = [{ text: "alpha beta alpha", slideIndex: 0, elementId: "t1" }];
+    const onActiveHitChange = vi.fn();
+    const { view, onFindReplace } = renderPanel({ texts: single, onActiveHitChange });
+    const count = () => document.querySelector("[data-pptx-find-count]");
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "alpha" } });
+    expect(count()).toHaveTextContent("Match 1 of 2");
+    fireEvent.click(screen.getByRole("button", { name: "Find next" }));
+    expect(count()).toHaveTextContent("Match 2 of 2");
+    expect(onActiveHitChange).toHaveBeenLastCalledWith({ slideIndex: 0, elementId: "t1" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Replace with" }), { target: { value: "GAMMA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(onFindReplace).toHaveBeenCalledTimes(1));
+    expect(onFindReplace).toHaveBeenCalledWith({
+      op: "find_replace",
+      find: "alpha",
+      replace: "GAMMA",
+      matchCase: false,
+      firstOnly: true,
+      slideIndex: 0,
+      elementId: "t1",
+      occurrence: 1,
+    });
+    // The edited deck arrives: the first occurrence is the one left.
+    view.rerender(
+      <PptxFindReplacePanel texts={[{ text: "alpha beta GAMMA", slideIndex: 0, elementId: "t1" }]} onFindReplace={onFindReplace} onActiveHitChange={onActiveHitChange} />,
+    );
+    expect(count()).toHaveTextContent("Match 1 of 1");
+    fireEvent.click(screen.getByRole("button", { name: "Replace all" }));
+    await waitFor(() => expect(onFindReplace).toHaveBeenCalledTimes(2));
+    expect(onFindReplace).toHaveBeenLastCalledWith({ op: "find_replace", find: "alpha", replace: "GAMMA", matchCase: false });
+  });
+
   it("closes on Escape from any control in the panel, not only the query (X4fix F6)", () => {
     const onClose = vi.fn();
     renderPanel({ onClose });

@@ -17,9 +17,10 @@
  * With no port bound every control is disabled and the panel says why - it never
  * fakes a capability.
  *
- * `texts` is the deck flattened to the op's match unit (one run per entry); the
- * count comes from the committed `planFindReplace` helper, so the number shown
- * is the number the engine replaces. The panel never reads the deck itself.
+ * `texts` is the deck flattened to the op's match unit (one run per entry); a
+ * hit is one occurrence inside a run (R3 F-1). The count comes from the
+ * committed `planFindReplace` helper, so the number shown is the number the
+ * engine replaces. The panel never reads the deck itself.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Replace, ReplaceAll, X } from "lucide-react";
@@ -34,6 +35,7 @@ import {
   PPTX_FIND_UNSET_HIT,
   activeHitTarget,
   clampHitIndex,
+  findOccurrences,
   planFind,
   replaceAllEdit,
   replaceOneEdit,
@@ -89,10 +91,12 @@ export function PptxFindReplacePanel({
   const blocked = readonly || !bound || inFlight;
 
   const plan = useMemo(() => planFind(texts, query, matchCase), [texts, query, matchCase]);
+  // R3 F-1: one hit per occurrence, so a run holding the query twice counts 2.
+  const hits = useMemo(() => findOccurrences(texts, query, matchCase), [texts, query, matchCase]);
 
-  // After Replace (one) the deck moves and the plan is rebuilt: the hit that was
-  // replaced either still matches (more matches in its run) or dropped out, so
-  // the next remaining hit sits at the same position (wrapping past the end).
+  // After Replace (one) the deck moves and the plan is rebuilt: the occurrence
+  // that was replaced dropped out, so the next remaining one sits at the same
+  // position (its offset recomputed from the edited run), wrapping past the end.
   const resumeAtRef = useRef<number | null>(null);
 
   // A new query or a changed deck invalidates the active hit; entering the list
@@ -100,9 +104,9 @@ export function PptxFindReplacePanel({
   useEffect(() => {
     const resumeAt = resumeAtRef.current;
     resumeAtRef.current = null;
-    const total = plan.hits.length;
+    const total = hits.length;
     setHitIndex(resumeAt !== null && resumeAt < total ? resumeAt : clampHitIndex(PPTX_FIND_UNSET_HIT, total));
-  }, [plan]);
+  }, [hits]);
 
   // X4fix F6: Escape closes from any control in the panel, not only the query.
   const rootRef = useRef<HTMLElement | null>(null);
@@ -125,8 +129,7 @@ export function PptxFindReplacePanel({
   useEffect(() => { onActiveHitChangeRef.current = onActiveHitChange; }, [onActiveHitChange]);
   useEffect(() => () => onActiveHitChangeRef.current?.(null), []);
 
-  const hitTarget = activeHitTarget(texts, plan, hitIndex);
-  const hit = plan.hits[hitIndex];
+  const hitTarget = activeHitTarget(hits, hitIndex);
   // Reported on the hit's identity (index + slide + element), not on every deck
   // change, so an edit made while the panel is open never re-selects over a
   // canvas click the user made since.
@@ -160,15 +163,15 @@ export function PptxFindReplacePanel({
   };
 
   const move = (direction: 1 | -1) => {
-    setHitIndex((current) => stepHitIndex(current, plan.hits.length, direction));
+    setHitIndex((current) => stepHitIndex(current, hits.length, direction));
   };
 
   const status = query === ""
     ? t("find.hint")
     : plan.total === 0
       ? t("find.no_matches")
-      : hit
-        ? t("find.hit_position", { current: String(hitIndex + 1), total: String(plan.hits.length) })
+      : hitTarget
+        ? t("find.hit_position", { current: String(hitIndex + 1), total: String(hits.length) })
         : t("find.matches", { value: String(plan.total) });
 
   const blockedReason = readonly
@@ -236,7 +239,7 @@ export function PptxFindReplacePanel({
           size="icon-sm"
           variant="ghost"
           aria-label={t("find.previous")}
-          disabled={plan.hits.length === 0}
+          disabled={hits.length === 0}
           data-pptx-find-prev
           onClick={() => move(-1)}
         >
@@ -247,7 +250,7 @@ export function PptxFindReplacePanel({
           size="icon-sm"
           variant="ghost"
           aria-label={t("find.next")}
-          disabled={plan.hits.length === 0}
+          disabled={hits.length === 0}
           data-pptx-find-next
           onClick={() => move(1)}
         >
@@ -259,7 +262,7 @@ export function PptxFindReplacePanel({
           variant="outline"
           disabled={!canReplaceOne}
           data-pptx-find-replace-one
-          onClick={() => void run(replaceOneEdit(texts, plan, hitIndex, query, replacement, matchCase))}
+          onClick={() => void run(replaceOneEdit(hits, hitIndex, query, replacement, matchCase))}
         >
           <Replace aria-hidden />
           {t("find.replace_one")}

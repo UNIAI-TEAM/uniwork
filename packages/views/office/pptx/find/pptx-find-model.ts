@@ -124,18 +124,63 @@ export function stepHitIndex(current: number, total: number, direction: 1 | -1):
   return (current + direction + total) % total;
 }
 
-/** The target the active hit points at, or null when there is no hit. */
-export function activeHitTarget(
-  targets: readonly PptxFindTextTarget[],
-  plan: FindReplacePlan,
-  hitIndex: number,
-): PptxFindTextTarget | null {
-  const hit = plan.hits[hitIndex];
-  if (!hit) return null;
-  return targets[hit.index - 1] ?? null;
+/** One match: a single occurrence inside one run (R3 F-1). A run that holds
+ * the query twice yields two hits, so the count, Next/Previous and Replace (one)
+ * all address the occurrence the panel shows, not the run around it. */
+export interface PptxFindOccurrence {
+  /** 0-based index of the run in `targets`. */
+  run: number;
+  /** Character offset of the match inside the run's text. */
+  offset: number;
+  length: number;
+  slideIndex: number;
+  elementId?: string;
 }
 
-/** Deck-wide replace-all edit, or null when there is nothing to find. */
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Every occurrence of `find` across the runs, in the engine's scan order. The
+ * runs that match come from the engine plan; the offsets inside them come from
+ * the same literal, global, case-folded-unless-matchCase regex the engine uses,
+ * so the number of hits is always `plan.total` and the n-th hit of an element
+ * is the n-th match the engine's `occurrence` counts.
+ */
+export function findOccurrences(
+  targets: readonly PptxFindTextTarget[],
+  find: string,
+  matchCase: boolean,
+): PptxFindOccurrence[] {
+  const plan = planFind(targets, find, matchCase);
+  const out: PptxFindOccurrence[] = [];
+  for (const hit of plan.hits) {
+    const run = hit.index - 1;
+    const target = targets[run];
+    if (!target) continue;
+    const re = new RegExp(escapeRegExp(find), matchCase ? "g" : "gi");
+    for (const match of target.text.matchAll(re)) {
+      out.push({
+        run,
+        offset: match.index,
+        length: match[0].length,
+        slideIndex: target.slideIndex,
+        ...(target.elementId === undefined ? {} : { elementId: target.elementId }),
+      });
+    }
+  }
+  return out;
+}
+
+/** The occurrence the active hit points at, or null when there is no hit. */
+export function activeHitTarget(
+  hits: readonly PptxFindOccurrence[],
+  hitIndex: number,
+): PptxFindOccurrence | null {
+  return hits[hitIndex] ?? null;
+}
+
+/** Deck-wide replace-all edit, or null when there is nothing to find. One edit,
+ * so every occurrence goes in one undoable step. */
 export function replaceAllEdit(
   find: string,
   replace: string,
@@ -145,21 +190,20 @@ export function replaceAllEdit(
   return { op: "find_replace", find, replace, matchCase };
 }
 
-/** Replace-one edit for exactly the active hit: scoped to its element, with the
- * hit's ordinal among that element's matches (`occurrence`), so the match the
- * panel shows is the one replaced - not the element's first match. The ordinal
- * is the first match of the hit's run: the matches in earlier runs of the same
- * element, in the engine's scan order. Null when no hit. */
+/** Replace-one edit for exactly the active occurrence: scoped to its element,
+ * with its ordinal among that element's matches (`occurrence`) - the earlier
+ * hits on the same slide and element, in the engine's scan order - so the match
+ * the panel shows is the one replaced, even the second match of a single run.
+ * Null when no hit. */
 export function replaceOneEdit(
-  targets: readonly PptxFindTextTarget[],
-  plan: FindReplacePlan,
+  hits: readonly PptxFindOccurrence[],
   hitIndex: number,
   find: string,
   replace: string,
   matchCase: boolean,
 ): PptxFindReplaceEdit | null {
   if (!find) return null;
-  const target = activeHitTarget(targets, plan, hitIndex);
+  const target = activeHitTarget(hits, hitIndex);
   if (!target) return null;
   const edit: PptxFindReplaceEdit = {
     op: "find_replace",
@@ -171,12 +215,9 @@ export function replaceOneEdit(
   };
   if (target.elementId) {
     edit.elementId = target.elementId;
-    let occurrence = 0;
-    for (const earlier of plan.hits.slice(0, hitIndex)) {
-      const run = targets[earlier.index - 1];
-      if (run?.slideIndex === target.slideIndex && run.elementId === target.elementId) occurrence += earlier.count;
-    }
-    edit.occurrence = occurrence;
+    edit.occurrence = hits
+      .slice(0, hitIndex)
+      .filter((earlier) => earlier.slideIndex === target.slideIndex && earlier.elementId === target.elementId).length;
   }
   return edit;
 }
