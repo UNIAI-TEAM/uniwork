@@ -5,7 +5,7 @@ import { act, createElement, isValidElement, StrictMode, useEffect, type ReactEl
 import { createRoot, type Root } from "react-dom/client";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import { pptxSessionDivergedError, type PptxEdit } from "@uniwork/office-engine/pptx";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import type { PptxSessionRuntime } from "./pptx-runtime";
@@ -254,6 +254,33 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
     adapter.editor.undo();
     expect(engine.undo).toHaveBeenCalledTimes(1);
+  });
+
+  // UNI-927 W12: a diverged session must not look like a no-op undo.
+  it("surfaces a diverged runtime session as a dirty deck whose save fails, and swallows a plain refusal", async () => {
+    const engine = runtime();
+    const files = documents();
+    const adapter = createPptxFormatAdapter(options(engine, files));
+    await adapter.open.open();
+
+    // A refusal that left the model untouched stays a silent no-op.
+    vi.mocked(engine.undo).mockRejectedValueOnce(new Error("pptx_undo_replay_failed"));
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(engine.undo).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
+
+    // The diverged refusal marks the deck dirty; the save then refuses loudly.
+    const diverged = pptxSessionDivergedError(new Error("fmt_no_element"));
+    vi.mocked(engine.redo).mockRejectedValueOnce(diverged);
+    vi.mocked(engine.serialize).mockRejectedValue(diverged);
+    adapter.editor.redo();
+    await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(1));
+    expect(adapter.session.coordinator.getState().state).toBe("dirty");
+    const saved = await adapter.session.coordinator.save("button");
+    expect(saved.accepted).not.toBe(true);
+    expect(files.uploaded).toHaveLength(0);
+    await adapter.session.dispose();
   });
 
   it("hands the runtime's minted element ids back through the edit handle", async () => {

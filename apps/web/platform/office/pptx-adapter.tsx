@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import type { PptxEdit, PptxParagraphLike } from "@uniwork/office-engine/pptx";
+import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
@@ -417,35 +417,44 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     // Journal-backed history. The shared EditorHandle methods return void, so
     // each runs on the runtime's serialized lane and publishes its result by
     // advancing the dirty generation (a content change the coordinator must
-    // still save) and republishing the deck view. A rejected replay is
-    // swallowed: the shared void contract has no error channel to report it on.
+    // still save) and republishing the deck view. A refused replay that left
+    // the model untouched is swallowed: the shared void contract has no error
+    // channel. A diverged session (W12: the replay failed after the engine
+    // swap, so the model no longer matches the journal) is not: it is marked
+    // dirty, so the coordinator's save runs and fails loudly with
+    // pptx_session_diverged instead of the deck silently looking undone.
     undo() {
       if (disposed || !modelRef) return;
       const ref = modelRef;
       void options.runtime.undo(ref).then((applied) => {
-        if (!applied || disposed || modelRef !== ref) return;
-        generation += 1;
-        viewRevision += 1;
-        session.coordinator.markDirty(generation);
-        refreshView();
-      }).catch(() => undefined);
+        if (applied) historyMoved(ref);
+      }).catch((error: unknown) => {
+        if (isPptxSessionDiverged(error)) historyMoved(ref);
+      });
     },
     redo() {
       if (disposed || !modelRef) return;
       const ref = modelRef;
       void options.runtime.redo(ref).then((applied) => {
-        if (!applied || disposed || modelRef !== ref) return;
-        generation += 1;
-        viewRevision += 1;
-        session.coordinator.markDirty(generation);
-        refreshView();
-      }).catch(() => undefined);
+        if (applied) historyMoved(ref);
+      }).catch((error: unknown) => {
+        if (isPptxSessionDiverged(error)) historyMoved(ref);
+      });
     },
     slides: () => (modelRef && !disposed ? options.runtime.slides(modelRef) : []),
     snapshot: () => (modelRef && !disposed ? options.runtime.snapshot(modelRef) : null),
     deck: () => (modelRef && !disposed ? options.runtime.deck(modelRef) : null),
     revision: () => viewRevision,
   };
+
+  /** One history move (or a divergence) is a content change the coordinator must save. */
+  function historyMoved(ref: string): void {
+    if (disposed || modelRef !== ref) return;
+    generation += 1;
+    viewRevision += 1;
+    session.coordinator.markDirty(generation);
+    refreshView();
+  }
 
   // UNI-927 NOTES-WIRE: the presenter's notes come from the LIVE session; a
   // released/disposed session reads null (the honest empty-notes line) instead
