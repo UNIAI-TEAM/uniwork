@@ -191,6 +191,26 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("flips char boxes with the unrotated height on a rotated page", async () => {
+    // A /Rotate 90 page reports a swapped display size (200x100), so its
+    // unrotated box is 100x200. pageCharBoxes are in that unrotated space, so
+    // the quad flip must use the unrotated height (the display width).
+    const session: PdfRenderSession = {
+      pages: () => [{ pageNumber: 1, width: 200, height: 100, rotation: 90 }],
+      pageText: () => "Hello",
+      pageCharBoxes: () => "Hello".split("").map((_c, index) => ({ x: index * 10, y: 50, width: 10, height: 8 })),
+      renderPage: vi.fn(async (request) => ({ src: `blob:page-${request.pageNumber}`, width: 200, height: 100 })),
+      replaceBytes: vi.fn(async () => undefined),
+      dispose: () => undefined,
+    };
+    const { adapter, editor } = setup({ createRenderSession: vi.fn(async () => session) });
+    await adapter.open.open();
+    const hits = await editor.searchText?.("HELLO");
+    // Unrotated height 200: y1 = 200 - (50 + 8) = 142, y2 = 200 - 50 = 150.
+    expect(hits?.[0]?.quads).toEqual([[0, 142, 50, 150]]);
+    await adapter.session.dispose();
+  });
+
   it("survives a StrictMode dispose then open: re-opens from cached bytes with a fresh session", async () => {
     const { adapter, editor, documents, sessions, createRenderSession } = setup();
     await adapter.open.open();

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees } from "pdf-lib";
 import { describe, expect, it, vi } from "vitest";
 
 import { applyPdfOpsInBrowser } from "./pdf";
@@ -19,6 +19,16 @@ async function textPdf(): Promise<Uint8Array> {
   const font = await doc.embedFont(StandardFonts.Helvetica);
   doc.addPage([200, 100]).drawText("Hello pdfium", { x: 10, y: 50, size: 14, font });
   doc.addPage([100, 200]);
+  return doc.save();
+}
+
+/** A 100x200 portrait page with one text line, optionally carrying a /Rotate. */
+async function rotatedTextPdf(rotation: number): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([100, 200]);
+  if (rotation !== 0) page.setRotation(degrees(rotation));
+  page.drawText("Rotated text", { x: 10, y: 150, size: 14, font });
   return doc.save();
 }
 
@@ -91,6 +101,35 @@ describe("loadBrowserPdfium (real wasm)", () => {
     }
   });
 
+  it("reports char boxes inside the unrotated page box on a /Rotate 90 page", async () => {
+    const pdfium = await loadBrowserPdfium({ wasmUrl: "/rot.wasm", fetch: wasmFetch() });
+    for (const rotation of [0, 90]) {
+      const doc = pdfium.openDocument(await rotatedTextPdf(rotation));
+      try {
+        const display = doc.pageSize(0);
+        // /Rotate 90 swaps the display size; the page's own box is 100x200 either way.
+        expect(display).toEqual(rotation === 90 ? { width: 200, height: 100 } : { width: 100, height: 200 });
+        const unrotatedWidth = rotation === 90 ? display.height : display.width;
+        const unrotatedHeight = rotation === 90 ? display.width : display.height;
+        const ink = doc.pageCharBoxes(0).filter((box) => box.width > 0);
+        expect(ink.length).toBeGreaterThan(3);
+        for (const box of ink) {
+          // The old code flipped with the display height, pushing a /Rotate 90 box
+          // to a negative, off-page y; every box must stay inside the unrotated box.
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.y).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(unrotatedWidth + 0.01);
+          expect(box.y + box.height).toBeLessThanOrEqual(unrotatedHeight + 0.01);
+        }
+        // The line sits high on the unrotated page, so its top edge lands near the top.
+        expect(Math.min(...ink.map((box) => box.y))).toBeLessThan(unrotatedHeight * 0.5);
+        expect(doc.pageText(0)).toContain("Rotated text");
+      } finally {
+        doc.close();
+      }
+    }
+  });
+
   it("reports engine_error for bytes that are not a PDF", async () => {
     const pdfium = await loadBrowserPdfium({ wasmUrl: "/real.wasm", fetch: wasmFetch() });
     expect(() => pdfium.openDocument(new TextEncoder().encode("not a pdf"))).toThrowError(
@@ -121,6 +160,7 @@ function failingModule(error: number): BrowserPdfiumModule {
     _FPDF_GetPageCount: () => 0,
     _FPDF_GetPageWidthF: () => 0,
     _FPDF_GetPageHeightF: () => 0,
+    _FPDFPage_GetRotation: () => 0,
     _FPDFBitmap_CreateEx: () => 0,
     _FPDFBitmap_FillRect: () => undefined,
     _FPDFBitmap_Destroy: () => undefined,
@@ -158,6 +198,7 @@ function boxModule(): BrowserPdfiumModule {
     _FPDF_GetPageCount: () => 1,
     _FPDF_GetPageWidthF: () => 100,
     _FPDF_GetPageHeightF: () => 100,
+    _FPDFPage_GetRotation: () => 0,
     _FPDFBitmap_CreateEx: () => 0,
     _FPDFBitmap_FillRect: () => undefined,
     _FPDFBitmap_Destroy: () => undefined,
@@ -201,6 +242,25 @@ describe("createBrowserPdfium (fake module)", () => {
 
   it("maps every other load error to engine_error", () => {
     expect(() => createBrowserPdfium(failingModule(3)).openDocument(bytes)).toThrowError(expect.objectContaining({ code: "engine_error" }));
+  });
+
+  it("flips char boxes with the UNROTATED height on a /Rotate 90 page", () => {
+    // A 90-degree page reports a display height of 100 (== the unrotated width).
+    // The char box is in unrotated space (height 200), so the top-left y must use
+    // 200 - top, not 100 - top; the old mix produced a negative, off-page y.
+    const m = boxModule();
+    m._FPDF_GetPageWidthF = () => 200;
+    m._FPDF_GetPageHeightF = () => 100;
+    m._FPDFPage_GetRotation = () => 1;
+    const doc = createBrowserPdfium(m).openDocument(bytes);
+    try {
+      expect(doc.pageCharBoxes(0)).toEqual([
+        { x: 10, y: 170, width: 10, height: 10 },
+        { x: 5, y: 175, width: 0, height: 0 },
+      ]);
+    } finally {
+      doc.close();
+    }
   });
 
   it("keeps offsets aligned: a char with no box becomes a zero-size box", () => {

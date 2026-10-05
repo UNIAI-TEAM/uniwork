@@ -23,6 +23,8 @@ export interface BrowserPdfiumModule {
   _FPDF_GetPageCount(doc: number): number;
   _FPDF_GetPageWidthF(page: number): number;
   _FPDF_GetPageHeightF(page: number): number;
+  /** FPDFPage_GetRotation: the /Rotate value normalised to 0..3 quarter turns clockwise. */
+  _FPDFPage_GetRotation(page: number): number;
   _FPDFBitmap_CreateEx(w: number, h: number, format: number, buf: number, stride: number): number;
   _FPDFBitmap_FillRect(bitmap: number, left: number, top: number, width: number, height: number, color: number): void;
   _FPDFBitmap_Destroy(bitmap: number): void;
@@ -62,9 +64,11 @@ export interface BrowserPdfDocument {
   renderPage(index: number, options: { scale: number }): BrowserPdfRenderedPage;
   /** Text of the page; line breaks are normalised to \n. */
   pageText(index: number): string;
-  /** One box per character of pageText(index), in that same index space: a
-   * top-left-origin rectangle in PDF points. A char with no box is reported
-   * as a zero-size box so offsets stay aligned with pageText. */
+  /** One box per character of pageText(index), in that same index space. Each
+   * box is a top-left-origin rectangle in the page's own UNROTATED user space
+   * (the /Rotate value is NOT applied: page width x unrotated height, PDF
+   * points). A char with no box is reported as a zero-size box so offsets stay
+   * aligned with pageText. */
   pageCharBoxes(index: number): readonly { x: number; y: number; width: number; height: number }[];
   close(): void;
 }
@@ -138,6 +142,13 @@ function normalizePageText(raw: string): { text: string; rawIndex: number[] } {
   let end = text.length;
   while (end > 0 && /\s/.test(text[end - 1]!)) end -= 1;
   return { text: text.slice(0, end), rawIndex: rawIndex.slice(0, end) };
+}
+
+/** The page's unrotated height in points. _FPDF_GetPageHeightF already swaps
+ * width and height for a /Rotate 90 or 270 page, so read the width there. */
+function unrotatedPageHeight(m: BrowserPdfiumModule, page: number): number {
+  const rotation = m._FPDFPage_GetRotation(page);
+  return rotation === 1 || rotation === 3 ? m._FPDF_GetPageWidthF(page) : m._FPDF_GetPageHeightF(page);
 }
 
 /** Wrap an initialised module. Exported for tests that inject a fake module. */
@@ -243,7 +254,11 @@ export function createBrowserPdfium(m: BrowserPdfiumModule): BrowserPdfium {
             try {
               const { rawIndex } = normalizePageText(readRawPageText(m, textPage));
               if (rawIndex.length === 0) return [];
-              const pageHeight = m._FPDF_GetPageHeightF(page);
+              // _FPDFText_GetLooseCharBox / _FPDFText_GetCharOrigin report the box in
+              // the page's UNROTATED user space (bottom-left origin, width x
+              // unrotated height). Flip with the unrotated height so the emitted
+              // top-left box stays in that single space for every /Rotate value.
+              const pageHeight = unrotatedPageHeight(m, page);
               const rectPtr = m._malloc(16);
               const xPtr = m._malloc(8);
               const yPtr = m._malloc(8);
@@ -256,7 +271,7 @@ export function createBrowserPdfium(m: BrowserPdfiumModule): BrowserPdfium {
                     const top = m.HEAPF32[(rectPtr >> 2) + 1]!;
                     const right = m.HEAPF32[(rectPtr >> 2) + 2]!;
                     const bottom = m.HEAPF32[(rectPtr >> 2) + 3]!;
-                    // PDF user space is bottom-left; report a top-left-origin box.
+                    // Bottom-left unrotated user space -> top-left box in the same space.
                     boxes.push({ x: left, y: pageHeight - top, width: right - left, height: top - bottom });
                     continue;
                   }

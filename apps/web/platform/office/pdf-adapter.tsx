@@ -260,7 +260,11 @@ function createPdfEditorSurface(options: {
             }
           }
           const hit: SearchHits[number] = { id: `${page.pageNumber}:${at}`, page: page.pageNumber, start: at, end, text: text.slice(at, end) };
-          const quads = quadsForRange(charBoxes, at, end, page.height);
+          // pageCharBoxes are in the page's unrotated space, so flip with the
+          // unrotated height: a /Rotate 90 or 270 page reports the swapped
+          // display height, whose matching unrotated height is the display width.
+          const unrotatedHeight = (page.rotation ?? 0) % 180 !== 0 ? page.width : page.height;
+          const quads = quadsForRange(charBoxes, at, end, unrotatedHeight);
           if (quads.length > 0) hit.quads = quads;
           hits.push(hit);
         }

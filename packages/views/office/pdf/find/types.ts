@@ -3,7 +3,8 @@ import type { PdfTextDoc, ReadPdfTextOptions } from "@uniwork/office-engine/pdf"
 export type PdfTextDocument = PdfTextDoc;
 export type PdfTextReader = (bytes: Uint8Array, options?: ReadPdfTextOptions) => Promise<PdfTextDoc>;
 
-/** One character box on a page, top-left origin, PDF points. */
+/** One character box in the page's UNROTATED user space: top-left origin,
+ * PDF points (page width x unrotated height; /Rotate is not applied). */
 export interface PdfCharBox {
   x: number;
   y: number;
