@@ -13,6 +13,13 @@ describe("notesPaneMode", () => {
     expect(notesPaneMode({ slideIndex: 0.5, loading: false, unbound: false })).toBe("no_slide");
   });
 
+  it("resolves an unread baseline to unbound, after the slide and loading checks", () => {
+    expect(notesPaneMode({ slideIndex: 0, loading: false, unbound: false, unread: true })).toBe("unbound");
+    expect(notesPaneMode({ slideIndex: null, loading: false, unbound: false, unread: true })).toBe("no_slide");
+    expect(notesPaneMode({ slideIndex: 0, loading: true, unbound: false, unread: true })).toBe("loading");
+    expect(notesPaneMode({ slideIndex: 0, loading: false, unbound: false, unread: false })).toBe("ready");
+  });
+
   it("reports loading before ready", () => {
     expect(notesPaneMode({ slideIndex: 2, loading: true, unbound: false })).toBe("loading");
     expect(notesPaneMode({ slideIndex: 2, loading: false, unbound: false })).toBe("ready");

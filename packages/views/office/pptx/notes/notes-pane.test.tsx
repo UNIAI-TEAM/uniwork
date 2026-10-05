@@ -46,6 +46,28 @@ describe("PptxNotesPane", () => {
     expect(onCommitNotes).toHaveBeenCalledTimes(1);
   });
 
+  it("shows the fixture's real note, enables save on typing and settles once the host re-reads (F-06)", () => {
+    const real = "Ghi chú trình bày cho buổi họp tuần.";
+    const onCommitNotes = vi.fn();
+    const view = render(<PptxNotesPane slideIndex={0} notes={real} onCommitNotes={onCommitNotes} />);
+    const field = screen.getByRole("textbox");
+    expect(field).toHaveValue(real);
+    fireEvent.change(field, { target: { value: real + " Cập nhật." } });
+    expect(screen.getByRole("button", { name: "Save notes" })).toBeEnabled();
+    fireEvent.keyDown(field, { key: "Enter", ctrlKey: true });
+    expect(onCommitNotes).toHaveBeenCalledWith(0, real + " Cập nhật.");
+    view.rerender(<PptxNotesPane slideIndex={0} notes={real + " Cập nhật."} onCommitNotes={onCommitNotes} />);
+    expect(screen.getByTestId("pptx-notes-status")).toHaveAttribute("data-pptx-notes-status", "saved");
+    expect(screen.getByRole("button", { name: "Save notes" })).toBeDisabled();
+  });
+
+  it("refuses a dead editor when the host supplied no notes baseline (F-06)", () => {
+    render(<PptxNotesPane slideIndex={0} notes={null} onCommitNotes={vi.fn()} />);
+    expect(screen.getByTestId("pptx-notes-pane")).toHaveAttribute("data-pptx-notes-mode", "unbound");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByTestId("pptx-notes-unbound")).toBeInTheDocument();
+  });
+
   it("does not commit while pending", () => {
     const onCommitNotes = vi.fn();
     render(<PptxNotesPane slideIndex={0} notes="bound" pending onCommitNotes={onCommitNotes} />);

@@ -17,15 +17,24 @@ export interface PptxNotesPaneModeInput {
   loading: boolean;
   /** No notes port is bound to the editor. */
   unbound: boolean;
+  /** The host supplied no notes baseline for the slide (`notes === null`).
+   *  Optional so a caller that predates the read keeps the old resolution. */
+  unread?: boolean;
 }
 
-/** Resolution order: unbound, then no slide, then loading, then ready. */
+/**
+ * Resolution order: unbound, then no slide, then loading, then unread, then
+ * ready. An unread baseline resolves to `unbound`: without the slide's
+ * current notes the pane cannot show them nor commit over them, so offering
+ * an editable box whose save can never enable is the dead control F-06 found.
+ */
 export function notesPaneMode(input: PptxNotesPaneModeInput): PptxNotesPaneMode {
   if (input.unbound) return "unbound";
   if (input.slideIndex === null || !Number.isInteger(input.slideIndex) || input.slideIndex < 0) {
     return "no_slide";
   }
   if (input.loading) return "loading";
+  if (input.unread) return "unbound";
   return "ready";
 }
 

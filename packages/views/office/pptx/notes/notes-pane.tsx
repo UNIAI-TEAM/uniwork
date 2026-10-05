@@ -62,7 +62,7 @@ export function PptxNotesPane({
 }: PptxNotesPaneProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const boundPort = typeof onCommitNotes === "function";
-  const mode = notesPaneMode({ slideIndex, loading, unbound: unbound || !boundPort });
+  const mode = notesPaneMode({ slideIndex, loading, unbound: unbound || !boundPort, unread: notes === null });
   const [draft, setDraft] = useState<string>(notes ?? "");
 
   // The bound notes are the source of truth: a slide change or a completed
