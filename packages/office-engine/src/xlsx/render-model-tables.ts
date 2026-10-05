@@ -44,7 +44,7 @@ function tablePartPaths(sheetXml: string, sheetRelsXml: string | null | undefine
   if (!sheetRelsXml) return [];
   const wanted = new Set<string>();
   for (const part of elements(sectionInner(sheetXml, "tableParts"), "tablePart")) {
-    const id = attribute(part.tag, "r:id");
+    const id = attribute(part.tag, "r:id") ?? attribute(part.tag, "id");
     if (id !== undefined) wanted.add(id);
   }
   if (wanted.size === 0) return [];
@@ -63,7 +63,7 @@ function tablePartPaths(sheetXml: string, sheetRelsXml: string | null | undefine
 function parseTableXml(xml: string, parseRef: RefParser): XlsxRenderTable | null {
   const root = elements(xml, "table")[0];
   if (!root) return null;
-  const rawName = attribute(root.tag, "name") ?? attribute(root.tag, "displayName");
+  const rawName = attribute(root.tag, "displayName") ?? attribute(root.tag, "name");
   const ref = attribute(root.tag, "ref");
   if (rawName === undefined || rawName === "" || ref === undefined) return null;
   const range = parseRef(decodeXml(ref));
@@ -74,6 +74,8 @@ function parseTableXml(xml: string, parseRef: RefParser): XlsxRenderTable | null
   const styleInfo = elements(xml, "tableStyleInfo")[0];
   const style = styleInfo === undefined ? undefined : attribute(styleInfo.tag, "name");
   const totalsCount = Number(attribute(root.tag, "totalsRowCount") ?? 0);
+  // totalsRowShown defaults to true; an explicit off hides the totals row.
+  const totalsShown = attribute(root.tag, "totalsRowShown") !== "0" && attribute(root.tag, "totalsRowShown") !== "false";
   return {
     name: decodeXml(rawName),
     area: { startRow: range.startRow, startColumn: range.startColumn, endRow: range.endRow, endColumn: range.endColumn },
@@ -81,7 +83,7 @@ function parseTableXml(xml: string, parseRef: RefParser): XlsxRenderTable | null
     ...(style === undefined || style === "" ? {} : { style: decodeXml(style) }),
     bandedRows: styleInfo === undefined ? false : isOn(attribute(styleInfo.tag, "showRowStripes")),
     headerRow: attribute(root.tag, "headerRowCount") !== "0",
-    totalsRow: Number.isFinite(totalsCount) && totalsCount > 0,
+    totalsRow: totalsShown && Number.isFinite(totalsCount) && totalsCount > 0,
   };
 }
 

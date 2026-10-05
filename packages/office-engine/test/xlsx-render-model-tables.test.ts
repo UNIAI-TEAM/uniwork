@@ -1,6 +1,7 @@
 // UNI-926 FB-3: tables a workbook ships (worksheet <tableParts> -> rels ->
 // xl/tables/tableN.xml) reach the render model per sheet. The package is a
-// map of part texts behind a stub engine, so no zip fixture is needed.
+// map of part texts behind a stub engine, so no zip fixture is needed (the last block does use real zip bytes).
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { readXlsxRenderModel, type XlsxGatewayFunctions } from "../src/xlsx";
 
@@ -90,5 +91,123 @@ describe("xlsx render model: file-native tables", () => {
     const failed = await readXlsxRenderModel(engine, new Uint8Array());
     expect(failed.sheets[0]?.tables).toEqual([]);
     expect(failed.sheets[0]?.name).toBe("Data");
+  });
+
+  it("falls back to an unprefixed id on a tablePart", async () => {
+    const parts = base({ "xl/tables/table1.xml": TABLE_SALES, "xl/tables/table2.xml": TABLE_TOTALS });
+    parts["xl/worksheets/sheet1.xml"] = SHEET_WITH_TABLES(["rId1"]).replace('r:id="rId1"', 'id="rId1"');
+    expect((await read(parts)).sheets[0]?.tables?.map((table) => table.name)).toEqual(["Sales"]);
+  });
+
+  it("prefers displayName over name", async () => {
+    const renamed = TABLE_SALES.replace('name="Sales" displayName="Sales"', 'name="Old_Name" displayName="Sales_Display"');
+    expect((await read(base({ "xl/tables/table1.xml": renamed }))).sheets[0]?.tables?.[0]?.name).toBe("Sales_Display");
+    const nameOnly = TABLE_SALES.replace(' displayName="Sales"', "");
+    expect((await read(base({ "xl/tables/table1.xml": nameOnly }))).sheets[0]?.tables?.[0]?.name).toBe("Sales");
+  });
+
+  it("honours totalsRowShown: an explicit off hides the totals row", async () => {
+    const totals = async (attrs: string): Promise<boolean | undefined> => {
+      const xml = TABLE_TOTALS.replace('totalsRowCount="1"', `totalsRowCount="1"${attrs}`);
+      return (await read(base({ "xl/tables/table2.xml": xml }))).sheets[0]?.tables?.[0]?.totalsRow;
+    };
+    expect(await totals("")).toBe(true);
+    expect(await totals(' totalsRowShown="1"')).toBe(true);
+    expect(await totals(' totalsRowShown="0"')).toBe(false);
+    expect(await totals(' totalsRowShown="false"')).toBe(false);
+  });
+});
+
+// A real stored/deflated zip (central directory + local headers), read back by
+// a minimal reader behind the same entry-reader seam the engine exposes.
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipOf(entries: Record<string, string>): Uint8Array {
+  const chunks: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const [name, text] of Object.entries(entries)) {
+    const raw = Buffer.from(text, "utf8");
+    const packed = deflateRawSync(raw);
+    const nameBytes = Buffer.from(name, "utf8");
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(crc32(raw), 14);
+    local.writeUInt32LE(packed.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    const head = Buffer.alloc(46);
+    head.writeUInt32LE(0x02014b50, 0);
+    head.writeUInt16LE(20, 4);
+    head.writeUInt16LE(20, 6);
+    head.writeUInt16LE(8, 10);
+    head.writeUInt32LE(crc32(raw), 16);
+    head.writeUInt32LE(packed.length, 20);
+    head.writeUInt32LE(raw.length, 24);
+    head.writeUInt16LE(nameBytes.length, 28);
+    head.writeUInt32LE(offset, 42);
+    central.push(head, nameBytes);
+    chunks.push(local, nameBytes, packed);
+    offset += 30 + nameBytes.length + packed.length;
+  }
+  const directory = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(Object.keys(entries).length, 8);
+  end.writeUInt16LE(Object.keys(entries).length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return new Uint8Array(Buffer.concat([...chunks, directory, end]));
+}
+
+function unzipText(bytes: Uint8Array, wanted: readonly string[]): Record<string, string | null> {
+  const buf = Buffer.from(bytes);
+  const out: Record<string, string | null> = Object.fromEntries(wanted.map((path) => [path, null]));
+  const end = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = buf.readUInt16LE(end + 10);
+  let cursor = buf.readUInt32LE(end + 16);
+  for (let index = 0; index < count; index++) {
+    const packedSize = buf.readUInt32LE(cursor + 20);
+    const nameLength = buf.readUInt16LE(cursor + 28);
+    const localOffset = buf.readUInt32LE(cursor + 42);
+    const name = buf.toString("utf8", cursor + 46, cursor + 46 + nameLength);
+    cursor += 46 + nameLength;
+    if (!wanted.includes(name)) continue;
+    const start = localOffset + 30 + buf.readUInt16LE(localOffset + 26) + buf.readUInt16LE(localOffset + 28);
+    out[name] = inflateRawSync(buf.subarray(start, start + packedSize)).toString("utf8");
+  }
+  return out;
+}
+
+describe("xlsx render model: tables from a real zip package", () => {
+  it("reads a table end to end out of real zip bytes", async () => {
+    const bytes = zipOf(base({ "xl/tables/table1.xml": TABLE_SALES, "xl/tables/table2.xml": TABLE_TOTALS }));
+    expect(bytes[0]).toBe(0x50);
+    expect(bytes[1]).toBe(0x4b);
+    const engine = {
+      async readWorkbook() {
+        return { sheetNamesById: { "sheet-1": "Data", "sheet-2": "Plain" }, snapshot: { revision: 7, sheets: [] } };
+      },
+      async readEntriesText(zip: Uint8Array, paths: readonly string[]) {
+        return unzipText(zip, paths);
+      },
+    } as unknown as XlsxGatewayFunctions;
+    const model = await readXlsxRenderModel(engine, bytes);
+    const sales = model.sheets[0]?.tables?.[0];
+    expect(sales?.name).toBe("Sales");
+    expect(sales?.area).toEqual({ startRow: 1, startColumn: 1, endRow: 5, endColumn: 3 });
+    expect(sales?.columnNames).toEqual(["Region", "Q1 & Q2", "Total"]);
+    expect(sales?.headerRow).toBe(true);
+    expect(model.sheets[0]?.tables).toHaveLength(2);
+    expect(model.sheets[1]?.tables).toEqual([]);
   });
 });
