@@ -34,7 +34,8 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
-import { useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
+import { OfficeFrame } from "../frame";
+import { MarkdownStatusBar } from "./status-bar";
 import type { PreviewSession } from "../source-editor-types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
@@ -146,10 +147,6 @@ export function MarkdownEditor<TSnapshot = unknown>({
   onOpen,
 }: MarkdownEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
-  // The shared UNI-930 cluster owns Save + status; when the page supplies the
-  // header-actions slot it is already drawn, so hide this surface's copies.
-  // Without a shell the surface keeps them, like DOCX's `showDocumentControls`.
-  const shellOwnsChrome = useHeaderActionsSlotAvailable();
   const [viewState, setViewState] = useState<"opening" | "ready" | "error">("opening");
   const [failure, setFailure] = useState<Extract<MarkdownOpenOutcome, { outcome: "failed" }> | null>(null);
   const [text, setText] = useState("");
@@ -191,7 +188,6 @@ export function MarkdownEditor<TSnapshot = unknown>({
 
   const effectiveTitle = title ?? t("title");
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
-  const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
   // A host-reported failure (prop) or a failed paste/drop upload (recorded here)
   // keeps the document unsavable; a failed asset MUST block Save.
@@ -447,39 +443,46 @@ export function MarkdownEditor<TSnapshot = unknown>({
   }, [copySelection, history, mode, pasteText, permissions.canCopy, permissions.canPaste, save]);
 
   return (
-    <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
-      <header className={cn("flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2", shellOwnsChrome && "hidden")}>
-        <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
-        <span className="text-caption text-muted-foreground" data-testid="md-open-state">
-          {viewState === "opening" ? t("state.opening") : viewState === "ready" ? t(`saveState.${coordinatorState.state}`) : t("state.error")}
-        </span>
-      </header>
+    <section className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-testid="md-editor" data-document-key={documentKey} data-md-view={mode} onKeyDown={onKeyDown} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
-        <>
-          {/*
-            The shared Markdown ribbon draws the tabs, the command body and the
-            Source | Visual control. The host owns the mode so the control stays
-            reachable while the visual canvas is unmounted (source mode).
-          */}
-          <MarkdownRibbon
-            editor={instance}
-            editable={!readOnly && mode === "visual"}
-            viewMode={mode}
-            onViewModeChange={setMode}
-            onOutlineChange={setOutlineVisible}
-            onFrontmatterChange={setFrontmatterVisible}
-            outline={outlineVisible}
-            frontmatter={frontmatterVisible}
-            onFind={openFind}
-            scope="markdown"
-          />
+        <OfficeFrame
+          ribbon={
+            /*
+              The shared Markdown ribbon draws the tabs, the command body and
+              the Source | Visual control. The host owns the mode so the control
+              stays reachable while the visual canvas is unmounted (source mode).
+            */
+            <MarkdownRibbon
+              editor={instance}
+              editable={!readOnly && mode === "visual"}
+              viewMode={mode}
+              onViewModeChange={setMode}
+              onOutlineChange={setOutlineVisible}
+              onFrontmatterChange={setFrontmatterVisible}
+              outline={outlineVisible}
+              frontmatter={frontmatterVisible}
+              onFind={openFind}
+              scope="markdown"
+            />
+          }
+          bottom={
+            <aside className="max-h-40 shrink-0 overflow-auto border-t border-border bg-office-band" aria-label={t("asset.label")} data-testid="md-assets">
+              <AssetManifestPanel manifest={manifest} failures={failures} />
+              {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
+            </aside>
+          }
+          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} />}
+          canvasClassName="flex min-h-0 flex-col overflow-hidden"
+        >
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
             replace) and Escape. It is mounted for BOTH canvases: the visual
             half searches the flattened document, the source half the textarea.
+            It stays the surface's own overlay panel (the frame's subbar has no
+            open state to drive).
           */}
           <MarkdownFind ref={findRef} editor={instance} handle={editor} mode={mode} editable={!readOnly} sourceTextarea={textAreaRef} sourceOverlayTarget={sourceWrapperRef} />
-          <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="md-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
+          <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border px-2 py-1" data-testid="md-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
             {mode === "source" ? (
               <>
                 <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
@@ -490,10 +493,10 @@ export function MarkdownEditor<TSnapshot = unknown>({
             ) : null}
             <span className="min-w-0 flex-1" />
             {/*
-              M8 print/export entries (C4/C9): a menu in the host's own row, the
-              way the DOCX export group exposes its menu. Print goes through the
-              injected port with the SANITIZED copy; the PDF/DOCX exports stay
-              disabled with their "not available yet" tooltip.
+              M8 print/export entries (C4/C9): the host's own menu. Print goes
+              through the injected port with the SANITIZED copy; the PDF/DOCX
+              exports stay disabled with their "not available yet" tooltip.
+              Save is NOT here: the page header cluster owns it (F2).
             */}
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -514,9 +517,6 @@ export function MarkdownEditor<TSnapshot = unknown>({
                 <MarkdownPrintMenuItems port={browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button type="button" variant="brand" size="sm" data-testid="md-save" className={cn(shellOwnsChrome && "hidden")} disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
-              {saving ? t("actions.saving") : t("actions.save")}
-            </Button>
           </div>
           <div className="flex min-h-0 flex-1">
             {outlineVisible ? <MarkdownOutlinePane editor={instance} className="max-h-full" /> : null}
@@ -577,11 +577,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
               {frontmatterVisible ? <MarkdownFrontmatterPanel editor={editor} editable={!readOnly} className="max-h-64" /> : null}
             </div>
           </div>
-          <aside className="border-t border-border" aria-label={t("asset.label")} data-testid="md-assets">
-            <AssetManifestPanel manifest={manifest} failures={failures} />
-            {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
-          </aside>
-        </>
+        </OfficeFrame>
       ) : viewState === "error" && failure ? (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="md-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>

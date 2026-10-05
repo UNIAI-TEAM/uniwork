@@ -79,11 +79,12 @@ describe("MarkdownEditor (production surface)", () => {
     expect(screen.queryByTestId("md-wysiwyg")).toBeNull();
   });
 
-  it("routes Save through the coordinator from both entry points and disposes on unmount", async () => {
+  it("routes Save through the coordinator from the document shortcut and disposes on unmount", async () => {
+    // F2: the per-surface Save button is gone; the page header cluster owns it
+    // and the surface keeps only the Ctrl+S handshake.
     const { handle, saveCoordinator, unmount } = renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("md-save"));
-    expect(saveCoordinator.save).toHaveBeenCalledWith("button");
+    expect(screen.queryByTestId("md-save")).toBeNull();
     fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
     expect(saveCoordinator.save).toHaveBeenCalledWith("shortcut");
     expect(saveCoordinator).not.toHaveProperty("writeBytes");
@@ -107,18 +108,19 @@ describe("MarkdownEditor (production surface)", () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
   });
 
-  it("keeps a read-only document unsavable", async () => {
-    renderEditor({ capability: { ...CAPABILITY, status: "readonly" } });
+  it("keeps a read-only document unsavable and reports it in the status bar", async () => {
+    const { saveCoordinator } = renderEditor({ capability: { ...CAPABILITY, status: "readonly" } });
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    expect(screen.getByTestId("md-save")).toBeDisabled();
+    expect(screen.getByTestId("md-readonly")).toHaveTextContent("Read-only");
+    fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
   });
 
   it("blocks Save when the host reports a failed asset", async () => {
     const { saveCoordinator } = renderEditor({ assetFailures: { "assets/bad.png": "failed" } });
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    expect(screen.getByTestId("md-save")).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("This document cannot be saved until every asset is available.");
-    fireEvent.click(screen.getByTestId("md-save"));
+    fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
     expect(saveCoordinator.save).not.toHaveBeenCalled();
   });
 });
@@ -199,16 +201,14 @@ describe("MarkdownEditor source mode", () => {
     denied.unmount();
   });
 
-  it("drops its own Save button and open-state text when the shell provides them (VFIXMINOR)", async () => {
-    // The shared UNI-930 cluster is the single Save/status owner. When the web
-    // document page supplies the header-actions slot, OfficeShell fills it and
-    // this surface must not draw a second Save or a second status text.
-    const saveCoordinator = coordinator();
-    const rendered = renderEditor({ coordinator: saveCoordinator });
+  it("keeps the shared frame and no inner header with or without a page header slot", async () => {
+    // F1/F2: the ready state is the Office frame, edge to edge, and the surface
+    // never draws its own header or Save row whether or not a page header exists.
+    const rendered = renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    // Control: with no shell above it the surface keeps its own controls.
-    expect(screen.getByTestId("md-save")).toBeInTheDocument();
-    expect(screen.getByTestId("md-open-state")).toBeInTheDocument();
+    expect(rendered.container.querySelector("[data-office-frame]")).not.toBeNull();
+    expect(rendered.container.querySelector("[data-testid='md-editor'] header")).toBeNull();
+    expect(screen.queryByTestId("md-save")).toBeNull();
     rendered.unmount();
 
     let text = FIXTURE;
@@ -222,17 +222,15 @@ describe("MarkdownEditor source mode", () => {
       getAssetManifest: () => ({ entries: [] }),
     };
     const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
-    render(
+    const withShell = render(
       <HeaderActionsSlotProvider>
         <MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator()} capability={CAPABILITY} />
       </HeaderActionsSlotProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-    // The surface HIDES its copies (the shared cluster is the visible owner);
-    // removal would push the 500-line file over its cap, so the duplicate is
-    // display-none - still one visible Save/status on the page.
-    expect(screen.getByTestId("md-save")).toHaveClass("hidden");
-    expect(screen.getByTestId("md-open-state").closest("header")).toHaveClass("hidden");
+    expect(withShell.container.querySelector("[data-office-frame]")).not.toBeNull();
+    expect(withShell.container.querySelector("[data-testid='md-editor'] header")).toBeNull();
+    expect(screen.queryByTestId("md-save")).toBeNull();
   });
 
   it("routes undo and redo to the engine in source mode", async () => {
@@ -383,6 +381,49 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
       expect(item).toHaveAttribute("aria-disabled", "true");
       expect(item).toHaveAttribute("title", "This export format is not supported yet.");
     }
+  });
+});
+
+/**
+ * UNI-928 F1/F2/F8: the Markdown ready state is the shared Office frame and
+ * nothing else. One ribbon region, exactly one 28px status bar, no inner card,
+ * no inner title and no per-surface Save row.
+ */
+describe("MarkdownEditor mounts the shared Office frame (F1/F2/F8)", () => {
+  it("mounts OfficeFrame with the Markdown ribbon, one status bar and no inner chrome", async () => {
+    const { container } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const frame = container.querySelector<HTMLElement>("[data-office-frame]");
+    expect(frame).not.toBeNull();
+    // F1: the ribbon is the frame's first slot and the canvas the editor's pane.
+    expect(frame!.querySelector('[data-office-ribbon="markdown"]')).not.toBeNull();
+    expect(frame!.querySelector("[data-office-canvas]")).not.toBeNull();
+    // F8: exactly one status bar, with the help "?" affordance last.
+    expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(1);
+    const help = screen.getByTestId("md-shortcuts-help-trigger");
+    expect(help).toHaveAttribute("aria-haspopup", "dialog");
+    // F2: no inner title and no card around the editor.
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(container.querySelector("[data-testid='md-editor']")!.className).not.toMatch(/rounded-/);
+    expect(container.querySelector("[data-testid='md-editor']")!.className).not.toMatch(/border(\s|$)/);
+  });
+
+  it("opens the shortcuts help dialog from the status bar ?", async () => {
+    // The dialog copy awaits the MISSING `office.markdown.shortcuts.*` keys, so
+    // this pins the mount, the row count and the literal chords only.
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("md-shortcuts-help-trigger"));
+    const dialog = await screen.findByTestId("md-shortcuts-dialog");
+    expect(dialog).toHaveTextContent("Ctrl+S");
+    expect(within(dialog).getAllByRole("term")).toHaveLength(6);
+  });
+
+  it("keeps the open and error states rendering outside the frame", async () => {
+    const { open } = renderEditor({ openFails: true });
+    await waitFor(() => expect(screen.getByTestId("md-error-state")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("md-shortcuts-help-trigger")).toBeNull();
   });
 });
 
