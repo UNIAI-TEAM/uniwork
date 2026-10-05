@@ -339,6 +339,12 @@ export function HtmlVisualShell({
   const clampedZoom = clampZoom(zoom);
   const showSource = sourceVisibleIn(viewMode);
   const showPreview = previewVisibleIn(viewMode);
+  // Side by side only from `lg`; below that the two panes stack. A stacked
+  // pane must not compress below its content (the source editor's 16rem floor)
+  // or the shell's overflow-hidden clips it with no way to scroll - the
+  // 390px split-view report. Stacked panes keep their height and the canvas
+  // scrolls; side-by-side panes share the row as before.
+  const stacked = showSource && showPreview;
   const presenting = viewMode === "present";
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -399,7 +405,7 @@ export function HtmlVisualShell({
   const previewPane = showPreview ? (
     <div
       ref={previewScrollRef}
-      className="flex min-h-0 min-w-0 flex-1 items-start justify-center overflow-auto p-1"
+      className={cn("flex min-w-0 items-start justify-center overflow-auto p-1", stacked ? "min-h-64 shrink-0 lg:min-h-0 lg:flex-1" : "min-h-0 flex-1")}
       data-testid="html-preview-scroll"
       data-html-zoom={clampedZoom}
     >
@@ -417,7 +423,10 @@ export function HtmlVisualShell({
   ) : null;
 
   const sourcePane = showSource ? (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" data-testid="html-source-pane">
+    <div
+      className={cn("flex min-w-0 flex-col gap-2", stacked ? "min-h-64 shrink-0 lg:min-h-0 lg:flex-1" : "min-h-0 flex-1")}
+      data-testid="html-source-pane"
+    >
       <HtmlSourceEditor
         value={text}
         readOnly={readOnly}
@@ -449,7 +458,7 @@ export function HtmlVisualShell({
         className={cn(
           "relative flex min-h-0 min-w-0 flex-1 gap-3",
           presenting ? "p-0" : "p-3",
-          showSource && showPreview ? "flex-col lg:flex-row" : "flex-col",
+          stacked ? "flex-col overflow-y-auto lg:flex-row lg:overflow-hidden" : "flex-col overflow-hidden",
         )}
         data-testid="html-canvas"
         ref={canvasRef}

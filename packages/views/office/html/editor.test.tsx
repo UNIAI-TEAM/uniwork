@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlEditor } from "./editor";
 import { HtmlVisualShell } from "./visual/shell";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
@@ -164,6 +165,20 @@ describe("HtmlEditor", () => {
     expect(screen.getByTestId("html-save")).toBeInTheDocument();
   });
 
+  it("grows the Source | Split | Preview segmented control to a 44px touch target (VFIXMINOR)", async () => {
+    // Visual r1: at 390px the segmented items stayed 28px, under the 44px
+    // coarse-pointer contract the primitives hold. ToggleGroupItem is not a
+    // Button, so it does not inherit that contract; the ribbon must declare it.
+    await renderReady();
+    const group = screen.getByTestId("html-view-toggle");
+    const items = Array.from(group.querySelectorAll<HTMLElement>("[data-slot='toggle-group-item']"));
+    expect(items).toHaveLength(3);
+    for (const item of items) {
+      expect(item.className).toContain("pointer-coarse:min-h-11");
+      expect(item.className).toContain("pointer-coarse:min-w-11");
+    }
+  });
+
   it("mounts the HTML ribbon so the surface has real chrome (RB-1)", async () => {
     await renderReady();
     // The regression this pins is the M4 F-01 trap: the ribbon was defined,
@@ -269,6 +284,62 @@ describe("HtmlEditor view modes", () => {
     expect(dispose).not.toHaveBeenCalled();
   });
 
+  it("moves one mode per Ctrl+\\ press from every mode, including Preview (VFIXMINOR)", async () => {
+    // Visual r1: from Preview the first press did nothing and a second was
+    // needed. The cause was focus: source -> preview unmounts the CodeMirror
+    // pane that held focus, focus fell to <body>, and the next keydown never
+    // reached the section handler. One press must move exactly one mode from
+    // every mode, so the landmark takes focus back when its pane is gone.
+    const { container } = await renderReady();
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    const view = () => screen.getByTestId("html-shell").getAttribute("data-html-view");
+    const section = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    // Start in the source pane, the realistic entry point (focus inside).
+    container.querySelector<HTMLElement>(".cm-content")?.focus();
+    expect(view()).toBe("split");
+    // split -> preview: the source pane unmounts, taking focus with it.
+    fireEvent.keyDown(document.activeElement ?? section, { key: "\\", code: "Backslash", ctrlKey: true });
+    expect(view()).toBe("preview");
+    // Preview -> present must be ONE press; before the fix focus was on <body>
+    // and this press was lost, so the mode stayed "preview".
+    fireEvent.keyDown(document.activeElement ?? section, { key: "\\", code: "Backslash", ctrlKey: true });
+    expect(view()).toBe("present");
+    fireEvent.keyDown(document.activeElement ?? section, { key: "\\", code: "Backslash", ctrlKey: true });
+    expect(view()).toBe("source");
+    fireEvent.keyDown(document.activeElement ?? section, { key: "\\", code: "Backslash", ctrlKey: true });
+    expect(view()).toBe("split");
+  });
+
+  it("drops its own Save button and open-state text when the shell provides them (VFIXMINOR)", async () => {
+    // The shared UNI-930 cluster is the single Save/status owner. When the web
+    // document page supplies the header-actions slot, OfficeShell fills it and
+    // this surface must not draw a second Save or a second status text.
+    let source = SOURCE;
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    render(
+      <HeaderActionsSlotProvider>
+        <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />
+      </HeaderActionsSlotProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    expect(screen.queryByTestId("html-save")).toBeNull();
+    expect(screen.queryByTestId("html-open-state")).toBeNull();
+    expect(screen.queryByTestId("html-toolbar")).toBeNull();
+  });
+
+  it("keeps its own Save and open-state text when no shell slot exists (VFIXMINOR)", async () => {
+    await renderReady();
+    expect(screen.getByTestId("html-save")).toBeInTheDocument();
+    expect(screen.getByTestId("html-open-state")).toBeInTheDocument();
+  });
+
   it("moves focus into present and restores it on exit (N2)", async () => {
     const { container } = await renderReady();
     const save = screen.getByTestId("html-save");
@@ -293,6 +364,53 @@ describe("HtmlEditor view modes", () => {
     expect(screen.getByTestId("html-shell")).toHaveAttribute("data-html-view", "present");
     expect(screen.getByTestId("html-preview")).toBeInTheDocument();
     expect(mount.mock.calls.every((call) => call[0].format === "html")).toBe(true);
+  });
+});
+
+describe("HtmlVisualShell split panes at 390px (VFIXMINOR)", () => {
+  it("stacks the panes below lg and lets the canvas scroll instead of clipping", () => {
+    // Visual r1: at 390px the split view clipped. The canvas is overflow-hidden
+    // and each pane keeps its own height, so a stacked pane must neither be
+    // compressed to zero nor trapped; the canvas scrolls in the stacked layout
+    // and only shares the row (overflow hidden) from lg up.
+    render(
+      <HtmlVisualShell
+        documentKey="doc"
+        text="<p>x</p>"
+        viewMode="split"
+        onViewModeChange={() => undefined}
+        zoom={100}
+        onZoomChange={() => undefined}
+      />,
+    );
+    const canvas = screen.getByTestId("html-canvas");
+    expect(canvas.className).toContain("overflow-y-auto");
+    expect(canvas.className).toContain("lg:overflow-hidden");
+    expect(canvas.className).toContain("lg:flex-row");
+    const source = screen.getByTestId("html-source-pane");
+    const preview = screen.getByTestId("html-preview-scroll");
+    for (const pane of [source, preview]) {
+      expect(pane.className).toContain("min-w-0");
+      expect(pane.className).toContain("min-h-64");
+      expect(pane.className).toContain("lg:min-h-0");
+      expect(pane.className).toContain("lg:flex-1");
+    }
+  });
+
+  it("keeps the single-pane modes free to fill the canvas (no stacked floor)", () => {
+    render(
+      <HtmlVisualShell
+        documentKey="doc"
+        text="<p>x</p>"
+        viewMode="preview"
+        onViewModeChange={() => undefined}
+        zoom={100}
+        onZoomChange={() => undefined}
+      />,
+    );
+    const canvas = screen.getByTestId("html-canvas");
+    expect(canvas.className).not.toContain("overflow-y-auto");
+    expect(canvas.className).toContain("overflow-hidden");
   });
 });
 

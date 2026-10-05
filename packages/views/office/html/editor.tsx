@@ -25,6 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
+import { useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlVisualShell } from "./visual/shell";
@@ -104,6 +105,13 @@ export function HtmlEditor<TSnapshot = unknown>({
   onOpen,
 }: HtmlEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
+  // The shared UNI-930 save cluster owns Save + the save status. When the web
+  // document page provides the header-actions slot, OfficeShell fills it with
+  // that cluster (embedded mode), so this surface must not draw a second Save
+  // or a second open/save-state text - the visual saw both. Without a shell
+  // (unit render, or a host with no slot) the surface keeps its own controls,
+  // exactly like DOCX's `showDocumentControls`.
+  const shellOwnsChrome = useHeaderActionsSlotAvailable();
   const [viewState, setViewState] = useState<TextViewState>("opening");
   const [failure, setFailure] = useState<Extract<HtmlOpenOutcome, { outcome: "failed" }> | null>(null);
   const [text, setText] = useState("");
@@ -113,6 +121,13 @@ export function HtmlEditor<TSnapshot = unknown>({
   const [zoom, setZoom] = useState(HTML_ZOOM_DEFAULT);
   const [retryToken, setRetryToken] = useState(0);
   const disposedRef = useRef(false);
+  // The editor landmark owns the mode shortcut. A mode change can unmount the
+  // pane that held focus (source -> preview), which drops focus to <body> and
+  // makes the NEXT press miss the section handler entirely - the visual
+  // report of "Ctrl+backslash from Preview needs two presses". Remember whether
+  // the press came from inside the landmark and take focus back when it did.
+  const rootRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef(false);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
   const coordinatorRef = useRef(coordinator);
@@ -223,7 +238,19 @@ export function HtmlEditor<TSnapshot = unknown>({
     markDirty();
     checkpoint();
   }, [checkpoint, markDirty]);
-  const cycleView = useCallback(() => setViewMode((mode) => nextViewMode(mode)), []);
+  const cycleView = useCallback(() => {
+    restoreFocusRef.current = rootRef.current?.contains(document.activeElement) ?? false;
+    setViewMode((mode) => nextViewMode(mode));
+  }, []);
+  // After the mode settles, return focus to the landmark when the pane that
+  // held it is gone, so one press moves one mode from every mode (C11).
+  useEffect(() => {
+    if (!restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    const root = rootRef.current;
+    if (!root || root.contains(document.activeElement)) return;
+    root.focus();
+  }, [viewMode]);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -272,6 +299,7 @@ export function HtmlEditor<TSnapshot = unknown>({
 
   return (
     <section
+      ref={rootRef}
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)}
       data-testid="html-editor"
       data-document-key={documentKey}
@@ -280,12 +308,14 @@ export function HtmlEditor<TSnapshot = unknown>({
       aria-label={effectiveTitle}
       tabIndex={0}
     >
-      <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
-        <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
-        <span className="text-caption text-muted-foreground" data-testid="html-open-state">
-          {viewState === "opening" ? t("state.opening") : viewState === "ready" ? t(`saveState.${coordinatorState.state}`) : t("state.error")}
-        </span>
-      </header>
+      {!shellOwnsChrome ? (
+        <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
+          <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
+          <span className="text-caption text-muted-foreground" data-testid="html-open-state">
+            {viewState === "opening" ? t("state.opening") : viewState === "ready" ? t(`saveState.${coordinatorState.state}`) : t("state.error")}
+          </span>
+        </header>
+      ) : null}
       {viewState === "ready" ? (
         <>
           {/*
@@ -306,12 +336,14 @@ export function HtmlEditor<TSnapshot = unknown>({
             presenting={presenting}
             onTogglePresent={onTogglePresent}
           />
-          <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="html-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
-            <span className="min-w-0 flex-1" />
-            <Button type="button" variant="brand" size="sm" data-testid="html-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
-              {saving ? t("actions.saving") : t("actions.save")}
-            </Button>
-          </div>
+          {!shellOwnsChrome ? (
+            <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="html-toolbar" role="toolbar" aria-label={t("toolbar.label")}>
+              <span className="min-w-0 flex-1" />
+              <Button type="button" variant="brand" size="sm" data-testid="html-save" disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
+                {saving ? t("actions.saving") : t("actions.save")}
+              </Button>
+            </div>
+          ) : null}
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}

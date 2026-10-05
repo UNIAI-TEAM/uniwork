@@ -349,10 +349,14 @@ export function HtmlRibbon({
           </Tooltip>
         ) : null}
         {onViewModeChange ? (
-          <ToggleGroup value={[viewMode]} onValueChange={(value) => value[0] && setViewMode(value[0])} aria-label={t("office.html.view.label")}>
-            <ToggleGroupItem value="source" className="h-7 px-2 text-label">{t("office.html.view.source")}</ToggleGroupItem>
-            <ToggleGroupItem value="split" className="h-7 px-2 text-label">{t("office.html.view.split")}</ToggleGroupItem>
-            <ToggleGroupItem value="preview" className="h-7 px-2 text-label">{t("office.html.view.preview")}</ToggleGroupItem>
+          <ToggleGroup value={[viewMode]} onValueChange={(value) => value[0] && setViewMode(value[0])} aria-label={t("office.html.view.label")} data-testid="html-view-toggle">
+            {/* The segmented control is 28px on a desktop and too small for a
+                thumb. ToggleGroupItem is not a Button, so it does not inherit
+                the primitive's coarse-pointer contract; declare it here (the
+                UI rules' 44px touch target) without changing the desktop row. */}
+            <ToggleGroupItem value="source" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.html.view.source")}</ToggleGroupItem>
+            <ToggleGroupItem value="split" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.html.view.split")}</ToggleGroupItem>
+            <ToggleGroupItem value="preview" className="h-7 px-2 text-label pointer-coarse:min-h-11 pointer-coarse:min-w-11">{t("office.html.view.preview")}</ToggleGroupItem>
           </ToggleGroup>
         ) : null}
         {onTogglePresent ? (
