@@ -38,6 +38,25 @@ groups:
           description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB, Redis hoặc migration đang lệch."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ReadinessFailing.md
 
+      # Per route, so one throttled path stands out from the total. The global
+      # limiter answers before routing, so its 429s carry route="unmatched".
+      # The LiveKit webhook is exempt from every limiter: one 429 there is a
+      # regression that drops provider events, so it fires on any rate. Its
+      # window is 15m so a short burst stays above zero past the 5m `for`
+      # (with [5m] the rate falls back to zero just as `for` would elapse).
+      - alert: ApiRateLimitedSpike
+        expr: |
+          sum by (route) (rate(uniwork_http_requests_total{status="429"}[5m])) > 0.5
+          or
+          sum by (route) (rate(uniwork_http_requests_total{status="429", route="/api/v1/integrations/livekit/webhook"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Route {{ $labels.route }} đang trả 429 liên tục"
+          description: "Route {{ $labels.route }} trả 429 ở mức {{ $value | printf \"%.2f\" }} request/giây trong 5 phút: người dùng thật (chung NAT văn phòng, phòng họp đông) hoặc một client lặp đang bị chặn."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ApiRateLimitedSpike.md
+
   - name: uniwork-outbox-realtime
     rules:
       - alert: OutboxLagHigh
@@ -49,6 +68,16 @@ groups:
           summary: "Outbox có dòng chờ quá 60 giây"
           description: "Dòng outbox_events chưa gửi cũ nhất đã {{ $value | humanizeDuration }}: worker đứng hoặc một consumer đang chặn."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OutboxLagHigh.md
+
+      - alert: QueueLagUnreadable
+        expr: min_over_time(uniwork_outbox_lag_up[5m]) == 0 or min by (queue) (min_over_time(uniwork_meeting_queue_lag_up[5m])) == 0
+        for: 5m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Không đọc được độ trễ hàng đợi"
+          description: "Truy vấn đo lag của outbox hoặc webhook inbox lỗi hoặc quá thời gian suốt 5 phút: OutboxLagHigh và WebhookInboxLagHigh không thể kêu khi gauge vắng mặt."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/QueueLagUnreadable.md
 
       - alert: OutboxDeadLetter
         expr: sum(increase(uniwork_outbox_dead_total[15m])) > 0
@@ -71,6 +100,36 @@ groups:
           summary: "p95 commit → frame realtime vượt 1 giây"
           description: "p95 độ trễ từ lúc commit tới lúc gửi frame WebSocket vượt 1 giây (hiện {{ $value | humanizeDuration }}); bảng công việc cập nhật chậm."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RealtimePublishSlow.md
+
+      - alert: WebhookInboxLagHigh
+        expr: max(uniwork_meeting_webhook_inbox_oldest_pending_seconds) > 30
+        for: 2m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Webhook LiveKit chờ xử lý quá 30 giây"
+          description: "Dòng webhook_inbox chưa xử lý cũ nhất đã {{ $value | humanizeDuration }}: điểm danh, trạng thái phòng và kết thúc cuộc họp đang trễ theo."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebhookInboxLagHigh.md
+
+      - alert: RealtimeSlowEvictions
+        expr: sum(increase(uniwork_realtime_slow_evictions_total[10m])) > 25
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Hub realtime đuổi nhiều client chậm"
+          description: "{{ $value | printf \"%.0f\" }} kết nối WebSocket bị đuổi vì hàng đợi gửi đầy trong 10 phút qua; các client đó phải nối lại và tải lại dữ liệu."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RealtimeSlowEvictions.md
+
+      - alert: RealtimeRedisXReadErrors
+        expr: sum(increase(uniwork_realtime_redis_xread_errors_total[5m])) > 30
+        for: 10m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Redis relay lỗi XREAD liên tục"
+          description: "Redis relay gặp {{ $value | printf \"%.0f\" }} lỗi XREAD trong 5 phút, kéo dài 10 phút: Redis quá tải, mất kết nối hoặc pool đọc đã cạn."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RealtimeRedisXReadErrors.md
 
   - name: uniwork-ai
     rules:

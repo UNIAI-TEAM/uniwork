@@ -15,6 +15,9 @@ spec:
         app.kubernetes.io/name: uniwork-be
         reap.io/pool: pool-app
       annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.be.metricsPort | quote }}
+        prometheus.io/path: /metrics
         {{- if $env.beContent }}
         checksum/env: {{ $env.beContent | sha256sum }}
         {{- end }}
@@ -42,6 +45,8 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.be.port }}
+            - name: metrics
+              containerPort: {{ .Values.be.metricsPort }}
           envFrom:
             - configMapRef:
                 name: uniwork-be

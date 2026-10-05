@@ -32,7 +32,11 @@ const runbookFiles = () =>
 
 test("every alert has a runbook_url whose file exists and is named after the alert", () => {
   const all = rules();
-  assert.equal(all.length, 8, "spec §6.5 lists eight alerts");
+  assert.equal(
+    all.length,
+    13,
+    "spec §6.5 lists eight alerts; UNI-936 adds ApiRateLimitedSpike, WebhookInboxLagHigh, RealtimeSlowEvictions, RealtimeRedisXReadErrors and QueueLagUnreadable",
+  );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);
     assert.equal(path.basename(r.runbook_url), `${r.alert}.md`, `${r.alert}: runbook_url must end in <AlertName>.md`);

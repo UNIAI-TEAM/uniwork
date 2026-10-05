@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -14,16 +15,17 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func recorder(t *testing.T, ratio string) *tracetest.SpanRecorder {
 	t.Helper()
 	sr := tracetest.NewSpanRecorder()
-	shutdown, err := Init(context.Background(), Config{ServiceName: "test", SamplerArg: ratio}, slog.Default())
+	// The recorder stands in for the exporter's batch processor.
+	shutdown, err := install(Config{ServiceName: "test", SamplerArg: ratio}, sr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	otel.GetTracerProvider().(*sdktrace.TracerProvider).RegisterSpanProcessor(sr)
 	t.Cleanup(func() { _ = shutdown(context.Background()) })
 	return sr
 }
@@ -160,4 +162,51 @@ func TestPropagatorIsW3C(t *testing.T) {
 		}
 	}
 	t.Fatalf("propagator fields = %v, want %s", fields, want)
+}
+
+// Without an exporter nothing ever reads a span, so the provider must not
+// record one — not even under a sampled remote parent or X-Debug-Trace — while
+// every request still gets a trace id: correlation_id and X-Trace-Id are that
+// id (spec F-11 §2.5), and an incoming traceparent is still continued.
+func TestNoExporterRecordsNothingButKeepsTraceIDs(t *testing.T) {
+	shutdown, err := Init(context.Background(), Config{ServiceName: "test"}, slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = shutdown(context.Background()) })
+	sr := tracetest.NewSpanRecorder()
+	otel.GetTracerProvider().(*sdktrace.TracerProvider).RegisterSpanProcessor(sr)
+
+	var recording []bool
+	r := chi.NewRouter()
+	r.Use(HTTP)
+	r.Get("/x", func(w http.ResponseWriter, req *http.Request) {
+		recording = append(recording, trace.SpanFromContext(req.Context()).IsRecording())
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	plain := httptest.NewRecorder()
+	r.ServeHTTP(plain, httptest.NewRequest(http.MethodGet, "/x", nil))
+	if id := plain.Header().Get(TraceHeader); len(id) != 32 || id == strings.Repeat("0", 32) {
+		t.Fatalf("X-Trace-Id = %q, want a fresh trace id", id)
+	}
+
+	const parent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("traceparent", parent)
+	req.Header.Set(DebugTraceHeader, "1")
+	continued := httptest.NewRecorder()
+	r.ServeHTTP(continued, req)
+	if got := continued.Header().Get(TraceHeader); got != "0af7651916cd43dd8448eb211c80319c" {
+		t.Fatalf("X-Trace-Id = %q, want the incoming trace", got)
+	}
+
+	if n := len(sr.Started()); n != 0 {
+		t.Fatalf("no exporter, yet %d spans were recorded", n)
+	}
+	for i, rec := range recording {
+		if rec {
+			t.Fatalf("request %d ran under a recording span", i)
+		}
+	}
 }
