@@ -55,9 +55,9 @@ const officeDocument = {
   },
 } as never;
 
-function makeSession() {
+function makeSession(initialState: SaveCoordinatorState["state"] = "dirty") {
   let state: SaveCoordinatorState = {
-    state: "dirty",
+    state: initialState,
     identity,
     dirtyGeneration: 1,
     lastSavedGeneration: 0,
@@ -374,6 +374,27 @@ describe("OfficeEditorHost page header", () => {
     expect(pageHeader.querySelector('button[aria-label="Open in UniWork Office"]')).toBeTruthy();
     expect(container.querySelectorAll('button[aria-label="Save to UniWork"]')).toHaveLength(1);
     act(() => root.unmount());
+  });
+});
+
+describe("OfficeEditorHost quiet Save for text formats", () => {
+  it("quiets the Save on a clean md/html document and keeps it primary for docx", async () => {
+    const text = makeSession("ready");
+    const textView = renderHost(text.session, { capability: { ...capability, format: "md" } });
+    await settle();
+    const quiet = textView.container.querySelector('button[aria-label="Save to UniWork"]')!;
+    expect(quiet.getAttribute("aria-disabled")).toBe("true");
+    expect(quiet.hasAttribute("disabled")).toBe(false);
+    expect(quiet.className).not.toContain("bg-primary");
+    textView.root.unmount();
+
+    const docx = makeSession("ready");
+    const docxView = renderHost(docx.session, { capability: { ...capability, format: "docx" } });
+    await settle();
+    const primary = docxView.container.querySelector('button[aria-label="Save to UniWork"]')!;
+    expect(primary.getAttribute("aria-disabled")).toBeNull();
+    expect(primary.className).toContain("bg-primary");
+    docxView.root.unmount();
   });
 });
 

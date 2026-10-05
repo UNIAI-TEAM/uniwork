@@ -280,6 +280,9 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         saveCoordinator={activeSession?.coordinator}
         saveState={coordinatorState}
         editorReady={Boolean(activeSession && viewReady && !readonly && effectiveCapability.status === "available")}
+        // Lane additive (UNI-928 md/html END): only the text formats quiet the
+        // Save when clean; every other format keeps the primary button.
+        saveQuietWhenClean={effectiveCapability.format === "md" || effectiveCapability.format === "html"}
         desktopAction={activeSession && !readonly ? (
           <DesktopOpenAction
             documentId={document.id}
