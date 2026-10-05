@@ -626,6 +626,130 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(view()).toBe("split");
   });
 
+  describe("a real click into the preview frame (M-7 r3)", () => {
+    // Real Chromium: a click into the sandboxed frame fires NO focusin in this
+    // document; the window only gets `blur` and activeElement becomes the
+    // iframe. Keys typed there never reach this window, and Ctrl+C copies from
+    // the focused frame - so the editor must never take focus back on blur, or
+    // a preview selection could not be copied. The documented recovery is to
+    // put focus back on the editor (chrome click / Shift+Tab), after which one
+    // press advances one mode again.
+    async function renderWithFrame() {
+      const mount = vi.fn(async ({ container }: { container: HTMLElement }) => {
+        const iframe = document.createElement("iframe");
+        iframe.setAttribute("sandbox", "");
+        iframe.srcdoc = "<p>preview</p>";
+        container.appendChild(iframe);
+        return { dispose: vi.fn(), update: vi.fn() };
+      });
+      const rendered = await renderReady({ mount });
+      await waitFor(() => expect(rendered.container.querySelector("iframe")).not.toBeNull());
+      const section = rendered.container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+      const iframe = rendered.container.querySelector("iframe") as HTMLIFrameElement;
+      return { ...rendered, section, iframe };
+    }
+
+    /** Park document.activeElement / hasFocus the way Chromium reports them,
+     * without dispatching focusin (the event a real click never sends). */
+    function stubFocus(active: Element, hasFocus = true) {
+      const activeSpy = vi.spyOn(document, "activeElement", "get").mockReturnValue(active);
+      const hasFocusSpy = vi.spyOn(document, "hasFocus").mockReturnValue(hasFocus);
+      return () => { activeSpy.mockRestore(); hasFocusSpy.mockRestore(); };
+    }
+
+    async function flushTasks() {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    }
+
+    const view = () => screen.getByTestId("html-shell").getAttribute("data-html-view");
+    const pressOn = (target: Element) => fireEvent.keyDown(target, { key: "\\", code: "Backslash", ctrlKey: true });
+
+    it("leaves focus on the frame after the click, so a preview selection stays copyable", async () => {
+      const { section, iframe } = await renderWithFrame();
+      pressOn(section); // split -> preview
+      expect(view()).toBe("preview");
+      const sectionFocus = vi.spyOn(section, "focus");
+      const restore = stubFocus(iframe);
+      try {
+        fireEvent.blur(window);
+        await flushTasks();
+        // No reclaim: the frame keeps the keyboard, so Ctrl+C copies its selection.
+        expect(sectionFocus).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(iframe);
+        // A copy the frame would run is never cancelled from this window.
+        const copy = new Event("copy", { bubbles: true, cancelable: true });
+        window.dispatchEvent(copy);
+        expect(copy.defaultPrevented).toBe(false);
+      } finally {
+        restore();
+      }
+      expect(view()).toBe("preview");
+      // Documented recovery: focus back on the editor, then one press per mode.
+      section.focus();
+      expect(document.activeElement).toBe(section);
+      pressOn(section);
+      expect(view()).toBe("present");
+      pressOn(section);
+      expect(view()).toBe("source");
+      pressOn(section);
+      expect(view()).toBe("split");
+      pressOn(section);
+      expect(view()).toBe("preview");
+    });
+
+    it("keeps Tab / Shift+Tab focus order: a keyboard move into the frame is not bounced by blur", async () => {
+      const { section, iframe } = await renderWithFrame();
+      pressOn(section); // split -> preview
+      const sectionFocus = vi.spyOn(section, "focus");
+      fireEvent.keyDown(section, { key: "Tab", code: "Tab" });
+      const restore = stubFocus(iframe);
+      try {
+        fireEvent.blur(window);
+        await flushTasks();
+        expect(sectionFocus).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(iframe);
+      } finally {
+        restore();
+      }
+      expect(view()).toBe("preview");
+    });
+
+    it("never pulls focus back when the window blurs to another app, nor on return", async () => {
+      const { section, iframe } = await renderWithFrame();
+      pressOn(section); // split -> preview
+      const sectionFocus = vi.spyOn(section, "focus");
+      // Leaving to the OS with the frame focused: the document has no focus.
+      let restore = stubFocus(iframe, false);
+      try {
+        fireEvent.blur(window);
+        await flushTasks();
+        fireEvent.focus(window);
+        await flushTasks();
+        expect(sectionFocus).not.toHaveBeenCalled();
+      } finally {
+        restore();
+      }
+      // Leaving to the OS from the CodeMirror source pane (split): no steal either.
+      pressOn(section); // preview -> present
+      pressOn(section); // present -> source
+      pressOn(section); // source -> split
+      const content = document.querySelector(".cm-content") as HTMLElement;
+      sectionFocus.mockClear();
+      restore = stubFocus(content, false);
+      try {
+        fireEvent.blur(window);
+        await flushTasks();
+        fireEvent.focus(window);
+        await flushTasks();
+        expect(sectionFocus).not.toHaveBeenCalled();
+      } finally {
+        restore();
+      }
+      expect(view()).toBe("split");
+    });
+  });
+
   it("clears the draft offer after a successful save (M-8)", async () => {
     // Reloading within ~4 s of a successful save offered a stale draft. The
     // surface must not request a checkpoint for a generation the coordinator

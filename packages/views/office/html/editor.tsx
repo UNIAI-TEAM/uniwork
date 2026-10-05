@@ -285,6 +285,13 @@ export function HtmlEditor<TSnapshot = unknown>({
   // the FIRST press from Preview is lost (M-7 r2). Reclaim the landmark the
   // moment focus lands on the preview frame, so the shortcut owner never
   // loses the keyboard and one press always advances one mode.
+  //
+  // Known limit (M-7 r3): a real mouse click into the sandboxed preview fires
+  // no focusin here - the parent only sees a window `blur` - and keys typed in
+  // that frame never reach this window. There is deliberately NO blur reclaim:
+  // Ctrl+C copies from the focused frame, so taking focus back would make a
+  // preview selection uncopyable. After such a click, Ctrl+\ needs focus back
+  // on the editor first (click the ribbon/canvas chrome, or Shift+Tab).
   useEffect(() => {
     const onFocusIn = (event: FocusEvent) => {
       const root = rootRef.current;
