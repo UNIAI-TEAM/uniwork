@@ -253,7 +253,14 @@ export function PptxPanelHost({
           slideIndex={slideIndex}
           {...(data.insertElements ? { elements: data.insertElements } : {})}
           {...(selection ? { selectedIds: selection.ids, pictureId: selection.pictureId } : {})}
-          {...(onApplyEdit ? { onEdit: (edit) => onApplyEdit(edit) } : {})}
+          {...(onApplyEdit
+            ? {
+                onEdit: (edit) => onApplyEdit(edit),
+                // Group selection rides the registered group_elements edit; the picker already
+                // narrowed the ids to the groupable, selected ones.
+                onGroupSelection: (elementIds: readonly string[]) => onApplyEdit({ op: "group_elements", slideIndex: slideIndex ?? 0, elementIds: [...elementIds] }),
+              }
+            : {})}
           className={className}
         />
       );

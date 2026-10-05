@@ -20,6 +20,7 @@ import { createPptxCommandMap, type PptxCommandCapability, type PptxCommandId } 
 import { PptxContextMenu } from "./context-menu/pptx-context-menu";
 import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { pptxEditorCapabilities } from "./pptx-editor-capabilities";
+import { pptxInsertElements } from "./insert/insert-elements";
 import { pptxContextualSelection, readPptxPanelMotion, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
 import type { PptxTabId } from "./pptx-ribbon";
 import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
@@ -406,10 +407,12 @@ export function PptxEditor({
   // every render, so an edit, undo, redo or slide switch is reflected at once.
   const motion = deckBound ? readPptxPanelMotion(editorHandle, selectedIndex) : {};
   const motionKey = JSON.stringify(motion);
+  // R4fix-connector: the Insert pickers list the current slide's top-level elements,
+  // read from the rendition so they follow every revision and slide switch.
   const effectivePanelData = useMemo<PptxPanelData | undefined>(() => {
     const withNotes = notesBound && panelData?.notes === undefined ? { ...panelData, notes: currentNotes } : panelData;
-    return motionKey === "{}" ? withNotes : { ...(JSON.parse(motionKey) as PptxPanelData), ...withNotes };
-  }, [currentNotes, motionKey, notesBound, panelData]);
+    return { ...(JSON.parse(motionKey) as PptxPanelData), ...withNotes, ...(rendition && panelData?.insertElements === undefined ? { insertElements: pptxInsertElements(rendition) } : {}) };
+  }, [currentNotes, motionKey, notesBound, panelData, rendition]);
   const reorderSelection = useCallback((dir: "front" | "back") => {
     if (reorderElements) runCommand(reorderElements(selectedIndex, selectionRef.current.ids, dir));
   }, [reorderElements, runCommand, selectedIndex]);

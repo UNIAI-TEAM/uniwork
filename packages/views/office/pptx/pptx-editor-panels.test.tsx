@@ -178,6 +178,38 @@ describe("PptxEditor panel mounting (UNI-927 W5)", () => {
     expect(screen.getByTestId("pptx-transitions-current")).toHaveTextContent("Current transition: None");
   });
 
+
+  it("feeds the slide's shapes to the Insert panel, follows an insert, and groups the selected ones (R4fix-connector)", async () => {
+    let nodes = [
+      shapeNode({ text: textLayout({ lines: [{ runs: [run({ text: "Title" })], top: 0, height: 24 }] }) }),
+      shapeNode({ id: "r_shape-bg", sourceId: "shape-bg", decoration: true }),
+      chartNode({ box: box({ x: 300, y: 200, w: 400, h: 260 }) }),
+    ];
+    const loadRendererModule = async (): Promise<PptxRendererModule> => ({
+      makeViewport: (size, fitWidthPx) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+      buildRenderSlide: () => slide(nodes),
+    });
+    const onApplyEdit = vi.fn(async () => undefined);
+    const props = { host: makeHost(), editorHandle: makeHandle().handle, loadRendererModule, slides: [{ id: "s1" }], onApplyEdit };
+    const view = render(<PptxEditor {...props} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    // One groupable shape (the chart and the layout decoration do not count): nothing to connect yet.
+    expect(screen.getByTestId("pptx-connector-empty")).toBeInTheDocument();
+    // An insert moves the deck revision: the next render lists the new shape.
+    nodes = [...nodes, shapeNode({ id: "r_shape-2", sourceId: "shape-2", box: box({ x: 520, y: 40, w: 120, h: 80 }) })];
+    view.rerender(<PptxEditor {...props} deck={{ ...deck, revision: 2 }} />);
+    await waitFor(() => expect(screen.queryByTestId("pptx-connector-empty")).toBeNull());
+    // Group selection uses the same list: both shapes selected -> group_elements.
+    clickSlideAt(100, 80);
+    const overlay = screen.getByRole("application").querySelector("[data-pptx-selection-overlay]") as HTMLElement;
+    fireEvent.pointerDown(overlay, { button: 0, clientX: 560, clientY: 70, shiftKey: true });
+    fireEvent.pointerUp(overlay, { button: 0, clientX: 560, clientY: 70, shiftKey: true });
+    await waitFor(() => expect(screen.getByTestId("pptx-group-selection")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("pptx-group-selection"));
+    await waitFor(() => expect(onApplyEdit).toHaveBeenCalledWith({ op: "group_elements", slideIndex: 0, elementIds: ["shape-1", "shape-2"] }));
+  });
+
   it("shows the rail's generated thumbnails on the sorter tiles (R2-12)", async () => {
     await renderEditor();
     fireEvent.click(screen.getByRole("tab", { name: "View" }));
