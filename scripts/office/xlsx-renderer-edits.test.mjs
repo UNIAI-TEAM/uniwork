@@ -36,7 +36,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
-  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, seedRowOutline, liveSessionSheets,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, runOutlineCommand, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, seedRowOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
   sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts, editorCommitCell } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
@@ -283,6 +283,24 @@ test('observeValidationVerdicts leaves a validation with no pending commit alone
   assert.deepEqual(calls, [['a']]);
   handle.dispose();
   assert.equal(service.onValidateCell, original);
+});
+
+test('Group at the deepest level is refused with a notice; ungroup and clear no-ops still succeed (review-delta-r2 X1)', () => {
+  const model = state();
+  const notices = [];
+  const pushed = [];
+  const host = { state: model, unitId: 'u', emit: (edits) => edits.length > 0, pushUndo: (item) => pushed.push(item), notice: (key) => notices.push(key) };
+  const run = (from, to, action, history = true) => runOutlineCommand(host, 's1', 'rows', from, to, action, history);
+  assert.equal(run(0, 1, 'ungroup'), true, 'ungroup at level 0 is a no-op success');
+  assert.equal(run(0, 1, 'clear'), true, 'clear writes level 0 and succeeds');
+  assert.deepEqual(notices, []);
+  for (let level = 1; level <= 7; level += 1) assert.equal(run(0, 1, 'group'), true);
+  assert.equal(pushed.length, 8, 'the clear and each of the seven groups pushed one undo entry; the no-op ungroup none');
+  assert.equal(run(0, 1, 'group'), false, 'the eighth level is refused');
+  assert.deepEqual(notices, ['appOutlineMaxLevels']);
+  assert.equal(run(5, 4, 'group'), false, 'a malformed span is refused without the notice');
+  assert.equal(run(0, 1, 'group', false), false);
+  assert.deepEqual(notices, ['appOutlineMaxLevels', 'appOutlineMaxLevels']);
 });
 
 test('viewport, selection, load, calculation, other workbooks and no-op writes emit no edits', () => {

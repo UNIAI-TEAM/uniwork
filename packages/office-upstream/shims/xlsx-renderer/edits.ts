@@ -892,6 +892,48 @@ export function applyOutlineAction(
   return touched ? edits : [];
 }
 
+/** The notice (a `office.xlsx.editor.*` key) shown when Group cannot deepen the
+ *  outline any further, like Excel's refusal at its deepest level. */
+export const OUTLINE_MAX_LEVELS_NOTICE = "appOutlineMaxLevels";
+
+/** What the controller's group / ungroup / clear command needs from its host:
+ *  the journal state, the unit, how edits are emitted (true when any were), how
+ *  the undo entry is pushed and how a refusal is announced. */
+export interface OutlineCommandHost {
+  state: LazyWorkbookState | null;
+  unitId: string | undefined;
+  emit(edits: XlsxRendererStructuralEdit[]): boolean;
+  pushUndo(item: ReturnType<typeof outlineHistoryItem>): void;
+  notice(key: string): void;
+}
+
+/** Runs one group / ungroup / clear. A valid span the action leaves as it is
+ *  (ungroup at level 0, clear on flat lines) succeeds with no edit, so a batch
+ *  that holds it is not read as refused; a Group that cannot deepen any line
+ *  (all at the deepest level) IS refused, with a notice, so a Data tool such as
+ *  Subtotal rolls back instead of finishing without its outline. */
+export function runOutlineCommand(
+  host: OutlineCommandHost,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+  action: XlsxOutlineAction,
+  history: boolean,
+): boolean {
+  const before = outlineLevels(host.state, sheetId, axis, start, end);
+  const ran = host.emit(applyOutlineAction(host.state, sheetId, axis, start, end, action));
+  // Undo/redo replays carry history: false and push nothing.
+  if (ran && history && host.unitId) {
+    host.pushUndo(outlineHistoryItem(host.unitId, sheetId, axis, start, end, action, before));
+  }
+  if (ran) return true;
+  if (!validOutlineSpan(host.state, sheetId, start, end)) return false;
+  if (action !== "group") return true;
+  host.notice(OUTLINE_MAX_LEVELS_NOTICE);
+  return false;
+}
+
 /** The outline group Show / Hide Detail acts on (Excel): when the line
  *  before `line` sits deeper, `line` is the summary of the group above it and
  *  that group is the target (summary rows below their detail, Excel's

@@ -36,7 +36,23 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, canExecuteCommand,
-  applyOutlineAction, outlineLevels, outlineHistoryItem, executeAsOneUndoStep } = module.exports;
+  applyOutlineAction, outlineLevels, outlineHistoryItem, executeAsOneUndoStep, runOutlineCommand } = module.exports;
+
+/** Registers the controller's REAL group/ungroup/clear command (runOutlineCommand
+ *  over the same journal state), so a refusal inside a Data-tool batch is the one
+ *  the grid produces. */
+function registerRealOutlineCommand(injector, ICommandService, undoRedo, model, outlineEdits, notices) {
+  return injector.get(ICommandService).registerCommand({
+    id: 'uniwork.command.set-rows-outline', type: 0,
+    handler: (_accessor, p) => runOutlineCommand({
+      state: model,
+      unitId: 'file-sha',
+      emit: (applied) => { outlineEdits.push(...applied); return applied.length > 0; },
+      pushUndo: (item) => undoRedo.pushUndoRedo(item),
+      notice: (key) => notices.push(key),
+    }, p.subUnitId, 'rows', p.start, p.end, p.action, p.history !== false),
+  });
+}
 
 // Design review X1/X3 Data tools (UNI-953): the toolbar rewrites a range with
 // ONE sheet.command.set-range-values inside one undo step. These payloads are
@@ -178,20 +194,9 @@ test('Subtotal: inserts, one sparse write and the outline run as ONE undo step t
     const { ICommandService, IUndoRedoService } = require('@univerjs/core');
     const injector = univer.__getInjector();
     const undoRedo = injector.get(IUndoRedoService);
-    // The controller's runOutline (controller.ts) over the same edits.ts helpers.
+    // The controller's own outline command (runOutlineCommand, edits.ts).
     const outlineEdits = [];
-    const registration = injector.get(ICommandService).registerCommand({
-      id: 'uniwork.command.set-rows-outline', type: 0,
-      handler: (_accessor, p) => {
-        const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
-        const applied = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
-        outlineEdits.push(...applied);
-        if (applied.length > 0 && p.history !== false) {
-          undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
-        }
-        return applied.length > 0;
-      },
-    });
+    const registration = registerRealOutlineCommand(injector, ICommandService, undoRedo, model, outlineEdits, []);
     // The planSubtotal payloads (data-tools/subtotal.test.tsx) for A1:B4 summed
     // into B: grand total, Binh, An inserted bottom-up with Direction.DOWN (2)
     // and rangeType ROW (1), one sparse write, then the two outline levels.
@@ -259,28 +264,21 @@ test('Subtotal refused at its last outline step leaves nothing behind (atomic)',
     const { ICommandService, IUndoRedoService } = require('@univerjs/core');
     const injector = univer.__getInjector();
     const undoRedo = injector.get(IUndoRedoService);
-    const registration = injector.get(ICommandService).registerCommand({
-      id: 'uniwork.command.set-rows-outline', type: 0,
-      handler: (_accessor, p) => {
-        if (p.refuse) return false;
-        const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
-        const applied = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
-        if (applied.length > 0 && p.history !== false) {
-          undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
-        }
-        return applied.length > 0;
-      },
-    });
+    const notices = [];
+    const registration = registerRealOutlineCommand(injector, ICommandService, undoRedo, model, [], notices);
+    // Row 1 already sits at the deepest outline level (7): the last step's
+    // Group over it cannot deepen anything, so the controller itself refuses.
+    model.outline.set('s1', { rows: new Map([[1, { level: 7, collapsed: false }]]), cols: new Map() });
     const insert = (row) => ({ id: 'sheet.command.insert-row', params: {
       unitId: 'file-sha', subUnitId: 's1', direction: 2,
       range: { startRow: row, endRow: row, startColumn: 0, endColumn: 1, rangeType: 1 },
     } });
-    const outline = (start, end, refuse = false) => ({ id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action: 'group', refuse } });
+    const outline = (start, end) => ({ id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action: 'group' } });
     const steps = [insert(3), insert(3), insert(2), { id: 'sheet.command.set-range-values', params: {
       unitId: 'file-sha', subUnitId: 's1',
       range: { startRow: 2, endRow: 5, startColumn: 0, endColumn: 1 },
       value: { 2: { 0: text('Sum An') }, 4: { 0: text('Sum Binh') }, 5: { 0: text('Grand Sum') } },
-    } }, outline(1, 4), outline(1, 1, true)];
+    } }, outline(2, 4), outline(1, 1)];
     try {
       const column = () => [0, 1, 2, 3, 4, 5, 6, 7].map((row) => valueAt(worksheet, row, 0));
       const before = column();
@@ -289,7 +287,8 @@ test('Subtotal refused at its last outline step leaves nothing behind (atomic)',
         (step) => api.executeCommand(step.id, step.params), { rollback: true });
       assert.equal(ran, 0);
       assert.deepEqual(column(), before);
-      assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 0, 0, 0, 0, 0, 0]);
+      assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 7, 0, 0, 0, 0, 0]);
+      assert.deepEqual(notices, ['appOutlineMaxLevels'], 'the refusal says why');
       assert.equal(undoRedo._undoStacks.get('file-sha')?.length ?? 0, stackBefore);
       const kinds = structural.map((edit) => edit.structural.kind);
       assert.equal(kinds.filter((kind) => kind === 'insert-rows').length, 3);

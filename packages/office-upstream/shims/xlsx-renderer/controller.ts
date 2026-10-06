@@ -35,12 +35,10 @@ import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
-  applyOutlineAction,
   applyOutlineCollapse,
   outlineCollapseHistoryItem,
   outlineDetailSpan,
   outlineHistoryItem,
-  outlineLevels,
   validOutlineSpan,
   createValidatedWriteGate,
   observeValidationVerdicts,
@@ -56,6 +54,7 @@ import {
   hyperlinkEdit,
   intersectMergeRanges,
   selectsOneMergedCell,
+  runOutlineCommand,
   editorCommitCell,
   isSheetMutation,
   liveSessionSheets,
@@ -517,18 +516,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (p.action !== "group" && p.action !== "ungroup" && p.action !== "clear") return false;
     const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
     if (!sheetId) return false;
-    const before = outlineLevels(lazyWorkbookRef.current, sheetId, axis, p.start, p.end);
-    const ran = emitStructuralEdits(applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action));
     const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
-    // Undo/redo replays carry history: false and push nothing.
-    if (ran && p.history !== false && unitId) {
-      runtime.univer.__getInjector().get(IUndoRedoService)
-        .pushUndoRedo(outlineHistoryItem(unitId, sheetId, axis, p.start, p.end, p.action, before));
-    }
-    // A valid span the action leaves as it is (ungroup at level 0, group at
-    // level 7) succeeds with no edit: inside a batch (Subtotal) it must not
-    // read as a refused step.
-    return ran || validOutlineSpan(lazyWorkbookRef.current, sheetId, p.start, p.end);
+    return runOutlineCommand({
+      state: lazyWorkbookRef.current,
+      unitId,
+      emit: emitStructuralEdits,
+      pushUndo: (item) => runtime.univer.__getInjector().get(IUndoRedoService).pushUndoRedo(item),
+      notice: (key) => setMessage(t(key)),
+    }, sheetId, axis, p.start, p.end, p.action, p.history !== false);
   };
   // The collapsed flag of a group's summary line (Excel draws "+" / "-" from
   // it): journalled as an outline op carrying `collapsed`, with its own undo
