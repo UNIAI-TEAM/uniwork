@@ -16,7 +16,7 @@
  * The entries are menu items, not floating buttons over the canvas (C9), so
  * they mount into the page's ⋯ menu through the header menu slot.
  */
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useSyncExternalStore } from "react";
 import { FileDown, FileText, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -63,20 +63,54 @@ const DISABLED_EXPORTS = [
   { id: "docx", icon: FileText, labelKey: MARKDOWN_PRINT_KEYS.exportDocx },
 ] as const;
 
+/**
+ * "A run is in flight" for one print port. The menu entry (mounted only while
+ * the menu is open) and the Ctrl/Cmd+P binding are separate components over the
+ * same port, so the flag lives per port and both read it: a run started from
+ * either blocks the other until it settles.
+ */
+interface PrintGate {
+  busy: boolean;
+  listeners: Set<() => void>;
+}
+const printGates = new WeakMap<MarkdownPrintPort, PrintGate>();
+const NO_PRINT_GATE: PrintGate = { busy: false, listeners: new Set() };
+
+function gateFor(port: MarkdownPrintPort | undefined): PrintGate {
+  if (!port) return NO_PRINT_GATE;
+  let gate = printGates.get(port);
+  if (!gate) {
+    gate = { busy: false, listeners: new Set() };
+    printGates.set(port, gate);
+  }
+  return gate;
+}
+
+function setBusy(gate: PrintGate, busy: boolean): void {
+  gate.busy = busy;
+  gate.listeners.forEach((listener) => listener());
+}
+
 /** One print run: render, sanitize, hand to the port, report the outcome. */
 function useMarkdownPrint({ port, renderHtml, title, manifest, assetUrl, csp, onStart, onOutcome }: MarkdownPrintMenuItemsProps) {
-  const [printing, setPrinting] = useState(false);
+  const gate = gateFor(port);
+  const subscribe = useCallback((listener: () => void) => {
+    gate.listeners.add(listener);
+    return () => { gate.listeners.delete(listener); };
+  }, [gate]);
+  const printing = useSyncExternalStore(subscribe, () => gate.busy, () => false);
   const print = useCallback(async () => {
-    if (!port || printing) return;
-    setPrinting(true);
+    // Read the gate, not the rendered state: two triggers in one tick start one run.
+    if (!port || gate.busy) return;
+    setBusy(gate, true);
     onStart?.();
     try {
       const outcome = await printMarkdownDocument({ port, renderHtml, title, manifest, assetUrl, csp });
       onOutcome?.(outcome);
     } finally {
-      setPrinting(false);
+      setBusy(gate, false);
     }
-  }, [assetUrl, csp, manifest, onOutcome, onStart, port, printing, renderHtml, title]);
+  }, [assetUrl, csp, gate, manifest, onOutcome, onStart, port, renderHtml, title]);
   return { print, printing };
 }
 

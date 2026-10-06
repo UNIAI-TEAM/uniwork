@@ -258,9 +258,7 @@ export function OfficeShell({
     </div>
   );
 
-  // Ctrl/Cmd+P anywhere on the page runs the open document's Print (UNI-952).
-  return (
-    <OfficePrintShortcutScope rootRef={shellRef}>
+  const shell = (
     <div
       ref={shellRef}
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground", fullscreen && "fixed inset-0 z-40", className)}
@@ -329,6 +327,8 @@ export function OfficeShell({
         ) : null}
       </div>
     </div>
-    </OfficePrintShortcutScope>
   );
+
+  // Ctrl/Cmd+P anywhere on the page runs the open document's Print (UNI-952).
+  return <OfficePrintShortcutScope rootRef={shellRef}>{shell}</OfficePrintShortcutScope>;
 }

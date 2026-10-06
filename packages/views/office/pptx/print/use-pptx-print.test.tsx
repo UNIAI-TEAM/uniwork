@@ -51,6 +51,15 @@ describe("usePptxPrint", () => {
     expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
   });
 
+  it("registers only once the renderer is ready: the key stays with the platform before that", () => {
+    const print = vi.fn(async () => ({ outcome: "printed" as const }));
+    const { rerender } = renderHook(({ ready }) => usePptxPrint({ port: { print }, renderer: ready ? renderer : null, slides: [{}], flush: () => null, onFailed: vi.fn(), rasterize: null }), { wrapper: ShellScope, initialProps: { ready: false } });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
+    expect(print).not.toHaveBeenCalled();
+    rerender({ ready: true });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+  });
+
   it("reports a failed text commit as the print failure, not the raw commit error, and never prints", async () => {
     const print = vi.fn(async () => ({ outcome: "printed" as const }));
     const onFailed = vi.fn();
