@@ -151,6 +151,7 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
                   <Input
                     aria-label={t("office.xlsx.dataTools.textToColumnsDialog.otherInput")}
                     className="w-16"
+                    placeholder={t("office.xlsx.dataTools.textToColumnsDialog.otherPlaceholder")}
                     maxLength={1}
                     value={options.other}
                     onChange={(event) => setOptions((current) => ({ ...current, other: Array.from(event.target.value)[0] ?? "" }))}

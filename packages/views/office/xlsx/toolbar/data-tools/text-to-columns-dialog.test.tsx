@@ -127,6 +127,12 @@ describe("XlsxTextToColumnsButton", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(lookup(`${D}.overwrite`));
   });
 
+  it("hints the Other delimiter input with a placeholder", () => {
+    setup();
+    fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
+    expect(screen.getByRole("textbox", { name: lookup(`${D}.otherInput`) })).toHaveAttribute("placeholder", lookup(`${D}.otherPlaceholder`));
+  });
+
   it("asks for a delimiter when none is chosen", () => {
     setup();
     fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
