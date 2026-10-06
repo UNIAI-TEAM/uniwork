@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHART="${ROOT}/deploy/app/uniwork"
 OUT="$(mktemp)"
-trap 'rm -f "${OUT}"' EXIT
+trap 'rm -f "${OUT}" "${OUT}.err"' EXIT
 
 ENV_BE="${ROOT}/deploy/app/env/uniwork-be.env"
 ENV_FE="${ROOT}/deploy/app/env/uniwork-fe.env"
