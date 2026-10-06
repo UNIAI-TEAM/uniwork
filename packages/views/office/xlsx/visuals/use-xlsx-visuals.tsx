@@ -24,6 +24,7 @@ import { fitPicture, readPictureFile } from "./picture-file";
 import { XlsxVisualLayer } from "./visual-layer";
 import { fileEditsFromStream, visualsFromStream } from "./visual-recovery";
 import { applySavedVisuals, boxOfVisual, seedFileVisuals, type XlsxPendingFileRemoval } from "./visual-file";
+import { appendedFrom, applyOverlayShifts, streamOpKey, structuralShiftsOf } from "./visual-structure";
 import {
   anchorFromBox,
   insertBoxAt,
@@ -111,6 +112,14 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   /** A recovered stream's file edits apply once, before any local edit. */
   const fileStreamRef = useRef<"pending" | "done">("pending");
   const { fileVisuals } = options;
+  /** The op stream already scanned for row/column shifts (and its keys). */
+  const streamSeenRef = useRef<{ ops: readonly unknown[]; keys: readonly string[] }>({ ops: [], keys: [] });
+  const sheetIdOf = useCallback((name: string) => sheets.find((sheet) => sheet.name === name)?.id, [sheets]);
+  /** Seeding follows the open, never a sheet rename, so it reads the live lookup here. */
+  const sheetIdOfRef = useRef(sheetIdOf);
+  useEffect(() => {
+    sheetIdOfRef.current = sheetIdOf;
+  }, [sheetIdOf]);
   const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const geometry = useCallback((): XlsxVisualGeometry | null => {
@@ -140,7 +149,9 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   useEffect(() => {
     if (!fileVisuals) return;
     removalsRef.current = [];
-    setVisuals((current) => [...seedFileVisuals(fileVisuals), ...current.filter((visual) => visual.file === undefined)]);
+    // The file's anchors predate the stream already scanned: shift them by it.
+    const seeded = applyOverlayShifts(seedFileVisuals(fileVisuals), structuralShiftsOf(streamSeenRef.current.ops), (name) => sheetIdOfRef.current(name));
+    setVisuals((current) => [...seeded, ...current.filter((visual) => visual.file === undefined)]);
   }, [fileVisuals]);
 
   // A save landed: the file deletes it carried renumber the drawing and the
@@ -158,6 +169,13 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const stream = (options.snapshot as { pendingOps?: unknown } | null | undefined)?.pendingOps;
   useEffect(() => {
     if (!Array.isArray(stream)) return;
+    // Row/column inserts and deletes appended since the last look move the
+    // drawn visuals now, the way the save will write them (UNI-953 r2).
+    const keys = stream.map(streamOpKey);
+    const segment = stream.slice(appendedFrom(streamSeenRef.current.keys, keys));
+    streamSeenRef.current = { ops: stream, keys };
+    const shifts = structuralShiftsOf(segment);
+    if (shifts.length > 0) setVisuals((current) => applyOverlayShifts(current, shifts, sheetIdOf));
     // Moves and deletes of file visuals a recovered draft carries: applied
     // once, onto the file entries, before this tab edits anything itself.
     const fileEdits = fileStreamRef.current === "pending" && fileVisuals ? fileEditsFromStream(stream) : [];
@@ -188,7 +206,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
       ...current,
       ...recovered.map(({ sheetName: _sheetName, ...visual }): XlsxEditorVisual => ({ ...visual, generation: stamp })),
     ]);
-  }, [fileVisuals, generation, sheets, stream]);
+  }, [fileVisuals, generation, sheetIdOf, sheets, stream]);
 
   /** Apply `next` locally, send `op`, and restore this visual's entry from
    *  `previous` if it fails (other visuals keep any later change). */

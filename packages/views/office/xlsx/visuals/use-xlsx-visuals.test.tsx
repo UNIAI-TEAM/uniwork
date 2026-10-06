@@ -229,6 +229,27 @@ describe("useXlsxVisuals", () => {
     expect(lastOp(edit).attributes).toEqual({ file: 0 });
   });
 
+  it("moves file and session visuals at once when rows are inserted above them, once per op even after a save trims the stream", async () => {
+    const insertRows = { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 3 } };
+    const { edit, rerender } = setup({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [] } });
+    const chart = await screen.findByTestId("xlsx-visual-item-chart");
+    expect(chart.style.top).toBe(String(24 + 1 * ROW) + "px");
+    act(() => commandsRef?.insertShape("rect"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    const inserted = lastOp(edit);
+    rerender({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [inserted, insertRows] } });
+    await waitFor(() => expect(screen.getByTestId("xlsx-visual-item-chart").style.top).toBe(String(24 + 4 * ROW) + "px"));
+    expect(screen.getByTestId("xlsx-visual-item-shape").style.top).toBe(String(24 + 3 * ROW) + "px");
+    // A save trims the head; the same op seen again does not shift twice.
+    rerender({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [insertRows] }, savedGeneration: 1 });
+    rerender({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [] }, savedGeneration: 1 });
+    expect(screen.getByTestId("xlsx-visual-item-chart").style.top).toBe(String(24 + 4 * ROW) + "px");
+    // The move a later key press sends carries the shifted anchor.
+    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-chart"), { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    expect(lastOp(edit).attributes).toMatchObject({ file: 0, anchor: { fromRow: 4 } });
+  });
+
   it("applies the file edits a recovered draft carries once, and its saved delete renumbers the rest", async () => {
     const stream = [
       { op: "set_visual", target: { sheet: "Data" }, attributes: { file: 0, anchor: { ...ANCHOR, fromRow: 6, toRow: 9 } } },
