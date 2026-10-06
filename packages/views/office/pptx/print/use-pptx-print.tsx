@@ -21,7 +21,7 @@ import { createCanvasSlideRasterizer } from "./pptx-print-raster";
 import { printPptxDeck, type PptxSlideRasterizer } from "./pptx-print-run";
 
 /** The shared overflow-menu label every Office format uses for Print. */
-const PRINT_MENU_LABEL_KEY = "office.markdown.print.title";
+const PRINT_MENU_LABEL_KEY = "office.common.print";
 
 interface UsePptxPrintOptions {
   /** The host print port; absent/null hides every Print entry. */
