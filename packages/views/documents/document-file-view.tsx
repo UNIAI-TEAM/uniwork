@@ -5,8 +5,7 @@ import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { useFlag } from "@uniwork/core/feature-flags";
-import { OFFICE_ENGINE_FLAG, officeFormatFlagKey } from "@uniwork/core/office";
+import { useOfficeEnabled } from "@uniwork/core/office";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
@@ -89,14 +88,12 @@ function officeFormat(doc: Document): string | null {
 
 /**
  * The Office editor is allowed for this document: `office_engine` is on and
- * so is the flag of the document's own format. A format switched off falls
- * back to the file card (view, download, history), never the editor.
+ * so is the flag of the document's own format, as answered for the document's
+ * organization (organization-scoped overrides apply). A format switched off
+ * falls back to the file card (view, download, history), never the editor.
  */
 export function useOfficeEditorEnabled(doc: Document): boolean {
-  const engine = useFlag(OFFICE_ENGINE_FLAG, false);
-  const formatKey = officeFormatFlagKey(officeFormat(doc));
-  const formatOn = useFlag(formatKey ?? OFFICE_ENGINE_FLAG, true);
-  return engine && formatOn;
+  return useOfficeEnabled(doc.organization_id, officeFormat(doc));
 }
 
 /** True when the file opens in the Office editor instead of the file card. */
