@@ -384,14 +384,27 @@ describe("sanitizePrintCopy: reading stylesheet for an unstyled copy", () => {
   it("styles a copy that brings no styles: sans font, bordered padded tables, code, quote, lists, images", () => {
     const css = reading(`<h1>T</h1><table><tr><th>A</th></tr><tr><td>1</td></tr></table>`)!;
     expect(css).toMatch(/body\{[^}]*font-family:[^;}]*sans-serif/);
-    expect(css).toMatch(/table\{[^}]*border-collapse:collapse/);
-    expect(css).toMatch(/th,td\{[^}]*border:1px solid #[0-9a-f]{3,6}[^}]*padding:[^;}]+/);
+    expect(css).toMatch(/table:not\(\[width\]\):not\(\[border\]\)\{[^}]*border-collapse:collapse/);
+    expect(css).toMatch(/:is\(th,td\)\{[^}]*border:1px solid #[0-9a-f]{3,6}[^}]*padding:[^;}]+/);
     expect(css).toMatch(/h1\{[^}]*font-size:24px/);
     expect(css).toMatch(/blockquote\{[^}]*border-left:3px solid/);
     expect(css).toMatch(/pre\{[^}]*background:#[0-9a-f]{3,6}/);
     // images are held to the page width by the page rule beside it; the reading sheet keeps their aspect.
     expect(css).toMatch(/img\{[^}]*height:auto/);
     expect(css).toMatch(/ul,ol\{[^}]*padding-left/);
+  });
+
+  it("leaves a table that sets its own width or border alone: every table rule is gated on those attributes", () => {
+    const css = reading(`<table width="300"><tr><td>1</td></tr></table>`)!;
+    // No bare element rule for tables: each selector starts from the gate.
+    const gate = "table:not([width]):not([border])";
+    const selectors = css.split("}").map((rule) => rule.split("{")[0]!).filter((selector) => /\b(table|th|td)\b/.test(selector));
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const selector of selectors) expect(selector.startsWith(gate)).toBe(true);
+    const doc = new DOMParser().parseFromString(`<table id="md"><tr><td>1</td></tr></table><table id="w" width="300"></table><table id="b" border="1"></table>`, "text/html");
+    expect(doc.getElementById("md")!.matches(gate)).toBe(true);
+    expect(doc.getElementById("w")!.matches(gate)).toBe(false);
+    expect(doc.getElementById("b")!.matches(gate)).toBe(false);
   });
 
   it("uses light literal values only: no var(), no external font or url()", () => {

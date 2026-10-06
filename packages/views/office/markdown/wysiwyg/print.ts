@@ -167,9 +167,11 @@ const READING_CSS =
   "background:#f4f4f5;border-radius:4px;padding:.125em .375em}" +
   "pre{margin:.75rem 0;padding:.75rem 1rem;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:6px;font-size:13px;line-height:1.5}" +
   "pre code{background:none;border-radius:0;padding:0;font-size:inherit}" +
-  "table{width:100%;border-collapse:collapse;margin:.75rem 0}" +
-  "th,td{border:1px solid #e4e4e7;padding:.375rem .625rem;text-align:left;vertical-align:top}" +
-  "th{background:#f4f4f5;font-weight:600}" +
+  // Markdown tables carry no presentational attributes; an HTML file's table that sets width or
+  // border (a layout table, a hand-sized one) keeps its own, since element rules beat attributes.
+  "table:not([width]):not([border]){width:100%;border-collapse:collapse;margin:.75rem 0}" +
+  "table:not([width]):not([border]) :is(th,td){border:1px solid #e4e4e7;padding:.375rem .625rem;text-align:left;vertical-align:top}" +
+  "table:not([width]):not([border]) th{background:#f4f4f5;font-weight:600}" +
   "img{height:auto}";
 
 function insertAfterCsp(doc: Document, ...styles: HTMLStyleElement[]): void {
