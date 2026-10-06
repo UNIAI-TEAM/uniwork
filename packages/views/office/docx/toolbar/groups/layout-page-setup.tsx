@@ -11,15 +11,18 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxPageSetupDialog } from "../../page-setup/docx-page-setup-dialog";
+import { docxScopeOf, useDocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
 /** Shared open state of the page-setup dialog: the typed item drives it, this
  * component renders the dialog. */
-const pageSetupDialog = createRibbonOpenStore();
+const pageSetupDialogFor = scopedRibbonOpenStore();
 
 /** The typed ribbon items for the Layout > page setup group. */
-export function layoutPageSetupRibbonItems({ format, commands, readOnly }: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function layoutPageSetupRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands, readOnly } = context;
+  const pageSetupDialog = pageSetupDialogFor(docxScopeOf(context));
   const disabled = readOnly || !commands || !format?.docxPageSetup;
   const open = () => pageSetupDialog.open();
   return [
@@ -49,6 +52,8 @@ export function layoutPageSetupRibbonItems({ format, commands, readOnly }: DocxT
 /** Layout > page setup: the typed items live on the registry entry; this
  * component owns the dialog and is mounted by `RibbonDialogHosts`. */
 export function LayoutPageSetupGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
+  const scope = useDocxDocumentScope();
+  const pageSetupDialog = pageSetupDialogFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(pageSetupDialog);
   const state = format?.docxPageSetup ?? null;

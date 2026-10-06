@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect } from "react";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../editor-store";
+import { useDocxDocumentScope, useDocxLiveEditor, useDocxScopeValue } from "../editor-store";
 import { DocxFindPanel as DocxFindPanelView } from "./find-panel";
-import { closeDocxFind, isDocxFindOpen, subscribeDocxFind } from "./find-store";
 
 /**
  * Chrome slot mounted by docx-editor.tsx: decides when the real find panel is
- * on screen. Visibility comes from find-store.ts (the toolbar group lives in
- * another subtree) and the TipTap editor from the schema extension's store, so
- * the hook order stays stable while either is missing.
+ * on screen. Visibility and the TipTap editor come from the document scope
+ * (../editor-store: the toolbar group lives in another subtree), so the hook
+ * order stays stable while either is missing.
  *
  * Escape handling lives here rather than inside the panel: the panel's own
  * keydown listener only sees events that bubble through its subtree, so a
@@ -20,27 +20,31 @@ import { closeDocxFind, isDocxFindOpen, subscribeDocxFind } from "./find-store";
  * from too.
  */
 export function DocxFindPanel({ readOnly = false }: Pick<DocxToolbarGroupContext, "readOnly">) {
-  const editor = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
-  const open = useSyncExternalStore(subscribeDocxFind, isDocxFindOpen, isDocxFindOpen);
+  const scope = useDocxDocumentScope();
+  const editor = useDocxLiveEditor();
+  const open = useDocxScopeValue(scope.find);
+  const activeRef = useOfficeDocumentActiveRef();
+  const close = useCallback(() => scope.find.set(false), [scope]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // A document kept mounted in a hidden desktop tab never claims the key.
+      if (event.key !== "Escape" || event.defaultPrevented || !activeRef.current) return;
       event.preventDefault();
       // The bar is a modal-ish layer over the canvas: an open menu/dialog
       // inside it still gets first refusal, so only close when nothing above
       // has already claimed the key.
-      closeDocxFind();
+      close();
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [open]);
+  }, [open, close, activeRef]);
 
   if (!open || !editor) return null;
   return (
     <div className="relative z-40 h-0" data-testid="docx-find-dock">
-      <DocxFindPanelView editor={editor} readOnly={readOnly} onClose={closeDocxFind} />
+      <DocxFindPanelView editor={editor} readOnly={readOnly} onClose={close} />
     </div>
   );
 }

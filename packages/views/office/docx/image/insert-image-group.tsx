@@ -8,15 +8,15 @@
 // the toolbar context carries the host handle only. The lane already publishes
 // the live editor through the schema extension's store (find/find-extension.ts)
 // for exactly this cross-subtree case, so this group reads that store.
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { createDocxImageEditing } from "./docx-image-commands";
 import { DocxImageInsert } from "./docx-image-insert";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../editor-store";
+import { useDocxLiveEditor } from "../editor-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 
 /** Insert > Image: pick a file, preview it, then insert it at the caret. */
 export function InsertImageGroup({ readOnly = false, saving = false }: DocxToolbarGroupContext) {
-  const editor = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
+  const editor = useDocxLiveEditor();
   const editing = useMemo(() => (editor ? createDocxImageEditing(() => editor) : null), [editor]);
   if (!editing) return null;
   return <DocxImageInsert editing={editing} readOnly={readOnly || saving} />;

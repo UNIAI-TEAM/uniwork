@@ -11,15 +11,18 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxNavigationHost } from "../../view";
+import { useDocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen, useRibbonOpenLive } from "./ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen, useRibbonOpenLive } from "./ribbon-open-store";
 
 /** Shared open state of the navigation pane. */
-const navigationPane = createRibbonOpenStore();
+const navigationPaneFor = scopedRibbonOpenStore();
 
 /** The live navigation toggle: subscribes to the pane store so `aria-pressed`
  * tracks the current state instead of a build-time snapshot (F6). */
 function NavigationToggle() {
+  const scope = useDocxDocumentScope();
+  const navigationPane = navigationPaneFor(scope);
   const { t } = useTranslation();
   const open = useRibbonOpenLive(navigationPane);
   return (
@@ -54,6 +57,8 @@ export function viewNavigationRibbonItems(_context: DocxToolbarGroupContext): re
 /** View > navigation: this component owns the pane and is mounted by
  * `RibbonDialogHosts`. */
 export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
+  const scope = useDocxDocumentScope();
+  const navigationPane = navigationPaneFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(navigationPane);
   return (

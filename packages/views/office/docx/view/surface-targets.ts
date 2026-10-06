@@ -13,6 +13,7 @@
 // model speaks; nothing here mutates the surface.
 
 import { useEffect, useState } from "react";
+import { useDocxDocumentScope } from "../editor-store";
 import type { RendererSection } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxZoomPageSize } from "./zoom-controller";
 
@@ -97,17 +98,21 @@ function sameDocxViewSurface(a: DocxViewSurface | null, b: DocxViewSurface | nul
  * paints later is picked up. The returned object is identity-stable while
  * nothing changed, so consumers can put it in effect dependencies.
  *
- * Scope: the FIRST `[data-testid="docx-canvas"]` in the document (body while
- * the shell has not mounted it). Sound while one DOCX editor is on the page;
- * two editors at once (split view, tests) would share this resolution — see
- * `getDocxZoomController` for the matching controller caveat.
+ * Scope (UNI-957): the canvas inside this document's own root (the DocxEditor
+ * that provides the document scope), so a second DOCX kept mounted in a hidden
+ * desktop tab is never resolved. Chrome rendered without a DocxEditor (isolated
+ * tests) falls back to the first canvas in the page.
  */
 export function useDocxViewSurface(): DocxViewSurface | null {
   const [surface, setSurface] = useState<DocxViewSurface | null>(null);
+  const documentScope = useDocxDocumentScope();
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") return undefined;
-    const scope: ParentNode = document.querySelector(DOCX_CANVAS_SELECTOR) ?? document.body;
+    const root = documentScope.root.current;
+    const scope: ParentNode = root
+      ? (root.querySelector(DOCX_CANVAS_SELECTOR) ?? root)
+      : (document.querySelector(DOCX_CANVAS_SELECTOR) ?? document.body);
     let observedZoom: HTMLElement | null = null;
     let observedScroll: HTMLElement | null = null;
     let styleObserver: MutationObserver | null = null;
@@ -136,7 +141,7 @@ export function useDocxViewSurface(): DocxViewSurface | null {
       canvasObserver.disconnect();
       styleObserver?.disconnect();
     };
-  }, []);
+  }, [documentScope]);
 
   return surface;
 }

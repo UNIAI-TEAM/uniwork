@@ -14,16 +14,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useEffect } from "react";
 import { getI18n, useTranslation } from "react-i18next";
 import type { RibbonItem } from "../../ribbon";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
+import { docxScopeOf, useDocxDocumentScope } from "../editor-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportPdfDialog } from "./docx-export-pdf-dialog";
 import { installDocxPrintStyles } from "./docx-print";
 
 /** Shared open state of the PDF guidance dialog. */
-const pdfDialog = createRibbonOpenStore();
+const pdfDialogFor = scopedRibbonOpenStore();
 
 /** The typed ribbon items for the View > export group. */
 export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const pdfDialog = pdfDialogFor(docxScopeOf(context));
   const { commands, format } = context;
   const { t } = getI18n();
   const disabled = !commands || !(format?.docxExportReady ?? false);
@@ -73,6 +75,8 @@ export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonl
 /** View > export: the typed items live on the registry entry; this component
  * keeps the PDF dialog mount and stays exported for direct use. */
 export function DocxExportGroup({ commands, format }: DocxToolbarGroupContext) {
+  const scope = useDocxDocumentScope();
+  const pdfDialog = pdfDialogFor(scope);
   const { t } = useTranslation();
   const [pdfOpen] = useRibbonOpen(pdfDialog);
   const disabled = !commands || !(format?.docxExportReady ?? false);

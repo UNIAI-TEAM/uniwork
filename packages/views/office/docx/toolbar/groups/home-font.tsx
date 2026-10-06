@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import {
   ALargeSmall,
@@ -22,7 +22,7 @@ import { FontFamilyPicker } from "../../character/font-family-picker";
 import { FontSizePicker } from "../../character/font-size-picker";
 import type { CaseCommandMode } from "../../character/case-transform";
 import { useFormatPainter } from "../../character/format-painter";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "../../editor-store";
+import { docxScopeOf, useDocxDocumentScope, useDocxLiveEditor } from "../../editor-store";
 import type { RibbonItem } from "../../../ribbon";
 import { docxDefaultFontFamily } from "../font-family-display";
 import { docxFontSizeDisplay } from "../font-size-display";
@@ -46,13 +46,14 @@ export function HomeFontGroup({ editor, format, commands, readOnly, saving }: Do
   const painter = useFormatPainter({ editor, commands, disabled: blocked });
   // The size box needs the live selection marks, which the composed format
   // state flattens; the lane publishes the editor for this cross-subtree read.
-  const live = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
+  const scope = useDocxDocumentScope();
+  const live = useDocxLiveEditor();
   const sizeDisplay = docxFontSizeDisplay(live, format?.fontSizePt ?? null);
 
   const refreshDocumentFonts = useCallback(() => {
-    const live = getDocxLiveEditor();
+    const live = scope.editor.get();
     setDocumentFonts(live && !live.isDestroyed ? [...documentFontsFor(live, commands)] : []);
-  }, [commands]);
+  }, [commands, scope]);
 
   return (
     <div className="flex flex-nowrap items-center gap-1">
@@ -220,10 +221,11 @@ function FontFamilyItem({
   disabled,
 }: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; defaultFamily: string | null; disabled: boolean }) {
   const [documentFonts, setDocumentFonts] = useState<readonly string[]>([]);
+  const scope = useDocxDocumentScope();
   const refreshDocumentFonts = useCallback(() => {
-    const live = getDocxLiveEditor();
+    const live = scope.editor.get();
     if (live && !live.isDestroyed) setDocumentFonts([...documentFontsFor(live, commands)]);
-  }, [commands]);
+  }, [commands, scope]);
   return (
     // The picker's trigger carries a narrow w-28; the wrapper stretches it to
     // the item width so the default font name is not truncated (F4).
@@ -257,7 +259,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
   const { format, commands, readOnly, saving } = context;
   const blocked = readOnly || saving || !commands || !format;
   const verticalAlign = format?.verticalAlign ?? null;
-  const sizeDisplay = docxFontSizeDisplay(getDocxLiveEditor(), format?.fontSizePt ?? null);
+  const live = docxScopeOf(context).editor.get();
+  const sizeDisplay = docxFontSizeDisplay(live, format?.fontSizePt ?? null);
 
   return [
     {
@@ -269,7 +272,7 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       width: FAMILY_WIDTH,
       disabled: blocked,
       render: () => (
-        <FontFamilyItem value={format?.fontFamily ?? null} defaultFamily={docxDefaultFontFamily(getDocxLiveEditor())} commands={commands} disabled={blocked} />
+        <FontFamilyItem value={format?.fontFamily ?? null} defaultFamily={docxDefaultFontFamily(live)} commands={commands} disabled={blocked} />
       ),
     },
     {

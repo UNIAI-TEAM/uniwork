@@ -7,7 +7,7 @@ import { useFormatPainter } from "../../character/format-painter";
 import type { RibbonItem } from "../../../ribbon";
 import { copySelection, cutSelection, insertPastePayload, readClipboardPayload, readClipboardText } from "../../context-menu/clipboard-actions";
 import { insertPlainText } from "../../context-menu/paste-options";
-import { getDocxLiveEditor } from "../../editor-store";
+import { docxScopeOf, useDocxDocumentScope, type DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 
 /**
@@ -18,29 +18,29 @@ import type { DocxToolbarGroupContext } from "../types";
  * (context-menu/clipboard-actions.ts + paste-options.ts), reused read-only:
  * Paste's primary action reads the rich clipboard payload and inserts it, its
  * menu entry pastes plain text, and Cut/Copy write the current selection. The
- * editor comes from the live editor store because the clipboard verbs need the
+ * editor comes from this document's scope because the clipboard verbs need the
  * TipTap editor, which the toolbar context does not carry.
  */
 
-async function runCut(): Promise<void> {
-  const editor = getDocxLiveEditor();
+async function runCut(scope: DocxDocumentScope): Promise<void> {
+  const editor = scope.editor.get();
   if (editor) await cutSelection(editor);
 }
 
-async function runCopy(): Promise<void> {
-  const editor = getDocxLiveEditor();
+async function runCopy(scope: DocxDocumentScope): Promise<void> {
+  const editor = scope.editor.get();
   if (editor) await copySelection(editor);
 }
 
-async function runPaste(): Promise<void> {
-  const editor = getDocxLiveEditor();
+async function runPaste(scope: DocxDocumentScope): Promise<void> {
+  const editor = scope.editor.get();
   if (!editor) return;
   const payload = await readClipboardPayload();
   if (payload) insertPastePayload(editor, payload);
 }
 
-async function runPastePlain(): Promise<void> {
-  const editor = getDocxLiveEditor();
+async function runPastePlain(scope: DocxDocumentScope): Promise<void> {
+  const editor = scope.editor.get();
   if (!editor) return;
   const text = await readClipboardText();
   if (text.length > 0) insertPlainText(editor, text);
@@ -87,6 +87,7 @@ function FormatPainterItem({
 /** The typed Clipboard items the ribbon renders for this group (R7). */
 export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const disabled = context.readOnly || context.saving;
+  const scope = docxScopeOf(context);
   return [
     {
       kind: "split",
@@ -97,13 +98,13 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
       collapseAs: "large",
       shortcut: "Ctrl+V",
       disabled,
-      onExecute: () => void runPaste(),
+      onExecute: () => void runPaste(scope),
       menu: [
         {
           id: "docx-clipboard-paste-plain",
           labelKey: "office.docx.contextMenu.pastePlain",
           icon: ClipboardType,
-          onSelect: () => void runPastePlain(),
+          onSelect: () => void runPastePlain(scope),
         },
       ],
     },
@@ -116,7 +117,7 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
       collapseAs: "icon",
       shortcut: "Ctrl+X",
       disabled,
-      onExecute: () => void runCut(),
+      onExecute: () => void runCut(scope),
     },
     {
       kind: "button",
@@ -128,7 +129,7 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
       rowBreak: true,
       shortcut: "Ctrl+C",
       disabled,
-      onExecute: () => void runCopy(),
+      onExecute: () => void runCopy(scope),
     },
     {
       kind: "custom",
@@ -148,6 +149,7 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
  * same three commands as real buttons. */
 export function HomeClipboardGroup({ readOnly, saving }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
+  const scope = useDocxDocumentScope();
   const disabled = readOnly || saving;
   return (
     <div className="flex flex-nowrap items-center gap-1">
@@ -157,7 +159,7 @@ export function HomeClipboardGroup({ readOnly, saving }: DocxToolbarGroupContext
         size="sm"
         disabled={disabled}
         aria-label={t("office.docx.contextMenu.paste")}
-        onClick={() => void runPaste()}
+        onClick={() => void runPaste(scope)}
         data-testid="docx-clipboard-paste"
       >
         <ClipboardPaste aria-hidden />
@@ -168,7 +170,7 @@ export function HomeClipboardGroup({ readOnly, saving }: DocxToolbarGroupContext
         size="sm"
         disabled={disabled}
         aria-label={t("office.docx.contextMenu.cut")}
-        onClick={() => void runCut()}
+        onClick={() => void runCut(scope)}
         data-testid="docx-clipboard-cut"
       >
         <Scissors aria-hidden />
@@ -179,7 +181,7 @@ export function HomeClipboardGroup({ readOnly, saving }: DocxToolbarGroupContext
         size="sm"
         disabled={disabled}
         aria-label={t("office.docx.contextMenu.copy")}
-        onClick={() => void runCopy()}
+        onClick={() => void runCopy(scope)}
         data-testid="docx-clipboard-copy"
       >
         <Copy aria-hidden />

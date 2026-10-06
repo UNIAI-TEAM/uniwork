@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import type { DocxCharacterCommands } from "../commands/character";
 import type { DocxEditorHandle, DocxSelection } from "../types";
 
@@ -71,10 +72,12 @@ export function useFormatPainter({ editor, commands, disabled }: FormatPainterOp
     });
   }, [armed, commands, editor]);
 
+  // UNI-957: Escape in another (visible) document never disarms this one.
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (!armed) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || !activeRef.current) return;
       event.stopPropagation();
       cancel();
     };
@@ -82,7 +85,7 @@ export function useFormatPainter({ editor, commands, disabled }: FormatPainterOp
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [armed, cancel]);
+  }, [armed, cancel, activeRef]);
 
   useEffect(() => {
     if (disabled) cancel();

@@ -1,18 +1,17 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { isDocxFindOpen, subscribeDocxFind, toggleDocxFind } from "../../find/find-store";
+import { useDocxDocumentScope, useDocxScopeValue } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 
 /** Find & replace entry: toggles the panel the shell mounts beside the document
- * (find/docx-find-panel.tsx). Ctrl+F belongs to A9's shortcut map; its `find`
- * entry binds `toggleDocxFind` from find/find-store.ts. */
+ * (find/docx-find-panel.tsx). The open flag lives in this document's scope. */
 export function HomeFindGroup(_props: DocxToolbarGroupContext) {
   const { t } = useTranslation();
-  const open = useSyncExternalStore(subscribeDocxFind, isDocxFindOpen, isDocxFindOpen);
+  const scope = useDocxDocumentScope();
+  const open = useDocxScopeValue(scope.find);
 
   return (
     <Button
@@ -22,7 +21,7 @@ export function HomeFindGroup(_props: DocxToolbarGroupContext) {
       aria-label={t("office.docx.find.label")}
       aria-pressed={open}
       data-testid="docx-find-toggle"
-      onClick={toggleDocxFind}
+      onClick={() => scope.find.set(!scope.find.get())}
     >
       <Search aria-hidden />
     </Button>

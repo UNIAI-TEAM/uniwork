@@ -10,7 +10,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { RibbonItem } from "../../../ribbon";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../../commands";
 import { docxExtensions } from "../../docx-schema";
-import { publishDocxEditor } from "../../editor-store";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 import { homeClipboardRibbonItems } from "./home-clipboard";
 import { homeFontRibbonItems } from "./home-font";
@@ -22,11 +22,13 @@ beforeEach(async () => {
 });
 
 const editors: Editor[] = [];
+// The document scope the items and their custom controls read (UNI-957).
+const testScope = createDocxDocumentScope();
 
 // F12: every test destroys its TipTap editors and clears the published editor,
 // so no editor (or live-editor subscription) leaks into the next test.
 afterEach(() => {
-  publishDocxEditor(null);
+  testScope.publishEditor(null);
   for (const editor of editors.splice(0)) editor.destroy();
 });
 
@@ -53,6 +55,7 @@ function context(editor: Editor, runtime: DocxCommandRuntime, overrides: Partial
     canRedo: true,
     onUndo: vi.fn(),
     onRedo: vi.fn(),
+    docScope: testScope,
     ...overrides,
   };
 }
@@ -66,7 +69,7 @@ function item(items: readonly RibbonItem[], id: string): RibbonItem {
 /** Mounts a typed item's rendered node (the custom controls are components). */
 function renderItem(entry: RibbonItem): void {
   if (entry.kind !== "custom") throw new Error(`item ${entry.id} is not custom`);
-  render(<>{entry.render({ size: "small", inPanel: false })}</>);
+  render(<DocxDocumentScopeProvider scope={testScope}>{entry.render({ size: "small", inPanel: false })}</DocxDocumentScopeProvider>);
 }
 
 describe("Home clipboard typed items", () => {
@@ -104,7 +107,7 @@ describe("Home clipboard typed items", () => {
   it("runs Paste through readClipboardPayload + insertPastePayload", async () => {
     const editor = editorWith("hello");
     const runtime = createDocxCommandRuntime(() => editor);
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const clipboardActions = await import("../../context-menu/clipboard-actions");
     const read = vi.spyOn(clipboardActions, "readClipboardPayload").mockResolvedValue({ html: "", text: "world" });
     const insert = vi.spyOn(clipboardActions, "insertPastePayload").mockReturnValue(true);
@@ -141,7 +144,7 @@ describe("Home font typed items", () => {
   it("keeps every non-typed command call identical to the pre-typed group", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const spies = {
       toggleBold: vi.spyOn(runtime, "toggleBold"),
@@ -181,7 +184,7 @@ describe("Home font typed items", () => {
   it("exposes the size control as an editable custom picker (F3)", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const items = homeFontRibbonItems(context(editor, runtime));
     const size = item(items, "docx-font-size");
@@ -201,7 +204,7 @@ describe("Home font typed items", () => {
   it("steps the size through stepFontSize from the -/+ pair (F3)", () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const stepFontSize = vi.spyOn(runtime, "stepFontSize");
     const items = homeFontRibbonItems(context(editor, runtime));
@@ -218,7 +221,7 @@ describe("Home font typed items", () => {
   it("shows the effective size and the mixed placeholder in the picker (F3)", async () => {
     const editor = editorWith("hello world");
     editor.chain().setTextSelection({ from: 1, to: 6 }).setMark("docTextStyle", { sizeHalfPoints: 28 }).run();
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     editor.commands.setTextSelection(3);
     const runtime = createDocxCommandRuntime(() => editor);
 
@@ -239,7 +242,7 @@ describe("Home font typed items", () => {
   it("restores the family picker and commits a typed family name (F4)", async () => {
     const editor = editorWith("hello world");
     editor.commands.setTextSelection({ from: 1, to: 6 });
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const setFontFamily = vi.spyOn(runtime, "setFontFamily");
     const items = homeFontRibbonItems(context(editor, runtime));
@@ -257,7 +260,7 @@ describe("Home font typed items", () => {
 
   it("reads documentFonts only when the family panel opens, and caches per document (F5)", async () => {
     const editor = editorWith("hello world");
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     const runtime = createDocxCommandRuntime(() => editor);
     const documentFonts = vi.spyOn(runtime, "documentFonts");
     const items = homeFontRibbonItems(context(editor, runtime));
