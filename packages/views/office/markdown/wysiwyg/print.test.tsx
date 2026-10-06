@@ -376,3 +376,43 @@ describe("sanitizePrintCopy: page geometry and blocked images", () => {
     expect(copy).not.toContain("about:blank#blocked");
   });
 });
+
+describe("sanitizePrintCopy: reading stylesheet for an unstyled copy", () => {
+  const reading = (html: string): string | null =>
+    new DOMParser().parseFromString(sanitizePrintCopy(html), "text/html").head.querySelector("style[data-print-reading]")?.textContent ?? null;
+
+  it("styles a copy that brings no styles: sans font, bordered padded tables, code, quote, lists, images", () => {
+    const css = reading(`<h1>T</h1><table><tr><th>A</th></tr><tr><td>1</td></tr></table>`)!;
+    expect(css).toMatch(/body\{[^}]*font-family:[^;}]*sans-serif/);
+    expect(css).toMatch(/table\{[^}]*border-collapse:collapse/);
+    expect(css).toMatch(/th,td\{[^}]*border:1px solid #[0-9a-f]{3,6}[^}]*padding:[^;}]+/);
+    expect(css).toMatch(/h1\{[^}]*font-size:24px/);
+    expect(css).toMatch(/blockquote\{[^}]*border-left:3px solid/);
+    expect(css).toMatch(/pre\{[^}]*background:#[0-9a-f]{3,6}/);
+    // images are held to the page width by the page rule beside it; the reading sheet keeps their aspect.
+    expect(css).toMatch(/img\{[^}]*height:auto/);
+    expect(css).toMatch(/ul,ol\{[^}]*padding-left/);
+  });
+
+  it("uses light literal values only: no var(), no external font or url()", () => {
+    const css = reading(`<p>x</p>`)!;
+    expect(css).not.toMatch(/var\(|url\(|@import|@font-face/);
+  });
+
+  it("sits after the page geometry, keeping the CSP meta first", () => {
+    const head = new DOMParser().parseFromString(sanitizePrintCopy(`<p>x</p>`), "text/html").head;
+    expect(head.firstElementChild!.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
+    const styles = Array.from(head.querySelectorAll("style"));
+    expect(styles.map((s) => Object.keys(s.dataset)[0])).toEqual(["printPage", "printReading"]);
+  });
+
+  it("leaves a document that carries its own styles alone, adding only the page margins", () => {
+    const doc = new DOMParser().parseFromString(sanitizePrintCopy(`<style>p{color:red}</style><p>x</p>`), "text/html");
+    expect(doc.head.querySelector("style[data-print-reading]")).toBeNull();
+    expect(doc.head.querySelector("style[data-print-page]")).not.toBeNull();
+  });
+
+  it("does not style a copy that has its own @page rule (DOCX sections)", () => {
+    expect(reading(`<style>@page{size:A5;margin:5mm}</style><p>x</p>`)).toBeNull();
+  });
+});
