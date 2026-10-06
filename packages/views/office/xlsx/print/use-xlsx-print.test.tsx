@@ -160,7 +160,7 @@ describe("runXlsxPrint", () => {
   it("has every status string in both locales", () => {
     for (const locale of [en, viLocale]) {
       const print = (locale as { office: { xlsx: { print: Record<string, string> } } }).office.xlsx.print;
-      expect(Object.keys(print).sort()).toEqual(["busy", "failed", "tooLarge"]);
+      expect(Object.keys(print).sort()).toEqual(["busy", "failed"]);
     }
   });
 });
