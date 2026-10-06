@@ -83,11 +83,11 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       return desktopLibraryContextResponseSchema.parse(await options.transport.context());
     },
-    "desktop:public-config": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
+    "desktop:public-config": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:public-config">) => {
       requireSession();
       // A malformed transport answer degrades to no flags (the renderer reads that
       // as engine off and opens cloud documents read-only), never a thrown open.
-      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig((request as { organizationId?: string }).organizationId));
+      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig(request.organizationId));
       return parsed.success ? parsed.data : { flags: {} };
     },
     "desktop:library-recent": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string }>) => {

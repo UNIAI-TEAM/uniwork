@@ -184,11 +184,15 @@ export const desktopPublicConfigResponseSchema = z.object({
   flags: z.record(z.string().regex(PUBLIC_FLAG_KEY), z.boolean()).refine((flags) => Object.keys(flags).length <= PUBLIC_FLAG_LIMIT, "too many flags"),
 }).strict();
 /** Keeps only well-formed boolean flags, at most the schema's cap, so a
- * larger catalogue degrades to a truncated answer instead of a rejected one. */
+ * larger catalogue degrades to a truncated answer instead of a rejected one.
+ * The Office keys (office_engine first) are kept before any other, so a
+ * catalogue past the cap never drops the flags the desktop gates on. */
 export function sanitizeDesktopPublicFlags(raw: unknown): Record<string, boolean> {
   const flags: Record<string, boolean> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return flags;
-  for (const [key, value] of Object.entries(raw)) {
+  const rank = (key: string) => (key === "office_engine" ? 0 : key.startsWith("office_") ? 1 : 2);
+  const entries = Object.entries(raw).sort(([a], [b]) => rank(a) - rank(b));
+  for (const [key, value] of entries) {
     if (Object.keys(flags).length >= PUBLIC_FLAG_LIMIT) break;
     if (typeof value === "boolean" && PUBLIC_FLAG_KEY.test(key)) flags[key] = value;
   }
