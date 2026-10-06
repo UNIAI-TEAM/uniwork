@@ -232,3 +232,124 @@ test('real Univer: one undo of a bottom-up multi-insert batch restores every row
   assert.deepEqual(column(), ['Ten', 'An', 'an', null, 'Binh', null, null, null, 'below']);
   univer.dispose();
 });
+
+/** A stand-in for the pinned LocalUndoRedoService: per-unit stacks, the
+ *  batch folds every later push into the first, rollback pops a tagged top. */
+function localUndoRedo() {
+  const undo = new Map();
+  const redo = new Map();
+  const batching = new Map();
+  const replayed = [];
+  const stack = (map, unit) => { if (!map.has(unit)) map.set(unit, []); return map.get(unit); };
+  const service = {
+    _redoStacks: redo,
+    _pitchUndoElement: (unit) => stack(undo, unit).at(-1) ?? null,
+    pushUndoRedo(item) {
+      stack(redo, item.unitID).length = 0;
+      const top = stack(undo, item.unitID).at(-1);
+      if (batching.has(item.unitID) && batching.get(item.unitID) === 1 && top) {
+        top.undoMutations.push(...item.undoMutations);
+        top.redoMutations.push(...item.redoMutations);
+      } else {
+        stack(undo, item.unitID).push(item);
+        if (batching.has(item.unitID)) batching.set(item.unitID, 1);
+      }
+    },
+    rollback(id, unit) {
+      const top = stack(undo, unit).at(-1);
+      if (top?.id === id) { stack(undo, unit).pop(); replayed.push(...top.undoMutations); }
+    },
+    __tempBatchingUndoRedo(unit) {
+      batching.set(unit, 0);
+      return { dispose: () => batching.delete(unit) };
+    },
+  };
+  const push = (...undoMutations) => service.pushUndoRedo({ unitID: 'file-1', undoMutations, redoMutations: undoMutations.map((m) => `re-${m}`) });
+  return { service, injector: { get: () => service }, undo: (unit = 'file-1') => stack(undo, unit), redo: (unit = 'file-1') => stack(redo, unit), replayed, push };
+}
+
+// review-delta D3: a step whose command pushes several undo items must also
+// undo them newest first, like the separate entries they would be unbatched.
+test('one step pushing several undo items undoes them newest first (D3)', async () => {
+  const fake = localUndoRedo();
+  const original = fake.service.pushUndoRedo;
+  const ran = await executeAsOneUndoStep(fake.injector, 'file-1', [{ id: 'a' }, { id: 'b' }], async (step) => {
+    if (step.id === 'a') { fake.push('undo-a1'); fake.push('undo-a2'); } else fake.push('undo-b');
+    return true;
+  });
+  assert.equal(ran, 2);
+  assert.equal(fake.undo().length, 1);
+  assert.deepEqual(fake.undo()[0].undoMutations, ['undo-b', 'undo-a2', 'undo-a1']);
+  assert.deepEqual(fake.undo()[0].redoMutations, ['re-undo-a1', 're-undo-a2', 're-undo-b']);
+  // The service's own push is back once the batch closes.
+  assert.equal(fake.service.pushUndoRedo, original);
+  assert.equal(Object.prototype.hasOwnProperty.call(fake.service, 'pushUndoRedo'), true);
+});
+
+// review-delta D5: under rollback a step that throws is a refusal: what ran
+// (its own partial push included) is taken back and the batch answers 0.
+test('rollback: a step that throws takes back what ran and answers 0; the default rethrows (D5)', async () => {
+  const atomic = localUndoRedo();
+  const ran = await executeAsOneUndoStep(atomic.injector, 'file-1', [{ id: 'a' }, { id: 'b' }], async (step) => {
+    atomic.push(`undo-${step.id}`);
+    if (step.id === 'b') throw new Error('boom');
+    return true;
+  }, { rollback: true });
+  assert.equal(ran, 0);
+  assert.equal(atomic.undo().length, 0);
+  assert.deepEqual(atomic.replayed, ['undo-b', 'undo-a']);
+  // A first step that pushed and then refused is taken back too.
+  const first = localUndoRedo();
+  assert.equal(await executeAsOneUndoStep(first.injector, 'file-1', [{ id: 'a' }, { id: 'b' }], async () => {
+    first.push('undo-a');
+    return false;
+  }, { rollback: true }), 0);
+  assert.equal(first.undo().length, 0);
+  const kept = localUndoRedo();
+  await assert.rejects(executeAsOneUndoStep(kept.injector, 'file-1', [{ id: 'a' }, { id: 'b' }], async (step) => {
+    kept.push(`undo-${step.id}`);
+    if (step.id === 'b') throw new Error('boom');
+    return true;
+  }), /boom/);
+  assert.equal(kept.undo().length, 1);
+});
+
+// review-delta D1: Univer's first batched push clears the unit's redo stack;
+// a rolled-back batch changed nothing, so the redo history comes back.
+test('real Univer: a rolled-back atomic batch keeps the redo history (D1)', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+  const real = await build({
+    stdin: { contents: `export * from './undo-step';`, resolveDir: renderer, loader: 'ts' },
+    bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent', external: ['@univerjs/core'],
+  });
+  const realMod = { exports: {} };
+  new Function('module', 'exports', 'require', real.outputFiles[0].text)(realMod, realMod.exports, require);
+  const core = require('@univerjs/core');
+  const sheets = require('@univerjs/sheets');
+  const univer = new core.Univer({ locale: core.LocaleType.EN_US, locales: { [core.LocaleType.EN_US]: {} } });
+  univer.registerPlugin(sheets.UniverSheetsPlugin);
+  const workbook = univer.createUnit(core.UniverInstanceType.UNIVER_SHEET, {
+    id: 'u1', sheetOrder: ['s1'], sheets: { s1: { id: 's1', cellData: { 0: { 0: { v: 'old' } } } } },
+  });
+  const injector = univer.__getInjector();
+  injector.get(core.IUniverInstanceService).focusUnit('u1');
+  injector.get(core.IContextService).setContextValue(core.FOCUSING_SHEET, true);
+  const commands = injector.get(core.ICommandService);
+  const undoRedo = injector.get(core.IUndoRedoService);
+  const cell = { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 };
+  const write = (v) => ({ id: 'sheet.command.set-range-values', params: { unitId: 'u1', subUnitId: 's1', range: cell, value: { 0: { 0: { v } } } } });
+  const sheet = workbook.getSheetBySheetId('s1');
+  assert.equal(await commands.executeCommand(write('typed').id, write('typed').params), true);
+  await commands.executeCommand(core.UndoCommand.id);
+  assert.equal(sheet.getCellRaw(0, 0).v, 'old');
+  assert.equal(undoRedo._redoStacks.get('u1').length, 1);
+  const ran = await realMod.exports.executeAsOneUndoStep(injector, 'u1', [write('half'), { id: 'refused' }],
+    (step) => (step.id === 'refused' ? Promise.resolve(false) : commands.executeCommand(step.id, step.params)), { rollback: true });
+  assert.equal(ran, 0);
+  assert.equal(sheet.getCellRaw(0, 0).v, 'old');
+  assert.equal(undoRedo._redoStacks.get('u1').length, 1);
+  await commands.executeCommand(core.RedoCommand.id);
+  assert.equal(sheet.getCellRaw(0, 0).v, 'typed');
+  univer.dispose();
+});

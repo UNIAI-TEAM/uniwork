@@ -26,7 +26,9 @@ const ROLLBACK_ID = "uniwork-batch-rollback";
  *  0 means nothing was written (a refusal at the first step, a batch already
  *  open, no unit): a caller may then redo the work another way, but after a
  *  partial run (0 < n < steps.length) it must not write the same cells again.
- *  With `rollback` a partial run is taken back and answers 0. */
+ *  With `rollback` a partial run is taken back and answers 0: a step that
+ *  throws counts as a refusal, and the redo history the batch's first push
+ *  cleared comes back (review-delta D1, D5); without it a throw propagates. */
 export async function executeAsOneUndoStep(
   injector: Pick<Injector, "get">,
   unitId: string,
@@ -46,14 +48,18 @@ export async function executeAsOneUndoStep(
     // Another batch is open on this unit (Univer refuses nesting).
     return 0;
   }
+  const redoBefore = redoStack(service, unitId)?.slice() ?? null;
   let completed = 0;
-  // Where each step's undo group ends inside the batched entry.
+  // Where each undo push ends inside the batched entry: one group per push,
+  // so a command pushing several items also undoes newest first (D3).
   const groupEnds: number[] = [];
   const markGroupEnd = () => {
     const top = topUndoItem(service, unitId);
     if (top && top !== before) groupEnds.push(top.undoMutations.length);
   };
+  const restorePush = markEveryPush(service, unitId, markGroupEnd);
   let batched: IUndoRedoItem | null = null;
+  let thrown: { error: unknown } | null = null;
   try {
     for (const step of steps) {
       const ran = await execute(step);
@@ -61,7 +67,10 @@ export async function executeAsOneUndoStep(
       if (!ran) break;
       completed += 1;
     }
+  } catch (error) {
+    thrown = { error };
   } finally {
+    restorePush();
     batch.dispose();
     const top = topUndoItem(service, unitId);
     if (top && top !== before) {
@@ -69,14 +78,46 @@ export async function executeAsOneUndoStep(
       undoNewestFirst(top, groupEnds);
     }
   }
-  if (!options.rollback || completed === 0 || completed === steps.length) return completed;
+  if (!options.rollback) {
+    if (thrown) throw thrown.error;
+    return completed;
+  }
+  if (completed === steps.length) return completed;
   // The first undo push of the batch appended a new entry and the rest
   // folded into it, so the new top for this unit is exactly what ran.
   if (batched) {
     batched.id = ROLLBACK_ID;
     service.rollback(ROLLBACK_ID, unitId);
+    const redo = redoStack(service, unitId);
+    if (redo && redoBefore) redo.splice(0, redo.length, ...redoBefore);
+    (service as unknown as { _updateStatus?: () => void })._updateStatus?.();
   }
   return 0;
+}
+
+/** Calls `mark` after every undo push for `unitId` while the batch is open;
+ *  answers the function that puts the service's own push back. */
+function markEveryPush(service: IUndoRedoService, unitId: string, mark: () => void): () => void {
+  const target = service as unknown as Record<string, unknown>;
+  const hadOwn = Object.prototype.hasOwnProperty.call(target, "pushUndoRedo");
+  const own = target.pushUndoRedo;
+  const push = service.pushUndoRedo;
+  if (typeof push !== "function") return () => {};
+  target.pushUndoRedo = function (this: unknown, item: IUndoRedoItem) {
+    push.call(this ?? service, item);
+    if (item.unitID === unitId) mark();
+  };
+  return () => {
+    if (hadOwn) target.pushUndoRedo = own;
+    else delete target.pushUndoRedo;
+  };
+}
+
+/** The unit's redo stack on the pinned LocalUndoRedoService (null on a port
+ *  without one): its pushUndoRedo empties it in place. */
+function redoStack(service: IUndoRedoService, unitId: string): IUndoRedoItem[] | null {
+  const local = service as unknown as { _redoStacks?: Map<string, IUndoRedoItem[]> };
+  return local._redoStacks?.get(unitId) ?? null;
 }
 
 /** The unit's newest undo entry. The pinned LocalUndoRedoService keeps one
