@@ -1,6 +1,7 @@
 ﻿import {
   isXlsxDefinedNamesOp,
   isXlsxFilterOp,
+  isXlsxRuleSetOp,
   isXlsxHyperlinkOp,
   isXlsxNotesOp,
   isXlsxPageSetupOp,
@@ -126,6 +127,9 @@ function applyOp(sheets: XlsxWorksheet[], op: XlsxEditOp): void {
   // sheetProtections / definedNamesState passes unapplied.
   if (isXlsxSheetProtectionOp(op)) return;
   if (isXlsxDefinedNamesOp(op)) return;
+  // Rule sets (X01) are declarative state the cell snapshot does not carry: they
+  // ride the envelope to the server unapplied.
+  if (isXlsxRuleSetOp(op)) return;
   // Charts, pictures and shapes (X02) are drawing parts, not cells: they ride
   // the envelope to the server's visualAdditions pass unapplied.
   if (isXlsxVisualOp(op)) return;
