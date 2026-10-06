@@ -412,6 +412,20 @@ const elementLabel = (element: PptxElementLike, text: string | undefined): strin
   return base + ": " + (flat.length > LABEL_TEXT_MAX ? flat.slice(0, LABEL_TEXT_MAX - 1) + "…" : flat);
 };
 
+/** The cNvPr form ("e_<id>") of an element id. The vendored parser re-mints the
+ * parse-time id on every parse (each op transaction parses the part again), so
+ * that id never resolves in a later edit; the executor's matchesElementRef
+ * (identity.ts:68) also accepts this form, which is stable across parses and
+ * stays an alias after an edit mints a creationId. Falls back to the parse id. */
+const durableMasterId = (element: PptxElementLike): string => {
+  const xml = (element as { anchor?: { originalXml?: unknown } }).anchor?.originalXml;
+  const open = typeof xml === "string" ? /<p:cNvPr\b[^>]*?\/?>/.exec(xml)?.[0] : undefined;
+  const cNvPr = open ? /\bid="(\d+)"/.exec(open)?.[1] : undefined;
+  if (cNvPr) return "e_" + cNvPr;
+  const nvId = (element as { nvId?: unknown }).nvId;
+  return typeof nvId === "number" || typeof nvId === "string" ? "e_" + String(nvId) : element.id;
+};
+
 /** The elements of one master/layout part for the Masters panel. Pure: the
  * part is parsed by `parse` (the bound vendored parseMasterPart) from the
  * held archive. Refusals: bad_master_part (unknown part, or one that parses to
@@ -437,7 +451,7 @@ export function readMasterElements(
     const offset = element.transform?.offset;
     const text = paragraphsText(element);
     const data: MasterElementData = {
-      id: element.id,
+      id: durableMasterId(element),
       type: element.type,
       label: elementLabel(element, text),
       box: {

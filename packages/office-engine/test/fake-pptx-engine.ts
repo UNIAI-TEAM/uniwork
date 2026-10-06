@@ -75,6 +75,27 @@ export const FAKE_LAYOUT_PART = "ppt/slideLayouts/slideLayout1.xml";
 /** Fixture override for a deck with one master (title, body, logo) and one
  * layout (title): the standard kitchen-sink entries plus fake master/layout
  * part text and the master's layout rel, as parsed by parseMasterPart. */
+/** Real-shaped master/layout XML (cSld + spTree + txStyles) for the part-XML
+ * master edits (T01), which rewrite the part text itself. */
+export const XML_MASTER =
+  '<p:sldMaster xmlns:a="a" xmlns:p="p"><p:cSld name="Office Theme"><p:spTree>' +
+  '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title Placeholder 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr/>' +
+  '<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>' +
+  '<p:sp><p:nvSpPr><p:cNvPr id="3" name="Date Placeholder 2"/><p:cNvSpPr/><p:nvPr><p:ph type="dt" idx="10"/></p:nvPr></p:nvSpPr><p:spPr/>' +
+  '<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>' +
+  '</p:spTree></p:cSld><p:txStyles><p:titleStyle><a:lvl1pPr algn="l"><a:defRPr sz="4400"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mj-lt"/></a:defRPr></a:lvl1pPr></p:titleStyle>' +
+  '<p:bodyStyle><a:lvl1pPr/></p:bodyStyle><p:otherStyle/></p:txStyles></p:sldMaster>';
+export const XML_LAYOUT =
+  '<p:sldLayout xmlns:a="a" xmlns:p="p"><p:cSld name="Title Slide"><p:spTree>' +
+  '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr><p:spPr/>' +
+  '<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp></p:spTree></p:cSld></p:sldLayout>';
+
+/** The kitchen-sink deck plus XML_MASTER / XML_LAYOUT at the fake part paths. */
+export function xmlMasterFixture(): Parameters<typeof makeFakePptxBytes>[0] {
+  const base = fakeMasterFixture();
+  return { ...base, entries: { ...(base.entries ?? {}), [FAKE_MASTER_PART]: XML_MASTER, [FAKE_LAYOUT_PART]: XML_LAYOUT } };
+}
+
 export function fakeMasterFixture(): Parameters<typeof makeFakePptxBytes>[0] {
   const offset = (x: number, y: number, cx: number, cy: number) => ({ offset: { x, y, cx, cy }, rot: 0 });
   const master: PptxElementLike[] = [

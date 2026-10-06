@@ -18,6 +18,7 @@ import {
   FAKE_LAYOUT_PART,
   FAKE_MASTER_PART,
   fakeMasterFixture,
+  xmlMasterFixture,
 } from "./fake-pptx-engine";
 import { makeFakePptxBytes, para } from "./fake-pptx-fixtures";
 
@@ -94,6 +95,11 @@ const DECLARED_KINDS: PptxEdit["op"][] = [
   "master_set_fill",
   "master_set_stroke",
   "master_delete_element",
+  // Part-XML master edits (T01).
+  "master_rename",
+  "master_add_placeholder",
+  "master_remove_placeholder",
+  "master_set_text_style",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -131,6 +137,10 @@ const FIXTURE_FOR: Partial<Record<PptxEdit["op"], Parameters<typeof makeFakePptx
   master_set_fill: fakeMasterFixture(),
   master_set_stroke: fakeMasterFixture(),
   master_delete_element: fakeMasterFixture(),
+  master_rename: xmlMasterFixture(),
+  master_add_placeholder: xmlMasterFixture(),
+  master_remove_placeholder: xmlMasterFixture(),
+  master_set_text_style: xmlMasterFixture(),
 };
 
 /** One valid edit per declared kind, in registry order. Each is applied on a
@@ -256,6 +266,11 @@ const ONE_OF_EACH: PptxEdit[] = [
   { op: "master_set_fill", part: FAKE_MASTER_PART, elementId: "m_body", fill: "#112233" },
   { op: "master_set_stroke", part: FAKE_MASTER_PART, elementId: "m_logo", stroke: { color: "#112233", widthEmu: 12700 } },
   { op: "master_delete_element", part: FAKE_MASTER_PART, elementId: "m_logo" },
+  // Part-XML master edits (T01): addressed by part + placeholder slot.
+  { op: "master_rename", part: FAKE_LAYOUT_PART, name: "Renamed" },
+  { op: "master_add_placeholder", part: FAKE_LAYOUT_PART, placeholder: "body", xPx: 10, yPx: 10, wPx: 100, hPx: 50 },
+  { op: "master_remove_placeholder", part: FAKE_MASTER_PART, placeholder: "dt" },
+  { op: "master_set_text_style", part: FAKE_MASTER_PART, placeholder: "title", sizePt: 40 },
 ];
 
 describe("pptx edit-kind registry", () => {

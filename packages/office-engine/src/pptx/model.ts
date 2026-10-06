@@ -22,6 +22,7 @@ import type { FindLinkEdit } from "./edits/find-link-edits";
 import type { FormatEdit } from "./edits/format-edits";
 import type { HeaderFooterEdit } from "./edits/headerfooter-edits";
 import type { MasterEdit } from "./edits/master-edits";
+import { applyMasterPartEdit, type MasterPartEdit } from "./edits/master-part-edits";
 import type { MediaEdit } from "./edits/media-edits";
 import type { NotesCommentEdit } from "./edits/notes-comment-edits";
 import type { SectionEdit } from "./edits/section-edits";
@@ -182,7 +183,8 @@ export type PptxEdit =
   | NotesCommentEdit
   | HeaderFooterEdit
   | MediaEdit
-  | MasterEdit;
+  | MasterEdit
+  | MasterPartEdit;
 
 /** One open deck, mutated only via runTxn — the same object openPptx produced
  * and savePptx will serialize (one engine instance, one model). */
@@ -600,6 +602,11 @@ const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
   master_set_fill: (model, edit) => { masterSetFillGesture(model, edit); return { applied: true }; },
   master_set_stroke: (model, edit) => { masterSetStrokeGesture(model, edit); return { applied: true }; },
   master_delete_element: (model, edit) => { masterDeleteElementGesture(model, edit); return { applied: true }; },
+  // Part-XML master edits (T01): rename, placeholders, text style.
+  master_rename: (model, edit) => { applyMasterPartEdit(model, edit); return { applied: true }; },
+  master_add_placeholder: (model, edit) => { applyMasterPartEdit(model, edit); return { applied: true }; },
+  master_remove_placeholder: (model, edit) => { applyMasterPartEdit(model, edit); return { applied: true }; },
+  master_set_text_style: (model, edit) => { applyMasterPartEdit(model, edit); return { applied: true }; },
 };
 
 /** Registered edit kinds, in registry order — the surface the B track extends. */

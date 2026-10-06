@@ -64,6 +64,20 @@ describe("readMasterElements", () => {
     expect(elements[2]).not.toHaveProperty("placeholder");
   });
 
+  it("reports the durable e_<cNvPr id> form, which survives the per-transaction re-parse (T01)", async () => {
+    const deck = await opened();
+    const withAnchors = (archive: unknown, part: string) => {
+      const parsed = parse(archive, part)!;
+      return {
+        ...parsed,
+        elements: parsed.elements.map((element, index) =>
+          index === 0 ? { ...element, anchor: { originalXml: '<p:sp><p:nvSpPr><p:cNvPr id="7" name="Title 1"/></p:nvSpPr></p:sp>' } }
+          : index === 1 ? { ...element, nvId: 9 } : element),
+      };
+    };
+    expect(readMasterElements(deck, 960, FAKE_MASTER_PART, withAnchors).map((e) => e.id)).toEqual(["e_7", "e_9", "m_logo"]);
+  });
+
   it("scales the box with the fit width", async () => {
     const deck = await opened();
     const half = readMasterElements(deck, 480, FAKE_MASTER_PART, parse);
