@@ -9094,10 +9094,13 @@
         "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
         "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
         "file_handle_invalid": "Tệp này không còn mở trong UniWork Office. Hãy mở lại.",
-        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Thử lại.",
+        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Kiểm tra xem tệp đã được lưu chưa rồi thử lại.",
         "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
         "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
-        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_too_large": "Tệp quá lớn để UniWork Office mở.",
+        "file_save_too_large": "Tài liệu đã lớn hơn mức UniWork Office lưu được. Thay đổi của bạn vẫn được giữ: bớt nội dung rồi lưu lại.",
+        "file_read_failed": "Không đọc được tệp. Kiểm tra quyền mở tệp rồi thử lại.",
+        "file_checkpoint_failed": "Chưa bảo vệ được thay đổi trên máy nên tệp chưa được lưu. Thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
         "file_failed": "Không xử lý được tệp. Thử lại."
@@ -11872,6 +11875,7 @@
       "documentCount_other": "{{count}} tài liệu",
       "limit": "Đã mở đủ 8 tab tài liệu. Đóng một tab để mở tài liệu khác.",
       "checkpointFailed": "Không thể bảo vệ thay đổi trên máy. Giữ tab này mở để tránh mất thay đổi.",
+      "checkpointFailedNamed": "Không thể bảo vệ thay đổi của {{titles}} trên máy. Giữ tab mở để tránh mất thay đổi.",
       "sessionError": "Không thể đồng bộ các tab tài liệu. Thử lại trước khi tiếp tục.",
       "dismissAlert": "Đóng thông báo"
     },
