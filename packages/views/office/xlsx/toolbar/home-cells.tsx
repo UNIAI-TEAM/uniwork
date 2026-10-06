@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Grid3X3, Rows3, SquareMinus, SquarePlus, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -9,6 +9,7 @@ import type { RibbonItem } from "../../ribbon";
 import { fireCommand } from "../fire-command";
 import { insertCounts, selectionSpan } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
+import { useCloseOnOutsidePointerDown } from "./use-close-on-outside-pointerdown";
 import type { XlsxToolbarGroupProps } from "./types";
 
 // min-w-22 is the spacing-scale spelling of the 88px floor the Cells menus
@@ -44,6 +45,8 @@ function CellsMenu({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = t(labelKey);
+  const closePopover = useCallback(() => setOpen(false), []);
+  useCloseOnOutsidePointerDown(open, closePopover);
   return (
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger

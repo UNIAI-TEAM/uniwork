@@ -168,4 +168,20 @@ describe("XlsxFontGroup", () => {
     fireEvent.click(bold);
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it("closes on the first outside pointerdown while letting that event reach the grid", async () => {
+    const seen: boolean[] = [];
+    const { props } = groupProps();
+    render(
+      <>
+        <XlsxFontGroup {...props} />
+        <div data-testid="grid" onPointerDown={(event) => seen.push(event.defaultPrevented)} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Màu tô" }));
+    await screen.findByRole("dialog", { name: "Màu tô" });
+    fireEvent.pointerDown(screen.getByTestId("grid"));
+    expect(seen).toEqual([false]);
+    expect(screen.queryByRole("dialog", { name: "Màu tô" })).not.toBeInTheDocument();
+  });
 });

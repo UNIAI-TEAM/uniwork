@@ -1,7 +1,7 @@
 "use client";
 
 import { AArrowDown, AArrowUp, Baseline, Bold, Italic, Minus, PaintBucket, Plus, Strikethrough, Underline, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -13,6 +13,7 @@ import { clampFontSize, stepFontSize, XLSX_DEFAULT_FONT_FAMILY, XLSX_DEFAULT_FON
 import { xlsxBordersRibbonItem } from "./home-borders";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { useCloseOnOutsidePointerDown } from "./use-close-on-outside-pointerdown";
 import { XLSX_FIELD_BOX_CLASS, XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const SIZE_DECREASE = -1;
@@ -150,6 +151,8 @@ function ColorButton({ context, kind }: { context: XlsxToolbarGroupProps; kind: 
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const blocked = isBlocked(context);
+  const closePopover = useCallback(() => setOpen(false), []);
+  useCloseOnOutsidePointerDown(open, closePopover);
   const run = runner(context);
   const { Icon, labelKey, resetKey, setCommand, resetCommand } = COLOR_KINDS[kind];
   const current = (kind === "text" ? context.formatState?.textColor : context.formatState?.fillColor) ?? null;
