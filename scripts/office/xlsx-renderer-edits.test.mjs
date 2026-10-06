@@ -38,7 +38,7 @@ new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.ex
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
   snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
-  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate } = module.exports;
+  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -170,6 +170,61 @@ test('a commit whose verdict never comes, or a newer commit, releases the held e
   gate.begin(model, 's1');
   assert.deepEqual(emitted.map((edit) => edit.column), [0, 1]);
   assert.equal(gate.awaitVerdict() !== null, true);
+});
+
+/** Univer's flat composeInterceptors + an async DV-like handler: the handler
+ *  calls next only after awaits, so a later interceptor never runs. The
+ *  editor's _submitEdit awaits onValidateCell, then rolls back on false. */
+function editorFlow(model, gate, verdict, steps) {
+  const service = {
+    onValidateCell() {
+      return (async () => { for (let i = 0; i < steps; i += 1) await null; return verdict; })();
+    },
+  };
+  observeValidationVerdicts(service, gate);
+  return service;
+}
+
+test('the verdict is observed from onValidateCell although the async DV handler answers many ticks later', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  ingestCellMutation(model, mutation({ 0: { 0: { s: { bl: 1 } } } }));
+  const journaled = JSON.stringify([...model.editJournal.cells.get('s1')]);
+  const service = editorFlow(model, gate, false, 6);
+  // _submitEdit: write (begin + capture), then await onValidateCell, then rollback.
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Xyz' } } }))), []);
+  const accepted = await service.onValidateCell();
+  assert.equal(accepted, false);
+  const rollback = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.deepEqual(rollback, []);
+  assert.deepEqual(emitted, []);
+  assert.equal(JSON.stringify([...model.editJournal.cells.get('s1')]), journaled);
+});
+
+test('an accepted verdict observed from onValidateCell emits the held edits once', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const service = editorFlow(model, gate, true, 6);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  assert.equal(await service.onValidateCell(), true);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('observeValidationVerdicts leaves a validation with no pending commit alone and restores on dispose', async () => {
+  const model = state();
+  const gate = createValidatedWriteGate(() => assert.fail('nothing to emit'));
+  const calls = [];
+  const service = { onValidateCell(...args) { calls.push(args); return Promise.resolve(true); } };
+  const original = service.onValidateCell;
+  const handle = observeValidationVerdicts(service, gate);
+  assert.equal(await service.onValidateCell('a'), true);
+  assert.deepEqual(calls, [['a']]);
+  handle.dispose();
+  assert.equal(service.onValidateCell, original);
 });
 
 test('viewport, selection, load, calculation, other workbooks and no-op writes emit no edits', () => {

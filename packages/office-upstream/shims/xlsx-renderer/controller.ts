@@ -27,13 +27,14 @@ import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
-import { installDvRejectDialogTitle, installValidatedWriteVerdict, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
+import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
   createValidatedWriteGate,
+  observeValidationVerdicts,
   ingestCellMutation,
   ingestFilterMutation,
   ingestMergeMutation,
@@ -727,7 +728,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
         dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
-        validatedWriteVerdictDispose ??= installValidatedWriteVerdict(runtime, validatedWrites);
+        validatedWriteVerdictDispose ??= observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;

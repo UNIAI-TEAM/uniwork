@@ -358,6 +358,36 @@ export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) =
   };
 }
 
+/**
+ * Univer composes VALIDATE_CELL interceptors in a flat loop that stops at the
+ * first handler which has not called `next` synchronously. The data-validation
+ * handler is async and calls it only after its awaits, so no interceptor
+ * ordered after it ever runs and none can see the verdict. The verdict is the
+ * promise `onValidateCell` returns to the editor instead: this wraps that
+ * method, asks the gate for its settle function in the same tick (before the
+ * gate's microtask release) and settles it ahead of the editor's own await, so
+ * the editor's rollback runs after the gate knows about the refusal.
+ */
+export interface ValidateCellSource {
+  onValidateCell(...args: unknown[]): unknown;
+}
+
+export function observeValidationVerdicts(source: ValidateCellSource, gate: ValidatedWriteGate): { dispose(): void } {
+  const original = source.onValidateCell;
+  const wrapped = function (this: unknown, ...args: unknown[]): unknown {
+    const verdict = original.apply(this ?? source, args);
+    const settle = gate.awaitVerdict();
+    if (settle) Promise.resolve(verdict).then((accepted) => settle(accepted !== false), () => settle(true));
+    return verdict;
+  };
+  source.onValidateCell = wrapped;
+  return {
+    dispose() {
+      if (source.onValidateCell === wrapped) source.onValidateCell = original;
+    },
+  };
+}
+
 // ── structural (rows/columns) capture ──────────────────────────────────────
 //
 // The pinned Univer has no outline model and the journal keeps no structural
