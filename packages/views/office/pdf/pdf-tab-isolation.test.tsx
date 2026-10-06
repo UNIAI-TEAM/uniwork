@@ -78,7 +78,7 @@ describe("PDF editor tab isolation (UNI-957)", () => {
     expect(document.activeElement).not.toBe(rootA);
   });
 
-  it("keyboard shortcuts act on the document that owns the focus only", async () => {
+  it("keyboard shortcuts act on the document that owns the focus only (control)", async () => {
     const { a, b, rootA, rootB } = await renderPair(true);
     fireEvent.keyDown(rootA, { key: "f", ctrlKey: true });
     expect(within(rootA).getByRole("search")).toBeInTheDocument();
@@ -86,5 +86,15 @@ describe("PDF editor tab isolation (UNI-957)", () => {
     fireEvent.keyDown(rootA, { key: "z", ctrlKey: true });
     expect(a.undo).toHaveBeenCalledTimes(1);
     expect(b.undo).not.toHaveBeenCalled();
+  });
+
+  it("ignores shortcuts that land inside the hidden document (regression pin)", async () => {
+    // Root-scoped handlers alone would act here: the key's target sits in B's
+    // own tree, but B is the hidden tab.
+    const { b, rootB } = await renderPair(true);
+    fireEvent.keyDown(rootB, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(rootB, { key: "f", ctrlKey: true });
+    expect(b.undo).not.toHaveBeenCalled();
+    expect(within(rootB).queryByRole("search")).not.toBeInTheDocument();
   });
 });

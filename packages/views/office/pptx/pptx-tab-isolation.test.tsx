@@ -52,7 +52,7 @@ describe("PPTX tab isolation", () => {
     expect(screen.getByTestId("a")).toContainElement(panels[0]!);
   });
 
-  it("undoes in the deck that has focus and never in the hidden one", async () => {
+  it("undoes in the deck that has focus and never in the hidden one (control)", async () => {
     const { visible, hidden } = renderPair();
     await screen.findAllByRole("application", { name: "PowerPoint slide canvas" });
     const ribbon = screen.getByTestId("a").querySelector("button");
@@ -61,5 +61,18 @@ describe("PPTX tab isolation", () => {
     act(() => { ribbon!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true })); });
     await waitFor(() => expect(visible.undo).toHaveBeenCalledTimes(1));
     expect(hidden.undo).not.toHaveBeenCalled();
+  });
+
+  it("ignores an undo that lands inside the hidden deck (regression pin)", async () => {
+    // The listener is root-scoped too; this key's target sits in the hidden
+    // deck's own tree, so only the active-document guard keeps it out.
+    const { visible, hidden } = renderPair();
+    await screen.findAllByRole("application", { name: "PowerPoint slide canvas" });
+    const inside = screen.getByTestId("b").querySelector("button");
+    expect(inside).not.toBeNull();
+    act(() => { inside!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true })); });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(hidden.undo).not.toHaveBeenCalled();
+    expect(visible.undo).not.toHaveBeenCalled();
   });
 });

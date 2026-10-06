@@ -406,7 +406,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     }
   }, [fitPage, fitWidth, redo, rotateSelected, save, undo, zoomIn, zoomOut]);
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return;
+    // A key that still lands in a hidden tab's PDF (UNI-957) is not for it.
+    if (event.nativeEvent.isComposing || !documentActive) return;
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     const key = event.key.toLowerCase();
@@ -414,7 +415,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
     else if (key === "z" && !event.shiftKey && !isEditableTarget(event.target)) { event.preventDefault(); undo(); }
     else if ((key === "y" || (key === "z" && event.shiftKey)) && !isEditableTarget(event.target)) { event.preventDefault(); redo(); }
-  }, [redo, save, toggleFind, undo]);
+  }, [documentActive, redo, save, toggleFind, undo]);
 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
   const canReplaceImage = canEditText;
