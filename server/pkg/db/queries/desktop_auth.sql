@@ -64,6 +64,15 @@ WHERE user_id = $1 AND revoked_at IS NULL;
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL;
 
+-- One family's "last live device session closes its token" decision is made
+-- one transaction at a time: a device-scope logout takes this key after the
+-- device row lock and before revoking, so two sibling logouts cannot each
+-- count the other as live and both leave the family token behind.
+-- Transaction-scoped; the family-wide revoke (RevokeDeviceSessionFamily)
+-- does not take it, so it never waits on a sibling row while holding it.
+-- name: LockDeviceSessionFamily :exec
+SELECT pg_advisory_xact_lock(hashtextextended('device_sessions.family:' || sqlc.arg(session_family_id)::text, 0));
+
 -- name: CountLiveDeviceSessionsInFamily :one
 SELECT count(*) FROM device_sessions
 WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL;

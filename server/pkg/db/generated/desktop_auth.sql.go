@@ -368,6 +368,21 @@ func (q *Queries) ListDeviceSessions(ctx context.Context, userID string) ([]Devi
 	return items, nil
 }
 
+const lockDeviceSessionFamily = `-- name: LockDeviceSessionFamily :exec
+SELECT pg_advisory_xact_lock(hashtextextended('device_sessions.family:' || $1::text, 0))
+`
+
+// One family's "last live device session closes its token" decision is made
+// one transaction at a time: a device-scope logout takes this key after the
+// device row lock and before revoking, so two sibling logouts cannot each
+// count the other as live and both leave the family token behind.
+// Transaction-scoped; the family-wide revoke (RevokeDeviceSessionFamily)
+// does not take it, so it never waits on a sibling row while holding it.
+func (q *Queries) LockDeviceSessionFamily(ctx context.Context, sessionFamilyID string) error {
+	_, err := q.db.Exec(ctx, lockDeviceSessionFamily, sessionFamilyID)
+	return err
+}
+
 const redeemDesktopAuthAttempt = `-- name: RedeemDesktopAuthAttempt :one
 UPDATE desktop_auth_attempts SET used_at = now()
 WHERE code_digest = $1 AND client_id = $2 AND deployment_id = $3 AND redirect_uri = $4 AND code_challenge = $5

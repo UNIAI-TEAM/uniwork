@@ -396,6 +396,11 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		// replay worth revoking the family for. Anything else is a guess by
 		// someone who knows the device id: refuse it with the same 401 and
 		// change nothing, or a device id alone would log its owner out.
+		// (UNI-954 lead decision, after the OAuth 2.0 Security BCP's refresh
+		// token reuse detection: never issued to the family = 401 with no
+		// revocation; a rotated-out token of the family = revoke the family.
+		// refresh_tokens keeps rotated rows with revoked_at set, which is
+		// what tells the two apart.)
 		issued, err := q.RefreshTokenIssuedToFamily(ctx, db.RefreshTokenIssuedToFamilyParams{TokenHash: oldDigest, UserID: device.UserID, SessionID: device.SessionFamilyID})
 		if err != nil {
 			return DesktopSession{}, err
@@ -460,6 +465,19 @@ func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID st
 	return sessions, tokens, nil
 }
 
+// closeOrphanFamilyTokens closes the family's refresh tokens once no live
+// device session is left in it. The family shares one refresh-token chain:
+// once its last live device session is gone the chain must die with it, or
+// AuthService would still mint a browser session from the leftover token.
+// The caller holds LockDeviceSessionFamily. It returns the tokens closed.
+func closeOrphanFamilyTokens(ctx context.Context, q *db.Queries, userID, familyID string) (int64, error) {
+	live, err := q.CountLiveDeviceSessionsInFamily(ctx, db.CountLiveDeviceSessionsInFamilyParams{UserID: userID, SessionFamilyID: familyID})
+	if err != nil || live > 0 {
+		return 0, err
+	}
+	return q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: familyID})
+}
+
 func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deploymentID, scope string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -478,10 +496,24 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 		return desktopDeviceRevoked()
 	}
 	if device.RevokedAt.Valid {
-		if err := tx.Commit(ctx); err != nil {
+		// A repeat logout/revoke stays an idempotent success, but it still
+		// closes a family token left live by a device-scope logout that ran
+		// before the last-session rule existed; otherwise only the operator
+		// revoke or expiry would ever close it. A repeat with nothing left to
+		// close writes nothing.
+		if err := q.LockDeviceSessionFamily(ctx, device.SessionFamilyID); err != nil {
 			return err
 		}
-		return nil
+		closed, err := closeOrphanFamilyTokens(ctx, q, userID, device.SessionFamilyID)
+		if err != nil {
+			return err
+		}
+		if closed > 0 {
+			if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: deviceID, Metadata: map[string]any{"reason": "leftover_refresh_token", "refresh_tokens": closed}}); err != nil {
+				return err
+			}
+		}
+		return tx.Commit(ctx)
 	}
 	if scope == "" {
 		scope = "device"
@@ -494,20 +526,18 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 			return err
 		}
 	} else {
+		// Sibling device-scope logouts of one family serialize on the family
+		// key before revoking, so the second one counts the first as gone
+		// and closes the family token (each alone would see the other, still
+		// uncommitted, as live and leave it behind).
+		if err := q.LockDeviceSessionFamily(ctx, device.SessionFamilyID); err != nil {
+			return err
+		}
 		if _, err := q.RevokeDeviceSession(ctx, db.RevokeDeviceSessionParams{ID: deviceID, UserID: userID}); err != nil {
 			return err
 		}
-		// The family shares one refresh-token chain: once its last live
-		// device session is gone the chain must die with it, or AuthService
-		// would still mint a browser session from the leftover token.
-		live, err := q.CountLiveDeviceSessionsInFamily(ctx, db.CountLiveDeviceSessionsInFamilyParams{UserID: userID, SessionFamilyID: device.SessionFamilyID})
-		if err != nil {
+		if _, err := closeOrphanFamilyTokens(ctx, q, userID, device.SessionFamilyID); err != nil {
 			return err
-		}
-		if live == 0 {
-			if _, err := q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: device.SessionFamilyID}); err != nil {
-				return err
-			}
 		}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: deviceID, Metadata: map[string]any{"scope": scope}}); err != nil {
