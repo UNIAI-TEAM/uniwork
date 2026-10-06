@@ -96,8 +96,8 @@ export function printOrientationFromCopy(html: string): OfficePrintOrientation |
     if (match[1] === undefined) continue;
     const css = match[1].replace(CSS_COMMENT_OR_STRING, "");
     for (const rule of css.matchAll(ANY_PAGE_RULE)) {
-      const size = SIZE_DECLARATION.exec(rule[1]);
-      const page = size ? pageFromCssSize(size[1]) : undefined;
+      const size = SIZE_DECLARATION.exec(rule[1]!);
+      const page = size ? pageFromCssSize(size[1]!) : undefined;
       if (!page) continue;
       if (page.landscape) landscape = true;
       else portrait = true;
