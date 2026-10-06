@@ -70,6 +70,20 @@ describe("XlsxPageSetupGroup", () => {
     expect(screen.getByTestId("xlsx-print")).not.toHaveAttribute("aria-busy");
   });
 
+  it("names the ribbon Print icon button from its label alone, busy or not, and both languages carry that label (m3)", () => {
+    for (const dictionary of [viLocale, en]) expect((lookup(dictionary, "office.common.print") as string).trim()).not.toBe("");
+    const name = lookup(viLocale, "office.common.print") as string;
+    for (const printBusy of [false, true]) {
+      const { unmount } = render(<XlsxPageSetupGroup {...groupProps({ printBusy })} />);
+      const button = screen.getByRole("button", { name });
+      expect(button).toBe(screen.getByTestId("xlsx-print"));
+      // The icon carries no text of its own: the label is the whole name.
+      expect(button).toHaveTextContent("");
+      expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      unmount();
+    }
+  });
+
   it("shows Print busy and inert, still focusable, while a run is pending (R1)", () => {
     const onPrint = vi.fn();
     render(<XlsxPageSetupGroup {...groupProps({ onPrint, printBusy: true })} />);
