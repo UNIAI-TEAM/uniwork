@@ -64,7 +64,12 @@ for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
 // the typed engine_incompatible failure instead of a fake engine.
 const repositoryRoot = join(app, "..", "..");
 const xlsxSources = resolveXlsxAssetSources({ repositoryRoot });
-if (xlsxSources.gateway) await stageXlsxAssets({ repositoryRoot, distDirectory: dist });
+if (xlsxSources.gateway) {
+  const staged = await stageXlsxAssets({ repositoryRoot, distDirectory: dist });
+  // Without the sidecar a local .xlsx opens and formula-free saves work, but
+  // every save of a workbook with formulas is refused (xlsx_recalc_unavailable).
+  if (!staged.sidecar) process.stderr.write("office-desktop: no xlsx recalc sidecar staged - saving a local .xlsx that contains formulas will be refused. Build it with node scripts/office/build-upstream.mjs --with-native, or point OFFICE_DESKTOP_XLSX_ASSETS at a dir holding xlsx-gateway.mjs + the sidecar.\n");
+}
 else process.stderr.write(`office-desktop: local .xlsx open is unavailable in this build - ${missingGatewayError(xlsxSources).message}\n`);
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
   product: buildMetadata.identity.product,

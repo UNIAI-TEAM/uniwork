@@ -72,6 +72,16 @@ export function resolveLocalXlsxAssetsDir({ resourcesPath, distDirectory, envAss
   return undefined;
 }
 
+/** The code main answers when a formula-bearing local save is refused because
+ *  this build staged no recalc sidecar. It rides the error MESSAGE: Electron's
+ *  invoke rejection keeps only the message, and the renderer re-types it so
+ *  the save banner says why instead of office_unknown_error. */
+export const LOCAL_XLSX_RECALC_UNAVAILABLE = "xlsx_recalc_unavailable";
+
+function recalcUnavailable(): Error {
+  return Object.assign(new Error(LOCAL_XLSX_RECALC_UNAVAILABLE), { name: "LocalXlsxEngineError", code: LOCAL_XLSX_RECALC_UNAVAILABLE });
+}
+
 function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -112,6 +122,11 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
       try {
         const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits]);
         return { bytes: output.bytes, checksum: `sha256:${sha256Hex(output.bytes)}` };
+      } catch (error) {
+        // Without a port the adapter refuses a formula-bearing serialize with
+        // unsupported_operation (never stale <v>s); name the missing sidecar.
+        if (!recalc && (error as { code?: unknown } | null)?.code === "unsupported_operation") throw recalcUnavailable();
+        throw error;
       } finally {
         // The adapter's release() already closes the port once a session
         // opened; an open that failed never got there. close() is
