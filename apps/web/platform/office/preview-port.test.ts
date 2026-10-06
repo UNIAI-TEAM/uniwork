@@ -145,6 +145,34 @@ describe("visual-edit mode (ADR 0027)", () => {
     session.dispose();
   });
 
+  it("hands out the inspector the frame has NOW, not the null it had at mount", async () => {
+    // The inspector only exists after the frame's load event and is replaced on
+    // every reload. The real browser repro (M01 r2): the port copied the
+    // session with a spread, which froze the getter at mount time (null), so
+    // "Sửa chữ" never reached the frame.
+    const port = createOfficePreviewPort({ scope: { document_id: "D1", job_id: "J1" }, proxy, allowVisualEdit: true });
+    const session = await port.mount({
+      container: document.createElement("div"),
+      format: "html",
+      title: "HTML",
+      text: "<p>hi</p>",
+      manifest: { entries: [] },
+      visualEdit: { nonce: NONCE },
+    });
+    expect(session.inspector).toBeNull();
+    session.iframe.dispatchEvent(new Event("load"));
+    const first = session.inspector;
+    expect(first).not.toBeNull();
+    expect(first?.command({ type: "begin-text-edit", sid: 1 })).toBe(true);
+    await session.update("<p>again</p>");
+    // The reload retires the old channel at once; the new one arrives with the load.
+    expect(first?.command({ type: "begin-text-edit", sid: 1 })).toBe(false);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(session.inspector).not.toBeNull();
+    expect(session.inspector).not.toBe(first);
+    session.dispose();
+  });
+
   it("refuses visual-edit when the port has not opted in", async () => {
     const port = createOfficePreviewPort({ scope: { document_id: "D1", job_id: "J1" }, proxy });
     await expect(port.mount({
