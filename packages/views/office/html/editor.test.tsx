@@ -880,9 +880,9 @@ describe("HtmlEditor find (UNI-928)", () => {
 });
 
 /**
- * UNI-928 print parity: HtmlEditor gains a Print entry ONLY when the host
- * injects a print port. The default (no port) keeps today's behaviour: no
- * entry at all, so apps/web and its tests are unchanged.
+ * UNI-928/UNI-952 print parity: HtmlEditor always offers Print in the page
+ * menu. A host that injects a port (desktop) gets that port; with none, the
+ * shared isolated-frame browser port is used, exactly like Markdown.
  */
 describe("HtmlEditor print entry (UNI-928 parity)", () => {
   function renderWithMenu(printPort?: MarkdownPrintPort) {
@@ -903,11 +903,38 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
     );
   }
 
-  it("offers NO Print entry when no port is injected (default unchanged)", async () => {
-    renderWithMenu();
-    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByRole("menuitem", { name: "Print" })).toBeNull();
+  it("offers Print through the shared browser port when no port is injected, never window.print()", async () => {
+    const windowPrint = vi.fn();
+    const original = window.print;
+    window.print = windowPrint;
+    const frames: HTMLIFrameElement[] = [];
+    const append = document.body.append.bind(document.body);
+    const spy = vi.spyOn(document.body, "append").mockImplementation((...nodes: (Node | string)[]) => {
+      for (const node of nodes) if (node instanceof HTMLIFrameElement) frames.push(node);
+      append(...nodes);
+    });
+    try {
+      renderWithMenu();
+      await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      const item = within(menu).getByRole("menuitem", { name: "Print" });
+      const framePrint = vi.fn();
+      // The default port prints an off-screen frame: stub its window.print.
+      const create = document.createElement.bind(document);
+      const createSpy = vi.spyOn(document, "createElement").mockImplementation(((tag: string, options?: ElementCreationOptions) => {
+        const el = create(tag, options);
+        if (tag === "iframe") Object.defineProperty(el, "contentWindow", { get: () => ({ document: { open() {}, write() {}, close() {}, title: "" }, focus() {}, print: framePrint }) });
+        return el;
+      }) as typeof document.createElement);
+      fireEvent.click(item);
+      await waitFor(() => expect(framePrint).toHaveBeenCalledTimes(1));
+      expect(frames).toHaveLength(1);
+      expect(windowPrint).not.toHaveBeenCalled();
+      createSpy.mockRestore();
+    } finally {
+      spy.mockRestore();
+      window.print = original;
+    }
   });
 
   it("renders the Print entry and calls the injected port with the sanitized copy", async () => {

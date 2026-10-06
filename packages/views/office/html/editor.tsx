@@ -29,6 +29,7 @@ import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
+import { createBrowserPrintPort } from "../print";
 import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
@@ -96,6 +97,9 @@ function AssetManifestPanel({ rows }: { rows: ReturnType<typeof assetPanelRows> 
     </ul>
   );
 }
+
+/** The web host's print path when the host injects none (same as Markdown). */
+const browserPrintPort = createBrowserPrintPort();
 
 /** The HTML document surface: lifecycle + the view shell. */
 export function HtmlEditor<TSnapshot = unknown>({
@@ -277,7 +281,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   const openFind = useCallback(() => findRef.current?.open(false), []);
   // UNI-928 print parity: the source IS HTML, so the "render" step is the
   // source itself - `sanitizePrintCopy` (scripts: false) then builds the
-  // script-free preview copy. Only reached when the host injected a port.
+  // script-free preview copy handed to the port.
   const renderPrintHtml = readEngineText;
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
@@ -460,12 +464,9 @@ export function HtmlEditor<TSnapshot = unknown>({
           }
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
-          {/* UNI-928: print rides the page overflow menu (C4), like Markdown.
-              With NO injected port the surface renders no entry at all, so the
-              web host and its tests are unchanged. */}
-          {printPort ? (
-            <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
-          ) : null}
+          {/* UNI-928: print rides the page overflow menu (C4), like Markdown;
+              with no injected port the shared browser port prints. */}
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}
