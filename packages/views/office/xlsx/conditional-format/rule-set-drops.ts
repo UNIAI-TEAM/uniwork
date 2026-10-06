@@ -237,11 +237,15 @@ export function planRuleSetDrops(
       groups.push({ family, start: targetOf(at(located[0]!))!, first: located[0]!, throughFirst: false, ops: located });
     }
     // A sheet copied in this job after one of those ops inherited the dropped
-    // rules on screen too: name it and restore it (its own ops are above).
+    // rules on screen too: name it and restore it. A copy with ops of its own
+    // already has its group above, whose restore walks through the duplicate
+    // op to the same baseline, so it is named once (review-session m-1).
     for (const [index, operation] of sent.entries()) {
       const copy = copyOf(operation);
+      if (copy === undefined) continue;
+      const named = liveName(copy, after({ list: "sent", index }));
       const inherited = all.filter((entry) => entry.list === "sent" && entry.index < index && liveName(targetOf(sent[entry.index])!, sent.slice(entry.index + 1, index)) === targetOf(operation));
-      if (copy !== undefined && inherited.length > 0) groups.push({ family, start: copy, first: { list: "sent", index }, throughFirst: true, ops: [inherited[inherited.length - 1]!], named: liveName(copy, after({ list: "sent", index })) });
+      if (!byName.has(named) && inherited.length > 0) groups.push({ family, start: copy, first: { list: "sent", index }, throughFirst: true, ops: [inherited[inherited.length - 1]!], named });
     }
   }
   const sentDrops = new Set<number>();

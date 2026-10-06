@@ -104,6 +104,17 @@ describe("dropped rule-set refusal (X01 review r2 M-A, r3 MA-2)", () => {
     ]);
   });
 
+  it("names a copy with its own ops once on a family-wide drop, with its own rule count (review-session m-1)", () => {
+    const rules = (sheet: string, count: number) => ({ op: "set_conditional_formats", target: { sheet }, attributes: { rules: Array.from({ length: count }, (_unused, at) => rule(`${sheet}${at}`)) } });
+    const sent = [rules("Data", 2), duplicate("Data", "Copy"), rules("Copy", 3), cell];
+    const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [9] }], sent);
+    expect(plan.indexes).toEqual([0, 2]);
+    expect(plan.drops).toEqual([
+      { family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 2 },
+      { family: "conditionalFormats", sheet: "Copy", savedRules: null, rules: 3 },
+    ]);
+  });
+
   it("keeps only the ops a restore lookup reads from the committed history (r4 R4-1)", () => {
     const picture = { op: "set_visual", target: { sheet: "A" }, attributes: { image: "x".repeat(1000) } };
     const kept = [cf("A"), rename("A", "B"), { op: "add_sheet", attributes: { name: "N" } }, duplicate("B", "C"), dv("C")];
