@@ -479,9 +479,18 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       return out;
     },
   });
+  // A commit (or reconcile) moves the runtime's base and trims its op stream to
+  // the edits the saved file lacks; re-read it so a draft checkpoint taken
+  // before the next edit never carries ops the save already wrote.
+  const afterBaseMove = <T,>(receipt: T): T => {
+    if (!disposed && modelRef && receipt) currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
+    return receipt;
+  };
   const boundTransport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     ...transport,
     serialize: transport.serialize,
+    commit: async (input) => afterBaseMove(await transport.commit(input)),
+    reconcile: async (input) => afterBaseMove(await transport.reconcile(input)),
   };
   const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
   // StrictMode replays the OfficeEditorHost mount (its [] cleanup disposes this
