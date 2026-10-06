@@ -42,16 +42,18 @@ describe("parseWorksheetPageSetup", () => {
     expect(parseWorksheetPageSetup(xml)).toBeUndefined();
   });
 
-  it("reads odd and first-page header/footer text verbatim, entities decoded", () => {
+  it("reads odd, even and first-page header/footer text verbatim, entities decoded", () => {
     const xml = `<worksheet><sheetData/>
-      <headerFooter differentFirst="1"><oddHeader>&amp;L&amp;A&amp;R&amp;D</oddHeader><oddFooter>&amp;CPage &amp;P of &amp;N &amp;&amp; more</oddFooter><firstFooter>&amp;C&amp;F &lt;draft&gt;</firstFooter><evenHeader>even</evenHeader></headerFooter>
+      <headerFooter differentFirst="1" differentOddEven="true"><oddHeader>&amp;L&amp;A&amp;R&amp;D</oddHeader><oddFooter>&amp;CPage &amp;P of &amp;N &amp;&amp; more</oddFooter><firstFooter>&amp;C&amp;F &lt;draft&gt;</firstFooter><evenHeader>&amp;Ceven &#8211; &amp;P</evenHeader><evenFooter></evenFooter></headerFooter>
     </worksheet>`;
     expect(parseWorksheetPageSetup(xml)).toEqual({
       headerFooter: {
         oddHeader: "&L&A&R&D",
         oddFooter: "&CPage &P of &N && more",
         firstFooter: "&C&F <draft>",
+        evenHeader: "&Ceven – &P",
         differentFirst: true,
+        differentOddEven: true,
       },
     });
     expect(parseWorksheetPageSetup("<worksheet><headerFooter/></worksheet>")).toBeUndefined();

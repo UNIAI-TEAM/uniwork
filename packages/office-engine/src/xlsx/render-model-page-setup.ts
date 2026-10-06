@@ -9,13 +9,16 @@ import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml
 
 /** The header/footer strings as the file stores them (Excel's `&L&C&R` codes
  *  kept verbatim; the print copy interprets them). `first*` apply only when
- *  `differentFirst` is set; even-page text is not read. */
+ *  `differentFirst` is set, `even*` only when `differentOddEven` is. */
 export interface XlsxRenderHeaderFooter {
   readonly oddHeader?: string | undefined;
   readonly oddFooter?: string | undefined;
   readonly firstHeader?: string | undefined;
   readonly firstFooter?: string | undefined;
+  readonly evenHeader?: string | undefined;
+  readonly evenFooter?: string | undefined;
   readonly differentFirst?: boolean | undefined;
+  readonly differentOddEven?: boolean | undefined;
 }
 
 /** The file's page margins, in inches (OOXML <pageMargins> units). */
@@ -70,11 +73,12 @@ function headerFooterOf(xml: string): XlsxRenderHeaderFooter | undefined {
   const section = elements(xml, "headerFooter")[0];
   if (!section) return undefined;
   const out: { -readonly [K in keyof XlsxRenderHeaderFooter]: XlsxRenderHeaderFooter[K] } = {};
-  for (const key of ["oddHeader", "oddFooter", "firstHeader", "firstFooter"] as const) {
+  for (const key of ["oddHeader", "oddFooter", "firstHeader", "firstFooter", "evenHeader", "evenFooter"] as const) {
     const text = decodeXml(sectionInner(section.body, key)).slice(0, MAX_HEADER_TEXT);
     if (text !== "") out[key] = text;
   }
   if (isTrue(attribute(section.tag, "differentFirst"))) out.differentFirst = true;
+  if (isTrue(attribute(section.tag, "differentOddEven"))) out.differentOddEven = true;
   return Object.keys(out).length === 0 ? undefined : out;
 }
 
