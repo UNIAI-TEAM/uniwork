@@ -11,9 +11,14 @@ const FILE_FAILURE_CODES: Readonly<Record<string, string>> = {
   external_modification: "file_changed_on_disk",
   invalid_handle: "file_handle_invalid",
   session_revoked: "file_session_revoked",
+  read_failed: "file_read_failed",
   write_failed: "file_write_failed",
   replace_failed: "file_replace_failed",
   too_large: "file_too_large",
+  // Save-side only: the draft checkpoint that precedes a local Save failed, and
+  // a Save that grew past the limit (the open-side too_large keeps its own copy).
+  checkpoint_failed: "file_checkpoint_failed",
+  save_too_large: "file_save_too_large",
   saving: "file_save_in_progress",
   engine_unavailable: "file_engine_unavailable",
 };

@@ -11,6 +11,9 @@ import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
 import { pdfEditErrorKey } from "./pdf-edit-error";
+import { canStepHistory, stepHistory } from "../common/history-step";
+import { usePdfRail } from "./use-pdf-rail";
+import { usePdfFindFromBody } from "./use-pdf-find-shortcut";
 import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
@@ -129,12 +132,13 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [revision, setRevision] = useState(0);
   const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [railOpen, setRailOpen] = useState(false);
-  const railToggleRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { railOpen, railRef, railToggleRef, toggleRail, closeRail } = usePdfRail({ rootRef, canvasRef });
   const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
+  /** Bumped each time the document effect starts, so a queued action can tell the document it was pressed on is gone. */
+  const generationRef = useRef(0);
   const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
@@ -143,6 +147,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const onOpenRef = useRef(onOpen);
   const translateRef = useRef(t);
   const queueRef = useRef<Promise<unknown> | null>(null);
+  const [editsInFlight, setEditsInFlight] = useState(0);
   editorRef.current = editor;
   openRef.current = open;
   coordinatorRef.current = coordinator;
@@ -181,6 +186,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     const translate = translateRef.current;
     const controller = new AbortController();
     disposedRef.current = false;
+    generationRef.current += 1;
     setViewState("opening");
     setFailure(null);
     setPasswordPending(false);
@@ -255,7 +261,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   useEffect(() => {
     if (viewState !== "ready") return;
     const active = document.activeElement;
-    if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
+    // r3 F1: a focus the user did not ask for draws no focus ring where supported.
+    if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
   }, [documentKey, viewState]);
 
   const submitPassword = useCallback(async (password: string) => {
@@ -312,11 +319,11 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   }, [coordinator, editor, refreshSnapshot]);
 
   // A host that reports byte changes itself (async undo/redo) refreshes the view
-  // and re-marks dirty with the generation the swap produced. undo/redo mark
-  // synchronously, before the adapter's queued byte swap bumps the generation, so
-  // without this the coordinator still holds the pre-step generation and refuses
-  // Save with `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking
-  // on every notify is safe for the edit path too.
+  // and marks dirty with the generation the swap produced. This notify is the
+  // only dirty signal of an async undo/redo (an empty stack never fires it), and
+  // it carries the post-swap generation, so Save does not refuse with
+  // `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking on every
+  // notify is safe for the edit path too.
   useEffect(() => editor.subscribe?.(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
     refreshSnapshot();
@@ -339,9 +346,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       }
     };
     const previous = queueRef.current;
+    setEditsInFlight((count) => count + 1);
     const result = previous ? previous.catch(() => undefined).then(execute) : execute();
     queueRef.current = result;
-    const release = () => { if (queueRef.current === result) queueRef.current = null; };
+    const release = () => { setEditsInFlight((count) => count - 1); if (queueRef.current === result) queueRef.current = null; };
     result.then(release, release);
     return result;
   }, [markDirty, readOnly]);
@@ -365,12 +373,28 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     void coordinator.save(entryPoint);
   }, [coordinator, readOnly, viewState]);
 
-  // Ctrl+Z/Y and the ribbon's undo/redo only mark dirty when the handle can
-  // actually step: without the facet the call is a no-op and re-marking would
-  // let a later Save commit identical bytes.
-  const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
-  const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
+  // Ctrl+Z/Y and the ribbon's undo/redo mark dirty only from a real change: an
+  // empty stack (or a missing facet) is a no-op and must not flag the document
+  // unsaved. The hosts swap bytes asynchronously and report the change through
+  // `subscribe` above; `stepHistory` covers a handle that steps synchronously.
+  // review-fe-r1 R6: an Undo pressed while an edit awaits the engine undoes that
+  // edit (r5 F3): it waits behind the edit queue, then steps the stack the edit filled.
+  // review-fe-r2 N2/N3: when that edit fails there is nothing of it to undo, so the
+  // step is skipped (the previous successful edit is not the user's target); and it
+  // steps the editor and document the press was made on, never one opened since.
+  const undo = useCallback(() => {
+    if (readOnly) return;
+    const pending = queueRef.current;
+    if (!pending) { if (stepHistory(editor, "undo")) markDirty(); return; }
+    const generation = generationRef.current;
+    void pending.then(() => true, () => false).then((settled) => {
+      if (settled && !disposedRef.current && generationRef.current === generation && stepHistory(editor, "undo")) markDirty();
+    });
+  }, [editor, markDirty, readOnly]);
+  const redo = useCallback(() => { if (!readOnly && stepHistory(editor, "redo")) markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
+  const openFind = useCallback(() => setFindOpen(true), []);
+  usePdfFindFromBody(rootRef, viewState === "ready", openFind);
   const zoomOut = useCallback(() => setZoom((value) => clampPdfZoom(value - ZOOM_STEP)), []);
   const zoomIn = useCallback(() => setZoom((value) => clampPdfZoom(value + ZOOM_STEP)), []);
   /** F-12: fit the page into the measured canvas pane instead of resetting to
@@ -426,6 +450,9 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canRunBrowserUnsupported = canEditText && !browserLane;
   const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
   const promptMode = failure ? passwordMode(failure) : null;
+  // Read on every render: each byte change bumps `revision`, which re-renders.
+  const undoReady = canStepHistory(editor, "undo") || (editsInFlight > 0 && Boolean(editor.undo));
+  const redoReady = canStepHistory(editor, "redo");
 
   // One row per command the ribbon can render; the chrome decides which rows a
   // tab shows and falls back to the catalogue label for each id.
@@ -448,10 +475,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
-      // A handle with no undo/redo facet cannot step history, so
-      // disable the control instead of letting it no-op and mark the document dirty.
-      const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
-      const disabled = facetMissing
+      // Undo/Redo with nothing to step (no facet, or an empty stack) stay
+      // aria-disabled instead of running a no-op.
+      const historyBlocked = (id === PDF_COMMANDS.undo && !undoReady) || (id === PDF_COMMANDS.redo && !redoReady);
+      const disabled = historyBlocked
         || (browserReasonKey !== undefined
           ? !canRunBrowserUnsupported
           : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true);
@@ -462,12 +489,12 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
         onExecute: () => { if (!disabled) executeCommand(id); },
       };
     });
-  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, editor.redo, editor.undo, executeCommand, readOnly, t, viewState]);
+  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, executeCommand, readOnly, redoReady, t, undoReady, viewState]);
 
   // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
   // status bar) is the only chrome; the page header owns the title and Save.
   return (
-    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background focus-visible:-outline-offset-2", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <PdfEditorSurface
           editor={editor}
@@ -483,7 +510,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           findOpen={findOpen}
           onFindClose={() => setFindOpen(false)}
           railOpen={railOpen}
-          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) { setRailOpen(false); railToggleRef.current?.focus(); } }}
+          railRef={railRef}
+          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) closeRail(true); }}
           onCanvasSelect={selectPage}
           fontReport={fontReport}
           errorKey={editErrorKey}
@@ -496,7 +524,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           ) : null}
           // The page readout already follows the selected page; object kinds
           // have no translated summary yet, so no raw kind string is shown.
-          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={() => setRailOpen((open) => !open)} />}
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={toggleRail} />}
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (

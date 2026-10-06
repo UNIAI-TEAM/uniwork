@@ -272,6 +272,9 @@ it("forwards the pdf byte-change notify so undo/redo refresh the shared editor (
   await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(2));
   expect(session.editor.getDirtyGeneration()).toBe(afterEdit + 1);
   expect(session.editor.getPdfSnapshot!()?.pageCount).toBe(2);
+  // The history depth reaches the shared editor through the session (UNI-954).
+  expect(session.editor.canUndo!()).toBe(false);
+  expect(session.editor.canRedo!()).toBe(true);
   unsubscribe();
 });
 

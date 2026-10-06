@@ -274,7 +274,7 @@ func (c Config) Validate() error {
 		problems = append(problems, c.MinIO.problems()...)
 	}
 	if !ValidKeyRoot(c.KeyRoot) {
-		problems = append(problems, envS3KeyPrefix+" must be a relative folder of letters, digits, ., _ and - segments (e.g. develop/ or production/), without .., empty segments, backslashes or a URL")
+		problems = append(problems, keyRootProblem)
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("%w: %s", ErrConfigInvalid, strings.Join(problems, "; "))

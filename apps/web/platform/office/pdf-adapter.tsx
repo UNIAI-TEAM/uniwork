@@ -115,12 +115,19 @@ function createPdfEditorSurface(options: {
     queue = run.catch(() => undefined);
     return run;
   };
-  const swapDocument = async (bytes: Uint8Array) => {
-    await requireSession().replaceBytes(bytes);
+  /** `commit` moves the history stacks before the listeners run, so a listener
+   *  reading canUndo/canRedo sees the stacks of the new bytes. A session
+   *  disposed during the swap commits nothing and returns false. */
+  const swapDocument = async (bytes: Uint8Array, commit: () => void): Promise<boolean> => {
+    const session = requireSession();
+    await session.replaceBytes(bytes);
+    if (render !== session) return false;
     current = bytes;
     generation += 1;
+    commit();
     refreshSnapshot();
     notify();
+    return true;
   };
 
   const load = async (signal?: AbortSignal, password?: string) => {
@@ -156,9 +163,11 @@ function createPdfEditorSurface(options: {
     const bytes = current;
     if (!bytes) throw new Error("pdf_editor_not_open");
     const result = await options.applyOps(bytes, operations);
-    await swapDocument(result.bytes);
-    pushBounded(undoStack, bytes, options.undoByteBudget);
-    redoStack = [];
+    const applied = await swapDocument(result.bytes, () => {
+      pushBounded(undoStack, bytes, options.undoByteBudget);
+      redoStack = [];
+    });
+    if (!applied) throw new Error("pdf_editor_disposed");
     return { skipped: result.skipped };
   });
 
@@ -168,9 +177,10 @@ function createPdfEditorSurface(options: {
       const target = source[source.length - 1];
       const bytes = current;
       if (!target || !bytes) return;
-      await swapDocument(target);
-      source.pop();
-      pushBounded(to(), bytes, options.undoByteBudget);
+      await swapDocument(target, () => {
+        source.pop();
+        pushBounded(to(), bytes, options.undoByteBudget);
+      });
     }).catch(() => undefined);
   };
 
@@ -250,6 +260,8 @@ function createPdfEditorSurface(options: {
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     undo: () => step(() => undoStack, () => redoStack),
     redo: () => step(() => redoStack, () => undoStack),
+    canUndo: () => undoStack.length > 0,
+    canRedo: () => redoStack.length > 0,
     dispose() {
       epoch += 1;
       opening = null;

@@ -203,7 +203,20 @@ describe("HtmlRibbon", () => {
     const { container } = render(<HtmlRibbon commands={c} state={{ readOnly: true }} />);
     const root = region(container);
     expect(item(group(root, "inline"), "bold")).toHaveAttribute("aria-disabled", "true");
-    expect(within(root.querySelector<HTMLElement>("[data-ribbon-quick-access]")!).getAllByRole("button")[0]!).toBeDisabled();
+    expect(within(root.querySelector<HTMLElement>("[data-ribbon-quick-access]")!).getAllByRole("button")[0]!).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps Undo/Redo focusable but inert while the history is empty (UNI-954)", () => {
+    const c = commands();
+    const { container } = render(<HtmlRibbon commands={c} state={{ canUndo: false, canRedo: true }} />);
+    const [undo, redo] = within(region(container).querySelector<HTMLElement>("[data-ribbon-quick-access]")!).getAllByRole("button");
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).not.toBeDisabled();
+    fireEvent.click(undo!);
+    expect(c.onUndo).not.toHaveBeenCalled();
+    expect(redo).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(redo!);
+    expect(c.onRedo).toHaveBeenCalledTimes(1);
   });
 
   it("moves the table size grid with the arrow keys instead of 36 tab stops (RB-7)", () => {

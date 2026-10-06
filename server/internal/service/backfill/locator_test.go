@@ -1,6 +1,11 @@
 package backfill
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/storage"
+)
 
 // S3_KEY_PREFIX stripping is scoped to the app's own S3 bucket URLs; a MinIO
 // (or LiveKit) object whose key happens to start with the same prefix keeps
@@ -29,5 +34,38 @@ func TestResolveUnknownAuthorityFails(t *testing.T) {
 	}
 	if _, ok := baseResolver().Resolve(""); ok {
 		t.Fatal("empty URL resolved")
+	}
+}
+
+// The resolver reads S3_KEY_PREFIX through storage.ParseKeyRoot, the server's
+// own reading: the stored form matches what the writers prepend, and a value
+// the server refuses to start with stops the backfill instead of being cleaned
+// into another root (the old local reading trimmed "/production" to
+// "production/").
+func TestResolverFromEnvReadsTheKeyRootLikeTheServer(t *testing.T) {
+	for _, k := range []string{"LOCAL_UPLOAD_BASE_URL", "API_PUBLIC_URL", "CLOUDFRONT_DOMAIN", "AWS_ENDPOINT_URL", "MINIO_BUCKET", "LIVEKIT_RECORDING_BUCKET"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("S3_BUCKET", "app")
+	t.Setenv("S3_REGION", "ap-southeast-1")
+
+	t.Setenv("S3_KEY_PREFIX", " production ")
+	r, err := ResolverFromEnv()
+	if err != nil {
+		t.Fatalf("ResolverFromEnv(production) = %v", err)
+	}
+	if r.stripPrefix != "production/" {
+		t.Fatalf("stripPrefix = %q, want production/", r.stripPrefix)
+	}
+	loc, ok := r.Resolve("https://app.s3.ap-southeast-1.amazonaws.com/production/avatars/a.png")
+	if !ok || loc.Key != "avatars/a.png" {
+		t.Fatalf("resolve = %+v ok=%v", loc, ok)
+	}
+
+	for _, raw := range []string{"/production", "../production", "production.", "v1/"} {
+		t.Setenv("S3_KEY_PREFIX", raw)
+		if r, err := ResolverFromEnv(); !errors.Is(err, storage.ErrConfigInvalid) || r != nil {
+			t.Errorf("ResolverFromEnv(S3_KEY_PREFIX=%q) = %v, %v; want storage_config_invalid", raw, r, err)
+		}
 	}
 }

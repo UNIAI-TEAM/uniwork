@@ -144,7 +144,7 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if rows == 0 {
 		return Session{}, ErrInvalidToken
 	}
-	if err := qtx.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
+	if err := revokeAllUserSessions(ctx, qtx, t.UserID); err != nil {
 		return Session{}, err
 	}
 	// One command, two audited facts: the password changed and every existing

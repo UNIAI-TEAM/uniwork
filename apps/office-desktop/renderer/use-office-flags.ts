@@ -2,15 +2,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { officeFlagsAllow } from "@uniwork/core/office";
 import { desktopPublicConfigResponseSchema } from "../shared/ipc";
 import type { RendererBridge } from "./app";
-import type { useDocumentTabs } from "./tabs/use-document-tabs";
+import type { CloudReopen, ReadOnlyReason, TabDocument, useDocumentTabs } from "./tabs/use-document-tabs";
 
 type Flags = Readonly<Record<string, boolean>>;
 interface Answer { readonly scopeKey: string; readonly flags: Flags }
+interface Target { readonly scopeKey: string; readonly organizationId: string; readonly bridge: RendererBridge; readonly sessionGeneration: string }
+
+/** Where a cloud format stands for one organization: allowed, switched off, or not known (no answer yet / failed). */
+export type OfficeFlagStatus = "on" | "off" | "unknown";
+
+/** A re-read that will never succeed for this tab: the reader lost edit access, or the document is gone. */
+export type PermanentReopenReason = Extract<ReadOnlyReason, "view_only" | "gone">;
+export interface ReopenRefused { readonly permanent: PermanentReopenReason }
 
 /** How long a cloud open waits for an in-flight flags fetch before it fails closed. */
 const FLAGS_WAIT_MS = 3_000;
+/** After a failed read: 10 s, 20 s, 40 s ... capped at 5 min, until an answer arrives. */
+const RETRY_BASE_MS = 10_000;
+const RETRY_MAX_MS = 5 * 60_000;
 
-/** One config read, retried once when the call throws. A malformed answer is not retried. */
+/** One config read, retried once when the call throws. A malformed answer is not retried here. */
 async function fetchFlags(bridge: RendererBridge, sessionGeneration: string, organizationId: string): Promise<Flags | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -30,7 +41,10 @@ async function fetchFlags(bridge: RendererBridge, sessionGeneration: string, org
  * cloud open wait (briefly) for the in-flight fetch. While unknown, and when the
  * fetch fails, the engine reads off and cloud documents open read-only (fail
  * closed); a context reload keeps the previous answer for the same account and
- * organization. Local files are never gated by server flags.
+ * organization. A failed read is asked again later (backoff, and at once on
+ * window focus / back online, and before a cloud open), so a transient outage
+ * does not leave the session read-only (UNI-954 R4-1). Local files are never
+ * gated by server flags.
  */
 export function useOfficeFlags(bridge: RendererBridge, input: { enabled: boolean; sessionGeneration: string; accountKey: string | undefined; organizationId: string | undefined; reload: number }) {
   const { enabled, sessionGeneration, accountKey, organizationId, reload } = input;
@@ -39,54 +53,165 @@ export function useOfficeFlags(bridge: RendererBridge, input: { enabled: boolean
   const latest = useRef<Answer | null>(null);
   const currentScope = useRef(scopeKey);
   currentScope.current = scopeKey;
-  const inflight = useRef<Promise<void> | null>(null);
+  const currentOrganization = useRef(organizationId);
+  currentOrganization.current = organizationId;
+  const target = useRef<Target | null>(null);
+  const run = useRef<{ readonly id: number; readonly pending: Promise<void> } | null>(null);
+  const runs = useRef(0);
+  const failures = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /** Starts a read for the current scope, or joins the one in flight. */
+  const fetchNow = useCallback((): Promise<void> | null => {
+    const scope = target.current;
+    if (!scope) return null;
+    if (run.current) return run.current.pending;
+    clearTimeout(retryTimer.current);
+    const id = ++runs.current;
+    const pending = fetchFlags(scope.bridge, scope.sessionGeneration, scope.organizationId).then((flags) => {
+      if (run.current?.id !== id) return;
+      run.current = null;
+      if (flags) {
+        failures.current = 0;
+        latest.current = { scopeKey: scope.scopeKey, flags };
+        setAnswer(latest.current);
+        return;
+      }
+      // A failed reload keeps the previous answer of the same scope; only an unanswered scope keeps asking.
+      if (latest.current?.scopeKey === scope.scopeKey) return;
+      failures.current += 1;
+      retryTimer.current = setTimeout(() => { void fetchNow(); }, Math.min(RETRY_BASE_MS * 2 ** (failures.current - 1), RETRY_MAX_MS));
+    });
+    run.current = { id, pending };
+    return pending;
+  }, []);
 
   useEffect(() => {
-    if (!organizationId || scopeKey === null) { inflight.current = null; return; }
-    let active = true;
-    const pending = fetchFlags(bridge, sessionGeneration, organizationId).then((flags) => {
-      if (!active || !flags) return;
-      latest.current = { scopeKey, flags };
-      setAnswer(latest.current);
-    });
-    inflight.current = pending;
-    return () => { active = false; };
-  }, [bridge, sessionGeneration, scopeKey, organizationId, reload]);
+    if (!organizationId || scopeKey === null) return undefined;
+    target.current = { scopeKey, organizationId, bridge, sessionGeneration };
+    run.current = null;
+    failures.current = 0;
+    void fetchNow();
+    return () => {
+      // A result for this scope that lands later is dropped (its run id no longer matches).
+      target.current = null;
+      run.current = null;
+      clearTimeout(retryTimer.current);
+    };
+  }, [bridge, sessionGeneration, scopeKey, organizationId, reload, fetchNow]);
+
+  useEffect(() => {
+    const wake = () => { if (target.current && latest.current?.scopeKey !== target.current.scopeKey) void fetchNow(); };
+    window.addEventListener("focus", wake);
+    window.addEventListener("online", wake);
+    return () => { window.removeEventListener("focus", wake); window.removeEventListener("online", wake); };
+  }, [fetchNow]);
 
   const flags = answer?.scopeKey === scopeKey ? answer.flags : null;
-  /** Reads the newest answer, not the render it was created in. */
-  const allows = useCallback((format: string): boolean => {
+  /**
+   * Reads the newest answer, not the render it was created in, and only for the
+   * organization the document belongs to: a document from another organization
+   * than the current scope (an org switch during its open) reads unknown, so it
+   * fails closed (UNI-954 R4-5).
+   */
+  const status = useCallback((format: string, documentOrganizationId: string): OfficeFlagStatus => {
+    if (currentOrganization.current !== documentOrganizationId) return "unknown";
     const known = latest.current?.scopeKey === currentScope.current ? latest.current.flags : null;
-    return known !== null && officeFlagsAllow(known, format);
+    if (known === null) return "unknown";
+    return officeFlagsAllow(known, format) ? "on" : "off";
   }, []);
   const settled = useCallback(async (): Promise<void> => {
-    const pending = inflight.current;
+    const scope = target.current;
+    const answered = scope !== null && latest.current?.scopeKey === scope.scopeKey;
+    // No answer yet and nothing in flight (the last read failed): ask again before the open.
+    const pending = run.current?.pending ?? (answered ? null : fetchNow());
     if (!pending) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([pending, new Promise<void>((resolve) => { timer = setTimeout(resolve, FLAGS_WAIT_MS); })]);
     clearTimeout(timer);
-  }, []);
-  return { flags, allows, settled };
+  }, [fetchNow]);
+  return { flags, status, settled };
 }
 
 /**
  * Cloud tabs that opened read-only only because no flags were known yet (or the
  * flags said no) become editable once an answer allows their format. Only a tab
  * that never went dirty is upgraded: a read-only surface cannot edit, and an
- * upgrade swaps its session, so a dirty one is left alone.
+ * upgrade swaps its session, so a dirty one is left alone. The editable session
+ * is built from a fresh read of the document (`reopen`), never from the bytes
+ * captured when the tab first opened, so a document that changed meanwhile is
+ * not edited from a stale base (UNI-954 R4-2). A failed re-read leaves the tab
+ * read-only and gated, and is tried again like an unanswered scope: with
+ * backoff, at once on window focus / back online, and on the next answer
+ * (review-fe-r1 R4), so an answered "on" never strands a tab until a reload.
+ * Only a transient failure (null or a throw) is retried: a permanent answer
+ * (`ReopenRefused`: the reader lost `canEdit`, or the document is gone) drops
+ * the tab from the gate, reports the reason through `onPermanent`, and is never
+ * asked again (UNI-954 review-fe-r2 N1).
  */
-export function useFlagGatedTabs(tabs: ReturnType<typeof useDocumentTabs>, officeFlags: ReturnType<typeof useOfficeFlags>) {
+export function useFlagGatedTabs(
+  tabs: ReturnType<typeof useDocumentTabs>,
+  officeFlags: ReturnType<typeof useOfficeFlags>,
+  reopen: (tab: TabDocument) => Promise<CloudReopen | ReopenRefused | null>,
+  onPermanent: (documentId: string, reason: PermanentReopenReason) => void = () => undefined,
+) {
   const gated = useRef(new Set<string>());
-  const { flags, allows } = officeFlags;
-  useEffect(() => {
-    if (flags === null) return;
-    for (const id of [...gated.current]) {
+  const upgrading = useRef(new Set<string>());
+  // Each gated tab has its own failure count and retry timer, so one flaky tab never delays another.
+  const failures = useRef(new Map<string, number>());
+  const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const { flags, status } = officeFlags;
+  const onPermanentRef = useRef(onPermanent);
+  onPermanentRef.current = onPermanent;
+  const settle = (id: string) => { failures.current.delete(id); clearTimeout(retryTimers.current.get(id)); retryTimers.current.delete(id); };
+  // Rebuilt every render so a retry reads the newest tabs, status and reopen. `only` limits it to one tab (its own timer).
+  const attempt = useRef<(only?: string) => void>(() => undefined);
+  attempt.current = (only) => {
+    for (const id of only === undefined ? [...gated.current] : gated.current.has(only) ? [only] : []) {
       const tab = tabs.current.current.tabs.find((entry) => entry.id === id);
-      if (!tab) { gated.current.delete(id); continue; }
-      if (allows(tab.format) && tabs.upgradeCloud(id)) gated.current.delete(id);
+      if (!tab) { gated.current.delete(id); settle(id); continue; }
+      if (upgrading.current.has(id) || status(tab.format, tab.data.identity.organizationId) !== "on") continue;
+      clearTimeout(retryTimers.current.get(id));
+      upgrading.current.add(id);
+      void reopen(tab.data).catch(() => null).then((fresh) => {
+        upgrading.current.delete(id);
+        // Re-check after the read: the tab may have closed, or the answer turned it off again.
+        const live = tabs.current.current.tabs.find((entry) => entry.id === id);
+        if (!live || status(live.format, live.data.identity.organizationId) !== "on") return;
+        if (fresh && "permanent" in fresh) {
+          gated.current.delete(id);
+          settle(id);
+          onPermanentRef.current(id, fresh.permanent);
+          return;
+        }
+        if (fresh) {
+          if (tabs.upgradeCloud(id, fresh)) { gated.current.delete(id); settle(id); }
+          return;
+        }
+        const count = (failures.current.get(id) ?? 0) + 1;
+        failures.current.set(id, count);
+        clearTimeout(retryTimers.current.get(id));
+        retryTimers.current.set(id, setTimeout(() => attempt.current(id), Math.min(RETRY_BASE_MS * 2 ** (count - 1), RETRY_MAX_MS)));
+      });
     }
-  // The tab set is read through its live ref; this only reacts to a new answer.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  };
+  useEffect(() => {
+    if (flags !== null) attempt.current();
   }, [flags]);
+  // A closed tab leaves the gate at once: its pending retry timer is cleared instead of firing once more.
+  const openTabs = tabs.tabs;
+  useEffect(() => {
+    const open = new Set(tabs.current.current.tabs.map((entry) => entry.id));
+    for (const id of [...gated.current, ...retryTimers.current.keys()]) if (!open.has(id)) { gated.current.delete(id); settle(id); }
+  // settle only touches stable refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTabs]);
+  useEffect(() => {
+    const wake = () => { if (gated.current.size > 0) attempt.current(); };
+    const timers = retryTimers.current;
+    window.addEventListener("focus", wake);
+    window.addEventListener("online", wake);
+    return () => { window.removeEventListener("focus", wake); window.removeEventListener("online", wake); for (const timer of timers.values()) clearTimeout(timer); timers.clear(); };
+  }, []);
   return (documentId: string) => { gated.current.add(documentId); };
 }
