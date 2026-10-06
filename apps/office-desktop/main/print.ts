@@ -89,12 +89,21 @@ export interface PrintDocumentOptions<Owner extends PrintOwner = PrintOwner> {
   /** The window that sent the request, resolved per request (never a window
    * captured at startup); see {@link PrintOwner}. Undefined when it is gone. */
   owner?(): Owner | undefined;
-  /** Builds the hidden print window. It must apply the options verbatim, never
-   * attach a preload and never parent the window: on Windows a print window
+  /** Builds the hidden print window. It must apply the options verbatim and
+   * never attach a preload. `owner` is the job's resolved sender window (or
+   * undefined), handed over so the host can decide parenting; this module never
+   * parents anything itself. The host does not parent on Windows: a print window
    * owned by the app window gets "Print job canceled" back from the dialog's
    * Print button, before the driver ever starts the job (no "Save Print Output
-   * As" for Microsoft Print to PDF). The print host passes them to BrowserWindow. */
-  createWindow(options: PrintWindowOptions): PrintWindow;
+   * As" for Microsoft Print to PDF). */
+  createWindow(options: PrintWindowOptions, owner: Owner | undefined): PrintWindow;
+  /** What the owner's refocus proves. `always` (default): the dialog is modal to
+   * the owner, so the user is back in the app only after it closed. `after-callback-timeout`:
+   * the dialog is NOT modal to the owner (an unparented print window, Windows),
+   * so clicking the app window while it is open proves nothing; only a refocus
+   * seen once the renderer was already answered print_timeout frees a job whose
+   * callback never came, and until then a second Print stays print_busy. */
+  ownerFocusEndsJob?: "always" | "after-callback-timeout";
   /** Writes the copy to a private temporary file named after `fileName`.
    * Chromium names the print job after it when the copy carries no title. */
   writeFile(html: string, fileName: string): Promise<PrintFile>;
@@ -140,7 +149,7 @@ function denyNavigation(window: PrintWindow): void {
 /** The print in flight. A job whose owner regained focus is superseded, not
  * cancelled: the next request may start while its callback is still pending,
  * and the old job then only cleans up after itself. */
-type PrintJob = { sawBlur: boolean; ownerRefocused: boolean };
+type PrintJob = { sawBlur: boolean; ownerRefocused: boolean; timedOut: boolean; refocusHeld: boolean };
 
 /** The main-side handler for `desktop:print-document`. The dispatcher has
  * already checked sender, frame, origin, session, payload type and size. One
@@ -157,15 +166,17 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
     if (active) active.sawBlur = false;
   };
   const timeoutMs = options.callbackTimeoutMs ?? PRINT_CALLBACK_TIMEOUT_MS;
+  const focusEndsJob = options.ownerFocusEndsJob ?? "always";
   return {
     "desktop:print-document": async (request: DesktopIpcRequest<"desktop:print-document">): Promise<DesktopPrintResponse> => {
       if (active && !active.ownerRefocused) return { outcome: "failed", reason: "print_busy" };
-      const job: PrintJob = { sawBlur: false, ownerRefocused: false };
+      const job: PrintJob = { sawBlur: false, ownerRefocused: false, timedOut: false, refocusHeld: false };
       active = job;
       // Resolved under its own guard below: the sender can be destroyed between
       // the dispatcher admitting it and this line, and resolving it may throw.
       let owner: Owner | undefined;
-      const onBlur = () => { if (!closing) job.sawBlur = true; };
+      const onBlur = () => { if (!closing) { job.sawBlur = true; job.refocusHeld = false; } };
+      const supersede = () => { job.ownerRefocused = true; detach(); };
       // Once superseded the job needs no listener: detach at once, not at settle.
       const detach = () => {
         owner?.removeListener("focus", onFocus);
@@ -173,8 +184,9 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       };
       function onFocus() {
         if (closing || !job.sawBlur) return;
-        job.ownerRefocused = true;
-        detach();
+        // An unparented dialog stays open beside a focused app window: hold the refocus until the timeout.
+        if (focusEndsJob === "after-callback-timeout" && !job.timedOut) { job.refocusHeld = true; return; }
+        supersede();
       }
       let file: PrintFile | undefined;
       let window: PrintWindow | undefined;
@@ -197,7 +209,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       let printing: Promise<DesktopPrintResponse>;
       try {
         file = await options.writeFile(request.html, printFileName(request.title));
-        const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
+        const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
         window = created;
         denyNavigation(created);
         await created.loadFile(file.path);
@@ -215,7 +227,14 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       // A print() that throws never opened a dialog: release and answer typed.
       const settled = printing.catch((): DesktopPrintResponse => ({ outcome: "failed", reason: "print_unavailable" })).then(async (outcome) => { await release(); return outcome; });
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const timedOut = new Promise<DesktopPrintResponse>((resolve) => { timer = setTimeout(() => resolve({ outcome: "failed", reason: "print_timeout" }), timeoutMs); });
+      const timedOut = new Promise<DesktopPrintResponse>((resolve) => {
+        timer = setTimeout(() => {
+          job.timedOut = true;
+          // The user already came back to the app window while we waited: that refocus counts now.
+          if (job.refocusHeld) supersede();
+          resolve({ outcome: "failed", reason: "print_timeout" });
+        }, timeoutMs);
+      });
       try {
         return await Promise.race([settled, timedOut]);
       } finally {

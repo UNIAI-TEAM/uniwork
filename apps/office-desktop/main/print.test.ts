@@ -266,17 +266,122 @@ describe("stuck-busy guard", () => {
   });
 });
 
+describe("stuck-busy guard for an unparented dialog (Windows)", () => {
+  type OwnerEvent = "focus" | "blur";
+  function fakeOwner() {
+    const byEvent: Record<OwnerEvent, Set<() => void>> = { focus: new Set(), blur: new Set() };
+    const owner = {
+      on: vi.fn((event: OwnerEvent, listener: () => void) => { byEvent[event].add(listener); }),
+      removeListener: vi.fn((event: OwnerEvent, listener: () => void) => { byEvent[event].delete(listener); }),
+    } satisfies PrintOwner;
+    const emit = (event: OwnerEvent) => [...byEvent[event]].forEach((listener) => listener());
+    return { owner, blur: () => emit("blur"), focus: () => emit("focus") };
+  }
+  function windowsHandler(owner: PrintOwner) {
+    const windows: ReturnType<typeof fakeWindow>[] = [];
+    const callbacks: PrintCallback[] = [];
+    const handler = createPrintIpcHandler({
+      owner: () => owner,
+      ownerFocusEndsJob: "after-callback-timeout",
+      writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }),
+      createWindow: () => { const fake = fakeWindow((callback) => { callbacks.push(callback); }, async () => undefined); windows.push(fake); return fake.window; },
+    })["desktop:print-document"];
+    return { handler, windows, callbacks };
+  }
+  it("stays busy when the user clicks the app window while the non-modal dialog is open, and opens no second dialog", async () => {
+    const { owner, blur, focus } = fakeOwner();
+    const { handler, windows, callbacks } = windowsHandler(owner);
+    void handler(request);
+    await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+    blur();
+    focus();
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+    expect(windows).toHaveLength(1);
+    expect(windows[0]!.window.close).not.toHaveBeenCalled();
+  });
+  it("still frees a job whose callback never came: a refocus after the callback timeout supersedes it", async () => {
+    vi.useFakeTimers();
+    try {
+      const { owner, blur, focus } = fakeOwner();
+      const { handler, callbacks } = windowsHandler(owner);
+      const first = handler(request);
+      await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      // Timed out, the app window not yet refocused: still busy.
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+      blur();
+      focus();
+      const second = handler(request);
+      await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+      callbacks[1]!(true, "");
+      expect(await second).toEqual({ outcome: "printed" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("supersedes at the timeout when the app window was already refocused before it", async () => {
+    vi.useFakeTimers();
+    try {
+      const { owner, blur, focus } = fakeOwner();
+      const { handler, callbacks } = windowsHandler(owner);
+      const first = handler(request);
+      await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+      blur();
+      focus();
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      const second = handler(request);
+      await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+      callbacks[1]!(false, "cancelled");
+      expect(await second).toEqual({ outcome: "cancelled" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("does not supersede at the timeout when the user went back to the dialog after the refocus", async () => {
+    vi.useFakeTimers();
+    try {
+      const { owner, blur, focus } = fakeOwner();
+      const { handler, callbacks } = windowsHandler(owner);
+      const first = handler(request);
+      await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+      blur();
+      focus();
+      blur(); // back in the dialog
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("frees the job when the callback arrives, as always", async () => {
+    const { owner, blur, focus } = fakeOwner();
+    const { handler, callbacks } = windowsHandler(owner);
+    const first = handler(request);
+    await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+    blur();
+    focus();
+    callbacks[0]!(true, "");
+    expect(await first).toEqual({ outcome: "printed" });
+    const second = handler(request);
+    await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+    callbacks[1]!(true, "");
+    expect(await second).toEqual({ outcome: "printed" });
+  });
+});
+
 describe("print owner and callback timeout", () => {
   function owner() {
     return { on: vi.fn(), removeListener: vi.fn() } satisfies PrintOwner;
   }
-  it("guards with the owner resolved for this request, not one captured earlier, and never hands it to the print window", async () => {
+  it("guards with the owner resolved for this request, not one captured earlier, and hands that same owner to createWindow", async () => {
     const owners = [owner(), owner()];
     const [first, second] = owners;
     const resolve = vi.fn(() => owners.shift());
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
-    // Rest args so a stray second argument (the old owner) would show up in the calls.
-    const createWindow = vi.fn((..._args: unknown[]) => fake.window);
+    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
     const handler = createPrintIpcHandler({ owner: resolve, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
     await handler(request);
     expect(first!.on).toHaveBeenCalledWith("blur", expect.any(Function));
@@ -284,18 +389,18 @@ describe("print owner and callback timeout", () => {
     await handler(request);
     expect(second!.on).toHaveBeenCalledWith("blur", expect.any(Function));
     expect(resolve).toHaveBeenCalledTimes(2);
-    // Windows cancels a job whose print window is owned by the app window.
-    for (const call of createWindow.mock.calls) {
-      expect(call).toHaveLength(1);
-      expect(call[0]).not.toHaveProperty("parent");
-    }
+    // Parenting is the host's call (never on Windows): the handler only reports the owner, and never sets a parent itself.
+    expect(createWindow.mock.calls[0]![1]).toBe(first);
+    expect(createWindow.mock.calls[1]![1]).toBe(second);
+    for (const call of createWindow.mock.calls) expect(call[0]).not.toHaveProperty("parent");
   });
   it("prints when the sending window is gone", async () => {
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
-    const createWindow = vi.fn((_options: PrintWindowOptions) => fake.window);
+    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
     const handler = createPrintIpcHandler({ owner: () => undefined, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
     expect(await handler(request)).toEqual({ outcome: "printed" });
     expect(createWindow).toHaveBeenCalledTimes(1);
+    expect(createWindow.mock.calls[0]![1]).toBeUndefined();
   });
   it("fails closed with a typed reason when resolving the owner throws, and stays usable", async () => {
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);

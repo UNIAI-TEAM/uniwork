@@ -10,8 +10,14 @@ import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPr
  *
  * The window that SENT the request is resolved per request from the sender's
  * webContents - the dispatcher admits only that one sender - and never
- * captured at startup: it only feeds the busy guard's focus signal. The print
- * window itself is never parented to it; see PrintDocumentOptions.createWindow.
+ * captured at startup. On Windows it only feeds the busy guard's focus signal:
+ * the print window is never parented to it there (a parented one is cancelled
+ * by the driver, visual-r1 M4, proven on Windows only). On macOS and Linux the
+ * print window keeps its parent as before this lane touched it: nothing there
+ * showed the parent to be wrong and nothing could be probed, so the sheet /
+ * modal dialog on the app window stays. The hidden window is a window of its
+ * own, so the host also destroys any live one when the app window closes or
+ * the app quits (see `registerShutdown`).
  */
 
 /** The slice of Electron's BrowserWindow the host needs from the sender. */
@@ -27,8 +33,13 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
   /** The window whose webContents sent the request
    * (`BrowserWindow.fromWebContents`), or undefined when it is gone. */
   senderWindow(): Owner | null | undefined;
-  /** `new BrowserWindow(options)`: options are applied verbatim. */
-  createWindow(options: PrintWindowOptions & { icon?: string }): PrintWindow;
+  /** `new BrowserWindow(options)`: options are applied verbatim. `parent` is set
+   * only off Windows, and only when the sender window is still alive. */
+  createWindow(options: PrintWindowOptions & { icon?: string; parent?: Owner }): PrintWindow & { destroy(): void };
+  /** Registers the callback that runs when the app window closed or the app is
+   * about to quit (electron-main: `window.once("closed")`, `app.once("before-quit")`).
+   * It may run more than once. */
+  registerShutdown(closeWindows: () => void): void;
   /** The built bundle directory (`dist`) the product icon is read from. */
   distDirectory: string;
   /** Overrides `process.platform` (tests). */
@@ -42,14 +53,31 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
   installPrintSessionGuard(options.partitionSession(PRINT_PARTITION), pathToFileURL(printRoot).href);
   // A process that quit with a print dialog open never ran its cleanup.
   await clearPrintRoot(printRoot);
+  const platform = options.platform ?? process.platform;
+  // The unparented window outlives the app window it came from; without this the
+  // process lingers (window-all-closed never fires) until the dialog is dismissed.
+  // Only at close/quit: an open dialog is never touched while the app lives.
+  const live = new Set<{ isDestroyed(): boolean; destroy(): void }>();
+  options.registerShutdown(() => {
+    for (const window of live) if (!window.isDestroyed()) window.destroy();
+    live.clear();
+  });
   return createPrintIpcHandler<Owner>({
+    // Windows: the dialog is not modal to the app window, so a click on it does not mean the dialog closed.
+    ownerFocusEndsJob: platform === "win32" ? "after-callback-timeout" : "always",
     owner: () => {
       const sender = options.senderWindow();
       return sender && !sender.isDestroyed() ? sender : undefined;
     },
     // The print window is hidden, but Chromium still names the job and the
     // suggested PDF after its title: the document, else the product, never "Electron".
-    createWindow: (windowOptions) => options.createWindow({ ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(options.platform ?? process.platform, options.distDirectory) }),
+    createWindow: (windowOptions, owner) => {
+      const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(platform, options.distDirectory) };
+      const created = options.createWindow(owner && platform !== "win32" ? { ...branded, parent: owner } : branded);
+      for (const window of live) if (window.isDestroyed()) live.delete(window);
+      live.add(created);
+      return created;
+    },
     writeFile: createPrintFileWriter(printRoot),
   });
 }

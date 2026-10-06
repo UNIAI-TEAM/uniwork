@@ -176,7 +176,7 @@ async function startElectronHost(): Promise<void> {
       window.close();
     });
   });
-  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), distDirectory: dirname(DIST_MAIN_DIRECTORY) });
+  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), registerShutdown: (closeWindows) => { window.once("closed", closeWindows); app.once("before-quit", closeWindows); }, distDirectory: dirname(DIST_MAIN_DIRECTORY) });
   // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
   // machine-sized heap: a heap OOM there kills only the child, and every request
   // in flight answers insufficient_memory (see main/engine-host).
