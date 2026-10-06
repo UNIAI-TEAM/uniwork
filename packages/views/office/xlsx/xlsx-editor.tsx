@@ -11,7 +11,7 @@ import { XlsxFindPanel } from "./find/find-panel";
 import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
-import { useXlsxProtectNames } from "./protect/use-protect-names";
+import { useEditorProtectNames } from "./protect/use-protect-names";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
@@ -347,17 +347,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // Sheet protection + the name manager (B7): the hook owns the dialog state
   // and the two new ops; see protect/.
-  const protectNames = useXlsxProtectNames({
-    activeSheet: resolvedActiveSheet,
-    readOnly,
-    canEdit,
-    // F1/F5: the file's own names seed the manager; the live sheet order bounds
-    // the scope dropdown. Both come from the open render model / mounted grid.
-    definedNames: rendererHost?.file.definedNames,
-    sheetNames: (liveSheets.length > 0 ? liveSheets.map((sheet) => sheet.name) : (snapshot?.sheets ?? []).map((sheet) => sheet.name)),
-    edit: editor.edit,
-    onApplied: () => { markDirty(); refreshSnapshot(); },
-    onError: setRecalcError,
+  const protectNames = useEditorProtectNames({
+    activeSheet: resolvedActiveSheet, readOnly, canEdit, rendererHost, liveSheets, snapshot, edit: editor.edit,
+    onApplied: () => { markDirty(); refreshSnapshot(); }, onError: setRecalcError,
   });
 
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
